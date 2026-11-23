@@ -161,6 +161,12 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 // dataOnce is the context decoded from its JSON form, which is the only shape JsonLogic accepts.
 func (q *queryContext) dataOnce() (any, error) {
 	if q.parsedEvalCtxAsData == nil {
+		// Common case: the context only has JSON-like values, so what the encoding would
+		// produce is built directly (the result is the same, without marshalling and parsing).
+		if data, ok := normalizeJSONValue(q.mapOnce()); ok {
+			q.parsedEvalCtxAsData = data
+			return data, nil
+		}
 		raw, err := q.jsonOnce()
 		if err != nil {
 			return nil, err
