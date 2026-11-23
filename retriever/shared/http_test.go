@@ -27,7 +27,9 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 		method string
 	}{
 		{name: "transport error", url: "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER", method: http.MethodGet},
-		{name: "invalid request", url: "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER", method: "BAD METHOD"},
+		{name: "unparsable url (invalid port)", url: "https://user:SECRETMARKER", method: http.MethodGet},
+		{name: "unparsable url (invalid escape)", url: "https://u:p@h/%zzSECRETMARKER", method: http.MethodGet},
+		{name: "unparsable url (control character)", url: "https://h/\x7fSECRETMARKER", method: http.MethodGet},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -37,4 +39,20 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 			assert.NotContains(t, err.Error(), "SECRETMARKER")
 		})
 	}
+}
+
+type redirectRejectingClient struct{ resp *http.Response }
+
+func (c redirectRejectingClient) Do(req *http.Request) (*http.Response, error) {
+	return c.resp, &url.Error{Op: "Get", URL: req.URL.String(), Err: errors.New("stopped after 10 redirects")}
+}
+
+func TestCallHTTPAPI_KeepsResponseOnClientError(t *testing.T) {
+	t.Parallel()
+	want := &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {"/next"}}}
+	resp, err := shared.CallHTTPAPI(context.Background(),
+		"https://user:SECRETMARKER@flags.example.com/f", "", "", 0, nil, redirectRejectingClient{resp: want})
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRETMARKER")
+	require.Same(t, want, resp)
 }

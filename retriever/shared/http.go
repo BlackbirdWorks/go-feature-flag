@@ -50,7 +50,9 @@ func CallHTTPAPI(
 	// API call
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, internal.RedactURLError(err)
+		// http.Client.Do can return a non-nil response (body already closed) together with an error when
+		// CheckRedirect fails: keep it so the callers still see the status and the headers.
+		return resp, internal.RedactURLError(err)
 	}
 	return resp, nil
 }
