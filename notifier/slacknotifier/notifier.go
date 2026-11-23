@@ -52,7 +52,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	slackURL, err := url.Parse(c.SlackWebhookURL)
 	if err != nil {
-		return fmt.Errorf("error: (Slack Notifier) invalid SlackWebhookURL: %v", c.SlackWebhookURL)
+		// the webhook URL is the secret of a Slack webhook, it must not be part of the error.
+		return fmt.Errorf("error: (Slack Notifier) invalid SlackWebhookURL: %w", internal.RedactURLError(err))
 	}
 
 	reqBody := convertToSlackMessage(diff)
@@ -68,7 +69,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 	response, err := c.httpClient.Do(&request)
 	if err != nil {
-		return fmt.Errorf("error: (Slack Notifier) error: while calling webhook: %v", err)
+		return fmt.Errorf("error: (Slack Notifier) error: while calling webhook: %w", internal.RedactURLError(err))
 	}
 
 	defer func() { _ = response.Body.Close() }()
