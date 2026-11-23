@@ -47,3 +47,5 @@ volume
 go.work
 go.work.sum
 .gstack/
+coverage/
+__pycache__/
