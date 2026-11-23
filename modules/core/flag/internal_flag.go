@@ -208,12 +208,40 @@ func (f *InternalFlag) selectVariation(
 	}, nil
 }
 
-// nolint: gocognit
 // applyScheduledRolloutSteps is checking if the flag has a scheduled rollout configured.
 // If yes we merge the changes to the current flag.
+//
+// The flag that results only depends on how many steps are due, so it is built once for each
+// count (see scheduledMemo) and shared, read-only, by the evaluations. The flag f is never modified.
 func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*InternalFlag, error) {
 	if f.Scheduled == nil {
 		return f, nil
+	}
+
+	// We only keep the steps that are already active (date in the past or now).
+	due := 0
+	for i := range *f.Scheduled {
+		if isStepDue(&(*f.Scheduled)[i], evaluationDate) {
+			due++
+		}
+	}
+	return scheduledFlags.get(f, due, func() (*InternalFlag, error) {
+		return f.buildScheduledFlag(evaluationDate)
+	})
+}
+
+func isStepDue(step *ScheduledStep, evaluationDate time.Time) bool {
+	return step.Date != nil && (step.Date.Before(evaluationDate) || step.Date.Equal(evaluationDate))
+}
+
+// buildScheduledFlag applies the due steps on a deep copy of the flag.
+// nolint: gocognit
+func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFlag, error) {
+	dueSteps := make([]ScheduledStep, 0, len(*f.Scheduled))
+	for _, step := range *f.Scheduled {
+		if isStepDue(&step, evaluationDate) {
+			dueSteps = append(dueSteps, step)
+		}
 	}
 
 	// We are doing a deep copy the flag to avoid modifying the original flag.
@@ -227,12 +255,11 @@ func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*In
 		return &InternalFlag{}, err
 	}
 
-	// We only keep the steps that are already active (date in the past or now).
-	dueSteps := make([]ScheduledStep, 0, len(*f.Scheduled))
-	for _, step := range *f.Scheduled {
-		if step.Date != nil &&
-			(step.Date.Before(evaluationDate) || step.Date.Equal(evaluationDate)) {
-			dueSteps = append(dueSteps, step)
+	// the json copy loses the hash of the queries (see Rule.QueryHash): the rules have the
+	// same queries as the ones of f at this point, so the hashes are still right.
+	if f.Rules != nil && flagCopy.Rules != nil && len(*f.Rules) == len(*flagCopy.Rules) {
+		for i := range *f.Rules {
+			(*flagCopy.Rules)[i].QueryHash = (*f.Rules)[i].QueryHash
 		}
 	}
 

@@ -1,0 +1,84 @@
+package flag
+
+import (
+	"runtime"
+	"testing"
+	"time"
+	"weak"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
+)
+
+func scheduledFlag(base time.Time) *InternalFlag {
+	f := &InternalFlag{
+		Variations: &map[string]*any{
+			"A": testconvert.Interface("a"),
+			"B": testconvert.Interface("b"),
+		},
+		DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+		Scheduled: &[]ScheduledStep{
+			{Date: testconvert.Time(base.Add(2 * time.Hour)), InternalFlag: InternalFlag{
+				DefaultRule: &Rule{VariationResult: testconvert.String("B")}}},
+			{Date: testconvert.Time(base.Add(time.Hour)), InternalFlag: InternalFlag{
+				Version: testconvert.String("v2")}},
+		},
+	}
+	return f
+}
+
+func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
+	t.Parallel()
+	base := time.Now()
+	tests := []struct {
+		name        string
+		offset      time.Duration
+		wantVar     string
+		wantVersion string
+	}{
+		{name: "no step due", offset: 0, wantVar: "A", wantVersion: ""},
+		{name: "one step due (steps are not in date order)", offset: 90 * time.Minute, wantVar: "A", wantVersion: "v2"},
+		{name: "both steps due", offset: 3 * time.Hour, wantVar: "B", wantVersion: "v2"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := scheduledFlag(base)
+			before := *f.Scheduled
+			runParallel(200, func(int) {
+				ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
+				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
+					"currentDateTime": base.Add(tt.offset).Format(time.RFC3339Nano)})
+				v, d := f.Value("flag", ctx, Context{})
+				assert.Equal(t, tt.wantVar == "A", v == "a")
+				assert.Equal(t, tt.wantVar, d.Variant)
+			})
+			res, err := f.applyScheduledRolloutSteps(base.Add(tt.offset))
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantVersion, res.GetVersion())
+			// the flag itself is never modified
+			assert.Equal(t, "", f.GetVersion())
+			assert.Equal(t, "A", f.GetDefaultRule().GetVariationResult())
+			assert.Equal(t, before, *f.Scheduled)
+		})
+	}
+}
+
+// the memoized flags must not outlive the flag they were built for.
+func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
+	t.Parallel()
+	f := scheduledFlag(time.Now())
+	key := weak.Make(f.Scheduled)
+	_, err := f.applyScheduledRolloutSteps(time.Now())
+	require.NoError(t, err)
+	_, ok := scheduledFlags.entries.Load(key)
+	require.True(t, ok)
+	f = nil
+	assert.Eventually(t, func() bool {
+		runtime.GC()
+		_, ok := scheduledFlags.entries.Load(key)
+		return !ok
+	}, 5*time.Second, 20*time.Millisecond)
+}
