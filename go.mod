@@ -1,6 +1,6 @@
 module github.com/thomaspoignant/go-feature-flag
 
-go 1.26.11
+go 1.27.4
 
 require (
 	cloud.google.com/go/bigquery v1.86.2

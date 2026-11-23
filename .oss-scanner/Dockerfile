@@ -2,7 +2,7 @@
 #
 # The audit runs offline, so this build fetches every module, builds the library, the relay proxy, the CLI
 # and the jsonschema generator, and precompiles the tests. threat_model.md, next to this file, says how to run them.
-FROM golang:1.26-bookworm
+FROM golang:1.27-bookworm
 ENV DEBIAN_FRONTEND=noninteractive
 # curl to talk to a running relay proxy.
 RUN apt-get update && apt-get install -y --no-install-recommends curl \

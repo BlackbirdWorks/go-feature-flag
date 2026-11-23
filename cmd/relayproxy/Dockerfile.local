@@ -16,7 +16,7 @@
 #     -v $(pwd)/goff-proxy.yaml:/goff/goff-proxy.yaml \
 #     go-feature-flag:local
 
-FROM golang:1.26 AS build
+FROM golang:1.27 AS build
 WORKDIR /src
 COPY . .
 # GOWORK=off mirrors what CI does (see Makefile): the root module resolves
