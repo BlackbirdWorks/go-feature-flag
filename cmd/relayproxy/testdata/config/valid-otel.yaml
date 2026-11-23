@@ -3,7 +3,7 @@ server:
   port: 1031
 retrievers:
   - kind: file
-    path: examples/retriever_file/flags.goff.yaml
+    path: cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
 otel:
   exporter:
     otlp:

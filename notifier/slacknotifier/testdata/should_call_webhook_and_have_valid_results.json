@@ -1,12 +1,10 @@
 {
-  "icon_url": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png",
   "text": "Changes detected in your feature flag file on: *{{hostname}}*",
   "attachments": [
     {
       "color": "#FF0000",
       "title": "❌ Flag \"test-flag\" deleted",
       "fields": null,
-      "footer_icon": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png",
       "footer": "go-feature-flag"
     },
     {
@@ -17,14 +15,12 @@
         "text"
       ],
       "fields": null,
-      "footer_icon": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png",
       "footer": "go-feature-flag"
     },
     {
       "color": "#008000",
       "title": "🆕 Flag \"test-flag3\" created by jane",
       "fields": null,
-      "footer_icon": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png",
       "footer": "go-feature-flag"
     }
   ]

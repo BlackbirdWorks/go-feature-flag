@@ -10,18 +10,13 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {
-            "name": "GO feature flag relay proxy",
-            "url": "https://gofeatureflag.org",
-            "email": "contact@gofeatureflag.org"
+            "name": "GO feature flag relay proxy"
         },
         "license": {
             "name": "MIT",
-            "url": "https://github.com/thomaspoignant/go-feature-flag/blob/main/LICENSE"
+            "url": "https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE"
         },
-        "version": "{{.Version}}",
-        "x-logo": {
-            "url": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png"
-        }
+        "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",

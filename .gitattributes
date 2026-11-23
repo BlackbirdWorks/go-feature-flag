@@ -15,8 +15,3 @@
 *.ico binary
 *.jar binary
 *.xcuserstate binary
-
-website/docs/** linguist-documentation
-website/versioned_docs/** linguist-documentation
-website/versioned_sidebars/** linguist-documentation
-website/blog/** linguist-documentation

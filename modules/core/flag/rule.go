@@ -297,18 +297,33 @@ func (r *Rule) EvaluateProgressiveRollout(
 }
 
 // EvaluatePercentageRollout is evaluating the percentage rollout for the rule.
+//
+// The hash modulus is the legacy one: the raw percentages are summed, then scaled and truncated. Changing it would
+// move users who already have a variation. The sum used to be done in map iteration order, and float addition is not
+// associative, so it was not deterministic for 3 variations or more; it is now done in the bucket order. A hash
+// that is beyond the end of the last bucket (the modulus can be one above it because of float rounding) gets the
+// last variation that has a share, instead of an error.
 func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
-	m := 0.0
-	for _, percentage := range r.GetPercentages() {
-		m += percentage
+	percentage := r.GetPercentages()
+
+	// we need to sort the names to be sure we are constantly affecting the users to the same bucket.
+	// Map are not ordered in GO, so we have to order the variationNames to be able to compute the same numbers for the
+	// buckets every time we are in this function.
+	var buf [16]string
+	names := buf[:0]
+	for k := range percentage {
+		names = append(names, k)
 	}
-	maxPercentage := uint32(m * PercentageMultiplier)
-	hashID := utils.BuildHash(flagName, key, maxPercentage)
-	variationName, err := r.getVariationFromPercentage(hashID)
-	if err != nil {
-		return "", err
+	slices.Sort(names)
+
+	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
+	// to always have "True" before "False"
+	sum := float64(0)
+	for i := len(names) - 1; i >= 0; i-- {
+		sum += percentage[names[i]]
 	}
-	return variationName, nil
+	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
+	return variationFromBuckets(percentage, names, hash)
 }
 
 // IsDynamic is a function that allows to know if the rule has a dynamic result or not.
@@ -375,28 +390,23 @@ func (r *Rule) getVariationFromProgressiveRollout(
 	return "", fmt.Errorf("error in the progressive rollout, missing params")
 }
 
-func (r *Rule) getVariationFromPercentage(hash uint32) (string, error) {
-	percentage := r.GetPercentages()
-
-	// we need to sort the names to be sure we are constantly affecting the users to the same bucket.
-	// Map are not ordered in GO, so we have to order the variationNames to be able to compute the same numbers for the
-	// buckets every time we are in this function.
-	var buf [16]string
-	names := buf[:0]
-	for k := range percentage {
-		names = append(names, k)
-	}
-	slices.Sort(names)
-
-	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
-	// to always have "True" before "False"
+func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
+	last := ""
 	for i := len(names) - 1; i >= 0; i-- {
-		end := start + (percentage[names[i]] * PercentageMultiplier)
+		p := percentage[names[i]]
+		end := start + (p * PercentageMultiplier)
 		if uint32(start) <= hash && uint32(end) > hash {
 			return names[i], nil
 		}
+		if p > 0 {
+			last = names[i]
+		}
 		start = end
+	}
+	if last != "" {
+		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
+		return last, nil
 	}
 	return "", fmt.Errorf("impossible to find the variation")
 }

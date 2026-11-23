@@ -1,31 +1,21 @@
-# GO Feature Flag Command Line
+# Semaphore Command Line
 
-# What is GO Feature Flag Command Line?
+# What is Semaphore Command Line?
 
-The GO Feature Flag Command Line is a CLI tool to interact with GO Feature Flag in your terminal.  
+The Semaphore Command Line is a CLI tool to interact with Semaphore in your terminal.  
 For now it supports the following commands:
 
 - `evaluate` to evaluate feature flags directly in your terminal
 - `lint` to validate a configuration file format.
 - `generate manifest` to create an OpenFeature flag manifest.
 
-## How to install the cli
-
-### Install using Homebrew (mac and linux)
+## How to build the cli
 
 ```shell
-brew tap thomaspoignant/homebrew-tap
-brew install go-feature-flag-cli
+make build-cli   # from the repository root; binary: out/bin/cli
 ```
 
-### Install using docker
-
-```shell
-docker pull gofeatureflag/go-feature-flag-cli
-```
-
-More information about the usage of the container in
-the [dockerhub page](https://hub.docker.com/r/gofeatureflag/go-feature-flag-cli).
+The examples below call the binary `go-feature-flag-cli`; use `out/bin/cli` (or rename it).
 
 # How to use the command line
 
@@ -66,8 +56,7 @@ Supported values for `--kind` are:
 - `azureBlobStorage`
 - `postgresql`
 
-**Caution**: We do not support `redis` retriever as for now due
-to: https://github.com/thomaspoignant/go-feature-flag/issues/4023.
+**Caution**: The `redis` retriever is not supported by this command.
 
 ### Retriever specific flags
 
@@ -188,11 +177,11 @@ go-feature-flag-cli lint <location_of_your_flag_configuration_file> --format="<y
 
 # License
 
-View [license](https://github.com/thomaspoignant/go-feature-flag/blob/main/LICENSE) information for the software
+View [license](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE) information for the software
 contained in this image.
 
 ## How can I contribute?
 
 This project is open for contribution, see
-the [contributor's guide](https://github.com/thomaspoignant/go-feature-flag/blob/main/CONTRIBUTING.md) for some helpful
+the [contributor's guide](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/CONTRIBUTING.md) for some helpful
 tips.

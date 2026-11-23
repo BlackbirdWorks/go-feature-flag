@@ -1,8 +1,0 @@
-{
-  "key": "disabled_object",
-  "value": {
-    "default": true
-  },
-  "reason": "DISABLED",
-  "variant": "defaultSdk"
-}

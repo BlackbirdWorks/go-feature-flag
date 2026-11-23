@@ -2,7 +2,10 @@
 
 ## Reporting a Vulnerability
 
-If you find a vulnerability please open an issue *(bug report)* with the flag `security` and affect the issue to `thomaspoignant`.  
-I will look into it as soon as possible and will give you more information in the issue as soon I have somne.
+Please report vulnerabilities privately with GitHub's private vulnerability reporting:
+open the **Security** tab of this repository (`BlackbirdWorks/go-feature-flag`) and choose
+**Report a vulnerability**.
 
-You can directly click here and your issue will have the good label and assignee: [OPEN SECURITY ISSUE](https://github.com/thomaspoignant/go-feature-flag/issues/new?assignees=thomaspoignant&labels=security&template=bug.md).
+Do not open a public issue for a security problem. Include the affected version or commit,
+steps to reproduce, and the impact you see. We will acknowledge the report and follow up in
+the private advisory.

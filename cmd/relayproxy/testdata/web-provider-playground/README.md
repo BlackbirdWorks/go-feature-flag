@@ -4,7 +4,7 @@ Two small **dev tools** for manually testing how the relay-proxy pushes flag cha
 clients fall back to polling when those streams break.
 
 > [!NOTE]
-> These are local dev tools, not production code. They are excluded from SonarCloud (`**/testdata/**`) and from the
+> These are local dev tools, not production code. They are excluded from linting and from the
 > Scorecard results.
 
 ## What is in this folder?
