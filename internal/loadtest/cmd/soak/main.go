@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
@@ -32,9 +33,23 @@ func main() {
 		maxMem   = flag.Int64("max-events", 100000, "exporter MaxEventInMemory")
 		warmup   = flag.Int("warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
 		tol      = flag.Float64("heap-tolerance", 0.25, "relative HeapInuse growth tolerated")
+		cpuProf  = flag.String("cpuprofile", "", "write a CPU profile of the whole run to this file")
 	)
 	flag.Parse()
 	slog.SetLogLoggerLevel(slog.LevelError)
+
+	if *cpuProf != "" {
+		f, err := os.Create(*cpuProf)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(2)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(2)
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	var (
 		t   loadtest.Target
@@ -72,6 +87,7 @@ func main() {
 	}, os.Stdout)
 	rep.Summary(os.Stdout)
 	if !rep.Pass {
+		pprof.StopCPUProfile()
 		os.Exit(1)
 	}
 }
