@@ -34,6 +34,8 @@ func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
 	}
 }
 
+// getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
+// allocation-free. The caller must not modify it.
 func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 	f, ok := fc.Flags[key]
 	if !ok {
@@ -41,14 +43,6 @@ func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 		return &flag.InternalFlag{}, fmt.Errorf("flag [%v] does not exists", key)
 	}
 	return f, nil
-}
-
-func (fc *InMemoryCache) keys() []string {
-	keys := make([]string, 0, len(fc.Flags))
-	for k := range fc.Flags {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 func (fc *InMemoryCache) Copy() Cache {
@@ -59,11 +53,14 @@ func (fc *InMemoryCache) Copy() Cache {
 	return inMemoryCache
 }
 
+// All returns a snapshot of the flags. Every flag is a shallow copy of the cached one (the same
+// semantics as before the lock-free lookup): the caller can keep the map or change its flags
+// without affecting the cache. getFlag is the only accessor returning the shared flag.
 func (fc *InMemoryCache) All() map[string]flag.Flag {
-	c := map[string]flag.Flag{}
-	for _, key := range fc.keys() {
-		val, _ := fc.getFlag(key)
-		c[key] = val
+	c := make(map[string]flag.Flag, len(fc.Flags))
+	for key, val := range fc.Flags {
+		cp := *val
+		c[key] = &cp
 	}
 	return c
 }
