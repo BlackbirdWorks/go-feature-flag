@@ -6,13 +6,22 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 )
 
+const (
+	// VersionHeaderName is the response header carrying the version of the relay proxy.
+	VersionHeaderName = "X-SEMAPHORE-VERSION"
+	// LegacyVersionHeaderName is the name GO Feature Flag used for the same header, still sent
+	// next to VersionHeaderName for the clients that read it.
+	LegacyVersionHeaderName = "X-GOFEATUREFLAG-VERSION"
+)
+
 // VersionHeaderConfig defines the configuration for the middleware.
 type VersionHeaderConfig struct {
 	Skipper          middleware.Skipper
 	RelayProxyConfig *config.Config
 }
 
-// VersionHeader is a middleware that adds the version of the relayproxy in the header.
+// VersionHeader is a middleware that adds the version of the relay proxy in the headers
+// VersionHeaderName and LegacyVersionHeaderName.
 func VersionHeader(cfg VersionHeaderConfig) echo.MiddlewareFunc {
 	// Use provided skipper or fallback to the default skipper.
 	skipper := cfg.Skipper
@@ -26,7 +35,8 @@ func VersionHeader(cfg VersionHeaderConfig) echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			c.Response().Header().Set("X-GOFEATUREFLAG-VERSION", cfg.RelayProxyConfig.Version)
+			c.Response().Header().Set(VersionHeaderName, cfg.RelayProxyConfig.Version)
+			c.Response().Header().Set(LegacyVersionHeaderName, cfg.RelayProxyConfig.Version)
 			return next(c)
 		}
 	}

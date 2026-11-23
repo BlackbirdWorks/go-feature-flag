@@ -33,7 +33,7 @@ func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enric
 	custom := merged.GetCustom()
 	maps.Copy(custom, ctx.GetCustom())
 	maps.Copy(custom, enrichment)
-	_, hasProtectedd := enrichment["gofeatureflag"]
+	hasProtectedd := ffcontext.HasReservedKey(enrichment)
 	_, hasAnonymous := enrichment["anonymous"]
 	return &enrichedContext{
 		Context: ctx, merged: merged, hasProtected: hasProtectedd, hasAnonymous: hasAnonymous,

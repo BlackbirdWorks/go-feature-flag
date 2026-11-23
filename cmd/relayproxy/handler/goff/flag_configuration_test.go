@@ -250,7 +250,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 }
 
 func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) {
-	const metricName = "gofeatureflag_flag_configuration_total"
+	const metricName = "semaphore_flag_configuration_total"
 	const want = "# HELP " + metricName + " Counter events for number of configuration api requests.\n" +
 		"# TYPE " + metricName + " counter\n" +
 		metricName + " 1\n"

@@ -1127,7 +1127,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 		// Only check histogram metric families from our subsystem
 		if mf.GetType() == promdto.MetricType_HISTOGRAM {
-			if strings.HasPrefix(mf.GetName(), "gofeatureflag_") {
+			if strings.HasPrefix(mf.GetName(), "semaphore_") {
 				histogramFamilies = append(histogramFamilies, &mf)
 			}
 		}

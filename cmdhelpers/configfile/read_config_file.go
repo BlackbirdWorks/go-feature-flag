@@ -7,19 +7,25 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 var ConfigFileDefaultLocations = []string{
 	"./",
+	"/semaphore/",
+	"/etc/opt/semaphore/",
 	"/goff/",
 	"/etc/opt/goff/",
 }
+
+// flagFileNames are the names of the flag file searched in the default locations, in this order. The
+// second one is the name of GO Feature Flag.
+var flagFileNames = []string{"flags.semaphore", "flags.goff"}
 
 func LoadConfigFile(
 	inputFilePath, configFormat string,
 	defaultLocations []string,
 ) (map[string]dto.DTO, error) {
-	filename := "flags.goff"
 	if defaultLocations == nil {
 		defaultLocations = ConfigFileDefaultLocations
 	}
@@ -37,12 +43,19 @@ func LoadConfigFile(
 		return readConfigFile(inputFilePath, configFormat)
 	}
 	for _, location := range defaultLocations {
-		for _, ext := range supportedExtensions {
-			configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
-			if _, err := os.Stat(configFile); err != nil {
-				continue
+		for _, filename := range flagFileNames {
+			for _, ext := range supportedExtensions {
+				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
+				if _, err := os.Stat(configFile); err != nil {
+					continue
+				}
+				if filename != flagFileNames[0] {
+					legacy.Default.Warn(legacy.KindFlagFile, fmt.Sprintf(
+						"the flag file %s uses the legacy name %s, it is still accepted, rename it to %s.%s",
+						configFile, filename, flagFileNames[0], ext))
+				}
+				return readConfigFile(configFile, ext)
 			}
-			return readConfigFile(configFile, ext)
 		}
 	}
 	return nil, fmt.Errorf(

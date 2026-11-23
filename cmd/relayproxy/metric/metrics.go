@@ -1,9 +1,13 @@
 package metric
 
 import (
+	"strings"
+
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -29,8 +33,13 @@ type MetricsOpts struct {
 	EnableBulkMetricFlagNames bool
 }
 
-// GOFFSubSystem is the name of the prefix we are using for all the metrics
-const GOFFSubSystem = "gofeatureflag"
+const (
+	// SubSystem is the name of the prefix we are using for all the metrics
+	SubSystem = "semaphore"
+	// LegacySubSystem is the prefix GO Feature Flag used for the same metrics. The series are only
+	// exposed under it when the configuration asks for it (exposeLegacyMetrics), see Metrics.Gatherer.
+	LegacySubSystem = "gofeatureflag"
+)
 
 // NewMetrics is the constructor for the custom metrics
 // nolint:funlen
@@ -49,105 +58,105 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	flagEvaluationCounter := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "flag_evaluations_total",
 		Help:      "Counter events for number of flag evaluation.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of call to the all flag endpoint
 	allFlagCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "all_flag_evaluations_total",
 		Help:      "Counter events for number of all flags requests.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of bulk evaluations along with flag
 	allFlagCounterWithFlag := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "all_flags_evaluations_total_with_flag",
 		Help:      "Counter events for all flags bulk evaluations with individual flag names",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of tracking events collected through the API
 	collectEvalDataCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "collect_eval_data_total",
 		Help:      "Counter events for data collector.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of flag changes (create, update, delete) from your configuration
 	flagChange := prom.NewCounter(prom.CounterOpts{
 		Name:      "flag_changes_total",
 		Help:      "Counter that counts the number of flag changes.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of new flag created from your configuration
 	flagCreateCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "flag_create_total",
 		Help:      "Counter that counts the number of flag created.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of flag deleted from your configuration
 	flagDeleteCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "flag_delete_total",
 		Help:      "Counter that counts the number of flag deleted.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of flag updated from your configuration
 	flagUpdateCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "flag_update_total",
 		Help:      "Counter that counts the number of flag updated.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of update per flag
 	flagUpdateCounterVec := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "flag_update",
 		Help:      "Counter events for number of update per flag.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of delete per flag
 	flagDeleteCounterVec := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "flag_delete",
 		Help:      "Counter events for number of delete per flag.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// flagCreateCounterVec counts the number of create per flag
 	flagCreateCounterVec := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "flag_create",
 		Help:      "Counter events for number of create per flag.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of flag updated from your configuration
 	forceRefreshCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "force_refresh",
 		Help:      "Counter that counts the number of force refresh.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of call to the validate flags endpoint per outcome
 	validateFlagsCounterVec := prom.NewCounterVec(prom.CounterOpts{
 		Name:      "validate_flags_total",
 		Help:      "Counter events for number of calls to the validate flags endpoint, per outcome.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	}, []string{outcomeLabel})
 
 	// counts the number of call to the flag configuration endpoint
 	flagConfigurationCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "flag_configuration_total",
 		Help:      "Counter events for number of configuration api requests.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	// counts the number of calls to the manifest endpoint
 	getManifestCounter := prom.NewCounter(prom.CounterOpts{
 		Name:      "get_manifest_total",
 		Help:      "Counter events for number of getManifest api requests.",
-		Subsystem: GOFFSubSystem,
+		Subsystem: SubSystem,
 	})
 
 	metricToRegister := []prom.Collector{
@@ -166,7 +175,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 		validateFlagsCounterVec,
 		flagConfigurationCounter,
 		getManifestCounter,
-		versioncollector.NewCollector(GOFFSubSystem),
+		versioncollector.NewCollector(SubSystem),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		collectors.NewGoCollector(),
 	}
@@ -316,4 +325,38 @@ func (m *Metrics) IncGetManifestCall() {
 
 func (m *Metrics) ShouldCollectBulkMetrics() bool {
 	return m.opts.EnableBulkMetricFlagNames && m.allFlagCounterWithFlag.MetricVec != nil
+}
+
+// Gatherer returns what the /metrics endpoint serves. With exposeLegacy it also serves every series of
+// the SubSystem under its LegacySubSystem name (semaphore_flag_evaluations_total is also exposed as
+// gofeatureflag_flag_evaluations_total), so the dashboards and alerts of GO Feature Flag keep working.
+func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
+	if !exposeLegacy {
+		return m.Registry
+	}
+	return prom.Gatherers{m.Registry, legacyGatherer{source: m.Registry}}
+}
+
+// legacyGatherer re-labels the series of the SubSystem with the LegacySubSystem prefix.
+type legacyGatherer struct {
+	source prom.Gatherer
+}
+
+func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
+	families, err := g.source.Gather()
+	prefix := SubSystem + "_"
+	legacy := make([]*dto.MetricFamily, 0, len(families))
+	for _, family := range families {
+		name := family.GetName()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		clone, ok := proto.Clone(family).(*dto.MetricFamily)
+		if !ok {
+			continue
+		}
+		clone.Name = proto.String(LegacySubSystem + "_" + strings.TrimPrefix(name, prefix))
+		legacy = append(legacy, clone)
+	}
+	return legacy, err
 }

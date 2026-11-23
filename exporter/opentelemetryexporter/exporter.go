@@ -19,13 +19,13 @@ import (
 var _ exporter.Exporter = &Exporter{}
 
 const (
-	defaultTracerName = "go-feature-flag"
+	defaultTracerName = "semaphore"
 	spanName          = "feature_flag.evaluate"
 )
 
 type Exporter struct {
 	// TracerName allows overriding the OpenTelemetry tracer name.
-	// Default: go-feature-flag
+	// Default: semaphore
 	TracerName string
 
 	tracer trace.Tracer

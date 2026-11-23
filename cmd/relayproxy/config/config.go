@@ -52,9 +52,21 @@ type Config struct {
 	// Version is the version of the relay-proxy
 	Version string `mapstructure:"version" koanf:"version"`
 
-	// Disable x-gofeatureflag-version header in the relay-proxy HTTP response
+	// Disable the x-semaphore-version header, and its legacy name x-gofeatureflag-version, in the
+	// relay-proxy HTTP response
 	// Default: false
 	DisableVersionHeader bool `mapstructure:"disableVersionHeader" koanf:"disableversionheader"`
+
+	// ExposeLegacyMetrics (optional) also exposes every semaphore_* Prometheus series under its
+	// legacy gofeatureflag_* name, so dashboards and alerts written for GO Feature Flag keep working.
+	// Default: false
+	ExposeLegacyMetrics bool `mapstructure:"exposeLegacyMetrics" koanf:"exposelegacymetrics"`
+
+	// DisableSemaphoreMetadata (optional) stops adding semaphore_cacheable to the metadata of the OFREP
+	// evaluation responses, only the legacy gofeatureflag_cacheable is sent. It is for the clients that
+	// compare the metadata strictly.
+	// Default: false
+	DisableSemaphoreMetadata bool `mapstructure:"disableSemaphoreMetadata" koanf:"disablesemaphoremetadata"`
 
 	// AuthorizedKeys list of API keys that authorized to use endpoints
 	AuthorizedKeys APIKeys `mapstructure:"authorizedKeys" koanf:"authorizedkeys"`

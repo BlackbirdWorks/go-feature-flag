@@ -11,3 +11,5 @@ exporter:
 enableSwagger: true
 evaluationContextEnrichment:
   environment: integration-test
+# Upstream providers compare the response metadata strictly: only send the legacy gofeatureflag_cacheable key.
+disableSemaphoreMetadata: true

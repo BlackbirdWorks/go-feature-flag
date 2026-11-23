@@ -14,6 +14,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/notifier"
 	promversion "github.com/prometheus/common/version"
 	"github.com/spf13/pflag"
@@ -56,6 +57,10 @@ func main() {
 	// Init logger
 	logger := log.InitLogger()
 	defer func() { _ = logger.ZapLogger.Sync() }()
+	// The legacy names (GO Feature Flag) that are still accepted warn once, through the same logger.
+	legacy.Default.SetLogFunc(func(kind, message string) {
+		logger.ZapLogger.Warn(message, zap.String("legacyName", kind))
+	})
 
 	// Loading the configuration in viper
 	proxyConf, err := config.New(f, logger.ZapLogger, version)

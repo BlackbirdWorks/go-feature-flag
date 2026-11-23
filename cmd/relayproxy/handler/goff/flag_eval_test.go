@@ -216,7 +216,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 }
 
 func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
-	const metricName = "gofeatureflag_flag_evaluations_total"
+	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
 

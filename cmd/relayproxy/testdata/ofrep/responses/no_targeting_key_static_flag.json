@@ -4,6 +4,7 @@
   "reason": "DEFAULT",
   "variant": "false_var",
   "metadata": {
-    "gofeatureflag_cacheable": true
+    "gofeatureflag_cacheable": true,
+    "semaphore_cacheable": true
   }
 }

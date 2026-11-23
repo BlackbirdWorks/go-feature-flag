@@ -34,7 +34,7 @@ func (s *Server) addMonitoringRoutes() {
 func (s *Server) initMonitoringEndpoint(echoInstance *echo.Echo) {
 	if s.services.Metrics != (metric.Metrics{}) {
 		echoInstance.GET("/metrics", echoprometheus.NewHandlerWithConfig(
-			echoprometheus.HandlerConfig{Gatherer: s.services.Metrics.Registry}))
+			echoprometheus.HandlerConfig{Gatherer: s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)}))
 	}
 
 	// Init controllers

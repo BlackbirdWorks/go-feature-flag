@@ -25,18 +25,34 @@ type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 	eventStream    config.OfrepEventStream
+	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
+	legacyMetadataOnly bool
+}
+
+// Option customizes an EvaluateCtrl.
+type Option func(*EvaluateCtrl)
+
+// WithLegacyMetadataOnly stops the controller from adding the Semaphore metadata keys
+// (semaphore_cacheable) next to the legacy ones.
+func WithLegacyMetadataOnly(legacyOnly bool) Option {
+	return func(h *EvaluateCtrl) { h.legacyMetadataOnly = legacyOnly }
 }
 
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,
 	eventStream config.OfrepEventStream,
+	opts ...Option,
 ) EvaluateCtrl {
-	return EvaluateCtrl{
+	h := EvaluateCtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		eventStream:    eventStream,
 	}
+	for _, opt := range opts {
+		opt(&h)
+	}
+	return h
 }
 
 // Evaluate is the entry point to evaluate a flag using the OpenFeature Remote Evaluation Protocol
@@ -132,7 +148,10 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 		if metadata == nil {
 			metadata = make(map[string]any)
 		}
-		metadata["gofeatureflag_cacheable"] = true
+		if !h.legacyMetadataOnly {
+			metadata[MetadataCacheable] = true
+		}
+		metadata[LegacyMetadataCacheable] = true
 	}
 
 	return c.JSON(http.StatusOK, model.OFREPEvaluateSuccessResponse{
@@ -239,6 +258,14 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 }
 
 // ofrepSSEPath is the path of the relay proxy endpoint streaming flag changes over SSE.
+const (
+	// MetadataCacheable is the response metadata key telling a provider that it can cache the value.
+	MetadataCacheable = "semaphore_cacheable"
+	// LegacyMetadataCacheable is the key GO Feature Flag used for the same information. The upstream
+	// providers read it, so it is still sent next to MetadataCacheable.
+	LegacyMetadataCacheable = "gofeatureflag_cacheable"
+)
+
 const ofrepSSEPath = "/stream/v1/sse/flag/change"
 
 // buildEventStreams returns the eventStreams advertised in the OFREP bulk evaluation

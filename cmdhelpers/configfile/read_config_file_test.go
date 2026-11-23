@@ -281,3 +281,42 @@ func TestParseConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadConfigFileDefaultNames(t *testing.T) {
+	t.Parallel()
+	content := "my-flag:\n  variations:\n    a: true\n    b: false\n  defaultRule:\n    variation: a\n"
+	tests := []struct {
+		name      string
+		files     []string
+		wantFlag  string
+		wantError bool
+	}{
+		{name: "flags.semaphore", files: []string{"flags.semaphore.yaml"}, wantFlag: "my-flag"},
+		{name: "legacy flags.goff", files: []string{"flags.goff.yaml"}, wantFlag: "my-flag"},
+		{name: "both names", files: []string{"flags.goff.yaml", "flags.semaphore.yaml"}, wantFlag: "my-flag"},
+		{name: "none", wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir() + "/"
+			for _, f := range tt.files {
+				assert.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
+			}
+			got, err := configfile.LoadConfigFile("", "yaml", []string{dir})
+			if tt.wantError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Contains(t, got, tt.wantFlag)
+		})
+	}
+}
+
+func TestConfigFileDefaultLocations(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t,
+		[]string{"./", "/semaphore/", "/etc/opt/semaphore/", "/goff/", "/etc/opt/goff/"},
+		configfile.ConfigFileDefaultLocations)
+}

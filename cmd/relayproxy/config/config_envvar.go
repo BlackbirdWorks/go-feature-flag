@@ -1,17 +1,49 @@
 package config
 
 import (
+	"errors"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/knadh/koanf/providers/env"
+	"github.com/knadh/koanf/maps"
 	"github.com/knadh/koanf/v2"
 	"go.uber.org/zap"
 )
 
+// environProvider is koanf's env provider reading the variables from environ instead of os.Environ, so
+// the tests do not have to change the environment of the process.
+type environProvider struct {
+	prefix  string
+	environ func() []string
+	cb      func(key, value string) (string, any)
+}
+
+// ReadBytes is not supported by the environment provider.
+func (p *environProvider) ReadBytes() ([]byte, error) {
+	return nil, errors.New("env provider does not support this method")
+}
+
+// Read returns the variables that start with the prefix, mapped with the callback, as a nested map.
+func (p *environProvider) Read() (map[string]any, error) {
+	mp := make(map[string]any)
+	for _, kv := range p.environ() {
+		name, value, _ := strings.Cut(kv, "=")
+		if !strings.HasPrefix(name, p.prefix) {
+			continue
+		}
+		key, mapped := p.cb(name, value)
+		if key == "" {
+			continue
+		}
+		mp[key] = mapped
+	}
+	return maps.Unflatten(mp, "."), nil
+}
+
 func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
-	return env.ProviderWithValue(prefix, ".", func(key, v string) (string, any) {
+	return &environProvider{prefix: prefix, environ: c.environ(), cb: func(key, v string) (string, any) {
 		key = strings.TrimPrefix(key, prefix)
 		switch {
 		case strings.HasPrefix(key, "RETRIEVERS"),
@@ -48,7 +80,15 @@ func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) k
 		default:
 			return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
 		}
-	})
+	}}
+}
+
+// environ returns the source of the environment variables, os.Environ unless the loader was given another one.
+func (c *ConfigLoader) environ() func() []string {
+	if c.environFunc != nil {
+		return c.environFunc
+	}
+	return os.Environ
 }
 
 // Load the ENV Like:RETRIEVERS_0_HEADERS_AUTHORIZATION

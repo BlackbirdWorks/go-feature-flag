@@ -1,3 +1,4 @@
 package configfile
 
-const OtelTracerName = "go-feature-flag"
+// OtelTracerName is the name of the OpenTelemetry instrumentation scope of the relay proxy.
+const OtelTracerName = "semaphore"

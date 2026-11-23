@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	echootel "github.com/labstack/echo-otel/v5"
 	echoprometheus "github.com/labstack/echo-prometheus"
 	"github.com/labstack/echo/v5"
@@ -68,7 +69,7 @@ type Server struct {
 // initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy
 func (s *Server) initRoutes() {
 	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
-	s.apiEcho.Use(echootel.NewMiddleware("go-feature-flag"))
+	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))
 	s.apiEcho.Use(helpermiddleware.ZapLogger(s.zapLog, s.config.IsDebugEnabled()))
 	s.apiEcho.Use(middleware.BodyDumpWithConfig(middleware.BodyDumpConfig{
 		Skipper: bodyDumpSkipper(s.zapLog),
@@ -76,7 +77,7 @@ func (s *Server) initRoutes() {
 	}))
 	if s.services.Metrics != (metric.Metrics{}) {
 		s.apiEcho.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
-			Subsystem:  metric.GOFFSubSystem,
+			Subsystem:  metric.SubSystem,
 			Registerer: s.services.Metrics.Registry,
 			HistogramOptsFunc: func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
 				// Enable native histograms for all middleware histograms
@@ -106,6 +107,7 @@ func (s *Server) initRoutes() {
 		s.services.FlagsetManager,
 		s.services.Metrics,
 		s.config.OfrepEventStream,
+		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
 	)
 	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.zapLog)
 	cEvalDataCollector := controller.NewCollectEvalData(

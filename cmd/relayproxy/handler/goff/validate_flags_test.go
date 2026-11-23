@@ -42,7 +42,7 @@ func validateOutcomeCounts(t *testing.T, m metric.Metrics) map[string]float64 {
 	require.NoError(t, err)
 	counts := map[string]float64{}
 	for _, f := range families {
-		if f.GetName() != "gofeatureflag_validate_flags_total" {
+		if f.GetName() != "semaphore_validate_flags_total" {
 			continue
 		}
 		for _, mm := range f.GetMetric() {

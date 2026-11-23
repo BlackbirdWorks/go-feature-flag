@@ -26,7 +26,7 @@ func newFlagLoadedCollector(source FlagsetSource) *flagLoadedCollector {
 	return &flagLoadedCollector{
 		source: source,
 		desc: prom.NewDesc(
-			prom.BuildFQName("", GOFFSubSystem, "flag_loaded"),
+			prom.BuildFQName("", SubSystem, "flag_loaded"),
 			"Flags currently loaded in the relay proxy cache, one series per flag with value 1.",
 			[]string{"flagset", flagNameLabel, "disabled"},
 			nil,
@@ -91,7 +91,7 @@ func addNestedAttribute(ctx ffcontext.EvaluationContext, dottedKey string, value
 	current[parts[len(parts)-1]] = value
 }
 
-// RegisterFlagLoaded exposes gofeatureflag_flag_loaded, computed from the flag cache on every scrape.
+// RegisterFlagLoaded exposes semaphore_flag_loaded, computed from the flag cache on every scrape.
 func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 	if m.Registry == nil || source == nil {
 		return nil

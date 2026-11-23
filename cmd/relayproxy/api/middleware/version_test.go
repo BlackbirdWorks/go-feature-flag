@@ -29,6 +29,9 @@ func TestVersion(t *testing.T) {
 
 	err := handler(c)
 	assert.NoError(t, err)
+	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.VersionHeaderName))
+	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.LegacyVersionHeaderName))
+	assert.Equal(t, "1.0.0", rec.Header().Get("X-SEMAPHORE-VERSION"))
 	assert.Equal(t, "1.0.0", rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
 }
 
@@ -55,4 +58,5 @@ func TestNoVersion(t *testing.T) {
 	err := handler(c)
 	assert.NoError(t, err)
 	assert.Empty(t, rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Empty(t, rec.Header().Get("X-SEMAPHORE-VERSION"))
 }

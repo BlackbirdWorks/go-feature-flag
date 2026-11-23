@@ -2,7 +2,7 @@ package service
 
 // Whitebox: sharedBucketRegistry is unexported, and its tests need the registry internals (the
 // group count, the pending retrievers, the factory) that the exported API does not expose. The
-// fakes of this file are shared by the whitebox tests of gofeatureflag_client.go and
+// fakes of this file are shared by the whitebox tests of semaphore_client.go and
 // flagset_manager.go.
 
 import (

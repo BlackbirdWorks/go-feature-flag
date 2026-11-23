@@ -571,7 +571,7 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 
 // changesEventFields tells if the enrichment sets an attribute that an evaluation event reads.
 func changesEventFields(enrichment map[string]any) bool {
-	_, protected := enrichment["gofeatureflag"]
+	protected := ffcontext.HasReservedKey(enrichment)
 	_, anonymous := enrichment["anonymous"]
 	return protected || anonymous
 }
