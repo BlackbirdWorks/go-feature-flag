@@ -535,16 +535,16 @@ func MergeSetOfRules(initialRules, updates []Rule) *[]Rule {
 		if !utils.Contains(mergedUpdates, update.GetName()) {
 			// The rule is edited by the following updates (see MergeRules): it must not share its
 			// percentages and progressive rollout with the update, which is read by every evaluation.
-			collection = append(collection, update.cloneForMerge())
+			collection = append(collection, cloneRuleForMerge(update))
 		}
 	}
 
 	return &collection
 }
 
-// cloneForMerge copies what MergeRules edits in place (the percentages and the steps of the
+// cloneRuleForMerge copies what MergeRules edits in place (the percentages and the steps of the
 // progressive rollout), the other fields are replaced and never edited.
-func (r Rule) cloneForMerge() Rule {
+func cloneRuleForMerge(r Rule) Rule {
 	if r.Percentages != nil {
 		p := maps.Clone(*r.Percentages)
 		r.Percentages = &p

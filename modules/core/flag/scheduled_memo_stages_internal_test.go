@@ -15,9 +15,9 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 		update.Name = testconvert.String("r")
 		return update
 	}
-	step := func(h time.Duration, rules ...Rule) ScheduledStep {
+	step := func(h int, rules ...Rule) ScheduledStep {
 		return ScheduledStep{
-			Date:         testconvert.Time(base.Add(h * time.Hour)),
+			Date:         testconvert.Time(base.Add(time.Duration(h) * time.Hour)),
 			InternalFlag: InternalFlag{Rules: &rules},
 		}
 	}
