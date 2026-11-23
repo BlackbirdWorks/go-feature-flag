@@ -58,7 +58,8 @@ type GoFeatureFlag struct {
 	enrichmentOnce sync.Once
 	// droppedEvents counts the evaluation events dropped because eventQueue was full.
 	droppedEvents atomic.Int64
-	lastDropLog   atomic.Int64
+	// dropSignal asks reportDrops to write the warning about the dropped events.
+	dropSignal chan struct{}
 }
 
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.

@@ -53,7 +53,8 @@ type managerImpl[T ExportableEvent] struct {
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
 	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
 	flushThresholds []int64
-	lastDropLog     atomic.Int64
+	// dropSignal wakes up reportDrops, which writes the warning outside of the callers.
+	dropSignal chan struct{}
 
 	// background flushes (QueueEvent), one goroutine at most per consumer
 	flushRunning []atomic.Bool
@@ -87,7 +88,8 @@ func NewManager[T ExportableEvent](exporters []Config,
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval
 	}
 
-	m := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{})}
+	m := &managerImpl[T]{logger: logger, flushEnded: make(chan struct{}), stopCh: make(chan struct{}),
+		dropSignal: make(chan struct{}, 1)}
 	var maxQueued int64
 	limits := make([]int64, len(exporters))
 	for idx, exporter := range exporters {
@@ -125,21 +127,40 @@ func NewManager[T ExportableEvent](exporters []Config,
 	m.flushRunning = make([]atomic.Bool, len(consumers))
 	m.flushAgain = make([]atomic.Bool, len(consumers))
 	m.flushStalled = make([]atomic.Bool, len(consumers))
+	go m.reportDrops()
 	return m
 }
 
-// onDrop logs (at most once every dropLogInterval) that events are being dropped.
-func (m *managerImpl[T]) onDrop(total int64) {
-	if m.logger == nil {
-		return
+// onDrop is called by the store, in the goroutine that adds the events (an evaluation for
+// AddEvent): it only wakes up reportDrops, it never logs nor waits.
+func (m *managerImpl[T]) onDrop(_ int64) {
+	select {
+	case m.dropSignal <- struct{}{}:
+	default: // a warning is already pending
 	}
-	now := time.Now().UnixNano()
-	last := m.lastDropLog.Load()
-	if now-last < int64(dropLogInterval) || !m.lastDropLog.CompareAndSwap(last, now) {
-		return
+}
+
+// reportDrops logs (at most once every dropLogInterval) that events are being dropped. It runs in
+// its own goroutine so that a slow or blocked log sink never delays the callers.
+func (m *managerImpl[T]) reportDrops() {
+	for {
+		select {
+		case <-m.dropSignal:
+		case <-m.stopCh:
+			return
+		}
+		if m.logger != nil {
+			m.logger.Error("the exporter is not keeping up, events are dropped",
+				slog.Int64("totalDroppedEvents", m.DroppedEvents()))
+		}
+		timer := time.NewTimer(dropLogInterval)
+		select {
+		case <-timer.C:
+		case <-m.stopCh:
+			timer.Stop()
+			return
+		}
 	}
-	m.logger.Error("the exporter is not keeping up, events are dropped (drop-newest)",
-		slog.Int64("totalDroppedEvents", total))
 }
 
 // DroppedEvents returns the number of events dropped because the queue was full.
