@@ -1,0 +1,48 @@
+# Documentation
+
+Plain-Markdown documentation for the relay proxy and the Go engine.
+
+## Start here
+- [Relay proxy: getting started](relay-proxy/getting-started.md)
+- [Core concepts](concepts/architecture.md)
+
+## Relay proxy
+- [Overview](relay-proxy/README.md)
+- [Installation](relay-proxy/install.md)
+- [Getting started](relay-proxy/getting-started.md)
+- [Configuration reference](relay-proxy/configuration.md) (including flag sets and API keys)
+- [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
+- [API endpoints](relay-proxy/endpoints.md)
+- [Advanced usage](relay-proxy/advanced-usage.md) (manual refresh, flag validation, FIPS)
+- Deployment: [Helm](relay-proxy/deployment/helm.md), [AWS Lambda](relay-proxy/deployment/aws-lambda.md)
+
+## Concepts
+- [Architecture](concepts/architecture.md)
+- [Flag evaluation](concepts/flag-evaluation.md)
+- [Evaluation context](concepts/evaluation-context.md)
+- [Flag sets](concepts/flagset.md)
+- [Retrievers](concepts/retriever.md), [exporters](concepts/exporter.md), [notifiers](concepts/notifier.md)
+
+## Configure flags
+- [Flag format](configure-flags/create-flags.md)
+- [Targeting rules](configure-flags/target-with-flags.md)
+- [Rollout strategies](configure-flags/rollout-strategies/README.md): [percentage](configure-flags/rollout-strategies/percentage.md), [progressive](configure-flags/rollout-strategies/progressive.md), [scheduled](configure-flags/rollout-strategies/scheduled.md), [experimentation](configure-flags/rollout-strategies/experimentation.md)
+- [Custom bucketing](configure-flags/custom-bucketing.md)
+
+## Integrations
+- [Store your flags (retrievers)](integrations/retrievers/README.md)
+- [Export evaluation data (exporters)](integrations/exporters/README.md)
+- [Notify flag changes (notifiers)](integrations/notifiers/README.md)
+
+## Using it from applications
+- [OpenFeature SDKs with OFREP](openfeature/ofrep.md)
+- [Flag usage tracking](tracking/flag-usage-tracking.md) and [tracking API](tracking/tracking-api.md)
+
+## Go module
+- [Getting started](go-module/getting-started.md)
+- [Configuration](go-module/configuration.md)
+- [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
+
+## Tooling
+- [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md)
+- [Auto-complete (JSON schema)](tooling/autocomplete.md)

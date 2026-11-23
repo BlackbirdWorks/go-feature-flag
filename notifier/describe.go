@@ -58,7 +58,7 @@ func describeChanges(before, after flag.Flag, code func(string) string) ([]strin
 	return d.lines, nil
 }
 
-// UpdatedByMetadataKey is the metadata key GO Feature Flag Studio sets to who last changed a flag.
+// UpdatedByMetadataKey is the metadata key an external flag editor may set to who last changed a flag.
 const UpdatedByMetadataKey = "updatedBy"
 
 // UpdatedBy returns the updatedBy metadata of a *flag.InternalFlag, or "" when it is missing, empty or not a string.

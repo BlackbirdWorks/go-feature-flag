@@ -1,5 +1,5 @@
 relayproxy:
-  # -- GO Feature Flag relay proxy configuration as string (accept template). If monitoringPort is specified in the config (either as "monitoringPort: 1032" or "server.monitoringPort: 1032"), it will be exposed as a separate port and used for liveness and readiness probes instead of the main HTTP port. Example: add "monitoringPort: 1032" or "server.monitoringPort: 1032" to your config to enable separate monitoring port.
+  # -- Semaphore relay proxy configuration as string (accept template). If monitoringPort is specified in the config (either as "monitoringPort: 1032" or "server.monitoringPort: 1032"), it will be exposed as a separate port and used for liveness and readiness probes instead of the main HTTP port. Example: add "monitoringPort: 1032" or "server.monitoringPort: 1032" to your config to enable separate monitoring port.
   config: | # This is a configuration example for the relay-proxy
     server:
       mode: http
@@ -9,7 +9,7 @@ relayproxy:
     logLevel: info
     retriever:
       kind: http
-      url: https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml
+      url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
     exporter:
       kind: log
     enableSwagger: true
@@ -30,10 +30,10 @@ replicaCount: 1
 
 image:
   # -- The image repository to pull from.
-  # The same images are mirrored to the GitHub Container Registry, set this to
-  # `ghcr.io/go-feature-flag/go-feature-flag` to pull from there instead
-  # (mirrored images are only available for the versions released after v1.55.1).
-  repository: gofeatureflag/go-feature-flag
+  # This repository does not publish images from CI: build and push your own
+  # (see docs/relay-proxy/install.md) and override this value and `image.tag`
+  # if the default is not available to you.
+  repository: ghcr.io/blackbirdworks/go-feature-flag
   # -- The image is pulled only if it is not already present locally
   pullPolicy: IfNotPresent
   # -- Overrides the image tag whose default is the chart appVersion

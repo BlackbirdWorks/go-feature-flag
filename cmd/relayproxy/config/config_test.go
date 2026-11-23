@@ -64,7 +64,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -99,7 +99,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -138,7 +138,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -177,7 +177,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporters: &[]config.ExporterConf{
 						{
@@ -218,7 +218,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -263,7 +263,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -293,7 +293,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -343,7 +343,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 						},
 					},
 				},
@@ -403,7 +403,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 					FileFormat:      "yaml",
 					Retriever: &retrieverconf.RetrieverConf{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 					Exporter: &config.ExporterConf{
 						Kind: "log",
@@ -1317,7 +1317,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"authorization": {
 									"test",
@@ -1327,7 +1327,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						},
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"token": {
 									"11213123",
@@ -1397,7 +1397,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"authorization": {
 									"test",
@@ -1407,7 +1407,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						},
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"token": {
 									"11213123",
@@ -1471,7 +1471,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"authorization": {
 									"test",
@@ -1481,7 +1481,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						},
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"token": {
 									"11213123",
@@ -1551,11 +1551,11 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 						},
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"token": {
 									"11213123",
@@ -1604,11 +1604,11 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml",
+							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 						},
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							HTTPHeaders: map[string][]string{
 								"token": {
 									"11213123",
@@ -1660,7 +1660,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
 							Kind: "file",
-							Path: "examples/retriever_file/flags.goff.yaml",
+							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 						},
 					},
 				},
@@ -1731,7 +1731,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 							Retrievers: &[]retrieverconf.RetrieverConf{
 								{
 									Kind: "file",
-									Path: "examples/retriever_file/flags.goff.yaml",
+									Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 								},
 							},
 						},
@@ -1750,7 +1750,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				"FLAGSETS_0_EXPORTERS_0_KIND":            "kafka",
 				"FLAGSETS_0_EXPORTERS_0_KAFKA_ADDRESSES": "localhost:19092,localhost:19093",
 				"FLAGSETS_0_RETRIEVERS_0_KIND":           "file",
-				"FLAGSETS_0_RETRIEVERS_0_PATH":           "examples/retriever_file/flags.goff.yaml",
+				"FLAGSETS_0_RETRIEVERS_0_PATH":           "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 			},
 		},
 	}
@@ -1934,7 +1934,7 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Retrievers", func(t *testing.T) {
 		t.Setenv("RETRIEVERS_0_KIND", string(retrieverconf.FileRetriever))
-		t.Setenv("RETRIEVERS_0_PATH", "examples/retriever_file/flags.goff.yaml")
+		t.Setenv("RETRIEVERS_0_PATH", "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml")
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 
@@ -1942,7 +1942,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.FileRetriever, (*got.Retrievers)[0].Kind)
-		assert.Equal(t, "examples/retriever_file/flags.goff.yaml", (*got.Retrievers)[0].Path)
+		assert.Equal(t, "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml", (*got.Retrievers)[0].Path)
 	})
 
 	t.Run("Flagset retriever", func(t *testing.T) {
