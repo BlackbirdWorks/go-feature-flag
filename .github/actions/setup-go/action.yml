@@ -1,0 +1,52 @@
+name: Setup Go
+description: >-
+  Install the Go version pinned in go.mod with module and build caches, keep Go
+  temp files off the small /tmp tmpfs and pre-download every module with retries
+  (the module proxy occasionally drops streams). Run after actions/checkout.
+
+inputs:
+  cache:
+    description: Restore and save the Go module and build caches.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Keep Go temp files and build cache off the /tmp tmpfs
+      shell: bash
+      run: |
+        # /tmp can be a small tmpfs on hosted runners; use /mnt when mounted, else the runner temp dir.
+        if mountpoint -q /mnt; then base=/mnt; else base="$RUNNER_TEMP"; fi
+        sudo mkdir -p "$base/gotmp" "$base/gocache"
+        sudo chown -R "$(id -u):$(id -g)" "$base/gotmp" "$base/gocache"
+        {
+          echo "GOTMPDIR=$base/gotmp"
+          echo "TMPDIR=$base/gotmp"
+          echo "GOCACHE=$base/gocache"
+          echo "GOLANGCI_LINT_CACHE=$base/lintcache"
+        } >> "$GITHUB_ENV"
+        df -h / "$base" || true
+
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version-file: go.mod
+        check-latest: true
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: |
+          go.sum
+          modules/core/go.sum
+          rules/go.sum
+
+    - name: Download Go modules (retry proxy stream errors)
+      shell: bash
+      run: |
+        for module in . modules/core rules; do
+          ok=0
+          for i in 1 2 3 4 5; do
+            if (cd "$module" && go mod download); then ok=1; break; fi
+            sleep $((i * 15))
+          done
+          [[ "$ok" -eq 1 ]] || { echo "go mod download failed in $module"; exit 1; }
+        done
