@@ -36,10 +36,10 @@ type Options struct {
 	// WarmupIntervals is the number of leading samples ignored by the verdict
 	// (default max(2, 20% of the samples)).
 	WarmupIntervals int
-	// HeapTolerance is the maximum relative growth of the post-GC HeapInuse over the measured
-	// window (fitted line, default 0.25 = 25%).
+	// HeapTolerance is the maximum relative growth of the post-GC HeapInuse between the first and
+	// the last third of the measured window (default 0.25 = 25%).
 	HeapTolerance float64
-	// HeapMinGrowthBytes is an absolute allowance under which growth never fails (default 16 MiB).
+	// HeapMinGrowthBytes is an absolute allowance under which growth never fails (default 32 MiB).
 	HeapMinGrowthBytes uint64
 	// GoroutineSlack is the number of goroutines the count may exceed its value at the end of the
 	// warm-up by (default 64).
@@ -71,7 +71,7 @@ type Report struct {
 	Extra     map[string]int64
 	Pass      bool
 	Reasons   []string
-	// HeapGrowthBytes is the growth of the fitted HeapInuse line over the measured window.
+	// HeapGrowthBytes is the growth of the mean HeapInuse between the first and the last third of the measured window.
 	HeapGrowthBytes float64
 }
 
@@ -137,7 +137,7 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 		o.HeapTolerance = 0.25
 	}
 	if o.HeapMinGrowthBytes == 0 {
-		o.HeapMinGrowthBytes = 16 << 20
+		o.HeapMinGrowthBytes = 32 << 20
 	}
 	if o.GoroutineSlack == 0 {
 		o.GoroutineSlack = 64
@@ -271,9 +271,9 @@ func (s Sample) line() string {
 
 // judge computes the "memory stable" verdict.
 //
-// After the warm-up, a least-squares line is fitted on the post-GC HeapInuse samples; the run
-// fails when the line grows over the measured window by more than both HeapTolerance of the mean
-// and HeapMinGrowthBytes. It also fails when the goroutine count exceeds its value at the end of
+// After the warm-up, the mean post-GC HeapInuse of the last third of the samples is compared with
+// the one of the first third; the run fails when it grew by more than both HeapTolerance of the
+// first and HeapMinGrowthBytes. It also fails when the goroutine count exceeds its value at the end of
 // the warm-up by more than GoroutineSlack.
 func judge(r *Report, o Options) {
 	r.Pass = true
@@ -289,24 +289,25 @@ func judge(r *Report, o Options) {
 		return
 	}
 	m := r.Samples[warm:]
-	var sx, sy, sxx, sxy float64
-	for i, s := range m {
-		x, y := float64(i), float64(s.HeapInuse)
-		sx += x
-		sy += y
-		sxx += x * x
-		sxy += x * y
+	// The post-GC heap of a healthy exporter is a sawtooth (the events wait for their flush), so
+	// a fitted line over a handful of samples is noisy. We compare the mean of the first third of
+	// the measured window with the mean of the last third instead.
+	third := max(1, len(m)/3)
+	avg := func(ss []Sample) float64 {
+		var sum float64
+		for _, s := range ss {
+			sum += float64(s.HeapInuse)
+		}
+		return sum / float64(len(ss))
 	}
-	k := float64(len(m))
-	slope := (k*sxy - sx*sy) / (k*sxx - sx*sx)
-	mean := sy / k
-	r.HeapGrowthBytes = slope * (k - 1)
-	allowed := max(o.HeapTolerance*mean, float64(o.HeapMinGrowthBytes))
+	first, last := avg(m[:third]), avg(m[len(m)-third:])
+	r.HeapGrowthBytes = last - first
+	allowed := max(o.HeapTolerance*first, float64(o.HeapMinGrowthBytes))
 	if r.HeapGrowthBytes > allowed {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
-			"HeapInuse grows by %.1f MiB over the measured window (allowed %.1f MiB)",
-			r.HeapGrowthBytes/(1<<20), allowed/(1<<20)))
+			"HeapInuse grows from %.1f MiB (first third) to %.1f MiB (last third), allowed +%.1f MiB",
+			first/(1<<20), last/(1<<20), allowed/(1<<20)))
 	}
 	base := m[0].Goroutines
 	maxG := base

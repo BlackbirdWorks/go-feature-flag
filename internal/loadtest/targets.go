@@ -83,6 +83,7 @@ func (l *LibraryTarget) Extra() map[string]int64 {
 		"exported_events":  l.exporter.Events.Load(),
 		"exported_batches": l.exporter.Batches.Load(),
 		"failed_batches":   l.exporter.Failures.Load(),
+		"dropped_events":   l.client.DroppedEvents(),
 	}
 }
 
