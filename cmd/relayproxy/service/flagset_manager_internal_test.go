@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	ffclient "github.com/thomaspoignant/go-feature-flag"
 	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 	"go.uber.org/zap"
@@ -214,4 +215,50 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
 	})
+}
+
+func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *testing.T) {
+	t.Parallel()
+	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/goff/configuration_flags.yaml"}
+	tests := []struct {
+		name          string
+		startupTop    time.Duration
+		reloadTop     time.Duration
+		addedOverride time.Duration
+		want          time.Duration
+	}{
+		{name: "added flagset follows the reloaded top-level value", startupTop: time.Minute, reloadTop: 7 * time.Second, want: 7 * time.Second},
+		{name: "explicit flagset value wins", startupTop: time.Minute, reloadTop: 7 * time.Second, addedOverride: 3 * time.Second, want: 3 * time.Second},
+		{name: "reload clears the top-level value", startupTop: time.Minute, want: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			existing := config.FlagSet{Name: "existing", APIKeys: []string{"k1"}, CommonFlagSet: config.CommonFlagSet{Retriever: retriever}}
+			cfg := &config.Config{
+				FlagSets:      []config.FlagSet{existing},
+				CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.startupTop},
+			}
+			m, err := NewFlagsetManager(cfg, zap.NewNop(), nil, nil, nil)
+			require.NoError(t, err)
+			t.Cleanup(m.Close)
+
+			var got atomic.Int64
+			impl := m.(*flagsetManagerImpl)
+			impl.clientOptions = []clientOption{withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+				got.Store(int64(c.ExporterCleanQueueInterval))
+				return ffclient.New(c)
+			})}
+
+			added := config.FlagSet{
+				Name: "added", APIKeys: []string{"k2"},
+				CommonFlagSet: config.CommonFlagSet{Retriever: retriever, ExporterCleanQueueInterval: tt.addedOverride},
+			}
+			impl.onConfigChangeWithFlagsets(&config.Config{
+				FlagSets:      []config.FlagSet{existing, added},
+				CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.reloadTop},
+			})
+			assert.Equal(t, tt.want, time.Duration(got.Load()))
+		})
+	}
 }

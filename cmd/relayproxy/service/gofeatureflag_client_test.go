@@ -1099,3 +1099,35 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 		})
 	}
 }
+
+func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
+	t.Parallel()
+	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/goff/configuration_flags.yaml"}
+	tests := []struct {
+		name     string
+		flagset  time.Duration
+		fallback time.Duration
+		want     time.Duration
+	}{
+		{name: "unset", want: 0},
+		{name: "flagset value", flagset: 5 * time.Second, fallback: 30 * time.Second, want: 5 * time.Second},
+		{name: "fallback", fallback: 30 * time.Second, want: 30 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fs := &config.FlagSet{Name: "fs", CommonFlagSet: config.CommonFlagSet{
+				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}}
+			var got time.Duration
+			client, err := newGoFeatureFlagClient(fs, zap.NewNop(), nil,
+				withDefaultExporterCleanQueueInterval(tt.fallback),
+				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+					got = c.ExporterCleanQueueInterval
+					return ffclient.New(c)
+				}))
+			require.NoError(t, err)
+			t.Cleanup(client.Close)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

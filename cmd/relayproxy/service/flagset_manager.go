@@ -95,6 +95,9 @@ type flagsetManagerImpl struct {
 
 	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
 	sharedRegistry *sharedBucketRegistry
+
+	// clientOptions are extra options for the clients created at runtime (nil outside the tests).
+	clientOptions []clientOption
 }
 
 // NewFlagsetManager is creating a new FlagsetManager.
@@ -453,9 +456,11 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 // configuration being applied, used when the flagset does not set its own.
 func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueueInterval time.Duration) {
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
-	client, err := newGoFeatureFlagClient(
-		&flagset, m.logger, allNotifiers, withSharedBucketRegistry(m.sharedRegistry),
-		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval))
+	opts := append([]clientOption{
+		withSharedBucketRegistry(m.sharedRegistry),
+		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
+	}, m.clientOptions...)
+	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
 		m.logger.Error(
 			"failed to create the flagset added at runtime, it will not be available until the "+

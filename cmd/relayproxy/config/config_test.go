@@ -2027,17 +2027,28 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	}
 }
 
+func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
+	t.Helper()
+	configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
+	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	flagSet.String("config", "", "Location of your config file")
+	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
+	got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+	require.NoError(t, err)
+	return got
+}
+
 func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		content      string
-		environment  string
 		want         time.Duration
 		wantFlagSets []time.Duration
 	}{
 		{name: "unset keeps the zero value", content: "logLevel: info\n", want: 0},
 		{name: "set in the config file", content: "exporterCleanQueueInterval: 30s\n", want: 30 * time.Second},
-		{name: "set in the environment", content: "logLevel: info\n", environment: "2m", want: 2 * time.Minute},
 		{
 			name: "set at flagset level",
 			content: "exporterCleanQueueInterval: 30s\nflagsets:\n" +
@@ -2049,23 +2060,21 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
-			require.NoError(t, os.WriteFile(configPath, []byte(tt.content), 0o600))
-			if tt.environment != "" {
-				t.Setenv("EXPORTERCLEANQUEUEINTERVAL", tt.environment)
-			}
-			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			flagSet.String("config", "", "Location of your config file")
-			require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
-
-			got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
-			require.NoError(t, err)
+			t.Parallel()
+			got := parseCleanQueueConfig(t, tt.content)
 			assert.Equal(t, tt.want, got.ExporterCleanQueueInterval)
 			for i, want := range tt.wantFlagSets {
 				assert.Equal(t, want, got.FlagSets[i].ExporterCleanQueueInterval)
 			}
 		})
 	}
+}
+
+// Not parallel: t.Setenv changes the process environment.
+func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
+	t.Setenv("EXPORTERCLEANQUEUEINTERVAL", "2m")
+	got := parseCleanQueueConfig(t, "logLevel: info\n")
+	assert.Equal(t, 2*time.Minute, got.ExporterCleanQueueInterval)
 }
 
 func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
