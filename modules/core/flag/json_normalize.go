@@ -24,14 +24,14 @@ func normalizeJSONValueDepth(v any, depth int) (res any, ok bool) {
 		if !utf8.ValidString(x) {
 			return nil, false // the encoding replaces the invalid sequences by U+FFFD
 		}
-		return x, true
+		return v, true // v, not x: boxing x again would allocate
 	case bool:
-		return x, true
+		return v, true
 	case float64:
 		if x != x || x > maxJSONFloat || x < -maxJSONFloat {
 			return nil, false // NaN and Inf can not be encoded
 		}
-		return x, true
+		return v, true
 	case int:
 		return float64(x), true
 	case int8:
