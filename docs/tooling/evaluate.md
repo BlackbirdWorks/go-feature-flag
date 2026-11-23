@@ -14,7 +14,8 @@ Check the [installation guide](cli.md) to install the `go-feature-flag-cli`.
 
 ```shell
 ./go-feature-flag-cli evaluate \
-  --config="<location_of_your_flag_configuration_file>" \
+  --kind="file" \
+  --path="<location_of_your_flag_configuration_file>" \
   --format="yaml" \
   --flag="<name_of_your_flag_to_evaluate>" \
   --ctx='<evaluation_ctx_as_json_string>'
@@ -22,7 +23,8 @@ Check the [installation guide](cli.md) to install the `go-feature-flag-cli`.
 
 | param      | description                                                                                                            |
 |------------|------------------------------------------------------------------------------------------------------------------------|
-| `--config` | **(mandatory)** The location of your configuration file.                                                               |
+| `--kind`   | The kind of retriever used to read the configuration (`file`, `http`, `github`, `gitlab`, `bitbucket`, `s3`, `googleStorage`, `configmap`, `mongodb`, `redis`, `azureBlobStorage`, `postgresql`).<br/>Default: **`file`** |
+| `--path`   | **(mandatory for `file`)** The location of your configuration file (`--config` is a deprecated alias).                  |
 | `--ctx`    | **(mandatory)** The evaluation context used to evaluate the flag in json format (ex: `{"targetingKey":"123"}`).        |
 | `--format` | The format of your configuration flag _(acceptable values:`yaml`, `json`, `toml`)_.<br/>Default: **`yaml`**            |
 | `--flag`   | The name of the flag you want to evaluate, if omitted all flags will be evaluated                                      |

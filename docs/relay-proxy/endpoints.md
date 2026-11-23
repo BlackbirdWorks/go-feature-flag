@@ -5,6 +5,25 @@ The relay-proxy is providing a list of REST endpoints to interact with Semaphore
 
 Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/cmd/relayproxy/docs/swagger.json) to have the most updated list of endpoints.
 
+### Endpoint list
+
+| Method and path                         | Usage                                                                  |
+|-----------------------------------------|------------------------------------------------------------------------|
+| `POST /ofrep/v1/evaluate/flags/{key}`   | OFREP evaluation of a single flag.                                     |
+| `POST /ofrep/v1/evaluate/flags`         | OFREP bulk evaluation of all flags.                                    |
+| `POST /v1/feature/{key}/eval`           | Relay proxy API: evaluate a single flag.                               |
+| `POST /v1/allflags`                     | Relay proxy API: evaluate all flags.                                   |
+| `POST /v1/data/collector`               | Send evaluation events to the configured exporters.                    |
+| `GET /v1/flag/change`                   | Hash of the current flag configuration (cheap change detection).       |
+| `POST /v1/flag/configuration`           | Current flag configuration.                                            |
+| `GET /openfeature/v0/manifest`          | OpenFeature flag manifest.                                             |
+| `POST /admin/v1/flags/validate`         | Validate a flag file.                                                  |
+| `POST /admin/v1/retriever/refresh`      | Force a refresh of the retrievers.                                     |
+| `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when it is set; `/metrics` needs metrics enabled). |
+| `GET /swagger/*`                        | Swagger UI, only with `enableSwagger: true`.                           |
+
+The streams are listed in [Flag change streams](#flag-change-streams).
+
 ### Swagger
 The relay proxy can expose a [swagger UI](https://swagger.io/tools/swagger-ui/) to test your REST endpoints.
 

@@ -19,26 +19,43 @@ It exposes the OFREP endpoints:
 |-------------------------------------------|----------------------------------------------------------------|
 | `POST /ofrep/v1/evaluate/flags/{key}`     | Evaluate a single flag (server-side SDKs).                     |
 | `POST /ofrep/v1/evaluate/flags`           | Bulk evaluation of all flags (client-side SDKs).               |
-| `GET /ofrep/v1/configuration`             | OFREP provider configuration.                                  |
 
 See the [endpoints page](../relay-proxy/endpoints.md) and the OpenAPI documentation in
 `cmd/relayproxy/docs/swagger.yaml` for the details.
 
 Point the OFREP provider of your language at the base URL of the relay proxy (for example `http://localhost:1031`).
 If you configured [API keys](../relay-proxy/configuration.md), pass the key to the provider as the `X-API-Key` header or as
-an `Authorization: Bearer <key>` header.
+an `Authorization: Bearer <key>` header (see the `headers` option of the example below).
+The relay proxy does not implement `GET /ofrep/v1/configuration`.
 
 ### Example with the JavaScript SDK
+
+Server side (Node.js, `npm install @openfeature/server-sdk @openfeature/ofrep-provider`):
 
 ```javascript
 import { OpenFeature } from '@openfeature/server-sdk';
 import { OFREPProvider } from '@openfeature/ofrep-provider';
 
 await OpenFeature.setProviderAndWait(
-  new OFREPProvider({ baseUrl: 'http://localhost:1031' })
+  new OFREPProvider({
+    baseUrl: 'http://localhost:1031',
+    headers: [['X-API-Key', 'my-api-key']], // only if API keys are configured
+  })
 );
 const client = OpenFeature.getClient();
 const enabled = await client.getBooleanValue('my-flag', false, { targetingKey: 'user-123' });
+```
+
+Browser (`npm install @openfeature/web-sdk @openfeature/ofrep-web-provider`) uses the bulk endpoint and
+`OpenFeature.setContext(...)` for the evaluation context:
+
+```javascript
+import { OpenFeature } from '@openfeature/web-sdk';
+import { OFREPWebProvider } from '@openfeature/ofrep-web-provider';
+
+await OpenFeature.setContext({ targetingKey: 'user-123' });
+await OpenFeature.setProviderAndWait(new OFREPWebProvider({ baseUrl: 'http://localhost:1031' }));
+const enabled = OpenFeature.getClient().getBooleanValue('my-flag', false);
 ```
 
 Other languages work the same way, with the OFREP provider published by the OpenFeature project for your language

@@ -6,8 +6,6 @@ Send notifications to a Slack channel.
 ## About Slack Notifier
 The **Slack** notifier allows you to get notification on your favorite slack channel when an instance of `go-feature-flag` is detecting changes in the configuration file.
 
-<center><img src="/docs/notifier/slack_change_notification.png" alt="Slack Notification" /></center>
-
 Each notification lists the flags that were created, updated or deleted.
 For an updated flag, every change is described as a short sentence, for example:
 

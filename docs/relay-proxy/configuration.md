@@ -303,7 +303,7 @@ Configuration of the endpoints of the relay proxy.
 
 #### `endpoints.validateFlags`
 
-Body size limits of the [`POST /admin/v1/flags/validate`](advanced-usage.md#-validate-a-flag-file) endpoint, one per format.
+Body size limits of the [`POST /admin/v1/flags/validate`](advanced-usage.md#validate-a-flag-file) endpoint, one per format.
 A request with a larger body is rejected with a `413`.
 
 Each value is either a number of bytes (`1048576`) or a human-readable size (`1MiB`, `64KiB`, `2MB`).
@@ -514,7 +514,9 @@ Measurements: one pod, one run per cell, in-memory S3 emulator on a single host;
 
 ### `studio`
 
-Loads the [`flagSets`](#flagsets) from a remote Studio configuration service instead of the configuration file.
+Loads the [`flagSets`](#flagsets) from a remote configuration service of your own instead of the configuration file.
+This is opt-in: no URL is configured by default, nothing is fetched unless `studio.url` is set, and Semaphore does not
+provide or default to any hosted service. The only host contacted is the one you configure.
 
 When `studio.url` is set, the relay proxy fetches the document served at this URL and only uses its `flagSets` key.
 The rest of the configuration (`server`, `authorizedKeys`, …) still comes from the configuration file and the environment variables.
@@ -872,7 +874,7 @@ File path to persist flag configurations for this flag set.
 
 Environment identifier for this flag set (e.g., "dev", "staging", "prod").
 
-- [_see `environment`_](#environment)
+- [_see `environment`_](#flagsetenvironment)
 
 #### `flagSet.enableSharedPollerPerBucket`
 

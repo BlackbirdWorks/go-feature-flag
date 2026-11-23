@@ -31,7 +31,7 @@ If you need FIPS 140 validated cryptography, build the FIPS variant from source:
 make build-relayproxy-fips
 ```
 
-See [FIPS 140-3 mode](advanced-usage.md#-fips-140-3-mode) for details on running and verifying it.
+See [FIPS 140-3 mode](advanced-usage.md#fips-140-3-mode) for details on running and verifying it.
 
 ## Next steps
 
