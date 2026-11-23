@@ -456,10 +456,14 @@ jobs:
   # once), applies .github/ci-scripts/coverage-exclude.txt, prints the totals
   # to the job summary, fails below COVERAGE_MIN and publishes the Cobertura
   # file that GitHub's native coverage reads. Same script as `make coverage`.
+  # Runs even when a suite failed, so a diagnostic summary of the partial
+  # profiles still exists; the minimum is enforced and the Cobertura upload is
+  # allowed only when every suite succeeded (output `complete`). A failed suite
+  # still fails ci-ok through its own result.
   coverage:
     name: coverage
     needs: [changes, test-unit-root, test-unit-modules, test-integration, test-e2e]
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -469,12 +473,17 @@ jobs:
       # pull request head: the native upload tags the report with the head SHA,
       # so it would attach merge-tree line numbers to the wrong revision.
       head-tested: ${{ steps.tree.outputs.head-tested }}
+      # "true" only when every test suite succeeded (profiles are complete).
+      complete: ${{ steps.suites.outputs.complete }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
           persist-credentials: false
+      - uses: $/.github/actions/setup-go
+      - name: Check the unit tests of the CI scripts
+        run: make test-ci-scripts
       - name: Check the tested tree is the pull request head
         id: tree
         env:
@@ -492,12 +501,33 @@ jobs:
           # Not coverage-*: a rerun would also pull in the published coverage-report.
           pattern: coverage-{unit-*,integration,e2e}
           path: coverage
-      - name: Merge profiles, report and enforce the minimum
+      - name: Check that every test suite succeeded
+        id: suites
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
+          # `changes` is included: all of them must be success.
+          if [[ " $RESULTS " == *" failure "* || " $RESULTS " == *" cancelled "* || " $RESULTS " == *" skipped "* ]]; then
+            echo "complete=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::a test suite did not succeed ($RESULTS): partial coverage summary, minimum not enforced"
+          else
+            echo "complete=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Merge profiles, report and enforce the minimum
+        env:
+          COMPLETE: ${{ steps.suites.outputs.complete }}
+        run: |
+          if ! find coverage -maxdepth 2 -name '*.out' | grep -q .; then
+            echo "::warning::no coverage profile available (every test suite failed early)"
+            [[ "$COMPLETE" == true ]] && exit 1 || exit 0
+          fi
+          # Partial profiles must never be judged against the minimum.
+          min="$COVERAGE_MIN"
+          [[ "$COMPLETE" == true ]] || min=""
           set +e
-          make coverage-report
+          make coverage-report COVERAGE_MIN="$min"
           rc=$?
-          cat coverage/report/summary.md >> "$GITHUB_STEP_SUMMARY"
+          [[ -f coverage/report/summary.md ]] && cat coverage/report/summary.md >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
       - name: Upload merged coverage
         if: ${{ !cancelled() }}
@@ -520,7 +550,7 @@ jobs:
   coverage-upload:
     name: coverage (upload to GitHub)
     needs: [coverage]
-    if: ${{ vars.NATIVE_COVERAGE_UPLOAD == 'true' && needs.coverage.outputs.head-tested == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ vars.NATIVE_COVERAGE_UPLOAD == 'true' && needs.coverage.outputs.head-tested == 'true' && needs.coverage.outputs.complete == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

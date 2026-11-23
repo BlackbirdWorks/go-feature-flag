@@ -19,7 +19,7 @@ WHITE  := $(shell tput -Txterm setaf 7)
 CYAN   := $(shell tput -Txterm setaf 6)
 RESET  := $(shell tput -Txterm sgr0)
 
-.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage
+.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage test-ci-scripts
 
 SHELL := bash
 
@@ -207,6 +207,9 @@ coverage-report: ## Merge the profiles found in coverage/ (e.g. downloaded from 
 		$(if $(COVERAGE_MIN),--min $(COVERAGE_MIN),)
 	@# The merged profile must stay readable by the Go tooling (it is uploaded as an artifact).
 	@GOWORK=off $(GOCMD) tool cover -func=coverage/report/merged.out > /dev/null || { echo "merged profile is not readable by go tool cover"; exit 1; }
+
+test-ci-scripts: ## Run the unit tests of the CI helper scripts (.github/ci-scripts, python3 stdlib)
+	@python3 -B -m unittest discover -s .github/ci-scripts -p 'test_*.py'
 
 bench: ## Launch the benchmark test
 	 $(GOWORK_ENV) $(GOTEST) -tags=bench -bench Benchmark -cpu 2 -run=^$$

@@ -224,7 +224,7 @@ def check_codecov(codecov, pats):
                  % (sorted(a - b), sorted(b - a)))
 
 
-def main():
+def main(argv=None):
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser()
     ap.add_argument("profiles", nargs="+")
@@ -237,7 +237,7 @@ def main():
     ap.add_argument("--min", type=float)
     ap.add_argument("--check-codecov")
     ap.add_argument("--no-exclude", action="store_true", help="measure without the exclusion list")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
     self_test()
 
     pats = load_patterns(a.exclude)
@@ -327,9 +327,6 @@ def main():
     if a.summary:
         with open(a.summary, "w", encoding="utf-8") as fh:
             fh.write(text)
-        full = [text]
-        if not a.top:
-            pass
     print(text)
 
     if a.cobertura:
