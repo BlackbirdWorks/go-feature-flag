@@ -90,8 +90,9 @@ func (c *Config) validateFlagSets() error {
 		return fmt.Errorf("no flagsets configured")
 	}
 
-	// Track API keys to ensure no duplicates across flagsets
-	apiKeySet := make(map[string]string) // apiKey -> flagsetName
+	// Track which flagset owns each credential to ensure no duplicates across flagsets.
+	// The error messages below must never contain the credential itself, only flagset names.
+	ownerByCredential := make(map[string]string) // credential -> flagsetName
 
 	for _, flagset := range c.FlagSets {
 		// Validate API keys
@@ -101,10 +102,10 @@ func (c *Config) validateFlagSets() error {
 
 		// Check for duplicate API keys across flagsets
 		for _, apiKey := range flagset.APIKeys {
-			if existingFlagset, exists := apiKeySet[apiKey]; exists {
-				return fmt.Errorf("API key %s is used by multiple flagsets: %s and %s", apiKey, existingFlagset, flagset.Name)
+			if owner, exists := ownerByCredential[apiKey]; exists {
+				return fmt.Errorf("an API key is used by multiple flagsets: %s and %s", owner, flagset.Name)
 			}
-			apiKeySet[apiKey] = flagset.Name
+			ownerByCredential[apiKey] = flagset.Name
 		}
 
 		// Validate the CommonFlagSet embedded in the flagset

@@ -54,9 +54,10 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	discordURL, err := url.Parse(c.DiscordWebhookURL)
 	if err != nil {
+		// the webhook URL embeds the webhook token, it must not be part of the error.
 		return fmt.Errorf(
-			"error: (Discord Notifier) invalid DiscordWebhookURL: %v",
-			c.DiscordWebhookURL,
+			"error: (Discord Notifier) invalid DiscordWebhookURL: %w",
+			internal.RedactURLError(err),
 		)
 	}
 
@@ -73,7 +74,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 	response, err := c.httpClient.Do(&request)
 	if err != nil {
-		return fmt.Errorf("error: (Discord Notifier) error calling webhook: %v", err)
+		return fmt.Errorf("error: (Discord Notifier) error calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode > 399 {

@@ -112,7 +112,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	endpointURL, err := url.Parse(c.EndpointURL)
 	if err != nil {
-		return fmt.Errorf("error: (Webhook Notifier) invalid EnpointURL:%v", c.EndpointURL)
+		// the endpoint URL may embed credentials, it must not be part of the error.
+		return fmt.Errorf("error: (Webhook Notifier) invalid EnpointURL: %w", internal.RedactURLError(err))
 	}
 
 	// Create request body
@@ -147,7 +148,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	response, err := c.httpClient.Do(&request)
 	// Log if something went wrong while calling the webhook.
 	if err != nil {
-		return fmt.Errorf("error: while calling webhook: %v", err)
+		return fmt.Errorf("error: while calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode > 399 {

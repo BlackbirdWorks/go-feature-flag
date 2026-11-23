@@ -184,7 +184,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 			name: "invalid slack url",
 			expected: expected{
 				err:    true,
-				errMsg: "error: (Slack Notifier) invalid SlackWebhookURL: https://{}hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				errMsg: `error: (Slack Notifier) invalid SlackWebhookURL: parse "[REDACTED]"`,
 			},
 			args: args{
 				url:        "https://{}hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
