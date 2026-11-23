@@ -105,7 +105,7 @@ func bucketUpper(b int) time.Duration {
 	if l < 2 {
 		return time.Duration(1 << (l + 1))
 	}
-	return time.Duration((uint64(4+sub+1) << (l - 2)))
+	return time.Duration(int64(4+sub+1) << (l - 2))
 }
 
 func quantile(h []int64, total int64, q float64) time.Duration {
@@ -148,25 +148,7 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 	ctx, cancel := context.WithTimeout(ctx, o.Duration)
 	defer cancel()
 	var abortedAt atomic.Int64
-	go func() { // watchdog
-		sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
-		start := time.Now()
-		tk := time.NewTicker(200 * time.Millisecond)
-		defer tk.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-tk.C:
-				metrics.Read(sample)
-				if sample[0].Value.Kind() == metrics.KindUint64 && sample[0].Value.Uint64() > o.MaxHeapBytes {
-					abortedAt.Store(int64(time.Since(start)) + 1)
-					cancel()
-					return
-				}
-			}
-		}
-	}()
+	go watchdog(ctx, cancel, o.MaxHeapBytes, &abortedAt)
 
 	stats := make([]*workerStats, o.Workers)
 	var wg sync.WaitGroup
@@ -175,18 +157,7 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 		wg.Add(1)
 		go func(w int, st *workerStats) {
 			defer wg.Done()
-			for i := 0; ctx.Err() == nil; i++ {
-				if i%latSample == 0 {
-					start := time.Now()
-					if err := t.Eval(w, i); err != nil {
-						st.errs.Add(1)
-					}
-					st.hist[bucket(time.Since(start).Nanoseconds())].Add(1)
-				} else if err := t.Eval(w, i); err != nil {
-					st.errs.Add(1)
-				}
-				st.count.Add(1)
-			}
+			evalLoop(ctx, t, w, st)
 		}(w, stats[w])
 	}
 
@@ -205,20 +176,7 @@ loop:
 		case <-ticker.C:
 		}
 		now := time.Now()
-		var count, errs int64
-		for i := range hist {
-			hist[i] = 0
-		}
-		var nLat int64
-		for _, st := range stats {
-			count += st.count.Load()
-			errs += st.errs.Load()
-			for i := range st.hist {
-				c := st.hist[i].Swap(0)
-				hist[i] += c
-				nLat += c
-			}
-		}
+		count, errs, nLat := drain(stats, hist)
 		runtime.GC()
 		var ms runtime.MemStats
 		runtime.ReadMemStats(&ms)
@@ -258,6 +216,61 @@ loop:
 			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>20))
 	}
 	return rep
+}
+
+// watchdog cancels the run when the live heap exceeds maxHeap, recording when in abortedAt.
+func watchdog(ctx context.Context, cancel context.CancelFunc, maxHeap uint64, abortedAt *atomic.Int64) {
+	sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
+	start := time.Now()
+	tk := time.NewTicker(200 * time.Millisecond)
+	defer tk.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-tk.C:
+			metrics.Read(sample)
+			if sample[0].Value.Kind() == metrics.KindUint64 && sample[0].Value.Uint64() > maxHeap {
+				abortedAt.Store(int64(time.Since(start)) + 1)
+				cancel()
+				return
+			}
+		}
+	}
+}
+
+// evalLoop evaluates the target until ctx is done, sampling the latency of one call in latSample.
+func evalLoop(ctx context.Context, t Target, w int, st *workerStats) {
+	for i := 0; ctx.Err() == nil; i++ {
+		if i%latSample == 0 {
+			start := time.Now()
+			if err := t.Eval(w, i); err != nil {
+				st.errs.Add(1)
+			}
+			st.hist[bucket(time.Since(start).Nanoseconds())].Add(1)
+		} else if err := t.Eval(w, i); err != nil {
+			st.errs.Add(1)
+		}
+		st.count.Add(1)
+	}
+}
+
+// drain returns the cumulative counters of the workers and resets hist to the latency histogram
+// accumulated since the previous call (nLat is its number of samples).
+func drain(stats []*workerStats, hist []int64) (count, errs, nLat int64) {
+	for i := range hist {
+		hist[i] = 0
+	}
+	for _, st := range stats {
+		count += st.count.Load()
+		errs += st.errs.Load()
+		for i := range st.hist {
+			c := st.hist[i].Swap(0)
+			hist[i] += c
+			nLat += c
+		}
+	}
+	return count, errs, nLat
 }
 
 const header = "  t     evals/s   err   p50(us)  p99(us)  heapAlloc(MiB) heapInuse(MiB)  heapObjs  numGC  goroutines"
@@ -335,7 +348,8 @@ func (r Report) Summary(w io.Writer) {
 	if !r.Pass {
 		verdict = "FAIL"
 	}
-	_, _ = fmt.Fprintf(w, "\n%s: %s memory-stable (mean %.0f evals/s, %d evals, %d errors, heap growth over window %+.1f MiB)\n",
+	_, _ = fmt.Fprintf(w,
+		"\n%s: %s memory-stable (mean %.0f evals/s, %d evals, %d errors, heap growth over window %+.1f MiB)\n",
 		r.Name, verdict, avg, r.TotalEval, r.TotalErr, r.HeapGrowthBytes/(1<<20))
 	for _, reason := range r.Reasons {
 		_, _ = fmt.Fprintf(w, "  - %s\n", reason)
@@ -347,7 +361,7 @@ func (r Report) Summary(w io.Writer) {
 		}
 		sort.Strings(keys)
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		var parts []string
+		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
 			parts = append(parts, fmt.Sprintf("%s=%d", k, r.Extra[k]))
 		}

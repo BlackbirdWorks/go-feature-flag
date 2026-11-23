@@ -11,9 +11,9 @@ import (
 	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
 )
 
-func benchEvent(i int) exporter.FeatureEvent {
+func benchEvent() exporter.FeatureEvent {
 	return exporter.NewFeatureEvent(
-		ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i%1000)),
+		ffcontext.NewEvaluationContext("user-1"),
 		"flag", true, "A", false, "v1", "SERVER", nil)
 }
 
@@ -24,7 +24,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 		s := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
 		defer s.Stop()
 		s.AddConsumer("c")
-		ev := benchEvent(1)
+		ev := benchEvent()
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -35,7 +35,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 		s := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
 		defer s.Stop()
 		s.AddConsumer("c")
-		ev := benchEvent(1)
+		ev := benchEvent()
 		b.ReportAllocs()
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -54,7 +54,7 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 			s := exporter.NewEventStore[exporter.FeatureEvent](time.Millisecond)
 			defer s.Stop()
 			s.AddConsumer("c")
-			ev := benchEvent(1)
+			ev := benchEvent()
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -87,7 +87,7 @@ func BenchmarkManagerAddEvent(b *testing.B) {
 					[]exporter.Config{{Exporter: exp, FlushInterval: 50 * time.Millisecond, MaxEventInMemory: 1000}},
 					time.Millisecond, nil)
 				m.Start()
-				ev := benchEvent(1)
+				ev := benchEvent()
 				b.ReportAllocs()
 				b.ResetTimer()
 				if par {

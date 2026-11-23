@@ -73,7 +73,7 @@ func Start(opts Options) (*Relay, error) {
 		Server: config.Server{Mode: config.ServerModeHTTP},
 	}
 	if opts.ExporterMode != "" {
-		r.sink = httptest.NewServer(http.HandlerFunc(r.sinkHandler(opts.ExporterMode)))
+		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
 		flush := opts.FlushIntervalMs
 		if flush == 0 {
 			flush = 1000
@@ -82,7 +82,7 @@ func Start(opts Options) (*Relay, error) {
 		if maxMem == 0 {
 			maxMem = 100000
 		}
-		conf.CommonFlagSet.Exporter = &config.ExporterConf{
+		conf.Exporter = &config.ExporterConf{
 			Kind:             config.WebhookExporter,
 			EndpointURL:      r.sink.URL,
 			FlushInterval:    flush,
@@ -91,7 +91,7 @@ func Start(opts Options) (*Relay, error) {
 	}
 	var baseURL string
 	if opts.Listen {
-		l, err := net.Listen("tcp", "127.0.0.1:0")
+		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 		if err != nil {
 			return nil, err
 		}
@@ -123,17 +123,8 @@ func Start(opts Options) (*Relay, error) {
 		r.server = &s
 		go s.StartWithContext(context.Background())
 		r.BaseURL = baseURL
-		deadline := time.Now().Add(15 * time.Second)
-		for {
-			resp, err := http.Get(baseURL + "/health")
-			if err == nil {
-				_ = resp.Body.Close()
-				break
-			}
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("relay proxy did not start: %w", err)
-			}
-			time.Sleep(20 * time.Millisecond)
+		if err := waitHealthy(baseURL); err != nil {
+			return nil, err
 		}
 	}
 	return r, nil
@@ -174,5 +165,25 @@ func (r *Relay) Close() {
 	if r.sink != nil {
 		r.sink.CloseClientConnections()
 		r.sink.Close()
+	}
+}
+
+// waitHealthy polls the relay proxy health endpoint until it answers or 15s elapse.
+func waitHealthy(baseURL string) error {
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		var resp *http.Response
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
+		if err == nil {
+			resp, err = http.DefaultClient.Do(req)
+		}
+		if err == nil {
+			_ = resp.Body.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("relay proxy did not start: %w", err)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

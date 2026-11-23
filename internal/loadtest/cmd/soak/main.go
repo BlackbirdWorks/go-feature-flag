@@ -21,9 +21,14 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	var (
 		target   = flag.String("target", "library", "library | relay")
-		endpoint = flag.String("endpoint", string(relay.GOFFEval), "relay endpoint: goff-eval | goff-allflags | ofrep-eval | ofrep-bulk")
+		endpoint = flag.String("endpoint", string(relay.GOFFEval),
+			"relay endpoint: goff-eval | goff-allflags | ofrep-eval | ofrep-bulk")
 		exp      = flag.String("exporter", "discard", "discard | slow | failing")
 		duration = flag.Duration("duration", 60*time.Second, "total run time")
 		interval = flag.Duration("interval", 5*time.Second, "sampling interval")
@@ -42,11 +47,11 @@ func main() {
 		f, err := os.Create(*cpuProf)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(2)
+			return 2
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
 			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(2)
+			return 2
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -72,7 +77,7 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(2)
+		return 2
 	}
 	defer t.Close()
 
@@ -87,7 +92,7 @@ func main() {
 	}, os.Stdout)
 	rep.Summary(os.Stdout)
 	if !rep.Pass {
-		pprof.StopCPUProfile()
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

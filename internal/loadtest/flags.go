@@ -56,7 +56,8 @@ func scenarioBody(scenario string) string {
 			"    - name: r4\n      query: key eq \"user-5\" or key eq \"user-36\"\n      variation: A\n" +
 			"  defaultRule:\n    variation: B\n"
 	case "jsonlogic":
-		return "  targeting:\n    - query: '{\"in\": [{\"var\": \"key\"}, [\"user-5\", \"user-36\"]]}'\n      variation: A\n" +
+		return "  targeting:\n" +
+			"    - query: '{\"in\": [{\"var\": \"key\"}, [\"user-5\", \"user-36\"]]}'\n      variation: A\n" +
 			"  defaultRule:\n    variation: B\n"
 	case "percentage":
 		return "  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n"
@@ -101,7 +102,8 @@ func ManyFlagsYAML(n int) string {
 		case 0:
 			sb.WriteString("  defaultRule:\n    variation: A\n")
 		case 1:
-			fmt.Fprintf(&sb, "  targeting:\n    - query: key eq \"user-%d\"\n      variation: A\n  defaultRule:\n    variation: B\n", i)
+			fmt.Fprintf(&sb,
+				"  targeting:\n    - query: key eq \"user-%d\"\n      variation: A\n  defaultRule:\n    variation: B\n", i)
 		default:
 			sb.WriteString("  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n")
 		}
