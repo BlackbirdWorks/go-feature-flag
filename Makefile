@@ -1,21 +1,8 @@
 GOCMD=go
-TINYGOCMD=tinygo
 DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
-ALL_GO_MOD_DIRS := ./modules/core ./cmd/wasm ./
-
-# The custom target files (cmd/wasm/targets/) raise the wasm shadow stack from
-# the 64KB wasm-ld default to 1MB (`-z stack-size=`). The 64KB stack could be
-# overflowed by recursive JSON decoding or targeting-query parsing on realistic
-# flag configurations, trapping and permanently poisoning the instance
-# (issue #5651). Note: TinyGo's -stack-size flag only affects goroutine stacks,
-# not the system stack used with -scheduler=none, hence the linker flag.
-# `verify-wasm-stack` asserts the produced binaries actually carry that stack
-# size, so a TinyGo upgrade that stops honoring the target-JSON ldflags fails
-# CI instead of silently regressing. It is kept out of the build targets (it
-# needs python3) and runs as a separate step in CI and in the release script.
-WASM_STACK_SIZE := 1048576
+ALL_GO_MOD_DIRS := ./modules/core ./
 
 # In CI we disable workspace mode.
 ifeq ($(CI),true)
@@ -68,16 +55,6 @@ build-cli: create-out-dir ## Build the cli in out/bin/
 build-jsonschema-generator: create-out-dir ## Build the jsonschema-generator in out/bin/
 	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/jsonschema-generator ./cmd/jsonschema-generator/
 
-build-wasm: create-out-dir ## Build the wasm evaluation library in out/bin/
-	cd cmd/wasm && $(TINYGOCMD) build -o ../../out/bin/gofeatureflag-evaluation.wasm -target ./targets/wasm-stack1m.json -opt=2 -opt=s --no-debug -scheduler=none
-
-build-wasi: create-out-dir ## Build the wasi evaluation library in out/bin/
-	cd cmd/wasm && $(TINYGOCMD) build -o ../../out/bin/gofeatureflag-evaluation.wasi -target ./targets/wasi-stack1m.json -opt=2 -opt=s --no-debug -scheduler=none
-
-verify-wasm-stack: ## Assert the built wasm/wasi binaries carry the expected shadow stack size (run by CI, needs python3)
-	python3 .github/ci-scripts/verify-wasm-stack.py out/bin/gofeatureflag-evaluation.wasm $(WASM_STACK_SIZE)
-	python3 .github/ci-scripts/verify-wasm-stack.py out/bin/gofeatureflag-evaluation.wasi $(WASM_STACK_SIZE)
-
 build-modules:  ## Run build command to build all modules in the workspace
 	@echo "Building all modules in the workspace..."
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Building $(module)"; CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) ./...);)
@@ -106,7 +83,7 @@ endif
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Tidying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod tidy);)
 
 tidy-check: tidy ## Check that go.mod and go.sum are tidy (fails if there are uncommitted changes after tidy)
-	git diff --exit-code --quiet go.mod go.sum modules/core/go.mod modules/core/go.sum cmd/wasm/go.mod cmd/wasm/go.sum
+	git diff --exit-code --quiet go.mod go.sum modules/core/go.mod modules/core/go.sum
 
 verify: ## Run go mod verify for all modules to validate checksums match go.sum
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Verifying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod verify) &&) true
@@ -116,9 +93,6 @@ verify: ## Run go mod verify for all modules to validate checksums match go.sum
 # (via gocloud.dev v0.26.0), which still contains the metadata package and clashes with
 # cloud.google.com/go/compute/metadata in workspace mode. v1.12.0 is the first version without it.
 # Remove it once we drop xitongsys/parquet-go.
-#
-# "go work sync" pushes the root module's dependency versions into modules/core and cmd/wasm, which
-# bumps their go directive to 1.26. Those 2 modules must stay on go 1.25 to remain compatible with tinygo.
 workspace-init:
 	go work init
 	$(foreach module, $(ALL_GO_MOD_DIRS), go work use $(module);)
@@ -148,14 +122,6 @@ swagger: ## Build swagger documentation
 generate-helm-docs: ## Generates helm documentation for the project
 	$(GOWORK_ENV) $(GOCMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@latest
 	helm-docs
-
-bump-wasm-contrib: create-out-dir ## Bump WASM version in the different contrib repositories (usage: make bump-wasm-contrib VERSION=v2.0.12)
-	@if [ -z "$(VERSION)" ]; then \
-		echo "$(RED)Error: VERSION is required$(RESET)"; \
-		echo "Usage: VERSION=v1.2.3 make bump-wasm-contrib"; \
-		exit 1; \
-	fi
-	cd .github/ci-scripts/bump-wasm-contrib && $(GOCMD) run main.go $(VERSION)
 
 ## Test:
 test: ## Run the tests of the project

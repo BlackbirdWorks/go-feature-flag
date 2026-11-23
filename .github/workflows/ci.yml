@@ -333,25 +333,3 @@ jobs:
           cache: false
       - name: Run govulncheck
         run: make vuln-check-relayproxy
-
-  WasmBuild:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 100
-          persist-credentials: false
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: cmd/wasm/go.mod
-          check-latest: true
-          cache: false
-      - uses: acifani/setup-tinygo@f51bf108c9895381060398804ce6cf6f62692106 # v3.0.1
-        with:
-          tinygo-version: "0.40.1"
-      - run: make build-wasm
-      - run: make build-wasi
-      - name: Verify the binaries carry the expected shadow stack size
-        run: make verify-wasm-stack

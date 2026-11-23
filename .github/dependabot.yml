@@ -235,19 +235,3 @@ updates:
       prefix: "chore(dependencies)"
     cooldown:
       default-days: 7
-
-  - package-ecosystem: gomod
-    directory: "/cmd/wasm"
-    schedule:
-      interval: daily
-      time: "02:00"
-    open-pull-requests-limit: 20
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore(dependencies)"
-    cooldown:
-      default-days: 7
-      exclude:
-        - "github.com/thomaspoignant/go-feature-flag/modules/core"

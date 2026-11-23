@@ -41,13 +41,13 @@ OpenFeature SDKs → Relay Proxy (cmd/relayproxy/) → GO Module (ffclient)
 - **`retriever/`**: Flag configuration sources (File, HTTP, S3, K8s, MongoDB, Redis, GitHub, GitLab, Bitbucket, PostgreSQL, Azure Blob Storage, GCS)
 - **`exporter/`**: Data export destinations (S3, File, Kafka, Kinesis, Webhook, GCS, Pub/Sub, SQS, Azure, Logs, OpenTelemetry)
 - **`notifier/`**: Change notifications (Slack, Webhook, Discord, Microsoft Teams, Logs)
-- **`modules/core`**: Core logic module used by OpenFeature providers and WASM
+- **`modules/core`**: Core logic module used by OpenFeature providers
 
 ## 📁 Directory Structure
 
 **Root Level:**
 - Root `.go` files: Core `ffclient` package (`variation.go`, `feature_flag.go`, `config.go`, `tracking.go`, `variation_all_flags.go`, `config_exporter.go`)
-- `cmd/`: Applications (relayproxy, cli, lint, jsonschema-generator, wasm)
+- `cmd/`: Applications (relayproxy, cli, lint, jsonschema-generator)
 - `retriever/`, `exporter/`, `notifier/`: Integration packages
 - `modules/`: Separate Go modules (`core` only)
 - `internal/`: Internal packages (cache, flagstate, notification, signer)
@@ -100,7 +100,7 @@ OpenFeature SDKs → Relay Proxy (cmd/relayproxy/) → GO Module (ffclient)
 - Providers use `modules/core` for evaluation logic
 
 **Modules (`modules/core`):**
-- Core logic separated for reuse by OpenFeature providers and WASM module
+- Core logic separated for reuse by OpenFeature providers
 - `modules/core`: Flag structures, context, models, utilities
 - Allows independent versioning and smaller dependency trees
 
@@ -164,11 +164,11 @@ pre-commit install   # Install pre-commit hooks
 ```
 
 **Common Commands:**
-- **Build:** `make build`, `make build-relayproxy`, `make build-cli`, `make build-wasm`, `make build-wasi`, `make build-jsonschema-generator`, `make build-modules`
+- **Build:** `make build`, `make build-relayproxy`, `make build-cli`, `make build-jsonschema-generator`, `make build-modules`
 - **Dev:** `make watch-relayproxy`, `make watch-doc`, `make serve-doc`
 - **Test:** `make test`, `make coverage`, `make bench`, `make provider-tests`
 - **Quality:** `make lint`, `make tidy`, `make vendor`
-- **Utils:** `make clean`, `make swagger`, `make generate-helm-docs`, `make bump-wasm-contrib`
+- **Utils:** `make clean`, `make swagger`, `make generate-helm-docs`
 
 **Code Quality:**
 - Use `make lint` (golangci-lint)
@@ -185,7 +185,7 @@ pre-commit install   # Install pre-commit hooks
 ## 🔗 Important Files
 
 - **`Makefile`**: Primary interface - `make help` for commands
-- **`go.mod`**: Dependencies (monorepo with `modules/core`, `cmd/wasm`)
+- **`go.mod`**: Dependencies (monorepo with `modules/core`)
 - **`.golangci.yml`**: Linter config
 - **`CONTRIBUTING.md`**: Contribution guidelines
 - **`.github/PULL_REQUEST_TEMPLATE.md`**: PR template (required)
@@ -196,8 +196,7 @@ pre-commit install   # Install pre-commit hooks
 
 **Monorepo Modules (Go workspace):**
 - Main module (root): Core `ffclient` library
-- `modules/core`: Core data structures (used by providers/WASM/relayproxy)
-- `cmd/wasm`: WebAssembly/WASI evaluation
+- `modules/core`: Core data structures (used by providers/relayproxy)
 
 ## 📚 Resources
 

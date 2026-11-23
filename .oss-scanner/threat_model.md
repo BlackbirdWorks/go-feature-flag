@@ -27,8 +27,7 @@ retrievers fetch (file, HTTP, S3, GCS, GitHub, GitLab, Bitbucket, K8s, Redis, Mo
   parsing and evaluation endpoints, rule/targeting evaluation, websocket/SSE handling.
 - Medium: flag config parsing (YAML/JSON/TOML) and retrievers, exporters and notifiers (they send data to
   operator-configured destinations), CLI (`cmd/cli`: lint/evaluate local files).
-- Out of scope: `website/`, `examples/`, `.github/`, the non-Go OpenFeature providers under `openfeature/`,
-  `cmd/wasm` (needs TinyGo, not built here).
+- Out of scope: `website/`, `examples/`, `.github/`, the non-Go OpenFeature providers under `openfeature/`.
 
 ## How to exercise it
 - Binaries are built in `/src/out/bin/`: `relayproxy`, `cli`, `jsonschema-generator`.

@@ -1,4 +1,0 @@
-{
-    "inherits": ["wasm"],
-    "ldflags": ["-z", "stack-size=1048576"]
-}

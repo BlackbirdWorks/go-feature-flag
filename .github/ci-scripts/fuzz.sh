@@ -4,7 +4,7 @@
 # on its own. FUZZTIME limits each function (default 10s). Go test runs
 # until that duration elapses.
 #
-# Usage: FUZZTIME=10s .github/ci-scripts/fuzz.sh ./modules/core ./cmd/wasm ./
+# Usage: FUZZTIME=10s .github/ci-scripts/fuzz.sh ./modules/core ./
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -31,7 +31,7 @@ for module in "$@"; do
 	(
 		cd "$module"
 		# Skip vendor, VCS metadata, and nested modules so `./` does not
-		# fuzz ./modules/core and ./cmd/wasm a second time.
+		# fuzz ./modules/core a second time.
 		files=$(find . \( -name vendor -o -name .git \) -prune -o -type d ! -name . -exec test -f '{}/go.mod' \; -prune -o -name '*_test.go' -print)
 		dirs=
 		if [[ -n "$files" ]]; then
