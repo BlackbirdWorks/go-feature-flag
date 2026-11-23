@@ -1,0 +1,1244 @@
+# Configuration
+
+## Overview
+
+In this page, you will find all the configuration options available for the **relay-proxy**.
+
+The **Semaphore relay-proxy** is highly configurable and can be adapted to your needs.
+Despite that you can start with a minimum configuration and fine tune it later.
+
+## Configuration file
+
+The configuration of the **relay proxy** is based on a configuration file that you have to provide.
+This is a `yaml` file and usage is to call it `goff-proxy.yaml` but you can name it as you will.
+
+You can provide the configuration file with the option `--config=/path_to_your_file.yaml` when launching the relay proxy.
+
+```shell
+go-feature-flag --config=/goff-proxy.yaml
+```
+
+> [!NOTE]
+> By default, if you omit the `--config` option, the relay proxy will look for a configuration file named `goff-proxy.yaml` in _(int this order)_:
+>
+> 1. `./` _(the current directory)_
+> 1. `/goff/`
+> 1. `/etc/opt/goff/`
+>
+
+## Configuration Patterns
+
+- [One set of feature flags](#getting-started): Use one set of feature flags for all your applications. This is the default way of using Semaphore, it requires a minimum configuration and is easy to setup
+- [Use multiple flag sets](#use-multiple-flag-sets): Separate your feature flags into different flag sets to give ownership to different teams or different usage, useful for multi-tenant applications or when you have different teams.
+
+## Getting Started
+
+The minimum configuration to start the **relay proxy** is to provide where to retrieve your feature flags configuration.
+
+```yaml
+retrievers:
+  - kind: file
+    path: /goff/flags.yaml # Location of your feature flag files
+```
+
+All the other options are optional and can be added to the configuration file to fine-tune the **relay proxy**.
+
+## Environment variables
+The primary way to configure the relay proxy is through a configuration file, but you can also use environment variables if you prefer.  
+You can override file configurations using environment variables.
+
+**Here are some things to know when you are using environment variables:**
+
+- To set an option, the environment variable should have the same name as the configuration option in uppercase.  
+  For example, to set the `logLevel` option, you can set the `LOGLEVEL` environment variable.
+
+  ```shell
+  export LOGLEVEL=debug
+  ```
+
+- If you want to set a nested field, you can use `_` to separate each field.  
+  For example, to set the `server.port` option, you can set the `SERVER_PORT` environment variable.
+
+  ```shell
+  export SERVER_PORT=8080
+  ```
+
+- If you want to set an array of string, you can add multiple values separated by a comma.
+
+  ```shell
+  export AUTHORIZEDKEYS_EVALUATION=my-first-key,my-second-key
+  ```
+
+- If you are modifying an array of objects, you can use the index to set the value.
+
+  ```shell
+  export RETRIEVERS_0_KIND=github
+  ```
+
+> [!NOTE]
+> If you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy, you can prefix your environment variables.
+>
+> You can configure the prefix using the [`envVariablePrefix`](#envvariableprefix) field in your configuration file.
+
+## Configuration Options
+
+### `server`
+
+This is the configuration related to the server behavior of the relay proxy.
+It allows the internal server behaviors such as your execution mode, monitoring port, etc ...
+
+- option name: `server`
+- type: [`serverConfig`](#type-serverconfig)
+- default: **none**
+- mandatory: No
+- Check the [server configuration types](#type-serverconfig) to have more information about the available options.
+
+### `retrievers`
+
+This is the configuration on how to retrieve the configuration of the files.
+
+- option name: `retrievers`
+- type: [`[]retriever`](#type-retriever)
+- default: **none**
+- **mandatory: Yes**
+- You can have multiple retrievers at the same time, check [_"Using multiple retrievers"_](../concepts/retriever.md#using-multiple-retrievers) to see how it works.
+- Configuration of a retriever depends on the one you are choosing. Check the [list of retrievers](../integrations/retrievers/README.md#available-retrievers) and go on the detail page of your choice to configure it.
+
+```yaml
+retrievers:
+  - kind: file
+    path: /goff/my-flags.yaml
+  - kind: s3
+    bucket: my-featureflag-bucket
+    item: flag/flags.goff.yaml
+```
+
+### `startWithRetrieverError`
+
+By default, the **relay proxy** will crash if it is not able to retrieve the flags from the configuration.
+
+If you don't want your relay proxy to crash, you can set `startWithRetrieverError` to true. Until the flag is retrievable the relay proxy will only answer with default values.
+
+- option name: `startWithRetrieverError`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `persistentFlagConfigurationFile`
+
+If set, Semaphore will store the flags configuration in this file to be able to serve the flags even if none of the retrievers is available during starting time.
+> [!NOTE]
+> By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here, you ensure that Semaphore will always start with a configuration but which can be out-dated.
+
+- option name: `persistentFlagConfigurationFile`
+- type: **string**
+- default: **none**
+- mandatory: No
+- example: `/tmp/goff_persist_conf.yaml`
+
+### `fileFormat`
+
+This is the format of your flag configuration file.
+
+- option name: `fileFormat`
+- type: **string**
+- Acceptable values are :`yaml`, `json`, `toml`.
+- default: **`yaml`**
+- mandatory: No
+
+### `pollingInterval`
+
+This is the time interval **in millisecond** when the relay proxy is reloading the configuration file.  
+It is also the interval of the shared pollers of the flag sets using [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
+
+- option name: `pollingInterval`
+- type: **int**
+- default: **`60000`**
+- The minimum time accepted is 1000 millisecond (1 second).
+- If you set a negative value, the polling will be disabled.
+- mandatory: No
+
+### `enablePollingJitter`
+
+Set to true if you want to avoid having true periodicity when retrieving your flags. It is useful to avoid having spike on your flag configuration storage in case your application is starting multiple instance at the same time.  
+It is also used by the shared pollers of the flag sets using [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket).
+
+> [!NOTE]
+> We ensure a deviation that is maximum ±10% of your polling interval.
+
+- option name: `enablePollingJitter`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `logLevel`
+
+The log level to use for the relay proxy.
+
+Check [_"Logging"_](observability.md#logging) to have more information.
+
+- option name: `logLevel`
+- type: **string**
+- default: **`info`**
+- Acceptable values are `error`, `warn`, `info`, `debug`.
+- mandatory: No
+- When in `DEBUG` mode, the relay proxy will log the request body and response body,
+for large payloads this can be a lot of data and can impact the performance this is the reason why we truncate the body if it is larger than **8KiB**.
+
+Setting `logLevel: debug` also enables debug HTTP error responses and [profiling endpoints](profiling.md).
+To enable profiling without debug logging, use [`enablePprof`](#enablepprof).
+
+### `logFormat`
+
+The format to use for structured logs from the relay proxy.
+
+Check [_"Logging"_](observability.md#logging) to have more information.
+
+- option name: `logFormat`
+- type: **string**
+- default: **`json`**
+- Acceptable values are `json` and `logfmt`.
+- mandatory: No
+
+### `enablePprof`
+
+This param is used to enable **pprof endpoints** if you wish to enable profiling.
+
+Check [_"Profiling"_](profiling.md) to have more information.
+
+- option name: `enablePprof`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `exporters`
+
+Exporters is the configuration used to define how to export the data from Semaphore.
+
+- option name: `exporters`
+- type: **[[]exporter](#type-exporter)**
+- default: **none**
+- mandatory: No
+- You can have multiple exporters at the same time, it will export the data to all the exporters you have configured in parallel.
+- Configuration of an exporter depends on the one you are choosing. Check the [list of exporters](../integrations/exporters/README.md#available-exporters) and go on the detail page of your choice to configure it.
+
+```yaml
+exporters:
+  - kind: s3
+    bucket: evaluation-data-bucket
+  - kind: kafka
+    kafka:
+      topic: "go-feature-flag-events"
+```
+### `notifiers`
+
+Notifiers is the configuration on where to notify a flag changes.
+
+- option name: `notifiers`
+- type: **[[]notifier](#type-notifier)**
+- default: **none**
+- mandatory: No
+- Configuration of a notifier depends on the one you are choosing. Check the [list of notifiers](../integrations/notifiers/README.md#available-notifiers) and go on the detail page of your choice to configure it.
+
+### `disableNotifierOnInit`
+
+If `disableNotifierOnInit` is set to **true**, the relay proxy will not call any notifier when the flags are loaded for the 1st time _(during initialization)_. This is useful if you do not want a Slack/Webhook notification saying that the flags have been added every time you start the proxy.
+
+- option name: `disableNotifierOnInit`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `hideBanner`
+
+`hideBanner` can be used to hide the startup banner.
+
+- option name: `hideBanner`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `swagger`
+
+Configuration related to the swagger behavior of the relay proxy.
+
+- option name: `swagger`
+- type: **[swagger](#type-swagger)**
+- default: **none**
+- mandatory: No
+
+### `ofrepEventStream`
+
+Advertises the flag-change SSE endpoint in the OFREP bulk evaluation response so that OFREP providers can subscribe to changes instead of polling (see [OpenFeature ADR-0008](https://github.com/open-feature/protocol/blob/main/service/adrs/0008-sse-for-bulk-evaluation-changes.md)).
+
+It is enabled when [`ofrepEventStream.baseUrl`](#ofrepeventstreambaseurl) is set.
+
+- option name: `ofrepEventStream`
+- type: **[ofrepEventStream](#type-ofrepeventstream)**
+- default: **none**
+- mandatory: No
+
+### `disableVersionHeader`
+
+If `disableVersionHeader` is set to **`true`**, the relay proxy will not add the header `x-gofeatureflag-version` with the Semaphore version in the HTTP response.
+
+- option name: `disableVersionHeader`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `disableFlagDetailsInStream`
+
+If `disableFlagDetailsInStream` is set to **`true`**, WebSocket flag change payloads omit flag definitions, including targeting rules. The `deleted`, `added`, and `updated` objects retain the changed flag names with empty object values so clients can refresh their evaluated flags without receiving the underlying configuration.
+Enabling this setting requires restarting the relay proxy.
+
+- option name: `disableFlagDetailsInStream`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `endpoints`
+
+Configuration of the endpoints of the relay proxy.
+
+#### `endpoints.validateFlags`
+
+Body size limits of the [`POST /admin/v1/flags/validate`](advanced-usage.md#-validate-a-flag-file) endpoint, one per format.
+A request with a larger body is rejected with a `413`.
+
+Each value is either a number of bytes (`1048576`) or a human-readable size (`1MiB`, `64KiB`, `2MB`).
+An unset (or `0`) value keeps the default, a negative value is rejected when the configuration is loaded.
+SI units are decimal (`2MB` = 2,000,000 bytes) while IEC units are binary (`2MiB` = 2,097,152 bytes).
+Changing this setting requires restarting the relay proxy.
+
+| Option            | Type                | Default            |
+|-------------------|---------------------|--------------------|
+| `maxJSONBodySize` | integer or string | `1048576` (1 MiB)  |
+| `maxYAMLBodySize` | integer or string | `65536` (64 KiB)   |
+| `maxTOMLBodySize` | integer or string | `65536` (64 KiB)   |
+
+```yaml
+endpoints:
+  validateFlags:
+    maxJSONBodySize: 1048576 # 1 MiB
+    maxYAMLBodySize: 64KiB
+    maxTOMLBodySize: 64KiB
+```
+
+The environment variables are `ENDPOINTS_VALIDATEFLAGS_MAXJSONBODYSIZE`, `ENDPOINTS_VALIDATEFLAGS_MAXYAMLBODYSIZE`
+and `ENDPOINTS_VALIDATEFLAGS_MAXTOMLBODYSIZE` (for example `ENDPOINTS_VALIDATEFLAGS_MAXYAMLBODYSIZE=128KiB`).
+
+> [!WARNING]
+> The YAML and TOML limits are lower than the JSON one on purpose: the parsing cost of those formats grows
+> quadratically with the size of the body (tracked in [#6439](https://github.com/BlackbirdWorks/go-feature-flag/issues/6439)).
+> Raising them exposes the relay proxy to slower requests, so keep them as small as your flag files allow.
+
+- option name: `endpoints`
+- type: **object**
+- default: **none**
+- mandatory: No
+
+### `authorizedKeys`
+
+List of authorized API keys.
+
+> [!NOTE]
+> If you don't set any API keys, the relay proxy will be fully open to all requests
+
+- option name: `authorizedKeys`
+- type: **[authorizedKeys](#type-authorizedkeys)**
+- default: **none**
+- mandatory: No
+
+> [!TIP]
+> **Runtime updates**: API keys can be updated at runtime without restarting the relay proxy.  
+> When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration.  
+> This works in both default mode and flagset mode.
+
+### `evaluationContextEnrichment`
+
+It is a free field that will be merged with the evaluation context sent during the evaluation.
+
+It is useful to add common attributes to all the evaluations, such as a server version, environment, etc.
+These fields will be included in the custom attributes of the evaluation context.
+
+> [!WARNING]
+> If in the evaluation context you have a field with the same name, it will be overridden by the `evaluationContextEnrichment`.
+
+- option name: `evaluationContextEnrichment`
+- type: **object**
+- default: **none**
+- mandatory: No
+
+### `openTelemetryOtlpEndpoint`
+
+Endpoint of your **OpenTelemetry OTLP collector**, used to send traces.
+
+You will be able to forward those traces to your OpenTelemetry solution directly from the collector.
+
+- option name: `openTelemetryOtlpEndpoint`
+- type: **string**
+- default: **none**
+- mandatory: No
+
+### `flagSets`
+
+Flag sets allow you to organize your feature flags into separate groups, each with its own configuration, API keys, retrievers, exporters, and notifiers.
+
+When you configure flag sets, the relay proxy operates in **flag set mode** instead of the default single configuration mode. Each flag set requires at least one API key and can have its own retrievers, exporters, and notifiers.
+
+- option name: `flagSets`
+- type: **[[]flagSet](#type-flagset)**
+- default: **none**
+- mandatory: No
+- If flag sets are configured, the relay proxy will ignore the top-level `retrievers`, `exporters`, and `notifiers` configuration.
+- Cannot be used together with [`studio`](#studio).
+
+```yaml
+server:
+  mode: http
+  port: 1031
+flagSets:
+  - name: teamA
+    apiKeys:
+      - "team-a-api-key"
+    retrievers:
+      - kind: file
+        path: /flags/team-a-flags.yaml
+    exporters:
+      - kind: log
+
+  - name: teamB
+    apiKeys:
+      - "team-b-api-key"
+    retrievers:
+      - kind: s3
+        bucket: my-feature-flag-bucket
+        item: team-b/flags.yaml
+    exporters:
+      - kind: s3
+        bucket: evaluation-data-bucket
+```
+
+**Runtime updates**: flag sets can be **added** or **removed** at runtime without restarting the relay proxy.  
+When the configuration file changes, the relay proxy detects it and reconciles the running flag sets:
+a newly added flag set is started immediately and a removed flag set is stopped.
+
+> [!WARNING]
+> - **Modifying** an existing flag set (its `retrievers`, `exporters`, `notifiers`, `pollingInterval`, …) is **not supported at runtime**. The only exception is its `apiKeys`, which can be changed live. Any other modification is **ignored** and an error is logged; the change will only be applied the next time the relay proxy is **restarted**.
+> - Runtime add/remove only works for flag sets that have an explicit, unique [`name`](#flagsetname). Flag sets without a name (or named `default`) get a generated name at startup and cannot be added or removed at runtime.
+
+#### Sharing S3 requests between flag sets
+
+By default every flag set polls its own retriever, so `N` flag sets reading `N` files from the same S3 bucket send `N` `GetObject` requests per polling interval and per relay proxy replica.
+
+With [`enableSharedPollerPerBucket`](#flagsetenablesharedpollerperbucket) set to **true**, the flag sets of the same bucket share **one poller**.
+Every polling interval the poller does **one recursive listing** of the bucket, compares the ETag of each file with the one it already holds, and refreshes **only the flag sets whose file changed**, each of them downloading just its own file.
+
+```yaml
+pollingInterval: 5000 # used by the shared poller of every bucket
+flagSets:
+  - name: project-1-prod # no option: keeps its own retriever and its own polling
+    apiKeys: ["prod-key"]
+    retriever:
+      kind: s3
+      bucket: flags
+      item: flags/project-1/prod/flags.yaml
+
+  - name: project-1-dev
+    enableSharedPollerPerBucket: true
+    apiKeys: ["dev-key"]
+    retriever:
+      kind: s3
+      bucket: flags
+      item: flags/project-1/dev/flags.yaml
+
+  - name: project-2-dev
+    enableSharedPollerPerBucket: true
+    apiKeys: ["dev-2-key"]
+    retriever:
+      kind: s3
+      bucket: flags
+      item: flags/project-2/dev/flags.yaml
+```
+
+- Only the flag sets with the same `bucket` and `enableSharedPollerPerBucket: true` are grouped, the others behave as usual. Keep your production flag sets isolated by not setting the option on them.
+- **Polling**: the shared poller uses the top-level `pollingInterval` and `enablePollingJitter` (60s by default, 1s at least). If an opted-in flag set sets a different `pollingInterval` or `enablePollingJitter`, a **warning** naming the flag set and both values is logged and the top-level values are used. The configuration is not rejected.
+- **Layout**: put the flag files under a dedicated prefix (like `flags/` above). The poller lists the longest common key prefix of the items, cut at its last `/`, and the listing covers **every object under it**. Items with no common directory list **the whole bucket**.
+- **IAM**: in addition to `s3:GetObject`, the relay proxy needs `s3:ListBucket` on the bucket for the listing prefix. A denied prefix fails the listing for **the whole group**.
+
+##### Behaviour
+
+- **Detection delay**: a change is detected at the next listing, so within one `pollingInterval` like with an independent retriever.
+- **Startup**: each flag set downloads its file once when it starts and is ready after that. Downloads are limited to 16 concurrent `GetObject` requests per bucket.
+- **Errors**: a failed refresh of one flag set does not stop the others and is retried at the next poll. A failed listing is logged and retried at the next polling interval, the flag sets keep serving their last known flags meanwhile. Each listing page request has a 30 second timeout and a listing is limited to 10000 pages.
+- **Reload**: a new top-level `pollingInterval` or `enablePollingJitter` is applied to the running pollers without rebuilding the flag sets. Like the other flag set options, `enableSharedPollerPerBucket` can't be changed on an existing flag set at runtime.
+- **Lifecycle**: the poller of a bucket starts with its first flag set and stops when the last one is removed or the relay proxy shuts down.
+- The `timeout` of the `retriever` is not used by this path.
+
+##### Request load on the bucket
+
+With `N` flag sets, `M` objects under the prefix and `C` changed objects per interval, independent retrievers send `N` `GetObject` requests per interval and per replica, and the shared poller sends `ceil(M / 1000)` listing pages plus `C` `GetObject` requests. The request count goes down while `M` is below roughly `1000 * (N - C)`. Keep the prefix dedicated to the flag files, and leave the option off for a handful of flag sets.
+In dollars, a listing page costs about 12.5 times a `GetObject`, so the cost only goes down while `M` is below about `80 * N`: the cost is secondary, the goal is the request load.
+
+Measured on this implementation (one poller per bucket, each flag set keeping its own client with polling disabled):
+
+Per pod, 60s window, 5s polling, 1% of flagsets rewritten every polling interval, single run each, local in-memory S3 emulator:
+
+| Flagsets x flags | Metric | Current | SharedRetriever | Delta |
+|---|---|---|---|---|
+| 100 x 10 | S3 requests | 1,200 GET | 12 LIST + 12 GET | -1,176 (50x fewer) |
+| | RSS (MiB) | 83.0 | 74.4 | -8.5 (-10%) |
+| | Heap in use (MiB) | 23.3 | 17.1 | -6.2 (-27%) |
+| | Goroutines | 318 | 21 | -297 (15x fewer) |
+| | Allocations (count / bytes) | 5.20M / 331 MiB | 0.19M / 10.8 MiB | 27x / 31x fewer |
+| 100 x 20 | S3 requests | 1,200 GET | 12 LIST + 12 GET | -1,176 (50x fewer) |
+| | RSS (MiB) | 90.1 | 80.8 | -9.3 (-10%) |
+| | Heap in use (MiB) | 27.1 | 21.2 | -5.9 (-22%) |
+| | Goroutines | 317 | 22 | -295 (14x fewer) |
+| | Allocations (count / bytes) | 9.72M / 583 MiB | 0.31M / 19.0 MiB | 31x / 31x fewer |
+| 200 x 10 | S3 requests | 2,400 GET | 12 LIST + 24 GET | -2,364 (67x fewer) |
+| | RSS (MiB) | 96.3 | 71.5 | -24.8 (-26%) |
+| | Heap in use (MiB) | 37.7 | 25.9 | -11.8 (-31%) |
+| | Goroutines | 617 | 22 | -595 (28x fewer) |
+| | Allocations (count / bytes) | 10.38M / 662 MiB | 0.37M / 21.0 MiB | 28x / 32x fewer |
+| 200 x 20 | S3 requests | 2,400 GET | 12 LIST + 24 GET | -2,364 (67x fewer) |
+| | RSS (MiB) | 107.8 | 95.9 | -12.0 (-11%) |
+| | Heap in use (MiB) | 36.4 | 29.4 | -7.0 (-19%) |
+| | Goroutines | 617 | 22 | -595 (28x fewer) |
+| | Allocations (count / bytes) | 19.39M / 1,166 MiB | 0.59M / 36.6 MiB | 33x / 32x fewer |
+
+Measurements: one pod, one run per cell, in-memory S3 emulator on a single host; memory figures are single end-of-window samples and vary by several MiB between runs. Transferred bytes are not reported because the counting proxy did not capture LIST response sizes. The request reduction depends on the polling interval and on how many objects change: at the production default of 60s with the same write rate it is roughly N / (1 + changed objects per interval), about 8x here, not 50-67x. Multi-replica totals scale linearly with the number of pods for requests (each pod polls independently) but were not measured.
+
+- **Caveats**: each replica still downloads each object once when it starts. The listing covers every object under the common prefix, so unrelated objects raise the number of listing pages. `s3:ListBucket` must be allowed on the prefix.
+
+### `studio`
+
+Loads the [`flagSets`](#flagsets) from a remote Studio configuration service instead of the configuration file.
+
+When `studio.url` is set, the relay proxy fetches the document served at this URL and only uses its `flagSets` key.
+The rest of the configuration (`server`, `authorizedKeys`, …) still comes from the configuration file and the environment variables.
+
+- option name: `studio`
+- type: [`studio`](#type-studio)
+- default: **none**
+- mandatory: No
+- `studio` and `flagSets` cannot be used together, the relay proxy refuses to start if both are set.
+- Check the [studio configuration type](#type-studio) to have more information about the available options.
+
+```yaml
+server:
+  mode: http
+  port: 1031
+studio:
+  url: https://studio.example.com/relay-proxy/goff-proxy.yaml
+  headers:
+    Authorization:
+      - "Bearer my-token"
+  pollingInterval: 60000
+  cacheFile: /goff/studio-cache.yaml
+```
+
+**Runtime updates**: the URL is polled every [`studio.pollingInterval`](#studiopollinginterval) milliseconds.
+When the `flagSets` change, they are applied the same way as a change of the [`flagSets`](#flagsets) in the configuration file.
+A document with invalid `flagSets` is rejected, an error is logged and the relay proxy keeps the previous flag sets.
+
+> [!WARNING]
+> Changes to the `studio` configuration itself (`url`, `headers`, `pollingInterval`, `cacheFile`) require restarting the relay proxy.
+
+### `envVariablePrefix`
+
+Prefix for your environment variables.  
+This useful if you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy.
+
+If you use this option you will have to prefix all your environment variables with the value you set here. For example if you want to override the port of the relay-proxy and the prefix is `GOFF_`.
+
+```shell
+export GOFF_SERVER_PORT=8080
+```
+
+- option name: `envVariablePrefix`
+- type: **string**
+- default: **empty string**
+- mandatory: No
+
+### `enableBulkMetricFlagNames`
+
+Enables per-flag metrics for bulk evaluation endpoints.
+This adds `flag_name` labels to the `all_flags_evaluations_total_with_flag` metric.
+
+> [!NOTE]
+> When enabled, this option provides more granular metrics by including the flag name in the metric labels for bulk evaluation endpoints. This can be useful for monitoring and alerting on specific flags, but may increase the cardinality of your metrics.
+
+- option name: `enableBulkMetricFlagNames`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+## Configuration Types
+
+### type `authorizedKeys`
+
+`authorizedKeys` is an object were it is possible to configure the list of API Keys that are accepted by the relay proxy.
+
+#### `authorizedKeys.evaluation`
+
+If set, we will check for each evaluation if an authorized key is provided.
+
+Each request will need to provide one of authorized key inside `X-API-Key` header.
+
+- option name: `evaluation`
+- type: **[]string**
+- default: **none**
+- mandatory: No
+
+#### `authorizedKeys.admin`
+
+You need to set API keys in this field if you want to access the `/admin/v1/*` endpoints.
+
+Each request will need to provide one of authorized key inside `X-API-Key` header.
+
+- option name: `admin`
+- type: **[]string**
+- default: **none**
+- mandatory: No
+- If no api key is configured the endpoint will be unreachable.
+
+#### Example
+
+```yaml
+# ...
+authorizedKeys:
+  evaluation:
+    - "my-first-key"
+    - "my-second-key"
+  admin:
+    - "my-first-admin-key"
+    - "my-second-admin-key"
+```
+
+### type `serverConfig`
+
+Configuration related to the server behavior of the relay proxy.
+
+#### `server.mode`
+
+The execution mode of the relay proxy, you can choose to start the relay-proxy in different modes depending how you want to call the APIs.
+
+- option name: `mode`
+- type: **string**
+- Acceptable values are :`http`, `lambda`, `unixsocket`.
+- default: **http**
+- mandatory: No
+- `http`: Start the relay proxy as a HTTP server.  
+  `lambda`: Start the relay proxy as an AWS Lambda handler.  
+  `unixsocket`: Start the relay proxy and listen on a Unix socket, you have to set the `unixSocketPath` field to define where the socket file will be created.
+
+#### `server.unixSocketPath`
+
+The path where the Unix socket file will be created when the relay proxy is started in `unixsocket` mode.
+If used in combination with `server.monitoringPort` monitoring endpoints will be served via http on the provided port.
+
+- option name: `unixSocketPath`
+- type: **string**
+- default: **none**
+- mandatory: No
+- This field is mandatory if the `mode` is set to `unixsocket`.
+
+#### `server.host`
+
+The server host used by the relay proxy to bind the HTTP server.
+
+- option name: `host`
+- type: **string**
+- default: **`0.0.0.0`**
+- mandatory: No
+- This field is used only in `http` mode.
+
+#### `server.port`
+
+The server port used by the relay proxy to bind the HTTP server.
+
+- option name: `port`
+- type: **int**
+- default: **1031**
+- mandatory: No
+- This field is used only in `http` mode.
+
+#### `server.monitoringPort`
+
+If set the monitoring endpoints will be served on this specific port.
+
+Check [_"Use specific port for the monitoring"_](observability.md#use-specific-port-for-the-monitoring) to have more information.
+
+- option name: `monitoringPort`
+- type: **int**
+- default: **none**
+- mandatory: No
+- This field is used only in `http` mode.
+
+#### `server.awsLambdaAdapter`
+
+This parameter allow you to decide which type of AWS lambda handler you want to use.
+
+- option name: `awsLambdaAdapter`
+- type: **string**
+- default: **`APIGatewayV2`**
+- Acceptable values are `APIGatewayV2`, `APIGatewayV1`, `ALB`.
+- mandatory: No
+- This param is used only if `server.mode` is set to `lambda`.
+
+#### `server.awsApiGatewayBasePath`
+
+Specifies the base path prefix for AWS API Gateway deployments when using non-root routes.
+The relay proxy will strip this base path from incoming requests before processing them.
+This is useful when deploying behind paths like `/api` or `/dev/feature-flags`.
+
+- option name: `awsApiGatewayBasePath`
+- type: **string**
+- default: **none**
+- mandatory: No
+- This param is used only if `server.mode` is set to `lambda`.
+
+**Example:** If set to `/api/feature-flags`, requests to `/api/feature-flags/health` will be processed as `/health`.
+
+### type `retriever`
+
+A [retriever](../concepts/retriever.md) is the component in charge of loading your flag configuration from a remote source.
+
+#### `retriever.kind`
+
+Configuring a retriever always start by setting the kind of retriever you want to use. This is the only common param between all the retrievers.
+
+- option name: `kind`
+- type: **string**
+- default: **none**
+- mandatory: Yes
+
+> [!NOTE]
+> To find the **`kind`** to use for your retriever and the **rest of the options**, check the [list of retrievers](../integrations/retrievers/README.md#available-retrievers) and go on the detail page of your choice to configure it.
+>
+> **Available retrievers**:
+>
+> - [HTTP(S)](../integrations/retrievers/http.md)
+> - [File System](../integrations/retrievers/file.md)
+> - [Kubernetes ConfigMap](../integrations/retrievers/kubernetes-configmap.md)
+> - [AWS S3](../integrations/retrievers/aws-s3.md)
+> - [MinIO](../integrations/retrievers/minio.md)
+> - [Google Cloud Storage](../integrations/retrievers/google-cloud-storage.md)
+> - [Azure Blob Storage](../integrations/retrievers/azure-blob-storage.md)
+> - [GitHub](../integrations/retrievers/github.md)
+> - [GitLab](../integrations/retrievers/gitlab.md)
+> - [Bitbucket](../integrations/retrievers/bitbucket.md)
+> - [MongoDB](../integrations/retrievers/mongodb.md)
+> - [Redis](../integrations/retrievers/redis.md)
+> - [Postgresql](../integrations/retrievers/postgresql.md)
+
+### type `exporter`
+
+An [exporter](../concepts/exporter.md) is the component in charge of sending your evaluation data to a remote source.
+
+```yaml
+# ...
+exporters:
+  - kind: s3
+    bucket: evaluation-data-bucket
+    flushInterval: 10000
+```
+> [!NOTE]
+>
+> Every `exporter` has its own configuration, check the [list of exporters](../integrations/exporters/README.md#available-exporters) and go on the detail page of your choice to configure it.
+>
+> **Available exporters**:
+>
+> - [AWS S3](../integrations/exporters/aws-s3.md)
+> - [MinIO](../integrations/exporters/minio.md)
+> - [Azure Blob Storage](../integrations/exporters/azure-blob-storage.md)
+> - [File System](../integrations/exporters/file.md)
+> - [Apache Kafka](../integrations/exporters/kafka.md)
+> - [AWS Kinesis](../integrations/exporters/aws-kinesis.md)
+> - [Google Cloud Storage](../integrations/exporters/google-cloud-storage.md)
+> - [Google Cloud PubSub](../integrations/exporters/google-cloud-pubsub.md)
+> - [Google Cloud BigQuery](../integrations/exporters/google-cloud-bigquery.md)
+> - [AWS SQS](../integrations/exporters/aws-sqs.md)
+> - [AWS Redshift](../integrations/exporters/aws-redshift.md)
+> - [Webhook](../integrations/exporters/webhook.md)
+> - [Log](../integrations/exporters/log.md)
+> - [OpenTelemetry](../integrations/exporters/opentelemetry.md)
+
+### type `flagSet`
+
+A flag set is a collection of flags that are used to evaluate features. It is used to group flags together and to apply the same configuration to them.
+
+```yaml
+flagSets:
+  - name: my-flagset
+    apiKeys:
+      - "my-api-key"
+    retrievers:
+      - kind: file
+        path: /flags/my-flags.yaml
+    exporters:
+      - kind: s3
+        bucket: my-evaluations
+    notifiers:
+      - kind: slack
+        webhookUrl: "https://hooks.slack.com/services/..."
+```
+
+#### `flagSet.name`
+
+The name of the flag set. This allows you to identify the flag set.
+
+- option name: `name`
+- type: **string**
+- default: **auto-generated UUID**
+- mandatory: No
+
+> [!WARNING]
+> If you want to **add/remove the flag set** or **update its API keys** at runtime without restarting the relay proxy, you **must provide a `name`** for your flag set.  
+> Without a name (or using `default` as the name), a UUID is generated and the flag set cannot be managed at runtime.
+
+#### `flagSet.apiKeys`
+
+The API keys for the flag set. This will add new API keys to the list of authorized keys for evaluation. This property is mandatory for every flag set, as it is used to filter the flags available.
+
+- option name: `apiKeys`
+- type: **[]string**
+- default: **none**
+- mandatory: Yes
+
+#### `flagSet.retrievers`
+
+Configuration for retrieving flag configurations. Supports the same options as the main configuration.
+
+- [_see `retrievers`_](#retrievers)
+
+#### `flagSet.exporters`
+
+Configuration for exporting evaluation data. Supports the same options as the main configuration.
+
+- [_see `exporters`_](#exporters)
+
+#### `flagSet.notifiers`
+
+Configuration for flag change notifications. Supports the same options as the main configuration.
+
+- [_see `notifiers`_](#notifiers)
+
+#### `flagSet.fileFormat`
+
+The format of the flag configuration files (yaml, json, toml).
+
+- [_see `fileFormat`_](#fileformat)
+
+#### `flagSet.pollingInterval`
+
+The time interval in milliseconds when the relay proxy is reloading the configuration file.
+
+- [_see `pollingInterval`_](#pollinginterval)
+
+#### `flagSet.startWithRetrieverError`
+
+If true, the flag set will start even if the retriever fails initially.
+
+- [_see `startWithRetrieverError`_](#startwithretrievererror)
+
+#### `flagSet.enablePollingJitter`
+
+Set to true if you want to avoid having true periodicity when retrieving your flags.
+
+- [_see `enablePollingJitter`_](#enablepollingjitter)
+
+#### `flagSet.disableNotifierOnInit`
+
+Set to true if you do not want to call any notifier when the flags are loaded for the first time.
+
+- [_see `disableNotifierOnInit`_](#disablenotifieroninit)
+
+#### `flagSet.evaluationContextEnrichment`
+
+Additional context data to merge with all evaluation requests for this flag set.
+
+- [_see `evaluationContextEnrichment`_](#evaluationcontextenrichment)
+
+#### `flagSet.persistentFlagConfigurationFile`
+
+File path to persist flag configurations for this flag set.
+
+- [_see `persistentFlagConfigurationFile`_](#persistentflagconfigurationfile)
+
+#### `flagSet.environment`
+
+Environment identifier for this flag set (e.g., "dev", "staging", "prod").
+
+- [_see `environment`_](#environment)
+
+#### `flagSet.enableSharedPollerPerBucket`
+
+If `enableSharedPollerPerBucket` is set to **true**, the flag set does not poll its own retriever: it shares one poller per bucket with the other flag sets of the same S3 bucket that also set this option. Each flag set keeps its own client (with its own polling turned off), caches, notifiers and exporters.  
+The shared poller uses the top-level [`pollingInterval`](#pollinginterval) and [`enablePollingJitter`](#enablepollingjitter). If the flag set sets different values, the relay proxy logs a warning and the top-level values win.  
+It requires a single `retriever` of kind `s3` with `item` set, and it is only available inside a flag set.
+
+See [Sharing S3 requests between flag sets](#sharing-s3-requests-between-flag-sets) for the details.
+
+- option name: `enableSharedPollerPerBucket`
+- type: **boolean**
+- default: **false**
+- mandatory: No
+
+### type `notifier`
+
+A [notifier](../concepts/notifier.md) is the component in charge of sending a notification when a flag changes to a remote system.
+
+```yaml
+# ...
+notifiers:
+  - kind: discord
+    webhookUrl: "https://discord.com/api/webhooks/yyyy/xxxxxxx"
+  - kind: slack
+    webhookUrl: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+# ...
+```
+
+> [!NOTE]
+> Every `notifier` has its own configuration, check the [list of notifiers](../integrations/notifiers/README.md#available-notifiers) and go on the detail page of your choice to configure it.
+>
+> **Available notifiers**:
+> - [Slack](../integrations/notifiers/slack.md)
+> - [Discord](../integrations/notifiers/discord.md)
+> - [Microsoft Teams](../integrations/notifiers/microsoft-teams.md)
+> - [Webhook](../integrations/notifiers/webhook.md)
+> - Log
+
+### type `studio`
+
+Configuration used to load the flag sets from a remote Studio configuration service.
+
+#### `studio.url`
+
+URL of the relay proxy configuration served by Studio, only its `flagSets` key is used.
+
+The format of the document is detected from the extension of the URL path (`.yaml`, `.json` or `.toml`), the query string is ignored so pre-signed URLs work. Without a known extension, the document is parsed as YAML.
+
+- option name: `url`
+- type: **string**
+- default: **none**
+- mandatory: No _(Studio is enabled only when it is set)_
+
+#### `studio.headers`
+
+Headers sent with every request to [`studio.url`](#studiourl), for example an `Authorization` header.
+
+- option name: `headers`
+- type: **map[string][]string**
+- default: **none**
+- mandatory: No
+
+```yaml
+studio:
+  url: https://studio.example.com/relay-proxy/goff-proxy.yaml
+  headers:
+    Authorization:
+      - "Bearer my-token"
+```
+
+#### `studio.pollingInterval`
+
+Time **in milliseconds** between two checks of [`studio.url`](#studiourl).
+
+- option name: `pollingInterval`
+- type: **int**
+- default: **`60000`**
+- A value of `0` or a negative value uses the default.
+- mandatory: No
+
+#### `studio.cacheFile`
+
+Path of a local file where the relay proxy keeps the last valid document received from Studio.
+When [`studio.url`](#studiourl) is unreachable, the flag sets are loaded from this file and a warning is logged.
+
+- option name: `cacheFile`
+- type: **string**
+- default: **none** _(no cache)_
+- mandatory: No
+- example: `/goff/studio-cache.yaml`
+
+### type `swagger`
+
+Configuration related to the swagger behavior of the relay proxy.
+
+#### `swagger.enabled`
+
+Enables Swagger for testing the APIs directly. If you are enabling Swagger you will have to provide the [`swagger.host`](#swaggerhost) configuration (default is `localhost`).
+
+It will start the swagger server on the same port as the relay proxy and you can access it at `http://<host>:<server.port>/swagger/`.
+
+- option name: `enabled`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+#### `swagger.host`
+
+The DNS used by the swagger configuration to access the relay proxy.
+
+- option name: `host`
+- type: **string**
+- default: **`localhost`**
+- mandatory: No
+
+### type `ofrepEventStream`
+
+Configuration used to advertise the flag-change SSE endpoint in the OFREP bulk evaluation response.
+
+When [`ofrepEventStream.baseUrl`](#ofrepeventstreambaseurl) is set, the bulk evaluation response contains an `eventStreams` field pointing to the relay proxy SSE endpoint (`/stream/v1/sse/flag/change`).
+
+Each time the flag configuration changes, this endpoint sends an ADR-0008 event that tells the provider to re-fetch its evaluations:
+
+```
+id: 1771622898000000000
+event: message
+data: {"type":"refetchEvaluation","lastModified":1771622898}
+```
+
+The stream also sends SSE comment lines, which spec-compliant clients ignore: `: connected` right after the connection is opened, and `: heartbeat` every 30 seconds so that proxies do not close idle connections.
+
+If the OFREP request is authenticated, the API key of the caller is added to the advertised URL as the `apiKey` query parameter, so the provider can open the stream without extra credentials. As required by the ADR, this URL is sensitive and must not be logged or persisted.
+
+#### `ofrepEventStream.baseUrl`
+
+The public base URL clients should use to reach the relay proxy, for example `https://gofeatureflag.example.com`. The path of the SSE endpoint is appended automatically, so a path prefix is kept (`https://example.com/goff` becomes `https://example.com/goff/stream/v1/sse/flag/change`).
+
+When not set, the `eventStreams` field is not added and OFREP providers keep polling. Do not set it when the relay proxy runs as an AWS Lambda, because Lambda cannot stream SSE.
+
+It must be an absolute `http` or `https` URL, without query parameters.
+
+- option name: `baseUrl`
+- type: **string**
+- default: **none**
+- mandatory: No
+
+#### `ofrepEventStream.inactivityDelaySec`
+
+The delay in seconds advertised to the client, after which it should consider the stream inactive. When `0` the field is omitted.
+
+- option name: `inactivityDelaySec`
+- type: **integer**
+- default: **`0`**
+- mandatory: No
+
+## Use multiple flag sets
+
+Flag sets allow you to organize your feature flags into separate groups, each with its own configuration, API keys, retrievers, exporters, and notifiers. This is particularly useful for:
+
+- **Team isolation**: Different teams can manage their own flags independently
+- **Environment separation**: Separate flags for different environments (dev, staging, prod)
+- **Access control**: Different API keys for different applications or teams
+- **Independent configurations**: Each flag set can have its own retrievers, exporters, and notifiers
+
+### How flag sets work
+
+When you configure flag sets, the relay proxy operates in **flag set mode** instead of the default single configuration mode. In flag set mode:
+
+- Each flag set requires at least one API key
+- API keys are used to route requests to the appropriate flag set
+- Each flag set can have its own `retrievers`, `exporters`, and `notifiers`
+- There is no inheritance between flag sets - each is completely independent
+
+### Basic flag set configuration
+
+```yaml
+server:
+  mode: http
+  port: 1031
+flagSets:
+  - name: teamA
+    apiKeys:
+      - "team-a-api-key-1"
+      - "team-a-api-key-2"
+    retrievers:
+      - kind: file
+        path: /path/to/team-a-flags.yaml
+    exporters:
+      - kind: log
+
+  - name: teamB
+    apiKeys:
+      - "team-b-api-key"
+    retrievers:
+      - kind: s3
+        bucket: my-feature-flag-bucket
+        item: team-b/flags.yaml
+    exporters:
+      - kind: s3
+        bucket: evaluation-data-bucket
+    notifiers:
+      - kind: slack
+        webhookUrl: "https://hooks.slack.com/services/..."
+```
+
+### Flag set configuration options
+
+> [!WARNING]
+> Flag sets do not inherit flag configuration from the top level.
+> Configure `retrievers`, `exporters`, `notifiers`, `pollingInterval`, and other [flag set options](#type-flagset) separately for each flag set.
+
+Process-wide settings such as `server`, `logLevel`, `logFormat`, `authorizedKeys.admin`, and `otel` remain top-level settings and still apply in flag set mode.
+
+### Using flag sets with API keys
+
+When using flag sets, all evaluation requests must include an API key.  
+You can do so by adding the API key in the initialization of your providers.
+
+The relay proxy will:
+
+1. Extract the API key from the `Authorization` header
+1. Find the flag set associated with that API key
+1. Route the evaluation request to that flag set
+1. Return the evaluation result from that flag set's flags
+
+### Runtime API key updates
+
+Semaphore supports updating API keys at runtime without restarting the relay proxy.  
+See the [Runtime configuration updates](#runtime-configuration-updates) section for detailed information about runtime updates in flagset mode.
+
+> [!WARNING]
+> To enable runtime API key updates, your flag sets **must have a `name` configured**.  
+> Without a name, a UUID is generated automatically and runtime updates won't work.
+>
+> ```yaml
+> flagSets:
+>   - name: team-a  # ✅ Required for runtime API key updates
+>     apiKeys:
+>       - "team-a-api-key"
+>     # ...
+> ```
+>
+
+### Example: Multi-team setup
+
+```yaml
+server:
+  mode: http
+  port: 1031
+
+logLevel: info
+
+flagSets:
+  # Frontend team flags
+  - name: frontend
+    apiKeys:
+      - "frontend-api-key"
+    retrievers:
+      - kind: file
+        path: /flags/frontend-flags.yaml
+    exporters:
+      - kind: s3
+        bucket: frontend-evaluations
+    notifiers:
+      - kind: slack
+        webhookUrl: "https://hooks.slack.com/services/frontend-webhook"
+
+  # Backend team flags
+  - name: backend
+    apiKeys:
+      - "backend-api-key"
+    retrievers:
+      - kind: github
+        repositorySlug: my-org/backend-flags
+        path: flags.yaml
+    exporters:
+      - kind: kafka
+        kafka:
+          topic: backend-evaluations
+          addresses:
+            - "localhost:9092"
+    notifiers:
+      - kind: discord
+        webhookUrl: "https://discord.com/api/webhooks/backend-webhook"
+
+  # Mobile team flags
+  - name: mobile
+    apiKeys:
+      - "mobile-api-key"
+    retrievers:
+      - kind: s3
+        bucket: mobile-feature-flags
+        item: flags.yaml
+    exporters:
+      - kind: file
+        outputDir: /logs/mobile-evaluations
+```
+
+## Runtime configuration updates
+
+Semaphore relay proxy supports updating certain configuration options at runtime without requiring a restart.  
+When the configuration file changes, the relay proxy automatically detects and applies the changes.
+
+> [!WARNING]
+> Changes to the `studio` configuration require restarting the relay proxy. This includes enabling or disabling Studio and changing its `url`, `headers`, `pollingInterval`, or `cacheFile` settings.
+
+### Default mode runtime updates
+
+In **default mode** (when not using flag sets), you can update the following configuration at runtime:
+
+- **`authorizedKeys.evaluation`**: API keys for evaluation endpoints
+- **`authorizedKeys.admin`**: API keys for admin endpoints
+- **`apiKeys`**: Deprecated field (still supported for backward compatibility)
+
+> [!WARNING]
+> In default mode, **only API keys can be updated at runtime**.  
+> All other configuration changes (retrievers, exporters, notifiers, polling intervals, etc.) are not supported and will be ignored with a warning log message.
+
+**Example:**
+```yaml
+# Initial configuration
+authorizedKeys:
+  evaluation:
+    - "key-1"
+    - "key-2"
+  admin:
+    - "admin-key-1"
+
+# Updated configuration (runtime update)
+authorizedKeys:
+  evaluation:
+    - "key-1"
+    - "key-2"
+    - "key-3"  # ✅ New key added
+  admin:
+    - "admin-key-1"
+    - "admin-key-2"  # ✅ New admin key added
+```
+
+### Flagset mode runtime updates
+
+In **flagset mode** (when using flag sets), you can update API keys for each flag set at runtime.
+
+**Supported operations:**
+- Adding new API keys to an existing flag set
+- Removing API keys from a flag set
+- Replacing API keys with new ones
+
+> [!WARNING]
+> To enable runtime API key updates, your flag sets **must have a `name` configured**.  
+> Without a name, a UUID is generated automatically and runtime updates won't work.
+>
+> ```yaml
+> flagSets:
+>   - name: team-a  # ✅ Required for runtime API key updates
+>     apiKeys:
+>       - "team-a-api-key"
+>     # ...
+> ```
+
+### How runtime updates work
+
+1. The relay proxy detects the configuration file change
+2. It validates the new configuration _(if the configuration is invalid, the relay proxy will not apply the changes)_
+3. It updates the internal API key mappings
+4. New requests immediately use the updated routing
+
+> [!NOTE]
+> During the update, there is no downtime. Requests continue to be processed normally, and the new API key configuration takes effect immediately after the update is applied.
