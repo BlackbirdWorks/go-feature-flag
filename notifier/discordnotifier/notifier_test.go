@@ -238,7 +238,7 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 			name: "invalid discord url",
 			expected: expected{
 				err:    true,
-				errMsg: "error: (Discord Notifier) invalid DiscordWebhookURL: https://{}discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				errMsg: `error: (Discord Notifier) invalid DiscordWebhookURL: parse "[REDACTED]"`,
 			},
 			args: args{
 				url:        "https://{}discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",

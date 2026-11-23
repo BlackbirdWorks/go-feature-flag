@@ -1,8 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
+
+	"github.com/thomaspoignant/go-feature-flag/internal"
 )
 
 // OfrepEventStream holds the configuration used to advertise the flag-change SSE
@@ -32,15 +35,16 @@ func (o OfrepEventStream) IsValid() error {
 	if o.BaseURL == "" {
 		return nil
 	}
+	// the URL may embed credentials (user info): it must never be part of an error that is logged.
 	u, err := url.Parse(o.BaseURL)
 	if err != nil {
-		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", err)
+		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return fmt.Errorf("ofrepEventStream.baseUrl must be an absolute http(s) URL, got %q", o.BaseURL)
+		return errors.New("ofrepEventStream.baseUrl must be an absolute http(s) URL")
 	}
 	if u.RawQuery != "" || u.Fragment != "" {
-		return fmt.Errorf("ofrepEventStream.baseUrl must not contain a query or a fragment, got %q", o.BaseURL)
+		return errors.New("ofrepEventStream.baseUrl must not contain a query or a fragment")
 	}
 	return nil
 }
