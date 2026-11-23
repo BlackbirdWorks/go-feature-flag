@@ -2,6 +2,7 @@ package relay_test
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
@@ -66,12 +67,18 @@ func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 		{"failing exporter on semaphore bulk", relay.SemaphoreAllFlags, loadtest.ExporterFailing},
 		{"slow exporter on ofrep bulk", relay.OFREPBulk, loadtest.ExporterSlow},
 		{"failing exporter on ofrep bulk", relay.OFREPBulk, loadtest.ExporterFailing},
+		{"slow exporter on an untracked flag", relay.SemaphoreEval, loadtest.ExporterSlow},
+		{"failing exporter on an untracked flag", relay.OFREPEval, loadtest.ExporterFailing},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			flagKey := "rule-bool-track"
+			if strings.Contains(tt.name, "untracked") {
+				flagKey = "rule-bool-notrack"
+			}
 			tg, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: tt.mode},
-				tt.ep, "rule-bool-track", 1)
+				tt.ep, flagKey, 1)
 			require.Error(t, err)
 			assert.Nil(t, tg)
 		})
@@ -127,7 +134,11 @@ func TestRelay_CloseRemovesTempDir(t *testing.T) {
 func TestStart_CleansUpOnFailure(t *testing.T) {
 	t.Parallel()
 	// invalid flag file content makes the flagset manager fail to start
-	r, err := relay.Start(relay.Options{FlagsYAML: "{{{ not yaml"})
+	parent := t.TempDir()
+	r, err := relay.Start(relay.Options{FlagsYAML: "{{{ not yaml", TempDir: parent})
 	require.Error(t, err)
 	assert.Nil(t, r)
+	entries, err := os.ReadDir(parent)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "the temp dir created by Start must be removed on failure")
 }

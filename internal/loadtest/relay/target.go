@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"gopkg.in/yaml.v3"
 )
 
 // Target evaluates flags against a real relay proxy over loopback HTTP.
@@ -22,7 +23,7 @@ type Target struct {
 // It rejects an unknown endpoint, and a slow or failing exporter on an endpoint that does not
 // emit events (the exporter would be bypassed and the soak would not measure what it claims).
 func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
-	if err := validateTarget(o, endpoint); err != nil {
+	if err := validateTarget(o, endpoint, flagKey); err != nil {
 		return nil, err
 	}
 	o.Listen = true
@@ -45,7 +46,7 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 	}, nil
 }
 
-func validateTarget(o Options, endpoint Endpoint) error {
+func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
 	if _, err := ParseEndpoint(string(endpoint)); err != nil {
 		return err
 	}
@@ -59,7 +60,27 @@ func validateTarget(o Options, endpoint Endpoint) error {
 		return fmt.Errorf("endpoint %q does not emit events, so exporter %q would never be exercised: use %s or %s",
 			endpoint, o.ExporterMode, SemaphoreEval, OFREPEval)
 	}
+	if endpoint.EmitsEvents() &&
+		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) &&
+		!tracksEvents(o.FlagsYAML, flagKey) {
+		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: "+
+			"choose a flag with tracking on", flagKey, o.ExporterMode)
+	}
 	return nil
+}
+
+// tracksEvents reports whether the flag emits events: trackEvents defaults to true. A flag that
+// is not in the configuration (or a configuration that cannot be parsed) is not rejected here,
+// the evaluation reports it.
+func tracksEvents(flagsYAML, flagKey string) bool {
+	var flags map[string]struct {
+		TrackEvents *bool `yaml:"trackEvents"`
+	}
+	if err := yaml.Unmarshal([]byte(flagsYAML), &flags); err != nil {
+		return true
+	}
+	f, ok := flags[flagKey]
+	return !ok || f.TrackEvents == nil || *f.TrackEvents
 }
 
 // checkResponse returns an error when a 200 response of the endpoint reports a failed evaluation.
@@ -91,11 +112,18 @@ func (t *Target) Eval(worker, i int) error {
 	if err != nil {
 		return err
 	}
-	body, _ := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
+	if t.endpoint != SemaphoreEval {
+		// the body is never inspected: drain it (to reuse the connection) without buffering it,
+		// a bulk response is large and would distort the memory measurements of the soak
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return nil
+	}
+	body, _ := io.ReadAll(resp.Body)
 	return checkResponse(t.endpoint, body)
 }
 
