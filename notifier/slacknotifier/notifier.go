@@ -18,7 +18,6 @@ import (
 var _ notifier.Notifier = &Notifier{}
 
 const (
-	goFFLogo     = "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png"
 	slackFooter  = "go-feature-flag"
 	colorDeleted = "#FF0000"
 	colorUpdated = "#FFA500"
@@ -88,7 +87,6 @@ func convertToSlackMessage(diffCache notifier.DiffCache) slackMessage {
 	attachments = append(attachments, convertAddedFlagsToSlackMessage(diffCache)...)
 	res := slackMessage{
 		Text:        fmt.Sprintf("Changes detected in your feature flag file on: *%s*", hostname),
-		IconURL:     goFFLogo,
 		Attachments: attachments,
 	}
 	return res
@@ -100,7 +98,6 @@ func convertDeletedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		attachment := attachment{
 			Title:      fmt.Sprintf("❌ Flag \"%s\" deleted", key),
 			Color:      colorDeleted,
-			FooterIcon: goFFLogo,
 			Footer:     slackFooter,
 		}
 		attachments = append(attachments, attachment)
@@ -114,7 +111,6 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		attachment := attachment{
 			Title:      fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After)),
 			Color:      colorUpdated,
-			FooterIcon: goFFLogo,
 			Footer:     slackFooter,
 			MrkdwnIn:   []string{"text"},
 		}
@@ -136,7 +132,6 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 		attachment := attachment{
 			Title:      fmt.Sprintf("🆕 Flag \"%s\" created%s", key, notifier.UpdatedBySuffix(value)),
 			Color:      colorAdded,
-			FooterIcon: goFFLogo,
 			Footer:     slackFooter,
 		}
 		attachments = append(attachments, attachment)
@@ -145,7 +140,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 }
 
 type slackMessage struct {
-	IconURL     string       `json:"icon_url"`
+	IconURL     string       `json:"icon_url,omitempty"`
 	Text        string       `json:"text"`
 	Attachments []attachment `json:"attachments"`
 }
