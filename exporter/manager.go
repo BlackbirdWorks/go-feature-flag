@@ -50,6 +50,9 @@ type managerImpl[T ExportableEvent] struct {
 	// nextFlushAfter (unix nano), per consumer, is the time before which the "pending events
 	// reached MaxEventInMemory" trigger does not retry a flush that has just failed.
 	nextFlushAfter []atomic.Int64
+	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
+	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
+	flushThresholds []int64
 	lastDropLog    atomic.Int64
 
 	// background flushes (QueueEvent), one goroutine at most per consumer
@@ -74,7 +77,8 @@ func NewManager[T ExportableEvent](exporters []Config,
 
 	m := &managerImpl[T]{logger: logger}
 	var maxQueued int64
-	for _, exporter := range exporters {
+	limits := make([]int64, len(exporters))
+	for idx, exporter := range exporters {
 		limit := exporter.MaxQueuedEvents
 		if limit == 0 {
 			maxEvents := exporter.MaxEventInMemory
@@ -84,6 +88,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 			limit = max(maxEvents*DefaultQueuedEventsFactor, DefaultMinQueuedEvents)
 		}
 		// the store is shared: it must be able to hold what its most demanding consumer asks for.
+		limits[idx] = limit
 		maxQueued = max(maxQueued, limit)
 	}
 	evStore := NewEventStoreWithLimit[T](exporterCleanQueueInterval, maxQueued, m.onDrop)
@@ -96,6 +101,10 @@ func NewManager[T ExportableEvent](exporters []Config,
 	}
 	m.consumers = consumers
 	m.eventStore = &evStore
+	m.flushThresholds = make([]int64, len(consumers))
+	for idx, c := range consumers {
+		m.flushThresholds[idx] = min(c.GetMaxEventInMemory(), limits[idx])
+	}
 	m.nextFlushAfter = make([]atomic.Int64, len(consumers))
 	m.flushRunning = make([]atomic.Bool, len(consumers))
 	m.flushAgain = make([]atomic.Bool, len(consumers))
@@ -164,7 +173,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 			m.logger.Error("error while fetching pending events", err)
 			continue
 		}
-		if count >= consumer.GetMaxEventInMemory() {
+		if count >= m.flushThresholds[i] {
 			m.flush(i, async, true)
 		}
 	}
