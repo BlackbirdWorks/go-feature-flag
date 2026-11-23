@@ -392,10 +392,7 @@ func getVariation[T model.JSONType](
 
 	flagCtx := flag.Context{
 		DefaultSdkValue:             sdkDefaultValue,
-		EvaluationContextEnrichment: maps.Clone(g.config.EvaluationContextEnrichment),
-	}
-	if g.config.Environment != "" {
-		flagCtx.AddIntoEvaluationContextEnrichment("env", g.config.Environment)
+		EvaluationContextEnrichment: g.evaluationEnrichment(),
 	}
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
 }
@@ -470,4 +467,21 @@ func (g *GoFeatureFlag) DroppedEvents() int64 {
 		total += c.DroppedEvents()
 	}
 	return total
+}
+
+// evaluationEnrichment returns the evaluation context enrichment of the configuration with the
+// environment ("env") merged in. It is built once and must be treated as read-only: the
+// evaluations are concurrent.
+func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
+	g.enrichmentOnce.Do(func() {
+		enrichment := maps.Clone(g.config.EvaluationContextEnrichment)
+		if g.config.Environment != "" {
+			if enrichment == nil {
+				enrichment = make(map[string]any, 1)
+			}
+			enrichment["env"] = g.config.Environment
+		}
+		g.enrichment = enrichment
+	})
+	return g.enrichment
 }

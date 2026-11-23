@@ -53,6 +53,9 @@ type GoFeatureFlag struct {
 	// evalExporterWg waits for the event worker to finish before closing GOFF
 	evalExporterWg sync.WaitGroup
 	closeOnce      sync.Once
+	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
+	enrichment     map[string]any
+	enrichmentOnce sync.Once
 	// droppedEvents counts the evaluation events dropped because eventQueue was full.
 	droppedEvents atomic.Int64
 	lastDropLog   atomic.Int64

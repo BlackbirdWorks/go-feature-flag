@@ -319,12 +319,13 @@ func (r *Rule) getVariationFromProgressiveRollout(
 
 		// We are between initial and end
 		initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
-		if r.ProgressiveRollout.End.getPercentage() == 0 ||
-			r.ProgressiveRollout.End.getPercentage() > 100 {
-			maxPercentage := float64(100)
-			r.ProgressiveRollout.End.Percentage = &maxPercentage
+		// The rule is shared by all the evaluations of the flag (concurrently): it must never be
+		// written here, an end percentage outside of ]0, 100] means 100.
+		endPercentage := r.ProgressiveRollout.End.getPercentage()
+		if endPercentage == 0 || endPercentage > 100 {
+			endPercentage = 100
 		}
-		endPercentage := r.ProgressiveRollout.End.getPercentage() * PercentageMultiplier
+		endPercentage *= PercentageMultiplier
 		nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
 		percentage := endPercentage - initialPercentage
 		percentPerSec := percentage / float64(nbSec)

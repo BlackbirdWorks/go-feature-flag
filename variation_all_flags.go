@@ -43,11 +43,8 @@ func (g *GoFeatureFlag) GetFlagStates(
 
 	// prepare evaluation context enrichment
 	flagCtx := flag.Context{
-		EvaluationContextEnrichment: g.config.EvaluationContextEnrichment,
+		EvaluationContextEnrichment: g.evaluationEnrichment(),
 		DefaultSdkValue:             nil,
-	}
-	if g.config.Environment != "" {
-		flagCtx.AddIntoEvaluationContextEnrichment("env", g.config.Environment)
 	}
 
 	// Evaluate only the flags in flagsToEvaluate

@@ -86,8 +86,9 @@ func (f *InternalFlag) Value(
 		}
 	}
 
-	if flagContext.EvaluationContextEnrichment != nil {
-		maps.Copy(evaluationCtx.GetCustom(), flagContext.EvaluationContextEnrichment)
+	if len(flagContext.EvaluationContextEnrichment) > 0 {
+		// the caller's context must not be modified (it can be shared by concurrent evaluations).
+		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
 	key, keyError := flag.GetBucketingKeyValue(evaluationCtx)
