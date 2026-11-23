@@ -22,6 +22,22 @@ const (
 // Endpoints lists all the endpoints.
 var Endpoints = []Endpoint{GOFFEval, GOFFAllFlags, OFREPEval, OFREPBulk}
 
+// ParseEndpoint validates an endpoint name.
+func ParseEndpoint(s string) (Endpoint, error) {
+	for _, e := range Endpoints {
+		if string(e) == s {
+			return e, nil
+		}
+	}
+	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints)
+}
+
+// EmitsEvents reports whether evaluating through the endpoint queues feature events in the
+// exporter. The bulk endpoints (GetFlagStates / AllFlagsState) evaluate without emitting events.
+func (e Endpoint) EmitsEvents() bool {
+	return e == GOFFEval || e == OFREPEval
+}
+
 // Path returns the URL path of the endpoint for a flag key.
 func (e Endpoint) Path(flagKey string) string {
 	switch e {
@@ -31,8 +47,10 @@ func (e Endpoint) Path(flagKey string) string {
 		return "/v1/allflags"
 	case OFREPEval:
 		return "/ofrep/v1/evaluate/flags/" + flagKey
-	default:
+	case OFREPBulk:
 		return "/ofrep/v1/evaluate/flags"
+	default:
+		return ""
 	}
 }
 
@@ -53,5 +71,8 @@ func (e Endpoint) Body(i int) string {
 
 // NewRequest builds the HTTP request (without a URL host) for the endpoint.
 func (e Endpoint) NewRequest(baseURL, flagKey string, i int) (*http.Request, error) {
+	if e.Path(flagKey) == "" {
+		return nil, fmt.Errorf("unknown endpoint %q", string(e))
+	}
 	return newJSONRequest(baseURL+e.Path(flagKey), e.Body(i))
 }

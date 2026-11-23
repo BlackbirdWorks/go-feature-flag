@@ -290,6 +290,10 @@ func (s Sample) line() string {
 // the warm-up by more than GoroutineSlack.
 func judge(r *Report, o Options) {
 	r.Pass = true
+	if r.TotalErr > 0 {
+		r.Pass = false
+		r.Reasons = append(r.Reasons, fmt.Sprintf("%d of %d evaluations failed", r.TotalErr, r.TotalEval))
+	}
 	n := len(r.Samples)
 	warm := o.WarmupIntervals
 	if warm <= 0 {
@@ -323,7 +327,9 @@ func judge(r *Report, o Options) {
 			"peak HeapInuse grows from %.1f MiB (first third) to %.1f MiB (last third), allowed +%.1f MiB",
 			first/(1<<20), last/(1<<20), allowed/(1<<20)))
 	}
-	base := m[0].Goroutines
+	// the baseline is the last warm-up sample, so growth between it and the first measured
+	// sample is counted.
+	base := r.Samples[warm-1].Goroutines
 	maxG := base
 	for _, s := range m {
 		maxG = max(maxG, s.Goroutines)

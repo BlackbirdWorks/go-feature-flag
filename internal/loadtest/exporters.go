@@ -3,6 +3,7 @@ package loadtest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,16 @@ const (
 	// ExporterFailing returns an error on every batch.
 	ExporterFailing ExporterMode = "failing"
 )
+
+// ParseExporterMode validates an exporter mode name.
+func ParseExporterMode(s string) (ExporterMode, error) {
+	switch m := ExporterMode(s); m {
+	case ExporterDiscard, ExporterSlow, ExporterFailing:
+		return m, nil
+	default:
+		return "", fmt.Errorf("unknown exporter %q (want discard | slow | failing)", s)
+	}
+}
 
 // SlowDelay is the time the "slow" exporter blocks on each Export call.
 const SlowDelay = 2 * time.Second

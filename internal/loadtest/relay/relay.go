@@ -53,19 +53,25 @@ type Relay struct {
 	sink   *httptest.Server
 	server *api.Server
 	wsSvc  stream.WebsocketService
+	dir    string
 }
 
 // Start starts a relay proxy.
-func Start(opts Options) (*Relay, error) {
+func Start(opts Options) (_ *Relay, err error) {
 	dir, err := os.MkdirTemp("", "ffrelay")
 	if err != nil {
 		return nil, err
 	}
+	r := &Relay{dir: dir}
+	defer func() {
+		if err != nil {
+			r.Close() // releases whatever was started and removes the temp dir
+		}
+	}()
 	flagFile := filepath.Join(dir, "flags.yaml")
-	if err := os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600); err != nil {
+	if err = os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600); err != nil {
 		return nil, err
 	}
-	r := &Relay{}
 	conf := &config.Config{
 		CommonFlagSet: config.CommonFlagSet{
 			Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
@@ -152,7 +158,10 @@ func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
 	}
 }
 
-// Close stops the relay proxy.
+// Dir returns the temporary directory holding the flag file (removed by Close).
+func (r *Relay) Dir() string { return r.dir }
+
+// Close stops the relay proxy and removes its temporary flag file.
 func (r *Relay) Close() {
 	if r.server != nil {
 		r.server.Stop(context.Background())
@@ -166,6 +175,9 @@ func (r *Relay) Close() {
 	if r.sink != nil {
 		r.sink.CloseClientConnections()
 		r.sink.Close()
+	}
+	if r.dir != "" {
+		_ = os.RemoveAll(r.dir)
 	}
 }
 

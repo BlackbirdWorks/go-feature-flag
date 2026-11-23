@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"runtime"
 	"runtime/pprof"
+	"syscall"
 	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
@@ -56,11 +58,12 @@ func run() int {
 		defer pprof.StopCPUProfile()
 	}
 
-	var (
-		t   loadtest.Target
-		err error
-	)
-	mode := loadtest.ExporterMode(*exp)
+	mode, err := loadtest.ParseExporterMode(*exp)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 2
+	}
+	var t loadtest.Target
 	switch *target {
 	case "library":
 		t, err = loadtest.NewLibraryTarget(loadtest.LibraryOptions{
@@ -68,10 +71,14 @@ func run() int {
 			FlushInterval: time.Duration(*flushMs) * time.Millisecond, MaxEventInMemory: *maxMem,
 		})
 	case "relay":
+		var ep relay.Endpoint
+		if ep, err = relay.ParseEndpoint(*endpoint); err != nil {
+			break
+		}
 		t, err = relay.NewTarget(relay.Options{
 			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode,
 			FlushIntervalMs: *flushMs, MaxEventInMemory: *maxMem,
-		}, relay.Endpoint(*endpoint), *flagKey, *workers)
+		}, ep, *flagKey, *workers)
 	default:
 		err = fmt.Errorf("unknown target %q", *target)
 	}
@@ -86,10 +93,17 @@ func run() int {
 		name += " endpoint=" + *endpoint
 	}
 	fmt.Printf("# %s GOMAXPROCS=%d %s duration=%s\n", name, runtime.GOMAXPROCS(0), runtime.Version(), *duration)
-	rep := loadtest.Run(context.Background(), t, loadtest.Options{
+	// Ctrl+C / SIGTERM stop the workers (the relay proxy also shuts itself down on them).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	rep := loadtest.Run(ctx, t, loadtest.Options{
 		Name: name, Duration: *duration, Interval: *interval, Workers: *workers,
 		WarmupIntervals: *warmup, HeapTolerance: *tol,
 	}, os.Stdout)
+	if ctx.Err() != nil {
+		fmt.Fprintln(os.Stderr, "interrupted: no verdict")
+		return 130
+	}
 	rep.Summary(os.Stdout)
 	if !rep.Pass {
 		return 1

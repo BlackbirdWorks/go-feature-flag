@@ -27,7 +27,9 @@ go run ./internal/loadtest/cmd/soak -target relay -endpoint goff-eval -exporter 
 go run ./internal/loadtest/cmd/soak -target relay -endpoint ofrep-bulk -flag x -duration 60s
 ```
 
-Endpoints: `goff-eval`, `goff-allflags`, `ofrep-eval`, `ofrep-bulk`. `-cpuprofile` writes a CPU profile.
+Endpoints: `goff-eval`, `goff-allflags`, `ofrep-eval`, `ofrep-bulk`. Only `goff-eval` and `ofrep-eval` queue events: `-exporter slow|failing` is rejected on the bulk
+endpoints (they would bypass the exporter). Unknown `-endpoint`/`-exporter` values are rejected, a failed evaluation
+(for example an unknown `-flag`) counts as an error, and Ctrl+C stops the run without a verdict (exit status 130). `-cpuprofile` writes a CPU profile.
 For the relay target the proxy runs in the same process as the load generator (the heap and the
 CPU are shared), the exporter is the webhook exporter pointed at a local sink with the chosen
 behaviour.
