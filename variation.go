@@ -429,6 +429,8 @@ func (g *GoFeatureFlag) startEventWorker() {
 	}
 	g.eventQueue = make(chan exporter.FeatureEvent, size)
 	g.eventWorkerStop = make(chan struct{})
+	g.dropSignal = make(chan struct{}, 1)
+	go g.reportDrops()
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
 	// per event): a few workers keep up with an evaluation rate of millions per second.
 	workers := max(1, min(4, runtime.GOMAXPROCS(0)/2))
@@ -484,16 +486,51 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 		g.CollectEventData(event)
 		return
 	}
+	g.eventAdmission.RLock()
+	if g.closing {
+		// the client is closing (an evaluation that was running when its flag set was removed, for
+		// example): the workers are draining or gone, hand the event to the exporters directly so
+		// that their final flush exports it.
+		g.eventAdmission.RUnlock()
+		g.CollectEventData(event)
+		return
+	}
 	select {
 	case g.eventQueue <- event:
+		g.eventAdmission.RUnlock()
 	default:
-		total := g.droppedEvents.Add(1)
-		now := time.Now().UnixNano()
-		last := g.lastDropLog.Load()
-		if now-last >= int64(10*time.Second) && g.lastDropLog.CompareAndSwap(last, now) {
-			g.config.internalLogger.Error(
-				"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
-				slog.Int64("totalDroppedEvents", total))
+		g.eventAdmission.RUnlock()
+		g.droppedEvents.Add(1)
+		// never log here: an evaluation must not wait for the log sink (see reportDrops).
+		select {
+		case g.dropSignal <- struct{}{}:
+		default: // a warning is already pending
+		}
+	}
+}
+
+// dropLogInterval is the minimum delay between two warnings about dropped evaluation events.
+const dropLogInterval = 10 * time.Second
+
+// reportDrops writes (at most once every dropLogInterval) the warning about the events dropped
+// because the queue was full. It runs in its own goroutine, which is not waited by Close, so that
+// a slow or blocked log sink never delays an evaluation, a worker or the shutdown.
+func (g *GoFeatureFlag) reportDrops() {
+	for {
+		select {
+		case <-g.dropSignal:
+		case <-g.eventWorkerStop:
+			return
+		}
+		g.config.internalLogger.Error(
+			"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
+			slog.Int64("totalDroppedEvents", g.droppedEvents.Load()))
+		timer := time.NewTimer(dropLogInterval)
+		select {
+		case <-timer.C:
+		case <-g.eventWorkerStop:
+			timer.Stop()
+			return
 		}
 	}
 }
