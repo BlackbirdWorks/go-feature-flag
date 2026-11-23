@@ -220,3 +220,16 @@ func TestRedactedKeepsPlainValues(t *testing.T) {
 	assert.Equal(t, RedactedValue, redacted["authorizedkeys"])
 	assert.Nil(t, (*Config)(nil).Redacted())
 }
+
+func TestOfrepEventStreamErrorsDoNotContainTheURL(t *testing.T) {
+	t.Parallel()
+	for _, baseURL := range []string{
+		"ftp://user:SECRETMARKER-pw@example.com",
+		"https://user:SECRETMARKER-pw@example.com?x=1",
+		"https://user:SECRETMARKER-pw@exa mple.com",
+	} {
+		err := OfrepEventStream{BaseURL: baseURL}.IsValid()
+		require.Error(t, err, baseURL)
+		assert.NotContains(t, err.Error(), secretMarker, baseURL)
+	}
+}

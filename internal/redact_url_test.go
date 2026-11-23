@@ -43,6 +43,15 @@ func TestRedactURLError(t *testing.T) {
 			name: "wrapped url.Error", wantMessage: `Get "[REDACTED]": EOF`,
 			err: fmt.Errorf("wrapped: %w", &url.Error{Op: "Get", URL: secretURL, Err: io.EOF}),
 		},
+		{
+			name: "malformed redirect location", wantMessage: `Get "[REDACTED]": invalid Location header`,
+			err: &url.Error{Op: "Get", URL: secretURL, Err: fmt.Errorf(
+				"failed to parse Location header %q: invalid character", "https://u:SECRETMARKER-p@bad host/x")},
+		},
+		{
+			name: "cause quoting an url", wantMessage: `Get "[REDACTED]": bad [REDACTED] here`,
+			err: &url.Error{Op: "Get", URL: secretURL, Err: errors.New(`bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here`)},
+		},
 		{name: "plain error is untouched", err: errors.New("random error"), wantMessage: "random error", wantSame: true},
 		{name: "nil", err: nil, wantSame: true},
 	}

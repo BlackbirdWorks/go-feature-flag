@@ -25,7 +25,7 @@ const (
 // A field matching it is redacted (whatever its type, including every nested value), unless it has been
 // explicitly classified as plain in fieldClassification.
 var sensitiveNamePattern = regexp.MustCompile(
-	`(?i)key|secret|token|password|passwd|uri|url|dsn|credential|auth|header|cert|private|pass`,
+	`(?i)key|secret|token|password|passwd|uri|url|dsn|credential|auth|header|cert|private|pass|body`,
 )
 
 // SensitiveNamePattern returns the pattern of the field names that are considered as secret-bearing.
@@ -45,17 +45,20 @@ const (
 // field named "xxxToken" forces the author to take a decision. If a new field is not listed it is redacted anyway.
 var fieldClassification = map[string]bool{
 	// Config
-	"config.Config.DisableVersionHeader": plainField, // a boolean
-	"config.Config.AuthorizedKeys":       secretField,
-	"config.Config.APIKeys":              secretField,
+	"config.ValidateFlagsEndpoint.MaxYAMLBodySize": plainField, // sizes
+	"config.ValidateFlagsEndpoint.MaxTOMLBodySize": plainField,
+	"config.ValidateFlagsEndpoint.MaxJSONBodySize": plainField,
+	"config.Config.DisableVersionHeader":           plainField, // a boolean
+	"config.Config.AuthorizedKeys":                 secretField,
+	"config.Config.APIKeys":                        secretField,
 	// FlagSet
 	"config.FlagSet.APIKeys": secretField,
 	// APIKeys (admin / evaluation keys)
 	// Studio
 	"config.Studio.URL":     secretField, // pre-signed URLs carry credentials in the query string
 	"config.Studio.Headers": secretField, // typically an Authorization header
-	// OFREP event stream: BaseURL is advertised to clients, not a secret
-	"config.OfrepEventStream.BaseURL": plainField,
+	// OFREP event stream
+	"config.OfrepEventStream.BaseURL": secretField, // may embed credentials (user info)
 	// Notifiers
 	"config.NotifierConf.SlackWebhookURL": secretField, // the Slack webhook URL is itself the secret
 	"config.NotifierConf.EndpointURL":     secretField,
@@ -73,6 +76,7 @@ var fieldClassification = map[string]bool{
 	// Retrievers
 	"retrieverconf.RetrieverConf.GithubToken":             secretField,
 	"retrieverconf.RetrieverConf.URL":                     secretField,
+	"retrieverconf.RetrieverConf.HTTPBody":                secretField, // the request body may carry credentials
 	"retrieverconf.RetrieverConf.HTTPHeaders":             secretField,
 	"retrieverconf.RetrieverConf.BaseURL":                 secretField,
 	"retrieverconf.RetrieverConf.AuthToken":               secretField,
