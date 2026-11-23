@@ -1102,7 +1102,7 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 
 func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
-	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/goff/configuration_flags.yaml"}
+	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/semaphore/configuration_flags.yaml"}
 	tests := []struct {
 		name     string
 		flagset  time.Duration
