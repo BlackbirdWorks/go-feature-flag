@@ -200,24 +200,23 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 	}()
 }
 
-// flushNow flushes the consumer in the calling goroutine. When checkProgress is true and the
-// consumer still has as many pending events as before (the flush failed), the next flush
-// triggered by the event count is delayed by flushRetryBackoff.
+// flushNow flushes the consumer in the calling goroutine. When checkProgress is true (flush
+// triggered by the event count) and the flush fails, the next flush triggered by the event count is
+// delayed by flushRetryBackoff; a successful flush lifts the delay.
 func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	consumer := m.consumers[i]
-	store := *m.eventStore
-	before := int64(-1)
-	if checkProgress {
-		if c, err := store.GetPendingEventCount(consumer.GetConsumerID()); err == nil {
-			before = c
-		}
+	f, ok := consumer.(interface{ flush() error })
+	if !ok {
+		consumer.Flush()
+		return
 	}
-	consumer.Flush()
-	if before >= 0 {
-		if after, err := store.GetPendingEventCount(consumer.GetConsumerID()); err == nil && after >= before {
+	if err := f.flush(); err != nil {
+		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
 		}
+		return
 	}
+	m.nextFlushAfter[i].Store(0)
 }
 
 func (m *managerImpl[T]) Start() {

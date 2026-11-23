@@ -111,18 +111,24 @@ func (d *dataExporterImpl[T]) Stop() {
 
 // Flush is sending the data to the exporter
 func (d *dataExporterImpl[T]) Flush() {
+	_ = d.flush()
+}
+
+// flush is Flush, it also returns the error of the flush (the manager uses it to back off).
+func (d *dataExporterImpl[T]) flush() error {
 	store := d.eventStore
 	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)
 	if err != nil {
 		if d != nil && d.logger != nil {
 			d.logger.Error(err.Error())
 		}
-		return
+		return err
 	}
 	// release the events everybody has consumed instead of waiting for the periodic cleaning
 	if c, ok := store.(interface{ CleanQueue() }); ok {
 		c.CleanQueue()
 	}
+	return nil
 }
 
 // IsBulk return false if we should directly send the data as soon as it is produce
