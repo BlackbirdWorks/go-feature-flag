@@ -123,7 +123,13 @@ func (f *InternalFlag) Value(
 			}
 	}
 
-	return flag.GetVariationValue(variationSelection.name), ResolutionDetails{
+	value := flag.GetVariationValue(variationSelection.name)
+	if flag != f {
+		// flag is a memoized (shared, read-only) flag built from the scheduled rollout steps: the
+		// caller owns the value it receives, as it did when the flag was copied at each evaluation.
+		value = cloneVariationValue(value)
+	}
+	return value, ResolutionDetails{
 		Variant:   variationSelection.name,
 		Reason:    variationSelection.reason,
 		RuleIndex: variationSelection.ruleIndex,
@@ -557,4 +563,31 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 		return defaultDate
 	}
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
+}
+
+// cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the
+// other values are immutable.
+func cloneVariationValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = cloneVariationValue(e)
+		}
+		return out
+	case map[any]any:
+		out := make(map[any]any, len(x))
+		for k, e := range x {
+			out[k] = cloneVariationValue(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = cloneVariationValue(e)
+		}
+		return out
+	default:
+		return v
+	}
 }

@@ -82,3 +82,54 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 		return !ok
 	}, 5*time.Second, 20*time.Millisecond)
 }
+
+// the value handed to the caller belongs to the evaluation: changing it must not change the
+// result of the next evaluations (the flag is memoized and shared).
+func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		value  func() any
+		mutate func(v any)
+	}{
+		{
+			name:  "object",
+			value: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
+			mutate: func(v any) {
+				m := v.(map[string]any)
+				m["theme"] = "dark"
+				m["nested"].(map[string]any)["a"] = "changed"
+			},
+		},
+		{
+			name:  "array",
+			value: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
+			mutate: func(v any) {
+				a := v.([]any)
+				a[0] = "changed"
+				a[1].(map[string]any)["k"] = "changed"
+				a[2].([]any)[0] = "changed"
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := time.Now()
+			val := tt.value()
+			f := &InternalFlag{
+				Variations:  &map[string]*any{"A": &val},
+				DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+				Scheduled: &[]ScheduledStep{{
+					Date:         testconvert.Time(base.Add(-time.Hour)),
+					InternalFlag: InternalFlag{Version: testconvert.String("v2")},
+				}},
+			}
+			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
+			first, _ := f.Value("flag", ctx, Context{})
+			tt.mutate(first)
+			second, _ := f.Value("flag", ctx, Context{})
+			assert.Equal(t, tt.value(), second)
+		})
+	}
+}
