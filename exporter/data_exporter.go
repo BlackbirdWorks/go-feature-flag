@@ -36,7 +36,7 @@ type Config struct {
 	MaxEventInMemory int64
 	// MaxQueuedEvents is the hard limit of events kept in memory while they wait to be exported.
 	// When it is reached (exporter slow or failing) new events are dropped and counted.
-	// Default: DefaultQueuedEventsFactor x MaxEventInMemory.
+	// Default: max(DefaultQueuedEventsFactor x MaxEventInMemory, DefaultMinQueuedEvents).
 	MaxQueuedEvents int64
 }
 

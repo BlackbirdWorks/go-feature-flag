@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -12,9 +13,14 @@ import (
 const DefaultExporterCleanQueueInterval = 1 * time.Minute
 
 // DefaultQueuedEventsFactor is the default hard limit of events kept in memory by a manager,
-// expressed as a multiple of the largest MaxEventInMemory of its exporters.
+// expressed as a multiple of the largest MaxEventInMemory of its exporters, with a floor of
+// DefaultMinQueuedEvents so that a small MaxEventInMemory does not make a healthy but slowish
+// exporter (a flush that takes some milliseconds) lose events in a burst.
 // See Config.MaxQueuedEvents.
 const DefaultQueuedEventsFactor = 4
+
+// DefaultMinQueuedEvents is the floor of the default limit of queued events.
+const DefaultMinQueuedEvents = 50000
 
 // dropLogInterval is the minimum delay between two warnings about dropped events.
 const dropLogInterval = 10 * time.Second
@@ -23,6 +29,12 @@ type Manager[T ExportableEvent] interface {
 	AddEvent(event T)
 	Start()
 	Stop()
+}
+
+// AsyncManager is implemented by the managers that can add events without waiting for the
+// exporters (see managerImpl.QueueEvents).
+type AsyncManager[T ExportableEvent] interface {
+	QueueEvents(events []T)
 }
 
 // DroppedEventsCounter is implemented by the managers that can tell how many events they had to
@@ -39,6 +51,13 @@ type managerImpl[T ExportableEvent] struct {
 	// reached MaxEventInMemory" trigger does not retry a flush that has just failed.
 	nextFlushAfter []atomic.Int64
 	lastDropLog    atomic.Int64
+
+	// background flushes (QueueEvent), one goroutine at most per consumer
+	flushRunning []atomic.Bool
+	flushAgain   []atomic.Bool
+	flushWg      sync.WaitGroup
+	stopMu       sync.RWMutex
+	stopped      bool
 }
 
 // flushRetryBackoff is the delay before the event-count trigger retries a failed flush: without
@@ -62,7 +81,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 			if maxEvents == 0 {
 				maxEvents = defaultMaxEventInMemory
 			}
-			limit = maxEvents * DefaultQueuedEventsFactor
+			limit = max(maxEvents*DefaultQueuedEventsFactor, DefaultMinQueuedEvents)
 		}
 		// the store is shared: it must be able to hold what its most demanding consumer asks for.
 		maxQueued = max(maxQueued, limit)
@@ -78,6 +97,8 @@ func NewManager[T ExportableEvent](exporters []Config,
 	m.consumers = consumers
 	m.eventStore = &evStore
 	m.nextFlushAfter = make([]atomic.Int64, len(consumers))
+	m.flushRunning = make([]atomic.Bool, len(consumers))
+	m.flushAgain = make([]atomic.Bool, len(consumers))
 	return m
 }
 
@@ -103,12 +124,35 @@ func (m *managerImpl[T]) DroppedEvents() int64 {
 	return 0
 }
 
+// QueueEvents is AddEvent for several events and for the callers that must not wait for the
+// exporters: when the events make a consumer reach its flush threshold, the flush is done by a
+// goroutine of the manager (at most one per consumer, it also flushes what arrives while it
+// runs) instead of by the caller. Events are still added to the store synchronously (with one
+// lock acquisition for all of them), so they are bounded by Config.MaxQueuedEvents like with
+// AddEvent.
+func (m *managerImpl[T]) QueueEvents(events []T) {
+	if len(events) == 0 {
+		return
+	}
+	m.addEvents(events, true)
+}
+
 func (m *managerImpl[T]) AddEvent(event T) {
+	m.addEvents([]T{event}, false)
+}
+
+func (m *managerImpl[T]) addEvents(events []T, async bool) {
 	store := *m.eventStore
-	store.Add(event)
+	if batch, ok := store.(interface{ AddAll([]T) }); ok {
+		batch.AddAll(events)
+	} else {
+		for _, event := range events {
+			store.Add(event)
+		}
+	}
 	for i, consumer := range m.consumers {
 		if !consumer.IsBulk() {
-			consumer.Flush()
+			m.flush(i, async, false)
 			continue
 		}
 		if time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
@@ -121,13 +165,57 @@ func (m *managerImpl[T]) AddEvent(event T) {
 			continue
 		}
 		if count >= consumer.GetMaxEventInMemory() {
-			consumer.Flush()
-			// still above the threshold: the flush failed (nothing was consumed).
-			if after, err := store.GetPendingEventCount(consumer.GetConsumerID()); err == nil &&
-				after >= count {
-				m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
+			m.flush(i, async, true)
+		}
+	}
+}
+
+// flush flushes the consumer, now or (async) in the background goroutine of the consumer.
+func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
+	if !async {
+		m.flushNow(i, checkProgress)
+		return
+	}
+	m.stopMu.RLock()
+	defer m.stopMu.RUnlock()
+	if m.stopped {
+		return
+	}
+	m.flushAgain[i].Store(true)
+	if !m.flushRunning[i].CompareAndSwap(false, true) {
+		return // the running goroutine will see flushAgain
+	}
+	m.flushWg.Add(1)
+	go func() {
+		defer m.flushWg.Done()
+		for {
+			for m.flushAgain[i].Swap(false) {
+				m.flushNow(i, checkProgress)
 			}
-			continue
+			m.flushRunning[i].Store(false)
+			if !m.flushAgain[i].Load() || !m.flushRunning[i].CompareAndSwap(false, true) {
+				return
+			}
+		}
+	}()
+}
+
+// flushNow flushes the consumer in the calling goroutine. When checkProgress is true and the
+// consumer still has as many pending events as before (the flush failed), the next flush
+// triggered by the event count is delayed by flushRetryBackoff.
+func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
+	consumer := m.consumers[i]
+	store := *m.eventStore
+	before := int64(-1)
+	if checkProgress {
+		if c, err := store.GetPendingEventCount(consumer.GetConsumerID()); err == nil {
+			before = c
+		}
+	}
+	consumer.Flush()
+	if before >= 0 {
+		if after, err := store.GetPendingEventCount(consumer.GetConsumerID()); err == nil && after >= before {
+			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
 		}
 	}
 }
@@ -139,6 +227,11 @@ func (m *managerImpl[T]) Start() {
 }
 
 func (m *managerImpl[T]) Stop() {
+	// wait for the background flushes (and refuse new ones) before the final flush of the consumers
+	m.stopMu.Lock()
+	m.stopped = true
+	m.stopMu.Unlock()
+	m.flushWg.Wait()
 	for _, consumer := range m.consumers {
 		consumer.Stop()
 	}

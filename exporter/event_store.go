@@ -176,22 +176,32 @@ func (e *eventStoreImpl[T]) GetPendingEventCount(consumerID string) (int64, erro
 // Add is adding item of type T in the Event store.
 // If the store has a limit and is full, the event is dropped and counted (see NewEventStoreWithLimit).
 func (e *eventStoreImpl[T]) Add(data T) {
+	e.AddAll([]T{data})
+}
+
+// AddAll adds several events with a single lock acquisition (see Add for the drop policy).
+func (e *eventStoreImpl[T]) AddAll(data []T) {
+	var dropped int64
 	e.mutex.Lock()
-	if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
-		// the events consumed by everybody but not cleaned yet do not count: release them first.
-		e.cleanQueueLocked()
+	for _, d := range data {
+		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
+			// the events consumed by everybody but not cleaned yet do not count: release them first.
+			e.cleanQueueLocked()
+		}
+		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
+			dropped++
+			continue
+		}
+		e.lastOffset++
+		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
 	}
-	if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
-		e.mutex.Unlock()
-		total := e.dropped.Add(1)
+	e.mutex.Unlock()
+	if dropped > 0 {
+		total := e.dropped.Add(dropped)
 		if e.onDrop != nil {
 			e.onDrop(total)
 		}
-		return
 	}
-	e.lastOffset++
-	e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: data})
-	e.mutex.Unlock()
 }
 
 // DroppedEvents returns the number of events dropped because the store was full.

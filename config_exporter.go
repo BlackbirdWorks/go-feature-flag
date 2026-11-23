@@ -29,7 +29,7 @@ type DataExporter struct {
 	// MaxQueuedEvents is the hard limit of events kept in memory while they wait to be exported.
 	// When it is reached (the exporter is slow or failing), new events are dropped and counted
 	// (see GoFeatureFlag.DroppedEvents) instead of growing the memory without limit.
-	// Default: 4 x MaxEventInMemory.
+	// Default: max(4 x MaxEventInMemory, 50000).
 	MaxQueuedEvents int64
 
 	// Exporter is the configuration of your exporter.

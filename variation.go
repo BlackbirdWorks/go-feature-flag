@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"runtime"
 	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/exporter"
@@ -311,6 +312,20 @@ func (g *GoFeatureFlag) CollectEventData(event exporter.FeatureEvent) {
 	}
 }
 
+// queueEvents adds the events in the exporter without waiting for a flush (see exporter.AsyncManager).
+func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
+	if g.featureEventDataExporter == nil {
+		return
+	}
+	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
+		m.QueueEvents(events)
+		return
+	}
+	for _, event := range events {
+		g.featureEventDataExporter.AddEvent(event)
+	}
+}
+
 // CollectTrackingEventData is collecting tracking events and sending them to the data exporter to be stored.
 func (g *GoFeatureFlag) CollectTrackingEventData(event exporter.TrackingEvent) {
 	if g != nil && g.trackingEventDataExporter != nil {
@@ -397,7 +412,7 @@ func getVariation[T model.JSONType](
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
 }
 
-// startEventWorker starts the goroutine that moves the evaluation events from the queue to the
+// startEventWorker starts the goroutines that move the evaluation events from the queue to the
 // exporters. It does nothing when there is no exporter for the evaluation events.
 func (g *GoFeatureFlag) startEventWorker() {
 	if g.featureEventDataExporter == nil {
@@ -409,25 +424,51 @@ func (g *GoFeatureFlag) startEventWorker() {
 	}
 	g.eventQueue = make(chan exporter.FeatureEvent, size)
 	g.eventWorkerStop = make(chan struct{})
-	g.evalExporterWg.Add(1)
-	go func() {
-		defer g.evalExporterWg.Done()
-		for {
+	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
+	// per event): a few workers keep up with an evaluation rate of millions per second.
+	workers := max(1, min(4, runtime.GOMAXPROCS(0)/2))
+	for range workers {
+		g.evalExporterWg.Add(1)
+		go g.runEventWorker()
+	}
+}
+
+// eventBatchSize is the maximum number of events a worker hands to the exporter at once.
+const eventBatchSize = 256
+
+// runEventWorker moves the events of the queue to the exporters until the client is closed,
+// then drains what is left in the queue. The events that are already waiting are handed over
+// together, which takes the lock of the exporter's store once per batch instead of once per event.
+func (g *GoFeatureFlag) runEventWorker() {
+	defer g.evalExporterWg.Done()
+	batch := make([]exporter.FeatureEvent, 0, eventBatchSize)
+	drain := func() {
+		for len(batch) < eventBatchSize {
 			select {
 			case event := <-g.eventQueue:
-				g.CollectEventData(event)
-			case <-g.eventWorkerStop:
-				for {
-					select {
-					case event := <-g.eventQueue:
-						g.CollectEventData(event)
-					default:
-						return
-					}
-				}
+				batch = append(batch, event)
+			default:
+				return
 			}
 		}
-	}()
+	}
+	for {
+		select {
+		case event := <-g.eventQueue:
+			batch = append(batch[:0], event)
+			drain()
+			g.queueEvents(batch)
+		case <-g.eventWorkerStop:
+			for {
+				batch = batch[:0]
+				drain()
+				if len(batch) == 0 {
+					return
+				}
+				g.queueEvents(batch)
+			}
+		}
+	}
 }
 
 // enqueueEvent hands the event to the worker without ever blocking the evaluation.

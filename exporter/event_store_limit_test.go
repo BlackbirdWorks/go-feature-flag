@@ -152,7 +152,8 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 		maxQ    int64
 		wantCap int64
 	}{
-		{name: "default limit is 4x MaxEventInMemory", maxMem: 10, wantCap: 40},
+		{name: "default limit is 4x MaxEventInMemory", maxMem: 20000, wantCap: 80000},
+		{name: "default limit has a floor", maxMem: 10, wantCap: 50000},
 		{name: "explicit limit", maxMem: 10, maxQ: 25, wantCap: 25},
 	}
 	for _, tt := range tests {
@@ -163,7 +164,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
 			defer m.Stop()
-			const n = 1000
+			const n = 100000
 			for i := 0; i < n; i++ {
 				m.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
