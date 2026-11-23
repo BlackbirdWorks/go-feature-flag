@@ -36,7 +36,7 @@ type Options struct {
 	// WarmupIntervals is the number of leading samples ignored by the verdict
 	// (default max(2, 20% of the samples)).
 	WarmupIntervals int
-	// HeapTolerance is the maximum relative growth of the post-GC HeapInuse between the first and
+	// HeapTolerance is the maximum relative growth of the post-GC peak HeapInuse between the first and
 	// the last third of the measured window (default 0.25 = 25%).
 	HeapTolerance float64
 	// HeapMinGrowthBytes is an absolute allowance under which growth never fails (default 32 MiB).
@@ -71,7 +71,7 @@ type Report struct {
 	Extra     map[string]int64
 	Pass      bool
 	Reasons   []string
-	// HeapGrowthBytes is the growth of the mean HeapInuse between the first and the last third of the measured window.
+	// HeapGrowthBytes is the growth of the peak HeapInuse between the first and the last third of the measured window.
 	HeapGrowthBytes float64
 }
 
@@ -271,7 +271,7 @@ func (s Sample) line() string {
 
 // judge computes the "memory stable" verdict.
 //
-// After the warm-up, the mean post-GC HeapInuse of the last third of the samples is compared with
+// After the warm-up, the peak post-GC HeapInuse of the last third of the samples is compared with
 // the one of the first third; the run fails when it grew by more than both HeapTolerance of the
 // first and HeapMinGrowthBytes. It also fails when the goroutine count exceeds its value at the end of
 // the warm-up by more than GoroutineSlack.
@@ -290,23 +290,24 @@ func judge(r *Report, o Options) {
 	}
 	m := r.Samples[warm:]
 	// The post-GC heap of a healthy exporter is a sawtooth (the events wait for their flush), so
-	// a fitted line over a handful of samples is noisy. We compare the mean of the first third of
-	// the measured window with the mean of the last third instead.
+	// averages and fitted lines over a handful of samples are noisy. We compare the peak of the
+	// first third of the measured window with the peak of the last third: a leak raises the
+	// peaks, a bounded sawtooth does not.
 	third := max(1, len(m)/3)
-	avg := func(ss []Sample) float64 {
-		var sum float64
+	peak := func(ss []Sample) float64 {
+		var p uint64
 		for _, s := range ss {
-			sum += float64(s.HeapInuse)
+			p = max(p, s.HeapInuse)
 		}
-		return sum / float64(len(ss))
+		return float64(p)
 	}
-	first, last := avg(m[:third]), avg(m[len(m)-third:])
+	first, last := peak(m[:third]), peak(m[len(m)-third:])
 	r.HeapGrowthBytes = last - first
 	allowed := max(o.HeapTolerance*first, float64(o.HeapMinGrowthBytes))
 	if r.HeapGrowthBytes > allowed {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
-			"HeapInuse grows from %.1f MiB (first third) to %.1f MiB (last third), allowed +%.1f MiB",
+			"peak HeapInuse grows from %.1f MiB (first third) to %.1f MiB (last third), allowed +%.1f MiB",
 			first/(1<<20), last/(1<<20), allowed/(1<<20)))
 	}
 	base := m[0].Goroutines
