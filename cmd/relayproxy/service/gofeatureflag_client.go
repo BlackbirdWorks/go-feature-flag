@@ -41,6 +41,23 @@ import (
 // clientOptions are the internal options of NewGoFeatureFlagClient.
 type clientOptions struct {
 	sharedRegistry *sharedBucketRegistry
+	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
+	defaultExporterCleanQueueInterval time.Duration
+}
+
+// withDefaultExporterCleanQueueInterval sets the exporterCleanQueueInterval used by the flagsets that do not
+// configure their own (the top-level value in flagset mode).
+func withDefaultExporterCleanQueueInterval(d time.Duration) clientOption {
+	return func(o *clientOptions) { o.defaultExporterCleanQueueInterval = d }
+}
+
+// exporterCleanQueueInterval returns the interval to give to the client: the one of the flagset, else the default.
+// 0 means that the client applies its own default.
+func exporterCleanQueueInterval(cFlagSet *config.FlagSet, o *clientOptions) time.Duration {
+	if cFlagSet.ExporterCleanQueueInterval != 0 {
+		return cFlagSet.ExporterCleanQueueInterval
+	}
+	return o.defaultExporterCleanQueueInterval
 }
 
 // clientOption customizes NewGoFeatureFlagClient.
@@ -118,6 +135,7 @@ func newGoFeatureFlagClient(
 		Notifiers:                       notif,
 		FileFormat:                      cFlagSet.FileFormat,
 		DataExporters:                   exporters,
+		ExporterCleanQueueInterval:      exporterCleanQueueInterval(cFlagSet, &o),
 		StartWithRetrieverError:         cFlagSet.StartWithRetrieverError,
 		EnablePollingJitter:             cFlagSet.EnablePollingJitter,
 		DisableNotifierOnInit:           cFlagSet.DisableNotifierOnInit,

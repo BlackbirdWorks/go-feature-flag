@@ -1075,3 +1075,27 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	_, err := NewGoFeatureFlagClient(&fs, zap.NewNop(), nil)
 	assert.Error(t, err)
 }
+
+func Test_exporterCleanQueueInterval(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		flagset  time.Duration
+		fallback time.Duration
+		want     time.Duration
+	}{
+		{name: "unset everywhere lets the engine use its default", want: 0},
+		{name: "flagset value", flagset: 5 * time.Second, want: 5 * time.Second},
+		{name: "top-level fallback", fallback: 30 * time.Second, want: 30 * time.Second},
+		{name: "flagset overrides the fallback", flagset: 5 * time.Second, fallback: 30 * time.Second, want: 5 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fs := &config.FlagSet{CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.flagset}}
+			var o clientOptions
+			withDefaultExporterCleanQueueInterval(tt.fallback)(&o)
+			assert.Equal(t, tt.want, exporterCleanQueueInterval(fs, &o))
+		})
+	}
+}

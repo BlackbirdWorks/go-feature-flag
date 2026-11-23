@@ -137,6 +137,7 @@ func newFlagsetManagerWithDefaultConfig(
 			Exporters:                       c.Exporters,
 			FileFormat:                      c.FileFormat,
 			PollingInterval:                 c.PollingInterval,
+			ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
 			StartWithRetrieverError:         c.StartWithRetrieverError,
 			EnablePollingJitter:             c.EnablePollingJitter,
 			DisableNotifierOnInit:           c.DisableNotifierOnInit,
@@ -197,7 +198,8 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
 		client, err := newGoFeatureFlagClient(
-			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry))
+			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry),
+			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.Error(
 				"failed to create goff client for flagset",
@@ -451,7 +453,8 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet) {
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
 	client, err := newGoFeatureFlagClient(
-		&flagset, m.logger, allNotifiers, withSharedBucketRegistry(m.sharedRegistry))
+		&flagset, m.logger, allNotifiers, withSharedBucketRegistry(m.sharedRegistry),
+		withDefaultExporterCleanQueueInterval(m.config.ExporterCleanQueueInterval))
 	if err != nil {
 		m.logger.Error(
 			"failed to create the flagset added at runtime, it will not be available until the "+
