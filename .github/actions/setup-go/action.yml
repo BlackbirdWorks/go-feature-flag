@@ -9,6 +9,10 @@ inputs:
     description: Restore and save the Go module and build caches.
     required: false
     default: "true"
+  download:
+    description: Pre-download every module (with retries). Jobs that only need the Go toolchain turn it off.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -40,6 +44,7 @@ runs:
           rules/go.sum
 
     - name: Download Go modules (retry proxy stream errors)
+      if: ${{ inputs.download == 'true' }}
       shell: bash
       run: |
         for module in . modules/core rules; do
