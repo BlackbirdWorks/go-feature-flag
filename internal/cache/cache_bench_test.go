@@ -15,6 +15,11 @@ import (
 
 func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 	b.Helper()
+	return benchFlagsMap(b, n)
+}
+
+func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
+	tb.Helper()
 	var sb []byte
 	for i := 0; i < n; i++ {
 		sb = append(sb, fmt.Sprintf(`flag-%d:
@@ -28,7 +33,7 @@ func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 	}
 	var flags map[string]dto.DTO
 	if err := yaml.Unmarshal(sb, &flags); err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
 	return flags
 }
@@ -87,6 +92,7 @@ func BenchmarkGetFlag(b *testing.B) {
 				}
 				_ = f
 			})
+			b.StopTimer()
 			stop.Store(true)
 			wg.Wait()
 		})
