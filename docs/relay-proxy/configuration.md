@@ -249,6 +249,17 @@ If `disableNotifierOnInit` is set to **true**, the relay proxy will not call any
 - default: **`false`**
 - mandatory: No
 
+### `exporterCleanQueueInterval`
+
+`exporterCleanQueueInterval` is the duration between two cleanings of the exporters' event queue, the cleaning removes the events that every exporter has already processed.
+In [flag set mode](#use-multiple-flag-sets) this value is used by the flag sets that do not set their own [`flagSet.exporterCleanQueueInterval`](#flagsetexportercleanqueueinterval).
+
+- option name: `exporterCleanQueueInterval`
+- type: **duration** _(for example `30s` or `2m`)_
+- default: **`1m`**
+- mandatory: No
+- A negative value is rejected when the configuration is loaded.
+
 ### `hideBanner`
 
 `hideBanner` can be used to hide the startup banner.
@@ -857,6 +868,14 @@ Set to true if you want to avoid having true periodicity when retrieving your fl
 Set to true if you do not want to call any notifier when the flags are loaded for the first time.
 
 - [_see `disableNotifierOnInit`_](#disablenotifieroninit)
+
+#### `flagSet.exporterCleanQueueInterval`
+
+Duration between two cleanings of the exporters' event queue for this flag set.
+
+- type: **duration**
+- default: the top-level [`exporterCleanQueueInterval`](#exportercleanqueueinterval), else **`1m`**
+- [_see `exporterCleanQueueInterval`_](#exportercleanqueueinterval)
 
 #### `flagSet.evaluationContextEnrichment`
 
