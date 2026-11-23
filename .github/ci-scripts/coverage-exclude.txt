@@ -1,0 +1,29 @@
+# Files and directories left out of the coverage denominator.
+#
+# Single source of truth: .github/ci-scripts/coverage.py (CI job `coverage` and
+# `make coverage`) reads it, and codecov.yml `ignore:` must list exactly the
+# same entries (coverage.py --check-codecov fails otherwise).
+# Patterns are repository-relative, gitignore-like: `*` stays inside a path
+# segment, `**` crosses directories, an entry also covers everything below it.
+# Only exclude what is not product behaviour: generated code, test helpers and
+# mocks, documentation stubs, developer-only tools. Never exclude product code
+# to raise the number. coverage.py also fails when a file carrying a
+# "Code generated ... DO NOT EDIT." header is not listed here.
+
+# Generated: swagger docs (swag init), antlr parser of the rules engine.
+cmd/relayproxy/docs/
+rules/parser/jsonquery_lexer.go
+rules/parser/jsonquery_parser.go
+rules/parser/jsonquery_visitor.go
+
+# Test helpers and mocks (shared fixtures, gopherstack/testcontainers helpers).
+testutils/
+modules/core/testutils/
+cmd/relayproxy/testdata/
+
+# Type-only structs that exist to feed swagger; no behaviour.
+cmd/relayproxy/modeldocs/
+
+# Developer-only tools, not shipped: schema generator, rules demo CLI.
+cmd/jsonschema-generator/
+rules/cmd/
