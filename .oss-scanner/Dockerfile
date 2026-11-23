@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY . /src
 WORKDIR /src
 
-# GOWORK=off mirrors CI (see Makefile): the root module resolves modules/core from the module proxy.
+# GOWORK=off mirrors CI (see Makefile): the root module resolves modules/core and rules/ via local replace directives.
 ENV GOWORK=off
 
 RUN go mod download && (cd modules/core && go mod download)

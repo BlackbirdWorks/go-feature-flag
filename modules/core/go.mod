@@ -9,10 +9,11 @@ require (
 	github.com/stretchr/testify v1.12.1
 )
 
-// github.com/go-feature-flag/rules is our maintained fork of github.com/nikunjy/rules (slow to merge changes).
+// github.com/nikunjy/rules is built from the maintained fork github.com/go-feature-flag/rules, which lives in
+// the rules/ directory of this repository (see rules/README.md for the pinned upstream commit).
 // It adds proper semver support (prerelease comparison, see https://github.com/thomaspoignant/go-feature-flag/issues/4736)
 // and rejects invalid rule syntax at parse time.
-replace github.com/nikunjy/rules => github.com/go-feature-flag/rules v0.0.0-20261118103042-e9704fa7a06c
+replace github.com/nikunjy/rules => ../../rules
 
 require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
