@@ -191,7 +191,7 @@ coverage: ## Run the tests of the project and export the coverage for all module
 		cd $$module && $(GOWORK_ENV) $(GOTEST) -cover -covermode=count -tags=docker -coverprofile=$${original_path}/$${covfile} ./... || exit 1; \
 		cd $$original_path; \
 	done
-	@echo "mode: count" > coverage.cov && cat *.cov.tmp | grep -v "mode: count" | grep -v "/examples/" >> coverage.cov
+	@echo "mode: count" > coverage.cov && cat *.cov.tmp | grep -v "mode: count" >> coverage.cov
 	@rm -f *.cov.tmp
 
 bench: ## Launch the benchmark test

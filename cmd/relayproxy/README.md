@@ -54,7 +54,7 @@ Before starting your **relay proxy** you will need to create a minimal configura
 # this is a minimal config containing only where your flag file is located 
 retriever:
   kind: http
-  url: https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
+  url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
 ```
 
 After that you can launch the **relay proxy** by using this command:
