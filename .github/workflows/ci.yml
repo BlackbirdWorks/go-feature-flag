@@ -70,6 +70,8 @@ jobs:
             echo "code=false" >> "$GITHUB_OUTPUT"
           fi
 
+  # Two jobs so the FIPS compile (a different toolchain configuration that
+  # shares little of the build cache) runs next to the regular build.
   build:
     name: build
     needs: [changes]
@@ -87,16 +89,15 @@ jobs:
       - uses: ./.github/actions/setup-go
       # All modules, relay proxy, jsonschema generator and cli.
       - run: make build
-      # Smoke-test the FIPS variant so a dependency that breaks under GOFIPS140
-      # is caught here rather than at release time.
-      - run: make build-relayproxy-fips
 
-  lint:
-    name: lint
+  # Smoke-test the FIPS variant so a dependency that breaks under GOFIPS140
+  # is caught here rather than at release time.
+  build-fips:
+    name: build (fips)
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -106,10 +107,39 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: ./.github/actions/setup-go
-      - run: make lint
-      # Optional targets: they run only once the Makefile defines them, so this
-      # job needs no change when they land.
+      - run: make build-relayproxy-fips
+
+  # One job per module so a failure in one never hides findings in another.
+  lint:
+    name: lint (${{ matrix.name }})
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: root
+            module: "."
+          - name: modules/core
+            module: modules/core
+          - name: rules
+            module: rules
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+      - run: make lint-module MODULE="${{ matrix.module }}"
+      # Optional target: it runs only once the Makefile defines it, so this
+      # job needs no change when it lands. Not module specific: root leg only.
       - name: Run mulint (if the target exists)
+        if: matrix.name == 'root'
         run: |
           if make -n mulint > /dev/null 2>&1; then
             make mulint
@@ -474,6 +504,7 @@ jobs:
     needs:
       - changes
       - build
+      - build-fips
       - lint
       - modules
       - vulncheck
