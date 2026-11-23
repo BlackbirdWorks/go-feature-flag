@@ -12,14 +12,14 @@ configuration to your relay proxy configuration file:
 # ...
 retrievers:
   - kind: file
-    path: /goff/my-flags.yaml
+    path: /semaphore/my-flags.yaml
 # ...
 ```
 
 | Field name |   Mandatory   | Type   | Default  | Description                                                                                            |
 |------------|:-------------:|--------|----------|--------------------------------------------------------------------------------------------------------|
 | `kind`     | Yes | string | **none** | **Value should be `file`**.<br/>_This field is mandatory and describes which retriever you are using._ |
-| `path`     | Yes | string | **none** | Absolute path to the flag file on the filesystem where the relay proxy runs _(ex: `/goff/my-flags.yaml`)_. In Docker or other containers, this path must exist **inside** the container (see below). |
+| `path`     | Yes | string | **none** | Absolute path to the flag file on the filesystem where the relay proxy runs _(ex: `/semaphore/my-flags.yaml`)_. In Docker or other containers, this path must exist **inside** the container (see below). |
 
 ### Docker and containers
 
@@ -35,7 +35,7 @@ import 	"github.com/blackbirdworks/semaphore/retriever/file"
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &fileretriever.Retriever{
-        Path: "/goff/my-flags.yaml",
+        Path: "/semaphore/my-flags.yaml",
     },
 })
 defer ffclient.Close()

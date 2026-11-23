@@ -72,7 +72,7 @@ type WSFlagChange struct {
 
 // Handler is the entry point for the websocket endpoint to get notified when a flag has been edited
 // @Summary      Websocket endpoint to be notified about flag changes
-// @Tags         GO Feature Flag Evaluation Stream API
+// @Tags         Semaphore Evaluation Stream API
 // @Deprecated
 // @Description  Deprecated: use /stream/v1/ws/flag/change instead. This endpoint
 // @Description  is a websocket endpoint to be notified about flag changes; every
@@ -93,7 +93,7 @@ func (f *WSFlagChange) LegacyHandler(c *echo.Context) error {
 
 // Handler is the entry point for the websocket endpoint to get notified when a flag has been edited
 // @Summary      Websocket endpoint to be notified about flag changes
-// @Tags         GO Feature Flag Evaluation Stream API
+// @Tags         Semaphore Evaluation Stream API
 // @Description  This endpoint is a websocket endpoint to be notified about flag changes;
 // @Description  every change pushes a notifier.DiffCache message to the client.
 // @Description  When disableFlagDetailsInStream is true, values are empty objects.

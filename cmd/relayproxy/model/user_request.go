@@ -20,5 +20,5 @@ type EvaluationContextRequest struct {
 	Key string `json:"key" xml:"key" form:"key" query:"key" example:"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"`
 
 	// Custom is a map containing all extra information for this user.
-	Custom map[string]any `json:"custom" xml:"custom" form:"custom" query:"custom" swaggertype:"object,string" example:"email:contact@gofeatureflag.org,firstname:John,lastname:Doe,company:GO Feature Flag"` // nolint: lll
+	Custom map[string]any `json:"custom" xml:"custom" form:"custom" query:"custom" swaggertype:"object,string" example:"email:contact@gofeatureflag.org,firstname:John,lastname:Doe,company:Semaphore"` // nolint: lll
 }

@@ -17,8 +17,8 @@ configuration to your relay proxy configuration file:
 # ...
 exporters:
   - kind: azureBlobStorage
-    container: test-goff
-    accountName: goff
+    container: test-semaphore
+    accountName: semaphore
 # ...
 ```
 
@@ -46,11 +46,11 @@ config := ffclient.Config{
    DataExporter: ffclient.DataExporter{
         // ...
         Exporter: &azureexporter.Exporter{
-            Container:   "test-goff",
+            Container:   "test-semaphore",
             Format:   "json",
             Path:     "yourPath",
             Filename: "flag-variation-{{ .Timestamp}}.{{ .Format}}",
-            AccountName: "goff",
+            AccountName: "semaphore",
             AccountKey: "XXXX",
         },
     },

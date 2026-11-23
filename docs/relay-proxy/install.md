@@ -6,7 +6,7 @@ Requires Go (see `go.mod` for the version).
 
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git
-cd go-feature-flag
+cd semaphore
 make build-relayproxy   # binary: out/bin/semaphore
 ```
 
@@ -15,7 +15,7 @@ make build-relayproxy   # binary: out/bin/semaphore
 Build a local image from source:
 
 ```shell
-make build-relayproxy-docker   # image: go-feature-flag:local
+make build-relayproxy-docker   # image: semaphore:local
 ```
 
 The relay proxy image is named `ghcr.io/blackbirdworks/semaphore`; the

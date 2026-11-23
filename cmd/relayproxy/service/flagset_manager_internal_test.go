@@ -29,7 +29,7 @@ func Test_flagsetManagerImpl_sharedPollerPerBucket(t *testing.T) {
 
 func testSharedPollerManager(t *testing.T) {
 	t.Helper()
-	content, err := os.ReadFile("../testdata/goff/configuration_flags.yaml")
+	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 	require.NoError(t, err)
 
 	f := &fakeS3{content: content}
@@ -39,7 +39,7 @@ func testSharedPollerManager(t *testing.T) {
 		Name:    "isolated",
 		APIKeys: []string{"isolated-key"},
 		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{Kind: retrieverconf.FileRetriever, Path: "../testdata/goff/configuration_flags.yaml"},
+			Retriever: &retrieverconf.RetrieverConf{Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml"},
 		},
 	}
 	cfg := &config.Config{FlagSets: []config.FlagSet{
@@ -77,7 +77,7 @@ func testSharedPollerManager(t *testing.T) {
 func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		content, err := os.ReadFile("../testdata/goff/configuration_flags.yaml")
+		content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 		require.NoError(t, err)
 		reg := newFakeRegistry(t, &fakeS3{content: content}, &atomic.Int32{})
 		first := s3FlagSet("u1", "flags", "p/a.yaml")
@@ -97,7 +97,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		content, err := os.ReadFile("../testdata/goff/configuration_flags.yaml")
+		content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 		require.NoError(t, err)
 		f := &fakeS3{content: content}
 		flagsets := make([]config.FlagSet, 11)
@@ -126,7 +126,7 @@ func newPollingManager(
 	t *testing.T, f *fakeS3, interval time.Duration, logger *zap.Logger,
 ) (*flagsetManagerImpl, *sharedBucketRegistry) {
 	t.Helper()
-	content, err := os.ReadFile("../testdata/goff/configuration_flags.yaml")
+	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 	require.NoError(t, err)
 	f.content = content
 	reg := newFakeRegistryWithPolling(t, f, &atomic.Int32{}, interval, false, logger)

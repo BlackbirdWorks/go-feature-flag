@@ -40,7 +40,7 @@ err := ffclient.Init(ffclient.Config{
     Retriever: &bitbucketretriever.Retriever{
         RepositorySlug: "your-org/your-repo",
         Branch: "main",
-        FilePath: "testdata/flag-config.goff.yaml",
+        FilePath: "testdata/flag-config.yaml",
         BitBucketToken: "XXXX",
         Timeout: 2 * time.Second,
     },

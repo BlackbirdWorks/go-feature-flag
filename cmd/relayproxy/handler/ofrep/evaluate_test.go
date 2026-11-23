@@ -23,7 +23,7 @@ import (
 )
 
 const testdataDir = "../../testdata"
-const configFlagsLocation = testdataDir + "/goff/config_flags.yaml"
+const configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
 
 func Test_Bulk_Evaluation(t *testing.T) {
 	type want struct {

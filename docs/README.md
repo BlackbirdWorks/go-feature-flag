@@ -44,6 +44,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
 
 ## Migration
+- [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)
 - [Removal of `ffuser` and the `user` request field](migration/remove-ffuser.md)
 
 ## Tooling

@@ -164,9 +164,9 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 	evaluateCmd.Flags().StringVarP(&kind,
 		"kind", "k", "file", "Kind of the configuration file (file, http, redis, gitlab, k8s, ...)")
 	evaluateCmd.Flags().StringVarP(&evalConfigFile,
-		"config", "c", "", "Location of your GO Feature Flag local configuration file")
+		"config", "c", "", "Location of your Semaphore local configuration file")
 	evaluateCmd.Flags().StringVarP(&path, "path", "p", "",
-		"Path to your GO Feature Flag configuration file (local or remote)")
+		"Path to your Semaphore configuration file (local or remote)")
 	evaluateCmd.Flags().StringVar(&authToken,
 		"auth-token", "", "Authentication token to access your configuration file")
 	evaluateCmd.Flags().StringVar(&githubToken,

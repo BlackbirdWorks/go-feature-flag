@@ -30,7 +30,7 @@ type FlagChangeResponse struct {
 
 // Handler is the endpoint to poll if you want to know if there is a configuration change in the flags
 // @Summary    Endpoint to poll if you want to know if there is a configuration change in the flags
-// @Tags GO Feature Flag Evaluation API
+// @Tags Semaphore Evaluation API
 // @Description Making a **GET** request to the URL `/v1/flag/change` will give you the hash of the current
 // @Description configuration, you can use this hash to know if the configuration has changed.
 // @Security    ApiKeyAuth

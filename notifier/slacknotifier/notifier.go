@@ -18,7 +18,7 @@ import (
 var _ notifier.Notifier = &Notifier{}
 
 const (
-	slackFooter  = "go-feature-flag"
+	slackFooter  = "semaphore"
 	colorDeleted = "#FF0000"
 	colorUpdated = "#FFA500"
 	colorAdded   = "#008000"

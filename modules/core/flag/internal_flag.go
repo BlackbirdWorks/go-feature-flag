@@ -19,7 +19,7 @@ const (
 	PercentageMultiplier = float64(1000)
 )
 
-// InternalFlag is the internal representation of a flag when using go-feature-flag.
+// InternalFlag is the internal representation of a flag when using semaphore.
 // All the flags in your configuration files can have different format but will be
 // converted into an InternalFlag to be used in the library.
 type InternalFlag struct {

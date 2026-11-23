@@ -109,6 +109,8 @@ SHA and PR number.
   and `git commit -c <sha>`; or
   `git format-patch -1 --stdout <sha> | sed "s#github.com/thomaspoignant/go-feature-flag#$MOD#g" | git am -3 --trailer "(cherry picked from upstream $sha)"`.
   Do not rewrite `go.sum` hunks or the `replace` lines for `modules/core`/`rules`; keep local `replace` directives.
+  Upstream names that were renamed here (directories, binaries, `goff-proxy`, `gofeatureflag*` keys) are listed in
+  `UPSTREAM.md`, "Path and name mapping": port such hunks by hand to the Semaphore name and keep the alias behaviour.
 - Paths deleted locally (e.g. `cmd/wasm`): in a conflict, `git rm` the "deleted by us" files and
   continue; the rest of the commit still applies.
 - Dependency bumps: do not cherry-pick `go.sum` hunks. Re-run the bump in each module that uses it

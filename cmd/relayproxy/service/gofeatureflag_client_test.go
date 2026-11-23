@@ -1036,7 +1036,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 	r, err := reg.retrieverFor(&fs)
 	require.NoError(t, err)
 	file, err := retrieverInit.InitRetriever(&retrieverconf.RetrieverConf{
-		Kind: retrieverconf.FileRetriever, Path: "../testdata/goff/configuration_flags.yaml",
+		Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml",
 	})
 	require.NoError(t, err)
 	tests := []struct {

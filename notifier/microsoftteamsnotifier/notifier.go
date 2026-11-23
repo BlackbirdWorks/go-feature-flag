@@ -26,7 +26,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 			"MicrosoftTeamsWebhookURL provided for the microsoft teams notifier")
 	}
 	msgText := convertToMicrosoftTeamsMessage(diff)
-	msg, err := adaptivecard.NewSimpleMessage(msgText, "GO Feature Flag", true)
+	msg, err := adaptivecard.NewSimpleMessage(msgText, "Semaphore", true)
 	if err != nil {
 		return err
 	}

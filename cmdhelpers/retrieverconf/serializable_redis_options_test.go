@@ -36,7 +36,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 			input: &retrieverconf.SerializableRedisOptions{
 				Network:               "tcp",
 				Addr:                  "redis.example.com:6380",
-				ClientName:            "go-feature-flag",
+				ClientName:            "semaphore",
 				Protocol:              3,
 				Username:              "admin",
 				Password:              "password123",
@@ -61,7 +61,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 			validate: func(t *testing.T, opts *redis.Options) {
 				assert.Equal(t, "tcp", opts.Network)
 				assert.Equal(t, "redis.example.com:6380", opts.Addr)
-				assert.Equal(t, "go-feature-flag", opts.ClientName)
+				assert.Equal(t, "semaphore", opts.ClientName)
 				assert.Equal(t, 3, opts.Protocol)
 				assert.Equal(t, "admin", opts.Username)
 				assert.Equal(t, "password123", opts.Password)

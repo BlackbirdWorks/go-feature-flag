@@ -16,9 +16,9 @@ func main() {
 
 func initRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "go-feature-flag-cli",
-		Short: "GO Feature Flag CLI tool",
-		Long:  `A command line interface for GO Feature Flag operations.`,
+		Use:   "semaphore-cli",
+		Short: "Semaphore CLI tool",
+		Long:  `A command line interface for Semaphore operations.`,
 	}
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())

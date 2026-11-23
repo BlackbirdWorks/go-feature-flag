@@ -39,7 +39,7 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 	return e.evaluateFlags(goff, listFlags, convertedEvaluationCtx)
 }
 
-// initGOFF initializes the GO Feature Flag client
+// initGOFF initializes the Semaphore client
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	c := ffclient.Config{
 		PollingInterval:       10 * time.Minute,

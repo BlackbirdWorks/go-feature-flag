@@ -9,6 +9,15 @@ See [UPSTREAM.md](UPSTREAM.md) for the upstream baseline.
 This is an independent project: it is not affiliated with, sponsored by or endorsed by the GO Feature Flag project or its
 maintainers, and it is unrelated to other products or services that share the name Semaphore.
 
+## Compatibility with GO Feature Flag
+
+The wire protocol is unchanged: the relay proxy serves the same HTTP endpoints (`/ofrep/v1/...`, `/v1/...`), so the
+standard OpenFeature SDKs and the GO Feature Flag OpenFeature providers keep working against it, and the compatibility
+tests of `openfeature/provider_tests` run those upstream providers against this relay proxy. The names that GO Feature
+Flag used (`goff-proxy.yaml`, the `gofeatureflag` evaluation context key, the `gofeatureflag_cacheable` metadata, the
+`X-GOFEATUREFLAG-VERSION` header, the `gofeatureflag_` metric prefix) are still accepted or emitted next to the Semaphore
+ones. See the [migration table](docs/migration/rename-to-semaphore.md).
+
 ## How it differs from upstream
 
 - The rules engine is vendored in-repo (`rules/`).
@@ -22,7 +31,7 @@ Build the relay proxy and run it with a file retriever (requires Go, see `go.mod
 ```shell
 make build-relayproxy        # binary: out/bin/semaphore
 
-cat > flags.goff.yaml <<'YAML'
+cat > flags.yaml <<'YAML'
 new-checkout:
   variations:
     enabled: true
@@ -35,14 +44,14 @@ new-checkout:
     variation: disabled
 YAML
 
-cat > goff-proxy.yaml <<'YAML'
+cat > semaphore-proxy.yaml <<'YAML'
 pollingInterval: 1000
 retrievers:
   - kind: file
-    path: ./flags.goff.yaml
+    path: ./flags.yaml
 YAML
 
-./out/bin/semaphore --config goff-proxy.yaml
+./out/bin/semaphore --config semaphore-proxy.yaml
 ```
 
 Evaluate the flag through OFREP from another terminal:
@@ -51,7 +60,7 @@ Evaluate the flag through OFREP from another terminal:
 curl -s http://localhost:1031/ofrep/v1/evaluate/flags/new-checkout -X POST \
   -H 'Content-Type: application/json' \
   --data-raw '{"context": {"targetingKey": "user-123", "beta": true}}'
-# {"key":"new-checkout","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"evaluatedRuleName":"beta users","gofeatureflag_cacheable":true}}
+# {"key":"new-checkout","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"evaluatedRuleName":"beta users","gofeatureflag_cacheable":true,"semaphore_cacheable":true}}
 ```
 
 Then point an OpenFeature OFREP provider at `http://localhost:1031`, see [docs/openfeature/ofrep.md](docs/openfeature/ofrep.md).

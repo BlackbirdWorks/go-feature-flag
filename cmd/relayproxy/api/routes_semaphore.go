@@ -1,13 +1,13 @@
 package api
 
 import (
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/labstack/echo/v5"
 	etag "github.com/pablor21/echo-etag/v5"
 	echoSwagger "github.com/swaggo/echo-swagger/v2"
 )
 
-func (s *Server) addGOFFRoutes(
+func (s *Server) addRelayRoutes(
 	cAllFlags,
 	cFlagEval,
 	cEvalDataCollector,

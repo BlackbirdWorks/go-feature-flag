@@ -1,5 +1,5 @@
 # Configuration
-`go-feature-flag` needs to be initialized to be used.  
+`semaphore` needs to be initialized to be used.  
 During the initialization you must give a [`ffclient.Config{}`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Config) configuration object.  
 
 [`ffclient.Config{}`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Config) is the only location where you can put the configuration.
@@ -15,7 +15,7 @@ During the initialization you must give a [`ffclient.Config{}`](https://pkg.go.d
 | `DataExporter`                    | *(optional)*<br/>`DataExporter` defines the method for exporting data on the usage of your flags.<br/> *see [export data section](data_collection.md) for more details*.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `DataExporters`                   | *(optional)*<br/>`DataExporters` is exactly the same thing as `DataExporter` but you can configure more than 1 exporter for your variation events.<br/>All exporters are flushed in parallel without interdependencies.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `FileFormat`                      | *(optional)*<br/>Format of your configuration file. Available formats are `yaml`, `toml` and `json`, if you omit the field it will try to unmarshal the file as a `yaml` file.<br/>Default: **`YAML`**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `LeveledLogger`                   | *(optional)*<br/>LeveledLogger is used to log what `go-feature-flag` is doing.<br/>It should be a `slog` instance.<br/>If no logger is provided the module will not log anything.<br/>Default: **No log**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `LeveledLogger`                   | *(optional)*<br/>LeveledLogger is used to log what `semaphore` is doing.<br/>It should be a `slog` instance.<br/>If no logger is provided the module will not log anything.<br/>Default: **No log**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `Notifiers`                       | *(optional)*<br/>List of notifiers to call when your flag file has been changed.<br/> *See [notifiers section](notifier.md) for more details*.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `PollingInterval`                 | (optional) Duration to wait before refreshing the flags.<br/>The minimum polling interval is 1 second.<br/>Default: **60 * time.Second**.<br/>If you set a negative value, the polling will be disabled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `EnablePollingJitter`             | (optional) Set to true if you want to avoid having true periodicity when retrieving your flags. It is useful to avoid having spike on your flag configuration storage in case your application is starting multiple instance at the same time.<br/>We ensure a deviation that is maximum ±10% of your polling interval.<br />Default: **false**                                                                                                                                                                                                                                                                                                                                                       |
@@ -23,7 +23,7 @@ During the initialization you must give a [`ffclient.Config{}`](https://pkg.go.d
 | `DisableNotifierOnInit`           | *(optional)* If **true**, the SDK will not call any notifier when the flags are loaded during initialization. This is useful if you do not want a Slack/Webhook notification saying that the flags have been added every time you start the application.<br/>Default: **false**                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `Offline`                         | *(optional)* If **true**, the SDK will not try to retrieve the flag file and will not export any data. No notifications will be sent either.<br/>Default: **false**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `EvaluationContextEnrichment`     | <p>*(optional)* It is a free `map[string]any` field that will be merged with the evaluation context sent during the evaluations. It is useful to add common attributes to all the evaluation, such as a server version, environment, ...</p><p>All those fields will be included in the custom attributes of the evaluation context.</p><p>_If in the evaluation context you have a field with the same name, it will be overridden by the `evaluationContextEnrichment`._</p><p>_If you have a key `env` in your `EvaluationContextEnrichment` and you also have the `Environment` set in your configuration, the `env` key from `EvaluationContextEnrichment` will be ignored._</p> Default: **nil** |
-| `PersistentFlagConfigurationFile` | *(optional)* If set Semaphore will store the flags configuration in this file to be able to serve the flags even if none of the retrievers is available during starting time.<br/>By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here, you ensure that Semaphore will always start with a configuration but which can be out-dated.<br/><br/>_(example: `/tmp/goff_persist_conf.yaml`)_                                                                                                                                                                                                                                         |
+| `PersistentFlagConfigurationFile` | *(optional)* If set Semaphore will store the flags configuration in this file to be able to serve the flags even if none of the retrievers is available during starting time.<br/>By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here, you ensure that Semaphore will always start with a configuration but which can be out-dated.<br/><br/>_(example: `/tmp/semaphore_persist_conf.yaml`)_                                                                                                                                                                                                                                         |
 
 ## Example
 ```go
@@ -32,7 +32,7 @@ ffclient.Init(ffclient.Config{
     LeveledLogger:   slog.Default(),
     Context:         context.Background(),
     Environment:     os.Getenv("MYAPP_ENV"),
-    Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.goff.yaml"},
+    Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
     FileFormat:      "yaml",
     Notifiers: []notifier.Notifier{
         &webhooknotifier.Notifier{
@@ -55,17 +55,17 @@ ffclient.Init(ffclient.Config{
 ```
 
 ## Multiple configuration flag files
-`go-feature-flag` comes ready to use out of the box by calling the `Init` function and, it will be available everywhere.  
+`semaphore` comes ready to use out of the box by calling the `Init` function and, it will be available everywhere.  
 Since most applications will want to use a single central flag configuration, the package provides this. It is similar to a singleton.
 
-In all the examples above, they demonstrate using `go-feature-flag` in its singleton style approach.
+In all the examples above, they demonstrate using `semaphore` in its singleton style approach.
 
-### Working with multiple go-feature-flag
+### Working with multiple semaphore
 
-You can also create many `go-feature-flag` clients to use in your application.  
+You can also create many `semaphore` clients to use in your application.  
 
 Each will have its own unique set of configurations and flags. Each can read from a different config file and from different places.  
-All the functions that `go-feature-flag` package supports are mirrored as methods on a [`GoFeatureFlag`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#GoFeatureFlag).
+All the functions that `semaphore` package supports are mirrored as methods on a [`GoFeatureFlag`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#GoFeatureFlag).
 
 #### Example
 
@@ -73,7 +73,7 @@ Inside a function that returns an error, initialize each client and check the re
 
 ```go showLineNumbers
 x, err := ffclient.New(ffclient.Config{
-    Retriever: &httpretriever.Retriever{URL: "http://example.com/flag-config.goff.yaml"},
+    Retriever: &httpretriever.Retriever{URL: "http://example.com/flag-config.yaml"},
 })
 if err != nil {
     return err
@@ -81,7 +81,7 @@ if err != nil {
 defer x.Close()
 
 y, err := ffclient.New(ffclient.Config{
-    Retriever: &httpretriever.Retriever{URL: "http://example.com/test2.goff.yaml"},
+    Retriever: &httpretriever.Retriever{URL: "http://example.com/test2.yaml"},
 })
 if err != nil {
     return err

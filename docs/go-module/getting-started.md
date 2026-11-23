@@ -29,7 +29,7 @@ First, you need to initialize the `ffclient` with the location of your backend f
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever:      &fileretriever.Retriever{
-        Path: "flag-config.goff.yaml",
+        Path: "flag-config.yaml",
     },
 })
 defer ffclient.Close()

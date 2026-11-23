@@ -710,7 +710,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 		"the updated flag configuration was never persisted on disk")
 	assert.NotEqual(t, contentP, contentP2)
 
-	// 4. Stopping GO Feature Flag and restart with a retriever that will fail.
+	// 4. Stopping Semaphore and restart with a retriever that will fail.
 	// Close() stops the polling: without it the background updater of gffClient would keep
 	// rewriting persistFile behind the back of gffClient2.
 	gffClient.Close()

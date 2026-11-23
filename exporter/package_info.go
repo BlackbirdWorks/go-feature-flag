@@ -1,4 +1,4 @@
-// Package exporter defines the data exporter of go-feature-flag
+// Package exporter defines the data exporter of semaphore
 //
 // These exporters are usable in your init configuration.
 //

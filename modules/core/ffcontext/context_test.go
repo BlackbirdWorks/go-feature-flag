@@ -430,12 +430,11 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 			got := ctx.ExtractGOFFProtectedFields()
 			assert.Equal(t, tt.wantFlags, got.FlagList)
 			assert.Equal(t, tt.wantMeta, got.ExporterMetadata)
-			if tt.wantDate == "" {
+			switch {
+			case tt.wantDate == "":
 				assert.Nil(t, got.CurrentDateTime)
-			} else {
-				if assert.NotNil(t, got.CurrentDateTime) {
-					assert.True(t, got.CurrentDateTime.Equal(mustParse(t, tt.wantDate)))
-				}
+			case assert.NotNil(t, got.CurrentDateTime):
+				assert.True(t, got.CurrentDateTime.Equal(mustParse(t, tt.wantDate)))
 			}
 			assert.Equal(t, tt.attributes["other"] == nil, ffcontext.HasReservedKey(tt.attributes))
 		})

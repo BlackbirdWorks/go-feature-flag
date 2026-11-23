@@ -13,11 +13,11 @@ provider, a bucket, a database, ...) and exposes HTTP APIs to evaluate your flag
 
 ```shell
 make build-relayproxy        # from the repository root; binary: out/bin/semaphore
-./out/bin/semaphore --config=/path/to/goff-proxy.yaml
+./out/bin/semaphore --config=/path/to/semaphore-proxy.yaml
 ```
 
-If `--config` is not provided, the relay proxy looks for a file named `goff-proxy.yaml` in the current
-folder, `/goff/` and `/etc/opt/goff/`.
+If `--config` is not provided, the relay proxy looks for a file named `semaphore-proxy.yaml` in the current
+folder, `/semaphore/` and `/etc/opt/semaphore/`.
 
 Documentation:
 - [Getting started](../../docs/relay-proxy/getting-started.md)

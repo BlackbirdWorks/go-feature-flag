@@ -132,6 +132,8 @@ linters:
       - (^|/)bin($|/)
       - (^|/)docs($|/)
       - (^|/)rules($|/)
+      # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
+      - (^|/)internal/koanfhttpprovider($|/)
     rules:
       - path: testutils/
         linters:

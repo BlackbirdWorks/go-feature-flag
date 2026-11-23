@@ -35,8 +35,8 @@ type ManifestCtrl struct {
 	logger         *zap.Logger
 }
 
-// GetManifest is a GET endpoint to return the flags configured in GO Feature Flag as a OpenFeature flag manifest.
-// @Summary   GetManifest is a GET endpoint to return the flags configured in GO Feature Flag.
+// GetManifest is a GET endpoint to return the flags configured in Semaphore as a OpenFeature flag manifest.
+// @Summary   GetManifest is a GET endpoint to return the flags configured in Semaphore.
 // @Tags OpenFeature Manisfest API
 // @Description **GET** request to the URL `/openfeature/v0/manifest` returns the project manifest
 // @Description containing active flags. Archived flags are excluded.

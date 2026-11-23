@@ -34,7 +34,7 @@ func NewForceFlagsRefresh(flagsetManager service.FlagsetManager, metrics metric.
 // This endpoint is used when you know explicitly that a flag has changed, and you want to trigger the collection
 // of the new version.
 // @Summary      This endpoint is used to force the refresh of the flags in the cache.
-// @Tags Admin API to manage GO Feature Flag
+// @Tags Admin API to manage Semaphore
 // @Description  This endpoint is used to force the refresh of the flags in the cache.
 // @Description  This endpoint is used when you know explicitly that a flag has changed, and you want to trigger
 // @Description the collection of the new versions.

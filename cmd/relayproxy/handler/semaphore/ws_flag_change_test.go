@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"

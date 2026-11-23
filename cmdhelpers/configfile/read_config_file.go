@@ -19,7 +19,7 @@ var ConfigFileDefaultLocations = []string{
 }
 
 // flagFileNames are the names of the flag file searched in the default locations, in this order. The
-// second one is the name of GO Feature Flag.
+// second one is the name of Semaphore.
 var flagFileNames = []string{"flags.semaphore", "flags.goff"}
 
 func LoadConfigFile(

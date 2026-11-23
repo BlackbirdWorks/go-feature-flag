@@ -8,7 +8,7 @@ import (
 )
 
 // Track is used to track an event.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) Track(
 	trackingEventName string,
 	ctx ffcontext.EvaluationContext,

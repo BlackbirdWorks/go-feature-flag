@@ -7,9 +7,9 @@ import (
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
@@ -133,7 +133,7 @@ func (s *Server) initRoutes() {
 	// Init routes
 	userAuth := s.getAuthMiddleware(UserAuth)
 	adminAuth := s.getAuthMiddleware(AdminAuth)
-	s.addGOFFRoutes(cAllFlags, cFlagEval, cEvalDataCollector, cFlagChangeAPI, cFlagConfiguration, userAuth)
+	s.addRelayRoutes(cAllFlags, cFlagEval, cEvalDataCollector, cFlagChangeAPI, cFlagConfiguration, userAuth)
 	s.addOFREPRoutes(cFlagEvalOFREP, userAuth)
 	s.addStreamRoutes()
 	s.addMonitoringRoutes()

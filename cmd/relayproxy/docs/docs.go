@@ -10,7 +10,7 @@ const docTemplate = `{
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
         "contact": {
-            "name": "GO feature flag relay proxy"
+            "name": "Semaphore relay proxy"
         },
         "license": {
             "name": "MIT",
@@ -40,7 +40,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin API to manage GO Feature Flag"
+                    "Admin API to manage Semaphore"
                 ],
                 "summary": "Validate a flag file",
                 "parameters": [
@@ -100,7 +100,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Admin API to manage GO Feature Flag"
+                    "Admin API to manage Semaphore"
                 ],
                 "summary": "This endpoint is used to force the refresh of the flags in the cache.",
                 "responses": {
@@ -373,7 +373,7 @@ const docTemplate = `{
                 "tags": [
                     "OpenFeature Manisfest API"
                 ],
-                "summary": "GetManifest is a GET endpoint to return the flags configured in GO Feature Flag.",
+                "summary": "GetManifest is a GET endpoint to return the flags configured in Semaphore.",
                 "responses": {
                     "200": {
                         "description": "Success",
@@ -409,7 +409,7 @@ const docTemplate = `{
                     "text/event-stream"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation Stream API"
+                    "Semaphore Evaluation Stream API"
                 ],
                 "summary": "SSE endpoint to be notified about flag changes",
                 "parameters": [
@@ -458,7 +458,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation Stream API"
+                    "Semaphore Evaluation Stream API"
                 ],
                 "summary": "Websocket endpoint to be notified about flag changes",
                 "parameters": [
@@ -515,7 +515,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation API"
+                    "Semaphore Evaluation API"
                 ],
                 "summary": "All flags variations for a user",
                 "parameters": [
@@ -569,7 +569,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation API"
+                    "Semaphore Evaluation API"
                 ],
                 "summary": "Endpoint to send usage of your flags to be collected",
                 "parameters": [
@@ -623,7 +623,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation API"
+                    "Semaphore Evaluation API"
                 ],
                 "summary": "Evaluate a feature flag",
                 "parameters": [
@@ -684,7 +684,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation API"
+                    "Semaphore Evaluation API"
                 ],
                 "summary": "Endpoint to poll if you want to know if there is a configuration change in the flags",
                 "parameters": [
@@ -735,7 +735,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation API"
+                    "Semaphore Evaluation API"
                 ],
                 "summary": "Endpoint to poll if you want to get the configuration of the flags.",
                 "parameters": [
@@ -786,7 +786,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "GO Feature Flag Evaluation Stream API"
+                    "Semaphore Evaluation Stream API"
                 ],
                 "summary": "Websocket endpoint to be notified about flag changes",
                 "deprecated": true,
@@ -1030,7 +1030,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": {
-                        "company": "GO Feature Flag",
+                        "company": "Semaphore",
                         "email": "contact@gofeatureflag.org",
                         "firstname": "John",
                         "lastname": "Doe"
@@ -1175,7 +1175,7 @@ const docTemplate = `{
                         "type": "string"
                     },
                     "example": {
-                        "company": "GO Feature Flag",
+                        "company": "Semaphore",
                         "firstname": "John",
                         "lastname": "Doe",
                         "targetingKey": "4f433951-4c8c-42b3-9f18-8c9a5ed8e9eb"
@@ -1421,8 +1421,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "GO Feature Flag relay proxy endpoints",
-	Description:      "# Introduction\n\nThis API is documented in **OpenAPI format** and describe the REST API of the **GO Feature Flag relay proxy**.\n\nThe relay proxy is a component to evaluate your feature flags remotely when using **GO Feature Flag**.  \nThis API is mostly used by all the OpenFeature providers.",
+	Title:            "Semaphore relay proxy endpoints",
+	Description:      "# Introduction\n\nThis API is documented in **OpenAPI format** and describe the REST API of the **Semaphore relay proxy**.\n\nThe relay proxy is a component to evaluate your feature flags remotely when using **Semaphore**.  \nThis API is mostly used by all the OpenFeature providers.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

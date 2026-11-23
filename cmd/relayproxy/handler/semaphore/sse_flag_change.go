@@ -31,7 +31,7 @@ type sseFlagChange struct {
 
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
 // @Summary      SSE endpoint to be notified about flag changes
-// @Tags         GO Feature Flag Evaluation Stream API
+// @Tags         Semaphore Evaluation Stream API
 // @Description  Server-Sent Events endpoint pushing flag change notifications, following OpenFeature ADR-0008.
 // @Description  It is advertised in the `eventStreams` field of the OFREP bulk evaluation response.
 // @Description  Each event is sent as `event: message` with a `model.OFREPSSEEvent` JSON payload,

@@ -5,7 +5,7 @@
       "color": "#FF0000",
       "title": "❌ Flag \"test-flag\" deleted",
       "fields": null,
-      "footer": "go-feature-flag"
+      "footer": "semaphore"
     },
     {
       "color": "#FFA500",
@@ -15,13 +15,13 @@
         "text"
       ],
       "fields": null,
-      "footer": "go-feature-flag"
+      "footer": "semaphore"
     },
     {
       "color": "#008000",
       "title": "🆕 Flag \"test-flag3\" created by jane",
       "fields": null,
-      "footer": "go-feature-flag"
+      "footer": "semaphore"
     }
   ]
 }

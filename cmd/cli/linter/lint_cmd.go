@@ -12,8 +12,8 @@ var lintFlagFormat string
 func NewLintCmd() *cobra.Command {
 	lintCmd := &cobra.Command{
 		Use:   "lint <config_file>",
-		Short: "🛑 Lint GO Feature Flag configuration file.",
-		Long:  `🛑 Validate GO Feature Flag configuration file, it will return an error if your file is not valid.`,
+		Short: "🛑 Lint Semaphore configuration file.",
+		Long:  `🛑 Validate Semaphore configuration file, it will return an error if your file is not valid.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLint(cmd, args, lintFlagFormat)
 		},
@@ -36,10 +36,10 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
 		output.PrintLines(cmd)
-		return fmt.Errorf("invalid GO Feature Flag configuration")
+		return fmt.Errorf("invalid Semaphore configuration")
 	}
 
-	output.Add("Valid GO Feature Flag configuration", helper.InfoLevel)
+	output.Add("Valid Semaphore configuration", helper.InfoLevel)
 	output.PrintLines(cmd)
 	return nil
 }

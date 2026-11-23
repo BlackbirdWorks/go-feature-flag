@@ -73,7 +73,7 @@ func (f *Exporter) Export(
 		return fmt.Errorf("you should specify a container. %v is invalid", f.Container)
 	}
 
-	outputDir, err := os.MkdirTemp("", "go_feature_flag_AzureBlobStorage_export")
+	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")
 	if err != nil {
 		return err
 	}

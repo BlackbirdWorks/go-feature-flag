@@ -12,7 +12,7 @@ configuration to your relay proxy configuration file:
 # ...
 retrievers:
   - kind: http
-    url: https://my-feature-flag-location.com/flags.goff.yaml
+    url: https://my-feature-flag-location.com/flags.yaml
 # ...
 ```
 
@@ -36,7 +36,7 @@ configuration to your `ffclient.Config{}` object:
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &httpretriever.Retriever{
-        URL:    "http://example.com/flag-config.goff.yaml",
+        URL:    "http://example.com/flag-config.yaml",
         Timeout: 2 * time.Second,
     },
 })

@@ -2,7 +2,7 @@ package api
 
 import (
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/labstack/echo-contrib/v5/pprof"

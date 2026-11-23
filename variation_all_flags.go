@@ -29,7 +29,7 @@ func GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flag.Flag, er
 }
 
 // GetFlagStates is evaluating all the flags in flagsToEvaluate based on the context provided.
-// If flagsToEvaluate is nil or empty, it will evaluate all the flags available in GO Feature Flag.
+// If flagsToEvaluate is nil or empty, it will evaluate all the flags available in Semaphore.
 func (g *GoFeatureFlag) GetFlagStates(
 	evaluationCtx ffcontext.Context,
 	flagsToEvaluate []string,

@@ -125,7 +125,7 @@ func HasReservedKey(attributes map[string]any) bool {
 }
 
 // ExtractGOFFProtectedFields extract the Semaphore specific attributes from the evaluation context.
-// They are read from the "semaphore" attribute and, for the clients of GO Feature Flag, from the
+// They are read from the "semaphore" attribute and, for the clients of Semaphore, from the
 // legacy "gofeatureflag" attribute. When both are set, a field of "semaphore" wins.
 func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 	specifics := GoffContextSpecifics{}

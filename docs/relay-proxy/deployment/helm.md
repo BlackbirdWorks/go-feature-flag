@@ -20,7 +20,7 @@ use an image you built and pushed.
 
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git
-cd go-feature-flag
+cd semaphore
 ```
 
 ### Step 2: Install the Chart

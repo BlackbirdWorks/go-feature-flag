@@ -213,7 +213,7 @@ func (m *Manager) updateCacheWithRetriever(newFlags map[string]dto.DTO, isInit b
 }
 
 // handleFirstRetrieverError is a function that will handle the first error when trying to retrieve
-// the flags the first time when starting GO Feature Flag.
+// the flags the first time when starting Semaphore.
 func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) error {
 	switch {
 	case m.config.PersistentFlagConfigurationFile != "":
@@ -236,7 +236,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 }
 
 // retrievePersistentLocalDisk is a function used in case we are not able to retrieve any flag when starting
-// GO Feature Flag.
+// Semaphore.
 // This function will look at any pre-existent persistent configuration and start with it.
 func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	if m.config.PersistentFlagConfigurationFile != "" {

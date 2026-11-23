@@ -8,7 +8,7 @@ With the Semaphore Command Line, you can evaluate a feature flag directly in you
 
 ## Install the Command Line
 
-Check the [installation guide](cli.md) to install the `go-feature-flag-cli`.
+Check the [installation guide](cli.md) to install the `semaphore-cli`.
 
 ## Use the evaluate command in your terminal
 

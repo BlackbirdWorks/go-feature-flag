@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"

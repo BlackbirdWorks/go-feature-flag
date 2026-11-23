@@ -99,7 +99,7 @@ func (f *Exporter) Export(
 	}
 
 	// Create a temp directory to store the file we will produce
-	outputDir, err := os.MkdirTemp("", "go_feature_flag_s3_export")
+	outputDir, err := os.MkdirTemp("", "semaphore_s3_export")
 	if err != nil {
 		return err
 	}

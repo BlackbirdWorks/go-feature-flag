@@ -47,7 +47,7 @@ type FlagConfigurationResponse struct {
 
 // Handler is the endpoint to poll if you want to get the configuration of the flags.
 // @Summary    Endpoint to poll if you want to get the configuration of the flags.
-// @Tags GO Feature Flag Evaluation API
+// @Tags Semaphore Evaluation API
 // @Description Making a **POST** request to the URL `/v1/flag/configuration` will give you the list of
 // @Description the flags to use them for local evaluation in your provider.
 // @Security    ApiKeyAuth

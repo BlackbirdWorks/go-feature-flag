@@ -14,7 +14,7 @@ retrievers:
   - kind: azureBlobStorage
     container: my-featureflag-container
     accountName: my-featureflag-account
-    object: flag/flags.goff.yaml
+    object: flag/flags.yaml
 # ...
 ```
 

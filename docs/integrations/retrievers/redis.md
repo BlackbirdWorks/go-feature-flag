@@ -23,7 +23,7 @@ retrievers:
   - kind: redis
     redisOptions:
       addr: "127.0.0.1:6379"
-    redisPrefix: "goff:"
+    redisPrefix: "semaphore:"
 # ...
 ```
 | Field name |    Mandatory     | Type   | Default  | Description                                                                                                                                                                                                                           |
@@ -40,7 +40,7 @@ configuration to your `ffclient.Config{}` object:
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
 	  Retriever: &redisretriever.Retriever{
-        Prefix: "goff:",
+        Prefix: "semaphore:",
 		    Options: &redis.Options{
             Addr: "127.0.0.1:6379",
         },

@@ -4,7 +4,7 @@ If you want to be informed when a flag has changed, you can configure a [**notif
 A notifier will send one notification to the targeted system to inform them that a new flag configuration has been loaded.
 
 > [!NOTE]
-> `go-feature-flag` can handle more than one notifier at a time.
+> `semaphore` can handle more than one notifier at a time.
 
 ## Available notifiers
 - [Slack](../integrations/notifiers/slack.md)

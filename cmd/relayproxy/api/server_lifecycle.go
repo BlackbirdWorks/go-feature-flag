@@ -92,7 +92,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	}()
 
 	s.zapLog.Info(
-		"Starting go-feature-flag relay proxy as unix socket...",
+		"Starting semaphore relay proxy as unix socket...",
 		zap.String("socket", socketPath),
 		zap.String("version", s.config.Version))
 
@@ -117,7 +117,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 
 	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.zapLog))
 	s.zapLog.Info(
-		"Starting go-feature-flag relay proxy ...",
+		"Starting semaphore relay proxy ...",
 		zap.String("address", address),
 		zap.String("version", s.config.Version))
 

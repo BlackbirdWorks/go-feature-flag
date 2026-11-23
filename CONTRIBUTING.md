@@ -20,7 +20,7 @@ Rules enforced by CI and review:
 - The pull request **title** must follow [Conventional Commits](https://www.conventionalcommits.org/)
   (for example `fix: handle empty targeting key`); the `Lint PR title` workflow checks it.
 - Commits must be **signed**.
-- Do not change the reserved identifiers listed in [AGENTS.md](AGENTS.md#identifiers-that-must-not-be-renamed).
+- Do not remove the GO Feature Flag names that are still accepted, they are listed in [AGENTS.md](AGENTS.md#names-semaphore-first-go-feature-flag-still-accepted).
 
 ## Development setup
 

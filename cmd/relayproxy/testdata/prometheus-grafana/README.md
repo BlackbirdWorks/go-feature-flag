@@ -1,7 +1,7 @@
 # Prometheus and Grafana
 
 This folder contains a docker-compose file that will start a Prometheus and Grafana instance.
-It is useful for testing GO Feature Flag with Prometheus and Grafana.
+It is useful for testing Semaphore with Prometheus and Grafana.
 
 To start the containers, run:
 

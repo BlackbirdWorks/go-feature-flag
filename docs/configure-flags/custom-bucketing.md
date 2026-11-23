@@ -89,7 +89,7 @@ evalCtx := openfeature.NewEvaluationContext(
     map[string]any{
         "company": map[string]any{
             "id":   "company-789",
-            "name": "GO Feature Flag",
+            "name": "Semaphore",
             "tier": "enterprise",
         },
     },

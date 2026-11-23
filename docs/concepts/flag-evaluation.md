@@ -96,7 +96,7 @@ calls the relay proxy over HTTP.
   the evaluation of all flags at once (`POST /ofrep/v1/evaluate/flags`), keeps the result in a local cache, and refreshes it
   when the context changes or on an interval.
 
-The `gofeatureflag_cacheable` metadata key in the response tells the client whether the result can be cached.
+The `semaphore_cacheable` metadata key in the response tells the client whether the result can be cached. The legacy key `gofeatureflag_cacheable`, which the GO Feature Flag providers read, is sent with it (see [`disableSemaphoreMetadata`](../relay-proxy/configuration.md#disablesemaphoremetadata)).
 
 ```mermaid
 sequenceDiagram
@@ -106,14 +106,14 @@ sequenceDiagram
         participant provider as OFREP<br/>provider
     end
     box Semaphore
-        participant goff as Semaphore<br />Relay Proxy
+        participant relay as Semaphore<br />Relay Proxy
     end
 
     app ->> sdk: Evaluate flag "darkMode"<br/>with evaluation context
     sdk ->> provider:
-    provider ->> goff: POST /ofrep/v1/evaluate/flags/darkMode
-    goff -->> goff: Perform evaluation
-    goff -->> provider: Evaluation response
+    provider ->> relay: POST /ofrep/v1/evaluate/flags/darkMode
+    relay -->> relay: Perform evaluation
+    relay -->> provider: Evaluation response
     provider -->> sdk:
     sdk -->> app:
 ```

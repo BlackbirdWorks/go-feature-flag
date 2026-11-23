@@ -16,7 +16,7 @@ configuration to your relay proxy configuration file:
 exporters:
   - kind: bigquery
     projectID: "my-project-id"
-    datasetID: "goff_events"
+    datasetID: "semaphore_events"
     tableName: "feature_flag_evaluations"
     googleCredentials: |
       {"type":"service_account","project_id":"my-project-id"}
@@ -35,13 +35,13 @@ exporters:
 > exporters:
 >   - kind: bigquery
 >     projectID: "my-project-id"
->     datasetID: "goff_events"
+>     datasetID: "semaphore_events"
 >     tableName: "feature_flag_evaluations"
 >     autoMigrate: true
 >     eventType: "feature"
 >   - kind: bigquery
 >     projectID: "my-project-id"
->     datasetID: "goff_events"
+>     datasetID: "semaphore_events"
 >     tableName: "tracking_events"
 >     autoMigrate: true
 >     eventType: "tracking"
@@ -72,7 +72,7 @@ config := ffclient.Config{
             ExporterEventType: ffclient.FeatureEventExporter,
             Exporter: &bigqueryexporter.Exporter{
                 ProjectID:         "my-project-id",
-                DatasetID:         "goff_events",
+                DatasetID:         "semaphore_events",
                 TableName:         "feature_flag_evaluations",
                 AutoMigrate:       true,
                 GoogleCredentials: googleCredentials,
@@ -82,7 +82,7 @@ config := ffclient.Config{
             ExporterEventType: ffclient.TrackingEventExporter,
             Exporter: &bigqueryexporter.Exporter{
                 ProjectID:         "my-project-id",
-                DatasetID:         "goff_events",
+                DatasetID:         "semaphore_events",
                 TableName:         "tracking_events",
                 AutoMigrate:       true,
                 GoogleCredentials: googleCredentials,

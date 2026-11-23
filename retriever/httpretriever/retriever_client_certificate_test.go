@@ -200,7 +200,7 @@ func createClientCertificateFiles(t *testing.T) (string, string) {
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName: "go-feature-flag-test-client",
+			CommonName: "semaphore-test-client",
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),

@@ -52,7 +52,7 @@ type FlagsetManager interface {
 // flagsetManagerImpl is the internal implementation of FlagsetManager
 type flagsetManagerImpl struct {
 	// DefaultFlagSet is the flagset used when no API Key is provider.
-	// It is the legacy way to handle feature flags in GO Feature Flag.
+	// It is the legacy way to handle feature flags in Semaphore.
 	// This is used only if no flag set is configured in the configuration file.
 	DefaultFlagSet *ffclient.GoFeatureFlag
 

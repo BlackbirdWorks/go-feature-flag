@@ -12,7 +12,7 @@ import (
 // LogDateFormat is the default log format
 const LogDateFormat = time.RFC3339
 
-// FFLogger is the internal logger struct for GO Feature Flag
+// FFLogger is the internal logger struct for Semaphore
 type FFLogger struct {
 	LeveledLogger *slog.Logger
 	LegacyLogger  *log.Logger

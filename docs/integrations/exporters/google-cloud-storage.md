@@ -17,7 +17,7 @@ configuration to your relay proxy configuration file:
 # ...
 exporters:
   - kind: googleStorage
-    bucket: test-goff
+    bucket: test-semaphore
 # ...
 ```
 
@@ -43,7 +43,7 @@ config := ffclient.Config{
    DataExporter: ffclient.DataExporter{
         // ...
         Exporter: &gcstorageexporter.Exporter{
-            Bucket:   "test-goff",
+            Bucket:   "test-semaphore",
             Format:   "json",
             Path:     "yourPath",
             Filename: "flag-variation-{{ .Timestamp}}.{{ .Format}}",

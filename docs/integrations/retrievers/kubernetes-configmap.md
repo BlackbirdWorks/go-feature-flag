@@ -9,7 +9,7 @@ The **Kubernetes Retriever** will access flags in a Kubernetes ConfigMap via the
 If you have a flag configuration file, you can create a ConfigMap with the content of the file.
 The following command will create a ConfigMap with the content of the `flags.yaml` file:
 ```shell
-kubectl create configmap goff --from-file=flags.yaml
+kubectl create configmap semaphore --from-file=flags.yaml
 ```
 ## Configure the relay proxy
 

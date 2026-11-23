@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Studio holds the configuration to load the flagSets from GO Feature Flag Studio.
+// Studio holds the configuration to load the flagSets from Semaphore Studio.
 // When URL is set, the flagSets only come from Studio, the rest of the configuration
 // still comes from the configuration file and the environment variables.
 // Changes to the Studio configuration require restarting the relay proxy.

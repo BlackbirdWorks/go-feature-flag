@@ -45,7 +45,7 @@ func NewValidateFlags(
 
 // Handler validates a flag file without loading it in the relay proxy.
 // @Summary      Validate a flag file
-// @Tags Admin API to manage GO Feature Flag
+// @Tags Admin API to manage Semaphore
 // @Description  Validates the flag file sent in the body of the request, using the same rules as the
 // @Description  `goff lint` command.
 // @Description  The flag file is not loaded, nothing is changed on the flags served by the relay proxy.

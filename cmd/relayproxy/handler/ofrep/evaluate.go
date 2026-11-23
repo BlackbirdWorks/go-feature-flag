@@ -295,7 +295,7 @@ func assertOFREPEvaluateRequest(
 ) *model.OFREPCommonResponseError {
 	if ofrepEvalReq.Context == nil {
 		return NewOFREPCommonError(flag.ErrorCodeInvalidContext,
-			"GO Feature Flag requires an evaluation context in the request.")
+			"Semaphore requires an evaluation context in the request.")
 	}
 
 	// An empty context object is allowed since the evaluation context is optional.
@@ -309,7 +309,7 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 	if req == nil || req.Context == nil {
 		return ffcontext.EvaluationContext{}, NewOFREPCommonError(
 			flag.ErrorCodeInvalidContext,
-			"GO Feature Flag has received an invalid context.")
+			"Semaphore has received an invalid context.")
 	}
 
 	ctx := req.Context

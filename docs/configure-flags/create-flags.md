@@ -325,7 +325,7 @@ Considering that Today the level used is "whisper", this how we want our flag to
 
 #### 1. Creating the flag
 
-We are creating a new flag in our file called `flag-config.goff.yaml` and we are naming it `scream-level-feature`.
+We are creating a new flag in our file called `flag-config.yaml` and we are naming it `scream-level-feature`.
 
 ```yaml
 scream-level-feature:

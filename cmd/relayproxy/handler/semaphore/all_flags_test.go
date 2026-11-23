@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const testdataDir = "../../testdata/goff"
+const testdataDir = "../../testdata/semaphore"
 
 func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 	type want struct {

@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewFlagsetManager(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	tests := []struct {
 		name        string
 		config      *config.Config
@@ -175,7 +175,7 @@ func assertBroadcasts(t *testing.T, sse *fakeSSEService, ws *fakeWebsocketServic
 }
 
 func TestFlagsetManager_StreamNotifiers(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	flagset := func(name string) config.FlagSet {
 		return config.FlagSet{
 			Name: name,
@@ -229,7 +229,7 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 }
 
 func TestFlagsetManager_FlagSet(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 }
 
 func TestFlagsetManager_FlagSetName(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
@@ -383,7 +383,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 }
 
 func TestFlagsetManager_AllFlagSets(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
@@ -496,7 +496,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 }
 
 func TestFlagsetManager_Default(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
@@ -553,7 +553,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 }
 
 func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
@@ -608,7 +608,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 }
 
 func TestFlagsetManager_Close(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
@@ -704,7 +704,7 @@ func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *ob
 	return manager, logs
 }
 func TestFlagsetManager_OnConfigChange(t *testing.T) {
-	flagConfig := "../testdata/goff/configuration_flags.yaml"
+	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should reject switching from default to flagsets mode", func(t *testing.T) {
 		// Create manager in default mode

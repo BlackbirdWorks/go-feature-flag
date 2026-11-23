@@ -13,7 +13,7 @@ configuration to your relay proxy configuration file:
 retrievers:
   - kind: s3
     bucket: my-featureflag-bucket
-    item: flag/flags.goff.yaml
+    item: flag/flags.yaml
 # ...
 ```
 
@@ -110,7 +110,7 @@ err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
         Bucket: "my-featureflag-bucket",
-        Item:   "flag/flags.goff.yaml",
+        Item:   "flag/flags.yaml",
         AwsConfig: &awsConfig,
     },
 })

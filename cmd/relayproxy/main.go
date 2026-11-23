@@ -30,12 +30,12 @@ const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ 
      █▀█ █▀▀ █   ▄▀█ █▄█   █▀█ █▀█ █▀█ ▀▄▀ █▄█
      █▀▄ ██▄ █▄▄ █▀█  █    █▀▀ █▀▄ █▄█ █ █  █ 
 
-GO Feature Flag Relay Proxy - Version %s
+Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
-// @title GO Feature Flag relay proxy endpoints
+// @title Semaphore relay proxy endpoints
 // @description.markdown
-// @contact.name GO feature flag relay proxy
+// @contact.name Semaphore relay proxy
 // @license.name MIT
 // @license.url https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
 // @BasePath /
@@ -112,7 +112,7 @@ func main() {
 	}, sseService, wsService)
 	if err != nil {
 		logger.ZapLogger.Error(
-			"impossible to start GO Feature Flag, we are not able to initialize the retrieval of flags",
+			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
 			zap.Error(err),
 		)
 		return

@@ -74,7 +74,7 @@ func (f *Exporter) Export(
 	}
 
 	// Create a temp directory to store the file we will produce
-	outputDir, err := os.MkdirTemp("", "go_feature_flag_GoogleCloudStorage_export")
+	outputDir, err := os.MkdirTemp("", "semaphore_GoogleCloudStorage_export")
 	if err != nil {
 		return err
 	}
