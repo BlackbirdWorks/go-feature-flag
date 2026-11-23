@@ -243,9 +243,10 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 			require.NoError(t, err)
 			t.Cleanup(m.Close)
 
-			var got atomic.Int64
+			var got, calls atomic.Int64
 			impl := m.(*flagsetManagerImpl)
 			impl.clientOptions = []clientOption{withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+				calls.Add(1)
 				got.Store(int64(c.ExporterCleanQueueInterval))
 				return ffclient.New(c)
 			})}
@@ -258,7 +259,11 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 				FlagSets:      []config.FlagSet{existing, added},
 				CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.reloadTop},
 			})
+			assert.Equal(t, int64(1), calls.Load(), "the added flagset must be built exactly once")
 			assert.Equal(t, tt.want, time.Duration(got.Load()))
+			client, err := m.FlagSet("k2")
+			require.NoError(t, err)
+			assert.NotNil(t, client)
 		})
 	}
 }
