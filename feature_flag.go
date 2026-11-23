@@ -45,6 +45,9 @@ type GoFeatureFlag struct {
 	retrieverManager          *retriever.Manager
 	// evalExporterWg is a wait group to wait for the evaluation exporter to finish the export before closing GOFF
 	evalExporterWg sync.WaitGroup
+	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
+	enrichment     map[string]any
+	enrichmentOnce sync.Once
 }
 
 // ff is the default object for go-feature-flag

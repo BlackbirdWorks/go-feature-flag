@@ -326,6 +326,11 @@ func notifyVariation[T model.JSONType](
 	result model.VariationResult[T],
 ) {
 	if result.TrackEvents && g.featureEventDataExporter != nil {
+		// the event describes the context as it was evaluated: with the configured enrichment
+		// (only what the event reads is worth merging: the exporter metadata and the anonymous status).
+		if enrichment := g.evaluationEnrichment(); changesEventFields(enrichment) {
+			ctx = flag.EnrichContext(ctx, enrichment)
+		}
 		event := exporter.NewFeatureEvent(
 			ctx,
 			flagKey,
@@ -394,10 +399,31 @@ func getVariation[T model.JSONType](
 
 	flagCtx := flag.Context{
 		DefaultSdkValue:             sdkDefaultValue,
-		EvaluationContextEnrichment: maps.Clone(g.config.EvaluationContextEnrichment),
-	}
-	if g.config.Environment != "" {
-		flagCtx.AddIntoEvaluationContextEnrichment("env", g.config.Environment)
+		EvaluationContextEnrichment: g.evaluationEnrichment(),
 	}
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
+}
+
+// evaluationEnrichment returns the evaluation context enrichment of the configuration with the
+// environment ("env") merged in. It is built once and must be treated as read-only: the
+// evaluations are concurrent.
+func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
+	g.enrichmentOnce.Do(func() {
+		enrichment := maps.Clone(g.config.EvaluationContextEnrichment)
+		if g.config.Environment != "" {
+			if enrichment == nil {
+				enrichment = make(map[string]any, 1)
+			}
+			enrichment["env"] = g.config.Environment
+		}
+		g.enrichment = enrichment
+	})
+	return g.enrichment
+}
+
+// changesEventFields tells if the enrichment sets an attribute that an evaluation event reads.
+func changesEventFields(enrichment map[string]any) bool {
+	_, protected := enrichment["gofeatureflag"]
+	_, anonymous := enrichment["anonymous"]
+	return protected || anonymous
 }
