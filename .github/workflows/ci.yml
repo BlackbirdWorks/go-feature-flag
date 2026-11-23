@@ -444,14 +444,44 @@ jobs:
           name: e2e
           fail_ci_if_error: false
 
-  fuzz:
-    name: fuzz (smoke)
+  # Fuzz smoke: one matrix leg per package holding fuzz targets, discovered at
+  # run time so new targets are never skipped. Each leg compiles only its own
+  # package; targets inside a leg share the build cache.
+  fuzz-plan:
+    name: fuzz (plan)
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: List packages with fuzz targets
+        id: plan
+        run: |
+          list=$(make --no-print-directory fuzz-list)
+          echo "$list"
+          [[ -n "$list" ]] || { echo "::error::no fuzz targets found"; exit 1; }
+          matrix=$(jq -Rsc '{include: (split("\n") | map(select(length > 0) | split(" ") | {module: .[0], dir: .[1]}))}' <<< "$list")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  fuzz:
+    name: fuzz (${{ matrix.module }} ${{ matrix.dir }})
+    needs: [fuzz-plan]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.fuzz-plan.outputs.matrix) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -459,7 +489,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: ./.github/actions/setup-go
-      - run: make fuzz FUZZTIME=10s
+      - run: make fuzz-dir MODULE="${{ matrix.module }}" DIR="${{ matrix.dir }}" FUZZTIME=10s
 
   # Protocol compatibility of the relay proxy with the real Java, JavaScript,
   # Go and .NET OpenFeature providers, against two locally started proxies.
@@ -513,6 +543,7 @@ jobs:
       - test-unit-modules
       - test-integration
       - test-e2e
+      - fuzz-plan
       - fuzz
       - provider-tests
     runs-on: ubuntu-latest
