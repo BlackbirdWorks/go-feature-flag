@@ -298,9 +298,11 @@ func (r *Rule) EvaluateProgressiveRollout(
 
 // EvaluatePercentageRollout is evaluating the percentage rollout for the rule.
 //
-// The size of the bucket space and the bucket of every variation are computed with the same sum, in the same
-// (sorted) order. Float addition is not associative: summing in map order could give a size slightly bigger than
-// the end of the last bucket and leave the top bucket without any variation.
+// The hash modulus is the legacy one: the raw percentages are summed, then scaled and truncated. Changing it would
+// move users who already have a variation. The sum used to be done in map iteration order, and float addition is not
+// associative, so it was not deterministic for 3 variations or more; it is now done in the bucket order. A hash
+// that is beyond the end of the last bucket (the modulus can be one above it because of float rounding) gets the
+// last variation that has a share, instead of an error.
 func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 	percentage := r.GetPercentages()
 
@@ -316,11 +318,11 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 
 	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
 	// to always have "True" before "False"
-	total := float64(0)
+	sum := float64(0)
 	for i := len(names) - 1; i >= 0; i-- {
-		total += percentage[names[i]] * PercentageMultiplier
+		sum += percentage[names[i]]
 	}
-	hash := utils.BuildHash(flagName, key, uint32(total))
+	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
 	return variationFromBuckets(percentage, names, hash)
 }
 
@@ -390,12 +392,21 @@ func (r *Rule) getVariationFromProgressiveRollout(
 
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
+	last := ""
 	for i := len(names) - 1; i >= 0; i-- {
-		end := start + (percentage[names[i]] * PercentageMultiplier)
+		p := percentage[names[i]]
+		end := start + (p * PercentageMultiplier)
 		if uint32(start) <= hash && uint32(end) > hash {
 			return names[i], nil
 		}
+		if p > 0 {
+			last = names[i]
+		}
 		start = end
+	}
+	if last != "" {
+		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
+		return last, nil
 	}
 	return "", fmt.Errorf("impossible to find the variation")
 }
