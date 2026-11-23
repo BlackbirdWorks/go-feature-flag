@@ -297,18 +297,31 @@ func (r *Rule) EvaluateProgressiveRollout(
 }
 
 // EvaluatePercentageRollout is evaluating the percentage rollout for the rule.
+//
+// The size of the bucket space and the bucket of every variation are computed with the same sum, in the same
+// (sorted) order. Float addition is not associative: summing in map order could give a size slightly bigger than
+// the end of the last bucket and leave the top bucket without any variation.
 func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
-	m := 0.0
-	for _, percentage := range r.GetPercentages() {
-		m += percentage
+	percentage := r.GetPercentages()
+
+	// we need to sort the names to be sure we are constantly affecting the users to the same bucket.
+	// Map are not ordered in GO, so we have to order the variationNames to be able to compute the same numbers for the
+	// buckets every time we are in this function.
+	var buf [16]string
+	names := buf[:0]
+	for k := range percentage {
+		names = append(names, k)
 	}
-	maxPercentage := uint32(m * PercentageMultiplier)
-	hashID := utils.BuildHash(flagName, key, maxPercentage)
-	variationName, err := r.getVariationFromPercentage(hashID)
-	if err != nil {
-		return "", err
+	slices.Sort(names)
+
+	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
+	// to always have "True" before "False"
+	total := float64(0)
+	for i := len(names) - 1; i >= 0; i-- {
+		total += percentage[names[i]] * PercentageMultiplier
 	}
-	return variationName, nil
+	hash := utils.BuildHash(flagName, key, uint32(total))
+	return variationFromBuckets(percentage, names, hash)
 }
 
 // IsDynamic is a function that allows to know if the rule has a dynamic result or not.
@@ -375,21 +388,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 	return "", fmt.Errorf("error in the progressive rollout, missing params")
 }
 
-func (r *Rule) getVariationFromPercentage(hash uint32) (string, error) {
-	percentage := r.GetPercentages()
-
-	// we need to sort the names to be sure we are constantly affecting the users to the same bucket.
-	// Map are not ordered in GO, so we have to order the variationNames to be able to compute the same numbers for the
-	// buckets every time we are in this function.
-	var buf [16]string
-	names := buf[:0]
-	for k := range percentage {
-		names = append(names, k)
-	}
-	slices.Sort(names)
-
-	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
-	// to always have "True" before "False"
+func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
 	for i := len(names) - 1; i >= 0; i-- {
 		end := start + (percentage[names[i]] * PercentageMultiplier)
