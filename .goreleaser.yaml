@@ -131,6 +131,9 @@ archives:
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
       - go-feature-flag-relay-proxy
+    files:
+      - LICENSE
+      - NOTICE
 
   - id: go-feature-flag
     name_template: "go-feature-flag_\
@@ -144,6 +147,9 @@ archives:
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
       - go-feature-flag
+    files:
+      - LICENSE
+      - NOTICE
 
   - id: go-feature-flag-fips
     name_template: "go-feature-flag-fips_\
@@ -157,6 +163,9 @@ archives:
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
       - go-feature-flag-fips
+    files:
+      - LICENSE
+      - NOTICE
 
   - id: go-feature-flag-cli
     name_template: "go-feature-flag-cli_\
@@ -170,6 +179,9 @@ archives:
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
       - go-feature-flag-cli
+    files:
+      - LICENSE
+      - NOTICE
 
   - id: goff-lambda
     name_template: "go-feature-flag-aws-lambda_{{ .Version }}"
@@ -188,71 +200,16 @@ changelog:
       - "^test:"
       - "^testdata:"
       - "^.github"
-      - "^examples"
       - "vendor"
 
 dockers_v2:
-  # DEPRECATED: check go-feature-flag
-  # go-feature-flag-relay-proxy (deprecated name)
-  - id: go-feature-flag-relay-proxy
-    ids:
-      - go-feature-flag-relay-proxy
-    dockerfile: ./cmd/relayproxy/DockerfileGoreleaserRelayProxy
-    images:
-      - thomaspoignant/go-feature-flag-relay-proxy
-    tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
-    platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm/v7
-    labels:
-      "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
-      "org.opencontainers.image.licenses": "MIT"
-      "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
-      "org.opencontainers.image.title": "go-feature-flag-relay-proxy"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
-      "org.opencontainers.image.version": "{{ .Version }}"
-
-  # go-feature-flag (thomaspoignant legacy)
-  - id: go-feature-flag-legacy
-    ids:
-      - go-feature-flag
-    dockerfile: ./cmd/relayproxy/DockerfileGoreleaser
-    images:
-      - thomaspoignant/go-feature-flag
-    tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
-    platforms:
-      - linux/amd64
-      - linux/arm64
-      - linux/arm/v7
-    labels:
-      "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
-      "org.opencontainers.image.licenses": "MIT"
-      "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
-      "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
-      "org.opencontainers.image.version": "{{ .Version }}"
-
-  # go-feature-flag (gofeatureflag)
+  # go-feature-flag 
   - id: go-feature-flag
     ids:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaser
     images:
-      - gofeatureflag/go-feature-flag
-      - ghcr.io/go-feature-flag/go-feature-flag
+      - ghcr.io/blackbirdworks/go-feature-flag
     tags:
       - "latest"
       - "v{{ .RawVersion }}"
@@ -267,21 +224,20 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-fips (FIPS 140-3 build, gofeatureflag)
-  # Shares the gofeatureflag/go-feature-flag repo with the standard build, so every tag
+  # Shares the ghcr.io/blackbirdworks/go-feature-flag repo with the standard build, so every tag
   # MUST keep the `-fips` suffix to avoid overwriting the non-FIPS images.
   - id: go-feature-flag-fips
     ids:
       - go-feature-flag-fips
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserFips
     images:
-      - gofeatureflag/go-feature-flag
-      - ghcr.io/go-feature-flag/go-feature-flag
+      - ghcr.io/blackbirdworks/go-feature-flag
     tags:
       - "fips"
       - "v{{ .RawVersion }}-fips"
@@ -295,9 +251,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag, built in FIPS 140-3 mode (GOFIPS140)"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.title": "go-feature-flag-fips"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-bookworm
@@ -306,8 +262,7 @@ dockers_v2:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserBookworm
     images:
-      - gofeatureflag/go-feature-flag
-      - ghcr.io/go-feature-flag/go-feature-flag
+      - ghcr.io/blackbirdworks/go-feature-flag
     tags:
       - "bookworm"
       - "v{{ .RawVersion }}-bookworm"
@@ -322,9 +277,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-trixie
@@ -333,8 +288,7 @@ dockers_v2:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserTrixie
     images:
-      - gofeatureflag/go-feature-flag
-      - ghcr.io/go-feature-flag/go-feature-flag
+      - ghcr.io/blackbirdworks/go-feature-flag
     tags:
       - "trixie"
       - "v{{ .RawVersion }}-trixie"
@@ -349,9 +303,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/relay_proxy"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # cli
@@ -360,8 +314,7 @@ dockers_v2:
       - go-feature-flag-cli
     dockerfile: ./cmd/cli/Dockerfile
     images:
-      - gofeatureflag/go-feature-flag-cli
-      - ghcr.io/go-feature-flag/go-feature-flag-cli
+      - ghcr.io/blackbirdworks/go-feature-flag-cli
     tags:
       - "latest"
       - "v{{ .RawVersion }}"
@@ -375,78 +328,10 @@ dockers_v2:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A command line tool to manage GO Feature Flag from your terminal"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/thomaspoignant/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.title": "go-feature-flag-cli"
-      "org.opencontainers.image.url": "https://gofeatureflag.org/docs/tooling/cli"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
       "org.opencontainers.image.version": "{{ .Version }}"
-homebrew_casks:
-  # DEPRECATED: check go-feature-flag
-  - ids:
-      - go-feature-flag-relay-proxy
-    name: go-feature-flag-relay-proxy
-    repository:
-      owner: thomaspoignant
-      name: homebrew-tap
-      branch: master
-    caveats: "A stand alone server to run GO Feature Flag"
-    homepage: "https://gofeatureflag.org/docs/relay_proxy"
-    description: "A stand alone server to run GO Feature Flag"
-    skip_upload: auto
-  - ids:
-      - go-feature-flag
-    name: go-feature-flag
-    repository:
-      owner: thomaspoignant
-      name: homebrew-tap
-      branch: master
-    caveats: "A stand alone server to run GO Feature Flag"
-    homepage: "https://gofeatureflag.org/docs/relay_proxy"
-    description: "A stand alone server to run GO Feature Flag"
-    skip_upload: auto
-  - ids:
-      - go-feature-flag-cli
-    name: go-feature-flag-cli
-    repository:
-      owner: thomaspoignant
-      name: homebrew-tap
-      branch: master
-    caveats: "A command line tool to manage GO Feature Flag from your terminal"
-    homepage: "https://gofeatureflag.org/docs/tooling/cli"
-    description: "A command line tool to manage GO Feature Flag from your terminal"
-    skip_upload: auto
-
-scoops:
-  # DEPRECATED: check go-feature-flag
-  - url_template: https://github.com/thomaspoignant/go-feature-flag/releases/download/{{ .Tag }}/{{ .ArtifactName }}
-    ids: [go-feature-flag-relay-proxy]
-    name: go-feature-flag-relay-proxy
-    repository:
-      owner: go-feature-flag
-      name: scoop
-    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://gofeatureflag.org/docs/relay_proxy"
-    license: MIT
-
-  - url_template: https://github.com/thomaspoignant/go-feature-flag/releases/download/{{ .Tag }}/{{ .ArtifactName }}
-    ids: [go-feature-flag]
-    name: go-feature-flag
-    repository:
-      owner: go-feature-flag
-      name: scoop
-    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://gofeatureflag.org/docs/relay_proxy"
-    license: MIT
-
-  - url_template: https://github.com/thomaspoignant/go-feature-flag/releases/download/{{ .Tag }}/{{ .ArtifactName }}
-    ids: [go-feature-flag-cli]
-    name: go-feature-flag-cli
-    repository:
-      owner: go-feature-flag
-      name: scoop
-    commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://gofeatureflag.org/docs/tooling/cli"
-    license: MIT
-
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
