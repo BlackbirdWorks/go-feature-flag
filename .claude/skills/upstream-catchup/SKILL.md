@@ -9,6 +9,20 @@ description: Catch up this derivative of thomaspoignant/go-feature-flag with ups
 the "Carried ahead of upstream" table, "Vendored", "Intentional divergences" and the "Sync log".
 Everything below works with `git` and `gh` and does not require a pre-existing `upstream` remote.
 
+## Rules of contact with upstream (read first)
+
+This skill is the only sanctioned contact with upstream (`thomaspoignant/go-feature-flag` and
+`go-feature-flag/rules`), and that contact is manual, read-only and run by a developer.
+
+- Read-only towards upstream: only `git fetch`, `git log`, `git diff`, `git show`, `gh api` GET calls
+  (e.g. `compare`) and `gh pr view`. Never push, tag, open or comment on issues or pull requests,
+  review, star, fork or otherwise write to any upstream repository, registry or organisation.
+- Never `git merge upstream/main` (or rebase onto it) wholesale. Upstream changes are ported
+  selectively, by hand, one reviewed commit at a time (step 5).
+- Never run it on a schedule or from CI; it is not automation.
+- Every write goes to this repository only: pass `-R BlackbirdWorks/go-feature-flag` to `gh pr create`
+  and similar commands, and keep the `upstream` remote push-disabled (step 1).
+
 Report-only mode ("what are we missing?"): do steps 1-3, print the triage table, change no files.
 
 ## 1. Read the marker and fetch upstream
@@ -18,6 +32,7 @@ URL=$(sed -n 's/^upstream_repo: //p' UPSTREAM.md)
 BASE=$(sed -n 's/^last_reviewed_commit: //p' UPSTREAM.md)
 REPO=${URL#https://github.com/}          # thomaspoignant/go-feature-flag
 git remote get-url upstream >/dev/null 2>&1 || git remote add upstream "$URL"
+git remote set-url --push upstream DISABLED   # fetch-only: a push to upstream must be impossible
 git fetch upstream main --tags
 git rev-parse upstream/main              # target; equal to $BASE means nothing to do
 ```
@@ -122,7 +137,7 @@ Convention for any test you add: parallel (`t.Parallel()`) table-driven tests; n
    Sync log row: date, from, to, counts per class, NEEDS-DECISION items still open.
 2. `rm docs/upstream-sync-audit.md` and run the leak check from step 4.
 3. Push the branch and open a PR (direct pushes to `main` are blocked) with the triage table in the
-   description: `gh pr create --title "chore: sync with upstream <short-sha>" --body-file <table>`.
+   description: `gh pr create -R BlackbirdWorks/go-feature-flag --title "chore: sync with upstream <short-sha>" --body-file <table>`.
 
 ## Re-syncing vendored `rules/`
 

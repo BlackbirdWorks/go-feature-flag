@@ -130,7 +130,6 @@ linters:
   exclusions:
     paths:
       - (^|/)bin($|/)
-      - (^|/)examples($|/)
       - (^|/)docs($|/)
       - (^|/)rules($|/)
     rules:
@@ -197,7 +196,6 @@ formatters:
   exclusions:
     paths:
       - (^|/)bin($|/)
-      - (^|/)examples($|/)
       - (^|/)docs($|/)
       - (^|/)rules($|/)
 issues:

@@ -7,7 +7,7 @@
   "startWithRetrieverError": false,
   "retriever": {
     "kind": "http",
-    "url": "https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml"
+    "url": "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
   },
   "exporter": {
     "kind": "log"

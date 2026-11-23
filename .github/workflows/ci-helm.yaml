@@ -30,21 +30,22 @@ jobs:
       - name: Set up chart-testing
         uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
 
-      - name: Get changed files in the docs folder
-        id: changed-files-specific
-        uses: marceloprado/has-changed-path@df1b7a3161b8fb9fd8c90403c66a9e66dfde50cb # v1.0.1
-        with:
-          paths: ./cmd/relayproxy/helm-charts/
+      # - name: Get changed files in the docs folder
+      #   id: changed-files-specific
+      #   uses: marceloprado/has-changed-path@df1b7a3161b8fb9fd8c90403c66a9e66dfde50cb # v1.0.1
+      #   with:
+      #     paths: ./cmd/relayproxy/helm-charts/
 
       - name: Run chart-testing (lint)
         working-directory: ./cmd/relayproxy/helm-charts/relay-proxy/
         run: ct lint --chart-dirs . --charts .
 
-      - name: Create kind cluster
-        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 #v1.15.2
-        if: steps.changed-files-specific.outputs.changed == 'true'
+      # Disabled: needs an image this repository has not published yet. Restore with a locally built image loaded into kind — see issue #29.
+      # - name: Create kind cluster
+      #   uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 #v1.15.2
+      #   if: steps.changed-files-specific.outputs.changed == 'true'
 
-      - name: Run chart-testing (install)
-        working-directory: ./cmd/relayproxy/helm-charts/relay-proxy/
-        run: ct install --chart-dirs . --charts . --helm-extra-set-args "--set=image.tag=latest"
-        if: steps.changed-files-specific.outputs.changed == 'true'
+      # - name: Run chart-testing (install)
+      #   working-directory: ./cmd/relayproxy/helm-charts/relay-proxy/
+      #   run: ct install --chart-dirs . --charts . --helm-extra-set-args "--set=image.tag=latest"
+      #   if: steps.changed-files-specific.outputs.changed == 'true'

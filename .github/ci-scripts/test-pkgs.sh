@@ -30,7 +30,7 @@ unit_rest()    { all_pkgs | grep -vE "^${mod}/(cmd|exporter|retriever|notifier)(
 docker_pkgs() {
 	local kind=$1 dirs
 	dirs=$(grep -rlE --include='*_test.go' '^//go:build .*\bdocker\b' . \
-		--exclude-dir=website --exclude-dir=vendor --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null |
+		--exclude-dir=vendor --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null |
 		while read -r f; do
 			case "$kind:$(basename "$f")" in
 			e2e:*e2e*) dirname "$f" ;;

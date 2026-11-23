@@ -1,6 +1,6 @@
 services:
   relay-proxy:
-    image: gofeatureflag/go-feature-flag:latest
+    image: ghcr.io/blackbirdworks/go-feature-flag:latest
     ports:
       - "1033:1031"
     volumes:

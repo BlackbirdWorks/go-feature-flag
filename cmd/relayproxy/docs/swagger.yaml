@@ -413,19 +413,15 @@ definitions:
     type: object
 info:
   contact:
-    email: contact@gofeatureflag.org
     name: GO feature flag relay proxy
-    url: https://gofeatureflag.org
   description: "# Introduction\n\nThis API is documented in **OpenAPI format** and
     describe the REST API of the **GO Feature Flag relay proxy**.\n\nThe relay proxy
     is a component to evaluate your feature flags remotely when using **GO Feature
     Flag**.  \nThis API is mostly used by all the OpenFeature providers."
   license:
     name: MIT
-    url: https://github.com/thomaspoignant/go-feature-flag/blob/main/LICENSE
+    url: https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
   title: GO Feature Flag relay proxy endpoints
-  x-logo:
-    url: https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png
 paths:
   /admin/v1/flags/validate:
     post:

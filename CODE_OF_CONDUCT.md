@@ -55,7 +55,7 @@ further defined and clarified by project maintainers.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting the project team at contact@gofeatureflag.org. All
+reported to the project team through GitHub private vulnerability reporting on this repository (Security tab, **Report a vulnerability**), or by contacting the repository maintainers on GitHub. All
 complaints will be reviewed and investigated and will result in a response that
 is deemed necessary and appropriate to the circumstances. The project team is
 obligated to maintain confidentiality with regard to the reporter of an incident.
