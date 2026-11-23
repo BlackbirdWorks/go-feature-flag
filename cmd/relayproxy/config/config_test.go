@@ -17,6 +17,7 @@ import (
 	"github.com/thomaspoignant/go-feature-flag/exporter/kafkaexporter"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
@@ -2021,6 +2022,35 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 				return
 			}
 			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
+	const marker = "SECRETMARKER-7f3a"
+	tests := []struct {
+		name         string
+		attributes   string
+		wantPosition int64
+	}{
+		{name: "malformed entry in last position", attributes: "foo=bar,Bearer-" + marker, wantPosition: 1},
+		{name: "malformed entry in first position", attributes: "token" + marker + ",foo=bar", wantPosition: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.attributes)
+			core, logs := observer.New(zapcore.DebugLevel)
+
+			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X")
+			require.NoError(t, err)
+
+			entries := logs.FilterMessageSnippet("OTEL_RESOURCE_ATTRIBUTES").All()
+			require.Len(t, entries, 1)
+			assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
+			assert.Equal(t, tt.wantPosition, entries[0].ContextMap()["position"])
+			for _, e := range logs.All() {
+				assert.NotContains(t, fmt.Sprintf("%v %v", e.Message, e.ContextMap()), marker)
+			}
 		})
 	}
 }

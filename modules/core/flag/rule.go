@@ -182,7 +182,7 @@ func (q *queryContext) dataOnce() (any, error) {
 	if q.parsedEvalCtxAsData == nil {
 		// Common case: the context only has JSON-like values, so what the encoding would
 		// produce is built directly (the result is the same, without marshalling and parsing).
-		if data, ok := normalizeJSONValue(q.mapOnce()); ok {
+		if data, ok := asJSONData(q.mapOnce(), 0); ok {
 			q.parsedEvalCtxAsData = data
 			return data, nil
 		}

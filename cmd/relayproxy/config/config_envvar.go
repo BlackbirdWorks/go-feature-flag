@@ -242,11 +242,11 @@ func (c *ConfigLoader) parseOtelResourceAttributes(attributes string, log *zap.L
 		attrs = resource["attributes"].(map[string]any)
 	}
 
-	for _, attr := range strings.Split(attributes, ",") {
+	for i, attr := range strings.Split(attributes, ",") {
 		k, v, found := strings.Cut(attr, "=")
 		if !found {
 			log.Error("config: error loading OTEL_RESOURCE_ATTRIBUTES - incorrect format",
-				zap.String("key", k), zap.String("value", v))
+				zap.Int("position", i))
 			continue
 		}
 

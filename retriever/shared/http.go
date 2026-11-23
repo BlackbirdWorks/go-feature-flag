@@ -35,7 +35,7 @@ func CallHTTPAPI(
 
 	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, internal.RedactURLError(err)
 	}
 
 	// Add header if some are passed
@@ -48,5 +48,9 @@ func CallHTTPAPI(
 	}
 
 	// API call
-	return httpClient.Do(req)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, internal.RedactURLError(err)
+	}
+	return resp, nil
 }
