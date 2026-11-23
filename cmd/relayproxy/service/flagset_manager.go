@@ -60,11 +60,12 @@ type flagsetManagerImpl struct {
 	// It is used to retrieve the flagset linked to the API Key.
 	FlagSets map[string]*ffclient.GoFeatureFlag
 
-	// APIKeysToFlagSetName is a map that stores the API Key linked to the flagset name.
+	// FlagSetRouting routes a request credential to the NAME of the flagset it selects (the values are
+	// public flagset names, the keys are secrets and must never be logged).
 	// It is used to retrieve the flagset linked to the API Key.
-	APIKeysToFlagSetName map[string]string
+	FlagSetRouting map[string]string
 
-	// flagsetsMutex protects concurrent access to FlagSets and APIKeysToFlagSetName.
+	// flagsetsMutex protects concurrent access to FlagSets and FlagSetRouting.
 	// Both maps can be mutated at runtime when flagsets are added or removed, so every
 	// read or write of these maps must be done while holding this lock.
 	flagsetsMutex sync.RWMutex
@@ -218,15 +219,15 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	}
 
 	return &flagsetManagerImpl{
-		FlagSets:             flagsets,
-		APIKeysToFlagSetName: apiKeysToFlagSet,
-		notifiers:            notifiers,
-		sseService:           sseService,
-		wsService:            wsService,
-		config:               config,
-		mode:                 flagsetManagerModeFlagsets,
-		logger:               logger,
-		sharedRegistry:       registry,
+		FlagSets:       flagsets,
+		FlagSetRouting: apiKeysToFlagSet,
+		notifiers:      notifiers,
+		sseService:     sseService,
+		wsService:      wsService,
+		config:         config,
+		mode:           flagsetManagerModeFlagsets,
+		logger:         logger,
+		sharedRegistry: registry,
 	}, nil
 }
 
@@ -239,7 +240,7 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		}
 
 		m.flagsetsMutex.RLock()
-		flagsetName, exists := m.APIKeysToFlagSetName[apiKey]
+		flagsetName, exists := m.FlagSetRouting[apiKey]
 		flagset, flagsetExists := m.FlagSets[flagsetName]
 		m.flagsetsMutex.RUnlock()
 		if !exists {
@@ -265,7 +266,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 			return "", fmt.Errorf("apiKey is required when using flagsets")
 		}
 		m.flagsetsMutex.RLock()
-		name, ok := m.APIKeysToFlagSetName[apiKey]
+		name, ok := m.FlagSetRouting[apiKey]
 		m.flagsetsMutex.RUnlock()
 		if ok {
 			return name, nil
@@ -334,7 +335,7 @@ func (m *flagsetManagerImpl) Close() {
 func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 	if err := newConfig.IsValid(); err != nil {
 		m.logger.Error("the new configuration is invalid, it will not be applied", zap.Error(err))
-		m.logger.Debug("invalid configuration:", zap.Error(err), zap.Any("newConfig", newConfig))
+		m.logger.Debug("invalid configuration:", zap.Error(err), zap.Stringer("newConfig", newConfig))
 		return
 	}
 
@@ -490,7 +491,7 @@ func (m *flagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 	client := m.FlagSets[flagset.Name]
 	delete(m.FlagSets, flagset.Name)
 	for _, apiKey := range flagset.APIKeys {
-		delete(m.APIKeysToFlagSetName, apiKey)
+		delete(m.FlagSetRouting, apiKey)
 	}
 	m.flagsetsMutex.Unlock()
 
@@ -590,7 +591,7 @@ func (m *flagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName
 	m.flagsetsMutex.Lock()
 	m.dropManagedAPIKeyRouting(currentByName, newByName)
 	assigned, collisions := resolveNamedAPIKeyRouting(reconciled, m.FlagSets)
-	maps.Copy(m.APIKeysToFlagSetName, assigned)
+	maps.Copy(m.FlagSetRouting, assigned)
 	m.flagsetsMutex.Unlock()
 
 	// Log collisions outside the lock to keep the critical section minimal (the logger sink may
@@ -602,11 +603,11 @@ func (m *flagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName
 // this reload (added, removed or kept). Entries targeting unnamed flagsets are left untouched.
 // The caller must hold flagsetsMutex.
 func (m *flagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName map[string]config.FlagSet) {
-	for apiKey, target := range m.APIKeysToFlagSetName {
+	for apiKey, target := range m.FlagSetRouting {
 		_, current := currentByName[target]
 		_, added := newByName[target]
 		if current || added {
-			delete(m.APIKeysToFlagSetName, apiKey)
+			delete(m.FlagSetRouting, apiKey)
 		}
 	}
 }

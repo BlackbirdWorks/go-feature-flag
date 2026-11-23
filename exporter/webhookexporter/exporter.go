@@ -104,13 +104,14 @@ func (f *Exporter) Export(
 	request, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, f.EndpointURL, io.NopCloser(bytes.NewReader(payload)))
 	if err != nil {
-		return err
+		return internal.RedactURLError(err)
 	}
 	request.Header = f.Headers
 	response, err := f.httpClient.Do(request)
 	// Log if something went wrong while calling the webhook.
 	if err != nil {
-		return err
+		// the endpoint URL may carry a secret and net/http errors embed it.
+		return internal.RedactURLError(err)
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode > 399 {

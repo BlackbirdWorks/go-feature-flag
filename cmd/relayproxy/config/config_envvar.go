@@ -25,7 +25,8 @@ func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) k
 				log.Error(
 					"config: error loading array env",
 					zap.String("key", key),
-					zap.String("value", v),
+					// the value of the variable may be a secret (API key, token, ...): only log its size.
+					zap.Int("valueLength", len(v)),
 					zap.Error(err),
 				)
 				return key, v

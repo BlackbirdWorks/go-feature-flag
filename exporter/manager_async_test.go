@@ -1,0 +1,120 @@
+package exporter_test
+
+import (
+	"context"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thomaspoignant/go-feature-flag/exporter"
+	"github.com/thomaspoignant/go-feature-flag/testutils"
+	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+)
+
+type batchAdder interface {
+	AddAll([]testutils.ExportableMockEvent)
+}
+
+func Test_EventStore_AddAll(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		limit       int64
+		batches     []int
+		wantStored  int64
+		wantDropped int64
+	}{
+		{name: "unlimited", limit: 0, batches: []int{3, 4}, wantStored: 7},
+		{name: "batch crossing the limit keeps the first events", limit: 5, batches: []int{3, 4}, wantStored: 5, wantDropped: 2},
+		{name: "empty batch", limit: 5, batches: []int{0}, wantStored: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
+			defer store.Stop()
+			store.AddConsumer("c")
+			for _, n := range tt.batches {
+				batch := make([]testutils.ExportableMockEvent, n)
+				for i := range batch {
+					batch[i] = testutils.NewExportableMockEvent("e")
+				}
+				store.(batchAdder).AddAll(batch)
+			}
+			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
+			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			pending, err := store.GetPendingEventCount("c")
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantStored, pending, "offsets are contiguous: dropped events use none")
+		})
+	}
+}
+
+type countingExporter struct {
+	bulk   bool
+	events atomic.Int64
+	calls  atomic.Int64
+	fail   bool
+}
+
+func (c *countingExporter) IsBulk() bool { return c.bulk }
+func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+	c.calls.Add(1)
+	if c.fail {
+		return assert.AnError
+	}
+	c.events.Add(int64(len(ev)))
+	return nil
+}
+
+// QueueEvents never flushes in the caller, flushes in the background when a threshold is
+// reached, and Stop waits for the background flushes.
+func Test_Manager_QueueEvents(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		exp        *countingExporter
+		maxMem     int64
+		maxQueued  int64
+		batches    int
+		batchSize  int
+		wantAll    bool
+		maxCalls   int64
+		wantDroped bool
+	}{
+		{name: "bulk exporter, threshold reached", exp: &countingExporter{bulk: true}, maxMem: 50, batches: 20, batchSize: 25, wantAll: true},
+		{name: "non bulk exporter", exp: &countingExporter{bulk: false}, maxMem: 50, batches: 20, batchSize: 3, wantAll: true},
+		{name: "failing exporter is retried with a backoff and bounded", exp: &countingExporter{bulk: true, fail: true},
+			maxMem: 10, maxQueued: 100, batches: 200, batchSize: 5, maxCalls: 5, wantDroped: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+				Exporter: tt.exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQueued,
+			}}, time.Hour, nil)
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
+			total := 0
+			for b := 0; b < tt.batches; b++ {
+				batch := make([]exporter.FeatureEvent, tt.batchSize)
+				am.QueueEvents(batch)
+				total += tt.batchSize
+			}
+			m.Stop()
+			if tt.wantAll {
+				assert.Equal(t, int64(total), tt.exp.events.Load())
+			}
+			if tt.maxCalls > 0 {
+				assert.LessOrEqual(t, tt.exp.calls.Load(), tt.maxCalls)
+			}
+			if tt.wantDroped {
+				assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			}
+			// events queued after Stop are only stored: no goroutine is started
+			am.QueueEvents(make([]exporter.FeatureEvent, 3))
+		})
+	}
+}
