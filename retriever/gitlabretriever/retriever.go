@@ -64,7 +64,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	parsedURL, err := url.Parse(path)
 	if err != nil {
-		return nil, fmt.Errorf("impossible to parse the url %s", err)
+		return nil, fmt.Errorf("impossible to parse the url %s", internal.RedactURLError(err))
 	}
 
 	rawQuery := parsedURL.Query()

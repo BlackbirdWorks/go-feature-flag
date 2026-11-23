@@ -381,3 +381,16 @@ func TestRateLimiting(t *testing.T) {
 	assert.Error(t, err)
 	assert.False(t, httpClient.HasBeenCalled)
 }
+
+func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
+	t.Parallel()
+	h := githubretriever.Retriever{
+		BaseURL:        "https://user:SECRETMARKER@github.example.com:bad/?token=SECRETMARKER",
+		FilePath:       "flags.yaml",
+		RepositorySlug: "org/repo",
+	}
+	_, err := h.Retrieve(context.Background())
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid base URL")
+	assert.NotContains(t, err.Error(), "SECRETMARKER")
+}

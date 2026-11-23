@@ -91,7 +91,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode > 399 {
-		return nil, fmt.Errorf("request to %s failed with code %d", r.URL, resp.StatusCode)
+		return nil, fmt.Errorf("request to %s failed with code %d", internal.RedactURL(r.URL), resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

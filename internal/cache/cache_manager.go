@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal/notification"
@@ -29,7 +30,10 @@ type Manager interface {
 }
 
 type cacheManagerImpl struct {
-	inMemoryCache                   Cache
+	// inMemoryCache is the current flag cache: it is replaced as a whole by UpdateCache, so the
+	// evaluations read it without taking any lock (nil when the manager is closed).
+	inMemoryCache atomic.Pointer[Cache]
+	// mutex protects latestUpdate and serializes the writers of inMemoryCache.
 	mutex                           sync.RWMutex
 	notificationService             notification.Service
 	latestUpdate                    time.Time
@@ -44,13 +48,15 @@ func New(
 	persistentFlagConfigurationFile string,
 	logger *fflog.FFLogger,
 ) Manager {
-	return &cacheManagerImpl{
+	m := &cacheManagerImpl{
 		logger:                          logger,
-		inMemoryCache:                   NewInMemoryCache(logger),
 		mutex:                           sync.RWMutex{},
 		notificationService:             notificationService,
 		persistentFlagConfigurationFile: persistentFlagConfigurationFile,
 	}
+	var initial Cache = NewInMemoryCache(logger)
+	m.inMemoryCache.Store(&initial)
+	return m
 }
 
 func ConvertToFlagStruct(
@@ -81,14 +87,15 @@ func (c *cacheManagerImpl) UpdateCache(
 	newCacheFlags := newCache.All()
 	oldCacheFlags := map[string]flag.Flag{}
 
+	var swapped Cache = newCache
 	c.mutex.Lock()
-	// collect flags for compare.
-	if c.inMemoryCache != nil {
-		oldCacheFlags = c.inMemoryCache.All()
-	}
-	c.inMemoryCache = newCache
+	old := c.inMemoryCache.Swap(&swapped)
 	c.latestUpdate = time.Now()
 	c.mutex.Unlock()
+	// collect flags for compare (the old cache is immutable, no lock needed).
+	if old != nil {
+		oldCacheFlags = (*old).All()
+	}
 
 	if notifyChanges {
 		// notify the changes
@@ -109,30 +116,26 @@ func (c *cacheManagerImpl) Close() {
 	c.persistWg.Wait()
 
 	// Clear the cache
-	c.mutex.Lock()
-	c.inMemoryCache = nil
-	c.mutex.Unlock()
+	c.inMemoryCache.Store(nil)
 	if c.notificationService != nil {
 		c.notificationService.Close()
 	}
 }
 
 func (c *cacheManagerImpl) GetFlag(key string) (flag.Flag, error) {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	if c.inMemoryCache == nil {
+	current := c.inMemoryCache.Load()
+	if current == nil {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
-	return c.inMemoryCache.getFlag(key)
+	return (*current).getFlag(key)
 }
 
 func (c *cacheManagerImpl) AllFlags() (map[string]flag.Flag, error) {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	if c.inMemoryCache == nil {
+	current := c.inMemoryCache.Load()
+	if current == nil {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
-	return c.inMemoryCache.All(), nil
+	return (*current).All(), nil
 }
 
 func (c *cacheManagerImpl) GetLatestUpdateDate() time.Time {

@@ -3,7 +3,6 @@ package config
 import (
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
@@ -43,11 +42,6 @@ type Config struct {
 	// Possible values: json, logfmt
 	// Default: json
 	LogFormat string `mapstructure:"logFormat" koanf:"logformat"`
-
-	// ExporterCleanQueueInterval (optional) is the duration between each cleaning of the queue by the thread in charge
-	// of removing the old events.
-	// Default: 1 minute
-	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"`
 
 	// Version is the version of the relay-proxy
 	Version string `mapstructure:"version" koanf:"version"`

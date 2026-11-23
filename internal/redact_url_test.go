@@ -75,3 +75,24 @@ func TestRedactURLError(t *testing.T) {
 		})
 	}
 }
+
+func TestRedactURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "userinfo and query dropped", raw: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/b.yaml?token=SECRETMARKER#frag", want: "https://flags.example.com"},
+		{name: "scheme and host kept", raw: "http://localhost:8080/flags", want: "http://localhost:8080"},
+		{name: "unparsable value replaced", raw: "http://us:SECRETMARKER@host:bad/x", want: internal.RedactedURL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := internal.RedactURL(tt.raw)
+			assert.Equal(t, tt.want, got)
+			assert.NotContains(t, got, "SECRETMARKER")
+		})
+	}
+}

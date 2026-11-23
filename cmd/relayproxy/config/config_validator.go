@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"go.uber.org/zap/zapcore"
@@ -29,6 +30,9 @@ func (c *Config) IsValid() error {
 	if err := c.Endpoints.IsValid(); err != nil {
 		return err
 	}
+	if err := validateExporterCleanQueueInterval(c.ExporterCleanQueueInterval); err != nil {
+		return err
+	}
 	if c.flagSetMode == flagSetModeLocal && c.Studio.URL != "" {
 		return errors.New("flagSets and studio cannot be used together, remove flagSets from your configuration")
 	}
@@ -39,6 +43,14 @@ func (c *Config) IsValid() error {
 		return c.validateFlagSets()
 	}
 	return c.validateDefaultMode()
+}
+
+// validateExporterCleanQueueInterval rejects a negative interval (a ticker can not be created with it).
+func validateExporterCleanQueueInterval(interval time.Duration) error {
+	if interval < 0 {
+		return errors.New("exporterCleanQueueInterval must not be negative")
+	}
+	return nil
 }
 
 // validateServerConfig validates the server configuration
@@ -120,6 +132,9 @@ func (c *Config) validateFlagSets() error {
 // validateFlagSetCommonConfig validates the CommonFlagSet configuration for a single flagset
 func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	if err := validateRetrievers(flagset.Retriever, flagset.Retrievers); err != nil {
+		return err
+	}
+	if err := validateExporterCleanQueueInterval(flagset.ExporterCleanQueueInterval); err != nil {
 		return err
 	}
 	if err := validateSharedPollerPerBucket(flagset); err != nil {
