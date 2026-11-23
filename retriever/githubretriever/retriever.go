@@ -354,7 +354,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("invalid base URL: %w", err)
+		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
 	u.Path = path.Join(append([]string{u.Path}, elem...)...)
 	return u, nil
