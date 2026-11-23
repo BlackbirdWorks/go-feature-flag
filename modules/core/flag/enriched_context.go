@@ -14,6 +14,8 @@ type enrichedContext struct {
 	ffcontext.Context
 	merged       ffcontext.EvaluationContext
 	hasProtected bool
+	// hasAnonymous is true when the enrichment sets the "anonymous" attribute.
+	hasAnonymous bool
 }
 
 func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enrichedContext {
@@ -22,7 +24,10 @@ func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enric
 	maps.Copy(custom, ctx.GetCustom())
 	maps.Copy(custom, enrichment)
 	_, hasProtectedd := enrichment["gofeatureflag"]
-	return &enrichedContext{Context: ctx, merged: merged, hasProtected: hasProtectedd}
+	_, hasAnonymous := enrichment["anonymous"]
+	return &enrichedContext{
+		Context: ctx, merged: merged, hasProtected: hasProtectedd, hasAnonymous: hasAnonymous,
+	}
 }
 
 // GetCustom returns the attributes of the context with the enrichment merged in.
@@ -39,4 +44,13 @@ func (e *enrichedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpec
 		return e.merged.ExtractGOFFProtectedFields()
 	}
 	return e.Context.ExtractGOFFProtectedFields()
+}
+
+// IsAnonymous is the merged "anonymous" attribute when the enrichment sets it (as it was when the
+// enrichment was written in the context of the caller), the status of the context otherwise.
+func (e *enrichedContext) IsAnonymous() bool {
+	if e.hasAnonymous {
+		return e.merged.IsAnonymous()
+	}
+	return e.Context.IsAnonymous()
 }
