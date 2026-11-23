@@ -692,7 +692,7 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 		{
 			name:    "rule",
 			typ:     reflect.TypeFor[flag.Rule](),
-			handled: []string{"Disable", "Name", "Percentages", "ProgressiveRollout", "Query", "VariationResult"},
+			handled: []string{"Disable", "Name", "Percentages", "ProgressiveRollout", "Query", "QueryHash", "VariationResult"},
 		},
 		{name: "progressive rollout", typ: reflect.TypeFor[flag.ProgressiveRollout](), handled: []string{"End", "Initial"}},
 		{
