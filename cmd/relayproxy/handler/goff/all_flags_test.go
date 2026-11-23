@@ -90,14 +90,16 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			},
 		},
 		{
-			name: "user context without custom field should not crash",
+			name: "legacy user field is rejected and points to evaluationContext",
 			args: args{
-				bodyFile:            testdataDir + "/all_flags/invalid_user_context_request.json",
+				bodyFile:            testdataDir + "/all_flags/legacy_user_request.json",
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
-				httpCode: http.StatusOK,
-				bodyFile: testdataDir + "/all_flags/invalid_user_context_response.json",
+				handlerErr: true,
+				errorMsg: "assertRequest: the 'user' field is no longer supported, " +
+					"send an 'evaluationContext' instead",
+				errorCode: http.StatusBadRequest,
 			},
 		},
 		{

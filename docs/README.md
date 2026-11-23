@@ -43,6 +43,9 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Configuration](go-module/configuration.md)
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
 
+## Migration
+- [Removal of `ffuser` and the `user` request field](migration/remove-ffuser.md)
+
 ## Tooling
 - [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md)
 - [Auto-complete (JSON schema)](tooling/autocomplete.md)

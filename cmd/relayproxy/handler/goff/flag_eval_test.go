@@ -133,6 +133,19 @@ func Test_flag_eval_Handler(t *testing.T) {
 			},
 		},
 		{
+			name: "legacy user field is rejected and points to evaluationContext",
+			args: args{
+				flagKey:  "test-flag-rule-apply-false",
+				bodyFile: testdataDir + "/flag_eval/legacy_user_request.json",
+			},
+			want: want{
+				handlerErr: true,
+				errorMsg: "assertRequest: the 'user' field is no longer supported, " +
+					"send an 'evaluationContext' instead",
+				errorCode: http.StatusBadRequest,
+			},
+		},
+		{
 			name: "no flag key in URL",
 			args: args{
 				flagKey:  "",

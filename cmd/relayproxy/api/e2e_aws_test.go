@@ -88,7 +88,7 @@ func goffCtx(key string, kv ...any) map[string]any {
 	for i := 0; i+1 < len(kv); i += 2 {
 		custom[kv[i].(string)] = kv[i+1]
 	}
-	return map[string]any{"user": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
+	return map[string]any{"evaluationContext": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
 }
 
 const flagSetsYAML = `

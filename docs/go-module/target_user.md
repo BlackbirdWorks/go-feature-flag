@@ -2,7 +2,7 @@
 
 ## Users
 Feature flag targeting and rollouts are all determined by the user you pass to your **Variation** calls.
-The SDK defines a [`User`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/ffuser#User) struct and a [`UserBuilder`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/ffuser#UserBuilder) to make this easy.
+The `ffcontext` package provides `NewEvaluationContext` and `NewEvaluationContextBuilder` to make this easy.
 
 Here's an example:
 

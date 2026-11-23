@@ -44,7 +44,7 @@ func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) Con
 // @Security     XApiKeyAuth
 // @Produce      json
 // @Accept	 	 json
-// @Param 		 data body model.EvalFlagRequest true "Payload of the user we want to get all the flags from."
+// @Param 		 data body model.EvalFlagRequest true "Evaluation context and default value for the flag."
 // @Param        flag_key path string true "Name of your feature flag"
 // @Success      200  {object} modeldocs.EvalFlagDoc "Success"
 // @Failure      400 {object}  modeldocs.HTTPErrorDoc "Bad Request"

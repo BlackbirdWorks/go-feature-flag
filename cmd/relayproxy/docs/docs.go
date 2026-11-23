@@ -520,7 +520,7 @@ const docTemplate = `{
                 "summary": "All flags variations for a user",
                 "parameters": [
                     {
-                        "description": "Payload of the user we want to challenge against the flag.",
+                        "description": "Evaluation context to challenge against the flags.",
                         "name": "data",
                         "in": "body",
                         "required": true,
@@ -628,7 +628,7 @@ const docTemplate = `{
                 "summary": "Evaluate a feature flag",
                 "parameters": [
                     {
-                        "description": "Payload of the user we want to get all the flags from.",
+                        "description": "Evaluation context and default value for the flag.",
                         "name": "data",
                         "in": "body",
                         "required": true,
@@ -1037,7 +1037,7 @@ const docTemplate = `{
                     }
                 },
                 "key": {
-                    "description": "Key is the identifier of the UserRequest.",
+                    "description": "Key is the identifier of the evaluation context.",
                     "type": "string",
                     "example": "08b5ffb7-7109-42f4-a6f2-b85560fbd20f"
                 }

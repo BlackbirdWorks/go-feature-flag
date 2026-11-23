@@ -17,7 +17,7 @@ divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs),
 - `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
 - `modules/core/`: separate Go module with flag, context and evaluation logic.
 - `rules/`: vendored rules engine (separate module, own `LICENSE`, must be kept).
-- `internal/`, `ffcontext/`, `ffuser/` (legacy), `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
+- `internal/`, `ffcontext/`, `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
 - `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
 - `.schema/flag-schema.json`: JSON schema of the flag file.
 - `docs/`: plain Markdown documentation (index in `docs/README.md`).

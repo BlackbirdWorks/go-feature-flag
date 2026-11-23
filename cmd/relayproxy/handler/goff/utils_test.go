@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -12,76 +11,56 @@ import (
 )
 
 func Test_assertRequest(t *testing.T) {
+	t.Parallel()
+	missing := echo.NewHTTPError(
+		http.StatusBadRequest,
+		"assertRequest: impossible to find evaluationContext in request")
+	legacy := echo.NewHTTPError(http.StatusBadRequest, errLegacyUser)
 	tests := []struct {
 		name    string
 		req     *model.AllFlagRequest
 		wantErr *echo.HTTPError
-		want    ffcontext.Context
 	}{
+		{name: "no request", req: nil, wantErr: missing},
+		{name: "request without evaluation context", req: &model.AllFlagRequest{}, wantErr: missing},
 		{
-			name: "no request",
-			req:  nil,
-			wantErr: echo.NewHTTPError(
-				http.StatusBadRequest,
-				"assertRequest: impossible to find user in request"),
+			name:    "legacy user only is rejected naming evaluationContext",
+			req:     &model.AllFlagRequest{LegacyUser: map[string]any{"key": "my-key"}},
+			wantErr: legacy,
 		},
 		{
-			name: "request without evaluation context and user",
-			req:  &model.AllFlagRequest{User: nil, EvaluationContext: nil},
-			wantErr: echo.NewHTTPError(
-				http.StatusBadRequest,
-				"assertRequest: impossible to find user in request"),
-		},
-		{
-			name: "user without key",
-			req:  &model.AllFlagRequest{User: nil},
-			wantErr: echo.NewHTTPError(
-				http.StatusBadRequest,
-				"assertRequest: impossible to find user in request"),
-		},
-		{
-			name: "user with User and EvaluationContext, empty key for evaluation context",
-			// in this case, since we have a targetingKey set for the evaluation context we take the one from the
-			// evaluation context key not from the user key.
-			// In that case the targetingKey is empty, but this is allowed by the core evaluation logic.
+			name: "legacy user next to a valid evaluation context is rejected",
 			req: &model.AllFlagRequest{
-				User:              &model.UserRequest{Key: "my-key"},
+				LegacyUser:        map[string]any{"key": "my-key"},
+				EvaluationContext: &model.EvaluationContextRequest{Key: "my-key"},
+			},
+			wantErr: legacy,
+		},
+		{
+			name: "valid evaluation context",
+			req: &model.AllFlagRequest{
+				EvaluationContext: &model.EvaluationContextRequest{Key: "my-key"},
+			},
+		},
+		{
+			name: "evaluation context with empty key is allowed",
+			req: &model.AllFlagRequest{
 				EvaluationContext: &model.EvaluationContextRequest{Key: ""},
 			},
-			wantErr: nil,
-		},
-		{
-			name: "invalid user but valid evaluation context should pass",
-			req: &model.AllFlagRequest{
-				User:              &model.UserRequest{Key: ""},
-				EvaluationContext: &model.EvaluationContextRequest{Key: "my-key"},
-			},
-			wantErr: nil,
-		},
-		{
-			name: "valid evaluation context and no user",
-			req: &model.AllFlagRequest{
-				EvaluationContext: &model.EvaluationContextRequest{Key: "my-key"},
-			},
-			wantErr: nil,
-		},
-		{
-			name: "valid user and no evluation context",
-			req: &model.AllFlagRequest{
-				User: &model.UserRequest{Key: "my-key"},
-			},
-			wantErr: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := assertRequest(tt.req)
-			assert.Equal(t, tt.wantErr, err)
+			t.Parallel()
+			assert.Equal(t, tt.wantErr, assertRequest(tt.req))
 		})
 	}
+	assert.Contains(t, errLegacyUser, "evaluationContext")
 }
+
 func Test_evaluationContextFromRequest(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		req     *model.AllFlagRequest
@@ -93,17 +72,18 @@ func Test_evaluationContextFromRequest(t *testing.T) {
 			req:  nil,
 			wantErr: echo.NewHTTPError(
 				http.StatusBadRequest,
-				"evaluationContextFromRequest: impossible to convert the request, req nil"),
+				"evaluationContextFromRequest: impossible to convert the request, evaluationContext missing"),
 		},
 		{
-			name:    "user without key",
-			req:     &model.AllFlagRequest{User: nil},
-			wantErr: fmt.Errorf("userRequestToUser: impossible to convert user, userRequest nil"),
+			name: "request without evaluation context",
+			req:  &model.AllFlagRequest{},
+			wantErr: echo.NewHTTPError(
+				http.StatusBadRequest,
+				"evaluationContextFromRequest: impossible to convert the request, evaluationContext missing"),
 		},
 		{
 			name: "valid use-case with EvaluationContext",
 			req: &model.AllFlagRequest{
-				User: nil,
 				EvaluationContext: &model.EvaluationContextRequest{
 					Key: "key-1",
 					Custom: map[string]any{
@@ -118,29 +98,13 @@ func Test_evaluationContextFromRequest(t *testing.T) {
 				AddCustom("custom-field", true).
 				Build(),
 		},
-		{
-			name: "valid use-case with User",
-			req: &model.AllFlagRequest{
-				User: &model.UserRequest{
-					Key:       "key-1",
-					Anonymous: false,
-					Custom: map[string]any{
-						"custom-field": true,
-					},
-				},
-			},
-			want: ffcontext.NewEvaluationContextBuilder("key-1").
-				AddCustom("anonymous", false).
-				AddCustom("custom-field", true).
-				Build(),
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := evaluationContextFromRequest(tt.req)
-			if err != nil {
-				assert.Error(t, err)
+			if tt.wantErr != nil {
 				assert.Equal(t, tt.wantErr, err)
 				return
 			}
