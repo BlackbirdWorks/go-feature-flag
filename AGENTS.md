@@ -1,224 +1,61 @@
-# AGENTS.md - GO Feature Flag Codebase Guide
+# AGENTS.md - Semaphore codebase guide
 
-Essential information for AI agents and developers working with the GO Feature Flag codebase.
+Guide for AI agents and developers working in this repository. Prefer the `Makefile` (`make help`).
 
-> **💡 Important**: The **Makefile is the easiest way to interact with this repository**. Use `make help` to see all commands.
+## What this is
 
-**Most Common Commands:**
-```bash
-make workspace-init  # Initialize Go workspace (required for monorepo)
-make vendor          # Vendor dependencies
-make test            # Run all tests
-make build           # Build all binaries
-make lint            # Run linter
-make watch-doc       # Start documentation server
-make help            # Show all available commands
+A self-hosted feature flag **relay proxy** plus the Go **engine** it is built on. Applications use the
+standard OpenFeature SDKs over HTTP (OFREP / the relay proxy API). It is an independent derivative of
+GO Feature Flag by Thomas Poignant (MIT); see `UPSTREAM.md` for the upstream baseline and the intentional
+divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs), and `NOTICE` for attribution.
+
+## Layout
+
+- Root `.go` files: the Go engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
+- `cmd/relayproxy/`: HTTP relay proxy (Echo, Zap logging, Prometheus metrics, OpenTelemetry). Swagger in `cmd/relayproxy/docs/`, Helm chart in `cmd/relayproxy/helm-charts/relay-proxy/`.
+- `cmd/cli/`: command line (`evaluate`, `lint`, `generate`); `cmd/jsonschema-generator/`.
+- `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
+- `modules/core/`: separate Go module with flag, context and evaluation logic.
+- `rules/`: vendored rules engine (separate module, own `LICENSE`, must be kept).
+- `internal/`, `ffcontext/`, `ffuser/` (legacy), `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
+- `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
+- `.schema/flag-schema.json`: JSON schema of the flag file.
+- `docs/`: plain Markdown documentation (index in `docs/README.md`).
+
+## Commands
+
+Go workspace mode is not used by CI: export `GOWORK=off`.
+
+```shell
+export GOWORK=off
+make build             # relay proxy, cli, jsonschema generator, all modules
+make test-unit         # unit tests (root + modules/core + rules)
+make test-integration  # testcontainers tests (Docker)
+make test-e2e          # gopherstack e2e tests (Docker)
+make test-shards-check # CI test groups must cover every package
+make lint              # golangci-lint
+make tidy-check        # go.mod / go.sum tidy
+make swagger           # regenerate swagger after API annotation changes
 ```
 
-## 🎯 Project Overview
+## Conventions
 
-**GO Feature Flag** is a lightweight, open-source feature flagging solution written in Go. This repository is a **monorepo** using Go workspaces.
+- Tests: parallel table-driven tests (`t.Parallel()`), `testify/assert`; no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
+- Return errors, do not panic. Go module logging uses `slog` (`utils/fflog`); the relay proxy uses Zap.
+- Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
+- PR titles use Conventional Commits and commits are signed. Never force-push `main`.
+- Do not add or alter licence headers; keep `LICENSE`, `rules/LICENSE` and `NOTICE` intact.
 
-**Key Features:**
-- Feature flag implementation with OpenFeature standard support
-- Multiple storage backends (S3, HTTP, Kubernetes, MongoDB, Redis, GCS, Azure, PostgreSQL, etc.)
-- Complex rollout strategies (A/B testing, progressive, scheduled)
-- Data export, notification, and tracking systems
+## Identifiers that must not be renamed
 
-## 🏗️ Architecture
+These are client or deployment contracts (a rename needs a coordinated migration):
 
-```
-OpenFeature SDKs → Relay Proxy (cmd/relayproxy/) → GO Module (ffclient)
-                                                         ↓
-                    Retriever Manager → Cache Manager → Notifier Service / Exporter Manager
-```
+- OFREP metadata key `gofeatureflag_cacheable`; evaluation-context key `gofeatureflag` (and its sub-keys).
+- Prometheus subsystem `gofeatureflag`.
+- Default relay proxy config file name `goff-proxy` (searched in `./`, `/goff/`, `/etc/opt/goff/`) and the environment variable prefixes.
+- OpenTelemetry tracer and service names.
+- Go module path `github.com/thomaspoignant/go-feature-flag` and all Go import paths (a later change renames the module).
 
-**Data Flow:** Retrievers fetch configs → Cache stores flags → Change detection triggers Notifiers → Evaluation generates Events → Exporters send data
+## Entry points
 
-**Key Components:**
-- **`ffclient` (root package)**: Core Go module for direct integration (root `.go` files are `package ffclient`)
-- **`cmd/relayproxy/`**: HTTP API server (uses Echo + Zap logging)
-- **`retriever/`**: Flag configuration sources (File, HTTP, S3, K8s, MongoDB, Redis, GitHub, GitLab, Bitbucket, PostgreSQL, Azure Blob Storage, GCS)
-- **`exporter/`**: Data export destinations (S3, File, Kafka, Kinesis, Webhook, GCS, Pub/Sub, SQS, Azure, Logs, OpenTelemetry)
-- **`notifier/`**: Change notifications (Slack, Webhook, Discord, Microsoft Teams, Logs)
-- **`modules/core`**: Core logic module used by OpenFeature providers
-
-## 📁 Directory Structure
-
-**Root Level:**
-- Root `.go` files: Core `ffclient` package (`variation.go`, `feature_flag.go`, `config.go`, `tracking.go`, `variation_all_flags.go`, `config_exporter.go`)
-- `cmd/`: Applications (relayproxy, cli, lint, jsonschema-generator)
-- `retriever/`, `exporter/`, `notifier/`: Integration packages
-- `modules/`: Separate Go modules (`core` only)
-- `internal/`: Internal packages (cache, flagstate, notification, signer)
-- `ffcontext/`: Evaluation context package
-- `ffuser/`: User context (legacy)
-- `model/`: DTO models
-- `cmdhelpers/`: Shared CLI helpers (errors, retriever config)
-- `utils/`: Utilities (fflog, string helpers, constants)
-- `openfeature/providers/`: In-repo providers (Kotlin, Python, PHP, Ruby, Swift)
-- `openfeature/provider_tests/`: Integration tests for providers (Go, JS, Java, .NET)
-- `testutils/`, `testdata/`, `examples/`, `website/`
-
-**Key Files:**
-- `variation.go`: Flag evaluation methods
-- `variation_all_flags.go`: Bulk evaluation of all flags
-- `feature_flag.go`: Core logic and initialization
-- `config.go`: Configuration structure
-- `config_exporter.go`: Exporter configuration
-- `tracking.go`: Tracking/experimentation support
-- `Makefile`: Primary interface (use `make help`)
-
-## 🔑 Key Concepts
-
-**Flag Evaluation Flow:**
-1. Init → Retrievers fetch configs → Cache stores → Polling refreshes
-2. Change detection → Notifiers triggered → Evaluation → Events exported
-
-**Flag Format:** YAML/JSON/TOML with variations, targeting rules, and defaultRule
-
-**Evaluation Context:** Targeting key (required), custom attributes, optional bucketing key
-
-**Interfaces:**
-- `Retriever`: `Retrieve(ctx context.Context) ([]byte, error)`
-- `Exporter`: `Export(context.Context, *fflog.FFLogger, []ExportableEvent) error` + `IsBulk() bool`
-- `Notifier`: `Notify(cache DiffCache) error`
-
-## 🛠️ Common Tasks
-
-**Adding Retriever/Exporter/Notifier:**
-1. Create package in respective directory
-2. Implement interface
-3. Add config struct
-4. Register in manager
-5. Add table-driven tests
-6. Update docs
-
-**OpenFeature Providers:**
-- Most providers in OpenFeature contrib repos (Go, JS, Java, .NET)
-- In this repo: Kotlin (`kotlin-provider/`), Python (`python-provider/`), PHP (`php-provider/`), Ruby (`ruby-provider/`), Swift (`swift-provider/`)
-- Providers use `modules/core` for evaluation logic
-
-**Modules (`modules/core`):**
-- Core logic separated for reuse by OpenFeature providers
-- `modules/core`: Flag structures, context, models, utilities
-- Allows independent versioning and smaller dependency trees
-
-**PR Policy:** Must use `.github/PULL_REQUEST_TEMPLATE.md`. Fill all sections, link issues, complete checklist, include tests. PR titles should use a semantic commit prefix.
-
-## 🧪 Testing
-
-**Style:** Table-driven tests (test array style) - standard Go pattern
-
-```go
-func TestFunction(t *testing.T) {
-    tests := []struct {
-        name    string
-        args    args
-        want    expectedType
-        wantErr assert.ErrorAssertionFunc
-    }{...}
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // test logic with assert.Equal, assert.NoError, etc.
-        })
-    }
-}
-```
-
-**Commands:** `make test`, `make coverage`, `make bench`, `make provider-tests`
-**Coverage:** Aim for 90%+, use `testify/assert`, mock external deps
-
-## 📝 Code Patterns
-
-**Initialization:**
-```go
-ffclient.Init(ffclient.Config{
-    PollingInterval: 3 * time.Second,
-    Retriever: &httpretriever.Retriever{URL: "..."},
-})
-defer ffclient.Close()
-```
-
-**Evaluation:**
-```go
-user := ffcontext.NewEvaluationContext("user-key")
-value, _ := ffclient.BoolVariation("flag-name", user, false)
-```
-
-**Logging:**
-- **Go Module**: Uses `slog` (`utils/fflog/`) - structured logging
-- **Relay Proxy**: Uses Echo + Zap (`cmd/relayproxy/log/`, `api/middleware/zap.go`) - request logging
-
-**Error Handling:** Always return errors, never panic. Use default values on failure.
-
-## 🚀 Development Workflow
-
-> **💡 Use Makefile for all tasks** - `make help` shows all commands
-
-**Setup:**
-```bash
-make workspace-init  # Initialize Go workspace (monorepo requirement)
-make vendor          # Vendor dependencies
-pre-commit install   # Install pre-commit hooks
-```
-
-**Common Commands:**
-- **Build:** `make build`, `make build-relayproxy`, `make build-cli`, `make build-jsonschema-generator`, `make build-modules`
-- **Dev:** `make watch-relayproxy`, `make watch-doc`, `make serve-doc`
-- **Test:** `make test`, `make coverage`, `make bench`, `make provider-tests`
-- **Quality:** `make lint`, `make tidy`, `make vendor`
-- **Utils:** `make clean`, `make swagger`, `make generate-helm-docs`
-
-**Code Quality:**
-- Use `make lint` (golangci-lint)
-- Write table-driven tests
-- Update docs for user-facing changes
-
-## 🔍 Code Navigation
-
-**Flag Evaluation:** `variation.go` → `feature_flag.go` → `internal/cache/` → `internal/flagstate/`
-**API Endpoints:** `cmd/relayproxy/api/routes_*.go` → `controller/` → `model/`
-**Configuration:** `config.go` (ffclient), `cmd/relayproxy/config/config.go` (relay proxy)
-**Flag Format:** `.schema/flag-schema.json`, `testdata/flag-config.*`, https://gofeatureflag.org/docs
-
-## 🔗 Important Files
-
-- **`Makefile`**: Primary interface - `make help` for commands
-- **`go.mod`**: Dependencies (monorepo with `modules/core`)
-- **`.golangci.yml`**: Linter config
-- **`CONTRIBUTING.md`**: Contribution guidelines
-- **`.github/PULL_REQUEST_TEMPLATE.md`**: PR template (required)
-
-## 🌐 External Dependencies
-
-**Key Libraries:** Echo (HTTP), Koanf (config), OpenTelemetry (observability), Prometheus (metrics), Testcontainers (integration tests)
-
-**Monorepo Modules (Go workspace):**
-- Main module (root): Core `ffclient` library
-- `modules/core`: Core data structures (used by providers/relayproxy)
-
-## 📚 Resources
-
-- **Documentation**: https://gofeatureflag.org/docs
-- **Examples**: `examples/` directory
-- **API Docs**: `cmd/relayproxy/docs/`
-- **OpenFeature**: https://openfeature.dev
-
-## 🎯 Quick Reference
-
-**Entry Points:** `ffclient.Init()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`
-**Interfaces:** `Retriever`, `Exporter`, `Notifier`, `Cache`
-**Config:** YAML/JSON/TOML flags, `ffclient.Config`, `cmd/relayproxy/config/config.go`
-
-## ⚠️ What Agents Must NEVER Do
-
-**Critical Rules:**
-- **Never commit secrets** - No API keys, passwords, tokens, or credentials in code or config files
-- **Ask before adding dependencies** - Always request approval before adding new packages to `go.mod`
-- **Don't touch vendor directories** - Never modify `vendor/` directory directly (use `make vendor` instead)
-- **Don't modify `go.work` manually** - Use `make workspace-init` for workspace setup
-- **Don't force push to main/master** - Always work on feature branches
----
-
-**Note**: This is a living document. Update as the codebase evolves!
+`ffclient.Init()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.

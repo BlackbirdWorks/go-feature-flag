@@ -61,10 +61,6 @@ build-modules:  ## Run build command to build all modules in the workspace
 	@echo "Building all modules in the workspace..."
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Building $(module)"; CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) ./...);)
 
-build-doc: ## Build the documentation
-	cd website; \
-	npm i && npm run build
-
 clean: ## Remove build related file
 	-rm -fr ./bin ./out ./release
 	-rm -f ./junit-report.xml checkstyle-report.xml ./coverage.xml ./profile.cov yamllint-checkstyle.xml ./coverage-*.cov.tmp
@@ -108,14 +104,6 @@ watch-relayproxy: ## Launch the relay proxy in watch mode.
 		-p 1031:1031 cosmtrek/air \
 		--build.cmd "$(GOWORK_ENV) go build $(MODFLAG) -o out/bin/relayproxy ./cmd/relayproxy/" \
 		--build.bin "./out/bin/relayproxy"
-
-watch-doc: ## Launch a local server to work on the documentation
-	cd website; \
-    	npm i && npx docusaurus start
-
-serve-doc: ## Serve the doc build by the build-doc target
-	cd website; \
-		npm run serve
 
 swagger: ## Build swagger documentation
 	$(GOWORK_ENV) $(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
@@ -203,7 +191,7 @@ coverage: ## Run the tests of the project and export the coverage for all module
 		cd $$module && $(GOWORK_ENV) $(GOTEST) -cover -covermode=count -tags=docker -coverprofile=$${original_path}/$${covfile} ./... || exit 1; \
 		cd $$original_path; \
 	done
-	@echo "mode: count" > coverage.cov && cat *.cov.tmp | grep -v "mode: count" | grep -v "/examples/" >> coverage.cov
+	@echo "mode: count" > coverage.cov && cat *.cov.tmp | grep -v "mode: count" >> coverage.cov
 	@rm -f *.cov.tmp
 
 bench: ## Launch the benchmark test

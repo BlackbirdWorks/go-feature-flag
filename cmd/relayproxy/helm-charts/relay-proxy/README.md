@@ -1,8 +1,8 @@
 # relay-proxy
 
-![Version: 1.59.1](https://img.shields.io/badge/Version-1.59.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.59.1](https://img.shields.io/badge/AppVersion-v1.59.1-informational?style=flat-square)
+![Version: 1.59.2](https://img.shields.io/badge/Version-1.59.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v1.59.1](https://img.shields.io/badge/AppVersion-v1.59.1-informational?style=flat-square)
 
-A Helm chart to deploy go-feature-flag-relay proxy into Kubernetes
+A Helm chart to deploy the Semaphore relay proxy into Kubernetes
 
 ## How to use the chart
 
@@ -70,17 +70,11 @@ relayproxy:
       kind: log
 ```
 
-**Homepage:** <https://gofeatureflag.org>
-
-## Maintainers
-
-| Name | Email | Url |
-| ---- | ------ | --- |
-| thomaspoignant | <thomas.poignant@gofeatureflag.org> | <https://gofeatureflag.org> |
+**Homepage:** <https://github.com/BlackbirdWorks/go-feature-flag>
 
 ## Source Code
 
-* <https://github.com/thomaspoignant/go-feature-flag>
+* <https://github.com/BlackbirdWorks/go-feature-flag>
 
 ## Values
 
@@ -342,12 +336,12 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"gofeatureflag/go-feature-flag"
+"ghcr.io/blackbirdworks/go-feature-flag"
 </pre>
 </div>
 			</td>
 			<td>
-				The image repository to pull from. The same images are mirrored to the GitHub Container Registry, set this to `ghcr.io/go-feature-flag/go-feature-flag` to pull from there instead (mirrored images are only available for the versions released after v1.55.1).
+				The image repository to pull from. This repository does not publish images from CI: build and push your own (see docs/relay-proxy/install.md) and override this value and `image.tag` if the default is not available to you.
 			</td>
 		</tr>
 		<tr>
@@ -664,12 +658,12 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/examples/retriever_file/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
+"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
 </pre>
 </div>
 			</td>
 			<td>
-				GO Feature Flag relay proxy configuration as string (accept template). If monitoringPort is specified in the config (either as "monitoringPort: 1032" or "server.monitoringPort: 1032"), it will be exposed as a separate port and used for liveness and readiness probes instead of the main HTTP port. Example: add "monitoringPort: 1032" or "server.monitoringPort: 1032" to your config to enable separate monitoring port.
+				Semaphore relay proxy configuration as string (accept template). If monitoringPort is specified in the config (either as "monitoringPort: 1032" or "server.monitoringPort: 1032"), it will be exposed as a separate port and used for liveness and readiness probes instead of the main HTTP port. Example: add "monitoringPort: 1032" or "server.monitoringPort: 1032" to your config to enable separate monitoring port.
 			</td>
 		</tr>
 		<tr>

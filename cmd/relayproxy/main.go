@@ -35,11 +35,8 @@ _____________________________________________`
 // @title GO Feature Flag relay proxy endpoints
 // @description.markdown
 // @contact.name GO feature flag relay proxy
-// @contact.url https://gofeatureflag.org
-// @contact.email contact@gofeatureflag.org
 // @license.name MIT
-// @license.url https://github.com/thomaspoignant/go-feature-flag/blob/main/LICENSE
-// @x-logo {"url":"https://raw.githubusercontent.com/thomaspoignant/go-feature-flag/main/logo_128.png"}
+// @license.url https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
 // @BasePath /
 // @securitydefinitions.apikey ApiKeyAuth
 // @in header

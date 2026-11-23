@@ -16,8 +16,14 @@ updates:
       default-days: 7
       exclude:
         - "github.com/thomaspoignant/go-feature-flag/modules/core"
-    # Sibling modules share versions: separate PRs end up empty after rebase
-    # and release-please then adds those empty commits to every package.
+    # Never let a bot bump a module that is replaced by a local directory or published
+    # by the previous upstream project: that would pull upstream code into this tree.
+    ignore:
+      - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
+      - dependency-name: "github.com/go-feature-flag/*"
+      - dependency-name: "github.com/nikunjy/rules"
+      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
+    # Sibling modules share versions: group related updates in one PR.
     groups:
       aws:
         patterns:
@@ -59,6 +65,13 @@ updates:
       - "automerge"
     commit-message:
       prefix: "chore(dependencies)"
+    # Never let a bot bump a module that is replaced by a local directory or published
+    # by the previous upstream project: that would pull upstream code into this tree.
+    ignore:
+      - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
+      - dependency-name: "github.com/go-feature-flag/*"
+      - dependency-name: "github.com/nikunjy/rules"
+      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     cooldown:
       default-days: 7
 
@@ -73,5 +86,12 @@ updates:
       - "automerge"
     commit-message:
       prefix: "chore"
+    # Never let a bot bump a module that is replaced by a local directory or published
+    # by the previous upstream project: that would pull upstream code into this tree.
+    ignore:
+      - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
+      - dependency-name: "github.com/go-feature-flag/*"
+      - dependency-name: "github.com/nikunjy/rules"
+      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     cooldown:
       default-days: 7
