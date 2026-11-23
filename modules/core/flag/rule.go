@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
@@ -139,13 +141,30 @@ type queryContext struct {
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
 	parsedEvalCtxAsData  any
+	// pooled is true when parsedEvalCtxAsMap comes from queryMapPool (see release).
+	pooled bool
 }
+
+// queryMapPool recycles the maps of the queryContexts: the map is only read by the query engines
+// during the evaluation and never retained, so it is cleared and reused by the next evaluation.
+var queryMapPool = sync.Pool{New: func() any { return make(map[string]any, 16) }}
 
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		q.parsedEvalCtxAsMap = utils.ContextToMap(q.ctx)
+		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
+		q.pooled = true
 	}
 	return q.parsedEvalCtxAsMap
+}
+
+// release gives the map back to the pool. The queryContext must not be used afterwards.
+func (q *queryContext) release() {
+	if q.pooled {
+		clear(q.parsedEvalCtxAsMap)
+		queryMapPool.Put(q.parsedEvalCtxAsMap)
+		q.parsedEvalCtxAsMap = nil
+		q.pooled = false
+	}
 }
 
 func (q *queryContext) jsonOnce() ([]byte, error) {
@@ -161,6 +180,12 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 // dataOnce is the context decoded from its JSON form, which is the only shape JsonLogic accepts.
 func (q *queryContext) dataOnce() (any, error) {
 	if q.parsedEvalCtxAsData == nil {
+		// Common case: the context only has JSON-like values, so what the encoding would
+		// produce is built directly (the result is the same, without marshalling and parsing).
+		if data, ok := normalizeJSONValue(q.mapOnce()); ok {
+			q.parsedEvalCtxAsData = data
+			return data, nil
+		}
 		raw, err := q.jsonOnce()
 		if err != nil {
 			return nil, err
@@ -319,12 +344,13 @@ func (r *Rule) getVariationFromProgressiveRollout(
 
 		// We are between initial and end
 		initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
-		if r.ProgressiveRollout.End.getPercentage() == 0 ||
-			r.ProgressiveRollout.End.getPercentage() > 100 {
-			maxPercentage := float64(100)
-			r.ProgressiveRollout.End.Percentage = &maxPercentage
+		// The rule is shared by all the evaluations of the flag (concurrently): it must never be
+		// written here, an end percentage outside of ]0, 100] means 100.
+		endPercentage := r.ProgressiveRollout.End.getPercentage()
+		if endPercentage == 0 || endPercentage > 100 {
+			endPercentage = 100
 		}
-		endPercentage := r.ProgressiveRollout.End.getPercentage() * PercentageMultiplier
+		endPercentage *= PercentageMultiplier
 		nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
 		percentage := endPercentage - initialPercentage
 		percentPerSec := percentage / float64(nbSec)
@@ -507,9 +533,33 @@ func MergeSetOfRules(initialRules, updates []Rule) *[]Rule {
 
 	for _, update := range updates {
 		if !utils.Contains(mergedUpdates, update.GetName()) {
-			collection = append(collection, update)
+			// The rule is edited by the following updates (see MergeRules): it must not share its
+			// percentages and progressive rollout with the update, which is read by every evaluation.
+			collection = append(collection, cloneRuleForMerge(update))
 		}
 	}
 
 	return &collection
+}
+
+// cloneRuleForMerge copies what MergeRules edits in place (the percentages and the steps of the
+// progressive rollout), the other fields are replaced and never edited.
+func cloneRuleForMerge(r Rule) Rule {
+	if r.Percentages != nil {
+		p := maps.Clone(*r.Percentages)
+		r.Percentages = &p
+	}
+	if r.ProgressiveRollout != nil {
+		pr := *r.ProgressiveRollout
+		if pr.Initial != nil {
+			initial := *pr.Initial
+			pr.Initial = &initial
+		}
+		if pr.End != nil {
+			end := *pr.End
+			pr.End = &end
+		}
+		r.ProgressiveRollout = &pr
+	}
+	return r
 }

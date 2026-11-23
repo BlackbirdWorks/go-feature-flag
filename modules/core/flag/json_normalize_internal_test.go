@@ -1,0 +1,157 @@
+package flag
+
+import (
+	"encoding/json"
+	"math"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
+)
+
+type normalizeStruct struct {
+	Name string `json:"name"`
+}
+
+// normalizeJSONValue must give exactly what marshalling then unmarshalling gives.
+func TestNormalizeJSONValue_MatchesTheJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		in        map[string]any
+		wantKnown bool
+	}{
+		{
+			name: "strings, bools, nil and floats",
+			in:   map[string]any{"a": "x", "b": true, "c": nil, "d": 1.5, "e": ""}, wantKnown: true,
+		},
+		{
+			name: "all the integer kinds become float64",
+			in: map[string]any{
+				"i": 1, "i8": int8(-2), "i16": int16(3), "i32": int32(4), "i64": int64(1 << 60),
+				"u": uint(5), "u8": uint8(6), "u16": uint16(7), "u32": uint32(8), "u64": uint64(math.MaxUint64),
+			}, wantKnown: true,
+		},
+		{
+			name: "nested maps and slices",
+			in: map[string]any{
+				"m": map[string]any{"k": []any{1, "two", 3.5, map[string]any{"z": nil}}},
+				"s": []any{},
+			}, wantKnown: true,
+		},
+		{name: "float32 is left to the encoding", in: map[string]any{"f": float32(0.1)}, wantKnown: false},
+		{name: "struct is left to the encoding", in: map[string]any{"s": normalizeStruct{Name: "n"}}, wantKnown: false},
+		{name: "time is left to the encoding", in: map[string]any{"t": time.Unix(0, 0).UTC()}, wantKnown: false},
+		{name: "typed slice is left to the encoding", in: map[string]any{"s": []string{"a"}}, wantKnown: false},
+		{name: "NaN is left to the encoding", in: map[string]any{"n": math.NaN()}, wantKnown: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := normalizeJSONValue(tt.in)
+			assert.Equal(t, tt.wantKnown, ok)
+			if !ok {
+				return
+			}
+			raw, err := json.Marshal(tt.in)
+			require.NoError(t, err)
+			var want any
+			require.NoError(t, json.Unmarshal(raw, &want))
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+type marshalerValue struct{ n int }
+
+func (m marshalerValue) MarshalJSON() ([]byte, error) { return json.Marshal(map[string]int{"n": m.n}) }
+
+type unmarshalableValue struct{}
+
+func (unmarshalableValue) MarshalJSON() ([]byte, error) { return nil, assert.AnError }
+
+type namedMap map[string]any
+
+// The data JsonLogic reads must be what the JSON round trip of the context gives (what was done
+// before the fast path), including when that round trip fails.
+func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
+	t.Parallel()
+	cyclicMap := map[string]any{}
+	cyclicMap["self"] = cyclicMap
+	cyclicSlice := []any{nil}
+	cyclicSlice[0] = cyclicSlice
+	var nilPtr *normalizeStruct
+	deep := any("leaf")
+	for i := 0; i < 5000; i++ { // deeper than the fast path goes, but not a cycle
+		deep = []any{deep}
+	}
+
+	tests := []struct {
+		name   string
+		custom map[string]any
+	}{
+		{name: "nil map", custom: map[string]any{"p": map[string]any(nil)}},
+		{name: "nil slice", custom: map[string]any{"p": []any(nil)}},
+		{name: "empty map and slice", custom: map[string]any{"m": map[string]any{}, "s": []any{}}},
+		{name: "nil map and slice nested", custom: map[string]any{"p": map[string]any{
+			"m": map[string]any(nil), "s": []any{[]any(nil), map[string]any(nil)}}}},
+		{name: "nil typed slices", custom: map[string]any{"s": []string(nil), "i": []int(nil), "b": []byte(nil)}},
+		{name: "typed nil pointer", custom: map[string]any{"p": nilPtr}},
+		{name: "nested structs", custom: map[string]any{"s": struct {
+			A normalizeStruct
+			B *normalizeStruct
+			C []normalizeStruct
+		}{C: []normalizeStruct{{Name: "x"}}}}},
+		{name: "json.Number", custom: map[string]any{"n": json.Number("12.50"), "l": json.Number("123456789012345678901")}},
+		{name: "time.Time", custom: map[string]any{"t": time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)}},
+		{name: "[]byte", custom: map[string]any{"b": []byte("hello")}},
+		{name: "custom MarshalJSON", custom: map[string]any{"m": marshalerValue{n: 3}}},
+		{name: "MarshalJSON error", custom: map[string]any{"m": unmarshalableValue{}}},
+		{name: "NaN", custom: map[string]any{"f": math.NaN()}},
+		{name: "+Inf", custom: map[string]any{"f": math.Inf(1)}},
+		{name: "-Inf nested", custom: map[string]any{"f": []any{math.Inf(-1)}}},
+		{name: "float32", custom: map[string]any{"f": float32(0.1), "g": float32(16777217)}},
+		{name: "int64 above 2^53", custom: map[string]any{"i": int64(1<<53 + 1), "j": int64(math.MaxInt64), "k": int64(math.MinInt64)}},
+		{name: "uint64", custom: map[string]any{"u": uint64(math.MaxUint64), "v": uint64(1<<53 + 1)}},
+		{name: "negative zero and extremes", custom: map[string]any{
+			"z": math.Copysign(0, -1), "max": math.MaxFloat64, "min": math.SmallestNonzeroFloat64}},
+		{name: "map with int keys", custom: map[string]any{"m": map[int]string{2: "b", 1: "a"}}},
+		{name: "map with non string keys that can not be encoded", custom: map[string]any{"m": map[any]any{"a": 1}}},
+		{name: "map[string]string", custom: map[string]any{"m": map[string]string{"a": "b"}}},
+		{name: "named map type", custom: map[string]any{"m": namedMap{"a": 1}}},
+		{name: "invalid UTF-8 in a string", custom: map[string]any{"s": "a\xffb"}},
+		{name: "invalid UTF-8 in a key", custom: map[string]any{"m": map[string]any{"a\xffb": 1}}},
+		{name: "unicode and html characters", custom: map[string]any{"s": "é <>&\"\\ \x00"}},
+		{name: "channel", custom: map[string]any{"c": make(chan int)}},
+		{name: "cyclic map", custom: map[string]any{"c": cyclicMap}},
+		{name: "cyclic slice", custom: map[string]any{"c": cyclicSlice}},
+		{name: "very deep slice", custom: map[string]any{"d": deep}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
+			for k, v := range tt.custom {
+				ctx.AddCustomAttribute(k, v)
+			}
+			qc := &queryContext{ctx: ctx}
+			defer qc.release()
+			got, gotErr := qc.dataOnce()
+
+			var want any
+			raw, wantErr := json.Marshal(utils.ContextToMap(ctx))
+			if wantErr == nil {
+				wantErr = json.Unmarshal(raw, &want)
+			}
+			if wantErr != nil {
+				assert.Error(t, gotErr, "the round trip fails, so must the fast path")
+				return
+			}
+			require.NoError(t, gotErr)
+			assert.Equal(t, want, got)
+		})
+	}
+}
