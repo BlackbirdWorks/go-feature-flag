@@ -3,8 +3,13 @@ package kinesisexporter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/rand/v2"
+	"sort"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -19,6 +24,14 @@ var _ exporter.Exporter = &Exporter{}
 const (
 	formatJSON = "json"
 	Mb         = 1024 * 1024
+
+	// Kinesis PutRecords limits: 500 records and 5 MiB per call.
+	maxRecordsPerCall = 500
+	maxBytesPerCall   = 5 * Mb
+
+	maxAttempts = 3
+	baseBackoff = 100 * time.Millisecond
+	maxBackoff  = 2 * time.Second
 )
 
 var DefaultPartitionKey = func(context context.Context, _ exporter.ExportableEvent) string {
@@ -67,6 +80,9 @@ type Exporter struct {
 	init sync.Once
 
 	sender MessageSender
+
+	// sleep replaces the real backoff wait, it is only set by tests.
+	sleep func(ctx context.Context, d time.Duration) error
 }
 
 type PartitionKeyFunc = func(context.Context, exporter.ExportableEvent) string
@@ -136,7 +152,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 		if e.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
-				initErr = fmt.Errorf("impossible to init Kinesis exporter: %v", err)
+				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
 				return
 			}
 			e.AwsConfig = &cfg
@@ -170,7 +186,7 @@ func (e *Exporter) Export(
 		}
 
 		if len(formattedEvent) >= Mb {
-			logger.Error("format: Event is too large, skipping", err)
+			logger.Error("format: Event is too large, skipping", "size", len(formattedEvent))
 			continue
 		}
 
@@ -183,9 +199,7 @@ func (e *Exporter) Export(
 		})
 	}
 
-	input := &kinesis.PutRecordsInput{
-		Records: records,
-	}
+	input := &kinesis.PutRecordsInput{}
 
 	switch {
 	case e.Settings.StreamArn != nil:
@@ -196,32 +210,149 @@ func (e *Exporter) Export(
 		return fmt.Errorf("send: no StreamName or StreamArn provided")
 	}
 
-	if len(input.Records) == 0 {
+	if len(records) == 0 {
 		// nothing to send
 		return nil
 	}
 
-	output, err := e.sender.SendMessages(ctx, input)
-
-	if err != nil {
-		return fmt.Errorf("send: %w", err)
-	}
-
-	if *output.FailedRecordCount > 0 {
-		logger.Error("send: couldn't send %d records to Kinesis", output.FailedRecordCount)
-	}
-
-	for _, record := range output.Records {
-		if record.ErrorCode != nil || record.ErrorMessage != nil {
-			logger.Error(
-				"send: couldn't send event to Kinesis: ErrorCode: %s, ErrorMessage: %s",
-				record.ErrorCode,
-				record.ErrorMessage,
-			)
+	var errs []error
+	for _, chunk := range chunkRecords(records) {
+		chunkInput := *input
+		chunkInput.Records = chunk
+		if err := e.sendChunk(ctx, logger, &chunkInput); err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			errs = append(errs, err)
 		}
 	}
+	return errors.Join(errs...)
+}
 
-	return nil
+// chunkRecords splits records into groups that respect the PutRecords limits
+// (500 records and 5 MiB per call, partition keys included in the size).
+func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRequestEntry {
+	var chunks [][]types.PutRecordsRequestEntry
+	newChunk := func() []types.PutRecordsRequestEntry {
+		return make([]types.PutRecordsRequestEntry, 0, min(len(records), maxRecordsPerCall))
+	}
+	current := newChunk()
+	size := 0
+	for _, r := range records {
+		rs := len(r.Data) + len(aws.ToString(r.PartitionKey))
+		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+rs > maxBytesPerCall) {
+			chunks = append(chunks, current)
+			current, size = newChunk(), 0
+		}
+		current = append(current, r)
+		size += rs
+	}
+	if len(current) > 0 {
+		chunks = append(chunks, current)
+	}
+	return chunks
+}
+
+// sendChunk sends one PutRecords call and retries only the records Kinesis rejected.
+//
+// PutRecords is not atomic: a response can accept some records and reject others
+// (e.g. ProvisionedThroughputExceededException, InternalFailure). Records that
+// were accepted are never resent within this call, so no duplicates are produced
+// while retries succeed.
+//
+// Trade-off: Export(ctx, logger, events) error cannot report partial success. If
+// records are still failing once the attempts are exhausted we return an error,
+// and the caller (event store, ProcessPendingEvents) then keeps the whole batch
+// and will resend it on the next flush, duplicating the records that were
+// accepted here. We prefer that at-least-once behaviour over silently losing the
+// rejected events; duplicates are limited to the retries-exhausted case.
+func (e *Exporter) sendChunk(
+	ctx context.Context,
+	logger *fflog.FFLogger,
+	input *kinesis.PutRecordsInput,
+) error {
+	pending := input.Records
+	total := len(pending)
+	var failures []types.PutRecordsResultEntry
+
+	for attempt := 1; ; attempt++ {
+		req := *input
+		req.Records = pending
+		output, err := e.sender.SendMessages(ctx, &req)
+		if err != nil {
+			return fmt.Errorf("send: %w", err)
+		}
+		if output == nil || aws.ToInt32(output.FailedRecordCount) == 0 {
+			return nil
+		}
+		if len(output.Records) != len(pending) {
+			return fmt.Errorf(
+				"send: %d of %d records failed but the response has %d per-record results",
+				aws.ToInt32(output.FailedRecordCount), len(pending), len(output.Records))
+		}
+
+		var retry []types.PutRecordsRequestEntry
+		failures = failures[:0]
+		for i, res := range output.Records {
+			if res.ErrorCode != nil || res.ErrorMessage != nil {
+				retry = append(retry, pending[i])
+				failures = append(failures, res)
+			}
+		}
+		if len(retry) == 0 {
+			return nil
+		}
+		logger.Warn("send: some records were rejected by Kinesis",
+			"failed", len(retry), "total", total, "attempt", attempt)
+
+		if attempt >= maxAttempts {
+			return fmt.Errorf("send: %d of %d records failed after %d attempts (error codes: %s)",
+				len(retry), total, attempt, distinctCodes(failures))
+		}
+		pending = retry
+		if err := e.wait(ctx, backoff(attempt)); err != nil {
+			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
+				len(retry), total, err)
+		}
+	}
+}
+
+func distinctCodes(failures []types.PutRecordsResultEntry) string {
+	set := map[string]struct{}{}
+	for _, f := range failures {
+		code := aws.ToString(f.ErrorCode)
+		if code == "" {
+			code = "Unknown"
+		}
+		set[code] = struct{}{}
+	}
+	codes := make([]string, 0, len(set))
+	for c := range set {
+		codes = append(codes, c)
+	}
+	sort.Strings(codes)
+	return strings.Join(codes, ", ")
+}
+
+// backoff returns an exponential delay with full jitter for the given attempt (1-based).
+func backoff(attempt int) time.Duration {
+	d := min(baseBackoff<<(attempt-1), maxBackoff)
+	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
+}
+
+// wait blocks for d or until ctx is done. It uses the injectable sleep when set.
+func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
+	if e.sleep != nil {
+		return e.sleep(ctx, d)
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
