@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/v2"
-	httpprovider "github.com/thomaspoignant/koanf-http-provider"
 	"go.uber.org/zap"
 )
 

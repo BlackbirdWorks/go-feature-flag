@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/knadh/koanf/parsers/json"
@@ -19,7 +20,6 @@ import (
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
-	httpprovider "github.com/thomaspoignant/koanf-http-provider"
 	"go.uber.org/zap"
 )
 

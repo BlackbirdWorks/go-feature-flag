@@ -975,8 +975,6 @@ github.com/testcontainers/testcontainers-go/modules/redis v0.45.0 h1:U7GClvzAxLc
 github.com/testcontainers/testcontainers-go/modules/redis v0.45.0/go.mod h1:06G3YVRf2RHAFNKwtFYhVd4CYgnXLWXmckaJNWI4fGY=
 github.com/thejerf/slogassert v0.3.4 h1:VoTsXixRbXMrRSSxDjYTiEDCM4VWbsYPW5rB/hX24kM=
 github.com/thejerf/slogassert v0.3.4/go.mod h1:0zn9ISLVKo1aPMTqcGfG1o6dWwt+Rk574GlUxHD4rs8=
-github.com/thomaspoignant/koanf-http-provider v0.1.0 h1:0FzV72D42olSAUa/9zh6/bHksbAMM6MnIbxo17GBLdA=
-github.com/thomaspoignant/koanf-http-provider v0.1.0/go.mod h1:fGAHaB9iJFQhMQuOSgAuxJiEfR4+IVhIhXncarFFZnY=
 github.com/tinylib/msgp v1.6.4 h1:mOwYbyYDLPj35mkA2BjjYejgJk9BuHxDdvRnb6v2ZcQ=
 github.com/tinylib/msgp v1.6.4/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/tklauser/go-sysconf v0.4.0 h1:7H0uAN+7RkwWRaxhYXDLqa5V3LPrJeV8wmD9dRUgPQU=
