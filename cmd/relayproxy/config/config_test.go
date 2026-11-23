@@ -1782,19 +1782,41 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	}
 }
 
+// This test cannot be parallel: t.Setenv changes the process environment, and restores it when
+// the test ends (os.Setenv leaked the keys into every test that ran after it, which broke
+// -count>1 and any test reading the authorized keys).
 func TestSetAPIKeysFromEnv(t *testing.T) {
-	os.Setenv("AUTHORIZEDKEYS_EVALUATION", "key1,key2,key 3")
-	os.Setenv("AUTHORIZEDKEYS_ADMIN", "key4,key5")
+	tests := []struct {
+		name           string
+		envVars        map[string]string
+		wantEvaluation []string
+		wantAdmin      []string
+	}{
+		{
+			name: "authorized keys from the environment",
+			envVars: map[string]string{
+				"AUTHORIZEDKEYS_EVALUATION": "key1,key2,key 3",
+				"AUTHORIZEDKEYS_ADMIN":      "key4,key5",
+			},
+			wantEvaluation: []string{"key1", "key2", "key 3"},
+			wantAdmin:      []string{"key4", "key5"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			f.String("config", "", "Location of your config file")
+			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-	fileLocation := "../testdata/config/valid-file.yaml"
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	_ = f.Parse([]string{fmt.Sprintf("--config=%s", fileLocation)})
-
-	got, err := config.New(f, zap.L(), "1.X.X")
-	require.NoError(t, err)
-	assert.Equal(t, []string{"key1", "key2", "key 3"}, got.AuthorizedKeys.Evaluation)
-	assert.Equal(t, []string{"key4", "key5"}, got.AuthorizedKeys.Admin)
+			got, err := config.New(f, zap.L(), "1.X.X")
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
+			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
+		})
+	}
 }
 
 func TestConfig_LogLevel(t *testing.T) {
