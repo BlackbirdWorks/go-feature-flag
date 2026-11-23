@@ -19,7 +19,9 @@ WHITE  := $(shell tput -Txterm setaf 7)
 CYAN   := $(shell tput -Txterm setaf 6)
 RESET  := $(shell tput -Txterm sgr0)
 
-.PHONY: all test build vendor fuzz
+.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module
+
+SHELL := bash
 
 all: help
 ## Build:
@@ -124,15 +126,63 @@ generate-helm-docs: ## Generates helm documentation for the project
 	helm-docs
 
 ## Test:
-test: ## Run the tests of the project
-	@for module in $(ALL_GO_MOD_DIRS); do \
-		echo "→ Testing $$module"; \
-		cd $$module && CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) test -v -race -tags=docker ./... || exit 1;  \
-		cd - >/dev/null; \
-	done
+# Test types run as separate targets (and separate CI jobs):
+#   test-unit         unit tests, no docker tag (root module, modules/core, rules)
+#   test-integration  testcontainers tests (azurite, mongo, postgres, redis, ...)
+#   test-e2e          gopherstack-backed e2e tests (tests named *E2E*)
+# Optional variables: COVERPROFILE=<file> writes a coverage profile,
+# TEST_LOG=<file> tees the output, GROUP=<cmd|plugins|rest|all> picks the root
+# unit shard, MODULE=<rules|modules/core> picks the module of test-unit-module.
+TEST_PKG_SCRIPT := .github/ci-scripts/test-pkgs.sh
+COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)),)
+TEE = $(if $(TEST_LOG),2>&1 | tee $(abspath $(TEST_LOG)),)
+GROUP ?= all
+GOTESTFLAGS ?=
+
+test: test-unit test-integration test-e2e ## Run every test type (unit, integration, e2e)
+
+test-unit: test-unit-root test-unit-module-rules test-unit-module-core ## Run the unit tests of all modules (no docker)
+
+test-unit-root: ## Run the root module unit tests with the race detector (GROUP=cmd|plugins|rest|all)
+	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) unit-$(GROUP)); \
+	[ -n "$$pkgs" ] || { echo "no packages in group $(GROUP)"; exit 1; }; \
+	CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race $(COVER_FLAGS) $$pkgs $(TEE)
+
+test-unit-module: ## Run the unit tests of one nested module (MODULE=rules|modules/core)
+	@test -n "$(MODULE)" || { echo "usage: make test-unit-module MODULE=<dir>"; exit 1; }
+	@set -o pipefail; cd $(MODULE) && CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker $(COVER_FLAGS) ./... $(TEE)
+
+test-unit-module-rules:
+	@$(MAKE) --no-print-directory test-unit-module MODULE=rules
+
+test-unit-module-core:
+	@$(MAKE) --no-print-directory test-unit-module MODULE=modules/core
+
+# The plain unit tests of these packages run again here (the docker tag compiles
+# them together with the container tests). That is cheap and always correct,
+# unlike selecting tests by name with -run.
+test-integration: ## Run the testcontainers integration tests (needs docker)
+	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) integration); \
+	[ -n "$$pkgs" ] || { echo "no integration packages found"; exit 1; }; \
+	CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker -skip 'E2E' $(COVER_FLAGS) $$pkgs $(TEE)
+
+test-e2e: ## Run the gopherstack e2e tests (needs docker)
+	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) e2e); \
+	[ -n "$$pkgs" ] || { echo "no e2e packages found"; exit 1; }; \
+	CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker -run 'E2E' $(COVER_FLAGS) $$pkgs $(TEE)
+
+test-shards-check: ## Fail if the CI test groups do not cover every package
+	@$(TEST_PKG_SCRIPT) check
 
 fuzz: ## Run every fuzz test for a bounded time (usage: make fuzz FUZZTIME=10s)
 	@FUZZTIME="$(or $(FUZZTIME),10s)" GOWORK_ENV="$(GOWORK_ENV)" GOCMD="$(GOCMD)" .github/ci-scripts/fuzz.sh $(ALL_GO_MOD_DIRS)
+
+fuzz-list: ## Print "<module> <dir>" for every package with fuzz tests
+	@.github/ci-scripts/fuzz.sh --list $(ALL_GO_MOD_DIRS)
+
+fuzz-dir: ## Fuzz one package (usage: make fuzz-dir MODULE=./ DIR=./internal/cache FUZZTIME=10s)
+	@test -n "$(MODULE)" -a -n "$(DIR)" || { echo "usage: make fuzz-dir MODULE=<module> DIR=<dir>"; exit 1; }
+	@FUZZTIME="$(or $(FUZZTIME),10s)" GOWORK_ENV="$(GOWORK_ENV)" GOCMD="$(GOCMD)" .github/ci-scripts/fuzz.sh --dir $(MODULE) $(DIR)
 
 provider-tests: ## Run the integration tests for the Open Feature Providers
 	./openfeature/provider_tests/integration_tests.sh
@@ -153,10 +203,21 @@ bench: ## Launch the benchmark test
 	 $(GOWORK_ENV) $(GOTEST) -tags=bench -bench Benchmark -cpu 2 -run=^$$
 
 ## Lint:
-lint: ## Use golintci-lint on all the modules of the project
+lint-install:
 	mkdir -p ./bin
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b ./bin
-	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Linting $(module)"; cd $(module) && $(CURDIR)/bin/golangci-lint run --timeout=5m --config $(CURDIR)/.golangci.yml ./...) &&) true
+
+lint-run:
+	@test -n "$(MODULE)" || { echo "usage: make lint-module MODULE=<dir>"; exit 1; }
+	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=5m --config $(CURDIR)/.golangci.yml ./...
+
+lint-module: lint-install lint-run ## Lint one module (usage: make lint-module MODULE=rules)
+
+# Lints every module and fails at the end if any failed (no early stop).
+lint: lint-install ## Use golintci-lint on all the modules of the project
+	@rc=0; for module in $(ALL_GO_MOD_DIRS); do \
+		$(MAKE) --no-print-directory lint-run MODULE=$$module || rc=1; \
+	done; exit $$rc
 
 vuln-check: ## Run govulncheck on all modules in the workspace
 	@which govulncheck > /dev/null 2>&1 || $(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest

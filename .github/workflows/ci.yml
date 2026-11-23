@@ -171,20 +171,28 @@ jobs:
       - name: Fail if the generated swagger docs are out of date
         run: git diff --exit-code --stat
 
-  # `rules` and `modules/core` have no container tests, so they run in a lean
-  # job next to the heavier root module job.
-  test-modules:
-    name: test (${{ matrix.module }})
+  # Test types run as separate parallel jobs; each calls the Makefile target a
+  # developer runs locally. Every job writes a coverage profile (artifact, plus
+  # Codecov when a CODECOV_TOKEN secret exists) under a distinct flag.
+
+  # Root module unit tests (no docker tag), sharded by package group. The shard
+  # lists come from `go list` (.github/ci-scripts/test-pkgs.sh), so a new
+  # package is always picked up; the first step fails if the shards stop
+  # partitioning `go list ./...`.
+  test-unit-root:
+    name: test (unit, root, ${{ matrix.group }})
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
-        module: [rules, modules/core]
+        group: [cmd, plugins, rest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -192,23 +200,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: ./.github/actions/setup-go
-      - name: Run tests with the race detector
-        working-directory: ${{ matrix.module }}
+      - name: Check that the test shards cover every package
+        run: make test-shards-check
+      - name: Run unit tests with the race detector
         env:
-          MODULE: ${{ matrix.module }}
-          CGO_ENABLED: "1"
-          GOWORK: "off"
+          GROUP: ${{ matrix.group }}
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/test-logs"
-          name="${MODULE//\//-}"
-          go test -v -race -tags=docker -covermode=atomic \
-            -coverprofile="$GITHUB_WORKSPACE/coverage-$name.out" ./... 2>&1 \
-            | tee "$GITHUB_WORKSPACE/test-logs/test-$name.log"
+          mkdir -p test-logs coverage
+          make test-unit-root GROUP="$GROUP" \
+            COVERPROFILE="coverage/unit-root-$GROUP.out" \
+            TEST_LOG="test-logs/unit-root-$GROUP.log"
       - name: Upload test log on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          name: test-log-${{ strategy.job-index }}
+          name: test-log-unit-root-${{ matrix.group }}
           path: test-logs/
           retention-days: 7
           if-no-files-found: ignore
@@ -216,22 +222,41 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          name: coverage-${{ strategy.job-index }}
-          path: coverage-*.out
+          name: coverage-unit-root-${{ matrix.group }}
+          path: coverage/
           retention-days: 7
           if-no-files-found: ignore
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/unit-root-${{ matrix.group }}.out
+          flags: unit
+          name: unit-root-${{ matrix.group }}
+          fail_ci_if_error: false
 
-  # Root module with the `docker` tag: unit tests, testcontainers (azurite,
-  # mongo, postgres, redis) and the gopherstack-based S3/SQS/Kinesis e2e tests
-  # (ghcr.io/blackbirdworks/gopherstack, a public image pulled anonymously).
-  test:
-    name: test (root, docker + e2e)
+  # `rules` and `modules/core` are separate Go modules with their own tests.
+  test-unit-modules:
+    name: test (unit, ${{ matrix.module }})
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: rules
+            flag: rules
+            artifact: rules
+          - module: modules/core
+            flag: core
+            artifact: core
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -239,42 +264,20 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: ./.github/actions/setup-go
-      # A throttled or dropped pull in the middle of a test shows up as a
-      # container start timeout; pull everything once, with retries, up front.
-      - name: Pre-pull container images
-        run: |
-          images=(
-            ghcr.io/blackbirdworks/gopherstack:1.9.1
-            mcr.microsoft.com/azure-storage/azurite:3.35.0
-            mongo:6
-            postgres:15-alpine
-            redis:7
-          )
-          for img in "${images[@]}"; do
-            (
-              for i in 1 2 3; do
-                docker pull -q "$img" > /dev/null && exit 0
-                sleep $((i * 5))
-              done
-              echo "::warning::pre-pull of $img failed"
-            ) &
-          done
-          wait
-          docker images
-          df -h /
-      - name: Run tests with the race detector
+      - name: Run unit tests with the race detector
         env:
-          CGO_ENABLED: "1"
-          GOWORK: "off"
+          MODULE: ${{ matrix.module }}
+          ARTIFACT: ${{ matrix.artifact }}
         run: |
-          mkdir -p test-logs
-          go test -v -race -tags=docker -covermode=atomic -coverprofile=coverage-root.out ./... 2>&1 \
-            | tee test-logs/test-root.log
+          mkdir -p test-logs coverage
+          make test-unit-module MODULE="$MODULE" \
+            COVERPROFILE="coverage/unit-$ARTIFACT.out" \
+            TEST_LOG="test-logs/unit-$ARTIFACT.log"
       - name: Upload test log on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          name: test-log-root
+          name: test-log-unit-${{ matrix.artifact }}
           path: test-logs/
           retention-days: 7
           if-no-files-found: ignore
@@ -282,10 +285,134 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          name: coverage-root
-          path: coverage-root.out
+          name: coverage-unit-${{ matrix.artifact }}
+          path: coverage/
           retention-days: 7
           if-no-files-found: ignore
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/unit-${{ matrix.artifact }}.out
+          flags: ${{ matrix.flag }}
+          name: unit-${{ matrix.artifact }}
+          fail_ci_if_error: false
+
+  # testcontainers tests (azurite, mongo, postgres, redis, ...): packages with
+  # docker-tagged test files that are not gopherstack e2e (see test-pkgs.sh).
+  test-integration:
+    name: test (integration, containers)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+      - name: Pre-pull container images
+        run: |
+          .github/ci-scripts/pull-images.sh \
+            mcr.microsoft.com/azure-storage/azurite:3.35.0 \
+            mongo:6 \
+            postgres:15-alpine \
+            redis:7
+      - name: Run integration tests with the race detector
+        run: |
+          mkdir -p test-logs coverage
+          make test-integration \
+            COVERPROFILE=coverage/integration.out \
+            TEST_LOG=test-logs/integration.log
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: test-log-integration
+          path: test-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage profile
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: coverage-integration
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/integration.out
+          flags: integration
+          name: integration
+          fail_ci_if_error: false
+
+  # S3/SQS/Kinesis/relay proxy e2e tests against gopherstack
+  # (ghcr.io/blackbirdworks/gopherstack, a public image pulled anonymously).
+  test-e2e:
+    name: test (e2e, gopherstack)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+      - name: Pre-pull the gopherstack image
+        run: |
+          # The tag is the single source of truth in the test helper.
+          image=$(sed -n 's/^[[:space:]]*Image = "\(.*\)"$/\1/p' testutils/gopherstack/gopherstack.go)
+          [[ -n "$image" ]] || { echo "::error::cannot read the gopherstack image"; exit 1; }
+          .github/ci-scripts/pull-images.sh "$image"
+      - name: Run e2e tests with the race detector
+        run: |
+          mkdir -p test-logs coverage
+          make test-e2e \
+            COVERPROFILE=coverage/e2e.out \
+            TEST_LOG=test-logs/e2e.log
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: test-log-e2e
+          path: test-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage profile
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: coverage-e2e
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage/e2e.out
+          flags: e2e
+          name: e2e
+          fail_ci_if_error: false
 
   fuzz:
     name: fuzz (smoke)
@@ -336,10 +463,11 @@ jobs:
           dotnet-version: "9.0.x"
       - run: make provider-tests
 
+
   # Single required check for branch protection. `needs` lists every job above;
   # a job skipped by the path filter counts as success, a failed or cancelled
-  # one fails the gate. `if: always()` makes the gate run (and report) even when
-  # an upstream job failed.
+  # one (any matrix leg included) fails the gate. `if: always()` makes the gate
+  # run (and report) even when an upstream job failed.
   ci-ok:
     name: ci-ok
     if: always()
@@ -350,8 +478,10 @@ jobs:
       - modules
       - vulncheck
       - swagger
-      - test-modules
-      - test
+      - test-unit-root
+      - test-unit-modules
+      - test-integration
+      - test-e2e
       - fuzz
       - provider-tests
     runs-on: ubuntu-latest
