@@ -6,6 +6,8 @@ with the standard [OpenFeature](https://openfeature.dev) SDKs and the OFREP prov
 
 Semaphore is derived from GO Feature Flag by Thomas Poignant (MIT), `https://github.com/thomaspoignant/go-feature-flag`.
 See [UPSTREAM.md](UPSTREAM.md) for the upstream baseline.
+This is an independent project: it is not affiliated with, sponsored by or endorsed by the GO Feature Flag project or its
+maintainers, and it is unrelated to other products or services that share the name Semaphore.
 
 ## How it differs from upstream
 
