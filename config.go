@@ -78,6 +78,12 @@ type Config struct {
 	// Multiple exporters can be used to send data to multiple destinations in parallel without interference.
 	DataExporters []DataExporter
 
+	// EventQueueSize (optional) is the size of the queue between the flag evaluations and the
+	// data exporters. The evaluations never wait for the exporters: when the queue is full
+	// (exporters not keeping up) the event is dropped and counted (GoFeatureFlag.DroppedEvents).
+	// Default: DefaultEventQueueSize.
+	EventQueueSize int
+
 	// ExporterCleanQueueInterval (optional) is the duration between each cleaning of the queue by the thread in charge
 	// of removing the old events.
 	// Default: 1 minute
