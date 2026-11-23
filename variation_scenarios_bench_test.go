@@ -158,3 +158,35 @@ func BenchmarkAllFlagsState(b *testing.B) {
 		c.Close()
 	}
 }
+
+// BenchmarkScenariosPrebuiltContext measures the engine alone: the evaluation context (about 10
+// attributes) is built once and shared, as a service that reuses its contexts would do.
+func BenchmarkScenariosPrebuiltContext(b *testing.B) {
+	c := getScenarioClient(b)
+	ctx := benchContext(5)
+	for _, sc := range loadtest.Scenarios {
+		for _, track := range []bool{false, true} {
+			key := loadtest.FlagKey(sc, "bool", track)
+			name := fmt.Sprintf("%s/track=%t", sc, track)
+			b.Run(name, func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					if err := evalOne(c, key, "bool", ctx); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+			b.Run(name+"/parallel", func(b *testing.B) {
+				b.ReportAllocs()
+				b.RunParallel(func(pb *testing.PB) {
+					for pb.Next() {
+						if err := evalOne(c, key, "bool", ctx); err != nil {
+							b.Error(err)
+							return
+						}
+					}
+				})
+			})
+		}
+	}
+}

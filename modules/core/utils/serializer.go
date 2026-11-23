@@ -6,9 +6,15 @@ import (
 
 // ContextToMap convert the context to a MAP to use the query on it.
 func ContextToMap(ctx ffcontext.Context) map[string]any {
+	return ContextToMapInto(make(map[string]any, len(ctx.GetCustom())+3), ctx)
+}
+
+// ContextToMapInto is ContextToMap filling (and returning) the empty map dst, that the caller can
+// reuse to avoid allocating a map for every evaluation.
+func ContextToMapInto(dst map[string]any, ctx ffcontext.Context) map[string]any {
 	// We don't have a json copy of the user.
 	custom := ctx.GetCustom()
-	userCopy := make(map[string]any, len(custom)+3)
+	userCopy := dst
 
 	// Duplicate the map to keep User un-mutable
 	for key, value := range custom {

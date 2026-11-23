@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
@@ -139,13 +140,30 @@ type queryContext struct {
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
 	parsedEvalCtxAsData  any
+	// pooled is true when parsedEvalCtxAsMap comes from queryMapPool (see release).
+	pooled bool
 }
+
+// queryMapPool recycles the maps of the queryContexts: the map is only read by the query engines
+// during the evaluation and never retained, so it is cleared and reused by the next evaluation.
+var queryMapPool = sync.Pool{New: func() any { return make(map[string]any, 16) }}
 
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		q.parsedEvalCtxAsMap = utils.ContextToMap(q.ctx)
+		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
+		q.pooled = true
 	}
 	return q.parsedEvalCtxAsMap
+}
+
+// release gives the map back to the pool. The queryContext must not be used afterwards.
+func (q *queryContext) release() {
+	if q.pooled {
+		clear(q.parsedEvalCtxAsMap)
+		queryMapPool.Put(q.parsedEvalCtxAsMap)
+		q.parsedEvalCtxAsMap = nil
+		q.pooled = false
+	}
 }
 
 func (q *queryContext) jsonOnce() ([]byte, error) {
