@@ -75,6 +75,13 @@ func (f *InternalFlag) Value(
 		evaluationCtx = ffcontext.NewEvaluationContext("")
 	}
 
+	// The enrichment is applied first: its currentDateTime is the date of the evaluation (scheduled
+	// steps, experimentation and progressive rollout). The caller's context must not be modified
+	// (it can be shared by concurrent evaluations), so we work on an enriched view of it.
+	if len(flagContext.EvaluationContextEnrichment) > 0 {
+		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
+	}
+
 	evaluationDate := DateFromContextOrDefault(evaluationCtx, time.Now())
 	flag, err := f.applyScheduledRolloutSteps(evaluationDate)
 	if err != nil {
@@ -84,11 +91,6 @@ func (f *InternalFlag) Value(
 			ErrorCode:    ErrorCodeGeneral,
 			ErrorMessage: err.Error(),
 		}
-	}
-
-	if len(flagContext.EvaluationContextEnrichment) > 0 {
-		// the caller's context must not be modified (it can be shared by concurrent evaluations).
-		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
 	key, keyError := flag.GetBucketingKeyValue(evaluationCtx)
