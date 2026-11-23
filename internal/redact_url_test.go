@@ -83,8 +83,8 @@ func TestRedactURL(t *testing.T) {
 		raw  string
 		want string
 	}{
-		{name: "userinfo and query dropped", raw: "https://user:SECRETMARKER@flags.example.com/a/b.yaml?token=SECRETMARKER#frag", want: "https://flags.example.com/a/b.yaml"},
-		{name: "plain url unchanged", raw: "http://localhost:8080/flags", want: "http://localhost:8080/flags"},
+		{name: "userinfo and query dropped", raw: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/b.yaml?token=SECRETMARKER#frag", want: "https://flags.example.com"},
+		{name: "scheme and host kept", raw: "http://localhost:8080/flags", want: "http://localhost:8080"},
 		{name: "unparsable value replaced", raw: "http://us:SECRETMARKER@host:bad/x", want: internal.RedactedURL},
 	}
 	for _, tt := range tests {

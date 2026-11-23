@@ -170,12 +170,12 @@ func (c statusClient) Do(_ *http.Request) (*http.Response, error) {
 func TestRetriever_ErrorDoesNotLeakCredentials(t *testing.T) {
 	t.Parallel()
 	h := httpretriever.Retriever{
-		URL: "https://user:SECRETMARKER@flags.example.com/path/flags.yaml?token=SECRETMARKER",
+		URL: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/flags.yaml?token=SECRETMARKER",
 	}
 	h.SetHTTPClient(statusClient{code: http.StatusForbidden})
 	_, err := h.Retrieve(context.Background())
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
-	assert.Contains(t, err.Error(), "flags.example.com/path/flags.yaml")
+	assert.Contains(t, err.Error(), "https://flags.example.com failed")
 	assert.Contains(t, err.Error(), "403")
 }
