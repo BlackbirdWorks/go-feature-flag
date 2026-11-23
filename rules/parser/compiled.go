@@ -586,23 +586,23 @@ func compileValue(n *compareNode, v IValueContext, src *sourceText) Operation {
 		n.rightOp = ctx.VERSION().GetText()
 		return &VersionOperation{}
 	case *LongContext:
-		val, err := strconv.ParseInt(ctx.GetText(), 10, 64)
+		val, err := strconv.Atoi(ctx.GetText())
 		if err != nil {
 			n.valErr = err
 		} else {
-			n.rightOp = int(val)
+			n.rightOp = val
 		}
 		return &IntOperation{}
 	case *ListOfIntsContext:
 		n.valKind = valueInts
 		ints := []int{}
 		for sub := ctx.ListInts().SubListOfInts(); ; {
-			val, err := strconv.ParseInt(sub.INT().GetText(), 10, 64)
+			val, err := strconv.Atoi(sub.INT().GetText())
 			if err != nil {
 				n.listErr = err
 				break
 			}
-			ints = append(ints, int(val))
+			ints = append(ints, val)
 			next := sub.SubListOfInts()
 			if next == nil || next.IsEmpty() {
 				break

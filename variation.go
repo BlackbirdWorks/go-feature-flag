@@ -2,7 +2,10 @@ package ffclient
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
+	"runtime"
+	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/exporter"
 	"github.com/thomaspoignant/go-feature-flag/ffcontext"
@@ -309,6 +312,20 @@ func (g *GoFeatureFlag) CollectEventData(event exporter.FeatureEvent) {
 	}
 }
 
+// queueEvents adds the events in the exporter without waiting for a flush (see exporter.AsyncManager).
+func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
+	if g.featureEventDataExporter == nil {
+		return
+	}
+	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
+		m.QueueEvents(events)
+		return
+	}
+	for _, event := range events {
+		g.featureEventDataExporter.AddEvent(event)
+	}
+}
+
 // CollectTrackingEventData is collecting tracking events and sending them to the data exporter to be stored.
 func (g *GoFeatureFlag) CollectTrackingEventData(event exporter.TrackingEvent) {
 	if g != nil && g.trackingEventDataExporter != nil {
@@ -341,11 +358,7 @@ func notifyVariation[T model.JSONType](
 			"SERVER",
 			ctx.ExtractGOFFProtectedFields().ExporterMetadata,
 		)
-		g.evalExporterWg.Add(1)
-		go func() {
-			defer g.evalExporterWg.Done()
-			g.CollectEventData(event)
-		}()
+		g.enqueueEvent(event)
 	}
 }
 
@@ -402,6 +415,141 @@ func getVariation[T model.JSONType](
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 	}
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
+}
+
+// startEventWorker starts the goroutines that move the evaluation events from the queue to the
+// exporters. It does nothing when there is no exporter for the evaluation events.
+func (g *GoFeatureFlag) startEventWorker() {
+	if g.featureEventDataExporter == nil {
+		return
+	}
+	size := g.config.EventQueueSize
+	if size <= 0 {
+		size = DefaultEventQueueSize
+	}
+	g.eventQueue = make(chan exporter.FeatureEvent, size)
+	g.eventWorkerStop = make(chan struct{})
+	g.dropSignal = make(chan struct{}, 1)
+	go g.reportDrops()
+	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
+	// per event): a few workers keep up with an evaluation rate of millions per second.
+	workers := max(1, min(4, runtime.GOMAXPROCS(0)/2))
+	for range workers {
+		g.evalExporterWg.Add(1)
+		go g.runEventWorker()
+	}
+}
+
+// eventBatchSize is the maximum number of events a worker hands to the exporter at once.
+const eventBatchSize = 256
+
+// runEventWorker moves the events of the queue to the exporters until the client is closed,
+// then drains what is left in the queue. The events that are already waiting are handed over
+// together, which takes the lock of the exporter's store once per batch instead of once per event.
+func (g *GoFeatureFlag) runEventWorker() {
+	defer g.evalExporterWg.Done()
+	batch := make([]exporter.FeatureEvent, 0, eventBatchSize)
+	drain := func() {
+		for len(batch) < eventBatchSize {
+			select {
+			case event := <-g.eventQueue:
+				batch = append(batch, event)
+			default:
+				return
+			}
+		}
+	}
+	for {
+		select {
+		case event := <-g.eventQueue:
+			batch = append(batch[:0], event)
+			drain()
+			g.queueEvents(batch)
+		case <-g.eventWorkerStop:
+			for {
+				batch = batch[:0]
+				drain()
+				if len(batch) == 0 {
+					return
+				}
+				g.queueEvents(batch)
+			}
+		}
+	}
+}
+
+// enqueueEvent hands the event to the worker without ever blocking the evaluation.
+// If the queue is full the event is dropped and counted.
+func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
+	if g.eventQueue == nil {
+		// no worker (struct not built by New): add the event directly.
+		g.CollectEventData(event)
+		return
+	}
+	g.eventAdmission.RLock()
+	if g.closing {
+		// the client is closing (an evaluation that was running when its flag set was removed, for
+		// example): the workers are draining or gone, hand the event to the exporters directly so
+		// that their final flush exports it.
+		g.eventAdmission.RUnlock()
+		g.CollectEventData(event)
+		return
+	}
+	select {
+	case g.eventQueue <- event:
+		g.eventAdmission.RUnlock()
+	default:
+		g.eventAdmission.RUnlock()
+		g.droppedEvents.Add(1)
+		// never log here: an evaluation must not wait for the log sink (see reportDrops).
+		select {
+		case g.dropSignal <- struct{}{}:
+		default: // a warning is already pending
+		}
+	}
+}
+
+// dropLogInterval is the minimum delay between two warnings about dropped evaluation events.
+const dropLogInterval = 10 * time.Second
+
+// reportDrops writes (at most once every dropLogInterval) the warning about the events dropped
+// because the queue was full. It runs in its own goroutine, which is not waited by Close, so that
+// a slow or blocked log sink never delays an evaluation, a worker or the shutdown.
+func (g *GoFeatureFlag) reportDrops() {
+	for {
+		select {
+		case <-g.dropSignal:
+		case <-g.eventWorkerStop:
+			return
+		}
+		g.config.internalLogger.Error(
+			"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
+			slog.Int64("totalDroppedEvents", g.droppedEvents.Load()))
+		timer := time.NewTimer(dropLogInterval)
+		select {
+		case <-timer.C:
+		case <-g.eventWorkerStop:
+			timer.Stop()
+			return
+		}
+	}
+}
+
+// DroppedEvents returns the number of events that have been dropped since the start because the
+// exporters were not able to keep up (queue between the evaluations and the exporters full, or
+// exporter queue at its MaxQueuedEvents limit). It is 0 in a healthy setup.
+func (g *GoFeatureFlag) DroppedEvents() int64 {
+	if g == nil {
+		return 0
+	}
+	total := g.droppedEvents.Load()
+	if c, ok := g.featureEventDataExporter.(exporter.DroppedEventsCounter); ok {
+		total += c.DroppedEvents()
+	}
+	if c, ok := g.trackingEventDataExporter.(exporter.DroppedEventsCounter); ok {
+		total += c.DroppedEvents()
+	}
+	return total
 }
 
 // evaluationEnrichment returns the evaluation context enrichment of the configuration with the
