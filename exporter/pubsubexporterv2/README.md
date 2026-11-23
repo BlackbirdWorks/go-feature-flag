@@ -234,4 +234,4 @@ If you encounter any issues during migration, please:
 1. Check that your topic exists and you have proper permissions
 2. Verify your authentication configuration
 3. Review the [Pub/Sub v2 documentation](https://pkg.go.dev/cloud.google.com/go/pubsub/v2)
-4. Open an issue in the [go-feature-flag repository](https://github.com/thomaspoignant/go-feature-flag/issues)
+4. Open an issue in the [semaphore repository](https://github.com/BlackbirdWorks/semaphore/issues)
