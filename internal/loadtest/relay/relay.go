@@ -35,6 +35,8 @@ type Options struct {
 	FlushIntervalMs int64
 	// MaxEventInMemory is the flush trigger of the exporter (default 100000).
 	MaxEventInMemory int64
+	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
+	TempDir string
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
 	Listen bool
 }
@@ -58,7 +60,7 @@ type Relay struct {
 
 // Start starts a relay proxy.
 func Start(opts Options) (_ *Relay, err error) {
-	dir, err := os.MkdirTemp("", "ffrelay")
+	dir, err := os.MkdirTemp(opts.TempDir, "ffrelay")
 	if err != nil {
 		return nil, err
 	}
