@@ -18,6 +18,16 @@ type enrichedContext struct {
 	hasAnonymous bool
 }
 
+// EnrichContext returns the context seen with the enrichment merged in its custom attributes
+// (see enrichedContext), or the context itself when there is nothing to merge. The context of the
+// caller is never modified.
+func EnrichContext(ctx ffcontext.Context, enrichment map[string]any) ffcontext.Context {
+	if len(enrichment) == 0 {
+		return ctx
+	}
+	return newEnrichedContext(ctx, enrichment)
+}
+
 func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enrichedContext {
 	merged := ffcontext.NewEvaluationContext(ctx.GetKey())
 	custom := merged.GetCustom()
