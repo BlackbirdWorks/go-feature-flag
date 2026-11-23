@@ -70,7 +70,8 @@ builds:
     env:
       - CGO_ENABLED=0
       # Version is read from the .fips-version file at the repo root and injected via the
-      # GOFIPS140 environment variable (see .github/workflows/release.yml and ci.yml).
+      # GOFIPS140 environment variable (see the Makefile, GOFIPS140_VERSION). This repository
+      # has no release workflow: export GOFIPS140 yourself before running goreleaser.
       - GOFIPS140={{ .Env.GOFIPS140 }}
     goos:
       - linux
