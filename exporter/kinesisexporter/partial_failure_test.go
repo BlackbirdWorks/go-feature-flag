@@ -199,3 +199,142 @@ func TestChunkRecords_ByteLimit(t *testing.T) {
 	assert.Len(t, chunks[0], 5)
 	assert.Len(t, chunks[1], 2)
 }
+
+// responseSender replies to each PutRecords call with respond(callIndex, request).
+type responseSender struct {
+	mu      sync.Mutex
+	calls   [][]string
+	respond func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error)
+}
+
+func (s *responseSender) SendMessages(
+	_ context.Context, in *kinesis.PutRecordsInput,
+) (*kinesis.PutRecordsOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	call := len(s.calls)
+	datas := make([]string, 0, len(in.Records))
+	for _, r := range in.Records {
+		datas = append(datas, string(r.Data))
+	}
+	s.calls = append(s.calls, datas)
+	return s.respond(call, in)
+}
+
+func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
+	t.Parallel()
+	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	ok := types.PutRecordsResultEntry{SequenceNumber: aws.String("1")}
+	bad := types.PutRecordsResultEntry{ErrorCode: aws.String("InternalFailure")}
+
+	tests := []struct {
+		name string
+		// first is the response to the first call, later calls accept everything.
+		first func(in *kinesis.PutRecordsInput) *kinesis.PutRecordsOutput
+		// wantCalls are the indexes of the events sent on each call.
+		wantCalls [][]int
+	}{
+		{
+			name: "failure count omitted but entry rejected",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{Records: []types.PutRecordsResultEntry{ok, bad}}
+			},
+			wantCalls: [][]int{{0, 1}, {1}},
+		},
+		{
+			name: "failure count zero but entry rejected",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{
+					FailedRecordCount: aws.Int32(0),
+					Records:           []types.PutRecordsResultEntry{bad, ok},
+				}
+			},
+			wantCalls: [][]int{{0, 1}, {0}},
+		},
+		{
+			name: "entry with neither sequence number nor error code",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{
+					FailedRecordCount: aws.Int32(0),
+					Records:           []types.PutRecordsResultEntry{ok, {}},
+				}
+			},
+			wantCalls: [][]int{{0, 1}, {1}},
+		},
+		{
+			name: "positive failure count but all entries accepted",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{
+					FailedRecordCount: aws.Int32(1),
+					Records:           []types.PutRecordsResultEntry{ok, ok},
+				}
+			},
+			wantCalls: [][]int{{0, 1}},
+		},
+		{
+			name: "fewer results than records resends everything",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{
+					FailedRecordCount: aws.Int32(0),
+					Records:           []types.PutRecordsResultEntry{ok},
+				}
+			},
+			wantCalls: [][]int{{0, 1}, {0, 1}},
+		},
+		{
+			name: "more results than records resends everything",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{
+					FailedRecordCount: aws.Int32(0),
+					Records:           []types.PutRecordsResultEntry{ok, ok, ok},
+				}
+			},
+			wantCalls: [][]int{{0, 1}, {0, 1}},
+		},
+		{
+			name: "no results at all resends everything",
+			first: func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput {
+				return &kinesis.PutRecordsOutput{}
+			},
+			wantCalls: [][]int{{0, 1}, {0, 1}},
+		},
+		{
+			name:      "nil output resends everything",
+			first:     func(*kinesis.PutRecordsInput) *kinesis.PutRecordsOutput { return nil },
+			wantCalls: [][]int{{0, 1}, {0, 1}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			s := &responseSender{respond: func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
+				if call == 0 {
+					return tt.first(in), nil
+				}
+				out := &kinesis.PutRecordsOutput{FailedRecordCount: aws.Int32(0)}
+				for range in.Records {
+					out.Records = append(out.Records, ok)
+				}
+				return out, nil
+			}}
+			err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))
+			require.NoError(t, err)
+			want := make([][]string, 0, len(tt.wantCalls))
+			for _, idx := range tt.wantCalls {
+				want = append(want, encoded(t, idx...))
+			}
+			assert.Equal(t, want, s.calls)
+		})
+	}
+}
+
+func TestExporter_UnverifiableResponsesNeverAcknowledged(t *testing.T) {
+	t.Parallel()
+	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+	s := &responseSender{respond: func(int, *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
+		return nil, nil
+	}}
+	err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))
+	require.Error(t, err)
+	assert.Len(t, s.calls, maxAttempts)
+}

@@ -273,7 +273,6 @@ func (e *Exporter) sendChunk(
 ) error {
 	pending := input.Records
 	total := len(pending)
-	var failures []types.PutRecordsResultEntry
 
 	for attempt := 1; ; attempt++ {
 		req := *input
@@ -282,23 +281,7 @@ func (e *Exporter) sendChunk(
 		if err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
-		if output == nil || aws.ToInt32(output.FailedRecordCount) == 0 {
-			return nil
-		}
-		if len(output.Records) != len(pending) {
-			return fmt.Errorf(
-				"send: %d of %d records failed but the response has %d per-record results",
-				aws.ToInt32(output.FailedRecordCount), len(pending), len(output.Records))
-		}
-
-		var retry []types.PutRecordsRequestEntry
-		failures = failures[:0]
-		for i, res := range output.Records {
-			if res.ErrorCode != nil || res.ErrorMessage != nil {
-				retry = append(retry, pending[i])
-				failures = append(failures, res)
-			}
-		}
+		retry, failures := rejectedRecords(pending, output)
 		if len(retry) == 0 {
 			return nil
 		}
@@ -315,6 +298,42 @@ func (e *Exporter) sendChunk(
 				len(retry), total, err)
 		}
 	}
+}
+
+// rejectedRecords returns the records of pending that are not confirmed as delivered, together
+// with the matching result entries (when available, for error reporting).
+//
+// A record is only considered delivered when its own positional result entry carries a
+// SequenceNumber and no error. The aggregate FailedRecordCount is deliberately ignored: it is
+// optional in the SDK and can contradict the per-record results. When the response cannot be
+// matched to the request (nil output, or a different number of results) nothing can be
+// confirmed, so every record is treated as failed and resent (at-least-once).
+func rejectedRecords(
+	pending []types.PutRecordsRequestEntry,
+	output *kinesis.PutRecordsOutput,
+) ([]types.PutRecordsRequestEntry, []types.PutRecordsResultEntry) {
+	if output == nil || len(output.Records) != len(pending) {
+		unknown := types.PutRecordsResultEntry{
+			ErrorCode:    aws.String("UnverifiableResponse"),
+			ErrorMessage: aws.String("response does not match the request"),
+		}
+		failures := make([]types.PutRecordsResultEntry, len(pending))
+		for i := range failures {
+			failures[i] = unknown
+		}
+		return pending, failures
+	}
+
+	var retry []types.PutRecordsRequestEntry
+	var failures []types.PutRecordsResultEntry
+	for i, res := range output.Records {
+		if res.ErrorCode == nil && res.ErrorMessage == nil && res.SequenceNumber != nil {
+			continue
+		}
+		retry = append(retry, pending[i])
+		failures = append(failures, res)
+	}
+	return retry, failures
 }
 
 func distinctCodes(failures []types.PutRecordsResultEntry) string {
