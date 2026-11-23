@@ -1,0 +1,33 @@
+Semaphore
+Copyright (c) 2026 BlackbirdWorks
+
+Semaphore is a derivative work of GO Feature Flag.
+
+  GO Feature Flag
+  Copyright (c) 2020 Thomas Poignant
+  Licensed under the MIT License
+  Source: https://github.com/thomaspoignant/go-feature-flag
+
+Modifications made in this repository are Copyright (c) 2026 BlackbirdWorks and are
+released under the same MIT License. The upstream commit this work is based on, and
+how this tree differs from upstream, are recorded in UPSTREAM.md.
+
+Third-party works included in this repository
+---------------------------------------------
+
+rules/ - Rules engine
+  Copyright (c) 2019 Nikunj Yadav
+  Licensed under the MIT License (see rules/LICENSE)
+  Original source: https://github.com/nikunjy/rules
+  The directory is a vendored copy of https://github.com/go-feature-flag/rules (see
+  rules/README.md and UPSTREAM.md), a fork of the project above, with local changes.
+
+Licence texts
+-------------
+
+  LICENSE        MIT License, Copyright (c) 2020 Thomas Poignant (the whole repository)
+  rules/LICENSE  MIT License, Copyright (c) 2019 Nikunj Yadav (the rules/ directory)
+
+No other directory in this repository carries a separate licence file or copyright
+header. Go dependencies are fetched through go.mod and are covered by their own
+licences.

@@ -54,17 +54,14 @@ Done in this tree:
 - WASM/WASI build of the evaluation engine removed (`cmd/wasm`, TinyGo-specific code paths, wasm release workflows/scripts).
 - Go toolchain pinned to the latest release (`go 1.27.4`) in all modules.
 - `modules/core` and `rules` are consumed through local `replace` directives, not released module versions.
+- Docs website, bundled OpenFeature provider SDKs (`openfeature/providers`, including the python provider's WASM submodule), `examples/` and the upstream release/community tooling removed; plain Markdown docs live in `docs/`.
 - gopherstack-based end-to-end tests (`testutils/gopherstack`, `*_e2e_test.go`, build tag `docker`).
 
 Planned, not done yet:
 
 - Go module path rename to `github.com/blackbirdworks/go-feature-flag`.
 - Lint rules ported from BlackbirdWorks/gopherstack (`.golangci.yml` currently differs from upstream only by the local `replace` and `rules/` entries).
-- Removal of the docs website, OpenFeature provider sources and upstream release machinery.
 - CI reworked.
-
-Still present although WASM was removed: `openfeature/providers/python-provider` references WASM and the
-`wasm-releases` submodule; handle it with the provider removal above.
 
 ## Sync log
 
