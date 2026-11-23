@@ -36,3 +36,14 @@ func RedactURLError(err error) error {
 	}
 	return &url.Error{Op: urlErr.Op, URL: RedactedURL, Err: cause}
 }
+
+// RedactURL returns a URL that is safe to put in an error or a log: only the scheme, the host and the path are
+// kept. The user info, the query string and the fragment may carry credentials, so they are dropped.
+// A value that can not be parsed is replaced entirely, because its content is unknown.
+func RedactURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return RedactedURL
+	}
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.Path, RawPath: u.RawPath, Opaque: u.Opaque}).String()
+}

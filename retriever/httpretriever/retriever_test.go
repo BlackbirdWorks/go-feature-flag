@@ -2,10 +2,13 @@ package httpretriever_test
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
 	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
 )
@@ -156,4 +159,23 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 			}
 		})
 	}
+}
+
+type statusClient struct{ code int }
+
+func (c statusClient) Do(_ *http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: c.code, Body: io.NopCloser(strings.NewReader(""))}, nil
+}
+
+func TestRetriever_ErrorDoesNotLeakCredentials(t *testing.T) {
+	t.Parallel()
+	h := httpretriever.Retriever{
+		URL: "https://user:SECRETMARKER@flags.example.com/path/flags.yaml?token=SECRETMARKER",
+	}
+	h.SetHTTPClient(statusClient{code: http.StatusForbidden})
+	_, err := h.Retrieve(context.Background())
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRETMARKER")
+	assert.Contains(t, err.Error(), "flags.example.com/path/flags.yaml")
+	assert.Contains(t, err.Error(), "403")
 }
