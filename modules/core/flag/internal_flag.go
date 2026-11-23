@@ -75,6 +75,13 @@ func (f *InternalFlag) Value(
 		evaluationCtx = ffcontext.NewEvaluationContext("")
 	}
 
+	// The enrichment is applied first: its currentDateTime is the date of the evaluation (scheduled
+	// steps, experimentation and progressive rollout). The caller's context must not be modified
+	// (it can be shared by concurrent evaluations), so we work on an enriched view of it.
+	if len(flagContext.EvaluationContextEnrichment) > 0 {
+		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
+	}
+
 	evaluationDate := DateFromContextOrDefault(evaluationCtx, time.Now())
 	flag, err := f.applyScheduledRolloutSteps(evaluationDate)
 	if err != nil {
@@ -84,11 +91,6 @@ func (f *InternalFlag) Value(
 			ErrorCode:    ErrorCodeGeneral,
 			ErrorMessage: err.Error(),
 		}
-	}
-
-	if len(flagContext.EvaluationContextEnrichment) > 0 {
-		// the caller's context must not be modified (it can be shared by concurrent evaluations).
-		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
 	key, keyError := flag.GetBucketingKeyValue(evaluationCtx)
@@ -119,12 +121,22 @@ func (f *InternalFlag) Value(
 				Reason:       ReasonError,
 				ErrorCode:    ErrorFlagConfiguration,
 				ErrorMessage: err.Error(),
-				Metadata:     flag.GetMetadata(),
+				Metadata:     flag.detachedMetadata(f),
 			}
 	}
 
 	value := flag.GetVariationValue(variationSelection.name)
-	if flag != f {
+	ruleName := variationSelection.ruleName
+	var metadata map[string]any
+	if flag == f {
+		metadata = constructMetadata(flag.GetMetadata(), ruleName)
+	} else {
+		// the metadata and the rule name of a memoized flag are shared too (see detachedMetadata).
+		metadata = constructMetadata(flag.detachedMetadata(f), ruleName)
+		if ruleName != nil {
+			name := *ruleName
+			ruleName = &name
+		}
 		// flag is a memoized (shared, read-only) flag built from the scheduled rollout steps: the
 		// caller owns the value it receives, as it did when the flag was copied at each evaluation.
 		value = cloneVariationValue(value)
@@ -133,9 +145,9 @@ func (f *InternalFlag) Value(
 		Variant:   variationSelection.name,
 		Reason:    variationSelection.reason,
 		RuleIndex: variationSelection.ruleIndex,
-		RuleName:  variationSelection.ruleName,
+		RuleName:  ruleName,
 		Cacheable: variationSelection.cacheable,
-		Metadata:  constructMetadata(flag.GetMetadata(), variationSelection.ruleName),
+		Metadata:  metadata,
 	}
 }
 
@@ -563,6 +575,22 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 		return defaultDate
 	}
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
+}
+
+// detachedMetadata returns the metadata of the flag, copied when the flag is a memoized flag built
+// from f (shared, read-only) because the caller owns what it receives.
+func (f *InternalFlag) detachedMetadata(original *InternalFlag) map[string]any {
+	if f == original {
+		return f.GetMetadata()
+	}
+	return cloneMetadata(f.GetMetadata())
+}
+
+func cloneMetadata(m map[string]any) map[string]any {
+	if m == nil {
+		return nil
+	}
+	return cloneVariationValue(m).(map[string]any)
 }
 
 // cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the
