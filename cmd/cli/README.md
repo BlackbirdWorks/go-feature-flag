@@ -12,10 +12,10 @@ For now it supports the following commands:
 ## How to build the cli
 
 ```shell
-make build-cli   # from the repository root; binary: out/bin/cli
+make build-cli   # from the repository root; binary: out/bin/semaphore-cli
 ```
 
-The examples below call the binary `go-feature-flag-cli`; use `out/bin/cli` (or rename it).
+The examples below call the binary `semaphore-cli`; use `out/bin/semaphore-cli`.
 
 # How to use the command line
 

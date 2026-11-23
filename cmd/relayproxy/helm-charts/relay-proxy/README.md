@@ -14,7 +14,7 @@ After changing the working directory to `cmd/relayproxy/helm-charts/relay-proxy`
 run the below command:
 
 ```shell
-helm install . --name-template=go-feature-flag-relay-proxy
+helm install . --name-template=semaphore
 ```
 
 It will install the chart in your cluster.

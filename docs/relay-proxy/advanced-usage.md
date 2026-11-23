@@ -105,14 +105,14 @@ file at the repo root; the Makefile target reads from it.
 make build-relayproxy-fips
 ```
 
-This produces `out/bin/relayproxy-fips`, built with `GOFIPS140=v1.0.0`.
+This produces `out/bin/semaphore-fips`, built with `GOFIPS140=v1.0.0`.
 
 ### Verifying FIPS mode
 
 **At build level** — confirm the binary was compiled against the Go Cryptographic Module:
 
 ```shell
-go version -m ./out/bin/relayproxy-fips | grep GOFIPS140
+go version -m ./out/bin/semaphore-fips | grep GOFIPS140
 # build	GOFIPS140=v1.0.0-<commit>
 ```
 
@@ -131,7 +131,7 @@ A standard (non-FIPS) build logs `"fips140":false`.
 fail if any non-FIPS-approved cryptographic algorithm is used:
 
 ```shell
-GODEBUG=fips140=only ./out/bin/relayproxy-fips --config=/goff/config.yaml
+GODEBUG=fips140=only ./out/bin/semaphore-fips --config=/goff/config.yaml
 ```
 
 ### Recommended hardening for FedRAMP deployments (Helm)

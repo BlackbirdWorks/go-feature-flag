@@ -18,9 +18,9 @@ wait_relay_proxy () {
 # we are launching 2 relay proxies because one is authenticated and the other is not.
 make vendor
 make build-relayproxy
-./out/bin/relayproxy --config $(pwd)/openfeature/provider_tests/goff-proxy.yaml &
+./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy.yaml &
 RELAY_PROXY_PID=$!
-./out/bin/relayproxy --config $(pwd)/openfeature/provider_tests/goff-proxy-authenticated.yaml &
+./out/bin/semaphore --config $(pwd)/openfeature/provider_tests/goff-proxy-authenticated.yaml &
 RELAY_PROXY_PID_AUTHENTICATED=$!
 
 # Waiting for the relay proxies to be ready

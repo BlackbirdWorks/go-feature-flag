@@ -1,4 +1,6 @@
 FROM gcr.io/distroless/static-debian13:latest
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/go-feature-flag-fips /go-feature-flag-fips
-CMD ["/go-feature-flag-fips"]
+COPY $TARGETPLATFORM/semaphore-fips /semaphore-fips
+COPY LICENSE NOTICE /licenses/
+COPY rules/LICENSE /licenses/rules-LICENSE
+CMD ["/semaphore-fips"]

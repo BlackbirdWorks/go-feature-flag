@@ -32,18 +32,18 @@ create-out-dir:
 	mkdir -p out/contrib
 
 build-relayproxy: create-out-dir ## Build the relay proxy in out/bin/
-	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/relayproxy ./cmd/relayproxy/
+	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/semaphore ./cmd/relayproxy/
 
 # Single source of truth for the FIPS module version.
 GOFIPS140_VERSION := $(shell cat .fips-version | tr -d '[:space:]')
 
 build-relayproxy-fips: create-out-dir ## Build the relay proxy in FIPS 140-3 mode in out/bin/
-	CGO_ENABLED=0 GOFIPS140=$(GOFIPS140_VERSION) GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/relayproxy-fips ./cmd/relayproxy/
+	CGO_ENABLED=0 GOFIPS140=$(GOFIPS140_VERSION) GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/semaphore-fips ./cmd/relayproxy/
 
 # Local docker image of the relay proxy, built from source. The DockerfileGoreleaser*
 # files are release artifacts (they only COPY an already cross-compiled binary), so
 # cmd/relayproxy/Dockerfile.local is the one that can be built by hand.
-RELAYPROXY_IMAGE ?= go-feature-flag:local
+RELAYPROXY_IMAGE ?= semaphore:local
 RELAYPROXY_IMAGE_VERSION ?= localdev
 
 build-relayproxy-docker: ## Build a local docker image of the relay proxy from source
@@ -52,7 +52,7 @@ build-relayproxy-docker: ## Build a local docker image of the relay proxy from s
 		-t $(RELAYPROXY_IMAGE) .
 
 build-cli: create-out-dir ## Build the cli in out/bin/
-	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/cli ./cmd/cli/
+	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/semaphore-cli ./cmd/cli/
 
 build-jsonschema-generator: create-out-dir ## Build the jsonschema-generator in out/bin/
 	CGO_ENABLED=0 GO111MODULE=on $(GOWORK_ENV) $(GOCMD) build $(MODFLAG) -o out/bin/jsonschema-generator ./cmd/jsonschema-generator/
@@ -100,10 +100,10 @@ workspace-init:
 watch-relayproxy: ## Launch the relay proxy in watch mode.
 	docker run -it --rm -w /go/src/github.com/blackbirdworks/semaphore/ \
 		-v $(shell pwd):/go/src/github.com/blackbirdworks/semaphore \
-		-v $(shell pwd)/cmd/relayproxy/testdata/config/valid-file.yaml:/goff/goff-proxy.yaml \
+		-v $(shell pwd)/cmd/relayproxy/testdata/config/valid-file.yaml:/semaphore/semaphore-proxy.yaml \
 		-p 1031:1031 cosmtrek/air \
-		--build.cmd "$(GOWORK_ENV) go build $(MODFLAG) -o out/bin/relayproxy ./cmd/relayproxy/" \
-		--build.bin "./out/bin/relayproxy"
+		--build.cmd "$(GOWORK_ENV) go build $(MODFLAG) -o out/bin/semaphore ./cmd/relayproxy/" \
+		--build.bin "./out/bin/semaphore"
 
 swagger: ## Build swagger documentation
 	$(GOWORK_ENV) $(GOCMD) install github.com/swaggo/swag/cmd/swag@latest

@@ -13,7 +13,7 @@ relayproxy:
     exporter:
       kind: log
     enableSwagger: true
-#    envVariablePrefix: "GOFFPROXY_"
+#    envVariablePrefix: "SEMAPHORE_"
 # -- Environment variables to pass to the relay proxy
 env: {}
 # Examples:

@@ -20,7 +20,7 @@ maintainers, and it is unrelated to other products or services that share the na
 Build the relay proxy and run it with a file retriever (requires Go, see `go.mod`):
 
 ```shell
-make build-relayproxy        # binary: out/bin/relayproxy
+make build-relayproxy        # binary: out/bin/semaphore
 
 cat > flags.goff.yaml <<'YAML'
 new-checkout:
@@ -42,7 +42,7 @@ retrievers:
     path: ./flags.goff.yaml
 YAML
 
-./out/bin/relayproxy --config goff-proxy.yaml
+./out/bin/semaphore --config goff-proxy.yaml
 ```
 
 Evaluate the flag through OFREP from another terminal:

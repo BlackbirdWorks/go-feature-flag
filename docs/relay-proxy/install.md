@@ -7,7 +7,7 @@ Requires Go (see `go.mod` for the version).
 ```shell
 git clone https://github.com/BlackbirdWorks/semaphore.git
 cd go-feature-flag
-make build-relayproxy   # binary: out/bin/relayproxy
+make build-relayproxy   # binary: out/bin/semaphore
 ```
 
 ## Docker

@@ -12,8 +12,8 @@ provider, a bucket, a database, ...) and exposes HTTP APIs to evaluate your flag
 ## Quick start
 
 ```shell
-make build-relayproxy        # from the repository root; binary: out/bin/relayproxy
-./out/bin/relayproxy --config=/path/to/goff-proxy.yaml
+make build-relayproxy        # from the repository root; binary: out/bin/semaphore
+./out/bin/semaphore --config=/path/to/goff-proxy.yaml
 ```
 
 If `--config` is not provided, the relay proxy looks for a file named `goff-proxy.yaml` in the current

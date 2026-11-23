@@ -7,37 +7,9 @@ before:
 dist: release
 
 builds:
-  # DEPRECATED: check go-feature-flag
-  # We aim to deprecate the name relay proxy, so the main build should be called go-feature-flag
-  - id: go-feature-flag-relay-proxy
+  - id: semaphore
     main: ./cmd/relayproxy
-    binary: go-feature-flag-relay-proxy
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-      - linux
-      - windows
-    goarch:
-      - 386
-      - amd64
-      - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: linux
-        goarch: arm
-        goarm: 6
-      - goos: windows
-        goarch: arm
-
-  - id: go-feature-flag
-    main: ./cmd/relayproxy
-    binary: go-feature-flag
+    binary: semaphore
     env:
       - CGO_ENABLED=0
     goos:
@@ -64,9 +36,9 @@ builds:
   # FIPS 140-3 build of the relay proxy.
   # Built with GOFIPS140 (Go Cryptographic Module, CMVP validated), which bakes a default
   # GODEBUG=fips140=on into the binary so it runs in FIPS mode out of the box.
-  - id: go-feature-flag-fips
+  - id: semaphore-fips
     main: ./cmd/relayproxy
-    binary: go-feature-flag-fips
+    binary: semaphore-fips
     env:
       - CGO_ENABLED=0
       # Version is read from the .fips-version file at the repo root and injected via the
@@ -79,9 +51,9 @@ builds:
       - amd64
       - arm64
 
-  - id: go-feature-flag-cli
+  - id: semaphore-cli
     main: ./cmd/cli
-    binary: go-feature-flag-cli
+    binary: semaphore-cli
     env:
       - CGO_ENABLED=0
     goos:
@@ -106,7 +78,7 @@ builds:
         goarch: arm
 
   # Build an AWS lambda compatible binary
-  - id: go-feature-flag-lambda
+  - id: semaphore-lambda
     main: ./cmd/relayproxy
     binary: bootstrap
     env:
@@ -119,9 +91,8 @@ builds:
       - "7"
 
 archives:
-  # DEPRECATED: check go-feature-flag
-  - id: go-feature-flag-relay-proxy
-    name_template: "go-feature-flag-relay-proxy_\
+  - id: semaphore
+    name_template: "semaphore_\
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
@@ -131,13 +102,13 @@ archives:
       {{- with .Mips }}_{{ . }}{{ end }}\
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
-      - go-feature-flag-relay-proxy
+      - semaphore
     files:
       - LICENSE
       - NOTICE
 
-  - id: go-feature-flag
-    name_template: "go-feature-flag_\
+  - id: semaphore-fips
+    name_template: "semaphore-fips_\
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
@@ -147,13 +118,13 @@ archives:
       {{- with .Mips }}_{{ . }}{{ end }}\
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
-      - go-feature-flag
+      - semaphore-fips
     files:
       - LICENSE
       - NOTICE
 
-  - id: go-feature-flag-fips
-    name_template: "go-feature-flag-fips_\
+  - id: semaphore-cli
+    name_template: "semaphore-cli_\
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
@@ -163,32 +134,16 @@ archives:
       {{- with .Mips }}_{{ . }}{{ end }}\
       {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
     ids:
-      - go-feature-flag-fips
+      - semaphore-cli
     files:
       - LICENSE
       - NOTICE
 
-  - id: go-feature-flag-cli
-    name_template: "go-feature-flag-cli_\
-      {{ .Version }}_\
-      {{- title .Os }}_\
-      {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
-    ids:
-      - go-feature-flag-cli
-    files:
-      - LICENSE
-      - NOTICE
-
-  - id: goff-lambda
-    name_template: "go-feature-flag-aws-lambda_{{ .Version }}"
+  - id: semaphore-lambda
+    name_template: "semaphore-aws-lambda_{{ .Version }}"
     formats: zip
     ids:
-      - go-feature-flag-lambda
+      - semaphore-lambda
 
 checksum:
   name_template: "checksums.txt"
@@ -204,11 +159,15 @@ changelog:
       - "vendor"
 
 dockers_v2:
-  # go-feature-flag 
-  - id: go-feature-flag
+  # semaphore
+  - id: semaphore
     ids:
-      - go-feature-flag
+      - semaphore
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaser
+    extra_files:
+      - LICENSE
+      - NOTICE
+      - rules/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -222,21 +181,25 @@ dockers_v2:
       - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
+      "org.opencontainers.image.description": "A stand alone server to run Semaphore"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
-      "org.opencontainers.image.title": "go-feature-flag"
+      "org.opencontainers.image.title": "semaphore"
       "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
-  # go-feature-flag-fips (FIPS 140-3 build, gofeatureflag)
+  # semaphore-fips (FIPS 140-3 build, semaphore)
   # Shares the ghcr.io/blackbirdworks/semaphore repo with the standard build, so every tag
   # MUST keep the `-fips` suffix to avoid overwriting the non-FIPS images.
-  - id: go-feature-flag-fips
+  - id: semaphore-fips
     ids:
-      - go-feature-flag-fips
+      - semaphore-fips
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserFips
+    extra_files:
+      - LICENSE
+      - NOTICE
+      - rules/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -249,19 +212,23 @@ dockers_v2:
       - linux/arm64
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag, built in FIPS 140-3 mode (GOFIPS140)"
+      "org.opencontainers.image.description": "A stand alone server to run Semaphore, built in FIPS 140-3 mode (GOFIPS140)"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
-      "org.opencontainers.image.title": "go-feature-flag-fips"
+      "org.opencontainers.image.title": "semaphore-fips"
       "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
-  # go-feature-flag-bookworm
-  - id: go-feature-flag-bookworm
+  # semaphore-bookworm
+  - id: semaphore-bookworm
     ids:
-      - go-feature-flag
+      - semaphore
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserBookworm
+    extra_files:
+      - LICENSE
+      - NOTICE
+      - rules/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -275,19 +242,23 @@ dockers_v2:
       - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
+      "org.opencontainers.image.description": "A stand alone server to run Semaphore"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
-      "org.opencontainers.image.title": "go-feature-flag"
+      "org.opencontainers.image.title": "semaphore"
       "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
-  # go-feature-flag-trixie
-  - id: go-feature-flag-trixie
+  # semaphore-trixie
+  - id: semaphore-trixie
     ids:
-      - go-feature-flag
+      - semaphore
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserTrixie
+    extra_files:
+      - LICENSE
+      - NOTICE
+      - rules/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -301,19 +272,23 @@ dockers_v2:
       - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
+      "org.opencontainers.image.description": "A stand alone server to run Semaphore"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
-      "org.opencontainers.image.title": "go-feature-flag"
+      "org.opencontainers.image.title": "semaphore"
       "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # cli
-  - id: go-feature-flag-cli
+  - id: semaphore-cli
     ids:
-      - go-feature-flag-cli
+      - semaphore-cli
     dockerfile: ./cmd/cli/Dockerfile
+    extra_files:
+      - LICENSE
+      - NOTICE
+      - rules/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore-cli
     tags:
@@ -327,10 +302,10 @@ dockers_v2:
       - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
-      "org.opencontainers.image.description": "A command line tool to manage GO Feature Flag from your terminal"
+      "org.opencontainers.image.description": "A command line tool to manage Semaphore from your terminal"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
-      "org.opencontainers.image.title": "go-feature-flag-cli"
+      "org.opencontainers.image.title": "semaphore-cli"
       "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 snapshot:

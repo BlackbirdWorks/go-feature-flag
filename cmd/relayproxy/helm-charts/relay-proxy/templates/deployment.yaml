@@ -68,7 +68,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           volumeMounts:
             - name: relay-proxy-config-volume
-              mountPath: /goff
+              mountPath: /semaphore
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
