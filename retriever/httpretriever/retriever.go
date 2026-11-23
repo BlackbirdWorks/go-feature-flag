@@ -10,10 +10,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/shared"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/shared"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // Retriever is a configuration struct for an HTTP endpoint retriever.

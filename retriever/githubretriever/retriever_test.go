@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/retriever/githubretriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
 )
 
 func Test_github_Retrieve(t *testing.T) {

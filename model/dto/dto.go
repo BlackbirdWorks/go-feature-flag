@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
 )
 
 type DTO = dto.DTO

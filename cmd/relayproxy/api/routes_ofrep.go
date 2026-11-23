@@ -1,9 +1,9 @@
 package api
 
 import (
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/labstack/echo/v5"
 	etag "github.com/pablor21/echo-etag/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/ofrep"
 )
 
 func (s *Server) addOFREPRoutes(cFlagEvalOFREP ofrep.EvaluateCtrl, authMiddleware echo.MiddlewareFunc) {

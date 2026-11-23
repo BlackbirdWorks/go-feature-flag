@@ -13,8 +13,8 @@
 // Before using the module you need to initialize it this way:
 //
 //	 import (
-//		  ffclient "github.com/thomaspoignant/go-feature-flag"
-//		  "github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
+//		  ffclient "github.com/blackbirdworks/semaphore"
+//		  "github.com/blackbirdworks/semaphore/retriever/httpretriever"
 //		  ...
 //	 )
 //

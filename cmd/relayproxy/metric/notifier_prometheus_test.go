@@ -3,10 +3,10 @@ package metric
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 )
 
 func TestPrometheusNotifier_with_diff(t *testing.T) {

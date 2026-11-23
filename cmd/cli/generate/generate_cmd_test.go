@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate"
 )
 
 type generateCmdTestCase struct {

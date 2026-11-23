@@ -1,8 +1,8 @@
 package api
 
 import (
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
 	"github.com/labstack/echo/v5"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
 )
 
 func (s *Server) addAdminRoutes(

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 // gatedSink is a log handler that blocks the records about dropped events until gate is closed.

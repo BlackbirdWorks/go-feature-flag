@@ -24,9 +24,9 @@ import (
     "log"
     "time"
 
-    "github.com/thomaspoignant/go-feature-flag/exporter/pubsubexporterv2"
-    "github.com/thomaspoignant/go-feature-flag/ffclient"
-    "github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
+    "github.com/blackbirdworks/semaphore/exporter/pubsubexporterv2"
+    "github.com/blackbirdworks/semaphore/ffclient"
+    "github.com/blackbirdworks/semaphore/retriever/httpretriever"
 )
 
 func main() {
@@ -143,10 +143,10 @@ If you're currently using the legacy `pubsubexporter` (v1), migrating to `pubsub
 
 ```go
 // Before (v1 - deprecated)
-import "github.com/thomaspoignant/go-feature-flag/exporter/pubsubexporter"
+import "github.com/blackbirdworks/semaphore/exporter/pubsubexporter"
 
 // After (v2 - recommended)
-import "github.com/thomaspoignant/go-feature-flag/exporter/pubsubexporterv2"
+import "github.com/blackbirdworks/semaphore/exporter/pubsubexporterv2"
 ```
 
 ### Step 2: Update Struct Reference
@@ -178,8 +178,8 @@ The v2 exporter uses `cloud.google.com/go/pubsub/v2`, but this is automatically 
 package main
 
 import (
-    "github.com/thomaspoignant/go-feature-flag/ffclient"
-    "github.com/thomaspoignant/go-feature-flag/exporter/pubsubexporter"
+    "github.com/blackbirdworks/semaphore/ffclient"
+    "github.com/blackbirdworks/semaphore/exporter/pubsubexporter"
 )
 
 func main() {
@@ -198,8 +198,8 @@ func main() {
 package main
 
 import (
-    "github.com/thomaspoignant/go-feature-flag/ffclient"
-    "github.com/thomaspoignant/go-feature-flag/exporter/pubsubexporterv2"
+    "github.com/blackbirdworks/semaphore/ffclient"
+    "github.com/blackbirdworks/semaphore/exporter/pubsubexporterv2"
 )
 
 func main() {

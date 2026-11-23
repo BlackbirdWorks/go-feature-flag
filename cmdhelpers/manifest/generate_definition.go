@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (

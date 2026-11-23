@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
+	ffClient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
+	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
+	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
-	ffClient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/githubretriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/gitlabretriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/s3retrieverv2"
 )
 
 func TestConfig_Initialize(t *testing.T) {

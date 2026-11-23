@@ -3,9 +3,9 @@ package controller
 import (
 	"net/http"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
 	"go.uber.org/zap"
 )
 

@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/nikunjy/rules/parser"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/internalerror"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 type QueryFormat = string

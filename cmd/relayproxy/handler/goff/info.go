@@ -3,8 +3,8 @@ package controller
 import (
 	"net/http"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
 )
 
 type info struct {

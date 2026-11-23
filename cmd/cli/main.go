@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/spf13/cobra"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/evaluate"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/linter"
 )
 
 func main() {

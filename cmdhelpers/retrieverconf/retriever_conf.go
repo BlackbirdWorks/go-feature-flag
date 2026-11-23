@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/err"
-	"github.com/thomaspoignant/go-feature-flag/internal/folderloader"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/err"
+	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
 var DefaultRetrieverConfig = struct {

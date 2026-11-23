@@ -12,8 +12,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 var _ notifier.Notifier = &Notifier{}

@@ -12,10 +12,10 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )

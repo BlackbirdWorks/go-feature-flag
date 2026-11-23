@@ -3,8 +3,8 @@ package ffclient
 import (
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 )
 
 // Track is used to track an event.

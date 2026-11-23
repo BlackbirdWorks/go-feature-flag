@@ -3,7 +3,7 @@ package internalerror
 import (
 	"fmt"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 type RuleNotApplyError struct {

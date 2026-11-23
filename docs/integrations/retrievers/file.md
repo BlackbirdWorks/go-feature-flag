@@ -30,7 +30,7 @@ To configure your GO module to use the File System retriever, you need to add th
 configuration to your `ffclient.Config{}` object:
 
 ```go
-import 	"github.com/thomaspoignant/go-feature-flag/retriever/file"
+import 	"github.com/blackbirdworks/semaphore/retriever/file"
 // ...
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,

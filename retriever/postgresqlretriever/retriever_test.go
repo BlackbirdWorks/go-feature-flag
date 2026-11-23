@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	testcontainerPostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/postgresqlretriever"
 )
 
 var postgreSQLContainerList = make(map[string]*testcontainerPostgres.PostgresContainer)

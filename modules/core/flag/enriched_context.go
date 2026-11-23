@@ -3,7 +3,7 @@ package flag
 import (
 	"maps"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 // enrichedContext is an evaluation context seen with the evaluation context enrichment merged

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
 var client *ffclient.GoFeatureFlag

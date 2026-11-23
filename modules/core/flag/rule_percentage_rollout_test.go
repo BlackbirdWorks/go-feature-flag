@@ -5,9 +5,9 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 // TestEvaluatePercentageRollout_PinnedAssignments pins the bucketing of known keys. The expected values were

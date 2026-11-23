@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 // outageExporter fails until recovered is set, then counts what it receives.

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // compiledQueryCache memoizes the trimmed form, format and decoded JsonLogic rule per raw query.

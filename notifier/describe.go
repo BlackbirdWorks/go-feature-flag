@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // DescribeChanges returns one sentence per change between two versions of a flag,

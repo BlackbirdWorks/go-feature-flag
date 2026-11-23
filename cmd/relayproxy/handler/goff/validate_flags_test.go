@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
 )
 
 const (

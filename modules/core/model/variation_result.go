@@ -3,7 +3,7 @@ package model
 import (
 	"encoding/json"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // JSONType contains all acceptable flag value types

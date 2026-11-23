@@ -6,8 +6,8 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 // newAwsLambdaHandlerManager is creating a new awsLambdaHandler struct with the httpadapter

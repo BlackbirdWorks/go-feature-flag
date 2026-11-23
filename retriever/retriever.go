@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // Retriever is the interface to create a Retriever to load you flags.

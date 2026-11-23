@@ -44,7 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_go_feature_flag_flagset_flag_name ON go_feature_f
 ALTER TABLE go_feature_flag ADD CONSTRAINT unique_flag_per_flagset UNIQUE (flag_name, flagset);
 ```
 
-You can use the [init_table.sql](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/retriever/postgresqlretriever/testdata/sql/init.sql) file as a reference to create your table.
+You can use the [init_table.sql](https://github.com/BlackbirdWorks/semaphore/blob/main/retriever/postgresqlretriever/testdata/sql/init.sql) file as a reference to create your table.
 
 ## Filter on flagset
 

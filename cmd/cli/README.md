@@ -177,11 +177,11 @@ go-feature-flag-cli lint <location_of_your_flag_configuration_file> --format="<y
 
 # License
 
-View [license](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE) information for the software
+View [license](https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE) information for the software
 contained in this image.
 
 ## How can I contribute?
 
 This project is open for contribution, see
-the [contributor's guide](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/CONTRIBUTING.md) for some helpful
+the [contributor's guide](https://github.com/BlackbirdWorks/semaphore/blob/main/CONTRIBUTING.md) for some helpful
 tips.

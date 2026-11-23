@@ -70,7 +70,7 @@ services:
       - "9001:9001"
 
   relay-proxy:
-    image: ghcr.io/blackbirdworks/go-feature-flag:latest
+    image: ghcr.io/blackbirdworks/semaphore:latest
     depends_on:
       - minio
     volumes:

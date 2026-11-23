@@ -1,5 +1,5 @@
 # Notify flag changes
-If you want to be informed when a flag has changed, you can configure a [**notifier**](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#NotifierConfig).
+If you want to be informed when a flag has changed, you can configure a [**notifier**](https://pkg.go.dev/github.com/blackbirdworks/semaphore#NotifierConfig).
 
 A notifier will send one notification to the targeted system to inform them that a new flag configuration has been loaded.
 

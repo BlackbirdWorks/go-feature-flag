@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
 
 func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) {

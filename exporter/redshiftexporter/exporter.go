@@ -19,8 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshiftdata/types"
 	"github.com/aws/smithy-go"
 	smithyjson "github.com/aws/smithy-go/encoding/json"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (

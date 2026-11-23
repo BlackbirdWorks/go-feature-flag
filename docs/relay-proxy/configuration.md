@@ -330,7 +330,7 @@ and `ENDPOINTS_VALIDATEFLAGS_MAXTOMLBODYSIZE` (for example `ENDPOINTS_VALIDATEFL
 
 > [!WARNING]
 > The YAML and TOML limits are lower than the JSON one on purpose: the parsing cost of those formats grows
-> quadratically with the size of the body (tracked in [#6439](https://github.com/BlackbirdWorks/go-feature-flag/issues/6439)).
+> quadratically with the size of the body (tracked in [#6439](https://github.com/BlackbirdWorks/semaphore/issues/6439)).
 > Raising them exposes the relay proxy to slower requests, so keep them as small as your flag files allow.
 
 - option name: `endpoints`

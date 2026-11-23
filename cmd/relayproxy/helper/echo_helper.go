@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"strings"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/labstack/echo/v5"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
 )
 
 // APIKey extracts the API key from the request headers.

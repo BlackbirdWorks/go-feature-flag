@@ -3,8 +3,8 @@ package config_test
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 func TestConfigIsSwaggerEnabled(t *testing.T) {

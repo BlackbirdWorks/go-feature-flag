@@ -70,11 +70,11 @@ relayproxy:
       kind: log
 ```
 
-**Homepage:** <https://github.com/BlackbirdWorks/go-feature-flag>
+**Homepage:** <https://github.com/BlackbirdWorks/semaphore>
 
 ## Source Code
 
-* <https://github.com/BlackbirdWorks/go-feature-flag>
+* <https://github.com/BlackbirdWorks/semaphore>
 
 ## Values
 
@@ -336,7 +336,7 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"ghcr.io/blackbirdworks/go-feature-flag"
+"ghcr.io/blackbirdworks/semaphore"
 </pre>
 </div>
 			</td>
@@ -658,7 +658,7 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
+"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
 </pre>
 </div>
 			</td>

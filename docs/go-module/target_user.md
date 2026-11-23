@@ -52,11 +52,11 @@ Anonymous users work just like regular users, this information just helps you to
 ## Variation
 The Variation methods determine whether a flag is enabled or not for a specific user.
 There is a Variation method for each type:   
-[`BoolVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#BoolVariation) , [`IntVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#IntVariation)
-, [`Float64Variation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#Float64Variation)
-, [`StringVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#StringVariation)
-, [`JSONArrayVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#JSONArrayVariation)
-, [`JSONVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#JSONVariation)
+[`BoolVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariation) , [`IntVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariation)
+, [`Float64Variation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64Variation)
+, [`StringVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariation)
+, [`JSONArrayVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariation)
+, [`JSONVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariation)
 
 ```go showLineNumbers
 result, _ := ffclient.BoolVariation("your.feature.key", user, false)
@@ -74,12 +74,12 @@ Not that you will always have a usable value in the result.
 ## Variation details
 If you want more information about your flag evaluation, you can use the variation details functions.
 There is a Variation method for each type:   
-[`BoolVariationDetails`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#BoolVariationDetails) 
-, [`IntVariation`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#IntVariationDetails)
-, [`Float64VariationDetails`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#Float64VariationDetails)
-, [`StringVariationDetails`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#StringVariationDetails)
-, [`JSONArrayVariationDetails`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#JSONArrayVariationDetails)
-, [`JSONVariationDetails`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag#JSONVariationDetails)
+[`BoolVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#BoolVariationDetails) 
+, [`IntVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#IntVariationDetails)
+, [`Float64VariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#Float64VariationDetails)
+, [`StringVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#StringVariationDetails)
+, [`JSONArrayVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONArrayVariationDetails)
+, [`JSONVariationDetails`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariationDetails)
 
 You can use these functions the same way as the other variation functions BUT it will return a generic object `model.VariationResult[<type>]` containing your result.  
 This object will contain these fields:

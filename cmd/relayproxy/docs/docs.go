@@ -14,7 +14,7 @@ const docTemplate = `{
         },
         "license": {
             "name": "MIT",
-            "url": "https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE"
+            "url": "https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE"
         },
         "version": "{{.Version}}"
     },

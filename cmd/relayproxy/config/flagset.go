@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 // flagSetMode is where the relay proxy gets its flagSets from.

@@ -17,7 +17,7 @@ const RedactedValue = "[REDACTED]"
 const opaqueValue = "[OMITTED]"
 
 const (
-	modulePathPrefix = "github.com/thomaspoignant/go-feature-flag"
+	modulePathPrefix = "github.com/blackbirdworks/semaphore"
 	maxRedactDepth   = 16
 )
 

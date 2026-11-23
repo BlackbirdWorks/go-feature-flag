@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
 	"go.uber.org/zap"
 )
 

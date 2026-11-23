@@ -3,8 +3,8 @@ package logsnotifier
 import (
 	"log/slog"
 
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ notifier.Notifier = &Notifier{}

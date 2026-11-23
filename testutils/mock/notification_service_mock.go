@@ -3,8 +3,8 @@ package mock
 import (
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 type NotificationService struct {

@@ -54,7 +54,7 @@ These are client or deployment contracts (a rename needs a coordinated migration
 - Prometheus subsystem `gofeatureflag`.
 - Default relay proxy config file name `goff-proxy` (searched in `./`, `/goff/`, `/etc/opt/goff/`) and the environment variable prefixes.
 - OpenTelemetry tracer and service names.
-- Go module path `github.com/thomaspoignant/go-feature-flag` and all Go import paths (a later change renames the module).
+- Go module path `github.com/blackbirdworks/semaphore` and all Go import paths (a later change renames the module).
 
 ## Entry points
 

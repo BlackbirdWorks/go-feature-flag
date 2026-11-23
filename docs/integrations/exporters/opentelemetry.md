@@ -32,8 +32,8 @@ with `TracerName`.
 
 ```go
 import (
-    ffclient "github.com/thomaspoignant/go-feature-flag"
-    "github.com/thomaspoignant/go-feature-flag/exporter/opentelemetryexporter"
+    ffclient "github.com/blackbirdworks/semaphore"
+    "github.com/blackbirdworks/semaphore/exporter/opentelemetryexporter"
 )
 
 // ... initialize your OpenTelemetry tracer provider here (OTLP, resource, etc.) ...

@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/google/uuid"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 const DefaultExporterCleanQueueInterval = 1 * time.Minute

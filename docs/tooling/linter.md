@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: BlackbirdWorks/go-feature-flag
+          repository: BlackbirdWorks/semaphore
           path: goff
       - uses: actions/setup-go@v5
         with:

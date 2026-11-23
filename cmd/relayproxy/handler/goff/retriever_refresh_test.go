@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 	"go.uber.org/zap"
 )
 

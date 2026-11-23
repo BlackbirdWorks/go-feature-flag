@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/githubretriever"
 )
 
 var _ retriever.InitializableRetriever = &githubretriever.Retriever{}

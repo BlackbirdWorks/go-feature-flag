@@ -123,7 +123,7 @@ linters:
         # the rules engine lives in rules/ of this repository
         - github.com/nikunjy/rules
         # modules/core is resolved from this repository
-        - github.com/thomaspoignant/go-feature-flag/modules/core
+        - github.com/blackbirdworks/semaphore/modules/core
         # fix for Athena v3 parquet query issue - https://github.com/xitongsys/parquet-go/issues/547
         - github.com/xitongsys/parquet-go
         - github.com/apache/thrift
@@ -183,7 +183,7 @@ formatters:
   #    - golines
   settings:
     gofumpt:
-      module-path: github.com/thomaspoignant/go-feature-flag
+      module-path: github.com/blackbirdworks/semaphore
     gci:
       no-lex-order: true
     gofmt:

@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
 )
 
 // dropGatedSink blocks the records about dropped events until gate is closed.

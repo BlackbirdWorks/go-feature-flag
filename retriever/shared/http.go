@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 // CallHTTPAPI is the default function to make an HTTP call in the retrievers.

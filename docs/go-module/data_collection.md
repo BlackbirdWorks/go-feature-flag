@@ -1,7 +1,7 @@
 # Export evaluation data
 The module supports different ways of exporting evaluation data.
 
-To retrieve a file you need to provide an [exporter](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/exporter/) in your `ffclient.Config{}` during the initialization.
+To retrieve a file you need to provide an [exporter](https://pkg.go.dev/github.com/blackbirdworks/semaphore/exporter/) in your `ffclient.Config{}` during the initialization.
 
 ## Available exporters:
 - [AWS S3](../integrations/exporters/aws-s3.md)

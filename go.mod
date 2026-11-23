@@ -1,4 +1,4 @@
-module github.com/thomaspoignant/go-feature-flag
+module github.com/blackbirdworks/semaphore
 
 go 1.27.4
 
@@ -23,6 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
+	github.com/blackbirdworks/semaphore/modules/core v0.8.2
 	github.com/dustin/go-humanize v1.1.0
 	github.com/fsouza/fake-gcs-server v1.56.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -68,7 +69,6 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.45.0
 	github.com/thejerf/slogassert v0.3.4
-	github.com/thomaspoignant/go-feature-flag/modules/core v0.8.2
 	github.com/thomaspoignant/koanf-http-provider v0.1.0
 	github.com/xdg-go/scram v1.4.0
 	github.com/xitongsys/parquet-go v1.6.2
@@ -326,4 +326,4 @@ replace github.com/nikunjy/rules => ./rules
 
 // Build against the modules/core of this repository instead of the released version from the module proxy,
 // so that changes to modules/core reach the relay proxy.
-replace github.com/thomaspoignant/go-feature-flag/modules/core => ./modules/core
+replace github.com/blackbirdworks/semaphore/modules/core => ./modules/core

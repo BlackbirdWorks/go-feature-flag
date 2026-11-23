@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
 )
 
 // A handoff larger than what the store can hold must not lose events when an idle exporter can

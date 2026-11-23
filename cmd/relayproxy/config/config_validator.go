@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"go.uber.org/zap/zapcore"
 )
 

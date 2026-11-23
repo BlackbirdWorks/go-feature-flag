@@ -3,8 +3,8 @@ package config
 import (
 	"fmt"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter/kafkaexporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/redshiftexporter"
+	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
+	"github.com/blackbirdworks/semaphore/exporter/redshiftexporter"
 	"github.com/xitongsys/parquet-go/parquet"
 )
 

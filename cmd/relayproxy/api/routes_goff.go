@@ -1,10 +1,10 @@
 package api
 
 import (
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/goff"
 	"github.com/labstack/echo/v5"
 	etag "github.com/pablor21/echo-etag/v5"
 	echoSwagger "github.com/swaggo/echo-swagger/v2"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
 )
 
 func (s *Server) addGOFFRoutes(

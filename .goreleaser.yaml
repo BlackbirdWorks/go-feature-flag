@@ -210,7 +210,7 @@ dockers_v2:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaser
     images:
-      - ghcr.io/blackbirdworks/go-feature-flag
+      - ghcr.io/blackbirdworks/semaphore
     tags:
       - "latest"
       - "v{{ .RawVersion }}"
@@ -225,20 +225,20 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-fips (FIPS 140-3 build, gofeatureflag)
-  # Shares the ghcr.io/blackbirdworks/go-feature-flag repo with the standard build, so every tag
+  # Shares the ghcr.io/blackbirdworks/semaphore repo with the standard build, so every tag
   # MUST keep the `-fips` suffix to avoid overwriting the non-FIPS images.
   - id: go-feature-flag-fips
     ids:
       - go-feature-flag-fips
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserFips
     images:
-      - ghcr.io/blackbirdworks/go-feature-flag
+      - ghcr.io/blackbirdworks/semaphore
     tags:
       - "fips"
       - "v{{ .RawVersion }}-fips"
@@ -252,9 +252,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag, built in FIPS 140-3 mode (GOFIPS140)"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "go-feature-flag-fips"
-      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-bookworm
@@ -263,7 +263,7 @@ dockers_v2:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserBookworm
     images:
-      - ghcr.io/blackbirdworks/go-feature-flag
+      - ghcr.io/blackbirdworks/semaphore
     tags:
       - "bookworm"
       - "v{{ .RawVersion }}-bookworm"
@@ -278,9 +278,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # go-feature-flag-trixie
@@ -289,7 +289,7 @@ dockers_v2:
       - go-feature-flag
     dockerfile: ./cmd/relayproxy/DockerfileGoreleaserTrixie
     images:
-      - ghcr.io/blackbirdworks/go-feature-flag
+      - ghcr.io/blackbirdworks/semaphore
     tags:
       - "trixie"
       - "v{{ .RawVersion }}-trixie"
@@ -304,9 +304,9 @@ dockers_v2:
       "org.opencontainers.image.description": "A stand alone server to run GO Feature Flag"
       "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "go-feature-flag"
-      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 
   # cli
@@ -315,7 +315,7 @@ dockers_v2:
       - go-feature-flag-cli
     dockerfile: ./cmd/cli/Dockerfile
     images:
-      - ghcr.io/blackbirdworks/go-feature-flag-cli
+      - ghcr.io/blackbirdworks/semaphore-cli
     tags:
       - "latest"
       - "v{{ .RawVersion }}"
@@ -329,9 +329,9 @@ dockers_v2:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A command line tool to manage GO Feature Flag from your terminal"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
-      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "go-feature-flag-cli"
-      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/go-feature-flag"
+      "org.opencontainers.image.url": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.version": "{{ .Version }}"
 snapshot:
   version_template: "{{ incpatch .Version }}-next"

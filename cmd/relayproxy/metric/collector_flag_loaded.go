@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"strings"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	prom "github.com/prometheus/client_golang/prometheus"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
 )
 
 const flagLoadedEvaluationKey = "gofeatureflag-flag-loaded-metric"

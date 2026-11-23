@@ -3,9 +3,9 @@ package ffclient
 import (
 	"context"
 
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/internal/flagstate"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/internal/flagstate"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // AllFlagsState return the values of all the flags for a specific user.

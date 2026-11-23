@@ -15,10 +15,11 @@ updates:
     cooldown:
       default-days: 7
       exclude:
-        - "github.com/thomaspoignant/go-feature-flag/modules/core"
+        - "github.com/blackbirdworks/semaphore/modules/core"
     # Never let a bot bump a module that is replaced by a local directory or published
-    # by the previous upstream project: that would pull upstream code into this tree.
+    # by the original upstream project: that would pull upstream code into this tree.
     ignore:
+      - dependency-name: "github.com/blackbirdworks/semaphore*"
       - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
       - dependency-name: "github.com/go-feature-flag/*"
       - dependency-name: "github.com/nikunjy/rules"
@@ -66,8 +67,9 @@ updates:
     commit-message:
       prefix: "chore(dependencies)"
     # Never let a bot bump a module that is replaced by a local directory or published
-    # by the previous upstream project: that would pull upstream code into this tree.
+    # by the original upstream project: that would pull upstream code into this tree.
     ignore:
+      - dependency-name: "github.com/blackbirdworks/semaphore*"
       - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
       - dependency-name: "github.com/go-feature-flag/*"
       - dependency-name: "github.com/nikunjy/rules"
@@ -87,8 +89,9 @@ updates:
     commit-message:
       prefix: "chore"
     # Never let a bot bump a module that is replaced by a local directory or published
-    # by the previous upstream project: that would pull upstream code into this tree.
+    # by the original upstream project: that would pull upstream code into this tree.
     ignore:
+      - dependency-name: "github.com/blackbirdworks/semaphore*"
       - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
       - dependency-name: "github.com/go-feature-flag/*"
       - dependency-name: "github.com/nikunjy/rules"

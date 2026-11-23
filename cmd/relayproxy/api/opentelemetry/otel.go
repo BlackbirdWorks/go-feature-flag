@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"

@@ -98,9 +98,9 @@ To configure your GO module to use the AWS S3 retriever, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 > [!NOTE]
-> The [**S3 Retriever v2**](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag@v1.23.1/retriever/s3retrieverv2) will use the [`aws-sdk-go-v2`](https://github.com/aws/aws-sdk-go-v2) to access your flag in an S3 bucket.
+> The [**S3 Retriever v2**](https://pkg.go.dev/github.com/blackbirdworks/semaphore@v1.23.1/retriever/s3retrieverv2) will use the [`aws-sdk-go-v2`](https://github.com/aws/aws-sdk-go-v2) to access your flag in an S3 bucket.
 >
-> The [**S3 Retriever v1**](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag@v1.23.1/retriever/s3retriever) will use the deprecated [`aws-sdk-go`](https://github.com/aws/aws-sdk-go) to access your flag in an S3 bucket.
+> The [**S3 Retriever v1**](https://pkg.go.dev/github.com/blackbirdworks/semaphore@v1.23.1/retriever/s3retriever) will use the deprecated [`aws-sdk-go`](https://github.com/aws/aws-sdk-go) to access your flag in an S3 bucket.
 >
 > [AWS has announce end-of-support for AWS SDK for Go v1](https://aws.amazon.com/blogs/developer/announcing-end-of-support-for-aws-sdk-for-go-v1-on-july-31-2025/), and it's recommended to migrate from S3 Retriever v1 to v2.
 

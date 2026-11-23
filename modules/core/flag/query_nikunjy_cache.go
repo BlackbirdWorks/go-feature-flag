@@ -9,8 +9,8 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/nikunjy/rules/parser"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 // nikunjyEvaluatorCache keeps one parsed *parser.Evaluator per query string. Parsing the

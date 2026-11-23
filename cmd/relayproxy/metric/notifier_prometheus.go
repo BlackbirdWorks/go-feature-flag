@@ -1,7 +1,7 @@
 package metric
 
 import (
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 type notifierPrometheus struct {

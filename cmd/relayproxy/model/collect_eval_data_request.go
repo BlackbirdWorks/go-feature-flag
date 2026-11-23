@@ -1,7 +1,7 @@
 package model
 
 import (
-	"github.com/thomaspoignant/go-feature-flag/exporter"
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 // CollectEvalDataRequest is the request to collect data in

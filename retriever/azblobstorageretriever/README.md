@@ -5,7 +5,7 @@ This retriever is used to retrieve data from a Container on Azure Blob Storage.
 ## Installation
 
 ```bash
-go get github.com/thomaspoignant/go-feature-flag/retriever/azblobstorageretriever
+go get github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever
 ```
 
 ## Usage
@@ -54,7 +54,7 @@ import (
     "log"
     "time"
 
-    "github.com/thomaspoignant/go-feature-flag/retriever/azblobstorageretriever"
+    "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
 )
 
 func main() {

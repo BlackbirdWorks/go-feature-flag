@@ -1,9 +1,9 @@
 package middleware
 
 import (
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 // VersionHeaderConfig defines the configuration for the middleware.

@@ -27,4 +27,4 @@ Documentation:
 
 ## Container image
 `make build-relayproxy-docker` builds a local image from source. Published images use the name
-`ghcr.io/blackbirdworks/go-feature-flag`.
+`ghcr.io/blackbirdworks/semaphore`.

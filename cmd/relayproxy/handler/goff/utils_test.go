@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
 )
 
 func Test_assertRequest(t *testing.T) {

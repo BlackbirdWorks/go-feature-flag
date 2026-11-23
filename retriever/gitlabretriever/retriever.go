@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	httpretriever "github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/internal"
+	httpretriever "github.com/blackbirdworks/semaphore/retriever/httpretriever"
 )
 
 // Retriever is a configuration struct for a GitHub retriever.

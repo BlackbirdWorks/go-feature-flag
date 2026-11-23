@@ -10,9 +10,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/internal/signer"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/internal/signer"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 var _ notifier.Notifier = &Notifier{}

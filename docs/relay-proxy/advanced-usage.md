@@ -87,7 +87,7 @@ default `GODEBUG=fips140=on` into the binary, so the FIPS build runs in FIPS mod
 the box — no extra runtime configuration is required.
 
 The exact module version pinned by the project lives in the
-[`.fips-version`](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/.fips-version)
+[`.fips-version`](https://github.com/BlackbirdWorks/semaphore/blob/main/.fips-version)
 file at the repo root; the Makefile target reads from it.
 
 > [!NOTE]

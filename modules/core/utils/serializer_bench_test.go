@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 var contextToMapSink map[string]any

@@ -1,8 +1,8 @@
 package mock
 
 import (
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // MockFlagsetManager is a mock implementation for testing error scenarios

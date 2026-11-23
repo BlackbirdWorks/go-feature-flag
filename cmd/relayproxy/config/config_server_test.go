@@ -3,8 +3,8 @@ package config_test
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"

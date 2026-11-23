@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	ffclient "github.com/thomaspoignant/go-feature-flag"
+	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/xitongsys/parquet-go/parquet"
 )
 

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	redis "github.com/redis/go-redis/v9"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 // Retriever is the interface to fetch the flags from Redis.

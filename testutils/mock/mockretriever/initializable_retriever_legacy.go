@@ -6,7 +6,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/thomaspoignant/go-feature-flag/retriever"
+	"github.com/blackbirdworks/semaphore/retriever"
 )
 
 // InitializableRetrieverLegacy implements the standard InitializableRetriever interface

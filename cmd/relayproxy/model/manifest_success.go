@@ -1,6 +1,6 @@
 package model
 
-import "github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
+import "github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 
 // FlagManifest is the machine-readable manifest envelope for CLI and tooling.
 type ManifestSuccessResponse struct {

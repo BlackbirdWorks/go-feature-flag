@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
 )
 
 var expectedFile = `test-flag:

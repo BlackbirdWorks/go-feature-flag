@@ -52,7 +52,7 @@ See [the OpenTelemetry documentation](https://opentelemetry.io/docs/specs/otel/c
 All your requests will be traced and sent to the collector with the service name **`go-feature-flag`**.
 
 > [!NOTE]
-> If you want to try the OpenTelemetry integration locally, follow this [example](https://github.com/BlackbirdWorks/go-feature-flag/tree/main/cmd/relayproxy/testdata/opentelemetry)
+> If you want to try the OpenTelemetry integration locally, follow this [example](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/testdata/opentelemetry)
 > to set up Jaeger and see your traces.
 
 ---

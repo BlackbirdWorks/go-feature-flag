@@ -2,7 +2,7 @@
 
 The module supports different ways of retrieving the flag file.
 
-To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/retriever/#Retriever) in your `ffclient.Config{}` during the initialization.  
+To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/#Retriever) in your `ffclient.Config{}` during the initialization.  
 
 **Available retrievers**:
 

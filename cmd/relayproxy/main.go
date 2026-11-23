@@ -7,16 +7,16 @@ import (
 	"os"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/notifier"
 	promversion "github.com/prometheus/common/version"
 	"github.com/spf13/pflag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/docs"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	stream "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/log"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +36,7 @@ _____________________________________________`
 // @description.markdown
 // @contact.name GO feature flag relay proxy
 // @license.name MIT
-// @license.url https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
+// @license.url https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
 // @BasePath /
 // @securitydefinitions.apikey ApiKeyAuth
 // @in header

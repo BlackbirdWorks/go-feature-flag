@@ -9,9 +9,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/internal"
 )
 
 func TestRedactURLError(t *testing.T) {

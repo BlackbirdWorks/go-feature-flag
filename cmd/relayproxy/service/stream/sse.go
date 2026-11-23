@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/r3labs/sse/v2"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 )
 
 // SSEService is the service interface that handles SSE connections.

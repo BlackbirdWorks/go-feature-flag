@@ -5,7 +5,7 @@
 Requires Go (see `go.mod` for the version).
 
 ```shell
-git clone https://github.com/BlackbirdWorks/go-feature-flag.git
+git clone https://github.com/BlackbirdWorks/semaphore.git
 cd go-feature-flag
 make build-relayproxy   # binary: out/bin/relayproxy
 ```
@@ -18,7 +18,7 @@ Build a local image from source:
 make build-relayproxy-docker   # image: go-feature-flag:local
 ```
 
-The relay proxy image is named `ghcr.io/blackbirdworks/go-feature-flag`; the
+The relay proxy image is named `ghcr.io/blackbirdworks/semaphore`; the
 Dockerfiles under `cmd/relayproxy/` and the Helm chart use that name. This repository
 does not run a release pipeline, so build and publish the image yourself if you need
 it in a registry.

@@ -2,7 +2,7 @@
 
 ## Installation
 ```bash
-go get github.com/thomaspoignant/go-feature-flag
+go get github.com/blackbirdworks/semaphore
 ```
 
 ## Create a feature flag configuration

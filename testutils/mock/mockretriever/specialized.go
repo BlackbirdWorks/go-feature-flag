@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // ContextAwareRetriever is a mock that respects context cancellation

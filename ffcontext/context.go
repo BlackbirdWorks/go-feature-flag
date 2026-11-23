@@ -3,7 +3,7 @@ package ffcontext
 // This file is a wrapper around the core context package to avoid any breaking changes
 // when moving the logic to the new core package.
 
-import coreCtx "github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+import coreCtx "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
 type Context = coreCtx.Context
 type EvaluationContext = coreCtx.EvaluationContext

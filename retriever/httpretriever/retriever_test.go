@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/retriever/httpretriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {

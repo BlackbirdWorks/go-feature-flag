@@ -98,8 +98,8 @@ workspace-init:
 	go work sync
 
 watch-relayproxy: ## Launch the relay proxy in watch mode.
-	docker run -it --rm -w /go/src/github.com/thomaspoignant/go-feature-flag/ \
-		-v $(shell pwd):/go/src/github.com/thomaspoignant/go-feature-flag \
+	docker run -it --rm -w /go/src/github.com/blackbirdworks/semaphore/ \
+		-v $(shell pwd):/go/src/github.com/blackbirdworks/semaphore \
 		-v $(shell pwd)/cmd/relayproxy/testdata/config/valid-file.yaml:/goff/goff-proxy.yaml \
 		-p 1031:1031 cosmtrek/air \
 		--build.cmd "$(GOWORK_ENV) go build $(MODFLAG) -o out/bin/relayproxy ./cmd/relayproxy/" \

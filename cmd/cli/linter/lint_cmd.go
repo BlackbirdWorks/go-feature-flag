@@ -3,8 +3,8 @@ package linter
 import (
 	"fmt"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/spf13/cobra"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
 )
 
 var lintFlagFormat string

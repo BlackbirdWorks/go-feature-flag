@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 const (

@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/testutils"
 	"google.golang.org/api/option"
 )
 

@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
 )
 
 var ConfigFileDefaultLocations = []string{

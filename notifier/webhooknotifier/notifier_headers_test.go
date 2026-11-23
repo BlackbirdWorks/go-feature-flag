@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/internal/signer"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/internal/signer"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 )
 
 type headerTestHTTPClient func(*http.Request) (*http.Response, error)

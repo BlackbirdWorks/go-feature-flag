@@ -420,7 +420,7 @@ info:
     Flag**.  \nThis API is mostly used by all the OpenFeature providers."
   license:
     name: MIT
-    url: https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
+    url: https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
   title: GO Feature Flag relay proxy endpoints
 paths:
   /admin/v1/flags/validate:
