@@ -1,16 +1,81 @@
-name: "Build"
+name: CI
+
+# Pull request pipeline. Layout follows BlackbirdWorks/gopherstack: one workflow,
+# fan-out jobs, a final aggregating gate. Branch protection should require the
+# single check "ci-ok" (job `ci-ok`) and nothing else from this file.
+# No secrets are used; every job runs with the read-only GITHUB_TOKEN.
+
 on:
   push:
     branches:
       - main
   pull_request:
+    branches:
+      - main
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 permissions: {}
 
+# Only the latest commit of a PR needs CI: a new push cancels the in-flight run
+# for the same PR. Runs on main are never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Packages run in parallel and share one Ryuk reaper; a package can latch onto
+  # a reaper that is shutting down and time out after 60s. Runners are
+  # ephemeral and the tests terminate their own containers.
+  TESTCONTAINERS_RYUK_DISABLED: "true"
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  Build:
+  # Documentation-only pull requests skip the heavy jobs. A skipped job counts
+  # as success in `ci-ok`, so the required check still reports.
+  changes:
+    name: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # On pull_request the checkout is a merge commit: HEAD^1 is the base tip.
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Detect code changes
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only HEAD^1 HEAD)
+          echo "Changed files:"
+          echo "$changed"
+          # Anything outside documentation, templates and release-please metadata is code.
+          if grep -qvE '^(website/|docs/|\.github/(ISSUE_TEMPLATE/|PULL_REQUEST_TEMPLATE\.md|release-please/)|.*\.md$|LICENSE$)' <<< "$changed"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: build
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -19,18 +84,19 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
+      - uses: ./.github/actions/setup-go
+      # All modules, relay proxy, jsonschema generator and cli.
       - run: make build
       # Smoke-test the FIPS variant so a dependency that breaks under GOFIPS140
-      # is caught in CI rather than at release time.
+      # is caught here rather than at release time.
       - run: make build-relayproxy-fips
-  Lint:
+
+  lint:
+    name: lint
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -39,16 +105,24 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
+      - uses: ./.github/actions/setup-go
       - run: make lint
+      # Optional targets: they run only once the Makefile defines them, so this
+      # job needs no change when they land.
+      - name: Run mulint (if the target exists)
+        run: |
+          if make -n mulint > /dev/null 2>&1; then
+            make mulint
+          else
+            echo "No mulint target, skipping."
+          fi
 
-  Test:
+  modules:
+    name: modules (tidy, verify)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -57,42 +131,16 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - run: make test
-        env:
-          # Packages run in parallel and share one Ryuk reaper; a package can
-          # latch onto a reaper that is shutting down and time out after 60s.
-          # Runners are ephemeral and tests terminate their own containers.
-          TESTCONTAINERS_RYUK_DISABLED: "true"
+      - uses: ./.github/actions/setup-go
+      - run: make tidy-check
+      - run: make verify
 
-  Test-Windows:
-    runs-on: windows-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      # `make test` is not portable to Windows (bash loops, tput, -race/CGO,
-      # and -tags=docker testcontainers), so run the root module unit tests
-      # directly. This surfaces Windows-specific failures in CI.
-      - run: go test ./...
-
-  Coverage:
+  vulncheck:
+    name: vulncheck
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -101,26 +149,15 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - run: make coverage
-        env:
-          TESTCONTAINERS_RYUK_DISABLED: "true" # see Test job
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          fail_ci_if_error: true
-          token: ${{ secrets.CODECOV_TOKEN }}
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      - uses: ./.github/actions/setup-go
+      - run: make vuln-check
 
-  swagger-change:
-    name: Swagger Change
+  swagger:
+    name: swagger
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -129,45 +166,70 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
+      - uses: ./.github/actions/setup-go
       - run: make swagger
-      - run: git diff --exit-code --quiet
+      - name: Fail if the generated swagger docs are out of date
+        run: git diff --exit-code --stat
 
-  goreleaser-check:
+  # `rules` and `modules/core` have no container tests, so they run in a lean
+  # job next to the heavier root module job.
+  test-modules:
+    name: test (${{ matrix.module }})
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [rules, modules/core]
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: ./.github/actions/setup-go
+      - name: Run tests with the race detector
+        working-directory: ${{ matrix.module }}
+        env:
+          MODULE: ${{ matrix.module }}
+          CGO_ENABLED: "1"
+          GOWORK: "off"
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/test-logs"
+          name="${MODULE//\//-}"
+          go test -v -race -tags=docker -covermode=atomic \
+            -coverprofile="$GITHUB_WORKSPACE/coverage-$name.out" ./... 2>&1 \
+            | tee "$GITHUB_WORKSPACE/test-logs/test-$name.log"
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-
-      - name: Load FIPS module version
-        run: echo "GOFIPS140=$(cat .fips-version | tr -d '[:space:]')" >> "$GITHUB_ENV"
-
-      - name: Run GoReleaser .goreleaser.yaml check
-        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+          name: test-log-${{ strategy.job-index }}
+          path: test-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage profile
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          distribution: goreleaser
-          version: latest
-          args: check --config .goreleaser.yaml
+          name: coverage-${{ strategy.job-index }}
+          path: coverage-*.out
+          retention-days: 7
+          if-no-files-found: ignore
 
-  integration-tests:
-    name: Integration Tests
+  # Root module with the `docker` tag: unit tests, testcontainers (azurite,
+  # mongo, postgres, redis) and the gopherstack-based S3/SQS/Kinesis e2e tests
+  # (ghcr.io/blackbirdworks/gopherstack, a public image pulled anonymously).
+  test:
+    name: test (root, docker + e2e)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     permissions:
       contents: read
     steps:
@@ -176,12 +238,89 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: ./.github/actions/setup-go
+      # A throttled or dropped pull in the middle of a test shows up as a
+      # container start timeout; pull everything once, with retries, up front.
+      - name: Pre-pull container images
+        run: |
+          images=(
+            ghcr.io/blackbirdworks/gopherstack:1.9.1
+            mcr.microsoft.com/azure-storage/azurite:3.35.0
+            mongo:6
+            postgres:15-alpine
+            redis:7
+          )
+          for img in "${images[@]}"; do
+            (
+              for i in 1 2 3; do
+                docker pull -q "$img" > /dev/null && exit 0
+                sleep $((i * 5))
+              done
+              echo "::warning::pre-pull of $img failed"
+            ) &
+          done
+          wait
+          docker images
+          df -h /
+      - name: Run tests with the race detector
+        env:
+          CGO_ENABLED: "1"
+          GOWORK: "off"
+        run: |
+          mkdir -p test-logs
+          go test -v -race -tags=docker -covermode=atomic -coverprofile=coverage-root.out ./... 2>&1 \
+            | tee test-logs/test-root.log
+      - name: Upload test log on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
         with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
+          name: test-log-root
+          path: test-logs/
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Upload coverage profile
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        with:
+          name: coverage-root
+          path: coverage-root.out
+          retention-days: 7
+          if-no-files-found: ignore
+
+  fuzz:
+    name: fuzz (smoke)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
+      - run: make fuzz FUZZTIME=10s
+
+  # Protocol compatibility of the relay proxy with the real Java, JavaScript,
+  # Go and .NET OpenFeature providers, against two locally started proxies.
+  provider-tests:
+    name: provider-tests
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: ./.github/actions/setup-go
       - name: Set up Maven
         uses: stCarolas/setup-maven@d6af6abeda15e98926a57b5aa970a96bb37f97d1 # v5
         with:
@@ -197,139 +336,33 @@ jobs:
           dotnet-version: "9.0.x"
       - run: make provider-tests
 
-  Benchmark:
+  # Single required check for branch protection. `needs` lists every job above;
+  # a job skipped by the path filter counts as success, a failed or cancelled
+  # one fails the gate. `if: always()` makes the gate run (and report) even when
+  # an upstream job failed.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs:
+      - changes
+      - build
+      - lint
+      - modules
+      - vulncheck
+      - swagger
+      - test-modules
+      - test
+      - fuzz
+      - provider-tests
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/main' }}
-    permissions:
-      contents: write
-      pull-requests: read
+    timeout-minutes: 5
     steps:
-      - name: checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - name: Run benchmark
-        run: make bench | tee bench-output.txt
-      - name: Read benchmark CPU
-        id: cpu
+      - name: Require every job to be successful or skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "model=$(sed -n 's/^cpu: *//p' bench-output.txt | head -1 | tr -cs '[:alnum:]' '-')" >> "$GITHUB_OUTPUT"
-      - name: Download previous benchmark data
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ./cache
-          key: ${{ runner.os }}-${{ steps.cpu.outputs.model }}-benchmark-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-${{ steps.cpu.outputs.model }}-benchmark-
-      - name: Store benchmark result
-        uses: rhysd/github-action-benchmark@4322e5726e6334590d251fc4f92bec0efafc45dc # v1.22.2
-        with:
-          tool: "go"
-          output-file-path: bench-output.txt
-          external-data-json-path: ./cache/benchmark-data.json
-          fail-on-alert: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          comment-on-alert: true
-          alert-comment-cc-users: "@$GITHUB_ACTOR"
-          max-items-in-chart: 100
-      - name: Save benchmark data
-        if: always()
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ./cache
-          key: ${{ runner.os }}-${{ steps.cpu.outputs.model }}-benchmark-${{ github.run_id }}
-
-  Python-provider:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 100
-          submodules: recursive
-          persist-credentials: false
-      - name: Get changed files in the docs folder
-        id: changed-files-specific
-        uses: marceloprado/has-changed-path@df1b7a3161b8fb9fd8c90403c66a9e66dfde50cb # v1.0.1
-        with:
-          paths: ./openfeature/providers/python-provider/
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.10"
-      - name: Install uv
-        if: steps.changed-files-specific.outputs.changed == 'true'
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-      - name: uv sync
-        if: steps.changed-files-specific.outputs.changed == 'true'
-        working-directory: ./openfeature/providers/python-provider
-        run: uv sync --locked
-      - name: lint black
-        if: steps.changed-files-specific.outputs.changed == 'true'
-        working-directory: ./openfeature/providers/python-provider
-        run: uv run --no-sync --no-build black . --check
-      - name: Pytest
-        if: steps.changed-files-specific.outputs.changed == 'true'
-        working-directory: ./openfeature/providers/python-provider
-        run: uv run --no-sync --no-build pytest
-  Verify:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - run: make verify
-
-  Tidy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - run: make tidy-check
-
-  Govulncheck:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Setup go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: false
-      - name: Run govulncheck
-        run: make vuln-check-relayproxy
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$NEEDS" | jq -e '[.[].result] | any(. != "success" and . != "skipped")' > /dev/null; then
+            echo "::error::at least one required job failed or was cancelled"
+            exit 1
+          fi
