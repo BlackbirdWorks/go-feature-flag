@@ -116,7 +116,7 @@ type consumer struct {
 	// limit is the maximum number of pending events of the consumer, 0 means no limit of its own
 	// (see SetConsumerLimit).
 	limit int64
-	mutex  sync.Mutex
+	mutex sync.Mutex
 }
 
 // AddConsumer is adding a new consumer to the Event store.
@@ -240,6 +240,35 @@ func (e *eventStoreImpl[T]) enforceConsumerLimitsLocked() int64 {
 		}
 	}
 	return dropped
+}
+
+// AddWhileRoom adds the events of the beginning of data that fit in the store, without dropping
+// or evicting anything, and returns how many it added (0 when the store is full, or when a
+// consumer is at its own limit). It lets a caller that may wait give a consumer the time to
+// export what it has before deciding to drop (see AddAll for the drop policy).
+func (e *eventStoreImpl[T]) AddWhileRoom(data []T) int {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	room := int64(len(data))
+	if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
+		e.cleanQueueLocked()
+	}
+	if e.maxEvents > 0 {
+		room = min(room, e.maxEvents-int64(len(e.events)))
+	}
+	for _, c := range e.consumers {
+		if c.limit > 0 {
+			room = min(room, c.limit-(e.lastOffset-c.Offset))
+		}
+	}
+	if room <= 0 {
+		return 0
+	}
+	for _, d := range data[:room] {
+		e.lastOffset++
+		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
+	}
+	return int(room)
 }
 
 // evictLaggardsLocked is called when the store is full. If the consumers are not all at the same
