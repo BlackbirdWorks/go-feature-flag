@@ -481,7 +481,12 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+      # Only `go tool cover` needs Go here; no module download, so a proxy
+      # outage cannot block the coverage diagnostics.
       - uses: $/.github/actions/setup-go
+        with:
+          cache: "false"
+          download: "false"
       - name: Check the unit tests of the CI scripts
         run: make test-ci-scripts
       - name: Check the tested tree is the pull request head
