@@ -96,9 +96,9 @@ func convertDeletedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 	attachments := make([]attachment, 0, len(diffCache.Deleted))
 	for key := range diffCache.Deleted {
 		attachment := attachment{
-			Title:      fmt.Sprintf("❌ Flag \"%s\" deleted", key),
-			Color:      colorDeleted,
-			Footer:     slackFooter,
+			Title:  fmt.Sprintf("❌ Flag \"%s\" deleted", key),
+			Color:  colorDeleted,
+			Footer: slackFooter,
 		}
 		attachments = append(attachments, attachment)
 	}
@@ -109,10 +109,10 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 	attachments := make([]attachment, 0, len(diffCache.Updated))
 	for key, value := range diffCache.Updated {
 		attachment := attachment{
-			Title:      fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After)),
-			Color:      colorUpdated,
-			Footer:     slackFooter,
-			MrkdwnIn:   []string{"text"},
+			Title:    fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After)),
+			Color:    colorUpdated,
+			Footer:   slackFooter,
+			MrkdwnIn: []string{"text"},
 		}
 
 		changes, err := notifier.DescribeChanges(value.Before, value.After)
@@ -130,9 +130,9 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 	attachments := make([]attachment, 0, len(diff.Added))
 	for key, value := range diff.Added {
 		attachment := attachment{
-			Title:      fmt.Sprintf("🆕 Flag \"%s\" created%s", key, notifier.UpdatedBySuffix(value)),
-			Color:      colorAdded,
-			Footer:     slackFooter,
+			Title:  fmt.Sprintf("🆕 Flag \"%s\" created%s", key, notifier.UpdatedBySuffix(value)),
+			Color:  colorAdded,
+			Footer: slackFooter,
 		}
 		attachments = append(attachments, attachment)
 	}
