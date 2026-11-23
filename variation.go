@@ -2,7 +2,9 @@ package ffclient
 
 import (
 	"fmt"
+	"log/slog"
 	"maps"
+	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/exporter"
 	"github.com/thomaspoignant/go-feature-flag/ffcontext"
@@ -336,11 +338,7 @@ func notifyVariation[T model.JSONType](
 			"SERVER",
 			ctx.ExtractGOFFProtectedFields().ExporterMetadata,
 		)
-		g.evalExporterWg.Add(1)
-		go func() {
-			defer g.evalExporterWg.Done()
-			g.CollectEventData(event)
-		}()
+		g.enqueueEvent(event)
 	}
 }
 
@@ -400,4 +398,76 @@ func getVariation[T model.JSONType](
 		flagCtx.AddIntoEvaluationContextEnrichment("env", g.config.Environment)
 	}
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
+}
+
+// startEventWorker starts the goroutine that moves the evaluation events from the queue to the
+// exporters. It does nothing when there is no exporter for the evaluation events.
+func (g *GoFeatureFlag) startEventWorker() {
+	if g.featureEventDataExporter == nil {
+		return
+	}
+	size := g.config.EventQueueSize
+	if size <= 0 {
+		size = DefaultEventQueueSize
+	}
+	g.eventQueue = make(chan exporter.FeatureEvent, size)
+	g.eventWorkerStop = make(chan struct{})
+	g.evalExporterWg.Add(1)
+	go func() {
+		defer g.evalExporterWg.Done()
+		for {
+			select {
+			case event := <-g.eventQueue:
+				g.CollectEventData(event)
+			case <-g.eventWorkerStop:
+				for {
+					select {
+					case event := <-g.eventQueue:
+						g.CollectEventData(event)
+					default:
+						return
+					}
+				}
+			}
+		}
+	}()
+}
+
+// enqueueEvent hands the event to the worker without ever blocking the evaluation.
+// If the queue is full the event is dropped and counted.
+func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
+	if g.eventQueue == nil {
+		// no worker (struct not built by New): add the event directly.
+		g.CollectEventData(event)
+		return
+	}
+	select {
+	case g.eventQueue <- event:
+	default:
+		total := g.droppedEvents.Add(1)
+		now := time.Now().UnixNano()
+		last := g.lastDropLog.Load()
+		if now-last >= int64(10*time.Second) && g.lastDropLog.CompareAndSwap(last, now) {
+			g.config.internalLogger.Error(
+				"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
+				slog.Int64("totalDroppedEvents", total))
+		}
+	}
+}
+
+// DroppedEvents returns the number of events that have been dropped since the start because the
+// exporters were not able to keep up (queue between the evaluations and the exporters full, or
+// exporter queue at its MaxQueuedEvents limit). It is 0 in a healthy setup.
+func (g *GoFeatureFlag) DroppedEvents() int64 {
+	if g == nil {
+		return 0
+	}
+	total := g.droppedEvents.Load()
+	if c, ok := g.featureEventDataExporter.(exporter.DroppedEventsCounter); ok {
+		total += c.DroppedEvents()
+	}
+	if c, ok := g.trackingEventDataExporter.(exporter.DroppedEventsCounter); ok {
+		total += c.DroppedEvents()
+	}
+	return total
 }
