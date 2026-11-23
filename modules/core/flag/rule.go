@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -532,9 +533,33 @@ func MergeSetOfRules(initialRules, updates []Rule) *[]Rule {
 
 	for _, update := range updates {
 		if !utils.Contains(mergedUpdates, update.GetName()) {
-			collection = append(collection, update)
+			// The rule is edited by the following updates (see MergeRules): it must not share its
+			// percentages and progressive rollout with the update, which is read by every evaluation.
+			collection = append(collection, update.cloneForMerge())
 		}
 	}
 
 	return &collection
+}
+
+// cloneForMerge copies what MergeRules edits in place (the percentages and the steps of the
+// progressive rollout), the other fields are replaced and never edited.
+func (r Rule) cloneForMerge() Rule {
+	if r.Percentages != nil {
+		p := maps.Clone(*r.Percentages)
+		r.Percentages = &p
+	}
+	if r.ProgressiveRollout != nil {
+		pr := *r.ProgressiveRollout
+		if pr.Initial != nil {
+			initial := *pr.Initial
+			pr.Initial = &initial
+		}
+		if pr.End != nil {
+			end := *pr.End
+			pr.End = &end
+		}
+		r.ProgressiveRollout = &pr
+	}
+	return r
 }
