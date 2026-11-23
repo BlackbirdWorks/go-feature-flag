@@ -2,7 +2,7 @@ GOCMD=go
 DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
-ALL_GO_MOD_DIRS := ./modules/core ./
+ALL_GO_MOD_DIRS := ./rules ./modules/core ./
 
 # In CI we disable workspace mode.
 ifeq ($(CI),true)
@@ -83,7 +83,7 @@ endif
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Tidying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod tidy);)
 
 tidy-check: tidy ## Check that go.mod and go.sum are tidy (fails if there are uncommitted changes after tidy)
-	git diff --exit-code --quiet go.mod go.sum modules/core/go.mod modules/core/go.sum
+	git diff --exit-code --quiet go.mod go.sum modules/core/go.mod modules/core/go.sum rules/go.mod rules/go.sum
 
 verify: ## Run go mod verify for all modules to validate checksums match go.sum
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Verifying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod verify) &&) true

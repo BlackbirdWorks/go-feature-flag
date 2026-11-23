@@ -4,7 +4,7 @@
 # on its own. FUZZTIME limits each function (default 10s). Go test runs
 # until that duration elapses.
 #
-# Usage: FUZZTIME=10s .github/ci-scripts/fuzz.sh ./modules/core ./
+# Usage: FUZZTIME=10s .github/ci-scripts/fuzz.sh ./rules ./modules/core ./
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
