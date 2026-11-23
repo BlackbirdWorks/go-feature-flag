@@ -12,20 +12,22 @@ import (
 var _ Cache = (*InMemoryCache)(nil)
 
 type InMemoryCache struct {
-	Flags  map[string]flag.InternalFlag
+	// Flags are the flags by key. A flag of the map is shared by every reader: it must be treated
+	// as read-only once it is in the map.
+	Flags  map[string]*flag.InternalFlag
 	Logger *fflog.FFLogger
 }
 
 func NewInMemoryCache(logger *fflog.FFLogger) *InMemoryCache {
 	return &InMemoryCache{
-		Flags:  map[string]flag.InternalFlag{},
+		Flags:  map[string]*flag.InternalFlag{},
 		Logger: logger,
 	}
 }
 
 func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
 	if err := value.IsValid(); err == nil {
-		fc.Flags[key] = value
+		fc.Flags[key] = &value
 	} else {
 		fc.Logger.Error("[cache] invalid configuration for flag",
 			slog.String("key", key), slog.Any("error", err.Error()))
@@ -35,9 +37,10 @@ func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
 func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 	f, ok := fc.Flags[key]
 	if !ok {
-		return &f, fmt.Errorf("flag [%v] does not exists", key)
+		// callers expect a usable (empty) flag next to the error
+		return &flag.InternalFlag{}, fmt.Errorf("flag [%v] does not exists", key)
 	}
-	return &f, nil
+	return f, nil
 }
 
 func (fc *InMemoryCache) keys() []string {
@@ -51,7 +54,7 @@ func (fc *InMemoryCache) keys() []string {
 func (fc *InMemoryCache) Copy() Cache {
 	inMemoryCache := NewInMemoryCache(fc.Logger)
 	for k, v := range fc.Flags {
-		inMemoryCache.addFlag(k, v)
+		inMemoryCache.addFlag(k, *v)
 	}
 	return inMemoryCache
 }
@@ -66,11 +69,11 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 }
 
 func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
-	cache := make(map[string]flag.InternalFlag)
+	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
 		flagToAdd := flagDto.Convert()
 		if err := flagToAdd.IsValid(); err == nil {
-			cache[key] = flagToAdd
+			cache[key] = &flagToAdd
 		} else {
 			fc.Logger.Error("[cache] invalid configuration for flag",
 				slog.String("key", key), slog.Any("error", err.Error()))
