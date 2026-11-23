@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/exporter"
@@ -43,12 +44,25 @@ type GoFeatureFlag struct {
 	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
 	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
 	retrieverManager          *retriever.Manager
-	// evalExporterWg is a wait group to wait for the evaluation exporter to finish the export before closing GOFF
+	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
+	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
+	// the exporter. It is nil when there is no exporter for the evaluation events.
+	eventQueue chan exporter.FeatureEvent
+	// eventWorkerStop is closed by Close to ask the worker to drain the queue and exit.
+	eventWorkerStop chan struct{}
+	// evalExporterWg waits for the event worker to finish before closing GOFF
 	evalExporterWg sync.WaitGroup
+	closeOnce      sync.Once
 	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
 	enrichment     map[string]any
 	enrichmentOnce sync.Once
+	// droppedEvents counts the evaluation events dropped because eventQueue was full.
+	droppedEvents atomic.Int64
+	lastDropLog   atomic.Int64
 }
+
+// DefaultEventQueueSize is the default value of Config.EventQueueSize.
+const DefaultEventQueueSize = 65536
 
 // ff is the default object for go-feature-flag
 var (
@@ -82,6 +96,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
 		config, goFF.config.internalLogger)
+	goFF.startEventWorker()
 	config.internalLogger.Debug("GO Feature Flag is initialized")
 	return goFF, nil
 }
@@ -134,6 +149,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 				Exporter:         exp.Exporter,
 				FlushInterval:    exp.FlushInterval,
 				MaxEventInMemory: exp.MaxEventInMemory,
+				MaxQueuedEvents:  exp.MaxQueuedEvents,
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
 				trackingEventExporterConfigs = append(trackingEventExporterConfigs, c)
@@ -165,7 +181,12 @@ func (g *GoFeatureFlag) Close() {
 		if g.retrieverManager != nil {
 			_ = g.retrieverManager.Shutdown(g.config.Context)
 		}
-		// we have to wait for the GO routine before stopping the exporter
+		// we have to wait for the event worker (it drains the queue) before stopping the exporter
+		g.closeOnce.Do(func() {
+			if g.eventWorkerStop != nil {
+				close(g.eventWorkerStop)
+			}
+		})
 		g.evalExporterWg.Wait()
 		if g.featureEventDataExporter != nil {
 			g.featureEventDataExporter.Stop()

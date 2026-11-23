@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -26,10 +28,37 @@ type eventStoreImpl[T ExportableEvent] struct {
 	stopOnce sync.Once
 	// cleanQueueInterval is the duration between each cleaning
 	cleanQueueInterval time.Duration
+	// maxEvents is the hard limit of events kept in the store, 0 means unlimited.
+	maxEvents int64
+	// dropped is the number of events rejected because the store was full.
+	dropped atomic.Int64
+	// onDrop is called (outside of the lock) with the total number of dropped events, each time
+	// events have been dropped. It must be cheap and non-blocking.
+	onDrop func(totalDropped int64)
 }
 
+// NewEventStore creates an event store without any limit on the number of events it keeps.
+// Prefer NewEventStoreWithLimit for anything that must be memory stable.
 func NewEventStore[T ExportableEvent](cleanQueueInterval time.Duration) EventStore[T] {
+	return NewEventStoreWithLimit[T](cleanQueueInterval, 0, nil)
+}
+
+// NewEventStoreWithLimit creates an event store that keeps at most maxEvents events
+// (0 means unlimited).
+//
+// Drop policy: when the store is full the NEW event is dropped (drop-newest). Events already
+// stored are never discarded, so a batch that a consumer is exporting (or retrying) is never
+// invalidated and the order of the events is preserved; the cost of a drop is O(1) and does not
+// touch the consumers' offsets. Every drop is counted (see DroppedEvents) and reported to onDrop.
+// A store only fills up when a consumer is not able to keep up (exporter slow or failing): the
+// events lost are the ones that arrive while the exporter is unavailable, which is also what
+// would be lost with a drop-oldest policy, only the time range differs.
+func NewEventStoreWithLimit[T ExportableEvent](
+	cleanQueueInterval time.Duration, maxEvents int64, onDrop func(totalDropped int64),
+) EventStore[T] {
 	store := &eventStoreImpl[T]{
+		maxEvents:            maxEvents,
+		onDrop:               onDrop,
 		events:               make([]EventStoreItem[T], 0),
 		mutex:                sync.RWMutex{},
 		lastOffset:           minOffset,
@@ -145,21 +174,89 @@ func (e *eventStoreImpl[T]) GetPendingEventCount(consumerID string) (int64, erro
 }
 
 // Add is adding item of type T in the Event store.
+// If the store has a limit and is full, the event is dropped and counted (see NewEventStoreWithLimit).
 func (e *eventStoreImpl[T]) Add(data T) {
+	e.AddAll([]T{data})
+}
+
+// AddAll adds several events with a single lock acquisition (see Add for the drop policy).
+func (e *eventStoreImpl[T]) AddAll(data []T) {
+	var dropped int64
 	e.mutex.Lock()
-	defer e.mutex.Unlock()
-	e.lastOffset++
-	e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: data})
+	for _, d := range data {
+		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
+			// the events consumed by everybody but not cleaned yet do not count: release them first.
+			e.cleanQueueLocked()
+		}
+		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
+			// a consumer that is behind the others must not make the others lose events: it
+			// gives up its oldest pending event instead (counted as a drop).
+			dropped += e.evictLaggardsLocked()
+			if int64(len(e.events)) >= e.maxEvents {
+				dropped++
+				continue
+			}
+		}
+		e.lastOffset++
+		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
+	}
+	e.mutex.Unlock()
+	if dropped > 0 {
+		total := e.dropped.Add(dropped)
+		if e.onDrop != nil {
+			e.onDrop(total)
+		}
+	}
+}
+
+// evictLaggardsLocked is called when the store is full. If the consumers are not all at the same
+// offset, the ones that are the furthest behind skip the oldest event of the store (it is not
+// delivered to them), which lets the store release it and admit a new event for the consumers that
+// keep up. It returns the number of (consumer, event) deliveries given up, 0 when all the consumers
+// are at the same offset: then nobody is "healthier" than the others and the new event is dropped.
+// WARNING: please call this function only in a function that has locked the mutex first.
+func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
+	if len(e.events) == 0 || len(e.consumers) < 2 {
+		return 0
+	}
+	lowest, highest := int64(math.MaxInt64), int64(math.MinInt64)
+	for _, c := range e.consumers {
+		lowest = min(lowest, c.Offset)
+		highest = max(highest, c.Offset)
+	}
+	if lowest == highest {
+		return 0
+	}
+	oldest := e.events[0].Offset
+	var evicted int64
+	for _, c := range e.consumers {
+		if c.Offset == lowest && c.Offset < oldest {
+			c.Offset = oldest
+			evicted++
+		}
+	}
+	if evicted == 0 {
+		return 0
+	}
+	e.cleanQueueLocked()
+	return evicted
+}
+
+// DroppedEvents returns the number of events dropped because the store was full.
+func (e *eventStoreImpl[T]) DroppedEvents() int64 {
+	return e.dropped.Load()
 }
 
 // fetchPendingEvents is returning all the available item in the Event store for this consumer.
 // WARNING: please call this function only in a function that has locked the mutex first.
 func (e *eventStoreImpl[T]) fetchPendingEvents(currentConsumer *consumer) *EventList[T] {
-	events := make([]T, 0)
-	for _, event := range e.events {
-		if event.Offset > currentConsumer.Offset {
-			events = append(events, event.Data)
-		}
+	// the offsets are strictly increasing: find the first pending event with a binary search.
+	start := sort.Search(len(e.events), func(i int) bool {
+		return e.events[i].Offset > currentConsumer.Offset
+	})
+	events := make([]T, 0, len(e.events)-start)
+	for _, event := range e.events[start:] {
+		events = append(events, event.Data)
 	}
 	return &EventList[T]{
 		Events:        events,
@@ -187,7 +284,8 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 			e.lastOffset,
 		)
 	}
-	currentConsumer.Offset = offset
+	// the offset may have been moved forward while the events were exported (see evictLaggardsLocked)
+	currentConsumer.Offset = max(currentConsumer.Offset, offset)
 	return nil
 }
 
@@ -195,27 +293,57 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 func (e *eventStoreImpl[T]) cleanQueue() {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+	e.cleanQueueLocked()
+}
+
+// CleanQueue releases the events that every consumer has already processed. It is also done
+// periodically; calling it after a successful flush keeps the memory of a healthy store small.
+func (e *eventStoreImpl[T]) CleanQueue() {
+	e.cleanQueue()
+}
+
+// cleanQueueLocked is cleanQueue for a caller that holds the mutex.
+func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	if len(e.events) == 0 {
 		// nothing to remove
 		return
 	}
-	consumerMinOffset := minOffset
+	// minOffset is also the offset of a consumer that has not consumed anything yet, so it can not be
+	// used as the "not set" marker of the minimum.
+	consumerMinOffset := int64(math.MaxInt64)
 	for _, currentConsumer := range e.consumers {
-		if consumerMinOffset == minOffset || currentConsumer.Offset < consumerMinOffset {
-			consumerMinOffset = currentConsumer.Offset
-		}
+		consumerMinOffset = min(consumerMinOffset, currentConsumer.Offset)
+	}
+	if len(e.consumers) == 0 {
+		return
 	}
 	if consumerMinOffset <= minOffset {
 		// nothing to remove
 		return
 	}
 
-	for i, event := range e.events {
-		if event.Offset == consumerMinOffset {
-			e.events = e.events[i+1:]
-			break
-		}
+	i := sort.Search(len(e.events), func(i int) bool {
+		return e.events[i].Offset >= consumerMinOffset
+	})
+	if i == len(e.events) || e.events[i].Offset != consumerMinOffset {
+		return
 	}
+	removed := i + 1
+	remaining := len(e.events) - removed
+	// A plain reslice keeps the whole backing array (and the removed events it references)
+	// alive, so we release the removed events and copy the rest in a right-sized array when
+	// more than half of the array is waste.
+	if cap(e.events) > 1024 && remaining < cap(e.events)/2 {
+		kept := make([]EventStoreItem[T], remaining, max(remaining*2, 256))
+		copy(kept, e.events[removed:])
+		e.events = kept
+		return
+	}
+	var zero EventStoreItem[T]
+	for j := 0; j < removed; j++ {
+		e.events[j] = zero
+	}
+	e.events = e.events[removed:]
 }
 
 // periodicCleanQueue periodically cleans the queue
