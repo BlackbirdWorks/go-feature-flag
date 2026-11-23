@@ -71,9 +71,8 @@ type nikunjyKnownQuery struct {
 }
 
 // hashNikunjyQuery is a fast, non-cryptographic hash of the bytes of the query, that reads
-// them 32 at a time. It does not rely on the runtime (hash/maphash does not build with TinyGo,
-// which builds the wasm evaluator) and it has no seed, so the hash of a query is the same in
-// every process. Its collisions are handled by intern.
+// them 32 at a time. It does not rely on the runtime (no hash/maphash) and it has no seed, so
+// the hash of a query is the same in every process. Its collisions are handled by intern.
 func hashNikunjyQuery(query string) uint64 {
 	const (
 		prime1 = 0x9E3779B185EBCA87
@@ -104,7 +103,7 @@ func hashNikunjyQuery(query string) uint64 {
 // nikunjyKeysEnabled is whether index saves keys. It is not when the keys could not be released:
 // the rules are then evaluated through get, as rules that are not validated. It is a variable so
 // that tests can run that case.
-var nikunjyKeysEnabled = cleanupsRun
+var nikunjyKeysEnabled = true
 
 // nikunjyKeysMinQueryLen is the length from which a query is given a key. A short query is
 // hashed and compared by get faster than a key is saved, released and looked up: giving it a key

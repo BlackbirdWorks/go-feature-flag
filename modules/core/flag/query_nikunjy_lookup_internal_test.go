@@ -738,7 +738,7 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 		wantIndexed bool
 	}{
 		{name: "keys are saved when the cleanups that release them run", enabled: true, wantIndexed: true},
-		{name: "keys are not saved when the cleanups never run, as with TinyGo", enabled: false},
+		{name: "keys are not saved when the cleanups never run", enabled: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
