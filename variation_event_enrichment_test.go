@@ -79,7 +79,7 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			if tt.wantMetadata == nil {
 				assert.Empty(t, exp.events[0].Metadata)
 			} else {
-				assert.Equal(t, tt.wantMetadata, map[string]any(exp.events[0].Metadata))
+				assert.Equal(t, tt.wantMetadata, exp.events[0].Metadata)
 			}
 			wantCustom := map[string]any{}
 			maps.Copy(wantCustom, tt.callerCustom)

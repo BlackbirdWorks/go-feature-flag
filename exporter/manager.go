@@ -53,7 +53,7 @@ type managerImpl[T ExportableEvent] struct {
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
 	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
 	flushThresholds []int64
-	lastDropLog    atomic.Int64
+	lastDropLog     atomic.Int64
 
 	// background flushes (QueueEvent), one goroutine at most per consumer
 	flushRunning []atomic.Bool
@@ -69,7 +69,8 @@ type managerImpl[T ExportableEvent] struct {
 const flushRetryBackoff = 1 * time.Second
 
 func NewManager[T ExportableEvent](exporters []Config,
-	exporterCleanQueueInterval time.Duration, logger *fflog.FFLogger) Manager[T] {
+	exporterCleanQueueInterval time.Duration, logger *fflog.FFLogger,
+) Manager[T] {
 	if exporterCleanQueueInterval == 0 {
 		// default value for the exporterCleanQueueDuration is 1 minute
 		exporterCleanQueueInterval = DefaultExporterCleanQueueInterval

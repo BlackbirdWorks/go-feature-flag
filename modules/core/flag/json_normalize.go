@@ -32,26 +32,8 @@ func normalizeJSONValueDepth(v any, depth int) (res any, ok bool) {
 			return nil, false // NaN and Inf can not be encoded
 		}
 		return v, true
-	case int:
-		return float64(x), true
-	case int8:
-		return float64(x), true
-	case int16:
-		return float64(x), true
-	case int32:
-		return float64(x), true
-	case int64:
-		return float64(x), true
-	case uint:
-		return float64(x), true
-	case uint8:
-		return float64(x), true
-	case uint16:
-		return float64(x), true
-	case uint32:
-		return float64(x), true
-	case uint64:
-		return float64(x), true
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return integerToFloat(v), true
 	case float32:
 		// json.Marshal formats a float32 with 32 bits precision, so float64(x) would not be what the
 		// encoding produces: let the encoding decide.
@@ -94,3 +76,30 @@ const maxJSONFloat = 1.7976931348623157e308
 
 // maxNormalizeDepth is the nesting depth above which normalizeJSONValue gives up.
 const maxNormalizeDepth = 100
+
+// integerToFloat is what the encoding then the decoding make of an integer.
+func integerToFloat(v any) float64 {
+	switch x := v.(type) {
+	case int:
+		return float64(x)
+	case int8:
+		return float64(x)
+	case int16:
+		return float64(x)
+	case int32:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case uint:
+		return float64(x)
+	case uint8:
+		return float64(x)
+	case uint16:
+		return float64(x)
+	case uint32:
+		return float64(x)
+	case uint64:
+		return float64(x)
+	}
+	return 0
+}
