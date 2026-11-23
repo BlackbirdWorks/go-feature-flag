@@ -133,15 +133,28 @@ generate-helm-docs: ## Generates helm documentation for the project
 # Optional variables: COVERPROFILE=<file> writes a coverage profile,
 # TEST_LOG=<file> tees the output, GROUP=<cmd|plugins|rest|all> picks the root
 # unit shard, MODULE=<rules|modules/core> picks the module of test-unit-module.
+# On the aggregate targets (test, test-unit) the files are suffixed per suite.
 TEST_PKG_SCRIPT := .github/ci-scripts/test-pkgs.sh
 COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)),)
 TEE = $(if $(TEST_LOG),2>&1 | tee $(abspath $(TEST_LOG)),)
 GROUP ?= all
 GOTESTFLAGS ?=
 
-test: test-unit test-integration test-e2e ## Run every test type (unit, integration, e2e)
+# Aggregate targets (test, test-unit) run several suites. Every suite gets its own
+# file: the suite name is appended to COVERPROFILE / TEST_LOG before the extension
+# (COVERPROFILE=cov/all.out -> cov/all-unit-root.out, cov/all-unit-rules.out, ...).
+suite_file = $(if $(1),$(basename $(1))-$(2)$(suffix $(1)),)
+suite_make = $(MAKE) --no-print-directory $(1) COVERPROFILE=$(call suite_file,$(COVERPROFILE),$(2)) TEST_LOG=$(call suite_file,$(TEST_LOG),$(2))
 
-test-unit: test-unit-root test-unit-module-rules test-unit-module-core ## Run the unit tests of all modules (no docker)
+test: ## Run every test type (unit, integration, e2e); one coverage/log file per suite
+	@$(MAKE) --no-print-directory test-unit
+	@$(call suite_make,test-integration,integration)
+	@$(call suite_make,test-e2e,e2e)
+
+test-unit: ## Run the unit tests of all modules (no docker); one coverage/log file per module
+	@$(call suite_make,test-unit-root,unit-root)
+	@$(call suite_make,test-unit-module MODULE=rules,unit-rules)
+	@$(call suite_make,test-unit-module MODULE=modules/core,unit-core)
 
 test-unit-root: ## Run the root module unit tests with the race detector (GROUP=cmd|plugins|rest|all)
 	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) unit-$(GROUP)); \
@@ -151,12 +164,6 @@ test-unit-root: ## Run the root module unit tests with the race detector (GROUP=
 test-unit-module: ## Run the unit tests of one nested module (MODULE=rules|modules/core)
 	@test -n "$(MODULE)" || { echo "usage: make test-unit-module MODULE=<dir>"; exit 1; }
 	@set -o pipefail; cd $(MODULE) && CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker $(COVER_FLAGS) ./... $(TEE)
-
-test-unit-module-rules:
-	@$(MAKE) --no-print-directory test-unit-module MODULE=rules
-
-test-unit-module-core:
-	@$(MAKE) --no-print-directory test-unit-module MODULE=modules/core
 
 # The plain unit tests of these packages run again here (the docker tag compiles
 # them together with the container tests). That is cheap and always correct,
