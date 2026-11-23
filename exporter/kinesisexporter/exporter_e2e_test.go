@@ -171,9 +171,8 @@ func TestE2E_Export_Errors(t *testing.T) {
 	}
 }
 
-// PutRecords accepts at most 500 records per call on AWS and the exporter sends everything it
-// receives in one call: bigger batches are the caller's responsibility (the exporter is not bulk,
-// so the library flushes events one by one).
+// PutRecords accepts at most 500 records per call on AWS: the exporter splits bigger batches
+// into several calls, so 501 events must all be delivered.
 func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 	t.Parallel()
 	srv := gopherstack.Shared(t)
@@ -181,9 +180,6 @@ func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 	client := kinesis.NewFromConfig(cfg)
 	stream := createStream(t, client, 1)
 	e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: kinesisexporter.NewSettings(kinesisexporter.WithStreamName(stream))}
-	err := e.Export(context.Background(), &fflog.FFLogger{}, events(501))
-	if err == nil {
-		t.Skip("emulator accepted 501 records in one PutRecords call, AWS rejects it (limit is 500)")
-	}
-	assert.Contains(t, err.Error(), "send:")
+	require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(501)))
+	assert.Len(t, readAll(t, client, stream, 501), 501)
 }

@@ -275,8 +275,12 @@ func (k *MockKinesisSender) SendMessages(
 ) (*kinesis.PutRecordsOutput, error) {
 	k.PutRecordsInputs = append(k.PutRecordsInputs, msgs)
 	failedRecordCount := int32(0)
+	results := make([]types.PutRecordsResultEntry, 0, len(msgs.Records))
+	for range msgs.Records {
+		results = append(results, types.PutRecordsResultEntry{SequenceNumber: aws.String("1")})
+	}
 	output := kinesis.PutRecordsOutput{
-		Records:           []types.PutRecordsResultEntry{},
+		Records:           results,
 		FailedRecordCount: &failedRecordCount,
 		EncryptionType:    types.EncryptionTypeNone,
 		ResultMetadata:    middleware.Metadata{},
