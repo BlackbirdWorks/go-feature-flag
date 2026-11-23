@@ -86,8 +86,9 @@ func (f *InternalFlag) Value(
 		}
 	}
 
-	if flagContext.EvaluationContextEnrichment != nil {
-		maps.Copy(evaluationCtx.GetCustom(), flagContext.EvaluationContextEnrichment)
+	if len(flagContext.EvaluationContextEnrichment) > 0 {
+		// the caller's context must not be modified (it can be shared by concurrent evaluations).
+		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
 	key, keyError := flag.GetBucketingKeyValue(evaluationCtx)
@@ -122,7 +123,13 @@ func (f *InternalFlag) Value(
 			}
 	}
 
-	return flag.GetVariationValue(variationSelection.name), ResolutionDetails{
+	value := flag.GetVariationValue(variationSelection.name)
+	if flag != f {
+		// flag is a memoized (shared, read-only) flag built from the scheduled rollout steps: the
+		// caller owns the value it receives, as it did when the flag was copied at each evaluation.
+		value = cloneVariationValue(value)
+	}
+	return value, ResolutionDetails{
 		Variant:   variationSelection.name,
 		Reason:    variationSelection.reason,
 		RuleIndex: variationSelection.ruleIndex,
@@ -167,6 +174,7 @@ func (f *InternalFlag) selectVariation(
 	hasRule := len(f.GetRules()) != 0
 	// Shared by all the rules below: the context is converted to a map at most once.
 	queryCtx := &queryContext{ctx: ctx}
+	defer queryCtx.release()
 	// Check all targeting in order, the first to match will be the one used.
 	if hasRule {
 		for ruleIndex, target := range f.GetRules() {
@@ -207,12 +215,40 @@ func (f *InternalFlag) selectVariation(
 	}, nil
 }
 
-// nolint: gocognit
 // applyScheduledRolloutSteps is checking if the flag has a scheduled rollout configured.
 // If yes we merge the changes to the current flag.
+//
+// The flag that results only depends on how many steps are due, so it is built once for each
+// count (see scheduledMemo) and shared, read-only, by the evaluations. The flag f is never modified.
 func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*InternalFlag, error) {
 	if f.Scheduled == nil {
 		return f, nil
+	}
+
+	// We only keep the steps that are already active (date in the past or now).
+	due := 0
+	for i := range *f.Scheduled {
+		if isStepDue(&(*f.Scheduled)[i], evaluationDate) {
+			due++
+		}
+	}
+	return scheduledFlags.get(f, due, func() (*InternalFlag, error) {
+		return f.buildScheduledFlag(evaluationDate)
+	})
+}
+
+func isStepDue(step *ScheduledStep, evaluationDate time.Time) bool {
+	return step.Date != nil && (step.Date.Before(evaluationDate) || step.Date.Equal(evaluationDate))
+}
+
+// buildScheduledFlag applies the due steps on a deep copy of the flag.
+// nolint: gocognit
+func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFlag, error) {
+	dueSteps := make([]ScheduledStep, 0, len(*f.Scheduled))
+	for _, step := range *f.Scheduled {
+		if isStepDue(&step, evaluationDate) {
+			dueSteps = append(dueSteps, step)
+		}
 	}
 
 	// We are doing a deep copy the flag to avoid modifying the original flag.
@@ -226,12 +262,11 @@ func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*In
 		return &InternalFlag{}, err
 	}
 
-	// We only keep the steps that are already active (date in the past or now).
-	dueSteps := make([]ScheduledStep, 0, len(*f.Scheduled))
-	for _, step := range *f.Scheduled {
-		if step.Date != nil &&
-			(step.Date.Before(evaluationDate) || step.Date.Equal(evaluationDate)) {
-			dueSteps = append(dueSteps, step)
+	// the json copy loses the hash of the queries (see Rule.QueryHash): the rules have the
+	// same queries as the ones of f at this point, so the hashes are still right.
+	if f.Rules != nil && flagCopy.Rules != nil && len(*f.Rules) == len(*flagCopy.Rules) {
+		for i := range *f.Rules {
+			(*flagCopy.Rules)[i].QueryHash = (*f.Rules)[i].QueryHash
 		}
 	}
 
@@ -528,4 +563,31 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 		return defaultDate
 	}
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
+}
+
+// cloneVariationValue deep copies the JSON-like values (objects and arrays) of a variation, the
+// other values are immutable.
+func cloneVariationValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[k] = cloneVariationValue(e)
+		}
+		return out
+	case map[any]any:
+		out := make(map[any]any, len(x))
+		for k, e := range x {
+			out[k] = cloneVariationValue(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, e := range x {
+			out[i] = cloneVariationValue(e)
+		}
+		return out
+	default:
+		return v
+	}
 }
