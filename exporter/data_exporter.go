@@ -34,6 +34,10 @@ type Config struct {
 	Exporter         CommonExporter
 	FlushInterval    time.Duration
 	MaxEventInMemory int64
+	// MaxQueuedEvents is the hard limit of events kept in memory while they wait to be exported.
+	// When it is reached (exporter slow or failing) new events are dropped and counted.
+	// Default: DefaultQueuedEventsFactor x MaxEventInMemory.
+	MaxQueuedEvents int64
 }
 
 type dataExporterImpl[T ExportableEvent] struct {
@@ -114,6 +118,10 @@ func (d *dataExporterImpl[T]) Flush() {
 			d.logger.Error(err.Error())
 		}
 		return
+	}
+	// release the events everybody has consumed instead of waiting for the periodic cleaning
+	if c, ok := store.(interface{ CleanQueue() }); ok {
+		c.CleanQueue()
 	}
 }
 
