@@ -6,6 +6,13 @@ This file records which upstream commit this tree was last synced to and how thi
 from upstream. The `upstream-catchup` skill (`.claude/skills/upstream-catchup/SKILL.md`) reads
 and updates it.
 
+## Isolation
+
+This project never publishes to, pushes to, comments on or automatically syncs from upstream. The
+only contact is the `upstream-catchup` skill: a manual, read-only review of upstream commits by a
+developer, with changes ported selectively by hand (never a wholesale merge of `upstream/main`).
+Dependabot ignores the upstream modules (`.github/dependabot.yml`).
+
 ## Marker (machine-readable)
 
 Keep these lines as plain `key: value`, one per line, no quoting
