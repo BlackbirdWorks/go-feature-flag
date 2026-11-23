@@ -225,6 +225,6 @@ func TestWebhook_Export_impossibleToParse(t *testing.T) {
 	assert.EqualError(
 		t,
 		err,
-		"parse \" http://invalid.com/\": first path segment in URL cannot contain colon",
+		"parse \"[REDACTED]\": first path segment in URL cannot contain colon",
 	)
 }
