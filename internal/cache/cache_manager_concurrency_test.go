@@ -41,13 +41,18 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					for !stop.Load() {
+						// Only a reader racing with Close may see the "not initialised" error.
 						f, err := m.GetFlag("flag-1")
 						if err == nil {
 							assert.NotNil(t, f)
+						} else if !tt.close {
+							assert.NoError(t, err)
 						}
 						all, err := m.AllFlags()
 						if err == nil {
 							assert.Len(t, all, tt.flags)
+						} else if !tt.close {
+							assert.NoError(t, err)
 						}
 					}
 				}()
