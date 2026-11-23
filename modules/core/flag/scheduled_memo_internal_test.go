@@ -75,7 +75,7 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	require.NoError(t, err)
 	_, ok := scheduledFlags.entries.Load(key)
 	require.True(t, ok)
-	f = nil
+	// f is not used past this point, so the flag (and its Scheduled) is unreachable and collectable.
 	assert.Eventually(t, func() bool {
 		runtime.GC()
 		_, ok := scheduledFlags.entries.Load(key)
