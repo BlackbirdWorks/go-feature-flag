@@ -200,6 +200,11 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 		defer m.flushWg.Done()
 		for {
 			for m.flushAgain[i].Swap(false) {
+				// a flush requested while the previous one was running was requested before that
+				// one failed: it must not bypass the backoff that failure has just set.
+				if checkProgress && time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
+					continue
+				}
 				m.flushNow(i, checkProgress)
 			}
 			m.flushRunning[i].Store(false)
