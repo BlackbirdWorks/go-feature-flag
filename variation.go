@@ -486,9 +486,20 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 		g.CollectEventData(event)
 		return
 	}
+	g.eventAdmission.RLock()
+	if g.closing {
+		// the client is closing (an evaluation that was running when its flag set was removed, for
+		// example): the workers are draining or gone, hand the event to the exporters directly so
+		// that their final flush exports it.
+		g.eventAdmission.RUnlock()
+		g.CollectEventData(event)
+		return
+	}
 	select {
 	case g.eventQueue <- event:
+		g.eventAdmission.RUnlock()
 	default:
+		g.eventAdmission.RUnlock()
 		g.droppedEvents.Add(1)
 		// never log here: an evaluation must not wait for the log sink (see reportDrops).
 		select {

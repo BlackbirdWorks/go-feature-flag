@@ -53,6 +53,10 @@ type GoFeatureFlag struct {
 	// evalExporterWg waits for the event worker to finish before closing GOFF
 	evalExporterWg sync.WaitGroup
 	closeOnce      sync.Once
+	// closing is set by Close, under eventAdmission, before the event workers are asked to stop: an
+	// event is only put in eventQueue while it is false, so that nothing is queued after the final drain.
+	closing        bool
+	eventAdmission sync.RWMutex
 	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
 	enrichment     map[string]any
 	enrichmentOnce sync.Once
@@ -176,7 +180,9 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 	return featureEventManager, trackingEventManager
 }
 
-// Close wait until thread are done
+// Close wait until thread are done.
+// The events of the evaluations that finish while Close runs are exported by its final flush; an
+// evaluation that finishes after Close has returned has nowhere to send its event.
 func (g *GoFeatureFlag) Close() {
 	if g != nil {
 		if g.retrieverManager != nil {
@@ -184,6 +190,10 @@ func (g *GoFeatureFlag) Close() {
 		}
 		// we have to wait for the event worker (it drains the queue) before stopping the exporter
 		g.closeOnce.Do(func() {
+			// wait for the evaluations that are putting their event in the queue, and refuse the next ones
+			g.eventAdmission.Lock()
+			g.closing = true
+			g.eventAdmission.Unlock()
 			if g.eventWorkerStop != nil {
 				close(g.eventWorkerStop)
 			}
