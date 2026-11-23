@@ -7,6 +7,10 @@ jobs:
   lint-helm-chart:
     name: Lint Helm Chart
     runs-on: ubuntu-latest
+    env:
+      KIND_CLUSTER: chart-testing
+      IMAGE_REPOSITORY: go-feature-flag
+      IMAGE_TAG: ci
     permissions:
       contents: read
       pull-requests: read
@@ -34,7 +38,7 @@ jobs:
         id: changed-files-specific
         uses: marceloprado/has-changed-path@df1b7a3161b8fb9fd8c90403c66a9e66dfde50cb # v1.0.1
         with:
-          paths: ./cmd/relayproxy/helm-charts/
+          paths: ./cmd/relayproxy/helm-charts/ ./cmd/relayproxy/Dockerfile.local ./.github/workflows/ci-helm.yaml
 
       - name: Run chart-testing (lint)
         working-directory: ./cmd/relayproxy/helm-charts/relay-proxy/
@@ -43,8 +47,21 @@ jobs:
       - name: Create kind cluster
         uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 #v1.15.2
         if: steps.changed-files-specific.outputs.changed == 'true'
+        with:
+          cluster_name: ${{ env.KIND_CLUSTER }}
+
+      # This repository publishes no image, so build the relay proxy from the
+      # sources of the PR and load it straight into the kind nodes. The chart is
+      # then tested against the code under review, not a published image.
+      - name: Build the relay proxy image
+        if: steps.changed-files-specific.outputs.changed == 'true'
+        run: make build-relayproxy-docker RELAYPROXY_IMAGE="$IMAGE_REPOSITORY:$IMAGE_TAG"
+
+      - name: Load the image into the kind cluster
+        if: steps.changed-files-specific.outputs.changed == 'true'
+        run: kind load docker-image "$IMAGE_REPOSITORY:$IMAGE_TAG" --name "$KIND_CLUSTER"
 
       - name: Run chart-testing (install)
         working-directory: ./cmd/relayproxy/helm-charts/relay-proxy/
-        run: ct install --chart-dirs . --charts . --helm-extra-set-args "--set=image.tag=latest"
+        run: ct install --chart-dirs . --charts . --helm-extra-set-args "--set=image.repository=$IMAGE_REPOSITORY --set=image.tag=$IMAGE_TAG --set=image.pullPolicy=Never"
         if: steps.changed-files-specific.outputs.changed == 'true'
