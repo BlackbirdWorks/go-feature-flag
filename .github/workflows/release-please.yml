@@ -44,17 +44,6 @@ jobs:
     secrets:
       token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
 
-  bump-module-core-dependency-for-wasm-module:
-    if: ${{ needs.release-please.outputs.module_core_released == 'true' }}
-    uses: ./.github/workflows/release-bump-modules.yml
-    needs: release-please
-    with:
-      modulePath: modules/core
-      version: ${{ needs.release-please.outputs.module_core_version }}
-      goModDirectoryPath: cmd/wasm
-    secrets:
-      token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
-
   bump-module-core-in-go-sdk-contrib:
     if: ${{ needs.release-please.outputs.module_core_released == 'true' }}
     uses: ./.github/workflows/release-bump-modules.yml
