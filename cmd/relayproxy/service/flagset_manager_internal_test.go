@@ -59,7 +59,7 @@ func testSharedPollerManager(t *testing.T) {
 
 	// a flagset added at runtime joins the same group
 	impl := mgr.(*flagsetManagerImpl)
-	impl.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"))
+	impl.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"), 0)
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
 	all, err := mgr.AllFlagSets()
@@ -87,7 +87,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 
 		// the flagset name is already in the configuration: the new client is closed and released
 		dup := s3FlagSet("u1", "flags", "p/b.yaml")
-		mgr.(*flagsetManagerImpl).addFlagset(dup)
+		mgr.(*flagsetManagerImpl).addFlagset(dup, 0)
 		assert.Equal(t, 1, reg.groupCount())
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
