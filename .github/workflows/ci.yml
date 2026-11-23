@@ -86,7 +86,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       # All modules, relay proxy, jsonschema generator and cli.
       - run: make build
 
@@ -106,7 +106,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - run: make build-relayproxy-fips
 
   # One job per module so a failure in one never hides findings in another.
@@ -134,8 +134,10 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
-      - run: make lint-module MODULE="${{ matrix.module }}"
+      - uses: $/.github/actions/setup-go
+      - run: make lint-module MODULE="$LINT_MODULE"
+        env:
+          LINT_MODULE: ${{ matrix.module }}
       # Optional target: it runs only once the Makefile defines it, so this
       # job needs no change when it lands. Not module specific: root leg only.
       - name: Run mulint (if the target exists)
@@ -161,7 +163,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - run: make tidy-check
       - run: make verify
 
@@ -179,7 +181,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - run: make vuln-check
 
   swagger:
@@ -196,7 +198,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - run: make swagger
       - name: Fail if the generated swagger docs are out of date
         run: git diff --exit-code --stat
@@ -229,7 +231,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - name: Check that the test shards cover every package
         run: make test-shards-check
       - name: Run unit tests with the race detector
@@ -242,7 +244,7 @@ jobs:
             TEST_LOG="test-logs/unit-root-$GROUP.log"
       - name: Upload test log on failure
         if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-log-unit-root-${{ matrix.group }}
           path: test-logs/
@@ -250,7 +252,7 @@ jobs:
           if-no-files-found: ignore
       - name: Upload coverage profile
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-unit-root-${{ matrix.group }}
           path: coverage/
@@ -293,7 +295,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - name: Run unit tests with the race detector
         env:
           MODULE: ${{ matrix.module }}
@@ -305,7 +307,7 @@ jobs:
             TEST_LOG="test-logs/unit-$ARTIFACT.log"
       - name: Upload test log on failure
         if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-log-unit-${{ matrix.artifact }}
           path: test-logs/
@@ -313,7 +315,7 @@ jobs:
           if-no-files-found: ignore
       - name: Upload coverage profile
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-unit-${{ matrix.artifact }}
           path: coverage/
@@ -347,7 +349,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - name: Pre-pull container images
         run: |
           .github/ci-scripts/pull-images.sh \
@@ -363,7 +365,7 @@ jobs:
             TEST_LOG=test-logs/integration.log
       - name: Upload test log on failure
         if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-log-integration
           path: test-logs/
@@ -371,7 +373,7 @@ jobs:
           if-no-files-found: ignore
       - name: Upload coverage profile
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-integration
           path: coverage/
@@ -405,7 +407,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - name: Pre-pull the gopherstack image
         run: |
           # The tag is the single source of truth in the test helper.
@@ -420,7 +422,7 @@ jobs:
             TEST_LOG=test-logs/e2e.log
       - name: Upload test log on failure
         if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-log-e2e
           path: test-logs/
@@ -428,7 +430,7 @@ jobs:
           if-no-files-found: ignore
       - name: Upload coverage profile
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-e2e
           path: coverage/
@@ -488,8 +490,11 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
-      - run: make fuzz-dir MODULE="${{ matrix.module }}" DIR="${{ matrix.dir }}" FUZZTIME=10s
+      - uses: $/.github/actions/setup-go
+      - run: make fuzz-dir MODULE="$FUZZ_MODULE" DIR="$FUZZ_DIR" FUZZTIME=10s
+        env:
+          FUZZ_MODULE: ${{ matrix.module }}
+          FUZZ_DIR: ${{ matrix.dir }}
 
   # Protocol compatibility of the relay proxy with the real Java, JavaScript,
   # Go and .NET OpenFeature providers, against two locally started proxies.
@@ -507,7 +512,7 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - uses: ./.github/actions/setup-go
+      - uses: $/.github/actions/setup-go
       - name: Set up Maven
         uses: stCarolas/setup-maven@d6af6abeda15e98926a57b5aa970a96bb37f97d1 # v5
         with:
