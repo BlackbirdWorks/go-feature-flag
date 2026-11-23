@@ -22,9 +22,6 @@ release/
 
 vendor/
 
-# venv created for the documentation script
-.venv
-
 # binaries
 release/
 cmd/relayproxy/relayproxy
@@ -34,15 +31,10 @@ tmp/
 goff-proxy.yaml
 flags.yaml
 
-go-feature-flag-relay-proxy/
-
 # AWS SAM build folder
 .aws-sam
 
 node_modules/
-oryxBuildBinary
-
-./.sonarlint
 
 # Localstack cache
 volume

@@ -63,8 +63,8 @@ jobs:
           changed=$(git diff --name-only HEAD^1 HEAD)
           echo "Changed files:"
           echo "$changed"
-          # Anything outside documentation, templates and release-please metadata is code.
-          if grep -qvE '^(website/|docs/|\.github/(ISSUE_TEMPLATE/|PULL_REQUEST_TEMPLATE\.md|release-please/)|.*\.md$|LICENSE$)' <<< "$changed"; then
+          # Anything outside documentation and templates is code.
+          if grep -qvE '^(docs/|\.github/(ISSUE_TEMPLATE/|PULL_REQUEST_TEMPLATE\.md)|.*\.md$|LICENSE$|NOTICE$)' <<< "$changed"; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
