@@ -33,7 +33,7 @@ func TestRedactURLError(t *testing.T) {
 		wantMessage string
 		wantSame    bool
 	}{
-		{name: "url.Parse error", err: parseErr, wantMessage: `parse "[REDACTED]": invalid character "{" in host name`},
+		{name: "url.Parse error", err: parseErr, wantMessage: `parse "[REDACTED]": invalid URL`},
 		{name: "http client error", err: doErr, wantMessage: `Get "[REDACTED]": dial tcp`},
 		{
 			name: "url.Error from a custom client", wantMessage: `Post "[REDACTED]": boom`,
@@ -93,6 +93,43 @@ func TestRedactURL(t *testing.T) {
 			got := internal.RedactURL(tt.raw)
 			assert.Equal(t, tt.want, got)
 			assert.NotContains(t, got, "SECRETMARKER")
+		})
+	}
+}
+
+func TestRedactURLError_UnparsableURLs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{name: "password parsed as invalid port", raw: "https://user:SECRETMARKER"},
+		{name: "invalid port with path", raw: "https://h:99999SECRETMARKER/p"},
+		{name: "invalid escape in path", raw: "https://u:p@h/%zzSECRETMARKER"},
+		{name: "invalid escape in user info", raw: "https://u%zzSECRETMARKER:p@h"},
+		{name: "control character", raw: "https://h/\x7fSECRETMARKER"},
+		{name: "missing scheme", raw: "://SECRETMARKER"},
+		{name: "colon in first path segment", raw: "1http://SECRETMARKER"},
+		{name: "unclosed ipv6 host", raw: "https://[::1SECRETMARKER/"},
+		{name: "invalid host character", raw: "https://h{}SECRETMARKER"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			_, parseErr := url.Parse(tt.raw)
+			require.Error(t, parseErr)
+			require.Contains(t, parseErr.Error(), "SECRETMARKER", "the shape must make url.Parse quote the input")
+
+			_, reqErr := http.NewRequest(http.MethodGet, tt.raw, nil) //nolint:noctx // error message only
+			require.Error(t, reqErr)
+
+			for _, in := range []error{parseErr, reqErr, fmt.Errorf("wrapped: %w", parseErr)} {
+				got := internal.RedactURLError(in)
+				require.Error(t, got)
+				assert.NotContains(t, got.Error(), "SECRETMARKER")
+				assert.NotContains(t, fmt.Sprintf("%v %+v %#v", got, got, got), "SECRETMARKER")
+				assert.Contains(t, got.Error(), internal.RedactedURL)
+			}
 		})
 	}
 }
