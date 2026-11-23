@@ -1,19 +1,25 @@
+# The ignore list mirrors .github/ci-scripts/coverage-exclude.txt exactly
+# (checked by .github/ci-scripts/coverage.py --check-codecov).
 ignore:
-  - "testdata"
-  - "testutils"
-  - "modeldocs"
-  - "**/_test.go"
-  - "**/_mock.go"
-  - "**/testdata/"
-  - "**/testutils/"
-  - "**/modeldocs/"
   - "cmd/relayproxy/docs/"
-  - "cmd/jsonschema-generator/"
+  - "rules/parser/jsonquery_lexer.go"
+  - "rules/parser/jsonquery_parser.go"
+  - "rules/parser/jsonquery_visitor.go"
+  - "testutils/"
+  - "cmd/relayproxy/testdata/"
   - "cmd/relayproxy/modeldocs/"
-  - "model/dto/converter_v0.go"
+  - "cmd/jsonschema-generator/"
+  - "rules/cmd/"
 
+# The native GitHub rule requires 90% line coverage. Project status stays
+# informational until the total gets there; patch coverage is enforced.
 coverage:
   status:
     project:
       default:
+        target: 90%
         threshold: 0.1%
+        informational: true
+    patch:
+      default:
+        target: 90%

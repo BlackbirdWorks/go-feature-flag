@@ -123,7 +123,7 @@ generate-helm-docs: ## Generates helm documentation for the project
 # unit shard, MODULE=<rules|modules/core> picks the module of test-unit-module.
 # On the aggregate targets (test, test-unit) the files are suffixed per suite.
 TEST_PKG_SCRIPT := .github/ci-scripts/test-pkgs.sh
-COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)),)
+COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)) $(if $(COVERPKG),-coverpkg=$(COVERPKG)),)
 TEE = $(if $(TEST_LOG),2>&1 | tee $(abspath $(TEST_LOG)),)
 GROUP ?= all
 GOTESTFLAGS ?=
@@ -182,17 +182,29 @@ fuzz-dir: ## Fuzz one package (usage: make fuzz-dir MODULE=./ DIR=./internal/cac
 provider-tests: ## Run the integration tests for the Open Feature Providers
 	./openfeature/provider_tests/integration_tests.sh
 
-coverage: ## Run the tests of the project and export the coverage for all modules
-	@rm -f coverage*.cov coverage*.cov.tmp
-	@for module in $(ALL_GO_MOD_DIRS); do \
-		echo "Running coverage for $$module..."; \
-		export original_path=$(shell pwd); \
-		covfile="coverage-$$(basename $$module).cov.tmp"; \
-		cd $$module && $(GOWORK_ENV) $(GOTEST) -cover -covermode=count -tags=docker -coverprofile=$${original_path}/$${covfile} ./... || exit 1; \
-		cd $$original_path; \
-	done
-	@echo "mode: count" > coverage.cov && cat *.cov.tmp | grep -v "mode: count" >> coverage.cov
-	@rm -f *.cov.tmp
+# Merged coverage: every suite writes its own profile into coverage/, then
+# coverage.py merges them (a block covered by any suite counts once), applies
+# .github/ci-scripts/coverage-exclude.txt and prints the LINE coverage that
+# GitHub's native coverage reads from coverage/report/cobertura.xml. CI runs the
+# same script in the `coverage` job. COVERAGE_MIN=<percent> makes it fail below.
+COVERAGE_SCRIPT := .github/ci-scripts/coverage.py
+COVERAGE_MIN ?=
+
+coverage: ## Run every test suite with coverage, merge the profiles and report line coverage (needs docker)
+	@$(MAKE) --no-print-directory clean-coverage
+	@mkdir -p coverage
+	@$(MAKE) --no-print-directory test COVERPROFILE=coverage/all.out
+	@$(MAKE) --no-print-directory coverage-report
+
+clean-coverage: ## Remove the coverage/ directory
+	-@rm -r coverage 2>/dev/null; true
+
+coverage-report: ## Merge the profiles found in coverage/ (e.g. downloaded from CI) and report line coverage
+	@mkdir -p coverage/report
+	@python3 $(COVERAGE_SCRIPT) $$(find coverage -maxdepth 2 -name '*.out' -not -path 'coverage/report/*') \
+		--merged coverage/report/merged.out --cobertura coverage/report/cobertura.xml \
+		--summary coverage/report/summary.md --top 40 --check-codecov codecov.yml \
+		$(if $(COVERAGE_MIN),--min $(COVERAGE_MIN),)
 
 bench: ## Launch the benchmark test
 	 $(GOWORK_ENV) $(GOTEST) -tags=bench -bench Benchmark -cpu 2 -run=^$$

@@ -47,3 +47,4 @@ volume
 go.work
 go.work.sum
 .gstack/
+coverage/

@@ -24,6 +24,12 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
+  # Minimum total LINE coverage (percent) of the merged profiles; the `coverage`
+  # job fails below it. The target is 90 (the repository ruleset requires it for
+  # the native GitHub coverage rule). This is a ratchet: it is the floor of the
+  # measured total and is raised in the same pull request that adds tests,
+  # until it reaches 90. Local equivalent: make coverage COVERAGE_MIN=<n>.
+  COVERAGE_MIN: "92"
   # Packages run in parallel and share one Ryuk reaper; a package can latch onto
   # a reaper that is shutting down and time out after 60s. Runners are
   # ephemeral and the tests terminate their own containers.
@@ -446,6 +452,77 @@ jobs:
           name: e2e
           fail_ci_if_error: false
 
+  # Merges the profiles of every test job (a block covered by any suite counts
+  # once), applies .github/ci-scripts/coverage-exclude.txt, prints the totals
+  # to the job summary, fails below COVERAGE_MIN and publishes the Cobertura
+  # file that GitHub's native coverage reads. Same script as `make coverage`.
+  coverage:
+    name: coverage
+    needs: [changes, test-unit-root, test-unit-modules, test-integration, test-e2e]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Download coverage profiles
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: coverage-*
+          path: coverage
+      - name: Merge profiles, report and enforce the minimum
+        run: |
+          set +e
+          make coverage-report
+          rc=$?
+          cat coverage/report/summary.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+      - name: Upload merged coverage
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage-report
+          path: coverage/report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Native GitHub code coverage (GitHub Code Quality, public preview). OFF until
+  # the repository variable NATIVE_COVERAGE_UPLOAD is "true". Reason: the branch
+  # ruleset on main requires 90% line coverage, so uploading before the total
+  # reaches 90% would block every pull request, including the ones that add
+  # tests. Switch on (no code change) with:
+  #   gh variable set NATIVE_COVERAGE_UPLOAD --body true -R BlackbirdWorks/semaphore
+  # Separate job so `code-quality: write` is granted to nothing else.
+  # `pull-requests: read` is for the push-to-main run (PR discovery). Fork pull
+  # requests cannot write and are skipped.
+  coverage-upload:
+    name: coverage (upload to GitHub)
+    needs: [coverage]
+    if: ${{ vars.NATIVE_COVERAGE_UPLOAD == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      code-quality: write
+      pull-requests: read
+    steps:
+      - name: Download the merged Cobertura report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-report
+          path: coverage-report
+      - name: Upload coverage to GitHub
+        uses: actions/upload-code-coverage@2b21a77928be8d5168c2b9581a67f2adbebacc52 # v1.4.4
+        with:
+          file: coverage-report/cobertura.xml
+          language: Go
+          label: code-coverage/go
+
   # Fuzz smoke: one matrix leg per package holding fuzz targets, discovered at
   # run time so new targets are never skipped. Each leg compiles only its own
   # package; targets inside a leg share the build cache.
@@ -548,6 +625,8 @@ jobs:
       - test-unit-modules
       - test-integration
       - test-e2e
+      - coverage
+      - coverage-upload
       - fuzz-plan
       - fuzz
       - provider-tests
