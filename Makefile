@@ -19,7 +19,7 @@ WHITE  := $(shell tput -Txterm setaf 7)
 CYAN   := $(shell tput -Txterm setaf 6)
 RESET  := $(shell tput -Txterm sgr0)
 
-.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module
+.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage
 
 SHELL := bash
 
@@ -201,10 +201,12 @@ clean-coverage: ## Remove the coverage/ directory
 
 coverage-report: ## Merge the profiles found in coverage/ (e.g. downloaded from CI) and report line coverage
 	@mkdir -p coverage/report
-	@python3 $(COVERAGE_SCRIPT) $$(find coverage -maxdepth 2 -name '*.out' -not -path 'coverage/report/*') \
+	@python3 $(COVERAGE_SCRIPT) $$(find coverage -maxdepth 2 -name '*.out' -not -path 'coverage/report/*' -not -path 'coverage/coverage-report/*') \
 		--merged coverage/report/merged.out --cobertura coverage/report/cobertura.xml \
 		--summary coverage/report/summary.md --top 40 --check-codecov codecov.yml \
 		$(if $(COVERAGE_MIN),--min $(COVERAGE_MIN),)
+	@# The merged profile must stay readable by the Go tooling (it is uploaded as an artifact).
+	@GOWORK=off $(GOCMD) tool cover -func=coverage/report/merged.out > /dev/null || { echo "merged profile is not readable by go tool cover"; exit 1; }
 
 bench: ## Launch the benchmark test
 	 $(GOWORK_ENV) $(GOTEST) -tags=bench -bench Benchmark -cpu 2 -run=^$$

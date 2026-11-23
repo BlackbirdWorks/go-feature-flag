@@ -130,27 +130,61 @@ def read_profiles(paths, mods):
 
 
 def code_lines(path):
-    """Set of line numbers holding code (not blank, not comment-only)."""
+    """Set of line numbers holding code (not blank, not comment-only).
+
+    A small lexer, so `/*` inside a string or raw string is not a comment and
+    raw-string lines count as code."""
     ok = set()
-    in_block = False
+    state = None  # None | "block" (/* */) | "raw" (`...`)
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for n, raw in enumerate(fh, 1):
-                s = raw.strip()
-                if in_block:
-                    if "*/" in s:
-                        in_block = False
-                    continue
-                if not s or s.startswith("//"):
-                    continue
-                if s.startswith("/*"):
-                    if "*/" not in s:
-                        in_block = True
-                    continue
-                ok.add(n)
+                code = state == "raw"
+                i, ln = 0, len(raw)
+                while i < ln:
+                    c = raw[i]
+                    if state == "block":
+                        j = raw.find("*/", i)
+                        if j < 0:
+                            break
+                        state, i = None, j + 2
+                    elif state == "raw":
+                        j = raw.find("`", i)
+                        if j < 0:
+                            break
+                        state, i = None, j + 1
+                    elif raw.startswith("//", i):
+                        break
+                    elif raw.startswith("/*", i):
+                        state, i = "block", i + 2
+                    elif c == "`":
+                        code, state, i = True, "raw", i + 1
+                    elif c in "\"'":
+                        code = True
+                        i += 1
+                        while i < ln and raw[i] != c:
+                            i += 2 if raw[i] == "\\" else 1
+                        i += 1
+                    else:
+                        if not c.isspace():
+                            code = True
+                        i += 1
+                if code:
+                    ok.add(n)
     except FileNotFoundError:
         return None
     return ok
+
+
+def self_test():
+    import tempfile
+    src = "package p\n/* c */\n// c\nvar a = `\n/* not a comment\n`\n/*\nblock\n*/\nvar b = \"/*\" // x\nvar c = '/'\n"
+    with tempfile.TemporaryDirectory() as d:
+        f = os.path.join(d, "x.go")
+        with open(f, "w", encoding="utf-8") as fh:
+            fh.write(src)
+        got = sorted(code_lines(f))
+    assert got == [1, 4, 5, 6, 10, 11], got
 
 
 def is_generated(path):
@@ -204,6 +238,7 @@ def main():
     ap.add_argument("--check-codecov")
     ap.add_argument("--no-exclude", action="store_true", help="measure without the exclusion list")
     a = ap.parse_args()
+    self_test()
 
     pats = load_patterns(a.exclude)
     if a.check_codecov:
@@ -248,7 +283,9 @@ def main():
             fh.write("mode: atomic\n")
             for (f, sl, sc, el, ec, ns), cnt in sorted(blocks.items()):
                 if f in stats:
-                    fh.write("%s:%d.%d,%d.%d %d %d\n" % (f, sl, sc, el, ec, ns, cnt))
+                    # "./" makes `go tool cover -func` resolve the file from the
+                    # repository root; bare names are read as import paths.
+                    fh.write("./%s:%d.%d,%d.%d %d %d\n" % (f, sl, sc, el, ec, ns, cnt))
 
     # Aggregate
     def agg(keyf):

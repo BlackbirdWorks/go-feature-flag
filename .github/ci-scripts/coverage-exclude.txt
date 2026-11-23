@@ -18,6 +18,7 @@ rules/parser/jsonquery_visitor.go
 
 # Test helpers and mocks (shared fixtures, gopherstack/testcontainers helpers).
 testutils/
+modules/core/testutils/
 cmd/relayproxy/testdata/
 
 # Type-only structs that exist to feed swagger; no behaviour.

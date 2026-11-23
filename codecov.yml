@@ -6,6 +6,7 @@ ignore:
   - "rules/parser/jsonquery_parser.go"
   - "rules/parser/jsonquery_visitor.go"
   - "testutils/"
+  - "modules/core/testutils/"
   - "cmd/relayproxy/testdata/"
   - "cmd/relayproxy/modeldocs/"
   - "cmd/jsonschema-generator/"
