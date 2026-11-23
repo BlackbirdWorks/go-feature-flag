@@ -260,3 +260,15 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 		})
 	}
 }
+
+func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
+	t.Parallel()
+	h := gitlabretriever.Retriever{
+		BaseURL:        "https://user:SECRETMARKER@gitlab.example.com:bad/?token=SECRETMARKER",
+		FilePath:       "flags.yaml",
+		RepositorySlug: "team/config",
+	}
+	_, err := h.Retrieve(context.Background())
+	assert.Error(t, err)
+	assert.NotContains(t, err.Error(), "SECRETMARKER")
+}
