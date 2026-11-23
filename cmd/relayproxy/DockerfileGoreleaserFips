@@ -1,6 +1,6 @@
 FROM gcr.io/distroless/static-debian13:latest
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/semaphore-fips /semaphore-fips
+COPY $TARGETPLATFORM/semaphore-fips /usr/local/bin/semaphore-fips
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
-CMD ["/semaphore-fips"]
+CMD ["/usr/local/bin/semaphore-fips"]

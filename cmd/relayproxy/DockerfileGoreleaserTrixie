@@ -1,7 +1,7 @@
 FROM debian:trixie-slim
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/semaphore /semaphore
+COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
-CMD ["/semaphore"]
+CMD ["/usr/local/bin/semaphore"]
 COPY rules/LICENSE /licenses/rules-LICENSE
