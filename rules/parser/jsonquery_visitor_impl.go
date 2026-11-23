@@ -284,13 +284,13 @@ func (j *JsonQueryVisitorImpl) VisitVersion(ctx *VersionContext) interface{} {
 
 func (j *JsonQueryVisitorImpl) VisitLong(ctx *LongContext) interface{} {
 	j.currentOperation = &IntOperation{}
-	val, err := strconv.ParseInt(ctx.GetText(), 10, 64)
+	val, err := strconv.Atoi(ctx.GetText())
 	if err != nil {
 		j.rightOp = nil
 		j.setErr(err)
 		return nil
 	}
-	j.rightOp = int(val)
+	j.rightOp = val
 	return nil
 }
 
@@ -308,12 +308,12 @@ func (j *JsonQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) int
 		j.rightOp = make([]int, 0)
 	}
 	list := j.rightOp.([]int)
-	val, err := strconv.ParseInt(ctx.INT().GetText(), 10, 64)
+	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
 		j.setErr(err)
 		return nil
 	}
-	j.rightOp = append(list, int(val))
+	j.rightOp = append(list, val)
 	if ctx.SubListOfInts() == nil || ctx.SubListOfInts().IsEmpty() {
 		return nil
 	}
