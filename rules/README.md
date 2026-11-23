@@ -1,4 +1,6 @@
 > Vendored copy of github.com/go-feature-flag/rules at commit 3baa4ca8fb5ee47aca90ff6d3227fd4b0be5523b (pull request #2, "perf: hash index for large IN lists"), which is the previously pinned commit e9704fa7a06c plus that PR.
+>
+> Local changes: integer literals (single values and `in` lists) are parsed with `strconv.Atoi` instead of `strconv.ParseInt(..., 64)` followed by an `int(...)` conversion, so an out-of-range literal is rejected with an error on every platform instead of being narrowed (CodeQL `go/incorrect-integer-conversion`). `LICENSE` is unchanged.
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/nikunjy/rules?style=flat-square)](https://goreportcard.com/report/github.com/nikunjy/rules)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/github.com/nikunjy/rules)](https://pkg.go.dev/github.com/nikunjy/rules)
