@@ -1,15 +1,34 @@
 package flag
 
+import "unicode/utf8"
+
 // normalizeJSONValue returns the value as json.Unmarshal into an `any` would have produced it
 // after a json.Marshal (numbers are float64, objects map[string]any, arrays []any), without going
 // through the encoding. ok is false for a value it does not know how to normalize (structs,
 // custom marshalers, NaN/Inf, ...): the caller must then use the encoding to get the same result.
+//
+// A value nested deeper than maxNormalizeDepth (which is what a cycle looks like) is left to the
+// encoding too, that reports the cycle as an error.
 func normalizeJSONValue(v any) (res any, ok bool) {
+	return normalizeJSONValueDepth(v, 0)
+}
+
+func normalizeJSONValueDepth(v any, depth int) (res any, ok bool) {
+	if depth > maxNormalizeDepth {
+		return nil, false
+	}
 	switch x := v.(type) {
 	case nil:
 		return nil, true
-	case string, bool, float64:
-		if f, isFloat := x.(float64); isFloat && (f != f || f > maxJSONFloat || f < -maxJSONFloat) {
+	case string:
+		if !utf8.ValidString(x) {
+			return nil, false // the encoding replaces the invalid sequences by U+FFFD
+		}
+		return x, true
+	case bool:
+		return x, true
+	case float64:
+		if x != x || x > maxJSONFloat || x < -maxJSONFloat {
 			return nil, false // NaN and Inf can not be encoded
 		}
 		return x, true
@@ -38,9 +57,15 @@ func normalizeJSONValue(v any) (res any, ok bool) {
 		// encoding produces: let the encoding decide.
 		return nil, false
 	case map[string]any:
+		if x == nil {
+			return nil, true // encoded as null
+		}
 		out := make(map[string]any, len(x))
 		for k, e := range x {
-			n, ok := normalizeJSONValue(e)
+			if !utf8.ValidString(k) {
+				return nil, false
+			}
+			n, ok := normalizeJSONValueDepth(e, depth+1)
 			if !ok {
 				return nil, false
 			}
@@ -48,9 +73,12 @@ func normalizeJSONValue(v any) (res any, ok bool) {
 		}
 		return out, true
 	case []any:
+		if x == nil {
+			return nil, true // encoded as null
+		}
 		out := make([]any, len(x))
 		for i, e := range x {
-			n, ok := normalizeJSONValue(e)
+			n, ok := normalizeJSONValueDepth(e, depth+1)
 			if !ok {
 				return nil, false
 			}
@@ -63,3 +91,6 @@ func normalizeJSONValue(v any) (res any, ok bool) {
 }
 
 const maxJSONFloat = 1.7976931348623157e308
+
+// maxNormalizeDepth is the nesting depth above which normalizeJSONValue gives up.
+const maxNormalizeDepth = 100
