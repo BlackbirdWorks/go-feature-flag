@@ -14,7 +14,9 @@ package gopherstack
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -100,18 +102,20 @@ func Start(ctx context.Context) (*Server, error) {
 		_ = testcontainers.TerminateContainer(c)
 		return nil, err
 	}
-	return &Server{Endpoint: fmt.Sprintf("http://%s:%s", host, port.Port()), container: c}, nil
+	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, port.Port())}
+	return &Server{Endpoint: u.String(), container: c}, nil
 }
 
 func waitHealthy(ctx context.Context, endpoint string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	for {
+		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
 		if err != nil {
 			return err
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec // same endpoint
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -169,9 +173,10 @@ func (s *Server) SetAwsEnv(t *testing.T) {
 }
 
 var (
-	sharedMu  sync.Mutex
-	shared    *Server
-	sharedErr error
+	sharedMu sync.Mutex
+	shared   *Server
+	// sharedStart caches the error of a failed start, so it is not retried by every test.
+	sharedStart struct{ err error }
 )
 
 // Shared returns the emulator of the test binary, started on the first call. The test is skipped
@@ -183,10 +188,10 @@ func Shared(t *testing.T) *Server {
 	}
 	sharedMu.Lock()
 	defer sharedMu.Unlock()
-	if shared == nil && sharedErr == nil {
-		shared, sharedErr = Start(context.Background())
+	if shared == nil && sharedStart.err == nil {
+		shared, sharedStart.err = Start(context.Background())
 	}
-	require.NoError(t, sharedErr)
+	require.NoError(t, sharedStart.err)
 	return shared
 }
 
