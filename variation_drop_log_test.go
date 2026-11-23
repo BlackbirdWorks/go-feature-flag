@@ -2,7 +2,6 @@ package ffclient_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -52,7 +51,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			sink := &dropGatedSink{
-				inner: slog.NewTextHandler(io.Discard, nil), gate: make(chan struct{}), entered: make(chan struct{}),
+				inner: slog.DiscardHandler, gate: make(chan struct{}), entered: make(chan struct{}),
 			}
 			released := false
 			release := func() {

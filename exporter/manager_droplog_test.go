@@ -2,7 +2,6 @@ package exporter_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -24,7 +23,7 @@ type gatedSink struct {
 
 func newGatedSink() *gatedSink {
 	return &gatedSink{
-		inner:   slog.NewTextHandler(io.Discard, nil),
+		inner:   slog.DiscardHandler,
 		gate:    make(chan struct{}),
 		entered: make(chan struct{}),
 	}
