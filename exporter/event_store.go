@@ -189,8 +189,13 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			e.cleanQueueLocked()
 		}
 		if e.maxEvents > 0 && int64(len(e.events)) >= e.maxEvents {
-			dropped++
-			continue
+			// a consumer that is behind the others must not make the others lose events: it
+			// gives up its oldest pending event instead (counted as a drop).
+			dropped += e.evictLaggardsLocked()
+			if int64(len(e.events)) >= e.maxEvents {
+				dropped++
+				continue
+			}
 		}
 		e.lastOffset++
 		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
@@ -202,6 +207,39 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			e.onDrop(total)
 		}
 	}
+}
+
+// evictLaggardsLocked is called when the store is full. If the consumers are not all at the same
+// offset, the ones that are the furthest behind skip the oldest event of the store (it is not
+// delivered to them), which lets the store release it and admit a new event for the consumers that
+// keep up. It returns the number of (consumer, event) deliveries given up, 0 when all the consumers
+// are at the same offset: then nobody is "healthier" than the others and the new event is dropped.
+// WARNING: please call this function only in a function that has locked the mutex first.
+func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
+	if len(e.events) == 0 || len(e.consumers) < 2 {
+		return 0
+	}
+	lowest, highest := int64(math.MaxInt64), int64(math.MinInt64)
+	for _, c := range e.consumers {
+		lowest = min(lowest, c.Offset)
+		highest = max(highest, c.Offset)
+	}
+	if lowest == highest {
+		return 0
+	}
+	oldest := e.events[0].Offset
+	var evicted int64
+	for _, c := range e.consumers {
+		if c.Offset == lowest && c.Offset < oldest {
+			c.Offset = oldest
+			evicted++
+		}
+	}
+	if evicted == 0 {
+		return 0
+	}
+	e.cleanQueueLocked()
+	return evicted
 }
 
 // DroppedEvents returns the number of events dropped because the store was full.
@@ -246,7 +284,8 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 			e.lastOffset,
 		)
 	}
-	currentConsumer.Offset = offset
+	// the offset may have been moved forward while the events were exported (see evictLaggardsLocked)
+	currentConsumer.Offset = max(currentConsumer.Offset, offset)
 	return nil
 }
 
