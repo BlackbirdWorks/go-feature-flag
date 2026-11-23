@@ -16,7 +16,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
 
-mod=$(go list -m)
+# Module path of the package in the root directory. `go list -m` would print every
+# workspace module when a go.work file is active, which breaks the shard filters.
+mod=$(go list -f '{{.Module.Path}}' .)
 all_pkgs() { go list ./...; }
 
 unit_cmd()     { all_pkgs | grep -E "^${mod}/cmd(/|$)" || true; }
