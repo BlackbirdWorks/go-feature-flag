@@ -70,7 +70,8 @@ func Start(opts Options) (*Relay, error) {
 		CommonFlagSet: config.CommonFlagSet{
 			Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		},
-		Server: config.Server{Mode: config.ServerModeHTTP},
+		// the server (and its monitoring port) only listens on the loopback interface
+		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1"},
 	}
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
