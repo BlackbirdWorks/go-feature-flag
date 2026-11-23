@@ -48,180 +48,6 @@ updates:
     cooldown:
       default-days: 7
 
-  # Integration tests
-  - package-ecosystem: nuget
-    directory: "/openfeature/provider_tests/dotnet-integration-tests"
-    schedule:
-      interval: daily
-      time: "04:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: gomod
-    directory: "/openfeature/provider_tests/go-integration-tests"
-    schedule:
-      interval: daily
-      time: "04:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: npm
-    directory: "/openfeature/provider_tests/js-integration-tests"
-    schedule:
-      interval: daily
-      time: "04:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: maven
-    directory: "/openfeature/provider_tests/java-integration-tests"
-    schedule:
-      interval: daily
-      time: "04:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  # Providers
-  - package-ecosystem: gradle
-    directory: "/openfeature/providers/kotlin-provider/gofeatureflag-kotlin-provider"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: pip
-    directory: "/openfeature/providers/python-provider"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  # Examples App
-  - package-ecosystem: npm
-    directory: "/examples/openfeature_web/webapp"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: npm
-    directory: "/examples/openfeature_nodejs/nodejs-app"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: npm
-    directory: "/examples/openfeature_react/react-app"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: gradle
-    directory: "/examples/openfeature_kotlin_server/kotlin-app"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  # Website CI scripts
-  - package-ecosystem: gomod
-    directory: "/website/.ci"
-    schedule:
-      interval: weekly
-      time: "01:00"
-    open-pull-requests-limit: 20
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-      exclude:
-        - "github.com/thomaspoignant/go-feature-flag/modules/core"
-
-  - package-ecosystem: npm
-    directory: "/openfeature/ci_scripts/"
-    schedule:
-      interval: weekly
-      time: "04:20"
-    open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    cooldown:
-      default-days: 7
-
   - package-ecosystem: gomod
     directory: "/modules/core"
     schedule:
@@ -233,5 +59,19 @@ updates:
       - "automerge"
     commit-message:
       prefix: "chore(dependencies)"
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: gomod
+    directory: "/rules"
+    schedule:
+      interval: daily
+      time: "01:30"
+    open-pull-requests-limit: 20
+    labels:
+      - "dependencies"
+      - "automerge"
+    commit-message:
+      prefix: "chore"
     cooldown:
       default-days: 7
