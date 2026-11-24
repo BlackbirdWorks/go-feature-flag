@@ -584,6 +584,13 @@ export MYAPP_SERVER_PORT=8080
 The `SEMAPHORE_` prefix is read in addition to this one, and wins when both are set. A prefix that starts with `GOFF`
 (`GOFF_`, `GOFFPROXY_`, the ones used with GO Feature Flag) keeps working and logs one warning at startup.
 
+Kubernetes injects, in every pod, the variables of the Services of the namespace (`<SERVICE>_SERVICE_HOST`,
+`<SERVICE>_SERVICE_PORT`, `<SERVICE>_PORT=tcp://...`, `<SERVICE>_PORT_<port>_TCP_ADDR`, ...). A Service named
+`semaphore` therefore adds variables that start with `SEMAPHORE_`. The relay proxy ignores the variables that start
+with the prefix and have both the name and the value of a service link, and logs their names (never their values) at the
+debug level. A setting such as `SEMAPHORE_SERVER_PORT=1031` is not affected. The Helm chart also sets
+`enableServiceLinks: false` on the pods.
+
 - option name: `envVariablePrefix`
 - type: **string**
 - default: **empty string**

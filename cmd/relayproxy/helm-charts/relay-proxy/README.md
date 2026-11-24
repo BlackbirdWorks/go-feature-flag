@@ -237,6 +237,24 @@ object
 			</td>
 		</tr>
 		<tr>
+			<td id="enableServiceLinks">
+				<a href="./values.yaml#L197">enableServiceLinks</a>
+            </td>
+			<td>
+bool
+</td>
+			<td>
+				<div style="max-width: 300px;">
+<pre lang="json">
+false
+</pre>
+</div>
+			</td>
+			<td>
+				Whether Kubernetes injects the environment variables of the Services of the namespace into the pod. They are not needed, and a Service named `semaphore` would add `SEMAPHORE_*` variables that look like settings.
+			</td>
+		</tr>
+		<tr>
 			<td id="env">
 				<a href="./values.yaml#L18">env</a>
             </td>

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
@@ -237,3 +239,66 @@ func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
+	t.Parallel()
+	// what Kubernetes injects for a Service named "semaphore" exposing port 1031
+	serviceLinks := []string{
+		"SEMAPHORE_SERVICE_HOST=10.0.0.1",
+		"SEMAPHORE_SERVICE_PORT=1031",
+		"SEMAPHORE_SERVICE_PORT_HTTP=1031",
+		"SEMAPHORE_PORT=tcp://10.0.0.1:1031",
+		"SEMAPHORE_PORT_1031_TCP=tcp://10.0.0.1:1031",
+		"SEMAPHORE_PORT_1031_TCP_PROTO=tcp",
+		"SEMAPHORE_PORT_1031_TCP_PORT=1031",
+		"SEMAPHORE_PORT_1031_TCP_ADDR=10.0.0.1",
+		"SEMAPHORE_PORT_1031_UDP=udp://10.0.0.1:1031",
+	}
+	tests := []struct {
+		name        string
+		environ     []string
+		wantPort    string
+		wantHost    string
+		wantIgnored []string
+	}{
+		{name: "service links alone are ignored", environ: serviceLinks, wantIgnored: []string{
+			"SEMAPHORE_PORT", "SEMAPHORE_PORT_1031_TCP", "SEMAPHORE_PORT_1031_TCP_ADDR",
+			"SEMAPHORE_PORT_1031_TCP_PORT", "SEMAPHORE_PORT_1031_TCP_PROTO", "SEMAPHORE_PORT_1031_UDP",
+			"SEMAPHORE_SERVICE_HOST", "SEMAPHORE_SERVICE_PORT", "SEMAPHORE_SERVICE_PORT_HTTP"}},
+		{name: "real settings next to service links are kept",
+			environ:  append([]string{"SEMAPHORE_SERVER_PORT=1031", "SEMAPHORE_HOST=example.org"}, serviceLinks...),
+			wantPort: "1031", wantHost: "example.org", wantIgnored: []string{
+				"SEMAPHORE_PORT", "SEMAPHORE_PORT_1031_TCP", "SEMAPHORE_PORT_1031_TCP_ADDR",
+				"SEMAPHORE_PORT_1031_TCP_PORT", "SEMAPHORE_PORT_1031_TCP_PROTO", "SEMAPHORE_PORT_1031_UDP",
+				"SEMAPHORE_SERVICE_HOST", "SEMAPHORE_SERVICE_PORT", "SEMAPHORE_SERVICE_PORT_HTTP"}},
+		{name: "a port without the service link form is a setting", environ: []string{"SEMAPHORE_PORT=1031"}},
+		{name: "a service host that is not an address is a setting",
+			environ: []string{"SEMAPHORE_SERVICE_HOST=not an ip"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			core, logs := observer.New(zap.DebugLevel)
+			c := &ConfigLoader{log: zap.New(core), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c.loadEnvVariables()
+			conf, err := c.ToConfig()
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHost, conf.Host)
+			if tt.wantPort != "" {
+				assert.Equal(t, 1031, conf.Server.Port)
+			}
+			var ignored []string
+			for _, e := range logs.FilterMessage("config: ignoring Kubernetes service link variables").All() {
+				for _, n := range e.ContextMap()["names"].([]any) {
+					ignored = append(ignored, n.(string))
+				}
+				for k, v := range e.ContextMap() {
+					assert.NotContains(t, fmtAny(v), "10.0.0.1", "values must not be logged (%s)", k)
+				}
+			}
+			assert.Equal(t, tt.wantIgnored, ignored)
+		})
+	}
+}
+
+func fmtAny(v any) string { return fmt.Sprint(v) }

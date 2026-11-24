@@ -2,7 +2,9 @@ package config
 
 import (
 	"errors"
+	"net/netip"
 	"os"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,6 +20,10 @@ type environProvider struct {
 	prefix  string
 	environ func() []string
 	cb      func(key, value string) (string, any)
+	// skip (optional) tells the variables to leave out, by the name without the prefix and the value.
+	skip func(key, value string) bool
+	// skipped (optional) receives the names of the variables left out.
+	skipped func(names []string)
 }
 
 // ReadBytes is not supported by the environment provider.
@@ -28,9 +34,14 @@ func (p *environProvider) ReadBytes() ([]byte, error) {
 // Read returns the variables that start with the prefix, mapped with the callback, as a nested map.
 func (p *environProvider) Read() (map[string]any, error) {
 	mp := make(map[string]any)
+	var skipped []string
 	for _, kv := range p.environ() {
 		name, value, _ := strings.Cut(kv, "=")
 		if !strings.HasPrefix(name, p.prefix) {
+			continue
+		}
+		if p.skip != nil && p.skip(strings.TrimPrefix(name, p.prefix), value) {
+			skipped = append(skipped, name)
 			continue
 		}
 		key, mapped := p.cb(name, value)
@@ -39,48 +50,111 @@ func (p *environProvider) Read() (map[string]any, error) {
 		}
 		mp[key] = mapped
 	}
+	if p.skipped != nil && len(skipped) > 0 {
+		slices.Sort(skipped)
+		p.skipped(skipped)
+	}
 	return maps.Unflatten(mp, "."), nil
 }
 
-func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
-	return &environProvider{prefix: prefix, environ: c.environ(), cb: func(key, v string) (string, any) {
-		key = strings.TrimPrefix(key, prefix)
+var (
+	// serviceLinkPortRegexp matches PORT_<port>_<PROTO> and its _ADDR, _PORT and _PROTO variants.
+	serviceLinkPortRegexp = regexp.MustCompile(`^PORT_[0-9]+_(TCP|UDP|SCTP)(_ADDR|_PORT|_PROTO)?$`)
+	// serviceLinkNamedPortRegexp matches SERVICE_PORT_<NAME>.
+	serviceLinkNamedPortRegexp = regexp.MustCompile(`^SERVICE_PORT_[A-Z0-9_]+$`)
+)
+
+// isServiceLink tells if the variable, given without its prefix, is one of the variables Kubernetes injects
+// for the Services of the namespace (service links): <SERVICE>_SERVICE_HOST, <SERVICE>_SERVICE_PORT,
+// <SERVICE>_SERVICE_PORT_<NAME>, <SERVICE>_PORT and <SERVICE>_PORT_<port>_<PROTO>[_ADDR|_PORT|_PROTO].
+//
+// The prefix of the settings is the name of the product, so a Service with that name makes Kubernetes
+// inject variables under it. A variable is a service link only if both its name and its value have the form
+// Kubernetes gives them, so a setting with a similar name and another value is still read.
+func isServiceLink(name, value string) bool {
+	switch {
+	case name == "SERVICE_HOST":
+		_, err := netip.ParseAddr(value)
+		return err == nil
+	case name == "SERVICE_PORT", serviceLinkNamedPortRegexp.MatchString(name):
+		return isPortNumber(value)
+	case name == "PORT":
+		return isServiceLinkURL(value)
+	case serviceLinkPortRegexp.MatchString(name):
 		switch {
-		case strings.HasPrefix(key, "RETRIEVERS"),
-			strings.HasPrefix(key, "NOTIFIER"),
-			strings.HasPrefix(key, "NOTIFIERS"),
-			strings.HasPrefix(key, "FLAGSETS"),
-			strings.HasPrefix(key, "EXPORTERS"):
-			configMap := c.k.Raw()
-			modifiedConfigMap, err := loadArrayEnv(key, v, configMap)
-			if err != nil {
-				log.Error(
-					"config: error loading array env",
-					zap.String("key", key),
-					// the value of the variable may be a secret (API key, token, ...): only log its size.
-					zap.Int("valueLength", len(v)),
-					zap.Error(err),
-				)
-				return key, v
-			}
-			// Update the global config with the modified configMap
-			for configKey, configValue := range modifiedConfigMap {
-				_ = c.k.Set(configKey, configValue)
-			}
-			return key, v
-		case strings.HasSuffix(key, "KAFKA_ADDRESSES"),
-			strings.HasSuffix(key, "APIKEYS"),
-			strings.HasPrefix(key, "AUTHORIZEDKEYS_EVALUATION"),
-			strings.HasPrefix(key, "AUTHORIZEDKEYS_ADMIN"):
-			transformedKey := strings.ReplaceAll(strings.ToLower(key), "_", ".")
-			return transformedKey, strings.Split(v, ",")
-		case key == "OTEL_RESOURCE_ATTRIBUTES":
-			c.parseOtelResourceAttributes(v, log)
-			return key, v
+		case strings.HasSuffix(name, "_ADDR"):
+			_, err := netip.ParseAddr(value)
+			return err == nil
+		case strings.HasSuffix(name, "_PORT"):
+			return isPortNumber(value)
+		case strings.HasSuffix(name, "_PROTO"):
+			return slices.Contains([]string{"tcp", "udp", "sctp"}, value)
 		default:
-			return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
+			return isServiceLinkURL(value)
 		}
-	}}
+	}
+	return false
+}
+
+func isPortNumber(value string) bool {
+	port, err := strconv.Atoi(value)
+	return err == nil && port > 0 && port < 65536
+}
+
+func isServiceLinkURL(value string) bool {
+	for _, scheme := range []string{"tcp://", "udp://", "sctp://"} {
+		if strings.HasPrefix(value, scheme) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
+	return &environProvider{prefix: prefix, environ: c.environ(),
+		skip: func(key, value string) bool { return prefix != "" && isServiceLink(key, value) },
+		skipped: func(names []string) {
+			// only the names are logged, the values may be anything.
+			log.Debug("config: ignoring Kubernetes service link variables", zap.Strings("names", names))
+		},
+		cb: func(key, v string) (string, any) {
+			key = strings.TrimPrefix(key, prefix)
+			switch {
+			case strings.HasPrefix(key, "RETRIEVERS"),
+				strings.HasPrefix(key, "NOTIFIER"),
+				strings.HasPrefix(key, "NOTIFIERS"),
+				strings.HasPrefix(key, "FLAGSETS"),
+				strings.HasPrefix(key, "EXPORTERS"):
+				configMap := c.k.Raw()
+				modifiedConfigMap, err := loadArrayEnv(key, v, configMap)
+				if err != nil {
+					log.Error(
+						"config: error loading array env",
+						zap.String("key", key),
+						// the value of the variable may be a secret (API key, token, ...): only log its size.
+						zap.Int("valueLength", len(v)),
+						zap.Error(err),
+					)
+					return key, v
+				}
+				// Update the global config with the modified configMap
+				for configKey, configValue := range modifiedConfigMap {
+					_ = c.k.Set(configKey, configValue)
+				}
+				return key, v
+			case strings.HasSuffix(key, "KAFKA_ADDRESSES"),
+				strings.HasSuffix(key, "APIKEYS"),
+				strings.HasPrefix(key, "AUTHORIZEDKEYS_EVALUATION"),
+				strings.HasPrefix(key, "AUTHORIZEDKEYS_ADMIN"):
+				transformedKey := strings.ReplaceAll(strings.ToLower(key), "_", ".")
+				return transformedKey, strings.Split(v, ",")
+			case key == "OTEL_RESOURCE_ATTRIBUTES":
+				c.parseOtelResourceAttributes(v, log)
+				return key, v
+			default:
+				return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
+			}
+		}}
 }
 
 // environ returns the source of the environment variables, os.Environ unless the loader was given another one.
