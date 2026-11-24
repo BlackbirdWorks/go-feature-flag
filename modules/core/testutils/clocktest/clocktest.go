@@ -7,6 +7,7 @@
 package clocktest
 
 import (
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
@@ -22,4 +23,18 @@ func Freeze() {
 	instant := Instant()
 	//nolint:reassign // the one place that overrides the clock, from the TestMain of the packages that need it.
 	clock.Now = func() time.Time { return instant }
+}
+
+// FreezeStepping pins clock.Now to a deterministic stepping clock: the first call returns Instant, and
+// every following call returns a time that is step later than the previous one (strictly increasing
+// and safe for concurrent use, with no relation to the real time). It is for the packages whose tests
+// assert that a date advances (a cache refresh after a poll or a forced refresh). Call it from TestMain
+// only, before m.Run, and never reassign the clock afterwards.
+func FreezeStepping(step time.Duration) {
+	var calls atomic.Int64
+	instant := Instant()
+	//nolint:reassign // the one place that overrides the clock, from the TestMain of the packages that need it.
+	clock.Now = func() time.Time {
+		return instant.Add(time.Duration(calls.Add(1)-1) * step)
+	}
 }

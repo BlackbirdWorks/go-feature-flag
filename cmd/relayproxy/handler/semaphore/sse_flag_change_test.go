@@ -22,6 +22,7 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
@@ -149,7 +150,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			case <-ctx.Done():
 				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
-			before := time.Now().Unix()
+			before := clock.Now().Unix()
 			require.NoError(t, sseService.BroadcastFlagChanges("default", tt.flagChange))
 
 			event := readSSEEvent(t, resp)
@@ -214,7 +215,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 
 	// Broadcast to flagsetA -- the client should receive this one.
 	// The event id is a timestamp, so it tells us which broadcast was received.
-	afterWrongBroadcast := time.Now().UnixNano()
+	afterWrongBroadcast := clock.Now().UnixNano()
 	require.NoError(t, sseService.BroadcastFlagChanges("flagsetA", notifier.DiffCache{
 		Added: map[string]flag.Flag{"right-flag": &flag.InternalFlag{}},
 	}))

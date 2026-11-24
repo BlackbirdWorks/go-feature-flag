@@ -61,7 +61,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			t.Parallel()
 			f := tt.flag(clocktest.Instant())
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			_, first := f.Value("flag", ctx, Context{})
+			_, first := f.Value("flag", ctx, Context{Service: NewService()})
 			rel := first.Metadata["release"].(map[string]any)
 			rel["owner"] = "changed"
 			rel["tags"].([]any)[0] = "changed"
@@ -69,7 +69,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			if first.RuleName != nil {
 				*first.RuleName = "changed"
 			}
-			_, second := f.Value("flag", ctx, Context{})
+			_, second := f.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
 			if second.RuleName != nil {
 				assert.Equal(t, "rule", *second.RuleName)

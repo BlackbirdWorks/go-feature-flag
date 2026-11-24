@@ -67,7 +67,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 			f := progressiveFlag(tt.endPercentage)
 			runParallel(300, func(i int) {
 				ctx := ffcontext.NewEvaluationContext("user")
-				_, d := f.Value("flag", ctx, Context{})
+				_, d := f.Value("flag", ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
 			assert.Equal(t, tt.endPercentage, f.DefaultRule.ProgressiveRollout.End.Percentage,

@@ -336,7 +336,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagContext := flag.Context{DefaultSdkValue: false}
+			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
 			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {
@@ -432,7 +432,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagContext := flag.Context{DefaultSdkValue: false}
+			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
 			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {

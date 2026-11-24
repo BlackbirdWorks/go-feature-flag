@@ -68,7 +68,11 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 				b = b.AddCustom("anonymous", tt.callerAnon)
 			}
 			ctx := b.Build()
-			got, _ := f.Value("flag", ctx, flag.Context{EvaluationContextEnrichment: tt.enrichment})
+			got, _ := f.Value(
+				"flag",
+				ctx,
+				flag.Context{Service: flag.NewService(), EvaluationContextEnrichment: tt.enrichment},
+			)
 			want := "a"
 			if tt.wantMatch {
 				want = "b"

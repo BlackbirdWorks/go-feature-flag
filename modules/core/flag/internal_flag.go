@@ -76,11 +76,16 @@ func (f *InternalFlag) Value(
 		evaluationCtx = ffcontext.NewEvaluationContext("")
 	}
 
-	// A Context without a Service gets a throwaway one: correct, but it parses the queries again for
-	// every evaluation. Production callers pass the Service of their client.
+	// The Service owns the caches of the evaluation: a Context without one is a wiring mistake, reported
+	// as an error instead of silently evaluating with a throwaway Service.
 	svc := flagContext.Service
 	if svc == nil {
-		svc = NewService()
+		return flagContext.DefaultSdkValue, ResolutionDetails{
+			Variant:      VariationSDKDefault,
+			Reason:       ReasonError,
+			ErrorCode:    ErrorCodeGeneral,
+			ErrorMessage: errNoService.Error(),
+		}
 	}
 
 	// The enrichment is applied first: its currentDateTime is the date of the evaluation (scheduled
@@ -90,7 +95,11 @@ func (f *InternalFlag) Value(
 		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
-	evaluationDate := svc.evaluationDate(evaluationCtx)
+	// The date is only read (from the context, else the clock) by the flags that depend on it.
+	var evaluationDate time.Time
+	if f.Scheduled != nil || f.Experimentation != nil {
+		evaluationDate = svc.evaluationDate(evaluationCtx)
+	}
 	flag, err := f.applyScheduledRolloutSteps(svc, evaluationDate)
 	if err != nil {
 		return flagContext.DefaultSdkValue, ResolutionDetails{

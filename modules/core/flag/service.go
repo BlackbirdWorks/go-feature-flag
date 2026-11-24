@@ -1,6 +1,7 @@
 package flag
 
 import (
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -45,6 +46,9 @@ func WithLogger(logger *slog.Logger) ServiceOption {
 		}
 	}
 }
+
+// errNoService is reported by the evaluations that were not given a Service.
+var errNoService = errors.New("no flag.Service: pass the Service of the client in flag.Context.Service")
 
 // NewService creates an empty Service.
 func NewService(opts ...ServiceOption) *Service {

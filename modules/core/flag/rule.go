@@ -76,11 +76,11 @@ func (r *Rule) RequiresBucketing() bool {
 
 // Evaluate is checking if the rule applies to for the user.
 // If yes, it returns the variation you should use for this rule. The queries are parsed and cached
-// by svc (a throwaway Service when it is nil).
+// by svc, which is required.
 func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagName string, isDefault bool,
 ) (string, error) {
 	if svc == nil {
-		svc = NewService()
+		return "", errNoService
 	}
 	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
@@ -104,7 +104,6 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
 	}
 
-	evaluationDate := DateFromContextOrDefault(ctx, clock.Now())
 	// check that we have an evaluation context
 	if ctx == nil {
 		return "", errors.New("evaluate Rule: no evaluation context")
@@ -123,7 +122,8 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 			return "", errors.New("progressive rollout requires a bucketing key")
 		}
 
-		return r.EvaluateProgressiveRollout(key, flagName, evaluationDate)
+		// only the progressive rollout depends on the date: the clock is not read for the other rules.
+		return r.EvaluateProgressiveRollout(key, flagName, DateFromContextOrDefault(ctx, clock.Now()))
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {

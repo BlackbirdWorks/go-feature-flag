@@ -209,7 +209,11 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
 
-			value, details := f.Value("mixed-formats", ctx, Context{DefaultSdkValue: "sdk-default"})
+			value, details := f.Value(
+				"mixed-formats",
+				ctx,
+				Context{Service: NewService(), DefaultSdkValue: "sdk-default"},
+			)
 
 			assert.Equal(t, tt.want, value)
 			assert.Equal(t, tt.want, details.Variant)

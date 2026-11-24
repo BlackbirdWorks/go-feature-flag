@@ -133,9 +133,9 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 				}},
 			}
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			first, _ := f.Value("flag", ctx, Context{})
+			first, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			tt.mutate(first)
-			second, _ := f.Value("flag", ctx, Context{})
+			second, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.value(), second)
 		})
 	}

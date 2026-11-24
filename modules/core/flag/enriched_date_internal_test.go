@@ -65,7 +65,11 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
 					"currentDateTime": tt.callerDate.Format(time.RFC3339Nano)})
 			}
-			_, d := tt.flag.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment})
+			_, d := tt.flag.Value(
+				"flag",
+				ctx,
+				Context{Service: NewService(), EvaluationContextEnrichment: tt.enrichment},
+			)
 			assert.Equal(t, tt.wantVariant, d.Variant)
 			// the context of the caller is not modified
 			if tt.callerDate == nil {

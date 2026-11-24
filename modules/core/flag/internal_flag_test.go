@@ -46,7 +46,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -80,7 +80,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -107,7 +107,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 				},
 			},
@@ -137,7 +137,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 				},
 			},
@@ -171,7 +171,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						"currentDateTime": fixedNow().Add(6 * time.Second).Format(time.RFC3339),
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 				},
 			},
@@ -201,7 +201,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 				},
 			},
@@ -241,7 +241,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -284,7 +284,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -333,7 +333,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -384,7 +384,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -431,7 +431,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -478,7 +478,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -530,7 +530,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -586,7 +586,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -639,7 +639,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("company", "semaphore").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -681,7 +681,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -723,7 +723,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -765,7 +765,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -801,7 +801,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -849,7 +849,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -899,7 +899,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						"currentDateTime": fixedNow().Add(1 * time.Minute).Format(time.RFC3339),
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -945,7 +945,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -997,7 +997,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						),
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1043,7 +1043,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1118,7 +1118,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						),
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -1184,7 +1184,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						),
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1228,7 +1228,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1281,7 +1281,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1328,7 +1328,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1382,7 +1382,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1431,7 +1431,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1471,7 +1471,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1512,7 +1512,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1561,7 +1561,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1604,7 +1604,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1644,7 +1644,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1690,7 +1690,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1744,7 +1744,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1790,7 +1790,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1830,7 +1830,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1863,7 +1863,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1899,7 +1899,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -1943,7 +1943,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "feature",
 				user:     ffcontext.NewEvaluationContextBuilder("1").Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: true,
 					EvaluationContextEnrichment: map[string]any{
 						"env": "development",
@@ -1982,7 +1982,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 					EvaluationContextEnrichment: map[string]any{
 						"environment": "prod",
@@ -2019,7 +2019,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("key1").
 					AddCustom("environment", "dev").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 					EvaluationContextEnrichment: map[string]any{
 						"environment": "prod",
@@ -2058,7 +2058,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext("user-key"),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "default-sdk",
 				},
 			},
@@ -2088,7 +2088,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext(""),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -2124,7 +2124,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("toto").
 					AddCustom("teamId", "").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -2160,7 +2160,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user:     ffcontext.NewEvaluationContext(""),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
 			},
@@ -2225,7 +2225,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("teamId", "team-123").
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -2256,7 +2256,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 						"id": "company-456",
 					}).
 					Build(),
-				flagContext: flag.Context{
+				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			},
@@ -2323,7 +2323,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			args: args{
 				flagName:    "my-flag",
 				user:        ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flagContext: flag.Context{},
+				flagContext: flag.Context{Service: flag.NewService()},
 			},
 			want: flag.ResolutionDetails{
 				Variant:      "SdkDefault",
@@ -2355,7 +2355,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 						"name": "acme-corp",
 					}).
 					Build(),
-				flagContext: flag.Context{},
+				flagContext: flag.Context{Service: flag.NewService()},
 			},
 			want: flag.ResolutionDetails{
 				Variant:      "SdkDefault",
@@ -2387,7 +2387,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 						"id": 12345,
 					}).
 					Build(),
-				flagContext: flag.Context{},
+				flagContext: flag.Context{Service: flag.NewService()},
 			},
 			want: flag.ResolutionDetails{
 				Variant:      "SdkDefault",
@@ -2449,7 +2449,7 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			v, _ := f.Value(flagName, atDate(user, tt.date), flag.Context{})
+			v, _ := f.Value(flagName, atDate(user, tt.date), flag.Context{Service: flag.NewService()})
 			assert.Equal(t, f.GetVariationValue(tt.want), v)
 		})
 	}
@@ -3232,7 +3232,7 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 			got, got1 := internalFlag.Value(
 				"flag",
 				ffcontext.NewEvaluationContextBuilder("user-key").Build(),
-				flag.Context{
+				flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: "value_default",
 				},
 			)

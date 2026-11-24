@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -38,7 +39,7 @@ func NewCacheMock(flag flag.Flag, err error) cache.Manager {
 }
 
 func (c *cacheMock) GetLatestUpdateDate() time.Time {
-	return time.Now()
+	return clocktest.Instant()
 }
 
 func (c *cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
@@ -361,7 +362,8 @@ func TestBoolVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, fflog),
+					evaluationService: flag.NewService(),
+					retrieverManager:  retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, fflog),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -826,6 +828,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -1152,6 +1155,7 @@ func TestFloat64Variation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						config,
 						[]retriever.Retriever{},
@@ -1481,6 +1485,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -1786,6 +1791,7 @@ func TestJSONArrayVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2105,6 +2111,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2395,6 +2402,7 @@ func TestJSONVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2636,6 +2644,7 @@ func TestJSONVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2955,6 +2964,7 @@ func TestStringVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3196,6 +3206,7 @@ func TestStringVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3514,6 +3525,7 @@ func TestIntVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3796,6 +3808,7 @@ func TestIntVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -4175,6 +4188,7 @@ func TestRawVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
