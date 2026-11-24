@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"runtime"
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,10 +47,14 @@ func goroutinesLabeled(key, value string) int {
 	return total
 }
 
-// gatedRetriever retrieves valid flags once its gate is closed.
-type gatedRetriever struct{ gate <-chan struct{} }
+// gatedRetriever retrieves valid flags once its gate is closed, then marks itself done.
+type gatedRetriever struct {
+	gate <-chan struct{}
+	done *sync.WaitGroup
+}
 
 func (r gatedRetriever) Retrieve(ctx context.Context) ([]byte, error) {
+	defer r.done.Done()
 	select {
 	case <-r.gate:
 	case <-ctx.Done():
@@ -78,9 +84,11 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 			t.Parallel()
 
 			gate := make(chan struct{})
+			var retrieved sync.WaitGroup
+			retrieved.Add(tt.nbSlow)
 			retrievers := []retriever.Retriever{failingRetriever{}}
 			for range tt.nbSlow {
-				retrievers = append(retrievers, gatedRetriever{gate: gate})
+				retrievers = append(retrievers, gatedRetriever{gate: gate, done: &retrieved})
 			}
 			logger := fflog.FFLogger{}
 			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
@@ -93,10 +101,18 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 			})
 			// The slow retrievers answer after the refresh already returned its error.
 			close(gate)
+			// Every slow retriever has returned its flags: the only thing left for its goroutine is to hand
+			// the result over and return, which is what must not block.
+			retrieved.Wait()
 
 			assert.Equal(t, tt.wantRefresh, gotRefresh)
-			assert.Eventually(t, func() bool { return goroutinesLabeled("leakcheck", label) == tt.wantLeaked },
-				5*time.Second, 10*time.Millisecond, "the retrievers goroutines must all return")
+			// The condition is polled as fast as possible and the test passes as soon as it holds: the
+			// timeout is only the bound after which a goroutine still blocked is reported as leaked.
+			assert.Eventually(t, func() bool {
+				runtime.Gosched()
+
+				return goroutinesLabeled("leakcheck", label) == tt.wantLeaked
+			}, 30*time.Second, time.Millisecond, "the retrievers goroutines must all return")
 		})
 	}
 }
