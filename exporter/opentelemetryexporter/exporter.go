@@ -29,6 +29,9 @@ type Exporter struct {
 	// Default: semaphore
 	TracerName string
 
+	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
+	tracerProvider trace.TracerProvider
+
 	tracer trace.Tracer
 	once   sync.Once
 }
@@ -37,6 +40,11 @@ func (e *Exporter) init() {
 	e.once.Do(func() {
 		if e.TracerName == "" {
 			e.TracerName = defaultTracerName
+		}
+		if e.tracerProvider != nil {
+			e.tracer = e.tracerProvider.Tracer(e.TracerName)
+
+			return
 		}
 		e.tracer = otel.Tracer(e.TracerName)
 	})

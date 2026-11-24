@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -40,10 +39,10 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(recorder),
 	)
-	otel.SetTracerProvider(tp)
 
 	exp := &Exporter{
-		TracerName: "test-tracer",
+		TracerName:     "test-tracer",
+		tracerProvider: tp,
 	}
 
 	events := []exporter.ExportableEvent{
@@ -96,9 +95,8 @@ func TestExporterSpanAttributes(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(recorder),
 	)
-	otel.SetTracerProvider(tp)
 
-	exp := &Exporter{}
+	exp := &Exporter{tracerProvider: tp}
 
 	event := exporter.FeatureEvent{
 		Kind:         "feature",
@@ -143,8 +141,7 @@ func TestExporter_Export_IgnoreUnsupportedEventTypes(t *testing.T) {
 
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	otel.SetTracerProvider(tp)
-	exp := &Exporter{}
+	exp := &Exporter{tracerProvider: tp}
 
 	events := []exporter.ExportableEvent{MockUnsupportedEvent{}}
 	err := exp.Export(context.Background(), nil, events)

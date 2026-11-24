@@ -48,11 +48,9 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
 	}
 	output := helper.Output{}
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slogHandlerForRecords(&captured)))
-	defer slog.SetDefault(prev)
 
-	definitions, err := manifest.GenerateDefinitionFromInternalFlags(flags)
+	definitions, err := manifest.GenerateDefinitionFromInternalFlags(
+		flags, manifest.WithLogger(slog.New(slogHandlerForRecords(&captured))))
 	for _, rec := range captured {
 		output.Add(rec.message, slogLevelToOutputLevel(rec.level))
 	}
