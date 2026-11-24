@@ -46,7 +46,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 // Test_EvaluationEventsAreQueuedNotSpawned checks that tracked evaluations are handed to a bounded
 // queue drained by a small worker pool, instead of one goroutine per evaluation.
 //
-// runtime.NumGoroutine is process-wide and the other parallel tests of the package start clients,
+// [runtime.NumGoroutine] is process-wide and the other parallel tests of the package start clients,
 // pollers and exporters, so it can only be used with a margin that dwarfs that noise (tens of
 // goroutines). The exporter of the blocked cases never returns until the test releases it, so
 // a goroutine-per-evaluation design would leave one parked goroutine per evaluation (thousands),

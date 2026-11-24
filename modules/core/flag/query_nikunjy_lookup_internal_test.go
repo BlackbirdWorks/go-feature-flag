@@ -664,7 +664,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 	svc := newIndexingService()
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
 	var current struct {
-		sync.RWMutex
+		mu    sync.RWMutex
 		flags []*InternalFlag
 	}
 	newSet := func(i int) []*InternalFlag {
@@ -687,9 +687,9 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 					return
 				default:
 				}
-				current.RLock()
+				current.mu.RLock()
 				set := current.flags
-				current.RUnlock()
+				current.mu.RUnlock()
 				// Whatever the set, one flag has list A and the other list B.
 				for _, f := range set {
 					r := &(*f.Rules)[0]
@@ -702,9 +702,9 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 	}
 	for i := 1; i <= 20; i++ {
 		next := newSet(i)
-		current.Lock()
+		current.mu.Lock()
 		current.flags = next
-		current.Unlock()
+		current.mu.Unlock()
 		runtime.GC()
 	}
 	close(stop)

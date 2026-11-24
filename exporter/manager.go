@@ -114,7 +114,9 @@ func NewManager[T ExportableEvent](exporters []Config,
 		consumers[index] = exp
 		evStore.AddConsumer(consumerID)
 		// the store is sized for the most demanding consumer: the others keep their own limit.
-		if l, ok := evStore.(interface{ SetConsumerLimit(string, int64) }); ok {
+		if l, ok := evStore.(interface {
+			SetConsumerLimit(consumerID string, limit int64)
+		}); ok {
 			l.SetConsumerLimit(consumerID, limits[index])
 		}
 	}

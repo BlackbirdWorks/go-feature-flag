@@ -56,6 +56,7 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 	var buf bytes.Buffer
 	err := csvTemplate.Execute(&buf, struct {
 		TrackingEvent
+
 		FormattedDate string
 	}{
 		TrackingEvent: f,

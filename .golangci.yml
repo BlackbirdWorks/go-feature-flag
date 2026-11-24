@@ -172,64 +172,44 @@ linters:
     - misspell
     - zerologlint
 
-    ## you may want to enable
-    #- decorder # checks declaration order and count of types, constants, variables and functions
-    #- exhaustruct # [highly recommend to enable] checks if all structure fields are initialized
-    #- goheader # checks is file header matches to pattern
-    #- inamedparam # [great idea, but too strict, need to ignore a lot of cases by default] reports interfaces with unnamed method parameters
-    #- interfacebloat # checks the number of methods inside an interface
-    #- ireturn # accept interfaces, return concrete types
-    #- noinlineerr # disallows inline error handling `if err := ...; err != nil {`
+    # ---- candidate linters, enabled once their findings were fixed ----
+    - arangolint # ArangoDB client best practices
+    - clickhouselint # ClickHouse native driver mistakes
+    - dupword # duplicated words in comments and strings
+    - embeddedstructfieldcheck # embedded fields first, separated from the regular ones
+    - err113 # dynamic errors: sentinel or typed errors
+    - godoclint # godoc practice, links to standard library identifiers
+    - inamedparam # named parameters in interface methods
+    - iotamixing # iota mixed with other declarations in a const block
+    - lll # long lines (golines handles the code, lll the tests, the mocks and the strings)
     - modernize # suggests modern Go idioms (e.g. min/max builtins, slices package, etc.)
-    - prealloc # [premature optimization, but can be used in some cases] finds slice declarations that could potentially be preallocated
-    #- tagalign # checks that struct tags are well aligned
-    #- varnamelen # [great idea, but too many false positives] checks that the length of a variable's name matches its scope
-    #- wrapcheck # checks that errors returned from external packages are wrapped
-    #- zerologlint # detects the wrong usage of zerolog that a user forgets to dispatch zerolog.Event
+    - nlreturn # a blank line before return and branch statements
+    - paralleltest # t.Parallel() in the tests
+    - prealloc # slice declarations that could be preallocated
+    - thelper # test helpers call t.Helper() first
+    - unqueryvet # SELECT * in SQL queries
 
-    ## disabled
-    #- containedctx # detects struct contained context.Context field
-    #- contextcheck # [too many false positives] checks the function whether use a non-inherited context
-    #- dogsled # checks assignments with too many blank identifiers (e.g. x, _, _, _, := f())
-    #- dupword # [useless without config] checks for duplicate words in the source code
-    - err113 # [too strict] checks the errors handling expressions
-    #- errchkjson # [don't see profit + I'm against of omitting errors like in the first example https://github.com/breml/errchkjson] checks types passed to the json encoding functions. Reports unsupported types and optionally reports occasions, where the check for the returned error can be omitted
-    #- forcetypeassert # [replaced by errcheck] finds forced type assertions
-    #- gomodguard # [use more powerful depguard] allow and block lists linter for direct Go module dependencies
-    #- gosmopolitan # reports certain i18n/l10n anti-patterns in your Go codebase
-    #- grouper # analyzes expression groups
-    #- importas # enforces consistent import aliases
-    - lll # [replaced by golines] reports long lines
-    #- maintidx # measures the maintainability index of each function
-    #- misspell # [useless] finds commonly misspelled English words in comments
-    - nlreturn # [too strict and mostly code is not more readable] checks for a new line before return and branch statements to increase code clarity
-    - paralleltest # [too many false positives] detects missing usage of t.Parallel() method in your Go test
-    #- tagliatelle # checks the struct tags
-    - thelper # detects golang test helpers without t.Helper() call and checks the consistency of test helpers
-    #- wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
-    #- wsl_v5 # [too strict and mostly code is not more readable] add or remove empty lines
-
-  # TEMPORARY, enabled in follow-up PRs: these linters still report findings that are not
-  # cleaned up yet (the rest of this file is enforced). Each follow-up PR removes the
-  # linters it cleans from this list; the last one deletes the block. Nothing is dropped
-  # for good. Counts at the time of the adoption are in the PR description.
+  # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
-    - canonicalheader # 3 findings (header constants spelled in upper case)
-    - cyclop # 4 functions over the complexity limit
-    - depguard # 9: log -> log/slog, math/rand -> math/rand/v2
-    - err113 # 318: dynamic errors, needs sentinel errors
-    - exhaustive # 3
-    - mnd # 107 magic numbers
-    - nestif # 2
-    - nilnil # 14
-    - nolintlint # 95 (explanations, unused directives)
-    - nonamedreturns # 13
-    - promlinter # 5 (renaming a metric breaks dashboards: needs a decision)
-    - testpackage # 54 (white-box tests)
-    - thelper # 125
-    - usetesting # 12
+    - containedctx # Config.Context and the shared S3 items hold a context on purpose (public API); 8 findings
+    - contextcheck # false positives on callbacks and constructors; 43 findings
+    - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
+    - exhaustruct # deprecated alias of exhaustruct_v5
+    - exhaustruct_v5 # requiring every field in every literal is rejected by the project
+    - forcetypeassert # replaced by errcheck check-type-assertions
+    - funcorder # constructors next to their type is the project layout; 10 findings
+    - gomodguard # deprecated, replaced by gomodguard_v2 and depguard
+    - gosmopolitan # the tests use Han strings and time.Local on purpose (unicode and local time behaviour)
+    - ireturn # returning interfaces is the API of the retrievers, exporters and caches
+    - maintidx # complexity is bounded by cyclop, gocognit and funlen
+    - noinlineerr # inline error handling is the project style
+    - tagalign # struct tags are aligned by hand for the schema and config readability
+    - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
+    - varnamelen # too many false positives (short loop and receiver names)
+    - wrapcheck # errors are wrapped where the context adds something
+    - wsl # deprecated, replaced by wsl_v5
+    - wsl_v5 # too strict, mostly not more readable
 
-  # All settings can be found here https://github.com/golangci/golangci-lint/blob/HEAD/.golangci.reference.yml
   settings:
     forbidigo:
       # Forbid ad-hoc/global logging so every record goes through the
@@ -297,6 +277,18 @@ linters:
         "non-main files":
           files:
             - "!**/main.go"
+            # The stdlib *log.Logger is part of the public API of Config.Logger, Retriever and
+            # Exporter (and of their test doubles); a later change replaces it with log/slog.
+            # Until then these files are the only exceptions.
+            - "!${base-path}/config.go"
+            - "!${base-path}/config_logger_internal_test.go"
+            - "!${base-path}/exporter/data_exporter.go"
+            - "!${base-path}/exporter/exporter.go"
+            - "!${base-path}/retriever/retriever.go"
+            - "!${base-path}/testutils/mock/exporter_mock.go"
+            - "!${base-path}/testutils/mock/mockretriever/initializable_retriever_legacy.go"
+            - "!${base-path}/utils/fflog/log.go"
+            - "!${base-path}/utils/fflog/log_test.go"
           deny:
             - pkg: log$
               desc: Use log/slog instead, see https://go.dev/blog/slog
@@ -367,8 +359,7 @@ linters:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
       # Default: 60
-      # TEMPORARY: main's limit (gopherstack: 100).
-      lines: 90
+      lines: 100
       # Checks the number of statements in a function.
       # If lower than 0, disable the check.
       # Default: 40
@@ -382,9 +373,7 @@ linters:
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
-      # TEMPORARY: main's threshold (gopherstack: 20, tightened in a follow-up PR; 3 functions are
-      # between 20 and 30: helper.FlagTypeFromVariations, ExporterConf.IsValid, InternalFlag.IsValid).
-      min-complexity: 30
+      min-complexity: 20
 
     gocritic:
       # Settings passed to gocritic.
@@ -416,12 +405,6 @@ linters:
       excludes:
         - G304
 
-    revive:
-      # TEMPORARY: main's setting (confidence 0.8 with the default rule set reports nothing on
-      # this tree). gopherstack's default confidence reports 62 findings (18 non-test:
-      # var-naming/stutter renames of exported API, unused-parameter, comment forms), enabled in a follow-up PR.
-      confidence: 0.8
-
     gomoddirectives:
       replace-local: true
       replace-allow-list:
@@ -440,13 +423,10 @@ linters:
       # which changes serialized key order, public struct layout and breaks unkeyed literals.
       disable:
         - fieldalignment
-        # TEMPORARY (enabled in a follow-up PR): 43 shadowed variables.
-        - shadow
+      settings:
+        shadow:
+          strict: true
       # Settings per analyzer.
-      # TEMPORARY: restore together with the shadow analyzer (enabled in a follow-up PR):
-      #   settings:
-      #     shadow:
-      #       strict: true
 
     inamedparam:
       # Skips check for interface methods with only a single parameter.
@@ -487,6 +467,9 @@ linters:
       # Default: 30
       max-func-lines: 0
 
+    testpackage:
+      skip-regexp: '(export|internal)_test\.go'
+
     nolintlint:
       # Exclude following linters from requiring an explanation.
       # Default: []
@@ -524,10 +507,7 @@ linters:
       # - "default": report only the default slog logger
       # https://github.com/go-simpler/sloglint?tab=readme-ov-file#no-global
       # Default: ""
-      # TEMPORARY: main's setting (disabled). gopherstack: all; 8 slog.*Context/Warn calls on the
-      # default logger (exporter/data_exporter.go, modules/core/flag/rule.go x6, modules/core/legacy)
-      # need an injected logger, follow-up PR.
-      no-global: ""
+      no-global: all
       # Enforce using methods that accept a context.
       # Values:
       # - "": disabled
@@ -552,10 +532,6 @@ linters:
         # Omit embedded fields from selector expression.
         # https://staticcheck.dev/docs/checks/#QF1008
         - -QF1008
-        # TEMPORARY (main's scope, which did not run these two; follow-up PR): renaming exported
-        # identifiers (DbUser -> DBUser, Error doc comment form) is an API/config change.
-        - -ST1003
-        - -ST1020
 
     testifylint:
       # go-require (no require.* off the test goroutine) is in the default set; kept explicit.
@@ -586,13 +562,6 @@ linters:
       - std-error-handling
       - common-false-positives
     rules:
-      # TEMPORARY: main's scope, tightened in follow-up PRs. Main excluded these linters in
-      # test files and mocks; remaining findings at the time of this PR: staticcheck 63,
-      # lll 124 (test files), lll 5 (testutils/mongodb_mock.go).
-      - path: '_test\.go'
-        linters: [ staticcheck, lll ]
-      - path: '_mock\.go'
-        linters: [ lll ]
       - source: 'TODO'
         linters: [ godot ]
       # swag annotations are parsed by swag init, a trailing period would break them

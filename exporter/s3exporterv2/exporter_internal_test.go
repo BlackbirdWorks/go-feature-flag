@@ -407,8 +407,8 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 }
 
 // TestS3_Export_RemovesTempDir ensures Export() fully removes the temporary
-// directory it creates. It guards against the os.Remove -> os.RemoveAll fix:
-// os.Remove only deletes empty directories, so with the exported files still
+// directory it creates. It guards against the [os.Remove] -> [os.RemoveAll] fix:
+// [os.Remove] only deletes empty directories, so with the exported files still
 // inside the temp dir would leak on every export cycle.
 // See https://github.com/thomaspoignant/go-feature-flag/issues/5636.
 func TestS3_Export_RemovesTempDir(t *testing.T) {

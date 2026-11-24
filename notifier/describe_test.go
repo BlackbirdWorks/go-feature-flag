@@ -686,7 +686,7 @@ func TestChangeList(t *testing.T) {
 	}
 }
 
-// otherFlag is a flag.Flag that is not a *flag.InternalFlag.
+// otherFlag is a [flag.Flag] that is not a *flag.InternalFlag.
 type otherFlag struct{ flag.Flag }
 
 func TestDescribeChanges_unsupportedFlag(t *testing.T) {

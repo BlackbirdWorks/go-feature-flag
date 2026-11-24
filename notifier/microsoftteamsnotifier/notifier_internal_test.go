@@ -218,7 +218,7 @@ func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	return rt.response, nil
 }
 
-// otherFlag is a flag.Flag that DescribeChanges cannot describe.
+// otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
 type otherFlag struct{ flag.Flag }
 
 func TestConvertToMicrosoftTeamsMessage_diffError(t *testing.T) {

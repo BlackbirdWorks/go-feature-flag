@@ -542,7 +542,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 }
 
 // goroutinesLabeled counts the goroutines that carry the pprof label key=value. The goroutines started by
-// code that runs under pprof.Do inherit its labels, so the count is scoped to what one test started
+// code that runs under [pprof.Do] inherit its labels, so the count is scoped to what one test started
 // and does not depend on the other tests running in parallel.
 func goroutinesLabeled(key, value string) int {
 	var buf bytes.Buffer

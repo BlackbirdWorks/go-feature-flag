@@ -29,7 +29,7 @@ const (
 // In the configuration it can be a plain integer (bytes) or a human-readable string like "1MiB" or "64KiB".
 type ByteSize int64
 
-// UnmarshalText implements encoding.TextUnmarshaler, it is used by the koanf decode hook to
+// UnmarshalText implements [encoding.TextUnmarshaler], it is used by the koanf decode hook to
 // convert the strings (configuration file and environment variables) to a number of bytes.
 func (b *ByteSize) UnmarshalText(text []byte) error {
 	s := strings.TrimSpace(string(text))

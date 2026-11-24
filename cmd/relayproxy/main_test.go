@@ -17,6 +17,7 @@ func (s recordingAPIServer) Stop(_ context.Context) { *s.calls = append(*s.calls
 
 type recordingFlagsetManager struct {
 	service.FlagsetManager
+
 	calls *[]string
 }
 

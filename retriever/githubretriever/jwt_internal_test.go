@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSignAppJWT_SmallKeyFails covers the rsa.SignPKCS1v15 error branch.
+// TestSignAppJWT_SmallKeyFails covers the [rsa.SignPKCS1v15] error branch.
 // A synthetic key with a 17-bit modulus is constructed directly (bypassing
-// rsa.GenerateKey's minimum-size check) and is too small for SHA-256 PKCS#1 v1.5.
+// [rsa.GenerateKey]'s minimum-size check) and is too small for SHA-256 PKCS#1 v1.5.
 func TestSignAppJWT_SmallKeyFails(t *testing.T) {
 	t.Parallel()
 

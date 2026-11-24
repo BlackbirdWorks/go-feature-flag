@@ -139,6 +139,7 @@ func (s *sseServiceImpl) sendHeartbeats(interval time.Duration) {
 // bytes of the body are received: without it, clients stay "connecting" until the first event.
 type connectedCommentWriter struct {
 	http.ResponseWriter
+
 	flusher http.Flusher
 	status  int
 	sent    bool

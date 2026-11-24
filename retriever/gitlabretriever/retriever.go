@@ -95,13 +95,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 }
 
 // escapePathSegment encodes s as a single URL path segment, as expected by the GitLab API.
-// url.PathEscape leaves "+" as is, but some servers and proxies decode it as a space,
+// [url.PathEscape] leaves "+" as is, but some servers and proxies decode it as a space,
 // so we keep encoding it as "%2B".
 func escapePathSegment(s string) string {
 	return strings.ReplaceAll(url.PathEscape(s), "+", "%2B")
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client

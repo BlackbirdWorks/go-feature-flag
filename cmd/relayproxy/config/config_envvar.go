@@ -27,7 +27,7 @@ var (
 	errTheConfigEntryAt    = errors.New("the config entry at index")
 )
 
-// environProvider is koanf's env provider reading the variables from environ instead of os.Environ, so
+// environProvider is koanf's env provider reading the variables from environ instead of [os.Environ], so
 // the tests do not have to change the environment of the process.
 type environProvider struct {
 	prefix  string
@@ -181,7 +181,7 @@ func (c *Loader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.P
 		}}
 }
 
-// environ returns the source of the environment variables, os.Environ unless the loader was given another one.
+// environ returns the source of the environment variables, [os.Environ] unless the loader was given another one.
 func (c *Loader) environ() func() []string {
 	if c.environFunc != nil {
 		return c.environFunc

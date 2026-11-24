@@ -328,7 +328,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 	}
 }
 
-// otherFlag is a flag.Flag that DescribeChanges cannot describe.
+// otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
 type otherFlag struct{ flag.Flag }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {

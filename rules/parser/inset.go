@@ -152,7 +152,7 @@ func (s *sourceText) ascii(t antlr.Token) (string, bool) {
 
 // intSet is a hash index over a long []int, which the node keeps anyway.
 // Slots come from Fibonacci hashing (multiply by 2^64/phi, keep the top bits).
-// Callers must ensure len(ints) < math.MaxUint32.
+// Callers must ensure len(ints) < [math.MaxUint32].
 type intSet struct {
 	ints  []int
 	tab   []uint32 // element index + 1, 0 = empty

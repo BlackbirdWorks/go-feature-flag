@@ -212,7 +212,7 @@ func TestGetFlagStates(t *testing.T) {
 				Build(),
 		},
 		{
-			name: "no field in context context",
+			name: "no field in the context",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
 					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",

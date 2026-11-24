@@ -423,7 +423,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 	return nil
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client

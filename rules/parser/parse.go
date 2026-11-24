@@ -11,6 +11,7 @@ import (
 // to stderr. NewEvaluator uses this so invalid rules fail at construction time.
 type collectingErrorListener struct {
 	*antlr.DefaultErrorListener
+
 	errs []string
 }
 

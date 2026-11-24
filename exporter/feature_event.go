@@ -111,6 +111,7 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	var buf bytes.Buffer
 	err := csvTemplate.Execute(&buf, struct {
 		FeatureEvent
+
 		FormattedDate string
 	}{
 		FeatureEvent:  f,

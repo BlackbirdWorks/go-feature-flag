@@ -24,9 +24,10 @@ type MessageSender interface {
 
 // Settings contains Kafka-specific configurations needed for message creation.
 type Settings struct {
+	*sarama.Config
+
 	Topic     string   `json:"topic"`
 	Addresses []string `json:"addresses"`
-	*sarama.Config
 }
 
 // Exporter sends events to a Kafka topic using a synchronous producer.

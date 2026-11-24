@@ -1031,8 +1031,6 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 }
 
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
-//
-//nolint:paralleltest,tparallel // see the comment above
 func TestExporter_InitClient(t *testing.T) {
 	tests := []struct {
 		name      string

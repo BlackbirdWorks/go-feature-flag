@@ -157,8 +157,8 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 }
 
 // Test_pingPongLoop_zero_interval_uses_default ensures a zero-valued interval
-// falls back to the default rather than panicking time.NewTicker.
-// Observable outcome: the loop starts and stops with a zero interval instead of panicking in time.NewTicker (done is
+// falls back to the default rather than panicking [time.NewTicker].
+// Observable outcome: the loop starts and stops with a zero interval instead of panicking in [time.NewTicker] (done is
 // closed).
 func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 	t.Parallel()

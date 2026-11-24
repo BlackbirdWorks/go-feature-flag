@@ -169,7 +169,7 @@ func (c *Config) serviceLogger() *slog.Logger {
 	}
 }
 
-// legacyWriter sends what a slog handler writes through a *log.Logger, so that the records follow the output, the
+// legacyWriter sends what a slog handler writes through a *[log.Logger], so that the records follow the output, the
 // flags and the lock of the legacy logger (SetOutput included).
 type legacyWriter struct{ logger *log.Logger }
 

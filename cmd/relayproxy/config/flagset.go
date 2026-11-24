@@ -25,6 +25,7 @@ const (
 // It is also used to apply the same API key to all the flags in the flag set.
 type FlagSet struct {
 	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
+
 	// APIKeys is the api keys for the flag set.
 	// This will add a new API keys to the list of authorizedKeys.evaluation keys.
 	// This property is madatory for every flagset, we will use it to filter the flag available.

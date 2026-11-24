@@ -183,7 +183,7 @@ func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 }
 
 // BenchmarkInternalFlagValue_LargeIn300kGCEvery10 is BenchmarkInternalFlagValue_LargeIn300kMiss
-// with two garbage collections, which drop the evaluators held by a sync.Pool, every 10
+// with two garbage collections, which drop the evaluators held by a [sync.Pool], every 10
 // evaluations. The collections are not timed, what follows them is.
 func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 	svc := flag.NewService()

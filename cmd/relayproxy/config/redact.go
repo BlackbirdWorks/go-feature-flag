@@ -117,12 +117,12 @@ func (c *Config) Redacted() map[string]any {
 	return out
 }
 
-// LogValue implements slog.LogValuer, so slog.Any("config", conf) never leaks secrets.
+// LogValue implements [slog.LogValuer], so [slog.Any]("config", conf) never leaks secrets.
 func (c *Config) LogValue() slog.Value {
 	return slog.AnyValue(c.Redacted())
 }
 
-// String implements fmt.Stringer, so "%v" of a *Config never leaks secrets, and so do zap.Any("config", conf)
+// String implements [fmt.Stringer], so "%v" of a *Config never leaks secrets, and so do zap.Any("config", conf)
 // and zap.Stringer("config", conf) with every zap encoder (the logfmt encoder can not encode nested objects).
 func (c *Config) String() string {
 	b, err := json.Marshal(c.Redacted())
@@ -133,7 +133,7 @@ func (c *Config) String() string {
 	return string(b)
 }
 
-// GoString implements fmt.GoStringer, so "%#v" of a *Config never leaks secrets.
+// GoString implements [fmt.GoStringer], so "%#v" of a *Config never leaks secrets.
 func (c *Config) GoString() string { return c.String() }
 
 func isOwnType(t reflect.Type) bool {

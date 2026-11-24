@@ -287,7 +287,7 @@ func (g *GoogleCloudStorageHandler) handler() http.Handler {
 // TestGoogleStorage_Export_UploadError ensures that a failed upload is reported
 // instead of being silently swallowed. The GCS writer buffers the payload and
 // flushes it on Close, so the server error surfaces from wc.Close() rather than
-// io.Copy; Export must still return an error.
+// [io.Copy]; Export must still return an error.
 func TestGoogleStorage_Export_UploadError(t *testing.T) {
 	t.Parallel()
 

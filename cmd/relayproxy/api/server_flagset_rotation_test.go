@@ -38,6 +38,7 @@ var (
 // as right after a reload removed them, while everything else is delegated to the real manager.
 type routingLostManager struct {
 	service.FlagsetManager
+
 	lostKeys map[string]bool
 }
 

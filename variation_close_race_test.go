@@ -22,6 +22,7 @@ import (
 // is handed to the exporters, which lets a test hold an evaluation at that point.
 type gatedContext struct {
 	ffcontext.Context
+
 	calls   *atomic.Int64
 	blockAt int64
 	reached chan struct{}

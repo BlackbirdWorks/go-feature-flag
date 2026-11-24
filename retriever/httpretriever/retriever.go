@@ -57,12 +57,12 @@ type Retriever struct {
 }
 
 // SetBaseTransport sets the transport that the TLS transport (mTLS, custom CA) is cloned from, which
-// must be a *http.Transport. It is http.DefaultTransport by default.
+// must be a *[http.Transport]. It is [http.DefaultTransport] by default.
 func (r *Retriever) SetBaseTransport(transport http.RoundTripper) {
 	r.baseTransport = transport
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client

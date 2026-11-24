@@ -365,8 +365,6 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 // Not parallel: the subtests use t.Setenv.
 //
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
-//
-//nolint:paralleltest,tparallel // see the comment above
 func Test_defaultSharedItemsFactory(t *testing.T) {
 	tests := []struct {
 		name    string

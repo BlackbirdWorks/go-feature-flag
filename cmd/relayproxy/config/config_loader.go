@@ -81,8 +81,8 @@ type Loader struct {
 // LoaderOption configures a ConfigLoader.
 type LoaderOption func(*Loader)
 
-// WithEnviron sets the source of the environment variables (os.Environ by default). The values
-// are "KEY=value" strings, as returned by os.Environ.
+// WithEnviron sets the source of the environment variables ([os.Environ] by default). The values
+// are "KEY=value" strings, as returned by [os.Environ].
 func WithEnviron(environ func() []string) LoaderOption {
 	return func(c *Loader) { c.environFunc = environ }
 }
@@ -198,7 +198,7 @@ func (c *Loader) startWatchChanges() {
 // The buffered channel (size 1) naturally coalesces rapid events - if an event
 // is already pending, new events are dropped since they would trigger the same reload.
 // A small debounce delay is added to handle file systems (especially Linux with inotify)
-// where os.WriteFile triggers multiple events (truncate + write) in rapid succession.
+// where [os.WriteFile] triggers multiple events (truncate + write) in rapid succession.
 func (c *Loader) processConfigChangeEvents() {
 	// debounceDelay gives time for rapid file system events to settle.
 	// On Linux, os.WriteFile can trigger: 1) truncate event (file empty) 2) write event (file has content)

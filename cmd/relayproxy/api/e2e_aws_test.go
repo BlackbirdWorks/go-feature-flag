@@ -124,7 +124,7 @@ flagsets:
 // Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
 // reads from the process environment; third-party code reads it.
 //
-//nolint:paralleltest,tparallel // see the comment above
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -513,7 +513,7 @@ brand-new:
 // Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
 // reads from the process environment; third-party code reads it.
 //
-//nolint:paralleltest,tparallel // see the comment above
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_TopLevelS3Retriever(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -651,7 +651,7 @@ type sinkEvent struct {
 // Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
 // reads from the process environment; third-party code reads it.
 //
-//nolint:paralleltest,tparallel // see the comment above
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)

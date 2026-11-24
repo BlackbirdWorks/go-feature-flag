@@ -226,7 +226,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 	}
 }
 
-// otherFlag is a flag.Flag that DescribeChanges cannot describe.
+// otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
 type otherFlag struct{ flag.Flag }
 
 func TestConvertUpdatedFlagsToSlackMessage_diffError(t *testing.T) {

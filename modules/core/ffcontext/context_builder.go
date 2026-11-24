@@ -18,7 +18,7 @@ type EvaluationContextBuilder interface {
 	// instead of using this function.
 	Anonymous(bool) EvaluationContextBuilder
 
-	AddCustom(string, any) EvaluationContextBuilder
+	AddCustom(key string, value any) EvaluationContextBuilder
 	Build() EvaluationContext
 }
 

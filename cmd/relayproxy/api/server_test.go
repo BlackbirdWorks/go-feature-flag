@@ -35,7 +35,7 @@ import (
 
 // newTestLogger returns a logger whose Fatal() terminates the calling goroutine instead of the
 // whole process. server.go reports a failed bind with zapLog.Fatal, and the default zap
-// behaviour is os.Exit(1): fired from the background goroutine that runs StartWithContext, it
+// behaviour is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
 // takes the test binary down and every remaining test in the package is silently skipped.
 // With this hook the server goroutine dies, the Fatal is still logged, and the test fails on
 // its own readiness assertion with a message that points at the right place.

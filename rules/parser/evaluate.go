@@ -18,7 +18,7 @@ var (
 // Evaluator evaluates a single parsed rule against attribute maps.
 //
 // It is safe for concurrent Process calls. It must not be copied after first
-// use: it holds a sync.Once and an atomic.Pointer, and go vet's copylocks
+// use: it holds a [sync.Once] and an [atomic.Pointer], and go vet's copylocks
 // check flags copies. Each call clears LastDebugErr on entry; once calls
 // quiesce it holds the error of the last call to finish (nil if that call was
 // clean or panicked). Reset clears it.

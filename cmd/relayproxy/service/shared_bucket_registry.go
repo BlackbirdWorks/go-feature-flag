@@ -290,6 +290,7 @@ func (r *sharedBucketRegistry) release(bucket string, g *registryGroup) {
 // releasingRetriever releases its reference on the group the first time it is shut down.
 type releasingRetriever struct {
 	*s3retrieverv2.SharedItemRetriever
+
 	release     func()
 	group       *s3retrieverv2.SharedItems
 	releaseOnce sync.Once
