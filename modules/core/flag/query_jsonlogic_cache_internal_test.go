@@ -9,17 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func TestGetCompiledQuery(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		raw         string
@@ -28,32 +26,13 @@ func TestGetCompiledQuery(t *testing.T) {
 		wantDecoded bool
 	}{
 		{name: "nikunjy", raw: `key eq "abc"`, wantTrimmed: `key eq "abc"`, wantFormat: NikunjyQueryFormat},
-		{
-			name:        "jsonlogic",
-			raw:         `{"==": [{"var": "key"}, "abc"]}`,
-			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`,
-			wantFormat:  JSONLogicQueryFormat,
-			wantDecoded: true,
-		},
-		{
-			name:        "multi-line jsonlogic",
-			raw:         "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}",
-			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`,
-			wantFormat:  JSONLogicQueryFormat,
-			wantDecoded: true,
-		},
-		{
-			name:        "invalid json",
-			raw:         `{"==": [{"var": "key"}, "abc"]`,
-			wantTrimmed: `{"==": [{"var": "key"}, "abc"]`,
-			wantFormat:  NikunjyQueryFormat,
-		},
+		{name: "jsonlogic", raw: `{"==": [{"var": "key"}, "abc"]}`, wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true},
+		{name: "multi-line jsonlogic", raw: "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}", wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true},
+		{name: "invalid json", raw: `{"==": [{"var": "key"}, "abc"]`, wantTrimmed: `{"==": [{"var": "key"}, "abc"]`, wantFormat: NikunjyQueryFormat},
 		{name: "empty", raw: "", wantTrimmed: "", wantFormat: NikunjyQueryFormat},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			c := getCompiledQuery(tt.raw)
 			assert.Equal(t, tt.wantTrimmed, c.trimmed)
 			assert.Equal(t, tt.wantFormat, c.format)
@@ -68,8 +47,6 @@ type namedBool bool
 type namedString string
 
 func TestIsJSONLogicTruthy(t *testing.T) {
-	t.Parallel()
-
 	f, tr, empty := false, true, ""
 	tests := []struct {
 		name  string
@@ -95,29 +72,25 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			assert.Equal(t, tt.want, isJSONLogicTruthy(tt.value))
 		})
 	}
 }
 
 func TestGetCompiledQuery_OnlyEvaluationStores(t *testing.T) {
-	t.Parallel()
-
 	t.Cleanup(compiledQueryCache.Clear)
 	compiledQueryCache.Clear()
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
-	r := Rule{Query: &query, VariationResult: new("A")}
+	r := Rule{Query: &query, VariationResult: testconvert.String("A")}
 
-	require.NoError(t, r.isQueryValid(false))
+	assert.NoError(t, r.isQueryValid(false))
 	assert.Equal(t, JSONLogicQueryFormat, r.GetQueryFormat())
-	assert.JSONEq(t, `{"==": [{"var": "key"}, "abc"]}`, r.GetTrimmedQuery())
+	assert.Equal(t, `{"==": [{"var": "key"}, "abc"]}`, r.GetTrimmedQuery())
 	assert.Zero(t, compiledQueryCacheLen(), "validation must not store queries")
 
 	ctx := ffcontext.NewEvaluationContext("abc")
 	_, err := r.Evaluate("abc", ctx, "flag", false)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, 1, compiledQueryCacheLen(), "a multi-line query is stored once")
 }
 
@@ -125,16 +98,12 @@ func compiledQueryCacheLen() int {
 	n := 0
 	compiledQueryCache.Range(func(_, _ any) bool {
 		n++
-
 		return true
 	})
-
 	return n
 }
 
 func TestAsJSONData(t *testing.T) {
-	t.Parallel()
-
 	cyclicMap := map[string]any{}
 	cyclicMap["self"] = cyclicMap
 	cyclicSlice := []any{nil}
@@ -144,11 +113,7 @@ func TestAsJSONData(t *testing.T) {
 		value  any
 		wantOK bool
 	}{
-		{
-			name:   "flat context",
-			value:  map[string]any{"key": "user-1", "anonymous": false, "dsp": "42", "score": 1.5},
-			wantOK: true,
-		},
+		{name: "flat context", value: map[string]any{"key": "user-1", "anonymous": false, "dsp": "42", "score": 1.5}, wantOK: true},
 		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
 		{name: "nested", value: map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}}, wantOK: true},
 		{name: "empty", value: map[string]any{}, wantOK: true},
@@ -166,8 +131,6 @@ func TestAsJSONData(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			got, ok := asJSONData(tt.value, 0)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
@@ -184,8 +147,6 @@ func TestAsJSONData(t *testing.T) {
 
 // TestEvaluateRule_JSONLogicMatchesApply checks the cached path gives the same answer as jsonlogic.Apply.
 func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
-	t.Parallel()
-
 	queries := []string{
 		`{"==": [{"var": "key"}, "abc"]}`,
 		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
@@ -223,8 +184,6 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 	for _, q := range queries {
 		for _, ctx := range ctxs {
 			t.Run(q+"/"+ctx.GetKey(), func(t *testing.T) {
-				t.Parallel()
-
 				assert.Equal(t, applyReference(t, q, ctx), evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 			})
 		}
@@ -232,8 +191,6 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 }
 
 func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
-	t.Parallel()
-
 	f, tr, empty := false, true, ""
 	results := map[string]any{
 		"nil_slice":    []any(nil),
@@ -253,8 +210,6 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 		jsonlogic.AddOperator(op, func(_, _ any) any { return result })
 		q := `{"` + op + `": []}`
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
 			assert.Equal(t, applyReference(t, q, ctx), evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 		})
 	}
@@ -282,20 +237,13 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 			return
 		}
 		evalCtx := utils.ConvertEvaluationCtxFromRequest("key", attributes)
-		assert.Equal(
-			t,
-			applyReference(t, compiled.trimmed, evalCtx),
-			evaluateRule(compiled, &queryContext{ctx: evalCtx}),
-		)
+		assert.Equal(t, applyReference(t, compiled.trimmed, evalCtx), evaluateRule(compiled, &queryContext{ctx: evalCtx}))
 	})
 }
 
 func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 	query := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"==": [{"var": "inventory"}, "web"]}]}`
-	ctx := ffcontext.NewEvaluationContextBuilder("request-1").
-		AddCustom("dsp", "ttd").
-		AddCustom("inventory", "web").
-		Build()
+	ctx := ffcontext.NewEvaluationContextBuilder("request-1").AddCustom("dsp", "ttd").AddCustom("inventory", "web").Build()
 	b.Run("jsonlogic.Apply", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
@@ -314,21 +262,18 @@ func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 }
 
 func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
-	t.Parallel()
-
 	q := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"some": [{"var": "tags"}, {"==": [{"var": ""}, "b"]}]}]}`
 	var wg sync.WaitGroup
 	for i := range 32 {
-		wg.Go(func() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			dsp := []string{"ttd", "xandr"}[i%2]
-			ctx := ffcontext.NewEvaluationContextBuilder("k").
-				AddCustom("dsp", dsp).
-				AddCustom("tags", []any{"a", "b"}).
-				Build()
+			ctx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("dsp", dsp).AddCustom("tags", []any{"a", "b"}).Build()
 			for range 200 {
 				assert.Equal(t, dsp == "ttd", evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 			}
-		})
+		}()
 	}
 	wg.Wait()
 }

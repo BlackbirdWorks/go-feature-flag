@@ -58,19 +58,28 @@ func TestNewFeatureEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			before := time.Now().Unix()
+			got := exporter.NewFeatureEvent(
+				tt.args.user,
+				tt.args.flagKey,
+				tt.args.value,
+				tt.args.variation,
+				tt.args.failed,
+				tt.args.version,
+				tt.args.source,
+				tt.args.exporterMetadata,
+			)
+			after := time.Now().Unix()
+
+			// The creation date is the wall clock at call time: check the window, then compare the rest.
+			assert.GreaterOrEqual(t, got.CreationDate, before)
+			assert.LessOrEqual(t, got.CreationDate, after)
+			want := tt.want
+			want.CreationDate = got.CreationDate
 			assert.Equalf(
 				t,
-				tt.want,
-				exporter.NewFeatureEvent(
-					tt.args.user,
-					tt.args.flagKey,
-					tt.args.value,
-					tt.args.variation,
-					tt.args.failed,
-					tt.args.version,
-					tt.args.source,
-					tt.args.exporterMetadata,
-				),
+				want,
+				got,
 				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %v)",
 				tt.args.user,
 				tt.args.flagKey,

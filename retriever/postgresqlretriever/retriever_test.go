@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +19,8 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 )
 
-var postgreSQLContainerList = make(map[string]*testcontainerPostgres.PostgresContainer)
+// postgreSQLContainerList maps a test name to its container; sync.Map because tests run in parallel.
+var postgreSQLContainerList sync.Map
 
 func TestPostgreSQLRetriever(t *testing.T) {
 	t.Parallel()
@@ -127,7 +129,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 
 	connectionString, err := postgreSQLContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
-	postgreSQLContainerList[testName] = postgreSQLContainer
+	postgreSQLContainerList.Store(testName, postgreSQLContainer)
 
 	// Retry connection with backoff
 	var conn *pgx.Conn
@@ -161,9 +163,9 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 }
 
 func stopPostgreSQL(t *testing.T, testName string) {
-	postgreSQLContainer := postgreSQLContainerList[testName]
-	if postgreSQLContainer != nil {
-		assert.NoError(t, postgreSQLContainer.Terminate(context.TODO()))
+	if v, ok := postgreSQLContainerList.LoadAndDelete(testName); ok {
+		container, _ := v.(*testcontainerPostgres.PostgresContainer)
+		assert.NoError(t, container.Terminate(context.TODO()))
 	}
 }
 

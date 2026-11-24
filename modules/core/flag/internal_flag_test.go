@@ -835,13 +835,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(1 * time.Second)),
+						Date: new(time.Now().Add(1 * time.Hour)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_A": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(2 * time.Second)),
+						Date: new(time.Now().Add(2 * time.Hour)),
 					},
 				},
 			},

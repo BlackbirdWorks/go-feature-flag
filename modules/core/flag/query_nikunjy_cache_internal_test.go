@@ -197,8 +197,8 @@ func gcUntil(t *testing.T, condition func() bool, msg string) {
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
 
+//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators
 func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
-	t.Parallel()
 
 	const (
 		removed   = `key eq "removed-by-reload"`
@@ -234,7 +234,6 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			c := useFreshNikunjyEvaluators(t)
 			queries := slices.Sorted(maps.Keys(tt.wantRefs))
