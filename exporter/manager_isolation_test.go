@@ -160,6 +160,7 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 		m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
 		}}, time.Hour, nil)
+		defer m.Stop() // also when an assertion fails: the bubble waits for the workers
 		am := m.(exporter.AsyncManager[exporter.FeatureEvent])
 		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
 		<-exp.started
@@ -171,6 +172,5 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
 		synctest.Wait()
 		assert.Equal(t, int64(3*threshold), exp.events.Load())
-		m.Stop()
 	})
 }
