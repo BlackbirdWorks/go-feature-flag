@@ -11,8 +11,8 @@
 #   - ireturn.allow: gopherstack-specific entries dropped (linter not enabled).
 #   - exclusions: gopherstack's per-service path rules are dropped; paths for
 #     generated/vendored code of this repo are added (see exclusions.paths).
-#   - modules: root (incl. modules/core once folded in) and rules/ are linted
-#     with this one file (make lint runs from inside each module dir).
+#   - modules: root (incl. modules/core) is linted with this file; rules/ keeps its own
+#     rules/.golangci.yml (not linted, as before).
 #
 # This file is licensed under the terms of the MIT license https://opensource.org/license/mit
 # Copyright (c) 2021-2025 Marat Reimers
