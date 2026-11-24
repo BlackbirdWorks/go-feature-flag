@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/knadh/koanf/parsers/json"
-	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/parsers/toml/v2"
 	"github.com/knadh/koanf/parsers/yaml"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/providers/file"
