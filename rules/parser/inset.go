@@ -67,7 +67,7 @@ func tableSize(n int) int {
 // newStrSet packs the STRING tokens (quotes stripped like getString), or
 // returns nil when the list is too large for 32 bit offsets.
 func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
-	if len(tokens) >= math.MaxUint32 {
+	if int64(len(tokens)) >= math.MaxUint32 {
 		return nil
 	}
 	ends := make([]uint32, 1, len(tokens)+1)
@@ -79,7 +79,7 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 		for _, t := range tokens {
 			total += max(t.GetStop()-t.GetStart()-1, 0)
 		}
-		if total >= math.MaxUint32 {
+		if int64(total) >= math.MaxUint32 {
 			return nil
 		}
 		b.Grow(total)
@@ -94,7 +94,7 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 			strs[i] = getString(t.GetText())
 			total += len(strs[i])
 		}
-		if total >= math.MaxUint32 {
+		if int64(total) >= math.MaxUint32 {
 			return nil
 		}
 		b.Grow(total)

@@ -667,7 +667,7 @@ func (n *compareNode) compileInts(ctx *ListOfIntsContext) {
 	}
 	capped := slices.Clip(ints)
 	n.listOp = capped
-	if len(ints) >= inSetMinLen && len(ints) < math.MaxUint32 {
+	if len(ints) >= inSetMinLen && int64(len(ints)) < math.MaxUint32 {
 		n.intSet = newIntSet(capped)
 	}
 }
