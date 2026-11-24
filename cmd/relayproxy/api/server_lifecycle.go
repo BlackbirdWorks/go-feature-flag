@@ -129,6 +129,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	// Start blocks until ctx is cancelled and the graceful shutdown has drained the connections.
 	err := echo.StartConfig{
 		Address:         address,
+		Listener:        s.listener,
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,
