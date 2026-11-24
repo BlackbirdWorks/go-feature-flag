@@ -524,7 +524,14 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	allFlags1, err := fCache.AllFlags()
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond) // waiting to let the go routine write in the file
+	// the go routine writes the file: wait until it holds the flag
+	require.Eventually(t, func() bool {
+		written, readErr := os.ReadFile(file.Name())
+
+		persisted := map[string]dto.DTO{}
+
+		return readErr == nil && yaml.Unmarshal(written, &persisted) == nil && len(persisted) == len(loadedFlagsMap)
+	}, 30*time.Second, 5*time.Millisecond, "the cache file was never written")
 
 	// we start a new cache with the file persisted
 	fCache2 := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)

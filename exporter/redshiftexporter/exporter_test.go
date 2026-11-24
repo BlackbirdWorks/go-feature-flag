@@ -883,11 +883,12 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		events []exporter.ExportableEvent
+		name           string
+		events         []exporter.ExportableEvent
+		wantStatements int
 	}{
-		{name: "empty event list", events: []exporter.ExportableEvent{}},
-		{name: "unsupported event type", events: []exporter.ExportableEvent{unsupportedEvent{}}},
+		{name: "empty event list", events: []exporter.ExportableEvent{}, wantStatements: 0},
+		{name: "unsupported event type", events: []exporter.ExportableEvent{unsupportedEvent{}}, wantStatements: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -898,7 +899,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			e := &Exporter{client: client}
 
 			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
-			assert.Empty(t, client.executed)
+			assert.Len(t, client.executed, tt.wantStatements)
 		})
 	}
 }

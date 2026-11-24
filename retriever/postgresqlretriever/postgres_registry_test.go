@@ -17,7 +17,11 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 		uri     string
 		wantErr string
 	}{
-		{name: "invalid URI", uri: "not a postgres uri", wantErr: "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)"},
+		{
+			name:    "invalid URI",
+			uri:     "not a postgres uri",
+			wantErr: "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)",
+		},
 		{
 			name:    "unreachable database",
 			uri:     "postgres://user:pw@127.0.0.1:1/db?connect_timeout=1&sslmode=disable",
@@ -56,7 +60,11 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 
 			err := tt.r.Init(t.Context(), nil, nil)
 
-			require.EqualError(t, err, "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)")
+			require.EqualError(
+				t,
+				err,
+				"cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)",
+			)
 			assert.NotNil(t, tt.r.Pools, "the retriever always has a registry after Init")
 		})
 	}

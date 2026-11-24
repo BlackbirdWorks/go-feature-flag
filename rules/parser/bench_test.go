@@ -104,7 +104,11 @@ func BenchmarkProcess(b *testing.B) {
 		{name: "IntEq", rule: `x eq 1`},
 		{name: "IntIn", rule: `y IN [1, 2, 3, 4, 5]`},
 		{name: "StringEq", rule: `z eq "asdada"`, want: true},
-		{name: "StringIn", rule: `z in ["abcd", "efghijkl", "asdada", "asdoisahdadoihasdoisdwoqeioheqcnac"]`, want: true},
+		{
+			name: "StringIn",
+			rule: `z in ["abcd", "efghijkl", "asdada", "asdoisahdadoihasdoisdwoqeioheqcnac"]`,
+			want: true,
+		},
 		{name: "FloatCmp", rule: `aa == 123123131.1232313131312312`},
 		{name: "Version", rule: `jh gt 1.2.0`, want: true},
 		{name: "Nested", rule: `u.plan eq "pro" and u.age gt 18`, want: true},
@@ -119,7 +123,14 @@ func BenchmarkProcess(b *testing.B) {
 			ev := newBenchEvaluator(b, tc.rule)
 			got, err := ev.Process(benchMixedInput)
 			if err != nil || got != tc.want || (ev.LastDebugErr() != nil) != tc.wantDebug {
-				b.Fatalf("got (%v, %v, debug %v), want (%v, <nil>, debug %v)", got, err, ev.LastDebugErr(), tc.want, tc.wantDebug)
+				b.Fatalf(
+					"got (%v, %v, debug %v), want (%v, <nil>, debug %v)",
+					got,
+					err,
+					ev.LastDebugErr(),
+					tc.want,
+					tc.wantDebug,
+				)
 			}
 			b.ReportAllocs()
 			b.ResetTimer()

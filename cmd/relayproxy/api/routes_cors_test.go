@@ -102,11 +102,13 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 	baseURL, _ := startTestServer(t, testConfig(t), false)
 
 	tests := []struct {
-		name     string
-		endpoint string
+		name            string
+		endpoint        string
+		wantStatus      int
+		wantAllowOrigin string
 	}{
-		{name: "health endpoint", endpoint: "/health"},
-		{name: "evaluation endpoint", endpoint: "/v1/flag/change"},
+		{name: "health endpoint", endpoint: "/health", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
+		{name: "evaluation endpoint", endpoint: "/v1/flag/change", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 	}
 
 	for _, tt := range tests {
@@ -119,8 +121,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, map[string]string{
 					"Origin": "https://example.com",
 				})
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
-				assert.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+				assert.Equal(t, tt.wantStatus, resp.StatusCode)
+				assert.Equal(t, tt.wantAllowOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
 				assert.Contains(t, resp.Header.Values("Vary"), "Origin")
 				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Credentials"))
 				assert.Empty(t, resp.Header.Get("Access-Control-Expose-Headers"))
@@ -130,7 +132,7 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 				t.Parallel()
 
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, nil)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				assert.Equal(t, tt.wantStatus, resp.StatusCode)
 				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 			})
 		})

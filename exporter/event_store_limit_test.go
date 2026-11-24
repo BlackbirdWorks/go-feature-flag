@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -80,10 +81,13 @@ func Test_EventStoreWithLimit(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			var gotOut []string
-			for _, e := range out {
-				gotOut = append(gotOut, e.GetKey())
-			}
+			gotOut := slices.Collect(func(yield func(string) bool) {
+				for _, e := range out {
+					if !yield(e.GetKey()) {
+						return
+					}
+				}
+			})
 			assert.Equal(t, tt.wantOut, gotOut)
 			for i := range tt.addsAfter {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))

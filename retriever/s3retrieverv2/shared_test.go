@@ -666,7 +666,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		t.Parallel()
 		r := initRetriever(t, newGroup(t, newFakeBucket(nil)), "a/1.yaml")
 		//nolint:staticcheck // a nil context is tolerated on purpose
-		assert.NoError(t, r.Shutdown(nil))
+		require.NoError(t, r.Shutdown(nil))
 		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 

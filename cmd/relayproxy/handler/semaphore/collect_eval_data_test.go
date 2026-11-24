@@ -376,13 +376,20 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	assert.NotContains(t, err.Error(), "20000/20000")
 }
 
+const (
+	wantEvalEvent     = "{\"kind\":\"feature\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246000,\"key\":\"my-feature-flag\",\"variation\":\"admin-variation\",\"value\":\"string\",\"default\":false,\"version\":\"v1.0.0\",\"source\":\"PROVIDER_CACHE\",\"metadata\":{\"environment\":\"production\",\"sdkVersion\":\"v1.0.0\",\"source\":\"my-source\",\"timestamp\":1680246000}}\n"
+	wantTrackingEvent = "{\"kind\":\"tracking\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246020,\"key\":\"my-feature-flag\",\"evaluationContext\":{\"admin\":true,\"name\":\"john doe\",\"targetingKey\":\"94a25909-20d8-40cc-8500-fee99b569345\"},\"trackingEventDetails\":{\"value\":\"string\",\"version\":\"v1.0.0\"}}\n"
+)
+
 func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		config config.Config
-		apiKey string
+		name         string
+		config       config.Config
+		apiKey       string
+		wantEval     string
+		wantTracking string
 	}{
 		{
 			name: "default mode",
@@ -397,6 +404,8 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 					},
 				},
 			},
+			wantEval:     wantEvalEvent,
+			wantTracking: wantTrackingEvent,
 		},
 		{
 			name:   "flagset mode",
@@ -415,6 +424,8 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 					},
 				},
 			},
+			wantEval:     wantEvalEvent,
+			wantTracking: wantTrackingEvent,
 		},
 	}
 
@@ -493,12 +504,10 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			flagsetManager.Close()
 			evalEvents, err := os.ReadFile(evalExporter.Name())
 			require.NoError(t, err)
-			want := "{\"kind\":\"feature\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246000,\"key\":\"my-feature-flag\",\"variation\":\"admin-variation\",\"value\":\"string\",\"default\":false,\"version\":\"v1.0.0\",\"source\":\"PROVIDER_CACHE\",\"metadata\":{\"environment\":\"production\",\"sdkVersion\":\"v1.0.0\",\"source\":\"my-source\",\"timestamp\":1680246000}}\n"
-			assert.JSONEq(t, want, string(evalEvents), "Invalid exported data")
-			wantTracking := "{\"kind\":\"tracking\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246020,\"key\":\"my-feature-flag\",\"evaluationContext\":{\"admin\":true,\"name\":\"john doe\",\"targetingKey\":\"94a25909-20d8-40cc-8500-fee99b569345\"},\"trackingEventDetails\":{\"value\":\"string\",\"version\":\"v1.0.0\"}}\n"
+			assert.JSONEq(t, tt.wantEval, string(evalEvents), "Invalid exported data")
 			trackingEvents, err := os.ReadFile(trackingExporter.Name())
 			require.NoError(t, err)
-			assert.JSONEq(t, wantTracking, string(trackingEvents), "Invalid exported data")
+			assert.JSONEq(t, tt.wantTracking, string(trackingEvents), "Invalid exported data")
 		})
 	}
 }

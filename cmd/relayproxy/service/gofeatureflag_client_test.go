@@ -889,7 +889,7 @@ func TestSetKafkaConfig(t *testing.T) {
 		kafkaConfig, err := setKafkaConfig(kafkaexporter.Settings{Topic: "t", Config: userConfig})
 		require.NoError(t, err)
 
-		// TODO(#51): the settings of the operator must win over the defaults, these are the current values
+		// Tracked by issue #51: the settings of the operator must win over the defaults, these are the current values
 		// (want: 5s, 7, "mine").
 		assert.Equal(t, 30*time.Second, kafkaConfig.Config.Net.DialTimeout)
 		assert.Equal(t, 3, kafkaConfig.Config.Producer.Retry.Max)
@@ -1079,9 +1079,10 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		s3   *fakeS3
-		mod  func(fs *config.FlagSet)
+		name       string
+		s3         *fakeS3
+		mod        func(fs *config.FlagSet)
+		wantGroups int
 	}{
 		{
 			name: "invalid exporter",
@@ -1089,11 +1090,13 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 			mod: func(fs *config.FlagSet) {
 				fs.Exporter = &config.ExporterConf{Kind: "unknown"}
 			},
+			wantGroups: 0,
 		},
 		{
-			name: "first retrieve fails",
-			s3:   &fakeS3{listErr: errors.New("AccessDenied")},
-			mod:  func(*config.FlagSet) {},
+			name:       "first retrieve fails",
+			s3:         &fakeS3{listErr: errors.New("AccessDenied")},
+			mod:        func(*config.FlagSet) {},
+			wantGroups: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -1105,7 +1108,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 				tt.mod(&fs)
 				_, err := newGoFeatureFlagClient(&fs, zap.NewNop(), nil, withSharedBucketRegistry(reg))
 				require.Error(t, err)
-				assert.Equal(t, 0, reg.groupCount(), "the retriever must have left its group")
+				assert.Equal(t, tt.wantGroups, reg.groupCount(), "the retriever must have left its group")
 			})
 		})
 	}
@@ -1227,12 +1230,14 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		uris []string
+		name            string
+		uris            []string
+		wantSharedPools bool
 	}{
 		{
-			name: "two retrievers on the same database",
-			uris: []string{"postgres://localhost/db", "postgres://localhost/db"},
+			name:            "two retrievers on the same database",
+			uris:            []string{"postgres://localhost/db", "postgres://localhost/db"},
+			wantSharedPools: true,
 		},
 	}
 	for _, tt := range tests {
@@ -1260,7 +1265,12 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 			second, ok := got[1].(*postgresqlretriever.Retriever)
 			require.True(t, ok)
 			require.NotNil(t, first.Pools)
-			assert.Same(t, first.Pools, second.Pools, "retrievers of one client share their pools")
+			assert.Equal(
+				t,
+				tt.wantSharedPools,
+				first.Pools == second.Pools,
+				"retrievers of one client share their pools",
+			)
 		})
 	}
 }

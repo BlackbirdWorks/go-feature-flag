@@ -87,7 +87,10 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 				want[i] = event
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			// the flush by time exports everything: wait for it (the timeout only bounds a failure)
+			require.Eventually(t, func() bool {
+				return len(tt.mockExporter.GetExportedEvents()) >= len(want)
+			}, 30*time.Second, 5*time.Millisecond, "the events were never exported")
 			assert.Equal(t, want, tt.mockExporter.GetExportedEvents())
 		})
 	}

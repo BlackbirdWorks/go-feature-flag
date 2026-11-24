@@ -196,7 +196,7 @@ func TestRedisShutdown(t *testing.T) {
 
 		var retriever *redisretriever.Retriever
 		err := retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 

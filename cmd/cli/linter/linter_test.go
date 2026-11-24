@@ -44,7 +44,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/invalid.yaml",
 				InputFormat: "yaml",
 			},
-			wantErrs: []string{"testdata/invalid.yaml: could not parse file (yaml): yaml: unmarshal errors:\n  line 7: cannot unmarshal !!str \u0060toto\u0060 into map[string]float64"},
+			wantErrs: []string{
+				"testdata/invalid.yaml: could not parse file (yaml): yaml: unmarshal errors:\n  line 7: cannot unmarshal !!str \u0060toto\u0060 into map[string]float64",
+			},
 		},
 		{
 			name: "invalid json",
@@ -52,7 +54,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/invalid.json",
 				InputFormat: "json",
 			},
-			wantErrs: []string{"testdata/invalid.json: could not parse file (json): invalid character ':' after top-level value"},
+			wantErrs: []string{
+				"testdata/invalid.json: could not parse file (json): invalid character ':' after top-level value",
+			},
 		},
 		{
 			name: "invalid input format",
@@ -60,7 +64,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/invalid.json",
 				InputFormat: "swift",
 			},
-			wantErrs: []string{"testdata/invalid.json: could not parse file (yaml): yaml: line 16: did not find expected key"},
+			wantErrs: []string{
+				"testdata/invalid.json: could not parse file (yaml): yaml: line 16: did not find expected key",
+			},
 		},
 		{
 			name: "invalid toml",
@@ -68,7 +74,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/invalid.toml",
 				InputFormat: "toml",
 			},
-			wantErrs: []string{"testdata/invalid.toml: could not parse file (toml): toml: basic strings cannot have new lines"},
+			wantErrs: []string{
+				"testdata/invalid.toml: could not parse file (toml): toml: basic strings cannot have new lines",
+			},
 		},
 		{
 			name: "no variation",

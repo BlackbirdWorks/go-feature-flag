@@ -141,12 +141,16 @@ func TestSSEService_Close(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		connect     bool
-		closeTwice  bool
-		wantStream  string
+		name       string
+		connect    bool
+		closeTwice bool
+		wantStream string
 	}{
-		{name: "closing the service ends the stream of a connected client", connect: true, wantStream: ": connected\n\n"},
+		{
+			name:       "closing the service ends the stream of a connected client",
+			connect:    true,
+			wantStream: ": connected\n\n",
+		},
 		{name: "closing twice is harmless", connect: true, closeTwice: true, wantStream: ": connected\n\n"},
 		{name: "closing a service without client", connect: false, wantStream: ""},
 	}

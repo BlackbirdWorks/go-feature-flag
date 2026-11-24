@@ -142,13 +142,18 @@ func TestOutput_Add(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		lines []helper.OutputLine
+		name      string
+		lines     []helper.OutputLine
+		wantLines []helper.OutputLine
 	}{
-		{name: "no line", lines: nil},
+		{name: "no line", lines: nil, wantLines: nil},
 		{
 			name: "lines are kept in order",
 			lines: []helper.OutputLine{
+				{Text: "first", Level: helper.InfoLevel},
+				{Text: "second", Level: helper.ErrorLevel},
+			},
+			wantLines: []helper.OutputLine{
 				{Text: "first", Level: helper.InfoLevel},
 				{Text: "second", Level: helper.ErrorLevel},
 			},
@@ -163,7 +168,7 @@ func TestOutput_Add(t *testing.T) {
 				o.Add(l.Text, l.Level)
 			}
 
-			assert.Equal(t, tt.lines, o.Lines)
+			assert.Equal(t, tt.wantLines, o.Lines)
 		})
 	}
 }

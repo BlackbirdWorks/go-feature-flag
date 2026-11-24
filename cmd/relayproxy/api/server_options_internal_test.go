@@ -46,7 +46,11 @@ func TestNew_Options(t *testing.T) {
 		},
 		{
 			name: "every option",
-			opts: []Option{WithGlobalTelemetry(), WithListener(apiListener), WithMonitoringListener(monitoringListener)},
+			opts: []Option{
+				WithGlobalTelemetry(),
+				WithListener(apiListener),
+				WithMonitoringListener(monitoringListener),
+			},
 			want: serverOptions{globalTelemetry: true, listener: apiListener, monitoringListener: monitoringListener},
 		},
 	}

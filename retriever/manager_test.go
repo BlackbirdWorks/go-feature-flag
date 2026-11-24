@@ -2,6 +2,8 @@ package retriever_test
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -291,23 +293,23 @@ variation = "A"
 `)
 
 	tests := []struct {
-		name        string
-		hintFormat  string
-		globalFmt   string
-		wantErr     string
-		wantFlags   []string
+		name       string
+		hintFormat string
+		globalFmt  string
+		wantErr    string
+		wantFlags  []string
 	}{
 		{
-			name:        "FormatHinter toml overrides global yaml",
-			hintFormat:  "toml",
-			globalFmt:   "yaml",
-			wantFlags:   []string{"test-flag"},
+			name:       "FormatHinter toml overrides global yaml",
+			hintFormat: "toml",
+			globalFmt:  "yaml",
+			wantFlags:  []string{"test-flag"},
 		},
 		{
-			name:        "Empty FormatHinter falls back to global yaml and fails on toml content",
-			hintFormat:  "",
-			globalFmt:   "yaml",
-			wantErr:     "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
+			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
+			hintFormat: "",
+			globalFmt:  "yaml",
+			wantErr:    "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 
@@ -334,11 +336,7 @@ variation = "A"
 			}
 			flags, allErr := cacheManager.AllFlags()
 			require.NoError(t, allErr)
-			var gotFlags []string
-			for name := range flags {
-				gotFlags = append(gotFlags, name)
-			}
-			assert.Equal(t, tt.wantFlags, gotFlags)
+			assert.Equal(t, tt.wantFlags, slices.Sorted(maps.Keys(flags)))
 			_ = manager.Shutdown(ctx)
 		})
 	}

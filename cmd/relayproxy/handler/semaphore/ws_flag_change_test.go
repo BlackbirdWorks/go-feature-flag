@@ -32,8 +32,9 @@ func Test_websocket_flag_change(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		flagChange notifier.DiffCache
+		name        string
+		flagChange  notifier.DiffCache
+		wantMessage string
 	}{
 		{
 			name: "Update 1 flag",
@@ -63,6 +64,7 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
+			wantMessage: `{"added":null,"deleted":null,"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
 		},
 		{
 			name: "Update remove and add flag at the same time",
@@ -112,6 +114,7 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
+			wantMessage: `{"added":{"flag-2":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"deleted":{"flag-1":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -156,23 +159,37 @@ func Test_websocket_flag_change(t *testing.T) {
 			err = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
 			require.NoError(t, err)
 
-			// Wait a short time to ensure WebSocket registration is complete
-			// This prevents the race condition where BroadcastFlagChanges is called
-			// before the WebSocket connection is fully registered in the service
-			time.Sleep(100 * time.Millisecond)
+			// The first message the client receives is the one that proves that its connection is registered
+			// in the service: broadcast until it arrives instead of sleeping.
+			received, firstMsg := readFirstMessage(ws)
+			broadcastUntilRegistered(t, websocketService, tt.flagChange, firstMsg)
 
-			// Broadcast the flag change
-			websocketService.BroadcastFlagChanges("default", tt.flagChange)
-
-			// Read message with timeout
-			_, receivedMessage, err := ws.ReadMessage()
-			require.NoError(t, err)
-
-			expectedMessage, err := json.Marshal(tt.flagChange)
-			require.NoError(t, err)
-			assert.JSONEq(t, string(expectedMessage), string(receivedMessage))
+			assert.JSONEq(t, tt.wantMessage, string(<-received))
 		})
 	}
+}
+
+// readFirstMessage reads the connection in the background. The first message is sent on the first channel and
+// then its arrival is signalled on the second one, which is what broadcastUntilRegistered waits for.
+func readFirstMessage(ws *websocket.Conn) (<-chan []byte, <-chan struct{}) {
+	received := make(chan []byte, 1)
+	firstMsg := make(chan struct{}, 1)
+	go func() {
+		first := true
+		for {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				return
+			}
+			if first {
+				first = false
+				received <- msg
+				firstMsg <- struct{}{}
+			}
+		}
+	}()
+
+	return received, firstMsg
 }
 
 // broadcastUntilRegistered broadcasts until the client confirms receipt of a
@@ -325,8 +342,6 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	defer func() { _ = ws.Close() }()
 	require.NoError(t, ws.SetReadDeadline(time.Now().Add(10*time.Second)))
 
-	time.Sleep(100 * time.Millisecond)
-
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
@@ -339,13 +354,13 @@ func Test_websocket_legacy_handler(t *testing.T) {
 			},
 		},
 	}
-	websocketService.BroadcastFlagChanges("default", diff)
+	// the first message the client receives proves that its connection is registered in the service
+	received, firstMsg := readFirstMessage(ws)
+	broadcastUntilRegistered(t, websocketService, diff, firstMsg)
 
-	_, received, err := ws.ReadMessage()
-	require.NoError(t, err)
 	expected, err := json.Marshal(diff)
 	require.NoError(t, err)
-	assert.JSONEq(t, string(expected), string(received))
+	assert.JSONEq(t, string(expected), string(<-received))
 }
 
 // Test_websocket_flagset_scoping verifies that, with flagsets, a client is
@@ -445,27 +460,32 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		handler func(*controller.WSFlagChange) echo.HandlerFunc
-		query   string
+		name       string
+		handler    func(*controller.WSFlagChange) echo.HandlerFunc
+		query      string
+		wantStatus int
 	}{
 		{
-			name:    "handler: no apiKey",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			name:       "handler: no apiKey",
+			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "handler: apiKey not associated to a flagset",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
-			query:   "?apiKey=unknown",
+			name:       "handler: apiKey not associated to a flagset",
+			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			query:      "?apiKey=unknown",
+			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "legacy handler: no apiKey",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			name:       "legacy handler: no apiKey",
+			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:    "legacy handler: apiKey not associated to a flagset",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
-			query:   "?apiKey=unknown",
+			name:       "legacy handler: apiKey not associated to a flagset",
+			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			query:      "?apiKey=unknown",
+			wantStatus: http.StatusBadRequest,
 		},
 	}
 	for _, tt := range tests {
@@ -493,7 +513,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 			}
 			require.ErrorIs(t, err, websocket.ErrBadHandshake)
 			defer func() { _ = resp.Body.Close() }()
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
 		})
 	}
 }

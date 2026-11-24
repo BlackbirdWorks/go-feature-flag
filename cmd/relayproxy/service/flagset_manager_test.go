@@ -187,23 +187,23 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		config   *config.Config
-		flagsets []string
+		name         string
+		config       *config.Config
+		wantFlagsets []string
 	}{
 		{
 			name: "default mode",
 			config: &config.Config{
 				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
 			},
-			flagsets: []string{utils.DefaultFlagSetName},
+			wantFlagsets: []string{utils.DefaultFlagSetName},
 		},
 		{
 			name: "flagsets mode",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{flagset("flagset-1"), flagset("flagset-2")},
 			},
-			flagsets: []string{"flagset-1", "flagset-2"},
+			wantFlagsets: []string{"flagset-1", "flagset-2"},
 		},
 	}
 	for _, tt := range tests {
@@ -211,7 +211,7 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 			t.Parallel()
 
 			_, sse, ws := newStreamManager(t, tt.config)
-			assertBroadcasts(t, sse, ws, tt.flagsets)
+			assertBroadcasts(t, sse, ws, tt.wantFlagsets)
 		})
 	}
 
@@ -2133,9 +2133,9 @@ func assertKeyRouting(t *testing.T, manager service.FlagsetManager, want map[str
 	for key, wantName := range want {
 		name, err := manager.FlagSetName(key)
 		if wantName == "" {
-			assert.EqualError(t, err, "no flag set associated to the API key", "key %q", key)
+			require.EqualError(t, err, "no flag set associated to the API key", "key %q", key)
 		} else {
-			assert.NoError(t, err, "key %q", key)
+			require.NoError(t, err, "key %q", key)
 		}
 		got[key] = name
 	}

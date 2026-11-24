@@ -328,7 +328,11 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 			},
 		},
 	)
-	assert.EqualError(t, err, "error: [GCP Exporter] impossible to copy the file from flag-variation-playground-1749988800.json to bucket test: googleapi: Error 500: boom")
+	assert.EqualError(
+		t,
+		err,
+		"error: [GCP Exporter] impossible to copy the file from flag-variation-playground-1749988800.json to bucket test: googleapi: Error 500: boom",
+	)
 }
 
 func TestGoogleCloudStorage_IsBulk(t *testing.T) {

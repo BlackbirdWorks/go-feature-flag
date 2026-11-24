@@ -163,7 +163,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name   string
+		name    string
 		bucket  func(t *testing.T) string
 		wantErr string
 	}{

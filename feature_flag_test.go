@@ -283,14 +283,16 @@ test-flag:
 	)
 	assert.True(t, flagValue)
 
-	time.Sleep(2 * time.Second)
+	// the poller (every second) picks the new content up
+	require.Eventually(t, func() bool {
+		got, _ := gffClient1.BoolVariation(
+			"test-flag",
+			ffcontext.NewEvaluationContext("random-key"),
+			false,
+		)
 
-	flagValue, _ = gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
-		false,
-	)
-	assert.False(t, flagValue)
+		return !got
+	}, 30*time.Second, 20*time.Millisecond, "the updated file was never picked up")
 }
 
 func TestImpossibleToLoadfile(t *testing.T) {
@@ -384,13 +386,17 @@ test-flag:
 
 	err = os.WriteFile(flagFilePath, []byte(initialFileContent), os.ModePerm)
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
 
-	flagValue, _ = gff.StringVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
-		"SDKdefault",
-	)
+	// the poller picks the file up once it exists
+	require.Eventually(t, func() bool {
+		flagValue, _ = gff.StringVariation(
+			"test-flag",
+			ffcontext.NewEvaluationContext("random-key"),
+			"SDKdefault",
+		)
+
+		return flagValue == "true"
+	}, 30*time.Second, 20*time.Millisecond, "the file was never picked up")
 	assert.Equal(t, "true", flagValue, "should use the true value")
 }
 
@@ -670,11 +676,7 @@ func Test_ForceRefreshCache(t *testing.T) {
 	// checking that the cache has not been refreshed
 	assert.Equal(t, refreshTime, gffClient.GetCacheRefreshDate())
 
-	// Ensure the forced refresh lands on a strictly later timestamp even on
-	// platforms with a coarse monotonic clock (Windows timer granularity ~15ms),
-	// otherwise the initial load and the forced refresh can share the same instant.
-	time.Sleep(50 * time.Millisecond)
-
+	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
 	// checking that the cache has been refreshed
 	gffClient.ForceRefresh()
 	assert.NotEqual(t, refreshTime, gffClient.GetCacheRefreshDate())

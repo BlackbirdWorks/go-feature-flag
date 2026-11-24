@@ -221,14 +221,20 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		source FlagsetSource
+		name       string
+		source     FlagsetSource
+		wantSeries int
 	}{
-		{name: "source error", source: fakeFlagsetSource{err: errors.New("no flagsets configured")}},
-		{name: "nil flagset", source: fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}}},
+		{name: "source error", source: fakeFlagsetSource{err: errors.New("no flagsets configured")}, wantSeries: 0},
 		{
-			name:   "cache not initialized",
-			source: fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": {}}},
+			name:       "nil flagset",
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}},
+			wantSeries: 0,
+		},
+		{
+			name:       "cache not initialized",
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": {}}},
+			wantSeries: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -240,7 +246,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
 			count, err := testutil.GatherAndCount(m.Registry, "semaphore_flag_loaded")
 			require.NoError(t, err)
-			assert.Equal(t, 0, count)
+			assert.Equal(t, tt.wantSeries, count)
 		})
 	}
 }
