@@ -10,6 +10,8 @@ import (
 )
 
 func TestMetrics_IncAllFlag(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -21,6 +23,8 @@ func TestMetrics_IncAllFlag(t *testing.T) {
 }
 
 func TestMetrics_IncAllFlag_WithBulkMetricEnabled(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics(MetricsOpts{
 		EnableBulkMetricFlagNames: true,
 	})
@@ -45,6 +49,8 @@ func TestMetrics_IncAllFlag_WithBulkMetricEnabled(t *testing.T) {
 }
 
 func TestMetrics_IncCollectEvalData(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -55,6 +61,8 @@ func TestMetrics_IncCollectEvalData(t *testing.T) {
 }
 
 func TestMetrics_IncFlagEvaluation(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -77,6 +85,8 @@ func TestMetrics_IncFlagEvaluation(t *testing.T) {
 }
 
 func TestMetrics_IncFlagNotFoundEvaluation(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -94,6 +104,8 @@ func TestMetrics_IncFlagNotFoundEvaluation(t *testing.T) {
 }
 
 func TestMetrics_IncFlagCreated(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -116,6 +128,8 @@ func TestMetrics_IncFlagCreated(t *testing.T) {
 }
 
 func TestMetrics_IncFlagUpdated(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -138,6 +152,8 @@ func TestMetrics_IncFlagUpdated(t *testing.T) {
 }
 
 func TestMetrics_IncFlagDeleted(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -160,6 +176,8 @@ func TestMetrics_IncFlagDeleted(t *testing.T) {
 }
 
 func TestMetrics_IncFlagChange(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -171,6 +189,8 @@ func TestMetrics_IncFlagChange(t *testing.T) {
 }
 
 func TestMetrics_IncForceRefresh(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -182,6 +202,8 @@ func TestMetrics_IncForceRefresh(t *testing.T) {
 }
 
 func TestMetrics_IncValidateFlags(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -202,6 +224,8 @@ func TestMetrics_IncValidateFlags(t *testing.T) {
 }
 
 func TestMetrics_IncFlagConfigurationCall(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -213,6 +237,8 @@ func TestMetrics_IncFlagConfigurationCall(t *testing.T) {
 }
 
 func TestMetrics_IncGetManifestCall(t *testing.T) {
+	t.Parallel()
+
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 

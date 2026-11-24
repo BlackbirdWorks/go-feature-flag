@@ -80,6 +80,8 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 }
 
 func Test_Evaluate(t *testing.T) {
+	t.Parallel()
+
 	tests := []evaluateTestCase{
 		{
 			name: "Should error is config file does not exist",
@@ -443,6 +445,8 @@ func Test_Evaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assertEvaluate(t, tt)
 		})
 	}

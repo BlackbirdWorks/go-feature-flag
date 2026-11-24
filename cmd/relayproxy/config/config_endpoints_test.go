@@ -170,6 +170,8 @@ func TestEndpoints_IsValid(t *testing.T) {
 
 // TestEndpoints_Loading checks the loading of the endpoints block from the file and the environment.
 // It cannot be parallel because of t.Setenv.
+//
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestEndpoints_Loading(t *testing.T) {
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
 	tests := []struct {

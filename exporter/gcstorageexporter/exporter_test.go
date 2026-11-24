@@ -19,6 +19,8 @@ import (
 )
 
 func TestGoogleStorage_Export(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	type fields struct {
 		Bucket      string
@@ -218,6 +220,8 @@ func TestGoogleStorage_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// init mock httpclient
 			handler := GoogleCloudStorageHandler{}
 
@@ -285,6 +289,8 @@ func (g *GoogleCloudStorageHandler) handler() http.Handler {
 // flushes it on Close, so the server error surfaces from wc.Close() rather than
 // io.Copy; Export must still return an error.
 func TestGoogleStorage_Export_UploadError(t *testing.T) {
+	t.Parallel()
+
 	serv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error":{"code":500,"message":"boom"}}`))
@@ -326,6 +332,8 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 }
 
 func TestGoogleCloudStorage_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := gcstorageexporter.Exporter{}
 	assert.True(t, exporter.IsBulk(), "exporter is a bulk exporter")
 }

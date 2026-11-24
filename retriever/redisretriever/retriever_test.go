@@ -20,6 +20,8 @@ import (
 )
 
 func Test_Redis_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		prefix      string
@@ -49,6 +51,8 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			options := startRedisAndAddData(t, tt.flagsToLoad, tt.prefix)
 
 			retriever := redisretriever.Retriever{
@@ -115,21 +119,31 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 }
 
 func TestRedisStatus(t *testing.T) {
+	t.Parallel()
+
 	t.Run("should return NotReady for nil receiver", func(t *testing.T) {
+		t.Parallel()
+
 		var retriever *redisretriever.Retriever
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should return NotReady for uninitialized retriever", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{}
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 }
 
 func TestRedisShutdown(t *testing.T) {
+	t.Parallel()
+
 	options := startRedisAndAddData(t, []string{"flag1.json"}, "")
 
 	t.Run("should close connection successfully", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -144,6 +158,8 @@ func TestRedisShutdown(t *testing.T) {
 	})
 
 	t.Run("should succeed when called before init", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -154,6 +170,8 @@ func TestRedisShutdown(t *testing.T) {
 	})
 
 	t.Run("allow multiple calls idempotently", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -174,12 +192,16 @@ func TestRedisShutdown(t *testing.T) {
 	})
 
 	t.Run("should handle nil retriever gracefully", func(t *testing.T) {
+		t.Parallel()
+
 		var retriever *redisretriever.Retriever
 		err := retriever.Shutdown(context.TODO())
 		assert.NoError(t, err)
 	})
 
 	t.Run("should handle nil client gracefully", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -190,6 +212,8 @@ func TestRedisShutdown(t *testing.T) {
 	})
 
 	t.Run("should handle shutdown when retriever is in error state", func(t *testing.T) {
+		t.Parallel()
+
 		// Create retriever with invalid options to force error state
 		badOptions := &redis.Options{
 			Addr: "invalid-address:6379",
@@ -210,6 +234,8 @@ func TestRedisShutdown(t *testing.T) {
 	})
 
 	t.Run("should verify status is set to not ready after shutdown", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -225,6 +251,8 @@ func TestRedisShutdown(t *testing.T) {
 }
 
 func Test_Redis_OutputFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -236,6 +264,8 @@ func Test_Redis_OutputFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := redisretriever.Retriever{}
 			assert.Equal(t, tt.want, r.OutputFormat())
 		})

@@ -12,6 +12,8 @@ import (
 )
 
 func TestPrometheusNotifier_with_diff(t *testing.T) {
+	t.Parallel()
+
 	m, err := NewMetrics()
 	require.NoError(t, err)
 
@@ -63,6 +65,8 @@ func TestPrometheusNotifier_with_diff(t *testing.T) {
 }
 
 func TestPrometheusNotifier_no_diff(t *testing.T) {
+	t.Parallel()
+
 	m, err := NewMetrics()
 	require.NoError(t, err)
 

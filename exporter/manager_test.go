@@ -23,6 +23,8 @@ import (
 )
 
 func TestDataExporterManager_flushWithTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -42,6 +44,8 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    10 * time.Millisecond,
@@ -86,6 +90,8 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 }
 
 func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -105,6 +111,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    10 * time.Millisecond,
@@ -147,6 +155,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 }
 
 func TestDataExporterManager_defaultFlush(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -167,6 +177,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    0,
@@ -206,6 +218,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 }
 
 func TestDataExporterManager_exporterReturnError(t *testing.T) {
+	t.Parallel()
+
 	mockExporter := mock.Exporter{Err: errors.New("random err"), ExpectedNumberErr: 1, Bulk: true}
 	dataExporterMock := []exporter.Config{
 		{
@@ -242,6 +256,8 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 }
 
 func TestDataExporterManager_nonBulkExporter(t *testing.T) {
+	t.Parallel()
+
 	mockExporter := mock.Exporter{Bulk: false}
 	dataExporterMock := []exporter.Config{
 		{
@@ -273,6 +289,8 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 }
 
 func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.EvaluationContext
@@ -306,6 +324,8 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockExporter := &mock.Exporter{}
 			config := ffclient.Config{
 				Retriever: &fileretriever.Retriever{Path: "../testdata/flag-config.yaml"},
@@ -341,6 +361,8 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 }
 
 func TestDataExporterManager_multipleExporters(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
@@ -386,6 +408,8 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 }
 
 func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
@@ -434,6 +458,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
 }
 
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 	// We are running the same test multiple times to have more chance to have a race condition.
 	for i := 1; i < 20; i++ {
@@ -494,6 +519,8 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // releases every goroutine it started, including the event store cleaner. Forgetting the store
 // leaks one goroutine and the events it retains per client, which is unbounded for the relay
 // proxy since it builds a client per flagset on every hot reload.
+//
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package
 func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 	const nbManagers = 50
 	goroutinesBefore := runtime.NumGoroutine()

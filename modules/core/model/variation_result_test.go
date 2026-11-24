@@ -12,6 +12,8 @@ import (
 )
 
 func TestVariationResultToJsonStr(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		result   any
@@ -152,6 +154,8 @@ func TestVariationResultToJsonStr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var jsonStr string
 			switch v := tt.result.(type) {
 			case model.VariationResult[bool]:
@@ -183,6 +187,8 @@ func TestVariationResultToJsonStr(t *testing.T) {
 }
 
 func TestRawVarResultJSONSerialization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		result   model.RawVarResult
@@ -308,6 +314,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Test JSON serialization
 			jsonBytes, err := json.Marshal(tt.result)
 			require.NoError(t, err, "JSON marshaling should succeed")
@@ -338,6 +346,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 }
 
 func TestVariationResultJSONDeserialization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		jsonStr string
@@ -379,6 +389,8 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var got model.VariationResult[string]
 			err := json.Unmarshal([]byte(tt.jsonStr), &got)
 			if tt.wantErr {

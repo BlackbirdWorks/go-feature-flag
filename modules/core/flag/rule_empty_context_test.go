@@ -11,6 +11,8 @@ import (
 )
 
 func TestRule_RequiresBucketing(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rule     flag.Rule
@@ -62,6 +64,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.rule.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -69,6 +73,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 }
 
 func TestRule_Evaluate_EmptyKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		rule          flag.Rule
@@ -157,6 +163,8 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result, err := tt.rule.Evaluate(tt.key, tt.ctx, "test-flag", false)
 
 			if tt.expectedError {

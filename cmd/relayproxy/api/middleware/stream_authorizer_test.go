@@ -14,6 +14,8 @@ import (
 )
 
 func TestStreamAuthorizer(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		confAPIKey string
 		urlAPIKey  string
@@ -46,6 +48,8 @@ func TestStreamAuthorizer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := echo.New()
 			req := httptest.NewRequest(
 				http.MethodGet,

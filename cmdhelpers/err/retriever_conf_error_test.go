@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewRetrieverConfError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		property string
@@ -32,6 +34,8 @@ func TestNewRetrieverConfError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := NewRetrieverConfError(tt.property, tt.kind)
 			require.NotNil(t, err, "expected non-nil error")
 			assert.Equal(t, tt.property, err.property, "property should match")
@@ -41,6 +45,8 @@ func TestNewRetrieverConfError(t *testing.T) {
 }
 
 func TestRetrieverConfError_Error(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		property string
@@ -75,6 +81,8 @@ func TestRetrieverConfError_Error(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := NewRetrieverConfError(tt.property, tt.kind)
 			got := err.Error()
 			assert.Equal(t, tt.expected, got, "Error() message should match expected format")
@@ -83,6 +91,8 @@ func TestRetrieverConfError_Error(t *testing.T) {
 }
 
 func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		property string
@@ -153,6 +163,8 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := NewRetrieverConfError(tt.property, tt.kind)
 			got := err.CliErrorMessage()
 			assert.Equal(t, tt.expected, got, "CliErrorMessage() should convert camelCase to kebab-case")
@@ -161,6 +173,8 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 }
 
 func TestRetrieverConfError_ImplementsError(t *testing.T) {
+	t.Parallel()
+
 	var _ error = &RetrieverConfError{}
 	err := NewRetrieverConfError("test", "test")
 	require.NotNil(t, err, "expected non-nil error")

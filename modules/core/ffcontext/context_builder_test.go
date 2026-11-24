@@ -7,6 +7,8 @@ import (
 )
 
 func TestNewUser(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		got  EvaluationContext
@@ -85,6 +87,8 @@ func TestNewUser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.got)
 			assert.Equal(t, tt.want.IsAnonymous(), tt.got.IsAnonymous())
 			assert.Equal(t, tt.want.GetKey(), tt.got.GetKey())
@@ -94,6 +98,8 @@ func TestNewUser(t *testing.T) {
 }
 
 func TestNewEvaluationContextWithoutTargetingKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := NewEvaluationContext("")
 	assert.Empty(t, ctx.GetKey(), "Should have empty targeting key")
 	assert.Equal(t, map[string]any{}, ctx.GetCustom(), "Should have empty custom attributes")
@@ -101,6 +107,8 @@ func TestNewEvaluationContextWithoutTargetingKey(t *testing.T) {
 }
 
 func TestNewEvaluationContextBuilderWithoutTargetingKey(t *testing.T) {
+	t.Parallel()
+
 	ctx := NewEvaluationContextBuilder("").
 		AddCustom("role", "admin").
 		AddCustom(anonymousAttribute, true).

@@ -84,6 +84,8 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 }
 
 func TestAllFlagsState(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     ffclient.Config
@@ -129,6 +131,8 @@ func TestAllFlagsState(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			exportDir, _ := os.MkdirTemp("", "export")
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
@@ -165,6 +169,8 @@ func TestAllFlagsState(t *testing.T) {
 }
 
 func TestGetFlagStates(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		config            ffclient.Config
@@ -232,6 +238,8 @@ func TestGetFlagStates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// init logger
 			exportDir, _ := os.MkdirTemp("", "export")
 			tt.config.DataExporter = ffclient.DataExporter{
@@ -271,6 +279,8 @@ func TestGetFlagStates(t *testing.T) {
 }
 
 func TestAllFlagsFromCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     ffclient.Config
@@ -313,6 +323,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var goff *ffclient.GoFeatureFlag
 			var err error
 			if tt.initModule {

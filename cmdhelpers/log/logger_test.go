@@ -26,6 +26,7 @@ func replaceStderr(t *testing.T) (io.Reader, io.Closer) {
 	return r, w
 }
 
+//nolint:paralleltest,tparallel // replaces the process-wide os.Stderr that the logger under test writes to
 func TestInitLogger(t *testing.T) {
 	r, w := replaceStderr(t)
 
@@ -41,6 +42,7 @@ func TestInitLogger(t *testing.T) {
 	assert.Contains(t, string(b), `"msg":"test message"`)
 }
 
+//nolint:paralleltest,tparallel // replaces the process-wide os.Stderr that the logger under test writes to
 func TestLoggerUpdate(t *testing.T) {
 	t.Run("update to logfmt/warn", func(t *testing.T) {
 		r, w := replaceStderr(t)

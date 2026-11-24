@@ -27,6 +27,8 @@ func TestExporter_IsBulk(t *testing.T) {
 }
 
 func TestExporter_ExportFeatureEvents(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
 	e := &Exporter{
@@ -77,6 +79,8 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 }
 
 func TestExporter_ExportTrackingEvents(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
 	e := &Exporter{
@@ -119,6 +123,8 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 }
 
 func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
 	e := &Exporter{
@@ -149,6 +155,8 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 }
 
 func TestExporter_AutoMigrate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		autoMigrate          bool
@@ -197,6 +205,8 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.TODO()
 			client := newMockBigQueryClient()
 			e := &Exporter{
@@ -216,6 +226,8 @@ func TestExporter_AutoMigrate(t *testing.T) {
 }
 
 func TestExporter_DefaultTableName(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.TODO()
 	client := newMockBigQueryClient()
 	e := &Exporter{
@@ -234,6 +246,8 @@ func TestExporter_DefaultTableName(t *testing.T) {
 }
 
 func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		events []exporter.ExportableEvent
@@ -252,6 +266,8 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			initCalled := false
 			e := &Exporter{
 				ProjectID: "fake-project",
@@ -277,6 +293,8 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 }
 
 func TestExporter_ExportErrors(t *testing.T) {
+	t.Parallel()
+
 	clientErr := errors.New("client init failed")
 	ensureErr := errors.New("ensure table failed")
 	putErr := errors.New("put rows failed")
@@ -388,6 +406,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			client := tt.client
 			if client == nil {
 				client = newMockBigQueryClient()
@@ -426,6 +446,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 }
 
 func TestExporter_ExportChunksRows(t *testing.T) {
+	t.Parallel()
+
 	client := newMockBigQueryClient()
 	e := &Exporter{
 		ProjectID:     "fake-project",
@@ -454,6 +476,8 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 }
 
 func TestExporter_InitClientOnce(t *testing.T) {
+	t.Parallel()
+
 	client := newMockBigQueryClient()
 	var callCount atomic.Int32
 	e := &Exporter{
@@ -489,6 +513,8 @@ func TestExporter_InitClientOnce(t *testing.T) {
 }
 
 func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		credentials       []byte
@@ -507,6 +533,8 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var gotProjectID string
 			var gotClientOptions int
 			client := newMockBigQueryClient()
@@ -539,6 +567,8 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 }
 
 func TestCredentialsType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		creds []byte
@@ -578,12 +608,16 @@ func TestCredentialsType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, credentialsType(tt.creds))
 		})
 	}
 }
 
 func TestRowSaver_Save(t *testing.T) {
+	t.Parallel()
+
 	row := rowSaver{
 		values:   map[string]bigquery.Value{colKey: "flag-key"},
 		insertID: "flag-key|user-key|123",
@@ -597,6 +631,8 @@ func TestRowSaver_Save(t *testing.T) {
 }
 
 func TestIsAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -631,6 +667,8 @@ func TestIsAlreadyExists(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, isAlreadyExists(tt.err))
 		})
 	}

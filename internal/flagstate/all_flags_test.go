@@ -12,6 +12,8 @@ import (
 )
 
 func TestAllFlags(t *testing.T) {
+	t.Parallel()
+
 	afs := flagstate.NewAllFlags()
 	assert.NotNil(t, afs.GetFlags())
 	assert.Empty(t, afs.GetFlags())

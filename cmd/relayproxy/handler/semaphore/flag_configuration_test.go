@@ -25,6 +25,8 @@ import (
 const mockConfigFlagsLocation = testdataDir + "/configuration/"
 
 func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		bodyLocation string
 		statusCode   int
@@ -69,6 +71,8 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode (no flagsets)
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
@@ -115,6 +119,8 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 }
 
 func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
+	t.Parallel()
+
 	const configFlagsLocation = testdataDir + "/configuration_flags.yaml"
 	const configFlagsLocation2 = testdataDir + "/config_flags_v2.yaml"
 
@@ -175,6 +181,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for flagset mode
 			conf := config.Config{
 				FlagSets: []config.FlagSet{
@@ -256,6 +264,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 }
 
 func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_configuration_total"
 	const want = "# HELP " + metricName + " Counter events for number of configuration api requests.\n" +
 		"# TYPE " + metricName + " counter\n" +
@@ -275,7 +285,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 	}
 	flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err, "impossible to create flagset manager")
-	defer flagsetManager.Close()
+	t.Cleanup(func() { flagsetManager.Close() })
 
 	tests := []struct {
 		name           string
@@ -314,6 +324,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
 

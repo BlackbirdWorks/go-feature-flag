@@ -12,6 +12,8 @@ import (
 )
 
 func TestFlagChanges(t *testing.T) {
+	t.Parallel()
+
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
 	baseFlag := func() *flag.InternalFlag {
@@ -98,6 +100,8 @@ func TestFlagChanges(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			after := baseFlag()
 			tt.update(after)
 			got, err := notifier.FlagChanges(baseFlag(), after)
@@ -108,6 +112,8 @@ func TestFlagChanges(t *testing.T) {
 }
 
 func TestFlagChanges_error(t *testing.T) {
+	t.Parallel()
+
 	before := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	after := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	got, err := notifier.FlagChanges(before, after)
@@ -116,6 +122,8 @@ func TestFlagChanges_error(t *testing.T) {
 }
 
 func TestReadableValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value any
@@ -129,6 +137,8 @@ func TestReadableValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Contains(t, notifier.ReadableValue(tt.value), tt.want)
 		})
 	}

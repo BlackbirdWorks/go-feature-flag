@@ -11,6 +11,8 @@ import (
 )
 
 func TestUserAddCustomAttribute(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		name  string
 		value any
@@ -41,6 +43,8 @@ func TestUserAddCustomAttribute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.user.AddCustomAttribute(tt.args.name, tt.args.value)
 			assert.Equal(t, tt.want, tt.user.GetCustom())
 		})
@@ -48,6 +52,8 @@ func TestUserAddCustomAttribute(t *testing.T) {
 }
 
 func TestExtractGOFFProtectedFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.EvaluationContext
@@ -246,6 +252,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.ctx.ExtractGOFFProtectedFields()
 			assert.Equal(t, tt.want, got)
 		})
@@ -253,6 +261,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 }
 
 func TestEvaluationContextMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -275,6 +285,8 @@ func TestEvaluationContextMarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := tt.context.MarshalJSON()
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.expected, string(data))
@@ -283,6 +295,8 @@ func TestEvaluationContextMarshalJSON(t *testing.T) {
 }
 
 func TestEvaluationContextToMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -335,12 +349,15 @@ func TestEvaluationContextToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.context.ToMap()
 			assert.Equal(t, tt.expected, got)
 		})
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	t.Run("targetingKey is not leaked into the context attributes", func(t *testing.T) {
 		ctx := ffcontext.NewEvaluationContext("user-123")

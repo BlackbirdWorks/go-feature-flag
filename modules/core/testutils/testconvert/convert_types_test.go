@@ -8,6 +8,8 @@ import (
 )
 
 func TestBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input bool
@@ -27,6 +29,8 @@ func TestBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
@@ -35,6 +39,8 @@ func TestBool(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -59,6 +65,8 @@ func TestString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
@@ -67,6 +75,8 @@ func TestString(t *testing.T) {
 }
 
 func TestInt(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input int
@@ -96,6 +106,8 @@ func TestInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
@@ -104,6 +116,8 @@ func TestInt(t *testing.T) {
 }
 
 func TestFloat64(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input float64
@@ -138,6 +152,8 @@ func TestFloat64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.InDelta(t, tt.want, *result, 0, "Value should match input")
@@ -146,6 +162,8 @@ func TestFloat64(t *testing.T) {
 }
 
 func TestTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	zeroTime := time.Time{}
 	fixedTime := time.Date(2023, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -174,6 +192,8 @@ func TestTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
@@ -182,6 +202,8 @@ func TestTime(t *testing.T) {
 }
 
 func TestInterface(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input any
@@ -241,6 +263,8 @@ func TestInterface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")

@@ -8,9 +8,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
-var lintFlagFormat string
-
 func NewLintCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var lintFlagFormat string
+
 	lintCmd := &cobra.Command{
 		Use:   "lint <config_file>",
 		Short: "🛑 Lint Semaphore configuration file.",

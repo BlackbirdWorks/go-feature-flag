@@ -22,6 +22,8 @@ import (
 )
 
 func Test_InitRetriever(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		conf                   *retrieverconf.RetrieverConf
@@ -311,6 +313,8 @@ func Test_InitRetriever(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := InitRetriever(tt.conf)
 			tt.wantErr(t, err)
 			if err == nil {
@@ -324,6 +328,8 @@ func Test_InitRetriever(t *testing.T) {
 }
 
 func Test_InitRetriever_Redis(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		conf              *retrieverconf.RetrieverConf
@@ -430,6 +436,8 @@ func Test_InitRetriever_Redis(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := InitRetriever(tt.conf)
 			if tt.wantErr {
 				assert.Error(t, err)

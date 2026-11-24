@@ -22,6 +22,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 )
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -51,6 +52,7 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfig_fileFromPflag(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -372,6 +374,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 }
 
 func TestParseConfig_fileFromFolder(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                       string
 		want                       *config.Config
@@ -469,6 +473,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_ = os.Remove("./goff-proxy.yaml")
 			if !tt.disableDefaultFileCreation {
 				source, _ := os.Open(tt.fileLocation)
@@ -491,6 +497,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 }
 
 func TestConfig_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Server                  config.Server
 		HideBanner              bool
@@ -937,6 +945,8 @@ func TestConfig_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &config.Config{
 				PollingInterval:         tt.fields.PollingInterval,
 				FileFormat:              tt.fields.FileFormat,
@@ -962,6 +972,8 @@ func TestConfig_IsValid(t *testing.T) {
 }
 
 func TestConfig_APIKeyExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -1127,6 +1139,8 @@ func TestConfig_APIKeyExists(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.config.ForceReloadAPIKeys()
 			assert.Equalf(
 				t,
@@ -1140,6 +1154,8 @@ func TestConfig_APIKeyExists(t *testing.T) {
 }
 
 func TestConfig_APIAdminKeyExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -1233,6 +1249,8 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.config.ForceReloadAPIKeys()
 			assert.Equalf(
 				t,
@@ -1245,6 +1263,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // binds a fixed TCP port "localhost:19092"
 func TestMergeConfig_FromOSEnv(t *testing.T) {
 	tests := []struct {
 		name                       string
@@ -1722,6 +1741,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 // This test cannot be parallel: t.Setenv changes the process environment, and restores it when
 // the test ends (os.Setenv leaked the keys into every test that ran after it, which broke
 // -count>1 and any test reading the authorized keys).
+//
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestSetAPIKeysFromEnv(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -1757,6 +1778,8 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 }
 
 func TestConfig_LogLevel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		config       *config.Config
@@ -1812,6 +1835,8 @@ func TestConfig_LogLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.wantDebug, tt.config.IsDebugEnabled(), "IsDebugEnabled()")
 			assert.Equalf(t, tt.wantLogLevel, tt.config.ZapLogLevel(), "ZapLogLevel()")
 		})
@@ -1819,6 +1844,8 @@ func TestConfig_LogLevel(t *testing.T) {
 }
 
 func TestConfig_IsDebugEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		cfg  config.Config
@@ -1863,11 +1890,14 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.want, tt.cfg.IsDebugEnabled(), "IsDebugEnabled()")
 		})
 	}
 }
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Retrievers", func(t *testing.T) {
 		t.Setenv("RETRIEVERS_0_KIND", string(retrieverconf.FileRetriever))
@@ -2009,6 +2039,8 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 }
 
 // Not parallel: t.Setenv changes the process environment.
+//
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
 	t.Setenv("EXPORTERCLEANQUEUEINTERVAL", "2m")
 	got := parseCleanQueueConfig(t, "logLevel: info\n")
@@ -2059,6 +2091,7 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 	const marker = "SECRETMARKER-7f3a"
 	tests := []struct {

@@ -12,6 +12,8 @@ import (
 )
 
 func TestConfig_EffectiveMonitoringPort(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -79,6 +81,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
 
@@ -103,6 +107,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 }
 
 func TestConfig_ServerHost(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   *config.Config
@@ -148,6 +154,8 @@ func TestConfig_ServerHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.ServerHost()
 			assert.Equal(t, tt.wantHost, got)
 		})
@@ -155,6 +163,8 @@ func TestConfig_ServerHost(t *testing.T) {
 }
 
 func TestConfig_ServerPort(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -222,6 +232,8 @@ func TestConfig_ServerPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
 
@@ -246,6 +258,7 @@ func TestConfig_ServerPort(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the global zap logger
 func TestConfig_ServerMode(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -361,6 +374,7 @@ func TestConfig_ServerMode(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the global zap logger
 func TestConfig_LambdaAdapter(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -477,6 +491,7 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the global zap logger
 func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 	tests := []struct {
 		name                  string
@@ -583,6 +598,8 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 }
 
 func TestConfig_UnixSocketPath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		config         *config.Config
@@ -628,6 +645,8 @@ func TestConfig_UnixSocketPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.UnixSocketPath()
 			assert.Equal(t, tt.wantSocketPath, got)
 		})

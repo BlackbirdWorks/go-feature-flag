@@ -27,6 +27,8 @@ import (
 )
 
 func Test_collect_eval_data_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode          int
 		bodyFile          string
@@ -236,6 +238,8 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			exporterFile, err := os.CreateTemp(t.TempDir(), "exporter.json")
 			require.NoError(t, err)
 			defer os.Remove(exporterFile.Name())
@@ -332,6 +336,8 @@ func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode
 }
 
 func TestCollectEvalData_Handler_cancellation(t *testing.T) {
+	t.Parallel()
+
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10,
 		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: configFlagsLocation}},
@@ -371,6 +377,8 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 }
 
 func Test_collect_tracking_and_evaluation_events(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -413,6 +421,8 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			evalExporter, err := os.CreateTemp(t.TempDir(), "evalExport.json")
 			require.NoError(t, err)
 			trackingExporter, err := os.CreateTemp(t.TempDir(), "trackExport.json")

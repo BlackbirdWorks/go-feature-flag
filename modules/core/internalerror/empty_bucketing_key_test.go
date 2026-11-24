@@ -8,6 +8,8 @@ import (
 )
 
 func TestEmptyBucketingKeyErrorError(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Message string
 	}
@@ -49,6 +51,8 @@ func TestEmptyBucketingKeyErrorError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := &EmptyBucketingKeyError{
 				Message: tt.fields.Message,
 			}
@@ -58,6 +62,8 @@ func TestEmptyBucketingKeyErrorError(t *testing.T) {
 }
 
 func TestEmptyBucketingKeyErrorImplementsErrorInterface(t *testing.T) {
+	t.Parallel()
+
 	var err error
 	e := &EmptyBucketingKeyError{
 		Message: "test error",

@@ -9,6 +9,8 @@ import (
 )
 
 func TestExporterConf_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Kind                    string
 		OutputDir               string
@@ -374,6 +376,8 @@ func TestExporterConf_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &config.ExporterConf{
 				Kind:                    config.ExporterKind(tt.fields.Kind),
 				OutputDir:               tt.fields.OutputDir,

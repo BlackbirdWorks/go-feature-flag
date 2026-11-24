@@ -27,11 +27,15 @@ func (s *messageSenderMock) SendMessages(msgs []*sarama.ProducerMessage) error {
 }
 
 func TestExporter_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporter_Export(t *testing.T) {
+	t.Parallel()
+
 	const mockTopic = "mockTopic"
 
 	tests := []struct {

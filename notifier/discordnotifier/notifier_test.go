@@ -18,6 +18,8 @@ import (
 )
 
 func TestDiscordNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	genericFlag := &flag.InternalFlag{
 		Rules: &[]flag.Rule{
 			{
@@ -249,6 +251,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockHTTPClient := &testutils.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
@@ -277,6 +281,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		changes     int
@@ -299,6 +305,8 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			after := map[string]any{}
 			for i := range tt.changes {
 				after[fmt.Sprintf("key%02d", i)] = strings.Repeat("x", tt.valueLength)
@@ -324,6 +332,8 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 type otherFlag struct{ flag.Flag }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
+	t.Parallel()
+
 	broken := otherFlag{}
 	embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},
@@ -334,6 +344,8 @@ func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
 }
 
 func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
+	t.Parallel()
+
 	updated := func(changes, valueLength int) notifier.DiffUpdated {
 		after := map[string]any{}
 		for i := range changes {
@@ -381,6 +393,8 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			msg := convertToDiscordMessage(notifier.DiffCache{Updated: tt.updated})
 			total := 0
 			descriptions := map[string]string{}

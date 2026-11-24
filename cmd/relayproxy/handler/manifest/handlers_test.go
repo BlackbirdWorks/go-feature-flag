@@ -35,6 +35,8 @@ const (
 )
 
 func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
+	t.Parallel()
+
 	conf := &config.Config{
 		PollingInterval: 10000,
 		FileFormat:      "yaml",
@@ -69,6 +71,8 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 }
 
 func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode         int
 		bodyFile         string
@@ -149,10 +153,12 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 
 	flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err, "failed to create flagset manager")
-	defer flagsetManager.Close()
+	t.Cleanup(func() { flagsetManager.Close() })
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, zap.NewNop())
 			e := echo.New()
 			rec := httptest.NewRecorder()
@@ -193,6 +199,8 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 }
 
 func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
+	t.Parallel()
+
 	ctrl := manifest.NewManifest(nil, metric.Metrics{}, zap.NewNop())
 	e := echo.New()
 	rec := httptest.NewRecorder()

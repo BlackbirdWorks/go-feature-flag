@@ -20,6 +20,8 @@ import (
 )
 
 func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
+	t.Parallel()
+
 	ctrl := controller.NewForceFlagsRefresh(nil, metric.Metrics{})
 	e := echo.New()
 	rec := httptest.NewRecorder()
@@ -37,6 +39,8 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 }
 
 func Test_retriever_refresh_Handler_valid(t *testing.T) {
+	t.Parallel()
+
 	// Create config for default mode
 	conf := config.Config{
 		Retriever: &retrieverconf.RetrieverConf{

@@ -12,6 +12,8 @@ import (
 )
 
 func Test_ParseTemplate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		template        string
 		defaultTemplate string
@@ -52,6 +54,8 @@ func Test_ParseTemplate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defaultT, _ := template.New("random-name").Parse(tt.args.defaultTemplate)
 			assert.NotPanics(
 				t,
@@ -70,6 +74,8 @@ func Test_ParseTemplate(t *testing.T) {
 }
 
 func TestComputeFilename(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	type args struct {
 		template *template.Template
@@ -123,6 +129,8 @@ func TestComputeFilename(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := exporter.ComputeFilename(tt.args.template, tt.args.format)
 			if !tt.wantErr(
 				t,
@@ -144,6 +152,8 @@ func TestComputeFilename(t *testing.T) {
 }
 
 func TestFormatEventInCSV(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		csvTemplate *template.Template
 		event       exporter.FeatureEvent
@@ -180,6 +190,8 @@ func TestFormatEventInCSV(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.args.event.FormatInCSV(tt.args.csvTemplate)
 			if !tt.wantErr(
 				t,
@@ -201,6 +213,8 @@ func TestFormatEventInCSV(t *testing.T) {
 }
 
 func TestFormatEventInJSON(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		event exporter.FeatureEvent
 	}
@@ -229,6 +243,8 @@ func TestFormatEventInJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.args.event.FormatInJSON()
 			if !tt.wantErr(t, err, fmt.Sprintf("FormatInJSON(%v)", tt.args.event)) {
 				return

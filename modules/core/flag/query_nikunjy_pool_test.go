@@ -14,6 +14,8 @@ import (
 )
 
 func TestNikunjyPool_Evaluate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		key       string
 		ctx       ffcontext.Context
@@ -201,6 +203,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.rule.Evaluate(tt.args.key, tt.args.ctx, tt.args.flagName, tt.args.isDefault)
 			if tt.wantErr != nil {
 				tt.wantErr(t, err)
@@ -219,6 +223,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 }
 
 func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
+	t.Parallel()
+
 	rule := flag.Rule{
 		Name:            new("pool-concurrent"),
 		VariationResult: new("on"),
@@ -248,6 +254,8 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 }
 
 func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
+	t.Parallel()
+
 	const numQueries = 10
 	const goroutinesPerQuery = 5
 
@@ -307,6 +315,8 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 }
 
 func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
+	t.Parallel()
+
 	rule := flag.Rule{
 		Name:            new("pool-concurrent-invalid"),
 		VariationResult: new("on"),

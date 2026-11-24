@@ -8,6 +8,8 @@ import (
 )
 
 func TestLinter_Lint(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		linter  Linter
@@ -104,6 +106,8 @@ func TestLinter_Lint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			errs := tt.linter.Lint()
 			for _, err := range errs {
 				tt.wantErr(t, err, fmt.Sprintf("Lint(): %s", err))

@@ -31,6 +31,8 @@ func sampleText() string {
 }
 
 func Test_bitbucket_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	endRatelimit := time.Now().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
@@ -122,6 +124,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := bitbucketretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				Branch:         tt.fields.branch,

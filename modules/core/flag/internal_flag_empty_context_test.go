@@ -12,6 +12,8 @@ import (
 )
 
 func TestInternalFlag_RequiresBucketing(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		flag     flag.InternalFlag
@@ -223,6 +225,8 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.flag.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -230,6 +234,8 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 }
 
 func TestInternalFlag_Value_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		flag              flag.InternalFlag
@@ -328,6 +334,8 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagContext := flag.Context{DefaultSdkValue: false}
 			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
 
@@ -346,6 +354,8 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 }
 
 func TestInternalFlag_Value_NilContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		flag              flag.InternalFlag
@@ -420,6 +430,8 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagContext := flag.Context{DefaultSdkValue: false}
 			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
 
@@ -438,6 +450,8 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 }
 
 func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		flag          flag.InternalFlag
@@ -532,6 +546,8 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			key, err := tt.flag.GetBucketingKeyValue(tt.evaluationCtx)
 
 			if tt.expectedError {

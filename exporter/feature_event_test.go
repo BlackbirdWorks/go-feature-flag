@@ -11,6 +11,8 @@ import (
 )
 
 func TestNewFeatureEvent(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		user             ffcontext.Context
 		flagKey          string
@@ -54,6 +56,8 @@ func TestNewFeatureEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(
 				t,
 				tt.want,
@@ -81,6 +85,8 @@ func TestNewFeatureEvent(t *testing.T) {
 }
 
 func TestFeatureEvent_MarshalInterface(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -146,6 +152,8 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			val, err := tt.featureEvent.ConvertValueForParquet()
 			if (err != nil) != tt.wantErr {
 				assert.Failf(
@@ -166,6 +174,8 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 }
 
 func TestFeatureEvent_FormatInJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -241,6 +251,8 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.featureEvent.FormatInJSON()
 			tt.wantErr(t, err)
 			if err == nil {
@@ -251,6 +263,8 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 }
 
 func TestFeatureEvent_GetKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -292,12 +306,16 @@ func TestFeatureEvent_GetKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.featureEvent.GetKey())
 		})
 	}
 }
 
 func TestFeatureEvent_GetUserKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent ``
@@ -325,6 +343,8 @@ func TestFeatureEvent_GetUserKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.featureEvent.GetUserKey())
 		})
 	}

@@ -9,6 +9,8 @@ import (
 )
 
 func TestRuleEvaluateProgressiveRollout(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	r := &Rule{
 		ProgressiveRollout: &ProgressiveRollout{

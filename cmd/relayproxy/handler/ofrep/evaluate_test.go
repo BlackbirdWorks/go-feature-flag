@@ -28,6 +28,8 @@ const testdataDir = "../../testdata"
 const configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
 
 func Test_Bulk_Evaluation(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -117,6 +119,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
@@ -176,6 +180,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 }
 
 func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		eventStream config.OfrepEventStream
 		headers     map[string]string
@@ -239,6 +245,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := &config.Config{
 				PollingInterval: 10000,
 				FileFormat:      "yaml",
@@ -272,6 +280,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 }
 
 func Test_Evaluate(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode int
 		bodyFile string
@@ -399,6 +409,8 @@ func Test_Evaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create flagset manager with configuration
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
@@ -442,6 +454,8 @@ func Test_Evaluate(t *testing.T) {
 }
 
 func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
@@ -475,6 +489,8 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := &config.Config{
 				PollingInterval: 10000, // 10 seconds in milliseconds
 				FileFormat:      "yaml",

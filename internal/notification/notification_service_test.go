@@ -11,6 +11,8 @@ import (
 )
 
 func Test_notificationService_getDifferences(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Notifiers []notifier.Notifier
 	}
@@ -242,6 +244,8 @@ func Test_notificationService_getDifferences(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &notificationService{
 				Notifiers: tt.fields.Notifiers,
 				waitGroup: &sync.WaitGroup{},

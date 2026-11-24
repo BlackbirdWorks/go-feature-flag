@@ -13,6 +13,8 @@ import (
 )
 
 func TestRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	bucketFiles := map[string]string{
@@ -98,6 +100,8 @@ func TestRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockedStorage := testutils.NewMockedGCS(t)
 			mockedStorage.WithFiles(t, tt.storage.bucket, tt.storage.files)
 

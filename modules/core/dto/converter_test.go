@@ -11,6 +11,8 @@ import (
 )
 
 func TestConvertV1DtoToInternalFlag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    dto.DTO
@@ -139,6 +141,8 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.input.Convert()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -146,6 +150,8 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 }
 
 func TestConvertInternalFlagToDto(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    flag.InternalFlag
@@ -280,6 +286,8 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := dto.ConvertInternalFlagToDto(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})

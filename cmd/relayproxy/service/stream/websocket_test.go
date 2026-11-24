@@ -62,6 +62,8 @@ func sensitiveDiffCache() notifier.DiffCache {
 }
 
 func TestBroadcastFlagChangesPayload(t *testing.T) {
+	t.Parallel()
+
 	diff := sensitiveDiffCache()
 	tests := []struct {
 		name     string
@@ -85,6 +87,8 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			websocketService := stream.NewWebsocketService(tt.options...)
 			conn := &mockConn{}
 			var received any
@@ -107,6 +111,8 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 }
 
 func TestBroadcastFlagChanges(t *testing.T) {
+	t.Parallel()
+
 	// Create the websocketService instance
 	websocketService := stream.NewWebsocketService()
 
@@ -150,6 +156,8 @@ func TestBroadcastFlagChanges(t *testing.T) {
 }
 
 func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		broadcastFlagset string
@@ -174,6 +182,8 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			websocketService := stream.NewWebsocketService()
 			clients := map[string]string{"a1": "flagset-a", "a2": "flagset-a", "b1": "flagset-b"}
 			got := map[string]bool{}
@@ -194,6 +204,8 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 }
 
 func TestDeregister(t *testing.T) {
+	t.Parallel()
+
 	// Create the websocketService instance
 	websocketService := stream.NewWebsocketService()
 
@@ -226,6 +238,8 @@ func TestDeregister(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	t.Parallel()
+
 	// Create the websocketService instance
 	websocketService := stream.NewWebsocketService()
 
@@ -270,6 +284,8 @@ func TestClose(t *testing.T) {
 }
 
 func TestBroadcastFlagChangesDeadLock(t *testing.T) {
+	t.Parallel()
+
 	// Create the websocketService instance
 	websocketService := stream.NewWebsocketService()
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache

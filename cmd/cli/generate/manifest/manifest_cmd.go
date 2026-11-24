@@ -4,13 +4,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	manifestFlagFormat      string
-	manifestConfigFile      string
-	flagManifestDestination string
-)
-
 func NewManifestCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var (
+		manifestFlagFormat      string
+		manifestConfigFile      string
+		flagManifestDestination string
+	)
+
 	manifestCmd := &cobra.Command{
 		Use:   "manifest",
 		Short: "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration.",

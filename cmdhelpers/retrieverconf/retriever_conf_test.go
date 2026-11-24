@@ -10,6 +10,8 @@ import (
 )
 
 func TestRetrieverConf_IsValid(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		fields   retrieverconf.RetrieverConf
@@ -479,6 +481,8 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := tt.fields
 			err := c.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)
@@ -490,6 +494,8 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 }
 
 func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		fields   retrieverconf.RetrieverConf
@@ -592,6 +598,8 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := tt.fields
 			err := c.IsValid()
 			assert.Equal(t, tt.wantErr, err != nil)

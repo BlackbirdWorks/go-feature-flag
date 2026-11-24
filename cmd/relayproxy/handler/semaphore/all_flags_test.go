@@ -26,6 +26,8 @@ import (
 const testdataDir = "../../testdata/semaphore"
 
 func Test_all_flag_Handler_DefaultMode(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -119,6 +121,8 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: retrieverconf.FileRetriever,
@@ -179,6 +183,8 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 }
 
 func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
+	t.Parallel()
+
 	const configFlagsLocation = testdataDir + "/config_flags.yaml"
 
 	type want struct {
@@ -250,6 +256,8 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := config.Config{
 				FlagSets: []config.FlagSet{
 					{

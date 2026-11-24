@@ -24,6 +24,8 @@ import (
 )
 
 func TestNewFlagsetManager(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	tests := []struct {
 		name        string
@@ -98,6 +100,8 @@ func TestNewFlagsetManager(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			manager, err := service.NewFlagsetManager(tt.config, tt.logger, tt.notifiers, nil, nil)
 
 			if tt.wantErr {
@@ -171,6 +175,8 @@ func assertBroadcasts(t *testing.T, sse *fakeSSEService, ws *fakeWebsocketServic
 }
 
 func TestFlagsetManager_StreamNotifiers(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	flagset := func(name string) config.FlagSet {
 		return config.FlagSet{
@@ -202,12 +208,16 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, sse, ws := newStreamManager(t, tt.config)
 			assertBroadcasts(t, sse, ws, tt.flagsets)
 		})
 	}
 
 	t.Run("flagset added at runtime", func(t *testing.T) {
+		t.Parallel()
+
 		manager, sse, ws := newStreamManager(t, &config.Config{
 			FlagSets: []config.FlagSet{flagset("flagset-1")},
 		})
@@ -221,10 +231,14 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 }
 
 func TestFlagsetManager_FlagSet(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -245,22 +259,30 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		defer manager.Close()
 
 		t.Run("valid api key", func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := manager.FlagSet("test-api-key")
 			require.NoError(t, err)
 			assert.NotNil(t, flagset)
 		})
 		t.Run("invalid api key", func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := manager.FlagSet("invalid-key")
 			require.Error(t, err)
 			assert.Nil(t, flagset)
 		})
 		t.Run("empty api key", func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := manager.FlagSet("")
 			require.Error(t, err)
 			assert.Nil(t, flagset)
 		})
 
 		t.Run("empty api key", func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := manager.FlagSet("")
 			require.Error(t, err)
 			assert.Nil(t, flagset)
@@ -269,6 +291,8 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
@@ -284,6 +308,8 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		defer manager.Close()
 
 		t.Run("empty api key should work", func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := manager.FlagSet("")
 			require.NoError(t, err)
 			assert.NotNil(t, flagset)
@@ -292,10 +318,14 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 }
 
 func TestFlagsetManager_FlagSetName(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -316,17 +346,23 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		defer manager.Close()
 
 		t.Run("existing api key", func(t *testing.T) {
+			t.Parallel()
+
 			name, err := manager.FlagSetName("test-api-key")
 			require.NoError(t, err)
 			assert.Equal(t, "test-flagset", name)
 		})
 		t.Run("non-existing api key", func(t *testing.T) {
+			t.Parallel()
+
 			name, err := manager.FlagSetName("invalid-key")
 			require.Error(t, err)
 			assert.Empty(t, name)
 			assert.Equal(t, "no flag set associated to the API key", err.Error())
 		})
 		t.Run("empty api key", func(t *testing.T) {
+			t.Parallel()
+
 			name, err := manager.FlagSetName("")
 			require.Error(t, err)
 			assert.Empty(t, name)
@@ -336,6 +372,8 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
@@ -351,6 +389,8 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		defer manager.Close()
 
 		t.Run("empty api key should return default", func(t *testing.T) {
+			t.Parallel()
+
 			name, err := manager.FlagSetName("")
 			require.NoError(t, err)
 			assert.Equal(t, "default", name)
@@ -359,10 +399,14 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 }
 
 func TestFlagsetManager_AllFlagSets(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -398,6 +442,8 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	})
 
 	t.Run("flagset mode using default flagset name", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -434,6 +480,8 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
@@ -456,10 +504,14 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 }
 
 func TestFlagsetManager_Default(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
@@ -480,6 +532,8 @@ func TestFlagsetManager_Default(t *testing.T) {
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -505,10 +559,14 @@ func TestFlagsetManager_Default(t *testing.T) {
 }
 
 func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
@@ -528,6 +586,8 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -551,6 +611,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func TestFlagsetManager_Close(t *testing.T) {
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
@@ -642,9 +703,13 @@ func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *ob
 	return manager, logs
 }
 func TestFlagsetManager_OnConfigChange(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	t.Run("should reject switching from default to flagsets mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -685,6 +750,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject switching from flagsets to default mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -725,6 +792,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should update AuthorizedKeys in default mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -758,6 +827,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should update APIKeys in default mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -787,6 +858,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should update both AuthorizedKeys and APIKeys in default mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -824,6 +897,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject invalid configuration in default mode - missing retriever", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -860,6 +935,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject invalid configuration in flagsets mode - flagset with no API keys", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -906,6 +983,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject invalid configuration in flagsets mode - duplicate API keys", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -971,6 +1050,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should successfully update API keys in flagsets mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1017,6 +1098,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should add new API keys to existing flagset", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode with single key
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1070,6 +1153,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should remove API keys from flagset", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager with two API keys
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1118,6 +1203,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should move API key between flagsets", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager with two flagsets
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1183,6 +1270,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should rotate API keys across flagsets regardless of processing order", func(t *testing.T) {
+		t.Parallel()
+
 		// Cyclic rotation in a single reload: ka: A->B, kb: B->C, kc: C->A.
 		// This is order-sensitive with incremental per-flagset updates, so it guards against a
 		// regression of the routing rebuild.
@@ -1223,6 +1312,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should not update when config is unchanged in flagsets mode", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager in flagsets mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1269,6 +1360,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should not update API keys for flagset with empty name", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager with a flagset that has an empty name (gets auto-generated)
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1320,6 +1413,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should not update API keys for flagset named default", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager with a flagset named "default" (gets auto-generated)
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1371,6 +1466,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should update multiple flagsets API keys simultaneously", func(t *testing.T) {
+		t.Parallel()
+
 		// Create manager with multiple flagsets
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1441,6 +1538,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should only notify the websocket clients of the flagset added at runtime", func(t *testing.T) {
+		t.Parallel()
+
 		flagset := func(name, apiKey string) config.FlagSet {
 			return config.FlagSet{
 				Name:      name,
@@ -1475,6 +1574,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should add a new flagset at runtime", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1528,6 +1629,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should remove a flagset at runtime", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1578,6 +1681,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject modifying an existing flagset configuration", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1618,6 +1723,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should reject a bundled API key and configuration change", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1657,6 +1764,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should apply add, remove and key change while rejecting a modification in one reload", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1725,6 +1834,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should leave unnamed flagsets untouched and warn when their count changes", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1768,6 +1879,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should fail closed when an accepted key move collides with a rejected modification", func(t *testing.T) {
+		t.Parallel()
+
 		// fs-a gains "k-move" (accepted) while fs-b — which still holds "k-move" — also gets a
 		// forbidden retriever change (rejected, so it keeps its old keys). The reconciled config
 		// then has "k-move" on BOTH flagsets even though the incoming config was valid. The key
@@ -1826,6 +1939,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	})
 
 	t.Run("should skip a flagset added at runtime whose client cannot be created", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -1880,6 +1995,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 // OnConfigChange. It is meant to run under -race; the stable flagset must always resolve and
 // nothing may panic.
 func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../../../testdata/flag-config.yaml"
 	stable := config.FlagSet{
 		Name:      "fs-stable",
@@ -1939,6 +2056,8 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 // gracefully closes its GoFeatureFlag client: the data exporter is stopped and its buffered
 // events are flushed (no data loss) instead of being dropped.
 func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../../../testdata/flag-config.yaml"
 
 	// Webhook server that records how many times the exporter flushes to it.

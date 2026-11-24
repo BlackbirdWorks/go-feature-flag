@@ -26,11 +26,15 @@ func (m MockUnsupportedEvent) GetUserKey() string                               
 func (m MockUnsupportedEvent) GetKey() string                                   { return "" }
 
 func TestOpenTelemetryIsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "OpenTelemetry exporter is not a bulk exporter")
 }
 
 func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(
@@ -85,6 +89,8 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 }
 
 func TestExporterSpanAttributes(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(
@@ -133,6 +139,8 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 // 'continue' logic when receiving non-FeatureEvent types.
 func TestExporter_Export_IgnoreUnsupportedEventTypes(t *testing.T) {
+	t.Parallel()
+
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	otel.SetTracerProvider(tp)

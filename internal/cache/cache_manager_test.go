@@ -21,6 +21,8 @@ import (
 )
 
 func Test_FlagCacheNotInit(t *testing.T) {
+	t.Parallel()
+
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
 	_, err := fCache.GetFlag("test-flag")
@@ -28,12 +30,16 @@ func Test_FlagCacheNotInit(t *testing.T) {
 }
 
 func Test_GetFlagNotExist(t *testing.T) {
+	t.Parallel()
+
 	fCache := cache.New(nil, "", nil)
 	_, err := fCache.GetFlag("not-exists-flag")
 	assert.Error(t, err, "We should have an error if the flag does not exists")
 }
 
 func Test_FlagCache(t *testing.T) {
+	t.Parallel()
+
 	yamlFile := []byte(`
 test-flag:
   variations:
@@ -259,6 +265,8 @@ variation = "false_var"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "",
 				&fflog.FFLogger{LeveledLogger: slog.Default()})
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
@@ -285,6 +293,8 @@ variation = "false_var"
 }
 
 func Test_AllFlags(t *testing.T) {
+	t.Parallel()
+
 	yamlFile := []byte(`
 test-flag:
   variations:
@@ -425,6 +435,8 @@ test-flag2:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
@@ -454,6 +466,8 @@ test-flag2:
 }
 
 func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
+	t.Parallel()
+
 	loadedFlags := []byte(`test-flag:
   variations:
     true_var: true
@@ -477,6 +491,7 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 	assert.True(t, timeBefore.Before(timeAfter))
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
@@ -525,6 +540,8 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 }
 
 func TestCacheManager_UpdateCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		initialFlags map[string]dto.DTO
@@ -608,6 +625,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Test UpdateCache without notification
 			mockNotificationService := &mock.NotificationService{}
 			cm := cache.New(

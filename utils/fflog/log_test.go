@@ -12,6 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Error(t *testing.T) {
 	type fields struct {
 		msg           string
@@ -125,6 +126,7 @@ func TestFFLogger_Error(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Warn(t *testing.T) {
 	type fields struct {
 		msg           string
@@ -238,6 +240,7 @@ func TestFFLogger_Warn(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Info(t *testing.T) {
 	type fields struct {
 		msg           string
@@ -351,6 +354,7 @@ func TestFFLogger_Info(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Debug(t *testing.T) {
 	type fields struct {
 		msg           string
@@ -466,12 +470,16 @@ func TestFFLogger_Debug(t *testing.T) {
 }
 
 func TestConvertToFFLogger(t *testing.T) {
+	t.Parallel()
+
 	l := log.New(os.Stdout, "", 0)
 	ffl := fflog.ConvertToFFLogger(l)
 	assert.Equal(t, ffl.GetLogLogger(slog.LevelInfo), l)
 }
 
 func TestGetLogLogger(t *testing.T) {
+	t.Parallel()
+
 	l := log.New(os.Stdout, "", 0)
 	ffl := &fflog.FFLogger{
 		LeveledLogger: slog.Default(),

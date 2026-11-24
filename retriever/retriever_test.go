@@ -13,6 +13,8 @@ import (
 )
 
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {
+	t.Parallel()
+
 	simple := mockretriever.NewSimpleRetriever("simple")
 	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy("legacy")
 	initRetriever := mockretriever.NewInitializableRetriever("standard")

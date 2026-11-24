@@ -16,6 +16,8 @@ import (
 )
 
 func Test_webhookNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Secret string
 	}
@@ -251,6 +253,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockHTTPClient := &testutils.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
@@ -282,6 +286,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func Test_webhookNotifier_no_meta_data(t *testing.T) {
 	mockHTTPClient := &testutils.HTTPClientMock{StatusCode: 200, ForceError: false}
 	diff := notifier.DiffCache{

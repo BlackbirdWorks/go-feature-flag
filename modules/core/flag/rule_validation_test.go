@@ -11,6 +11,8 @@ import (
 )
 
 func TestRule_IsValid(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 		"variation_B": new(any("value_B")),
@@ -170,6 +172,8 @@ func TestRule_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 		})
@@ -177,6 +181,8 @@ func TestRule_IsValid(t *testing.T) {
 }
 
 func TestRule_validatePercentages(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 		"variation_B": new(any("value_B")),
@@ -351,6 +357,8 @@ func TestRule_validatePercentages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -361,6 +369,8 @@ func TestRule_validatePercentages(t *testing.T) {
 }
 
 func TestRule_validateProgressiveRollout(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 		"variation_B": new(any("value_B")),
@@ -731,6 +741,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -741,6 +753,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 }
 
 func TestRule_validateVariationResult(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 		"variation_B": new(any("value_B")),
@@ -858,6 +872,8 @@ func TestRule_validateVariationResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -868,6 +884,8 @@ func TestRule_validateVariationResult(t *testing.T) {
 }
 
 func TestRule_isQueryValid(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 	}
@@ -1007,6 +1025,8 @@ func TestRule_isQueryValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -1017,6 +1037,8 @@ func TestRule_isQueryValid(t *testing.T) {
 }
 
 func TestRule_validateNikunjyQuery(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
 	}
@@ -1218,6 +1240,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {

@@ -14,6 +14,8 @@ import (
 )
 
 func TestValidTrackingEvent(t *testing.T) {
+	t.Parallel()
+
 	exp := mock.TrackingEventExporter{Bulk: false}
 	goff, err := ffclient.New(ffclient.Config{
 		PollingInterval: 500 * time.Millisecond,

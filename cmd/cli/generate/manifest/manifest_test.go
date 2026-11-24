@@ -11,6 +11,8 @@ import (
 )
 
 func TestNewManifestCmd(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		config         string
 		format         string
@@ -49,6 +51,8 @@ func TestNewManifestCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			destination := ""
 			if tt.args.setDestination {
 				f, err := os.CreateTemp(t.TempDir(), "temp")

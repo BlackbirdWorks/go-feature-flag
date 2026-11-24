@@ -104,6 +104,8 @@ func assertSharedEvaluators(t *testing.T, c *nikunjyEvaluatorCache, flags []*Int
 }
 
 func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
+	t.Parallel()
+
 	const query = `key eq "shared"`
 	tests := []struct {
 		name  string
@@ -140,6 +142,8 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			flags := make([]*InternalFlag, tt.flags)
 			for f := range flags {
@@ -218,6 +222,8 @@ func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 }
 
 func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		n    int
@@ -250,6 +256,8 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			listA, listB := idList(tt.n, -1, ""), tt.listB(tt.n)
 			require.NotEqual(t, listA, listB)
@@ -271,6 +279,8 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 			}
 			check(t)
 			t.Run("interleaved and concurrent evaluations", func(t *testing.T) {
+				t.Parallel()
+
 				runConcurrently(t, check)
 			})
 			runtime.KeepAlive(flags)
@@ -279,6 +289,8 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// mutate changes a validated rule, or returns another rule to evaluate.
@@ -362,6 +374,8 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			f := validatedFlag(t, `key eq "a"`)
 			require.NotZero(t, (*f.Rules)[0].QueryHash)
@@ -418,6 +432,8 @@ func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
 // TestNikunjyEvaluatorCache_ForcedCollisions makes every query hash to the same value, which
 // is the worst case of a 64-bit hash: no two queries may share an evaluator.
 func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		hash func(string) uint64
@@ -429,6 +445,8 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			c.hash = tt.hash
 			queries := make([]string, 0, 10)
@@ -473,6 +491,8 @@ func (c *nikunjyEvaluatorCache) keyRefsTotal() int {
 }
 
 func TestRule_QueryHashIsNotSerialized(t *testing.T) {
+	t.Parallel()
+
 	useIndexingNikunjyEvaluators(t)
 	f := validatedFlag(t, `key eq "a"`)
 	require.NotZero(t, (*f.Rules)[0].QueryHash)
@@ -490,6 +510,8 @@ func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 }
 
 func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
+	t.Parallel()
+
 	useIndexingNikunjyEvaluators(t)
 	loaded := validatedFlag(t, `key eq "a"`)
 	reloaded := validatedFlag(t, strings.Clone(`key eq "a"`))
@@ -498,6 +520,8 @@ func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		query string
@@ -528,6 +552,8 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			f := newFlagWithQueries(tt.query)
 			err := f.IsValid()
@@ -548,6 +574,8 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
+	t.Parallel()
+
 	useIndexingNikunjyEvaluators(t)
 	q := `key eq "a"`
 	r := &Rule{Query: &q, VariationResult: &q}
@@ -556,6 +584,8 @@ func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
+	t.Parallel()
+
 	c := useIndexingNikunjyEvaluators(t)
 	const flags = 10
 	load := func(query func(f int) string) []*InternalFlag {
@@ -612,6 +642,8 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) {
+	t.Parallel()
+
 	useIndexingNikunjyEvaluators(t)
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
 	var current struct {
@@ -663,6 +695,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 }
 
 func TestHashNikunjyQuery(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("0123456789abcdef", 8)
 	tests := []struct {
 		name string
@@ -687,11 +721,15 @@ func TestHashNikunjyQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.wantEqual, hashNikunjyQuery(tt.a) == hashNikunjyQuery(tt.b))
 		})
 	}
 
 	t.Run("every length from 0 to 100 has a different hash and is stable", func(t *testing.T) {
+		t.Parallel()
+
 		seen := map[uint64]int{}
 		for n := range 101 {
 			h := hashNikunjyQuery(strings.Repeat("a", n))
@@ -704,6 +742,8 @@ func TestHashNikunjyQuery(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		validations int
@@ -713,6 +753,8 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			f := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
 			for range tt.validations {
@@ -734,6 +776,8 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 }
 
 func TestRule_validateReturnsTheEvaluator(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		rule        Rule
@@ -752,6 +796,8 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
@@ -763,6 +809,7 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable nikunjyKeysEnabled
 func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -791,6 +838,8 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		query       string
@@ -810,6 +859,8 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useFreshNikunjyEvaluators(t)
 			f := newFlagWithQueries(tt.query)
 			require.NoError(t, f.IsValid())
@@ -827,6 +878,8 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
+	t.Parallel()
+
 	query := idList(200, -1, "")
 	tests := []struct {
 		name string
@@ -843,6 +896,8 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			flags := make([]*InternalFlag, tt.loads)
 			for i := range flags {
@@ -871,6 +926,8 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
+	t.Parallel()
+
 	query := idList(200, -1, "")
 	tests := []struct {
 		name string
@@ -888,6 +945,8 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useIndexingNikunjyEvaluators(t)
 			valid := validatedFlag(t, strings.Clone(query))
 			require.Equal(t, 1, c.keyRefsTotal())

@@ -45,6 +45,8 @@ func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
 }
 
 func Test_threadSafeConn_ping(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 1)
@@ -81,6 +83,8 @@ func Test_threadSafeConn_ping(t *testing.T) {
 }
 
 func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 8)
@@ -125,6 +129,8 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 }
 
 func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 	// Close both ends so the next write fails immediately.
 	_ = client.Close()
@@ -149,6 +155,8 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 // Test_pingPongLoop_zero_interval_uses_default ensures a zero-valued interval
 // falls back to the default rather than panicking time.NewTicker.
 func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
+	t.Parallel()
+
 	server, _ := newWSConnPair(t)
 
 	f := NewWsFlagChange(stream.NewWebsocketService(), nil, zap.NewNop())

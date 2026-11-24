@@ -18,11 +18,15 @@ import (
 )
 
 func TestExporter_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporter_ExportBasicWithStreamName(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format:   "json",
@@ -56,6 +60,8 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 }
 
 func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format:   "json",
@@ -91,6 +97,8 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 }
 
 func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format: "json",
@@ -110,6 +118,8 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 }
 
 func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
@@ -142,6 +152,8 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 }
 
 func TestExporter_ExportSenderError(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSenderWithError{}
 
 	exp := Exporter{
@@ -164,6 +176,8 @@ func TestExporter_ExportSenderError(t *testing.T) {
 }
 
 func TestExporterSettingsCreation(t *testing.T) {
+	t.Parallel()
+
 	{
 		settings := NewSettings()
 		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
@@ -217,6 +231,8 @@ func TestExporterSettingsCreation(t *testing.T) {
 }
 
 func TestHugeMessageExportFlow(t *testing.T) {
+	t.Parallel()
+
 	event := exporter.FeatureEvent{
 		Kind:         "feature",
 		ContextKind:  "anonymousUser",

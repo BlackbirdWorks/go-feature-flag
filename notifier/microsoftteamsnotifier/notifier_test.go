@@ -18,6 +18,8 @@ import (
 )
 
 func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		diff         notifier.DiffCache
@@ -157,6 +159,8 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mstClient := goteamsnotify.NewTeamsClient()
 			if tt.roundTripper != nil {
 				mstClient.SetHTTPClient(&http.Client{Transport: tt.roundTripper})
@@ -215,6 +219,8 @@ func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 type otherFlag struct{ flag.Flag }
 
 func TestConvertToMicrosoftTeamsMessage_diffError(t *testing.T) {
+	t.Parallel()
+
 	broken := otherFlag{}
 	msg := convertToMicrosoftTeamsMessage(notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},

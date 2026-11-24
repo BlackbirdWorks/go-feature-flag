@@ -12,6 +12,8 @@ import (
 )
 
 func TestManifestCmd(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
@@ -60,6 +62,8 @@ func TestManifestCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tmpManifest, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			os.Remove(tmpManifest.Name()) // delete, we only want the path

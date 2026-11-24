@@ -15,6 +15,8 @@ import (
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		httpClient mock.HTTP
 		url        string
@@ -134,6 +136,8 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := httpretriever.Retriever{
 				URL:    tt.fields.url,
 				Method: tt.fields.method,

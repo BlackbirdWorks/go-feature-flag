@@ -9,6 +9,8 @@ import (
 )
 
 func TestOfrepEventStream_IsValid(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		eventStream config.OfrepEventStream
@@ -60,12 +62,16 @@ func TestOfrepEventStream_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.wantErr(t, tt.eventStream.IsValid())
 		})
 	}
 }
 
 func TestOfrepEventStream_IsEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseURL string
@@ -81,6 +87,8 @@ func TestOfrepEventStream_IsEnabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, config.OfrepEventStream{BaseURL: tt.baseURL}.IsEnabled())
 		})
 	}

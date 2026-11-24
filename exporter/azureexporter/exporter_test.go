@@ -23,6 +23,8 @@ import (
 var containerName = "testcontainer"
 
 func TestAzureBlobStorage_Export(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	tests := []struct {
 		name         string
@@ -249,6 +251,8 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			container, client := setupTest(t)
 			defer tearDown(t, container)
 			blobServiceUrl, err := container.BlobServiceURL(context.Background())
@@ -275,6 +279,8 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 }
 
 func TestAzureBlobStorage_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	e := azureexporter.Exporter{}
 	assert.True(t, e.IsBulk(), "exporter is a bulk exporter")
 }

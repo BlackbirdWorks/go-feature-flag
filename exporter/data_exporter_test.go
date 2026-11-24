@@ -37,6 +37,8 @@ func (s *slowExporter) IsBulk() bool {
 }
 
 func TestDataExporterFlush_TriggerError(t *testing.T) {
+	t.Parallel()
+
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
 	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
@@ -64,6 +66,8 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 }
 
 func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		exporter    mock.ExporterMock
@@ -78,6 +82,8 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			evStore := mock.NewEventStore[testutils.ExportableMockEvent]()
 			for range 100 {
 				evStore.Add(testutils.NewExportableMockEvent("feature"))
@@ -110,6 +116,8 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 }
 
 func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		exporter    mock.ExporterMock
@@ -129,6 +137,8 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
 			for range 100 {
 				evStore.Add(exporter.FeatureEvent{Kind: "feature"})
@@ -157,6 +167,8 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 }
 
 func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
+	t.Parallel()
+
 	evStore := exporter.NewEventStore[exporter.FeatureEvent](defaultTestCleanQueueDuration)
 	evStore.AddConsumer("slow-consumer")
 	defer evStore.Stop()

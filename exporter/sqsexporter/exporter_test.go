@@ -34,11 +34,15 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 }
 
 func TestSQSIsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.False(t, exporter.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporterExport(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		QueueURL   string
 		AwsConfig  *aws.Config
@@ -133,6 +137,8 @@ func TestExporterExport(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &Exporter{
 				QueueURL:   tt.fields.QueueURL,
 				AwsConfig:  tt.fields.AwsConfig,

@@ -15,6 +15,8 @@ import (
 )
 
 func TestZapLogger200(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -38,6 +40,8 @@ func TestZapLogger200(t *testing.T) {
 }
 
 func TestZapLogger300(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -60,6 +64,8 @@ func TestZapLogger300(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 func TestZapLogger400(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -83,6 +89,8 @@ func TestZapLogger400(t *testing.T) {
 }
 
 func TestZapLogger500(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -106,6 +114,8 @@ func TestZapLogger500(t *testing.T) {
 }
 
 func TestZapLoggerHealth(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -123,6 +133,8 @@ func TestZapLoggerHealth(t *testing.T) {
 }
 
 func TestZapLoggerHealthDebug(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -140,6 +152,8 @@ func TestZapLoggerHealthDebug(t *testing.T) {
 }
 
 func TestZapLoggerRedactsAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		uri  string
@@ -173,6 +187,8 @@ func TestZapLoggerRedactsAPIKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, tt.uri, nil)
 			c := e.NewContext(req, httptest.NewRecorder())

@@ -87,6 +87,7 @@ func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	}
 }
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestStudio(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -231,6 +232,8 @@ flagSets:
 }
 
 func TestStudioReload(t *testing.T) {
+	t.Parallel()
+
 	const fileConfig = `server:
   port: 2031
 studio:
@@ -267,6 +270,8 @@ studio:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			body := studioYaml
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -310,8 +315,12 @@ studio:
 }
 
 func TestStudioReloadRetriesFailedFetch(t *testing.T) {
+	t.Parallel()
+
 	for _, etag := range []string{"", `"v2"`} {
 		t.Run("etag="+etag, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			requests := 0
 			retries := make(chan string, 1)
@@ -367,6 +376,8 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 }
 
 func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		body   string
@@ -383,6 +394,8 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			body, etag, status := studioYaml, `"v1"`, http.StatusOK
 			rejected := false

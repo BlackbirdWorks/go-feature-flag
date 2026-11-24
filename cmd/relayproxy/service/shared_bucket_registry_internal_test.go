@@ -334,6 +334,8 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 }
 
 // Not parallel: the subtests use t.Setenv.
+//
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func Test_defaultSharedItemsFactory(t *testing.T) {
 	tests := []struct {
 		name    string

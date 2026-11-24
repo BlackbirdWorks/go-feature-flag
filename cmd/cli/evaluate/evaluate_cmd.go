@@ -19,42 +19,43 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-var (
-	evalFlagFormat string
-	kind           string
-	evalConfigFile string
-	path           string
-	authToken      string
-	githubToken    string
-	repositorySlug string
-	branch         string
-	baseURL        string
-	bucket         string
-	item           string
-	url            string
-	method         string
-	body           string
-	headers        []string
-	timeout        int64
-	object         string
-	namespace      string
-	configMap      string
-	key            string
-	uri            string
-	database       string
-	collection     string
-	container      string
-	accountName    string
-	accountKey     string
-	table          string
-	columns        []string
-	evalFlag       string
-	evalCtx        string
-	checkMode      bool
-)
-
 //nolint:funlen
 func NewEvaluateCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var (
+		evalFlagFormat string
+		kind           string
+		evalConfigFile string
+		path           string
+		authToken      string
+		githubToken    string
+		repositorySlug string
+		branch         string
+		baseURL        string
+		bucket         string
+		item           string
+		url            string
+		method         string
+		body           string
+		headers        []string
+		timeout        int64
+		object         string
+		namespace      string
+		configMap      string
+		key            string
+		uri            string
+		database       string
+		collection     string
+		container      string
+		accountName    string
+		accountKey     string
+		table          string
+		columns        []string
+		evalFlag       string
+		evalCtx        string
+		checkMode      bool
+	)
+
 	evaluateCmd := &cobra.Command{
 		Use:   "evaluate",
 		Short: "⚙️ Evaluate feature flags based on configuration and context",
@@ -107,8 +108,8 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 		Long: "⚙️ Evaluate feature flags based on configuration and context," +
 			" if no specific flag requested it will evaluate all flags",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			parsedHeaders := parseHTTPHeaders()
-			parsedColumns := parsePostgresColumns()
+			parsedHeaders := parseHTTPHeaders(headers)
+			parsedColumns := parsePostgresColumns(columns)
 
 			retrieverConf := retrieverconf.RetrieverConf{
 				Kind:           retrieverconf.RetrieverKind(kind),
@@ -322,7 +323,7 @@ func tryInitializeWithFlagset(
 	return nil
 }
 
-func parseHTTPHeaders() map[string][]string {
+func parseHTTPHeaders(headers []string) map[string][]string {
 	result := make(map[string][]string)
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
@@ -340,7 +341,7 @@ func parseHTTPHeaders() map[string][]string {
 	return result
 }
 
-func parsePostgresColumns() map[string]string {
+func parsePostgresColumns(columns []string) map[string]string {
 	result := make(map[string]string)
 	for _, c := range columns {
 		parts := strings.SplitN(c, ":", 2)

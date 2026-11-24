@@ -21,6 +21,7 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -133,10 +134,13 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 }
 
 func TestSSEService_Close(t *testing.T) {
+	t.Parallel()
+
 	sseService := stream.NewSSEService()
 	sseService.Close()
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func TestSSEService_Comments(t *testing.T) {
 	tests := []struct {
 		name              string

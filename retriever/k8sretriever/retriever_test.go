@@ -42,6 +42,7 @@ test-flag2:
   trackEvents: false
 `
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable kubeClientProvider
 func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 	originalKubeClientProvider := kubeClientProvider
 	defer func() {

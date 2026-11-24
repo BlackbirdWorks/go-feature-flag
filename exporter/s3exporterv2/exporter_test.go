@@ -19,6 +19,8 @@ import (
 )
 
 func TestS3_Export(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	type fields struct {
 		Bucket          string
@@ -295,6 +297,8 @@ func TestS3_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s3ManagerMock := testutils.S3ManagerV2Mock{}
 			f := &Exporter{
 				Bucket:          tt.fields.Bucket,
@@ -344,6 +348,8 @@ func TestS3_Export(t *testing.T) {
 }
 
 func Test_errSDK(t *testing.T) {
+	t.Parallel()
+
 	f := &Exporter{
 		Bucket:    "empty",
 		AwsConfig: &aws.Config{},
@@ -360,6 +366,8 @@ func Test_errSDK(t *testing.T) {
 // logger passed to Export() and not through an always-nil internal field.
 // See https://github.com/thomaspoignant/go-feature-flag/issues/5637.
 func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := &fflog.FFLogger{
 		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
@@ -404,6 +412,8 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 // inside the temp dir would leak on every export cycle.
 // See https://github.com/thomaspoignant/go-feature-flag/issues/5636.
 func TestS3_Export_RemovesTempDir(t *testing.T) {
+	t.Parallel()
+
 	tempPattern := filepath.Join(os.TempDir(), "go_feature_flag_s3_export*")
 	before, _ := filepath.Glob(tempPattern)
 
@@ -430,6 +440,8 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 }
 
 func TestS3_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }

@@ -17,6 +17,8 @@ import (
 )
 
 func TestLog_Export(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		LogFormat string
 	}
@@ -108,6 +110,8 @@ func TestLog_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &logsexporter.Exporter{
 				LogFormat: tt.fields.LogFormat,
 			}
@@ -132,6 +136,8 @@ func TestLog_Export(t *testing.T) {
 }
 
 func TestLog_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := logsexporter.Exporter{}
 	assert.False(t, exporter.IsBulk(), "File exporter is not a bulk exporter")
 }

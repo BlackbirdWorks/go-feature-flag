@@ -19,6 +19,8 @@ import (
 )
 
 func Test_health_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -39,6 +41,8 @@ func Test_health_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode with offline flag
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{

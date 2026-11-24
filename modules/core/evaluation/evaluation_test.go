@@ -13,6 +13,8 @@ import (
 )
 
 func Test_evaluate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flag            flag.Flag
 		flagKey         string
@@ -171,6 +173,8 @@ func Test_evaluate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := evaluation.Evaluate(
 				tt.args.flag,
 				tt.args.flagKey,
@@ -188,6 +192,8 @@ func Test_evaluate(t *testing.T) {
 }
 
 func Test_evaluate_typeMisMatch(t *testing.T) {
+	t.Parallel()
+
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),

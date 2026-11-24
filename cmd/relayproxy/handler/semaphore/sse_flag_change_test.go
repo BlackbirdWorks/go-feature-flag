@@ -50,6 +50,7 @@ func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
 func (m *mockFlagsetManagerSSE) Close()                           {}
 func (m *mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -159,6 +160,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -243,6 +245,7 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 	return fields
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange_Errors(t *testing.T) {
 	tests := []struct {
 		name           string

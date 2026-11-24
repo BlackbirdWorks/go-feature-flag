@@ -21,6 +21,8 @@ import (
 )
 
 func TestPIFlagChange_WithConfigChange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -63,6 +65,8 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
 			defer func() {
@@ -131,6 +135,8 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 }
 
 func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -173,6 +179,8 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
 			defer func() {

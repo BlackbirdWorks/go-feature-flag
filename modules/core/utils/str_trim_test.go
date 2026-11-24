@@ -9,6 +9,8 @@ import (
 )
 
 func TestStrTrim(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -48,6 +50,8 @@ func TestStrTrim(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := utils.StrTrim(tt.input)
 			assert.Equal(t, tt.want, got)
 		})

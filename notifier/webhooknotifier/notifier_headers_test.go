@@ -22,6 +22,8 @@ func (f headerTestHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		headers map[string][]string
@@ -31,6 +33,8 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			requests := make(chan *http.Request, 2)
@@ -88,6 +92,8 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 }
 
 func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		headers map[string][]string
@@ -108,6 +114,8 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			original := http.Header(tt.headers).Clone()
 			n := Notifier{
 				EndpointURL: "https://example.com/hook",

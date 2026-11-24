@@ -12,6 +12,8 @@ import (
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.Context
@@ -30,6 +32,8 @@ func TestQueryContext_MapOnce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: tt.ctx}
 
 			first := queryCtx.mapOnce()
@@ -47,6 +51,8 @@ func TestQueryContext_MapOnce(t *testing.T) {
 }
 
 func TestQueryContext_JSONOnce(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.Context
@@ -65,6 +71,8 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: tt.ctx}
 
 			first, err := queryCtx.jsonOnce()
@@ -79,6 +87,8 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 }
 
 func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
+	t.Parallel()
+
 	queryCtx := &queryContext{
 		ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("unsupported", make(chan int)).Build(),
 	}
@@ -90,6 +100,8 @@ func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
 }
 
 func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value any
@@ -99,6 +111,8 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{
 				ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("bad", tt.value).Build(),
 			}
@@ -115,6 +129,8 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 }
 
 func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		rule       Rule
@@ -142,6 +158,8 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: ffcontext.NewEvaluationContext("user-1")}
 
 			_, err := tt.rule.evaluate("user-1", queryCtx, "my-flag", tt.isDefault)
@@ -153,6 +171,8 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 }
 
 func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) {
+	t.Parallel()
+
 	f := InternalFlag{
 		Variations: &map[string]*any{
 			"nikunjy":     new(any("nikunjy")),
@@ -179,6 +199,8 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
 
 			value, details := f.Value("mixed-formats", ctx, Context{DefaultSdkValue: "sdk-default"})

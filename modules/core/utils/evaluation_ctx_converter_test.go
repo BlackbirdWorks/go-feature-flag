@@ -10,6 +10,8 @@ import (
 )
 
 func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Key    string
 		Custom map[string]any
@@ -65,6 +67,8 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := utils.ConvertEvaluationCtxFromRequest(tt.fields.Key, tt.fields.Custom)
 			assert.Equal(t, tt.want, got)
 		})

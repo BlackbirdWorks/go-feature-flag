@@ -23,6 +23,8 @@ import (
 )
 
 func Test_MongoDBRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	mtDB := mtest.New(t, mtest.NewOptions().ClientType(mtest.Mock))
 
 	tests := []struct {
@@ -104,6 +106,8 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 }
 
 func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
+	t.Parallel()
+
 	mdb := mongodbretriever.Retriever{
 		URI:        "invalidURI",
 		Collection: "collection",
@@ -116,6 +120,8 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 }
 
 func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -127,6 +133,8 @@ func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mdb := mongodbretriever.Retriever{}
 			assert.Equal(t, tt.want, mdb.OutputFormat())
 		})

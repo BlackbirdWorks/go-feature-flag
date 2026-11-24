@@ -23,6 +23,8 @@ import (
 var containerName = "testcontainer"
 
 func TestAzureBlobStorageRetriever(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		want      string
@@ -74,6 +76,8 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			container, _ := setupTest(t)
 			defer tearDown(t, container)
 			blobURL, err := container.BlobServiceURL(context.Background())
@@ -98,7 +102,11 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should error when no account name", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := azblobretriever.Retriever{
 			Container:  containerName,
 			AccountKey: azurite.AccountKey,
@@ -109,6 +117,8 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("Should error when calling retrieve without init", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := azblobretriever.Retriever{
 			Container:   containerName,
 			AccountName: azurite.AccountName,

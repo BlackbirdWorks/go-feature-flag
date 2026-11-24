@@ -23,6 +23,8 @@ type recordingFlagsetManager struct {
 func (m recordingFlagsetManager) Close() { *m.calls = append(*m.calls, "flagsets.Close") }
 
 func TestShutdown(t *testing.T) {
+	t.Parallel()
+
 	var calls []string
 	shutdown(
 		zap.NewNop(),

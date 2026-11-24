@@ -22,10 +22,12 @@ import (
 )
 
 func TestFile_Export(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary directory for test file operations
 	tempDir, err := os.MkdirTemp("", "fileexporter-test")
 	require.NoError(t, err, "Failed to create temp dir")
-	defer os.RemoveAll(tempDir) // Clean up after tests
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	hostname, _ := os.Hostname()
 	type fields struct {
@@ -540,7 +542,7 @@ func TestFile_Export(t *testing.T) {
 			wantErr: true,
 			fields: fields{
 				Format:    "parquet",
-				OutputDir: filepath.Join(tempDir, "invalid-parent-dir"),
+				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
 			},
 			args: args{
 				events: []exporter.ExportableEvent{
@@ -563,13 +565,16 @@ func TestFile_Export(t *testing.T) {
 				if runtime.GOOS == "windows" {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
-				err := os.MkdirAll(tempDir, 0755)
+				// Only the dedicated parent of this case loses its permissions, the other
+				// cases of this table run in parallel in sibling directories of tempDir.
+				parent := filepath.Dir(fields.OutputDir)
+				err := os.MkdirAll(parent, 0755)
 				require.NoError(t, err)
-				err = os.Chmod(tempDir, 0000) // Remove all permissions
+				err = os.Chmod(parent, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
-				err := os.Chmod(tempDir, 0755) // Restore permissions for cleanup
+				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},
@@ -615,6 +620,8 @@ func TestFile_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			outputDir := tt.fields.OutputDir
 			if tt.fields.OutputDir == "" {
 				outputDir, _ = os.MkdirTemp("", "fileExporter")
@@ -733,11 +740,15 @@ func assertExportOutput(
 }
 
 func TestFile_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	e := fileexporter.Exporter{}
 	assert.True(t, e.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestExportWithoutOutputDir(t *testing.T) {
+	t.Parallel()
+
 	featureEvents := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
 			Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",

@@ -35,6 +35,8 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 }
 
 func TestConfigAttachConfigChangeCallback(t *testing.T) {
+	t.Parallel()
+
 	initialConfig := `server:
   port: 1031
 pollingInterval: 1000
@@ -92,6 +94,8 @@ loglevel: debug`
 }
 
 func TestConfigStopConfigChangeWatcher(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		setupConfig func(*testing.T) *config.Config
@@ -120,6 +124,8 @@ loglevel: info`)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := tt.setupConfig(t)
 			err := cfg.StopConfigChangeWatcher()
 
@@ -133,6 +139,8 @@ loglevel: info`)
 }
 
 func TestConfigAttachConfigChangeCallbackMultipleCallbacks(t *testing.T) {
+	t.Parallel()
+
 	initialConfig := `server:
   port: 1031
 pollingInterval: 1000

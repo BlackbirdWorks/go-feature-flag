@@ -16,6 +16,8 @@ import (
 )
 
 func TestGetPool_MultipleURIsAndReuse(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Setup Container

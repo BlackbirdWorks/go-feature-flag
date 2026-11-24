@@ -20,6 +20,8 @@ import (
 )
 
 func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
+	t.Parallel()
+
 	type test struct {
 		name    string
 		mode    string
@@ -75,6 +77,8 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := zap.NewProduction()
 			require.NoError(t, err)
 			c := &config.Config{
@@ -130,6 +134,8 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 }
 
 func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		basePath     string
@@ -190,6 +196,8 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &config.Config{
 				StartAsAwsLambda:      true,
 				AwsLambdaAdapter:      "APIGatewayV2",

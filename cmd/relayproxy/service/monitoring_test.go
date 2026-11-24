@@ -17,7 +17,11 @@ import (
 )
 
 func TestWithDefaultMode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("health", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      "yaml",
@@ -34,6 +38,8 @@ func TestWithDefaultMode(t *testing.T) {
 	})
 
 	t.Run("info", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      "yaml",
@@ -56,6 +62,8 @@ func TestWithDefaultMode(t *testing.T) {
 	})
 
 	t.Run("info with error", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      "yaml",
@@ -68,12 +76,16 @@ func TestWithDefaultMode(t *testing.T) {
 	})
 
 	t.Run("with nil config", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(nil, zap.NewNop(), nil, nil, nil)
 		require.Error(t, err, "Expected error when config is nil")
 		assert.Nil(t, manager, "Expected manager to be nil")
 	})
 
 	t.Run("is default flagset", func(t *testing.T) {
+		t.Parallel()
+
 		managerDefault, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      "yaml",
@@ -87,7 +99,11 @@ func TestWithDefaultMode(t *testing.T) {
 }
 
 func TestWithFlagsetsMode(t *testing.T) {
+	t.Parallel()
+
 	t.Run("info", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -112,6 +128,8 @@ func TestWithFlagsetsMode(t *testing.T) {
 	})
 
 	t.Run("info multiple flagsets", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -146,6 +164,8 @@ func TestWithFlagsetsMode(t *testing.T) {
 	})
 
 	t.Run("is default flagset", func(t *testing.T) {
+		t.Parallel()
+
 		managerFlagsets, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -164,6 +184,8 @@ func TestWithFlagsetsMode(t *testing.T) {
 	})
 
 	t.Run("empty flagsets", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{}, // Empty flagsets
 		}, zap.NewNop(), nil, nil, nil)
@@ -172,6 +194,8 @@ func TestWithFlagsetsMode(t *testing.T) {
 	})
 
 	t.Run("all flagsets fail to initialize", func(t *testing.T) {
+		t.Parallel()
+
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
@@ -192,7 +216,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 
 // TestMonitoringInfoErrors tests the error scenarios in the Info() function.
 func TestMonitoringInfoErrors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil flagsetManager should return error", func(t *testing.T) {
+		t.Parallel()
+
 		monitoring := service.NewMonitoring(nil)
 		info, err := monitoring.Info()
 		require.Error(t, err, "Expected error when flagsetManager is nil")
@@ -201,6 +229,8 @@ func TestMonitoringInfoErrors(t *testing.T) {
 	})
 
 	t.Run("FlagSets error should be propagated", func(t *testing.T) {
+		t.Parallel()
+
 		mockManager := &mock.MockFlagsetManager{
 			FlagSets:       nil,
 			DefaultFlagSet: nil,
@@ -214,6 +244,8 @@ func TestMonitoringInfoErrors(t *testing.T) {
 	})
 
 	t.Run("default mode with nil default flagset should return error", func(t *testing.T) {
+		t.Parallel()
+
 		mockManager := &mock.MockFlagsetManager{
 			FlagSets:            map[string]*ffclient.GoFeatureFlag{},
 			DefaultFlagSet:      nil,
@@ -228,6 +260,8 @@ func TestMonitoringInfoErrors(t *testing.T) {
 	})
 
 	t.Run("default mode with valid default flagset should succeed", func(t *testing.T) {
+		t.Parallel()
+
 		// We need to mock the GetCacheRefreshDate method, but since it's not easily mockable,
 		// we'll test the happy path with a real manager instead
 
@@ -249,6 +283,8 @@ func TestMonitoringInfoErrors(t *testing.T) {
 	})
 
 	t.Run("flagsets mode with valid flagsets should succeed", func(t *testing.T) {
+		t.Parallel()
+
 		// Since we can't easily mock GetCacheRefreshDate, we'll test with real manager
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{

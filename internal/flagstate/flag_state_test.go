@@ -13,6 +13,8 @@ import (
 )
 
 func TestFromFlagEvaluation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		key           string
@@ -125,6 +127,8 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := flagstate.FromFlagEvaluation(
 				tt.key,
 				tt.evaluationCtx,

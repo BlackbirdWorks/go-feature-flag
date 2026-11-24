@@ -16,6 +16,8 @@ import (
 )
 
 func TestSlackNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		diff       notifier.DiffCache
 		statusCode int
@@ -195,6 +197,8 @@ func TestSlackNotifier_Notify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockHTTPClient := &testutils.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
@@ -225,6 +229,8 @@ func TestSlackNotifier_Notify(t *testing.T) {
 type otherFlag struct{ flag.Flag }
 
 func TestConvertUpdatedFlagsToSlackMessage_diffError(t *testing.T) {
+	t.Parallel()
+
 	broken := otherFlag{}
 	attachments := convertUpdatedFlagsToSlackMessage(notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},
@@ -235,6 +241,8 @@ func TestConvertUpdatedFlagsToSlackMessage_diffError(t *testing.T) {
 }
 
 func TestConvertUpdatedFlagsToSlackMessage_escapesSlackControlCharacters(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value string
@@ -245,6 +253,8 @@ func TestConvertUpdatedFlagsToSlackMessage_escapesSlackControlCharacters(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			attachments := convertUpdatedFlagsToSlackMessage(notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{"test-flag": {
 					Before: &flag.InternalFlag{},

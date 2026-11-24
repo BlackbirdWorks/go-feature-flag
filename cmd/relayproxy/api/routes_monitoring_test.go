@@ -21,6 +21,8 @@ import (
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
+	t.Parallel()
+
 	type test struct {
 		name               string
 		MonitoringPort     int
@@ -43,6 +45,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := zap.NewProduction()
 			require.NoError(t, err)
 			c := &config.Config{
@@ -89,6 +93,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 // to the monitoring server when it runs on a dedicated port, and that it honours
 // disableVersionHeader on both servers.
 func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		disableVersionHeader bool
@@ -108,6 +114,8 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := testConfig(t)
 			conf.Version = "1.2.3"
 			conf.DisableVersionHeader = tt.disableVersionHeader

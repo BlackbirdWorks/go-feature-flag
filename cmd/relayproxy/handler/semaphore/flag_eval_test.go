@@ -26,6 +26,8 @@ import (
 const configFlagsLocation = testdataDir + "/config_flags.yaml"
 
 func Test_flag_eval_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -161,6 +163,8 @@ func Test_flag_eval_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
@@ -218,6 +222,8 @@ func Test_flag_eval_Handler(t *testing.T) {
 }
 
 func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
@@ -251,6 +257,8 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := config.Config{
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: retrieverconf.FileRetriever,

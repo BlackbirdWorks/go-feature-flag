@@ -15,11 +15,15 @@ import (
 )
 
 func TestWebhook_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestWebhook_Export(t *testing.T) {
+	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	type fields struct {
 		EndpointURL string
@@ -256,6 +260,8 @@ func TestWebhook_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &Exporter{
 				EndpointURL: tt.fields.EndpointURL,
 				Secret:      tt.fields.Secret,
@@ -289,6 +295,8 @@ func TestWebhook_Export(t *testing.T) {
 }
 
 func TestWebhook_Export_impossibleToParse(t *testing.T) {
+	t.Parallel()
+
 	f := &Exporter{
 		EndpointURL: " http://invalid.com/",
 	}

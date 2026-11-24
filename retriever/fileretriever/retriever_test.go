@@ -37,6 +37,8 @@ test-flag2:
 `
 
 func Test_localRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		path string
 	}
@@ -65,6 +67,8 @@ func Test_localRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			l := fileretriever.Retriever{Path: tt.fields.path}
 			got, err := l.Retrieve(context.Background())
 			if tt.wantErr {

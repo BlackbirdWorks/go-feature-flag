@@ -14,6 +14,8 @@ import (
 )
 
 func TestDescribeChanges(t *testing.T) {
+	t.Parallel()
+
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
 	baseFlag := func() *flag.InternalFlag {
@@ -614,6 +616,8 @@ func TestDescribeChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			before, after := baseFlag(), baseFlag()
 			if tt.setup != nil {
 				tt.setup(before)
@@ -628,6 +632,8 @@ func TestDescribeChanges(t *testing.T) {
 }
 
 func TestChangeList(t *testing.T) {
+	t.Parallel()
+
 	changes := func(n int) []string {
 		list := make([]string, n)
 		for i := range list {
@@ -669,6 +675,8 @@ func TestChangeList(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, notifier.ChangeList(tt.changes, "• ", tt.maxLength))
 		})
 	}
@@ -678,6 +686,8 @@ func TestChangeList(t *testing.T) {
 type otherFlag struct{ flag.Flag }
 
 func TestDescribeChanges_unsupportedFlag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		before, after flag.Flag
@@ -688,6 +698,8 @@ func TestDescribeChanges_unsupportedFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := notifier.DescribeChanges(tt.before, tt.after)
 			assert.Nil(t, got)
 			assert.ErrorContains(t, err, "impossible to describe changes")
@@ -698,6 +710,8 @@ func TestDescribeChanges_unsupportedFlag(t *testing.T) {
 // DescribeChanges has no generic fallback, so a field added to the flag format must get
 // its own sentence. This test fails until the new field is handled and listed here.
 func TestDescribeChanges_coversEveryField(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		typ     reflect.Type
@@ -741,6 +755,8 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fields := make([]string, 0, tt.typ.NumField())
 			for field := range tt.typ.Fields() {
 				if field.IsExported() {
@@ -753,6 +769,8 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 }
 
 func TestDescribeChangesPlain(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		update func(f *flag.InternalFlag)
@@ -773,6 +791,8 @@ func TestDescribeChangesPlain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			before := &flag.InternalFlag{
 				DefaultRule: &flag.Rule{VariationResult: new("off")},
 				Metadata:    &map[string]any{"owner": "a"},
@@ -790,6 +810,8 @@ func TestDescribeChangesPlain(t *testing.T) {
 }
 
 func TestUpdatedBy(t *testing.T) {
+	t.Parallel()
+
 	withMetadata := func(metadata map[string]any) *flag.InternalFlag {
 		return &flag.InternalFlag{Metadata: &metadata}
 	}
@@ -827,6 +849,8 @@ func TestUpdatedBy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, notifier.UpdatedBy(tt.flag))
 			assert.Equal(t, tt.wantSuffix, notifier.UpdatedBySuffix(tt.flag))
 		})

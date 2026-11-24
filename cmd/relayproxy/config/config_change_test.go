@@ -46,6 +46,8 @@ type httpRequestCheck struct {
 }
 
 func TestConfigChangeDefaultMode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -84,6 +86,8 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -126,6 +130,8 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 }
 
 func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -188,6 +194,8 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -229,6 +237,8 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 	}
 }
 func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
+	t.Parallel()
+
 	// Tests for invalid config changes that should be rejected
 	invalidConfigTests := []struct {
 		name               string
@@ -270,6 +280,8 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 
 	for _, tt := range invalidConfigTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -321,6 +333,8 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 // TestConfigChangeFlagsetAddRemove validates that flagsets can be added or removed at runtime
 // through the configuration file watch mechanism, without restarting the relay proxy.
 func TestConfigChangeFlagsetAddRemove(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -366,6 +380,8 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -407,6 +423,8 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 // (anything other than its API keys) is rejected at runtime: an error is logged and the flagset
 // keeps serving its original configuration until the relay proxy is restarted.
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePortAsString(t)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")

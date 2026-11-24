@@ -9,6 +9,8 @@ import (
 )
 
 func TestNotifierConf_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Kind        string
 		WebhookURL  string
@@ -83,6 +85,8 @@ func TestNotifierConf_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &config.NotifierConf{
 				Kind:        config.NotifierKind(tt.fields.Kind),
 				WebhookURL:  tt.fields.WebhookURL,

@@ -15,6 +15,8 @@ import (
 )
 
 func Test_github_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	endRatelimit := time.Now().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
@@ -159,6 +161,8 @@ func Test_github_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
@@ -194,6 +198,8 @@ func Test_github_Retrieve(t *testing.T) {
 }
 
 func Test_github_Retrieve_BaseURL(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		httpClient     mock.HTTP
 		repositorySlug string
@@ -333,6 +339,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
@@ -360,6 +368,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 }
 
 func TestRateLimiting(t *testing.T) {
+	t.Parallel()
+
 	h := githubretriever.Retriever{
 		RepositorySlug: "thomaspoignant/go-feature-flag",
 		FilePath:       "testdata/flag-config.yaml",

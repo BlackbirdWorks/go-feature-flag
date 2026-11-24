@@ -124,6 +124,8 @@ flagsets:
 `
 
 func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
+	t.Parallel()
+
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Shared(t)
 	srv.SetAwsEnv(t)
@@ -137,12 +139,16 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 	}
 	for _, mode := range modes {
 		t.Run(mode.name, func(t *testing.T) {
+			t.Parallel()
+
 			bucket := srv.CreateBucket(t, "rp")
 			srv.PutObject(t, bucket, "flags/a.yaml", e2eFlags("A", "A-on"))
 			srv.PutObject(t, bucket, "flags/b.yaml", e2eFlags("B", "B-on"))
 			url := startRelayProxyFromYAML(t, flagSetsYAML, map[string]any{"Bucket": bucket, "Shared": mode.shared})
 
 			t.Run("single evaluation", func(t *testing.T) {
+				t.Parallel()
+
 				tests := []struct {
 					name        string
 					path        string
@@ -370,6 +376,8 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 			})
 
 			t.Run("bulk evaluation", func(t *testing.T) {
+				t.Parallel()
+
 				tests := []struct {
 					name       string
 					path       string
@@ -475,6 +483,8 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 
 			// Runs once the parallel evaluations above are over (a group waits for its parallel children).
 			t.Run("update in S3 is served after the polling interval", func(t *testing.T) {
+				t.Parallel()
+
 				srv.PutObject(t, bucket, "flags/a.yaml", e2eFlags("A", "A-on-v2"))
 				require.Eventually(t, func() bool {
 					res := postJSON(
@@ -511,6 +521,8 @@ brand-new:
 }
 
 func TestE2E_RelayProxy_TopLevelS3Retriever(t *testing.T) {
+	t.Parallel()
+
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Shared(t)
 	srv.SetAwsEnv(t)
@@ -550,6 +562,8 @@ retriever:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			bucket := srv.CreateBucket(t, "top")
 			for k, tag := range tt.objects {
 				switch tag {
@@ -645,6 +659,8 @@ type sinkEvent struct {
 }
 
 func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
+	t.Parallel()
+
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Shared(t)
 	srv.SetAwsEnv(t)

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+//nolint:paralleltest,tparallel // changes process-wide GOMAXPROCS
 func Test_constructMetadataParallel(t *testing.T) {
 	sharedMetadata := map[string]any{
 		"key1": "value1",
@@ -43,6 +44,8 @@ func Test_constructMetadataParallel(t *testing.T) {
 }
 
 func Test_ConstructMetadata(t *testing.T) {
+	t.Parallel()
+
 	rule := "test-rule"
 
 	tests := []struct {
@@ -91,6 +94,8 @@ func Test_ConstructMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := constructMetadata(tt.flagMetadata, tt.ruleName)
 			assert.Equal(t, tt.want, got)
 		})

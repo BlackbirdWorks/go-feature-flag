@@ -11,6 +11,8 @@ import (
 )
 
 func TestUser_AddCustomAttribute(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		name  string
 		value any
@@ -41,6 +43,8 @@ func TestUser_AddCustomAttribute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.user.AddCustomAttribute(tt.args.name, tt.args.value)
 			assert.Equal(t, tt.want, tt.user.GetCustom())
 		})
@@ -48,6 +52,8 @@ func TestUser_AddCustomAttribute(t *testing.T) {
 }
 
 func Test_ExtractGOFFProtectedFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.EvaluationContext
@@ -191,6 +197,8 @@ func Test_ExtractGOFFProtectedFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.ctx.ExtractGOFFProtectedFields()
 			assert.Equal(t, tt.want, got)
 		})
@@ -198,6 +206,8 @@ func Test_ExtractGOFFProtectedFields(t *testing.T) {
 }
 
 func TestEvaluationContext_MarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -220,6 +230,8 @@ func TestEvaluationContext_MarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := tt.context.MarshalJSON()
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.expected, string(data))
@@ -228,6 +240,8 @@ func TestEvaluationContext_MarshalJSON(t *testing.T) {
 }
 
 func TestEvaluationContext_ToMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -280,6 +294,8 @@ func TestEvaluationContext_ToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.context.ToMap()
 			assert.Equal(t, tt.expected, got)
 		})

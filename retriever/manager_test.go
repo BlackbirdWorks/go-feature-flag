@@ -20,6 +20,8 @@ import (
 // TestManagerInit_AllRetrieverTypes tests the Init function with all possible retriever types
 // and interface combinations to ensure comprehensive coverage.
 func TestManagerInit_AllRetrieverTypes(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                    string
 		retrievers              []retriever.Retriever
@@ -122,6 +124,8 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			logger := fflog.FFLogger{}
 			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
@@ -217,6 +221,8 @@ func (r *formatHintingRetriever) OutputFormat() string {
 // The TOML payload below would fail to parse as YAML (the configured global
 // format), so a passing Init proves the hinter took effect.
 func TestManagerInit_FormatHinterOverridesGlobalFileFormat(t *testing.T) {
+	t.Parallel()
+
 	tomlContent := []byte(`["test-flag"]
 [test-flag.variations]
 A = true
@@ -247,6 +253,8 @@ variation = "A"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := context.Background()
 			logger := fflog.FFLogger{}
 			cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
@@ -307,6 +315,8 @@ func newPollingManager(t *testing.T, r retriever.Retriever) *retriever.Manager {
 // Before this was fixed, the polling goroutine outlived Close() forever and kept retrieving
 // flags, updating the cache and rewriting the persistent flag configuration file.
 func TestManagerShutdownStopsThePolling(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	r := &countingRetriever{}
 	manager := newPollingManager(t, r)
@@ -326,6 +336,8 @@ func TestManagerShutdownStopsThePolling(t *testing.T) {
 // TestManagerStopPollingIsIdempotent guards against a "close of closed channel" panic:
 // SetOffline() calls StopPolling, and Shutdown() calls it again.
 func TestManagerStopPollingIsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	manager := newPollingManager(t, &countingRetriever{})
 	require.NoError(t, manager.Init(ctx))
@@ -340,6 +352,8 @@ func TestManagerStopPollingIsIdempotent(t *testing.T) {
 // TestManagerStopPollingWithPollingDisabled makes sure that stopping a manager that never
 // started a background updater is a no-op instead of a nil-pointer dereference.
 func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	logger := fflog.FFLogger{}
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)

@@ -12,6 +12,8 @@ import (
 )
 
 func TestCmdLint(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
@@ -44,6 +46,8 @@ func TestCmdLint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			redirectionStderr, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			redirectionStdout, err := os.CreateTemp(t.TempDir(), "out")

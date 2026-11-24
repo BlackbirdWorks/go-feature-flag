@@ -27,6 +27,8 @@ import (
 var defaultFlagsetMgr = &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
 
 func Test_websocket_flag_change(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flagChange notifier.DiffCache
@@ -112,6 +114,8 @@ func Test_websocket_flag_change(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create context with timeout for the entire test
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -200,6 +204,8 @@ func broadcastUntilRegistered(
 // "concurrent write to websocket connection" and crashes the relay proxy.
 // Run with -race to surface the data race if the writes are not serialized.
 func Test_websocket_concurrent_writes(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -290,6 +296,8 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 // Test_websocket_legacy_handler verifies the deprecated LegacyHandler endpoint
 // still delegates to Handler and pushes flag changes to the client.
 func Test_websocket_legacy_handler(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -341,6 +349,8 @@ func Test_websocket_legacy_handler(t *testing.T) {
 // Test_websocket_flagset_scoping verifies that, with flagsets, a client is
 // registered on the flagset of its API key and only receives its changes.
 func Test_websocket_flagset_scoping(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		handler func(*controller.WSFlagChange) echo.HandlerFunc
@@ -356,6 +366,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -428,6 +440,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 // Test_websocket_flagset_not_resolved verifies that the connection is rejected
 // before the websocket upgrade when no flagset can be resolved from the API key.
 func Test_websocket_flagset_not_resolved(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		handler func(*controller.WSFlagChange) echo.HandlerFunc
@@ -454,6 +468,8 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			websocketService := stream.NewWebsocketService()
 			defer websocketService.Close()
 

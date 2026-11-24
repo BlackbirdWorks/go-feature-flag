@@ -8,7 +8,11 @@ import (
 )
 
 func TestCmdExist(t *testing.T) {
+	t.Parallel()
+
 	t.Run("lint command should exist", func(t *testing.T) {
+		t.Parallel()
+
 		cmd := initRootCmd()
 		assert.NotNil(t, cmd)
 		cmd.SetArgs([]string{"lint", "linter/testdata/valid.yaml", "--format", "yaml"})
@@ -16,6 +20,8 @@ func TestCmdExist(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Run("evaluate command should exist", func(t *testing.T) {
+		t.Parallel()
+
 		cmd := initRootCmd()
 		assert.NotNil(t, cmd)
 		cmd.SetArgs(

@@ -9,6 +9,8 @@ import (
 )
 
 func TestRuleNotApply_Error(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Context ffcontext.Context
 	}
@@ -26,6 +28,8 @@ func TestRuleNotApply_Error(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			m := &RuleNotApplyError{
 				Context: tt.fields.Context,
 			}

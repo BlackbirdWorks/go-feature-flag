@@ -16,6 +16,8 @@ import (
 )
 
 func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		query      string
@@ -42,6 +44,8 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := newNikunjyEvaluatorCache()
 
 			tt.wantErr(t, c.validate(tt.query))
@@ -60,6 +64,7 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // changes process-wide GOMAXPROCS
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing.T) {
 	c := newNikunjyEvaluatorCache()
 	const query = `group eq "match"`
@@ -193,6 +198,8 @@ func gcUntil(t *testing.T, condition func() bool, msg string) {
 }
 
 func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
+	t.Parallel()
+
 	const (
 		removed   = `key eq "removed-by-reload"`
 		kept      = `key eq "kept-by-reload"`
@@ -227,6 +234,8 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := useFreshNikunjyEvaluators(t)
 			queries := slices.Sorted(maps.Keys(tt.wantRefs))
 			oldFlag := newFlagWithQueries(tt.oldQueries...)

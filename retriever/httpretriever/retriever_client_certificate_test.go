@@ -23,6 +23,8 @@ import (
 )
 
 func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
+	t.Parallel()
+
 	certFile, keyFile := createClientCertificateFiles(t)
 
 	retriever := Retriever{
@@ -46,6 +48,8 @@ func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
 }
 
 func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
+	t.Parallel()
+
 	caCertFile, _ := createClientCertificateFiles(t)
 
 	retriever := Retriever{
@@ -66,6 +70,7 @@ func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultTransport
 func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 	caCertFile, _ := createClientCertificateFiles(t)
 	defaultTransport := http.DefaultTransport
@@ -89,6 +94,8 @@ func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 }
 
 func TestRetriever_getHTTPClient_WithoutClientCertificateConfiguration(t *testing.T) {
+	t.Parallel()
+
 	retriever := Retriever{
 		Timeout: 2 * time.Second,
 	}
@@ -102,6 +109,8 @@ func TestRetriever_getHTTPClient_WithoutClientCertificateConfiguration(t *testin
 }
 
 func TestRetriever_getHTTPClient_CacheGeneratedHTTPClient(t *testing.T) {
+	t.Parallel()
+
 	caCertFile, _ := createClientCertificateFiles(t)
 	retriever := Retriever{
 		CACertPath: caCertFile,
@@ -116,6 +125,8 @@ func TestRetriever_getHTTPClient_CacheGeneratedHTTPClient(t *testing.T) {
 }
 
 func TestRetriever_Init(t *testing.T) {
+	t.Parallel()
+
 	caCertFile, _ := createClientCertificateFiles(t)
 	retriever := Retriever{
 		CACertPath: caCertFile,
@@ -138,6 +149,8 @@ func TestRetriever_Init(t *testing.T) {
 }
 
 func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
+	t.Parallel()
+
 	certFile, keyFile := createClientCertificateFiles(t)
 	require.NoError(t, os.WriteFile(keyFile, []byte("invalid-key"), 0o600))
 
@@ -151,6 +164,8 @@ func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
 }
 
 func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {
+	t.Parallel()
+
 	retriever := Retriever{
 		CACertPath: filepath.Join(t.TempDir(), "missing-ca.crt"),
 	}
@@ -160,6 +175,8 @@ func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {
 }
 
 func TestRetriever_getHTTPClient_WithInvalidCACertificate(t *testing.T) {
+	t.Parallel()
+
 	caCertFile := filepath.Join(t.TempDir(), "invalid-ca.crt")
 	require.NoError(t, os.WriteFile(caCertFile, []byte("invalid-ca"), 0o600))
 
@@ -173,6 +190,8 @@ func TestRetriever_getHTTPClient_WithInvalidCACertificate(t *testing.T) {
 }
 
 func TestRetriever_Retrieve_WithIncompleteClientCertificateConfiguration(t *testing.T) {
+	t.Parallel()
+
 	httpClient := mock.HTTP{}
 	retriever := Retriever{
 		URL:            "http://localhost.example/file",

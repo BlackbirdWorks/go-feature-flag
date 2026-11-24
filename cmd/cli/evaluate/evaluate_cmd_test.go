@@ -13,6 +13,8 @@ import (
 const XAPIKeyHeader = "X-API-Key"
 
 func TestCmdEvaluate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		args           []string
@@ -427,6 +429,8 @@ func TestCmdEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			stdErr, err := os.CreateTemp(t.TempDir(), "temp")

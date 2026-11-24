@@ -17,6 +17,8 @@ import (
 )
 
 func TestAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		xAPIKey        string
@@ -169,6 +171,8 @@ func TestAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a new Echo context
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -195,6 +199,8 @@ func TestAPIKey(t *testing.T) {
 }
 
 func TestFlagSet(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		flagsetManager service.FlagsetManager
@@ -235,6 +241,8 @@ func TestFlagSet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := helper.FlagSet(tt.flagsetManager, tt.apiKey)
 			if tt.wantError {
 				require.Error(t, err)
@@ -254,7 +262,11 @@ func TestFlagSet(t *testing.T) {
 }
 
 func TestFlagSetIntegration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("should handle specific error messages correctly", func(t *testing.T) {
+		t.Parallel()
+
 		mockManager := &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("test error")}
 		flagset, err := helper.FlagSet(mockManager, "test-key")
 		require.Error(t, err)
@@ -263,6 +275,8 @@ func TestFlagSetIntegration(t *testing.T) {
 	})
 
 	t.Run("should return flagset when manager returns valid flagset", func(t *testing.T) {
+		t.Parallel()
+
 		mockManager := &mock.MockFlagsetManager{
 			FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}},
 		}
@@ -276,6 +290,8 @@ func TestFlagSetIntegration(t *testing.T) {
 }
 
 func TestFlagKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		path string
@@ -290,6 +306,8 @@ func TestFlagKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var got string
 			e := echo.New()
 			e.POST("/flags/:flagKey", func(c *echo.Context) error {
@@ -305,6 +323,8 @@ func TestFlagKey(t *testing.T) {
 	}
 
 	t.Run("malformed escape returns the raw value", func(t *testing.T) {
+		t.Parallel()
+
 		// net/http rejects malformed escapes before routing, so build the context by hand.
 		req := httptest.NewRequest(http.MethodPost, "/flags/x", nil)
 		req.URL.RawPath = "/flags/a%zz"

@@ -17,6 +17,8 @@ import (
 )
 
 func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		initialConfig string
@@ -106,6 +108,8 @@ loglevel: error`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create temporary directory and config file
 			configFile := testutils.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
@@ -191,6 +195,8 @@ loglevel: error`,
 }
 
 func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
+	t.Parallel()
+
 	configFile := testutils.CopyContentToNewTempFile(t, `server:
   port: 1031
 pollingInterval: 1000
@@ -231,6 +237,8 @@ loglevel: debug`, configFile)
 }
 
 func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
+	t.Parallel()
+
 	// Create temporary directory and config file
 	configFile := testutils.CopyContentToNewTempFile(t, `server:
   port: 1031

@@ -25,6 +25,8 @@ import (
 )
 
 func TestDeprecatedAliasHeaders(t *testing.T) {
+	t.Parallel()
+
 	z, err := zap.NewProduction()
 	require.NoError(t, err)
 
@@ -116,6 +118,8 @@ func changeFlagUntilFrame(t *testing.T, path, flagName string, frames <-chan str
 }
 
 func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	tenantAFile := filepath.Join(dir, "tenant-a.yaml")
 	tenantBFile := filepath.Join(dir, "tenant-b.yaml")
@@ -145,10 +149,10 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	z := zap.NewNop()
 
 	wsService := stream.NewWebsocketService()
-	defer wsService.Close()
+	t.Cleanup(func() { wsService.Close() })
 	flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, wsService)
 	require.NoError(t, err)
-	defer flagsetManager.Close()
+	t.Cleanup(func() { flagsetManager.Close() })
 
 	apiServer := api.New(c, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
@@ -157,7 +161,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		Metrics:           metric.Metrics{},
 	}, z)
 	go apiServer.StartWithContext(context.Background())
-	defer apiServer.Stop(context.Background())
+	t.Cleanup(func() { apiServer.Stop(context.Background()) })
 	waitForServer(t, fmt.Sprintf("http://localhost:%d", c.ServerPort(z)))
 	wsURL := fmt.Sprintf("ws://localhost:%d", c.ServerPort(z))
 
@@ -171,6 +175,8 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 
 	for _, tt := range endpoints {
 		t.Run(tt.name+": changes are only sent to the clients of the flagset", func(t *testing.T) {
+			t.Parallel()
+
 			dial := func(apiKey string) <-chan string {
 				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+tt.path+"?apiKey="+apiKey, nil)
 				require.NoError(t, err)
@@ -206,6 +212,8 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	for _, endpoint := range endpoints {
 		for _, tt := range rejected {
 			t.Run(endpoint.name+": "+tt.name+" is rejected before the upgrade", func(t *testing.T) {
+				t.Parallel()
+
 				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+endpoint.path+"?apiKey="+tt.apiKey, nil)
 				if ws != nil {
 					_ = ws.Close()

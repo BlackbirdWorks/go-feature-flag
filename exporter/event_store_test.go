@@ -18,9 +18,13 @@ import (
 const defaultTestCleanQueueDuration = 100 * time.Millisecond
 
 func Test_ConsumerNameInvalid(t *testing.T) {
+	t.Parallel()
+
 	t.Run(
 		"GetPendingEventCount: should return an error if the consumer name is invalid",
 		func(t *testing.T) {
+			t.Parallel()
+
 			eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 				defaultTestCleanQueueDuration,
 			)
@@ -33,6 +37,8 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 	t.Run(
 		"ProcessPendingEvents: should return an error if the consumer name is invalid",
 		func(t *testing.T) {
+			t.Parallel()
+
 			eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 				defaultTestCleanQueueDuration,
 			)
@@ -48,6 +54,8 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 }
 
 func Test_SingleConsumer(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -93,6 +101,8 @@ func Test_SingleConsumer(t *testing.T) {
 }
 
 func Test_MultipleConsumersSingleThread(t *testing.T) {
+	t.Parallel()
+
 	consumerNames := []string{"consumer1", "consumer2"}
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -157,6 +167,8 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 }
 
 func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
+	t.Parallel()
+
 	consumerNames := []string{"consumer1", "consumer2"}
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -210,6 +222,8 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 }
 
 func Test_ProcessPendingEventInError(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -258,6 +272,8 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 }
 
 func Test_WaitForEmptyClean(t *testing.T) {
+	t.Parallel()
+
 	consumerNames := []string{"consumer1"}
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -284,6 +300,8 @@ func Test_WaitForEmptyClean(t *testing.T) {
 }
 
 func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -326,6 +344,8 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 }
 
 func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -398,6 +418,8 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 }
 
 func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -455,6 +477,8 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 }
 
 func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
+	t.Parallel()
+
 	consumerName := "consumer1"
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,

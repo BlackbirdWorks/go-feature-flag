@@ -20,6 +20,8 @@ func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bo
 }
 
 func TestRuleEvaluate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		user      ffcontext.Context
 		isDefault bool
@@ -652,6 +654,8 @@ func TestRuleEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			key := ""
 			if tt.args.user != nil {
 				key = tt.args.user.GetKey()
@@ -671,6 +675,8 @@ func TestRuleEvaluate(t *testing.T) {
 }
 
 func TestRule_MergeRules(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		originalRule flag.Rule
@@ -929,6 +935,8 @@ func TestRule_MergeRules(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.originalRule.MergeRules(tt.updatedRule)
 			assert.Equal(t, tt.want, tt.originalRule)
 		})

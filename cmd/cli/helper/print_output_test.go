@@ -13,6 +13,8 @@ import (
 )
 
 func TestOutput_PrintLines(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 
@@ -61,6 +63,8 @@ func TestOutput_PrintLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var buf bytes.Buffer
 			cmd := &cobra.Command{}
 			cmd.SetOut(&buf)
@@ -72,6 +76,7 @@ func TestOutput_PrintLines(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable pterm.Error
 func TestPrintFatalAndExit(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()

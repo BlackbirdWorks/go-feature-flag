@@ -23,6 +23,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -60,6 +61,7 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -133,7 +135,11 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 }
 
 func TestInitResource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("defaults, no env", func(t *testing.T) {
+		t.Parallel()
+
 		res, err := initResource(context.Background(), "test", "1.2.3", nil)
 		require.NoError(t, err)
 
@@ -149,6 +155,8 @@ func TestInitResource(t *testing.T) {
 	})
 
 	t.Run("with config map set", func(t *testing.T) {
+		t.Parallel()
+
 		attribs := map[string]string{
 			"key1": "val1",
 			"key2": "val2",
@@ -167,6 +175,7 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func TestInit(t *testing.T) {
 	logger := log.InitLogger().ZapLogger
 

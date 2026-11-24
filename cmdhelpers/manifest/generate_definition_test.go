@@ -111,6 +111,7 @@ func readGolden(t *testing.T, name string) string {
 	return string(data)
 }
 
+//nolint:paralleltest,tparallel // swaps the process-wide default slog logger (slog.SetDefault) to capture the records of the package-level slog calls in the code under test
 func TestGenerateDefinition(t *testing.T) {
 	tests := []struct {
 		name       string

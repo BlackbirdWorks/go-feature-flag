@@ -11,6 +11,8 @@ import (
 )
 
 func TestFlagManifest_MarshalJSON_includesSchema(t *testing.T) {
+	t.Parallel()
+
 	m := model.FlagManifest{Flags: map[string]helperModel.FlagDefinition{}}
 	raw, err := json.MarshalIndent(m, "", "  ")
 	require.NoError(t, err)

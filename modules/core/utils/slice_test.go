@@ -9,6 +9,8 @@ import (
 )
 
 func TestContains(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		s   []string
 		str string
@@ -37,6 +39,8 @@ func TestContains(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, utils.Contains(tt.args.s, tt.args.str), "Contains()")
 		})
 	}

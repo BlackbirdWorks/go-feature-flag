@@ -45,6 +45,8 @@ func Test_bodyDumpSkipper(t *testing.T) {
 }
 
 func Test_bodyDumpHandler_smallBody(t *testing.T) {
+	t.Parallel()
+
 	core, recorded := observer.New(zapcore.DebugLevel)
 	logger := zap.New(core)
 
@@ -61,6 +63,8 @@ func Test_bodyDumpHandler_smallBody(t *testing.T) {
 }
 
 func Test_bodyDumpHandler_largeBody(t *testing.T) {
+	t.Parallel()
+
 	core, recorded := observer.New(zapcore.DebugLevel)
 	logger := zap.New(core)
 

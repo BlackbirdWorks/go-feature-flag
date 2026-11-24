@@ -42,6 +42,8 @@ func (m *mockWebsocketService) BroadcastFlagChanges(flagsetName string, diff not
 }
 
 func TestNotify(t *testing.T) {
+	t.Parallel()
+
 	// Create a mock WebsocketService
 	mockService := &mockWebsocketService{}
 

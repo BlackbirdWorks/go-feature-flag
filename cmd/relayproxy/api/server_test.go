@@ -65,6 +65,8 @@ func waitForServer(t *testing.T, baseURL string) {
 }
 
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -123,6 +125,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	monitoringPort := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
@@ -199,6 +203,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseI1.StatusCode)
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_CheckOFREPAPIExists(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
@@ -280,6 +285,8 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 }
 
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -324,6 +331,8 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 }
 
 func Test_VersionHeader_Disabled(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -368,6 +377,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
+//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_AuthenticationMiddleware(t *testing.T) {
 	t.Run("Non Admin Endpoint", func(t *testing.T) {
 		tests := []authMiddlewareTestCase{
@@ -533,6 +543,8 @@ func newUnixSocketHTTPClient(socketPath string) *http.Client {
 }
 
 func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
 	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
@@ -612,6 +624,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	monitoringPort := testutils.GetFreePort(t)
 	// Create a temporary directory for the socket
@@ -693,6 +707,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
 	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
@@ -794,6 +810,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 }
 
 func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	tests := []struct {
 		name          string
@@ -867,6 +885,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a temporary directory for the socket
 			tempDir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -946,6 +966,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 }
 
 func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	tests := []struct {
 		name                 string
@@ -966,6 +988,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a temporary directory for the socket
 			tempDir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -1033,6 +1057,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 }
 
 func Test_NativeHistograms_Enabled(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
@@ -1144,6 +1170,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 }
 
 func Test_PortFreedAfterShutdown(t *testing.T) {
+	t.Parallel()
+
 	// Pick a free port.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -1214,6 +1242,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 }
 
 func Test_StopBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	// Pick a free port.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)

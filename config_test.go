@@ -19,7 +19,11 @@ import (
 )
 
 func TestConfig_Initialize(t *testing.T) {
+	t.Parallel()
+
 	t.Run("provided context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := context.WithValue(t.Context(), "type", "custom")
 
 		c := ffClient.Config{
@@ -31,6 +35,8 @@ func TestConfig_Initialize(t *testing.T) {
 	})
 
 	t.Run("default context", func(t *testing.T) {
+		t.Parallel()
+
 		c := ffClient.Config{}
 		c.Initialize()
 
@@ -38,6 +44,8 @@ func TestConfig_Initialize(t *testing.T) {
 	})
 
 	t.Run("adjust polling interval", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name            string
 			pollingInterval time.Duration
@@ -62,6 +70,8 @@ func TestConfig_Initialize(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
 				c := ffClient.Config{
 					PollingInterval: tt.pollingInterval,
 				}
@@ -74,6 +84,8 @@ func TestConfig_Initialize(t *testing.T) {
 }
 
 func TestConfig_GetRetrievers(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		PollingInterval time.Duration
 		Retriever       retriever.Retriever
@@ -154,6 +166,8 @@ func TestConfig_GetRetrievers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &ffClient.Config{
 				PollingInterval: tt.fields.PollingInterval,
 				Retriever:       tt.fields.Retriever,
@@ -168,6 +182,8 @@ func TestConfig_GetRetrievers(t *testing.T) {
 }
 
 func TestOfflineConfig(t *testing.T) {
+	t.Parallel()
+
 	c := ffClient.Config{
 		Offline: true,
 	}
@@ -177,6 +193,8 @@ func TestOfflineConfig(t *testing.T) {
 }
 
 func TestConfig_GetDataExporters(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		DataExporter  ffClient.DataExporter
 		DataExporters []ffClient.DataExporter
@@ -268,6 +286,8 @@ func TestConfig_GetDataExporters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &ffClient.Config{
 				DataExporter:  tt.fields.DataExporter,
 				DataExporters: tt.fields.DataExporters,

@@ -13,6 +13,8 @@ import (
 )
 
 func TestInternalFlag_Value(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagName    string
 		user        ffcontext.Context
@@ -2177,6 +2179,8 @@ func TestInternalFlag_Value(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, got1 := tt.flag.Value(tt.args.flagName, tt.args.user, tt.args.flagContext)
 			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
 			assert.Equalf(t, tt.want1, got1, "not expected value: %s", cmp.Diff(tt.want1, got1))
@@ -2185,6 +2189,8 @@ func TestInternalFlag_Value(t *testing.T) {
 }
 
 func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagName    string
 		user        ffcontext.Context
@@ -2259,6 +2265,8 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagWithBucketingKey := tt.flag
 
 			_, got := flagWithBucketingKey.Value(
@@ -2282,6 +2290,8 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 }
 
 func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagName    string
 		user        ffcontext.Context
@@ -2388,6 +2398,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, got := tt.flag.Value(tt.args.flagName, tt.args.user, tt.args.flagContext)
 			assert.Equal(t, tt.want, got)
 		})
@@ -2395,6 +2407,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 }
 
 func TestFlag_ProgressiveRollout(t *testing.T) {
+	t.Parallel()
+
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{
 			"variation_A": new(any("value_A")),
@@ -2433,6 +2447,8 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 }
 
 func TestInternalFlag_GetVariations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		flag flag.InternalFlag
@@ -2466,12 +2482,16 @@ func TestInternalFlag_GetVariations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.want, tt.flag.GetVariations(), "GetVariations()")
 		})
 	}
 }
 
 func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		flag     flag.InternalFlag
@@ -2512,6 +2532,8 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(
 				t,
 				tt.want,
@@ -2524,6 +2546,8 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 }
 
 func TestInternalFlag_GetVariationValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		flag      flag.InternalFlag
@@ -2566,6 +2590,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(
 				t,
 				tt.want,
@@ -2578,6 +2604,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 }
 
 func TestInternalFlag_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Variations      *map[string]*any
 		Rules           *[]flag.Rule
@@ -3124,6 +3152,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &flag.InternalFlag{
 				Variations:      tt.fields.Variations,
 				Rules:           tt.fields.Rules,
@@ -3145,6 +3175,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 	}
 }
 func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
+	t.Parallel()
+
 	cases := 1000
 	internalFlag := flag.InternalFlag{
 		Variations: &map[string]*any{
@@ -3207,6 +3239,8 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 }
 
 func TestInternalFlag_GetVersion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		flag flag.InternalFlag
@@ -3229,6 +3263,8 @@ func TestInternalFlag_GetVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.want, tt.flag.GetVersion(), "GetVersion()")
 		})
 	}

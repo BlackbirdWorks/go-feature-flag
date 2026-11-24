@@ -15,6 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
 	tests := []struct {

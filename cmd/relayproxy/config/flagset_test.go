@@ -21,6 +21,8 @@ const (
 )
 
 func TestConfigSetFlagSetAPIKeys(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		config         *config.Config
@@ -78,6 +80,8 @@ func TestConfigSetFlagSetAPIKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.config.SetFlagSetAPIKeys(tt.flagsetName, tt.apiKeys)
 
 			if tt.wantErr {
@@ -95,6 +99,8 @@ func TestConfigSetFlagSetAPIKeys(t *testing.T) {
 }
 
 func TestConfigGetFlagSetAPIKeys(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		config         *config.Config
@@ -176,6 +182,8 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			gotAPIKeys, err := tt.config.GetFlagSetAPIKeys(tt.flagsetName)
 
 			if tt.wantErr {
@@ -191,7 +199,11 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 }
 
 func TestConfigGetFlagSets(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns all configured flagsets", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -205,11 +217,15 @@ func TestConfigGetFlagSets(t *testing.T) {
 	})
 
 	t.Run("returns an empty slice when no flagset is configured", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{FlagSets: []config.FlagSet{}}
 		assert.Empty(t, cfg.GetFlagSets())
 	})
 
 	t.Run("returns a copy that is independent of the configuration", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -228,7 +244,11 @@ func TestConfigGetFlagSets(t *testing.T) {
 }
 
 func TestConfigAddFlagSet(t *testing.T) {
+	t.Parallel()
+
 	t.Run("adds a new flagset", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -245,6 +265,8 @@ func TestConfigAddFlagSet(t *testing.T) {
 	})
 
 	t.Run("returns an error when the flagset already exists", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -259,7 +281,11 @@ func TestConfigAddFlagSet(t *testing.T) {
 }
 
 func TestConfigRemoveFlagSet(t *testing.T) {
+	t.Parallel()
+
 	t.Run("removes an existing flagset", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -277,6 +303,8 @@ func TestConfigRemoveFlagSet(t *testing.T) {
 	})
 
 	t.Run("returns an error when the flagset does not exist", func(t *testing.T) {
+		t.Parallel()
+
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{Name: flagset1Name, APIKeys: []string{"key-1"}},
@@ -290,6 +318,8 @@ func TestConfigRemoveFlagSet(t *testing.T) {
 }
 
 func TestFlagSetAPIKeysConcurrency(t *testing.T) {
+	t.Parallel()
+
 	cfg := &config.Config{
 		FlagSets: []config.FlagSet{
 			{Name: flagset1Name, APIKeys: []string{"initial-key-1"}},

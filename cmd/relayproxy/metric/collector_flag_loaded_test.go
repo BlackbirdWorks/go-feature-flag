@@ -57,6 +57,8 @@ flag-off:
 `
 
 func TestFlagLoaded_ExposesOneSeriesPerFlagPerFlagset(t *testing.T) {
+	t.Parallel()
+
 	teamA, _ := newFileClient(t, flagsYAML)
 	teamB, _ := newFileClient(t, `
 other-flag:
@@ -82,6 +84,8 @@ semaphore_flag_loaded{disabled="false",flag_name="other-flag",flagset="team-b"} 
 }
 
 func TestFlagLoaded_DisabledReflectsScheduledStepsAndExperimentation(t *testing.T) {
+	t.Parallel()
+
 	client, _ := newFileClient(t, `
 scheduled-off:
   variations:
@@ -183,6 +187,8 @@ semaphore_flag_loaded{disabled="true",flag_name="experiment-over-with-nested-buc
 }
 
 func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
+	t.Parallel()
+
 	client, path := newFileClient(t, flagsYAML)
 	m, err := NewMetrics()
 	require.NoError(t, err)
@@ -211,6 +217,8 @@ semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="default"} 1
 }
 
 func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		source FlagsetSource
@@ -224,6 +232,8 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			m, err := NewMetrics()
 			require.NoError(t, err)
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
@@ -235,6 +245,8 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 }
 
 func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T) {
+	t.Parallel()
+
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{"enabled": new(any(true))},
@@ -248,6 +260,8 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
 	m, err := NewMetrics()
 	require.NoError(t, err)
@@ -255,6 +269,8 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 }
 
 func TestFlagLoaded_SkipsSeriesWithInvalidLabelValues(t *testing.T) {
+	t.Parallel()
+
 	valid, _ := newFileClient(t, flagsYAML)
 	invalid, _ := newFileClient(t, flagsYAML)
 	m, err := NewMetrics()

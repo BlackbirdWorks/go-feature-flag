@@ -12,6 +12,8 @@ import (
 )
 
 func TestNotifierSSE_Notify(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		flagsetName string
@@ -40,6 +42,8 @@ func TestNotifierSSE_Notify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 

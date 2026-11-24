@@ -14,6 +14,8 @@ import (
 )
 
 func TestLoadConfigFile(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		inputFilePath      string
@@ -220,6 +222,8 @@ func TestLoadConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tt.useDefaultLocation {
 				// write the config into an isolated per-test dir (auto-removed by the
 				// test framework). Using t.TempDir() instead of a fixed name in the

@@ -9,6 +9,8 @@ import (
 )
 
 func TestIsIntegral(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		val float64
 	}
@@ -35,6 +37,8 @@ func TestIsIntegral(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.want, utils.IsIntegral(tt.args.val), "IsIntegral(%v)", tt.args.val)
 		})
 	}

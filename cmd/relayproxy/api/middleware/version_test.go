@@ -14,6 +14,8 @@ import (
 )
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -38,6 +40,8 @@ func TestVersion(t *testing.T) {
 }
 
 func TestNoVersion(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)

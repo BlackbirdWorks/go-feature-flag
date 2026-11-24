@@ -23,6 +23,8 @@ import (
 )
 
 func Test_info_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		handlerErr bool
@@ -77,6 +79,8 @@ func Test_info_Handler(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err, "impossible to create flagset manager")
 
@@ -132,7 +136,11 @@ func Test_info_Handler(t *testing.T) {
 
 // Test_info_Handler_Error tests the error scenario in the info handler.
 func Test_info_Handler_Error(t *testing.T) {
+	t.Parallel()
+
 	t.Run("monitoring service returns error", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a mock monitoring service that returns an error
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
@@ -161,6 +169,8 @@ func Test_info_Handler_Error(t *testing.T) {
 	})
 
 	t.Run("monitoring service returns different error", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a mock monitoring service that returns a different error
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
