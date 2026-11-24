@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
@@ -167,7 +168,7 @@ func Test_github_Retrieve(t *testing.T) {
 			h.SetHTTPClient(&tt.fields.httpClient)
 			got, err := h.Retrieve(tt.fields.context)
 			if tt.errMsg != "" {
-				assert.EqualError(t, err, tt.errMsg)
+				require.EqualError(t, err, tt.errMsg)
 			}
 			assert.Equal(
 				t,
@@ -367,19 +368,19 @@ func TestRateLimiting(t *testing.T) {
 	httpClient := &mock.HTTP{}
 	h.SetHTTPClient(httpClient)
 	_, err := h.Retrieve(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{RateLimit: true}
 	h.SetHTTPClient(httpClient)
 	_, err = h.Retrieve(context.TODO())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{}
 	h.SetHTTPClient(httpClient)
 	_, err = h.Retrieve(context.TODO())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.False(t, httpClient.HasBeenCalled)
 }
 
@@ -391,7 +392,7 @@ func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
 		RepositorySlug: "org/repo",
 	}
 	_, err := h.Retrieve(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid base URL")
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 }

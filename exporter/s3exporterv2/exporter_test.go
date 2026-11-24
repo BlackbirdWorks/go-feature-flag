@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -250,11 +251,10 @@ func TestS3_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err, "Export should not error")
-			assert.Equal(
+			require.NoError(t, err, "Export should not error")
+			assert.Len(
 				t,
-				1,
-				len(s3ManagerMock.S3ManagerMockFileSystem),
+				s3ManagerMock.S3ManagerMockFileSystem, 1,
 				"we should have 1 file in our mock",
 			)
 			expectedContent, _ := os.ReadFile(tt.expectedFile)
@@ -305,7 +305,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 		},
 	)
 
-	assert.NoError(t, err, "Export should not error")
+	require.NoError(t, err, "Export should not error")
 	assert.Contains(
 		t,
 		buf.String(),
@@ -335,13 +335,12 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 			},
 		},
 	)
-	assert.NoError(t, err, "Export should not error")
+	require.NoError(t, err, "Export should not error")
 
 	after, _ := filepath.Glob(tempPattern)
-	assert.Equal(
+	assert.Len(
 		t,
-		len(before),
-		len(after),
+		after, len(before),
 		"Export() must remove its temp directory (os.RemoveAll)",
 	)
 }

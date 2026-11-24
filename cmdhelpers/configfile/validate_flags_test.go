@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
@@ -103,7 +104,7 @@ func TestFlagError(t *testing.T) {
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
 			if tt.wantIsErr != nil {
-				assert.ErrorIs(t, err, tt.wantIsErr)
+				require.ErrorIs(t, err, tt.wantIsErr)
 			}
 			var ce customError
 			assert.Equal(t, tt.wantAs, errors.As(err, &ce))

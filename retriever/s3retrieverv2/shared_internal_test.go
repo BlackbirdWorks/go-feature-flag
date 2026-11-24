@@ -166,7 +166,7 @@ func TestSharedItems_list(t *testing.T) {
 			l := &tokenLister{next: tt.next}
 			g := &SharedItems{bucket: "b", lister: l}
 			_, err := g.list(t.Context(), "p/", nil)
-			assert.ErrorContains(t, err, tt.wantErr)
+			require.ErrorContains(t, err, tt.wantErr)
 			assert.Equal(t, tt.wantCalls, l.calls.Load())
 		})
 	}

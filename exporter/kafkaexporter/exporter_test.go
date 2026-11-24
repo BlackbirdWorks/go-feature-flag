@@ -9,6 +9,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -152,7 +153,7 @@ func TestExporter_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			want := make([]*sarama.ProducerMessage, len(tt.events))
 			for index, event := range tt.events {

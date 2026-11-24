@@ -67,7 +67,7 @@ func Test_bodyDumpHandler_largeBody(t *testing.T) {
 	assert.Len(t, logs, 1)
 
 	loggedBody := logs[0].Context[0].Interface.([]byte)
-	assert.True(t, len(loggedBody) < len(body), "logged body should be truncated")
+	assert.Less(t, len(loggedBody), len(body), "logged body should be truncated")
 	assert.True(t, strings.HasSuffix(string(loggedBody), "... truncated ..."))
 }
 

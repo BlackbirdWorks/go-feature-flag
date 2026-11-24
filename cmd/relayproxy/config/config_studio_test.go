@@ -354,7 +354,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 
 			c := receive(t, configs, "Timeout waiting for recovery after the failed reload")
 			assert.Equal(t, []string{"team-b"}, flagSetNames(c.config))
-			assert.NoError(t, c.config.IsValid())
+			require.NoError(t, c.config.IsValid())
 			assert.GreaterOrEqual(t, c.requests, 4, "failed reloads must not notify consumers")
 			header := receive(t, retries, "Timeout waiting for an unconditional retry")
 			assert.Empty(t, header, "the failed reload must invalidate the accepted ETag")
@@ -409,7 +409,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			}
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
-			assert.Equal(t, studioYaml, string(cached))
+			assert.Equal(t, studioYaml, string(cached)) //nolint:testifylint // the cached bytes must match exactly, not just semantically
 			mu.Lock()
 			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
 			status, rejected = http.StatusOK, false

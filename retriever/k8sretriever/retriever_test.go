@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	api "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -156,7 +157,11 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				s.client = fake.NewSimpleClientset()
 			}
 			got, err := s.Retrieve(tt.fields.context)
-			assert.Equal(t, tt.wantErr, err, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.wantErr != nil {
+				require.EqualError(t, err, tt.wantErr.Error(), "retrieve() error")
+			} else {
+				require.NoError(t, err, "retrieve() error")
+			}
 			if err == nil {
 				assert.Equal(
 					t,

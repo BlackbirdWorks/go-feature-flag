@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 )
@@ -51,7 +52,7 @@ func TestNewManifestCmd(t *testing.T) {
 			destination := ""
 			if tt.args.setDestination {
 				f, err := os.CreateTemp(t.TempDir(), "temp")
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				destination = f.Name()
 				defer func() { _ = os.Remove(destination) }()
 			}

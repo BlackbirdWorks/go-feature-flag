@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -99,7 +100,7 @@ func TestNotify(t *testing.T) {
 	err := n.Notify(diff)
 
 	// Assertions
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, diff, mockService.internalDiff)
 	assert.Equal(t, "my-flagset", mockService.flagsetName)
 }

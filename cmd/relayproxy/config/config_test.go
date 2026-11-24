@@ -1876,7 +1876,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 
 		got, err := config.New(f, zap.L(), "1.X.X")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.FileRetriever, (*got.Retrievers)[0].Kind)
 		assert.Equal(t, "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml", (*got.Retrievers)[0].Path)
@@ -1888,7 +1888,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 		got, err := config.New(f, zap.L(), "1.X.X")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.HTTPRetriever, (*got.FlagSets[0].Retrievers)[0].Kind)
 		assert.Equal(t, "https://example.com/flags.goff.yaml", (*got.FlagSets[0].Retrievers)[0].URL)

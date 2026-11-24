@@ -137,9 +137,9 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 
 			// Assert
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			// Verify that Init was called on the expected retrievers
@@ -260,9 +260,9 @@ variation = "A"
 			err := manager.Init(ctx)
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			_ = manager.Shutdown(ctx)
 		})

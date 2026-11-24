@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -234,7 +235,7 @@ func TestFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			flagset, err := helper.FlagSet(tt.flagsetManager, tt.apiKey)
 			if tt.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, flagset)
 				if tt.wantMsg != "" {
 					assert.Contains(t, err.Message, tt.wantMsg)
@@ -254,7 +255,7 @@ func TestFlagSetIntegration(t *testing.T) {
 	t.Run("should handle specific error messages correctly", func(t *testing.T) {
 		mockManager := &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("test error")}
 		flagset, err := helper.FlagSet(mockManager, "test-key")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, flagset)
 		assert.Contains(t, err.Message, "error while getting flagset:")
 	})

@@ -95,7 +95,7 @@ func TestNewUser(t *testing.T) {
 
 func TestNewEvaluationContextWithoutTargetingKey(t *testing.T) {
 	ctx := NewEvaluationContext("")
-	assert.Equal(t, "", ctx.GetKey(), "Should have empty targeting key")
+	assert.Empty(t, ctx.GetKey(), "Should have empty targeting key")
 	assert.Equal(t, map[string]any{}, ctx.GetCustom(), "Should have empty custom attributes")
 	assert.False(t, ctx.IsAnonymous(), "Should not be anonymous by default")
 }
@@ -106,7 +106,7 @@ func TestNewEvaluationContextBuilderWithoutTargetingKey(t *testing.T) {
 		AddCustom(anonymousAttribute, true).
 		Build()
 
-	assert.Equal(t, "", ctx.GetKey(), "Should have empty targeting key")
+	assert.Empty(t, ctx.GetKey(), "Should have empty targeting key")
 	assert.Equal(t, "admin", ctx.GetCustom()["role"], "Should have custom attributes")
 	assert.True(t, ctx.IsAnonymous(), "Should be anonymous when set")
 }

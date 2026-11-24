@@ -1167,7 +1167,7 @@ func TestFloat64Variation(t *testing.T) {
 
 				return
 			}
-			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
+			assert.InDelta(t, tt.want, got, 0, "Float64Variation() got = %v, want %v", got, tt.want)
 
 			// clean logger
 			ff = nil
@@ -4115,7 +4115,7 @@ func TestRawVariation(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 
 			if tt.wantErr {
-				assert.Error(t, err, "RawVariation() error = %v, wantErr %v", err, tt.wantErr)
+				require.Error(t, err, "RawVariation() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.want, got, "RawVariation() got = %v, want %v", got, tt.want)
 
@@ -4159,7 +4159,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res)
-	assert.NoError(t, err1)
+	require.NoError(t, err1)
 	allFlags := goff.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags.GetFlags()["flag1"].Value)
 
@@ -4178,7 +4178,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res2)
-	assert.NoError(t, err3)
+	require.NoError(t, err3)
 	allFlags2 := goff2.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags2.GetFlags()["flag1"].Value)
 
@@ -4198,7 +4198,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res3)
-	assert.NoError(t, err5)
+	require.NoError(t, err5)
 
 	allFlags3 := goff3.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags3.GetFlags()["flag1"].Value)

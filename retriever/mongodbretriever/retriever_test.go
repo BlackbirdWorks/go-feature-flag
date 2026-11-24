@@ -111,7 +111,7 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 	}
 	assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 	err := mdb.Init(context.TODO(), &fflog.FFLogger{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, retriever.RetrieverError, mdb.Status())
 }
 

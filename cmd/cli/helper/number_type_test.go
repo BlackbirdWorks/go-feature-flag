@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
@@ -135,7 +136,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})

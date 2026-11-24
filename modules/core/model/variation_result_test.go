@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
@@ -170,11 +171,11 @@ func TestVariationResultToJsonStr(t *testing.T) {
 			// Verify JSON is valid and matches expected
 			var gotJSON map[string]any
 			err := json.Unmarshal([]byte(jsonStr), &gotJSON)
-			assert.NoError(t, err, "JSON should be valid")
+			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
-			assert.NoError(t, err, "Expected JSON should be valid")
+			require.NoError(t, err, "Expected JSON should be valid")
 
 			assert.Equal(t, wantJSON, gotJSON, "JSON should match expected")
 		})
@@ -309,16 +310,16 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test JSON serialization
 			jsonBytes, err := json.Marshal(tt.result)
-			assert.NoError(t, err, "JSON marshaling should succeed")
+			require.NoError(t, err, "JSON marshaling should succeed")
 
 			// Verify JSON matches expected
 			var gotJSON map[string]any
 			err = json.Unmarshal(jsonBytes, &gotJSON)
-			assert.NoError(t, err, "JSON should be valid")
+			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
-			assert.NoError(t, err, "Expected JSON should be valid")
+			require.NoError(t, err, "Expected JSON should be valid")
 
 			assert.Equal(t, wantJSON, gotJSON, "JSON should match expected")
 
@@ -326,12 +327,12 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			// Note: JSON unmarshaling converts numbers to float64, so we compare JSON strings instead
 			var deserialized model.RawVarResult
 			err = json.Unmarshal(jsonBytes, &deserialized)
-			assert.NoError(t, err, "JSON unmarshaling should succeed")
+			require.NoError(t, err, "JSON unmarshaling should succeed")
 
 			// Re-marshal both to compare JSON representation (handles float64 vs int conversion)
 			deserializedJSON, _ := json.Marshal(deserialized)
 			originalJSON, _ := json.Marshal(tt.result)
-			assert.Equal(t, string(originalJSON), string(deserializedJSON), "Deserialized JSON should match original")
+			assert.JSONEq(t, string(originalJSON), string(deserializedJSON), "Deserialized JSON should match original")
 		})
 	}
 }
@@ -383,7 +384,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.want, got)
 			}
 		})

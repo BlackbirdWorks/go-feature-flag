@@ -584,7 +584,7 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	r.Prefix = ""
 	r.Item = "g/b.yaml"
 	require.NoError(t, r.Init(t.Context(), nil))
-	assert.Equal(t, "", r.OutputFormat())
+	assert.Empty(t, r.OutputFormat())
 }
 
 func TestRetriever_SetLister(t *testing.T) {

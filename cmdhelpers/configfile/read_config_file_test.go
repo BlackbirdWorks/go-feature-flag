@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/model/dto"
@@ -226,9 +227,9 @@ func TestLoadConfigFile(t *testing.T) {
 				// the Windows "file in use" errors from renaming an open handle.
 				dir := t.TempDir()
 				content, err := os.ReadFile(tt.inputFilePath)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, "flags.goff.yaml"), content, 0600)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				tt.inputFilePath = ""
 				tt.defaultLocations = []string{dir + "/"}
 			}
@@ -241,7 +242,7 @@ func TestLoadConfigFile(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})
@@ -274,7 +275,7 @@ func TestParseConfig(t *testing.T) {
 
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, got, len(tt.wantFlags))
 			for _, k := range tt.wantFlags {
 				assert.Contains(t, got, k)
@@ -302,7 +303,7 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir() + "/"
 			for _, f := range tt.files {
-				assert.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
+				require.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
 			}
 			got, err := configfile.LoadConfigFile("", "yaml", []string{dir})
 			if tt.wantError {
@@ -310,7 +311,7 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Contains(t, got, tt.wantFlag)
 		})
 	}

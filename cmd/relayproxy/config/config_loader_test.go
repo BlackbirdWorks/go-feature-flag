@@ -210,7 +210,7 @@ loglevel: debug`, configFile)
 	// Verify callback was NOT called
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Len(t, receivedConfigs, 0, "Callback should not be triggered when watchChanges is disabled")
+	assert.Empty(t, receivedConfigs, "Callback should not be triggered when watchChanges is disabled")
 }
 
 func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {

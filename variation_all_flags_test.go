@@ -24,15 +24,15 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 	t.Helper()
 
 	expected, err := os.ReadFile(expectedFilePath)
-	assert.NoError(t, err, "Failed to read expected JSON file")
+	require.NoError(t, err, "Failed to read expected JSON file")
 
 	var expectedFlags map[string]any
 	err = json.Unmarshal(expected, &expectedFlags)
-	assert.NoError(t, err, "Failed to unmarshal expected JSON")
+	require.NoError(t, err, "Failed to unmarshal expected JSON")
 
 	var actualFlags map[string]any
 	err = json.Unmarshal(actualJSON, &actualFlags)
-	assert.NoError(t, err, "Failed to unmarshal actual JSON")
+	require.NoError(t, err, "Failed to unmarshal actual JSON")
 
 	// Handle cases where there might not be a "flags" field (e.g., offline, module_not_init)
 	expectedFlagData, hasExpectedFlags := expectedFlags["flags"].(map[string]any)
@@ -67,7 +67,7 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 
 	// Now compare the full JSON structures
 	expectedJSON, err := json.Marshal(expectedFlags)
-	assert.NoError(t, err, "Failed to marshal normalized expected JSON")
+	require.NoError(t, err, "Failed to marshal normalized expected JSON")
 	assert.JSONEq(t, string(expectedJSON), string(actualJSON), "JSON structures should match after timestamp normalization")
 }
 
@@ -128,7 +128,7 @@ func TestAllFlagsState(t *testing.T) {
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -142,12 +142,12 @@ func TestAllFlagsState(t *testing.T) {
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
-			assert.Equal(t, 0, len(files))
+			assert.Empty(t, files)
 		})
 	}
 }
@@ -232,7 +232,7 @@ func TestGetFlagStates(t *testing.T) {
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -248,12 +248,12 @@ func TestGetFlagStates(t *testing.T) {
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
-			assert.Equal(t, 0, len(files))
+			assert.Empty(t, files)
 		})
 	}
 }
@@ -305,14 +305,14 @@ func TestAllFlagsFromCache(t *testing.T) {
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 
 				flags, err := goff.GetFlagsFromCache()
 				tt.err(t, err)
 
 				if err != nil {
-					assert.Equal(t, tt.numberFlag, len(flags))
+					assert.Len(t, flags, tt.numberFlag)
 				}
 			} else {
 				// we close directly so we can test with module not init

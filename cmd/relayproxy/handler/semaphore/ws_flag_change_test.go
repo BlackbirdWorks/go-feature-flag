@@ -150,7 +150,7 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			// Set read deadline to prevent hanging
 			err = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Wait a short time to ensure WebSocket registration is complete
 			// This prevents the race condition where BroadcastFlagChanges is called
@@ -162,10 +162,10 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			// Read message with timeout
 			_, receivedMessage, err := ws.ReadMessage()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			expectedMessage, err := json.Marshal(tt.flagChange)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.JSONEq(t, string(expectedMessage), string(receivedMessage))
 		})
 	}
@@ -338,9 +338,9 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	websocketService.BroadcastFlagChanges("default", diff)
 
 	_, received, err := ws.ReadMessage()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	expected, err := json.Marshal(diff)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, string(expected), string(received))
 }
 

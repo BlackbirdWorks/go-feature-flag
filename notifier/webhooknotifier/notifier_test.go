@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
@@ -269,7 +270,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 			if tt.expected.err {
 				assert.ErrorContains(t, err, tt.expected.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				content, _ := os.ReadFile(tt.expected.bodyPath)
 				assert.JSONEq(t, string(content), mockHTTPClient.Body)
 				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
@@ -313,7 +314,7 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 
 	err := c.Notify(diff)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	var m map[string]any
 	_ = json.Unmarshal([]byte(mockHTTPClient.Body), &m)
 

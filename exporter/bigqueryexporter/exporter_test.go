@@ -11,6 +11,7 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
@@ -52,7 +53,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 
 	err := e.Export(ctx, nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
 	assert.Len(t, client.inserters, 1)
 	assert.Len(t, client.inserters["fake-dataset.feature-table"].puts, 1)
@@ -98,7 +99,7 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 
 	err := e.Export(ctx, nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, client.ensureTableCalls)
 	assert.Len(t, client.inserters, 1)
 	assert.Len(t, client.inserters["fake-dataset.tracking-table"].puts, 1)
@@ -143,7 +144,7 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 
 	err := e.Export(ctx, nil, events)
 
-	assert.ErrorContains(t, err, "mixed event types")
+	require.ErrorContains(t, err, "mixed event types")
 	assert.Empty(t, client.inserters)
 }
 
@@ -208,7 +209,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 			err := e.Export(ctx, nil, tt.events)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantEnsureTableCalls, client.ensureTableCalls)
 		})
 	}
@@ -228,7 +229,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 
 	err := e.Export(ctx, nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, client.inserters["fake-dataset."+defaultTableName].puts, 1)
 }
 
@@ -268,7 +269,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 
 			err := e.Export(context.TODO(), nil, tt.events)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.False(t, initCalled)
 			assert.Nil(t, e.client)
 		})
@@ -418,7 +419,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 
 			err := e.Export(context.TODO(), nil, tt.events)
 
-			assert.ErrorContains(t, err, tt.wantErrContains)
+			require.ErrorContains(t, err, tt.wantErrContains)
 			assert.Equal(t, tt.wantNewClientCalled, newClientCalled)
 		})
 	}
@@ -445,7 +446,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 
 	err := e.Export(context.TODO(), nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	puts := client.inserters["fake-dataset.feature-table"].puts
 	assert.Len(t, puts, 2)
 	assert.Len(t, puts[0].([]rowSaver), maxRowsPerInsert)
@@ -481,7 +482,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	close(errs)
 
 	for err := range errs {
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 	assert.Equal(t, int32(1), callCount.Load())
 	assert.Equal(t, client, e.client)
@@ -530,7 +531,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 				exporter.FeatureEvent{Kind: "feature", Value: true},
 			})
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "fake-project", gotProjectID)
 			assert.Equal(t, tt.wantClientOptions, gotClientOptions)
 		})
@@ -590,7 +591,7 @@ func TestRowSaver_Save(t *testing.T) {
 
 	values, insertID, err := row.Save()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, row.values, values)
 	assert.Equal(t, row.insertID, insertID)
 }

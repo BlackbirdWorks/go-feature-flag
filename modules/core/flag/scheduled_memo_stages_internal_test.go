@@ -69,10 +69,10 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 				require.Len(t, got.GetRules(), 1)
 				r, w := got.GetRules()[0], want.GetRules()[0]
 				if progressive {
-					assert.Equal(t, w.GetProgressiveRollout().Initial.getPercentage(),
-						r.GetProgressiveRollout().Initial.getPercentage(), "due=%d initial", due)
-					assert.Equal(t, w.GetProgressiveRollout().End.getPercentage(),
-						r.GetProgressiveRollout().End.getPercentage(), "due=%d end", due)
+					assert.InDelta(t, w.GetProgressiveRollout().Initial.getPercentage(),
+						r.GetProgressiveRollout().Initial.getPercentage(), 0, "due=%d initial", due)
+					assert.InDelta(t, w.GetProgressiveRollout().End.getPercentage(),
+						r.GetProgressiveRollout().End.getPercentage(), 0, "due=%d end", due)
 				} else {
 					assert.Equal(t, w.GetPercentages(), r.GetPercentages(), "due=%d", due)
 				}

@@ -83,14 +83,14 @@ func TestGetCompiledQuery_OnlyEvaluationStores(t *testing.T) {
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
 	r := Rule{Query: &query, VariationResult: new("A")}
 
-	assert.NoError(t, r.isQueryValid(false))
+	require.NoError(t, r.isQueryValid(false))
 	assert.Equal(t, JSONLogicQueryFormat, r.GetQueryFormat())
-	assert.Equal(t, `{"==": [{"var": "key"}, "abc"]}`, r.GetTrimmedQuery())
+	assert.JSONEq(t, `{"==": [{"var": "key"}, "abc"]}`, r.GetTrimmedQuery())
 	assert.Zero(t, compiledQueryCacheLen(), "validation must not store queries")
 
 	ctx := ffcontext.NewEvaluationContext("abc")
 	_, err := r.Evaluate("abc", ctx, "flag", false)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, compiledQueryCacheLen(), "a multi-line query is stored once")
 }
 

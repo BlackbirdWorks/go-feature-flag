@@ -139,7 +139,7 @@ func TestRedisShutdown(t *testing.T) {
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
@@ -149,7 +149,7 @@ func TestRedisShutdown(t *testing.T) {
 		}
 
 		err := retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
@@ -164,12 +164,12 @@ func TestRedisShutdown(t *testing.T) {
 
 		// First shutdown
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 
 		// Second shutdown should also succeed
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
@@ -185,7 +185,7 @@ func TestRedisShutdown(t *testing.T) {
 		}
 
 		err := retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
@@ -200,12 +200,12 @@ func TestRedisShutdown(t *testing.T) {
 
 		// Init should fail and set error status
 		err := retriever.Init(context.TODO(), nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, ret.RetrieverError, retriever.Status())
 
 		// Shutdown should still work even in error state
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
@@ -219,7 +219,7 @@ func TestRedisShutdown(t *testing.T) {
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 }
@@ -247,7 +247,7 @@ func readFile(t *testing.T, file string) (string, []byte) {
 	if err != nil {
 		return "", nil
 	}
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	flagName := file[:len(file)-5]
 
 	return flagName, content

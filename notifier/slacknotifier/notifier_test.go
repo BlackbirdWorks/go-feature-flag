@@ -210,7 +210,7 @@ func TestSlackNotifier_Notify(t *testing.T) {
 			if tt.expected.err {
 				assert.ErrorContains(t, err, tt.expected.errMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				hostname, _ := os.Hostname()
 				content, _ := os.ReadFile(tt.expected.bodyPath)
 				expectedContent := strings.ReplaceAll(string(content), "{{hostname}}", hostname)

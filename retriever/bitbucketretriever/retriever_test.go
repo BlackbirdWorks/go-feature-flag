@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
@@ -130,7 +131,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			h.SetHTTPClient(&tt.fields.httpClient)
 			got, err := h.Retrieve(tt.fields.context)
 			if tt.errMsg != "" {
-				assert.EqualError(t, err, tt.errMsg)
+				require.EqualError(t, err, tt.errMsg)
 			}
 			assert.Equal(
 				t,

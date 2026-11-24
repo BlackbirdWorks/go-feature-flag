@@ -6,6 +6,7 @@ import (
 	"text/template"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -74,7 +75,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 	err := exp.Export(context.Background(), logger, events)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spans := recorder.Ended()
 	assert.Len(t, spans, 2, "should create one span per feature event")
@@ -114,7 +115,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 	err := exp.Export(context.Background(), &fflog.FFLogger{}, []exporter.ExportableEvent{event})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spans := recorder.Ended()
 	assert.Len(t, spans, 1)
@@ -140,7 +141,7 @@ func TestExporter_Export_IgnoreUnsupportedEventTypes(t *testing.T) {
 	events := []exporter.ExportableEvent{MockUnsupportedEvent{}}
 	err := exp.Export(context.Background(), nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, recorder.Ended(), "No spans should be created for unsupported events")
 }
 

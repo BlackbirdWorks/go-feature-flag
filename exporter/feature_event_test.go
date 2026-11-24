@@ -60,7 +60,7 @@ func TestNewFeatureEvent(t *testing.T) {
 					tt.args.source,
 					tt.args.exporterMetadata,
 				),
-				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %V)",
+				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %v)",
 				tt.args.user,
 				tt.args.flagKey,
 				tt.args.value,

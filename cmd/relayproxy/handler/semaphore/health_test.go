@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -47,7 +48,7 @@ func Test_health_Handler(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			srv := service.NewMonitoring(flagsetManager)
 			healthCtrl := controller.NewHealth(srv)
@@ -66,7 +67,7 @@ func Test_health_Handler(t *testing.T) {
 			}
 
 			body, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(body), rec.Body.String(), "Invalid response body")
 		})

@@ -243,7 +243,7 @@ func TestSharedItems_Retriever(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 			err := r.Init(t.Context(), nil)
 			if tt.wantErrMsg != "" {
-				assert.ErrorContains(t, err, tt.wantErrMsg)
+				require.ErrorContains(t, err, tt.wantErrMsg)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
 
 				return
@@ -410,7 +410,7 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		t.Parallel()
 		r := newGroup(t, newFakeBucket(baseObjects())).Retriever("p1/dev/flags.yaml")
 		_, err := r.Retrieve(t.Context())
-		assert.ErrorContains(t, err, "not initialized")
+		require.ErrorContains(t, err, "not initialized")
 		//nolint:staticcheck // a nil context is tolerated on purpose
 		_, err = r.Retrieve(nil)
 		assert.ErrorContains(t, err, "not initialized")
@@ -533,7 +533,7 @@ func runListError(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 	for range 3 {
 		for _, rr := range r {
 			_, err := rr.Retrieve(t.Context())
-			assert.ErrorContains(t, err, "AccessDenied")
+			require.ErrorContains(t, err, "AccessDenied")
 		}
 	}
 	// one failing list for the whole window, whatever the number of callers
@@ -605,17 +605,17 @@ func runHung(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItem
 	defer cancel()
 	start := time.Now()
 	_, err := r["p1/dev/flags.yaml"].Retrieve(ctx)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, time.Second, time.Since(start))
 
 	wg.Wait()
-	assert.ErrorContains(t, otherErr, "unable to list S3 bucket")
+	require.ErrorContains(t, otherErr, "unable to list S3 bucket")
 	assert.GreaterOrEqual(t, time.Since(start), 30*time.Second)
 
 	// the failure is cached from the end of the listing: no new listing inside the window
 	lists := b.lists.Load()
 	_, err = r["p1/dev/flags.yaml"].Retrieve(t.Context())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, lists, b.lists.Load())
 }
 
@@ -646,7 +646,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 			require.NoError(t, r2.Shutdown(t.Context()))
 			assert.Equal(t, retriever.RetrieverNotReady, r2.Status())
 			_, err = r2.Retrieve(t.Context())
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			time.Sleep(s3retrieverv2.DefaultSharedPollingInterval)
 			_, err = r1.Retrieve(t.Context())
@@ -753,7 +753,7 @@ func runLateMissing(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 	missing := initRetriever(t, g, "p1/dev/nope.yaml")
 	for range 2 {
 		_, err = missing.Retrieve(t.Context())
-		assert.ErrorContains(t, err, "not found")
+		require.ErrorContains(t, err, "not found")
 	}
 	assert.Equal(t, lists+1, b.lists.Load(), "one refresh, then the listing is fresh again")
 }
@@ -783,7 +783,7 @@ func runStuckDownload(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.S
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err := r2.Retrieve(ctx)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	close(b.downloadGate)
 	assert.NoError(t, <-done)
@@ -861,7 +861,7 @@ func runShutdownListing(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2
 	}()
 	time.Sleep(1500 * time.Millisecond)
 	require.NoError(t, r["p1/dev/flags.yaml"].Shutdown(t.Context()))
-	assert.Error(t, <-errs)
+	require.Error(t, <-errs)
 	lists := b.lists.Load()
 	time.Sleep(time.Minute)
 	assert.Equal(t, lists, b.lists.Load(), "no more page requests after the shutdown")
@@ -1050,12 +1050,12 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pc.start(t)
 			lists := pc.b.lists.Load()
 			time.Sleep(9 * time.Second)
-			assert.EqualValues(t, lists, pc.b.lists.Load(), "no listing before the interval")
+			assert.Equal(t, lists, pc.b.lists.Load(), "no listing before the interval")
 
 			pc.b.put(dev, `"e1b"`, "dev2")
 			time.Sleep(time.Second)
 			synctest.Wait()
-			assert.EqualValues(t, lists+1, pc.b.lists.Load())
+			assert.Equal(t, lists+1, pc.b.lists.Load())
 			assert.Equal(t, 1, pc.count(dev))
 			assert.Equal(t, 0, pc.count(prod))
 			got, err := pc.r[dev].Retrieve(t.Context())

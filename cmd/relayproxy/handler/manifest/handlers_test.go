@@ -10,6 +10,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -46,7 +47,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-	assert.NoError(t, err, "failed to create flagset manager")
+	require.NoError(t, err, "failed to create flagset manager")
 	defer flagsetManager.Close()
 
 	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, zap.NewNop())
@@ -56,7 +57,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	c := e.NewContext(req, rec)
 	c.SetPath(manifestEndpoint)
 
-	assert.NoError(t, ctrl.GetManifest(c))
+	require.NoError(t, ctrl.GetManifest(c))
 	assert.Equal(t, http.StatusOK, rec.Code, "Invalid HTTP Code")
 	assert.Equal(
 		t,
@@ -147,7 +148,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-	assert.NoError(t, err, "failed to create flagset manager")
+	require.NoError(t, err, "failed to create flagset manager")
 	defer flagsetManager.Close()
 
 	for _, tt := range tests {
@@ -165,7 +166,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			handlerErr := ctrl.GetManifest(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, "handler should return an error")
 				he := &echo.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				assert.True(t, ok, "handler error should be an echo.HTTPError")
@@ -175,7 +176,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, handlerErr)
+			require.NoError(t, handlerErr)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.Equal(
 				t,
@@ -201,7 +202,7 @@ func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 
 	handlerErr := ctrl.GetManifest(c)
 
-	assert.Error(t, handlerErr, "handler should return an error when flagset manager is nil")
+	require.Error(t, handlerErr, "handler should return an error when flagset manager is nil")
 	he := &echo.HTTPError{}
 	ok := errors.As(handlerErr, &he)
 	assert.True(t, ok, "handler error should be an echo.HTTPError")

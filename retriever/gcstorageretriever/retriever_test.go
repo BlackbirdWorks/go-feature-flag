@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -122,7 +123,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 
 				if err == nil {
 					wantContent, err := os.ReadFile(want)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 
 					assert.Equal(
 						t,

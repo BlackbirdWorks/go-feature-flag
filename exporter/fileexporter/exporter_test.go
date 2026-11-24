@@ -373,7 +373,7 @@ func TestFile_Export(t *testing.T) {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
 				err := os.MkdirAll(fields.OutputDir, 0755)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
@@ -404,7 +404,7 @@ func TestFile_Export(t *testing.T) {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
 				err := os.MkdirAll(tempDir, 0755)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = os.Chmod(tempDir, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
@@ -468,14 +468,14 @@ func TestFile_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Check if the directory was created
 			_, err = os.Stat(outputDir)
-			assert.NoError(t, err, "Output directory should exist")
+			require.NoError(t, err, "Output directory should exist")
 
 			files, _ := os.ReadDir(outputDir)
-			assert.Equal(t, 1, len(files), "Directory %s should have only one file", outputDir)
+			assert.Len(t, files, 1, "Directory %s should have only one file", outputDir)
 			assert.Regexp(t, tt.expected.fileNameRegex, files[0].Name(), "Invalid file name")
 
 			assertExportOutput(
@@ -496,10 +496,10 @@ func TestFile_Export(t *testing.T) {
 func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureEvent {
 	t.Helper()
 	fr, err := local.NewLocalFileReader(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer fr.Close()
 	pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pr.ReadStop()
 	gotFeatureEvents := make([]exporter.FeatureEvent, pr.GetNumRows())
 	err = pr.Read(&gotFeatureEvents)
@@ -513,10 +513,10 @@ func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureE
 func readParquetTrackingEvents(t *testing.T, filePath string) []exporter.TrackingEvent {
 	t.Helper()
 	fr, err := local.NewLocalFileReader(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer fr.Close()
 	pr, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pr.ReadStop()
 	gotTrackingEvents := make([]exporter.TrackingEvent, pr.GetNumRows())
 	err = pr.Read(&gotTrackingEvents)
@@ -589,5 +589,5 @@ func TestExportWithoutOutputDir(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-	assert.True(t, countFileWithPrefix > 0, "At least one file should have been created")
+	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")
 }

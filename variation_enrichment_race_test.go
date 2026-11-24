@@ -52,7 +52,7 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 			wg.Wait()
 			assert.Equal(t, map[string]any{"plan": "free"}, shared.GetCustom(),
 				"the evaluation context of the caller must not be modified")
-			assert.Equal(t, len(tt.enrichment), len(c.GetEvaluationContextEnrichment()),
+			assert.Len(t, c.GetEvaluationContextEnrichment(), len(tt.enrichment),
 				"the configured enrichment must not be modified")
 		})
 	}

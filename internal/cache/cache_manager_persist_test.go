@@ -103,7 +103,7 @@ func TestCacheManagerReadsAfterClose(t *testing.T) {
 	m.Close()
 
 	_, err := m.AllFlags()
-	assert.ErrorContains(t, err, "before the initialisation")
+	require.ErrorContains(t, err, "before the initialisation")
 	_, err = m.GetFlag("f")
 	assert.ErrorContains(t, err, "before the initialisation")
 }

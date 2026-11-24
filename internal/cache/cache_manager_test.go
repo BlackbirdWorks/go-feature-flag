@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
@@ -272,7 +273,7 @@ variation = "false_var"
 
 				return
 			}
-			assert.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+			require.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
 				got, _ := fCache.GetFlag(key)
@@ -432,7 +433,7 @@ test-flag2:
 				return
 			}
 			err = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			allFlags, err := fCache.AllFlags()
 			if tt.wantErr {
@@ -440,7 +441,7 @@ test-flag2:
 
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
@@ -478,7 +479,7 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 
 func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	file, err := os.CreateTemp(t.TempDir(), "")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
 	// We start without any cache and we persist it on disk
@@ -497,27 +498,27 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 `)
 	loadedFlagsMap := map[string]dto.DTO{}
 	err = yaml.Unmarshal(loadedFlags, &loadedFlagsMap)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), file.Name(), nil)
 	err = fCache.UpdateCache(loadedFlagsMap, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	allFlags1, err := fCache.AllFlags()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // waiting to let the go routine write in the file
 
 	// we start a new cache with the file persisted
 	fCache2 := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	content, err := os.ReadFile(file.Name())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	loadedFlagsMap2 := map[string]dto.DTO{}
 	err = yaml.Unmarshal(content, &loadedFlagsMap)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = fCache2.UpdateCache(loadedFlagsMap2, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	allFlags2, err := fCache.AllFlags()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Compare the 2 caches
 	assert.Equal(t, allFlags1, allFlags2)
@@ -616,10 +617,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			err := cm.UpdateCache(tt.initialFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cm.UpdateCache(tt.updatedFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(
 				t,
 				0,
@@ -628,7 +629,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			flags, err := cm.AllFlags()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(
 				t,
 				flags,
@@ -645,10 +646,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			err = cm.UpdateCache(tt.initialFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cm.UpdateCache(tt.updatedFlags, nil, true)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(
 				t,
 				1,
@@ -657,7 +658,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			flags, err = cm.AllFlags()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(
 				t,
 				flags,

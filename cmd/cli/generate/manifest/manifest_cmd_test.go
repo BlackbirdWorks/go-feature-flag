@@ -79,18 +79,18 @@ func TestManifestCmd(t *testing.T) {
 			tt.assertError(t, err)
 
 			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
+				require.EqualError(t, err, tt.expectedError)
 			}
 
 			output, err := os.ReadFile(redirectionStd.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedOutput, string(output), "output is not expected")
 
 			if tt.expectedManifest != "" {
 				wantManifest, err := os.ReadFile(tt.expectedManifest)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				gotManifest, err := os.ReadFile(tmpManifest.Name())
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, string(wantManifest), string(gotManifest), "manifest is not expected")
 			}
 		})

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
@@ -251,9 +252,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 			r.SetHTTPClient(client)
 
 			_, err := r.Retrieve(context.Background())
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 			// EscapedPath is what is sent on the wire, URL.Path would hide the encoding.
 			assert.Equal(t, tt.wantEscapedPath, client.Req.URL.EscapedPath())
 			assert.Equal(t, tt.wantRawQuery, client.Req.URL.RawQuery)
@@ -270,6 +269,6 @@ func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
 		RepositorySlug: "team/config",
 	}
 	_, err := h.Retrieve(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 }

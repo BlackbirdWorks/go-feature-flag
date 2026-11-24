@@ -39,13 +39,13 @@ func TestMetrics_Gatherer(t *testing.T) {
 				names[f.GetName()] = sum
 			}
 
-			assert.Equal(t, 1.0, names["semaphore_flag_evaluations_total"])
-			assert.Equal(t, 1.0, names["semaphore_get_manifest_total"])
+			assert.InDelta(t, 1.0, names["semaphore_flag_evaluations_total"], 0)
+			assert.InDelta(t, 1.0, names["semaphore_get_manifest_total"], 0)
 			assert.Contains(t, names, "semaphore_build_info")
 			assert.Contains(t, names, "go_goroutines", "metrics of the Go runtime are never renamed")
 			if tt.exposeLegacy {
-				assert.Equal(t, 1.0, names["gofeatureflag_flag_evaluations_total"])
-				assert.Equal(t, 1.0, names["gofeatureflag_get_manifest_total"])
+				assert.InDelta(t, 1.0, names["gofeatureflag_flag_evaluations_total"], 0)
+				assert.InDelta(t, 1.0, names["gofeatureflag_get_manifest_total"], 0)
 				assert.Contains(t, names, "gofeatureflag_build_info")
 				assert.NotContains(t, names, "gofeatureflag_go_goroutines")
 			} else {
@@ -98,9 +98,9 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 				}
 			}
 			assert.IsIncreasing(t, names, "the families are sorted by name")
-			assert.Equal(t, 1.0, values["semaphore_counting"])
+			assert.InDelta(t, 1.0, values["semaphore_counting"], 0)
 			if tt.exposeLegacy {
-				assert.Equal(t, 1.0, values["gofeatureflag_counting"], "both names carry the same collection")
+				assert.InDelta(t, 1.0, values["gofeatureflag_counting"], 0, "both names carry the same collection")
 			}
 		})
 	}

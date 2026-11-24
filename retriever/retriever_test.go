@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -25,7 +26,7 @@ func TestMixLegacyTypesOfRetrievers(t *testing.T) {
 			intRetrieverFlagset,
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	goff.Close()
 
 	assert.True(t, simple.RetrieveCalled)

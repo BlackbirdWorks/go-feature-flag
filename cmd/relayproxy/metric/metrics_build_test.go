@@ -10,7 +10,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	promversion "github.com/prometheus/common/version"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -21,7 +20,7 @@ func TestMetrics_BuildInfo(t *testing.T) {
 	promversion.Version = version
 
 	metricSrv, err := metric.NewMetrics()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expected := fmt.Sprintf(`
 		# HELP semaphore_build_info A metric with a constant '1' value labeled by version, revision, branch, goversion from which semaphore was built, and the goos and goarch for the build.

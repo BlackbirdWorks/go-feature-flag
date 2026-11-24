@@ -248,7 +248,7 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
-	assert.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
+	require.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
 	m, err := NewMetrics()
 	require.NoError(t, err)
 	assert.NoError(t, m.RegisterFlagLoaded(nil))

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -26,7 +27,7 @@ func TestValidTrackingEvent(t *testing.T) {
 			},
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	goff.Track(
 		"my-feature-flag",
@@ -37,7 +38,7 @@ func TestValidTrackingEvent(t *testing.T) {
 		map[string]any{"additional data": "value"},
 	)
 
-	assert.Equal(t, 1, len(exp.ExportedEvents))
+	assert.Len(t, exp.ExportedEvents, 1)
 	assert.Equal(t, "1668d845-051d-4dd9-907a-7ebe6aa2c9da", exp.ExportedEvents[0].UserKey)
 	assert.Equal(t, "my-feature-flag", exp.ExportedEvents[0].Key)
 	assert.Equal(

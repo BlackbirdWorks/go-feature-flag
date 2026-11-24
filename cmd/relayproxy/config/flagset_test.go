@@ -312,7 +312,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				newKeys := []string{fmt.Sprintf("key-%d-%d", id, j)}
 				err := cfg.SetFlagSetAPIKeys(flagsetName, newKeys)
-				require.NoError(t, err)
+				assert.NoError(t, err) // not require: this runs outside the test goroutine
 			}
 		}(i)
 	}

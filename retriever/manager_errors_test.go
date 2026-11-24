@@ -131,7 +131,7 @@ func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 	t.Parallel()
 	var m *retriever.Manager
 	_, err := m.GetFlagsFromCache(context.Background())
-	assert.ErrorContains(t, err, "cache is not initialized")
+	require.ErrorContains(t, err, "cache is not initialized")
 	_, err = m.GetFlagsFromCacheReadOnly(context.Background())
 	assert.ErrorContains(t, err, "cache is not initialized")
 }

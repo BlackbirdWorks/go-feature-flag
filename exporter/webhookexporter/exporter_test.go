@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -196,10 +197,10 @@ func TestWebhook_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if tt.expected.bodyFilePath != "" {
 				c, err := os.ReadFile(tt.expected.bodyFilePath)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(c), tt.fields.httpClient.Body)
 			}
 

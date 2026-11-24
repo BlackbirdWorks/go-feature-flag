@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
@@ -190,7 +191,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		},
 	}
 	got, err := evaluation.Evaluate[int](f, "my-flag", ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"), flag.Context{}, "int", 42)
-	assert.Error(t, err)
+	require.Error(t, err)
 	want := model.VariationResult[int]{
 		VariationType: flag.VariationSDKDefault,
 		Failed:        true,

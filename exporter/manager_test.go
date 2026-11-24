@@ -319,7 +319,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			defer goff.Close()
 
 			_, err = goff.BoolVariation("test-flag", tt.ctx, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// The event is collected in a goroutine and exported by the flush ticker, so we
 			// can't rely on a fixed sleep: a loaded CI runner can stall past the tick.
@@ -380,7 +380,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	}
 
 	assert.Equal(t, want[:100], mockExporter1.GetExportedEvents())
-	assert.Equal(t, 0, len(mockExporter2.GetExportedEvents()))
+	assert.Empty(t, mockExporter2.GetExportedEvents())
 	time.Sleep(250 * time.Millisecond)
 	assert.Equal(t, want[:100], mockExporter2.GetExportedEvents())
 }
@@ -424,14 +424,14 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 		}
 	}(dc)
 
-	assert.Equal(t, 0, len(mockExporter2.GetExportedEvents()))
-	assert.Equal(t, 0, len(mockExporter1.GetExportedEvents()))
+	assert.Empty(t, mockExporter2.GetExportedEvents())
+	assert.Empty(t, mockExporter1.GetExportedEvents())
 	time.Sleep(70 * time.Millisecond)
-	assert.True(t, len(mockExporter1.GetExportedEvents()) > 0)
-	assert.True(t, len(mockExporter2.GetExportedEvents()) == 0)
+	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
+	assert.Empty(t, mockExporter2.GetExportedEvents())
 	time.Sleep(200 * time.Millisecond)
-	assert.True(t, len(mockExporter1.GetExportedEvents()) > 0)
-	assert.True(t, len(mockExporter2.GetExportedEvents()) > 0)
+	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
+	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
 }
 
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
@@ -484,7 +484,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			_, _ = ffclient.BoolVariation("test-flag", user1, false)
 			_, _ = ffclient.BoolVariation("test-flag", user2, false)
 			ffclient.Close() // a flush is triggered here
-			assert.Equal(t, 6, len(mockExporter.GetExportedEvents()))
+			assert.Len(t, mockExporter.GetExportedEvents(), 6)
 		})
 	}
 }

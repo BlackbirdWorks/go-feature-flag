@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
@@ -98,7 +99,7 @@ func TestLog_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err, "DeprecatedExporterV1 should not throw errors")
+			require.NoError(t, err, "DeprecatedExporterV1 should not throw errors")
 
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Regexp(t, tt.expectedLog, string(logContent))

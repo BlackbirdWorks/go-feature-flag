@@ -101,13 +101,13 @@ func TestNewFlagsetManager(t *testing.T) {
 			manager, err := service.NewFlagsetManager(tt.config, tt.logger, tt.notifiers, nil, nil)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, manager)
 				if tt.expectedErr != "" {
 					assert.Equal(t, tt.expectedErr, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, manager)
 				defer manager.Close()
 			}
@@ -248,23 +248,23 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 
 		t.Run("valid api key", func(t *testing.T) {
 			flagset, err := manager.FlagSet("test-api-key")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, flagset)
 		})
 		t.Run("invalid api key", func(t *testing.T) {
 			flagset, err := manager.FlagSet("invalid-key")
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, flagset)
 		})
 		t.Run("empty api key", func(t *testing.T) {
 			flagset, err := manager.FlagSet("")
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, flagset)
 		})
 
 		t.Run("empty api key", func(t *testing.T) {
 			flagset, err := manager.FlagSet("")
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, flagset)
 		})
 	})
@@ -289,7 +289,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 
 		t.Run("empty api key should work", func(t *testing.T) {
 			flagset, err := manager.FlagSet("")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, flagset)
 		})
 	})
@@ -323,19 +323,19 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 
 		t.Run("existing api key", func(t *testing.T) {
 			name, err := manager.FlagSetName("test-api-key")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "test-flagset", name)
 		})
 		t.Run("non-existing api key", func(t *testing.T) {
 			name, err := manager.FlagSetName("invalid-key")
-			assert.Error(t, err)
-			assert.Equal(t, "", name)
+			require.Error(t, err)
+			assert.Empty(t, name)
 			assert.Equal(t, "no flag set associated to the API key", err.Error())
 		})
 		t.Run("empty api key", func(t *testing.T) {
 			name, err := manager.FlagSetName("")
-			assert.Error(t, err)
-			assert.Equal(t, "", name)
+			require.Error(t, err)
+			assert.Empty(t, name)
 			assert.Equal(t, "apiKey is required when using flagsets", err.Error())
 		})
 	})
@@ -360,7 +360,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 
 		t.Run("empty api key should return default", func(t *testing.T) {
 			name, err := manager.FlagSetName("")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, "default", name)
 		})
 	})
@@ -401,7 +401,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		defer manager.Close()
 
 		flagsets, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, flagsets, 2)
 		assert.Contains(t, flagsets, "test-flagset-1")
 		assert.Contains(t, flagsets, "test-flagset-2")
@@ -438,7 +438,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		defer manager.Close()
 
 		flagsets, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, flagsets, 2)
 		assert.NotContains(t, flagsets, "default")
 		assert.Contains(t, flagsets, "test-flagset-2")
@@ -463,7 +463,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		defer manager.Close()
 
 		flagsets, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, flagsets, 1)
 		assert.Contains(t, flagsets, "default")
 	})
@@ -918,7 +918,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify the original config was not changed
 		flagset, err := manager.FlagSet("test-api-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
 
@@ -980,10 +980,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify the original config was not changed
 		flagset1, err := manager.FlagSet("api-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 		flagset2, err := manager.FlagSet("api-key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
 	})
 
@@ -1005,7 +1005,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify old key works before change
 		flagset, err := manager.FlagSet("old-api-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
 		// Update API key
@@ -1026,10 +1026,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify the key was updated
 		_, err = manager.FlagSet("old-api-key")
-		assert.Error(t, err, "old API key should no longer work")
+		require.Error(t, err, "old API key should no longer work")
 
 		flagset, err = manager.FlagSet("new-api-key")
-		assert.NoError(t, err, "new API key should work")
+		require.NoError(t, err, "new API key should work")
 		assert.NotNil(t, flagset)
 	})
 
@@ -1051,9 +1051,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify initial state
 		_, err := manager.FlagSet("api-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = manager.FlagSet("api-key-2")
-		assert.Error(t, err, "api-key-2 should not work yet")
+		require.Error(t, err, "api-key-2 should not work yet")
 
 		// Add second API key
 		newConfig := &config.Config{
@@ -1073,11 +1073,11 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify both keys work now
 		flagset1, err := manager.FlagSet("api-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
 		flagset2, err := manager.FlagSet("api-key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
 
 		// Both should point to the same flagset
@@ -1104,9 +1104,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify both keys work initially
 		_, err := manager.FlagSet("api-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = manager.FlagSet("api-key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Remove one API key
 		newConfig := &config.Config{
@@ -1126,7 +1126,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify api-key-1 still works
 		flagset, err := manager.FlagSet("api-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
 		// Verify api-key-2 no longer works
@@ -1160,7 +1160,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify initial state
 		name, err := manager.FlagSetName("api-key-move")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-1", name)
 
 		// Move api-key-move from flagset-1 to flagset-2
@@ -1189,7 +1189,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify api-key-move now points to flagset-2
 		name, err = manager.FlagSetName("api-key-move")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-2", name)
 
 		// Verify other keys still work correctly
@@ -1229,13 +1229,13 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		name, err := manager.FlagSetName("ka")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-b", name)
 		name, err = manager.FlagSetName("kb")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-c", name)
 		name, err = manager.FlagSetName("kc")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-a", name)
 	})
 
@@ -1281,7 +1281,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify the key still works
 		flagset, err := manager.FlagSet("test-api-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
 
@@ -1311,7 +1311,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify original key works
 		flagset, err := manager.FlagSet("original-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
 		// Try to update config with empty name flagset - should be ignored
@@ -1332,7 +1332,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Original key should still work because empty name flagsets can't be updated
 		flagset, err = manager.FlagSet("original-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
 
@@ -1362,7 +1362,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify original key works
 		flagset, err := manager.FlagSet("original-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
 		// Try to update config with "default" name flagset - should be ignored
@@ -1383,7 +1383,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Original key should still work because "default" name flagsets can't be updated
 		flagset, err = manager.FlagSet("original-key")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
 
@@ -1443,17 +1443,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Verify old keys no longer work
 		_, err := manager.FlagSet("old-key-1")
-		assert.Error(t, err)
+		require.Error(t, err)
 		_, err = manager.FlagSet("old-key-2")
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		// Verify new keys work and point to correct flagsets
 		name1, err = manager.FlagSetName("new-key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-1", name1)
 
 		name2, err = manager.FlagSetName("new-key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-2", name2)
 	})
 
@@ -1505,7 +1505,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The second flagset does not exist yet.
 		_, err := manager.FlagSet("key-2")
-		assert.Error(t, err)
+		require.Error(t, err)
 
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1526,18 +1526,18 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The new flagset is now available and the existing one still works.
 		flagset2, err := manager.FlagSet("key-2")
-		assert.NoError(t, err, "the flagset added at runtime should be available")
+		require.NoError(t, err, "the flagset added at runtime should be available")
 		assert.NotNil(t, flagset2)
 		name2, err := manager.FlagSetName("key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "flagset-2", name2)
 
 		flagset1, err := manager.FlagSet("key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
 		all, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, all, 2)
 
 		// Adding a flagset must not produce any error log.
@@ -1563,9 +1563,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Both flagsets exist initially.
 		_, err := manager.FlagSet("key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = manager.FlagSet("key-2")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
@@ -1581,14 +1581,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// flagset-2 is gone, flagset-1 still works.
 		flagset1, err := manager.FlagSet("key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
 		_, err = manager.FlagSet("key-2")
-		assert.Error(t, err, "the removed flagset should no longer be available")
+		require.Error(t, err, "the removed flagset should no longer be available")
 
 		all, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, all, 1)
 
 		assert.Equal(t, 0, logs.Len(), "removing a flagset should not log any error")
@@ -1623,7 +1623,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The flagset is still served (unchanged) and an error is logged.
 		flagset, err := manager.FlagSet("key-1")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
 		rejectedLogs := logs.FilterMessageSnippet("modifying a flagset is not supported at runtime")
@@ -1663,10 +1663,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The old key still works and the new key is NOT applied.
 		flagset, err := manager.FlagSet("old-key")
-		assert.NoError(t, err, "the old API key must still work because the change is rejected")
+		require.NoError(t, err, "the old API key must still work because the change is rejected")
 		assert.NotNil(t, flagset)
 		_, err = manager.FlagSet("new-key")
-		assert.Error(t, err, "the bundled API key change must not be applied")
+		require.Error(t, err, "the bundled API key change must not be applied")
 
 		// Two error logs: the modification rejection and the explicit bundled-key rejection.
 		assert.Equal(t, 1, logs.FilterMessageSnippet("modifying a flagset is not supported at runtime").Len())
@@ -1725,16 +1725,16 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// a unchanged, b removed, c kept (modification rejected), d added.
 		_, err := manager.FlagSet("key-a")
-		assert.NoError(t, err, "flagset-a should be unchanged")
+		require.NoError(t, err, "flagset-a should be unchanged")
 		_, err = manager.FlagSet("key-b")
-		assert.Error(t, err, "flagset-b should have been removed")
+		require.Error(t, err, "flagset-b should have been removed")
 		_, err = manager.FlagSet("key-c")
-		assert.NoError(t, err, "flagset-c should be kept because its modification was rejected")
+		require.NoError(t, err, "flagset-c should be kept because its modification was rejected")
 		_, err = manager.FlagSet("key-d")
-		assert.NoError(t, err, "flagset-d should have been added")
+		require.NoError(t, err, "flagset-d should have been added")
 
 		all, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, all, 3, "expected flagset-a, flagset-c and flagset-d")
 
 		// Only flagset-c's modification is rejected.
@@ -1777,7 +1777,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The unnamed flagset is left running (not removed) and a warning is logged.
 		flagset, err := manager.FlagSet("unnamed-key")
-		assert.NoError(t, err, "the unnamed flagset must keep working until a restart")
+		require.NoError(t, err, "the unnamed flagset must keep working until a restart")
 		assert.NotNil(t, flagset)
 
 		warnLogs := logs.FilterMessageSnippet("without an explicit name is not supported at runtime")
@@ -1827,12 +1827,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Non-colliding keys still route deterministically.
 		_, err := manager.FlagSet("k-a")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		_, err = manager.FlagSet("k-b")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// The colliding key is failed closed: it routes to no flagset.
 		_, err = manager.FlagSet("k-move")
-		assert.Error(t, err, "a key present on two flagsets after reconciliation must not route")
+		require.Error(t, err, "a key present on two flagsets after reconciliation must not route")
 
 		assert.GreaterOrEqual(t,
 			logs.FilterMessageSnippet("configured on multiple flagsets after reconciliation").Len(), 1,
@@ -1878,12 +1878,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// The broken flagset is not registered; the existing flagset keeps working.
 		_, err := manager.FlagSet("broken-key")
-		assert.Error(t, err, "a flagset whose client failed to build must not be reachable")
+		require.Error(t, err, "a flagset whose client failed to build must not be reachable")
 		_, err = manager.FlagSet("keep-key")
-		assert.NoError(t, err, "the pre-existing flagset must keep working")
+		require.NoError(t, err, "the pre-existing flagset must keep working")
 
 		all, err := manager.AllFlagSets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, all, 1)
 
 		assert.GreaterOrEqual(t,
@@ -2017,7 +2017,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 
 	// The removed flagset is no longer reachable...
 	_, err = manager.FlagSet("key-remove")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// ...and its exporter was flushed during the graceful close, so the buffered event was
 	// exported (no data loss). Close() flushes synchronously, so the call has completed here.

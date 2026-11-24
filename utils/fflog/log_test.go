@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -96,7 +97,7 @@ func TestFFLogger_Error(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -113,7 +114,7 @@ func TestFFLogger_Error(t *testing.T) {
 			}
 
 			content, err := os.ReadFile(file.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if len(string(content)) >= 21 {
 				actualWithoutTimestamp := string(content)[20:]
 				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
@@ -209,7 +210,7 @@ func TestFFLogger_Warn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -226,7 +227,7 @@ func TestFFLogger_Warn(t *testing.T) {
 			}
 
 			content, err := os.ReadFile(file.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if len(string(content)) >= 21 {
 				actualWithoutTimestamp := string(content)[20:]
 				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
@@ -322,7 +323,7 @@ func TestFFLogger_Info(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -339,7 +340,7 @@ func TestFFLogger_Info(t *testing.T) {
 			}
 
 			content, err := os.ReadFile(file.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if len(string(content)) >= 21 {
 				actualWithoutTimestamp := string(content)[20:]
 				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
@@ -436,7 +437,7 @@ func TestFFLogger_Debug(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			slog.SetLogLoggerLevel(slog.LevelDebug)
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
@@ -453,7 +454,7 @@ func TestFFLogger_Debug(t *testing.T) {
 			}
 
 			content, err := os.ReadFile(file.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if len(string(content)) >= 21 {
 				actualWithoutTimestamp := string(content)[20:]
 				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)

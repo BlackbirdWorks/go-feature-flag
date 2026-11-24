@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -110,7 +111,7 @@ func Test_evaluationContextFromRequest(t *testing.T) {
 
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
 	}

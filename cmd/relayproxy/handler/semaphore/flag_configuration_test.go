@@ -81,7 +81,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
 			e := echo.New()
@@ -89,7 +89,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -97,13 +97,13 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			c.SetPath("/v1/flag/configuration")
 
 			// Call the handler
-			assert.NoError(t, ctrl.Handler(c))
+			require.NoError(t, ctrl.Handler(c))
 
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})
@@ -200,7 +200,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
 			e := echo.New()
@@ -208,7 +208,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -225,7 +225,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			err = ctrl.Handler(c)
 
 			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
-				assert.Error(t, err, "handler should return an error for invalid API key")
+				require.Error(t, err, "handler should return an error for invalid API key")
 				he := &echo.HTTPError{}
 				ok := errors.As(err, &he)
 				if ok {
@@ -235,12 +235,12 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})

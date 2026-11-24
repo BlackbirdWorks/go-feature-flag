@@ -78,7 +78,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			for range captured {
 				select {
 				case err := <-results:
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				case <-ctx.Done():
 					t.Fatal(ctx.Err())
 				}

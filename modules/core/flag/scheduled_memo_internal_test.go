@@ -60,7 +60,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantVersion, res.GetVersion())
 			// the flag itself is never modified
-			assert.Equal(t, "", f.GetVersion())
+			assert.Empty(t, f.GetVersion())
 			assert.Equal(t, "A", f.GetDefaultRule().GetVariationResult())
 			assert.Equal(t, before, *f.Scheduled)
 		})

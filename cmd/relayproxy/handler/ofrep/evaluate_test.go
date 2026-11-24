@@ -130,7 +130,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
-			assert.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
@@ -141,7 +141,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -153,7 +153,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			handlerErr := ctrl.BulkEvaluate(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, "handler should return an error")
 				he := &echo.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
@@ -168,7 +168,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})
@@ -412,7 +412,7 @@ func Test_Evaluate(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
-			assert.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
@@ -426,7 +426,7 @@ func Test_Evaluate(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
@@ -434,7 +434,7 @@ func Test_Evaluate(t *testing.T) {
 
 			e.ServeHTTP(rec, req)
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})

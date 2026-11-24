@@ -122,13 +122,13 @@ func TestKeyAuthExtended(t *testing.T) {
 			err := handler(c)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				httpErr := &echo.HTTPError{}
 				if errors.As(err, &httpErr) {
 					assert.Equal(t, tt.expectedStatus, httpErr.Code)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 			}
 		})
@@ -239,7 +239,7 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Default KeyLookup should work with Authorization header
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
@@ -293,7 +293,7 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Custom skipper should skip authentication
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
@@ -317,7 +317,7 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Custom KeyLookup should work with query parameter
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
@@ -426,7 +426,7 @@ func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 		})
 
 		err := handler(c)
-		assert.Error(t, err)
+		require.Error(t, err)
 		httpErr := &echo.HTTPError{}
 		ok := errors.As(err, &httpErr)
 		require.True(t, ok)

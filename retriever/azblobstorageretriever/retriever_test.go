@@ -81,7 +81,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 
 			tt.retriever.ServiceURL = fmt.Sprintf("%s/%s", blobURL, azurite.AccountName)
 			err = tt.retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				err := tt.retriever.Shutdown(context.Background())
 				assert.NoError(t, err)
@@ -90,7 +90,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
 			if err == nil {
 				want, err := os.ReadFile(tt.want)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, string(want), string(got), "retrieve() got = %v, want %v", string(want), string(got))
 			}
 		})

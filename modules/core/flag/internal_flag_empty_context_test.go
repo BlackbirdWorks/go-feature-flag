@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
@@ -331,7 +332,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
 
 			if tt.shouldSucceed {
-				assert.Equal(t, "", resolutionDetails.ErrorCode, tt.description)
+				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
 				assert.Equal(t, tt.expectedReason, resolutionDetails.Reason, tt.description)
 				if tt.expectedValue != nil {
 					assert.Equal(t, tt.expectedValue, value, tt.description)
@@ -423,7 +424,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
 
 			if tt.shouldSucceed {
-				assert.Equal(t, "", resolutionDetails.ErrorCode, tt.description)
+				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
 				assert.Equal(t, tt.expectedReason, resolutionDetails.Reason, tt.description)
 				if tt.expectedValue != nil {
 					assert.Equal(t, tt.expectedValue, value, tt.description)
@@ -536,7 +537,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)
 			} else {
-				assert.NoError(t, err, tt.description)
+				require.NoError(t, err, tt.description)
 				assert.Equal(t, tt.expectedKey, key, tt.description)
 			}
 		})

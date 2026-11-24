@@ -188,7 +188,7 @@ func TestExporter_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assertMessages(t, tt.events, server.Messages())
 			assertPublisherSettings(t, tt.fields.publishSettings, e.publisher)
 			assert.Equal(t, tt.fields.enableMessageOrdering, e.publisher.EnableMessageOrdering)
@@ -216,7 +216,7 @@ func assertMessages(
 
 		var event exporter.FeatureEvent
 		err := json.Unmarshal(message.Data, &event)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		events[i] = event
 	}

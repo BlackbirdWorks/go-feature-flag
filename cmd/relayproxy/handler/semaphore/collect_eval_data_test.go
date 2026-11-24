@@ -237,13 +237,13 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			exporterFile, err := os.CreateTemp(t.TempDir(), "exporter.json")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer os.Remove(exporterFile.Name())
 
 			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
 
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
@@ -256,7 +256,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -276,18 +276,18 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			}
 			flagsetManager.Close()
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			wantCollectData, err := os.ReadFile(tt.want.collectedDataFile)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			exportedData, err := os.ReadFile(exporterFile.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// replace the timestamps in the response
 			regex := regexp.MustCompile(`\d{10}`)
 			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
 
 			// validate the result
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
 			assert.JSONEq(t, string(wantCollectData), string(exportedData), "Invalid exported data")
@@ -319,7 +319,7 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 // expected error, supporting both echo.HTTPError and plain error values.
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
-	assert.Error(t, handlerErr, "handler should return an error")
+	require.Error(t, handlerErr, "handler should return an error")
 	he := &echo.HTTPError{}
 	ok := errors.As(handlerErr, &he)
 	if !ok {
@@ -414,9 +414,9 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			evalExporter, err := os.CreateTemp(t.TempDir(), "evalExport.json")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			trackingExporter, err := os.CreateTemp(t.TempDir(), "trackExport.json")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(evalExporter.Name())
 				_ = os.Remove(trackingExporter.Name())
@@ -463,11 +463,11 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, zap.NewNop())
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			e := echo.New()
 			rec := httptest.NewRecorder()
 
@@ -479,15 +479,15 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			c := e.NewContext(req, rec)
 			c.SetPath("/v1/data/collector")
 			handlerErr := ctrl.Handler(c)
-			assert.NoError(t, handlerErr)
+			require.NoError(t, handlerErr)
 			flagsetManager.Close()
 			evalEvents, err := os.ReadFile(evalExporter.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			want := "{\"kind\":\"feature\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246000,\"key\":\"my-feature-flag\",\"variation\":\"admin-variation\",\"value\":\"string\",\"default\":false,\"version\":\"v1.0.0\",\"source\":\"PROVIDER_CACHE\",\"metadata\":{\"environment\":\"production\",\"sdkVersion\":\"v1.0.0\",\"source\":\"my-source\",\"timestamp\":1680246000}}\n"
 			assert.JSONEq(t, want, string(evalEvents), "Invalid exported data")
 			wantTracking := "{\"kind\":\"tracking\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246020,\"key\":\"my-feature-flag\",\"evaluationContext\":{\"admin\":true,\"name\":\"john doe\",\"targetingKey\":\"94a25909-20d8-40cc-8500-fee99b569345\"},\"trackingEventDetails\":{\"value\":\"string\",\"version\":\"v1.0.0\"}}\n"
 			trackingEvents, err := os.ReadFile(trackingExporter.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.JSONEq(t, wantTracking, string(trackingEvents), "Invalid exported data")
 		})
 	}

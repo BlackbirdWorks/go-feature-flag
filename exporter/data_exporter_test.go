@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -57,7 +58,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 
 	exp.Flush()
 	// flush should error and not return any event
-	assert.Equal(t, 0, len(exporterMock.GetExportedEvents()))
+	assert.Empty(t, exporterMock.GetExportedEvents())
 	logContent, _ := os.ReadFile(logFile.Name())
 	assert.Equal(t, "error\n", string(logContent))
 }
@@ -101,7 +102,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			exp.Flush()
 			// flush should error and not return any event
-			assert.Equal(t, 0, len(exporterMock.GetExportedEvents()))
+			assert.Empty(t, exporterMock.GetExportedEvents())
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -148,7 +149,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			exp.Flush()
 			// flush should error and not return any event
-			assert.Equal(t, 100, len(exporterMock.GetExportedEvents()))
+			assert.Len(t, exporterMock.GetExportedEvents(), 100)
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -186,6 +187,6 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 
 	assert.Equal(t, int32(1), slow.exportCall.Load())
 	count, err := evStore.GetPendingEventCount("slow-consumer")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 }

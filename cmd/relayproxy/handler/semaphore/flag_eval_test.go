@@ -173,7 +173,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			flagEval := controller.NewFlagEval(flagsetManager, metric.Metrics{})
 
@@ -184,7 +184,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -196,7 +196,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			handlerErr := flagEval.Handler(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, "handler should return an error")
 				he := &echo.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
@@ -210,7 +210,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			}
 
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})

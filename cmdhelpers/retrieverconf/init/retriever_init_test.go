@@ -434,7 +434,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.NotNil(t, got)
 				assert.IsType(t, &redisretriever.Retriever{}, got)
 				if tt.validateRetriever != nil {

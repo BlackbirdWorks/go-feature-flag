@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -200,7 +201,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err, "Export should not error")
+			require.NoError(t, err, "Export should not error")
 			extractedFileName := handler.r.URL.Query().Get("name")
 			assert.Regexp(t, tt.expectedName, extractedFileName)
 

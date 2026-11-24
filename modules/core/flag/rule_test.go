@@ -12,10 +12,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 )
 
-func ExpectError(target error) func(assert.TestingT, error, ...any) bool {
-	return func(t assert.TestingT, err error, msgAndArgs ...any) bool {
-		return assert.ErrorAs(t, err, &target, msgAndArgs...)
-	}
+// ExpectRuleNotApplyError asserts that the error is (or wraps) a *RuleNotApplyError.
+func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bool {
+	var target *internalerror.RuleNotApplyError
+
+	return assert.ErrorAs(t, err, &target, msgAndArgs...)
 }
 
 func TestRuleEvaluate(t *testing.T) {
@@ -646,7 +647,7 @@ func TestRuleEvaluate(t *testing.T) {
 					Build(),
 			},
 			want:    "",
-			wantErr: ExpectError(&internalerror.RuleNotApplyError{}),
+			wantErr: ExpectRuleNotApplyError,
 		},
 	}
 	for _, tt := range tests {

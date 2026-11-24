@@ -413,7 +413,7 @@ func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
 
 	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{event})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, client.executed)
 }
 
@@ -493,7 +493,7 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 
 	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, client.executed)
 }
 
@@ -571,7 +571,7 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	}
 	events := []exporter.ExportableEvent{newFeatureEvent(0)}
 
-	assert.ErrorContains(t, e.Export(context.TODO(), nil, events), "create failed")
+	require.ErrorContains(t, e.Export(context.TODO(), nil, events), "create failed")
 	require.NoError(t, e.Export(context.TODO(), nil, events))
 
 	require.Len(t, client.executed, 3)
@@ -726,16 +726,16 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 			err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
 			if len(tt.wantErr) == 0 {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			for _, want := range tt.wantErr {
-				assert.ErrorContains(t, err, want)
+				require.ErrorContains(t, err, want)
 			}
 			for _, notWant := range tt.notWantErr {
 				assert.NotContains(t, err.Error(), notWant)
 			}
 			if tt.wantErrIs != nil {
-				assert.ErrorIs(t, err, tt.wantErrIs)
+				require.ErrorIs(t, err, tt.wantErrIs)
 			}
 			if tt.wantPolls > 0 {
 				assert.Len(t, tt.client.described, tt.wantPolls)
@@ -790,7 +790,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 
 	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	// the migration has been cancelled, no insert has been sent
 	require.Len(t, client.executed, 1)
 	assert.True(t, strings.HasPrefix(client.executed[0].Sqls[0], "CREATE TABLE"))
@@ -811,7 +811,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 
 	err := e.Export(ctx, nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
-	assert.ErrorIs(t, err, context.Canceled)
+	require.ErrorIs(t, err, context.Canceled)
 	assert.Len(t, client.cancelled, 1)
 }
 
@@ -829,7 +829,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			// no database configured: an empty batch must not even validate the config
 			e := &Exporter{client: client}
 
-			assert.NoError(t, e.Export(context.TODO(), nil, tt.events))
+			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
 			assert.Empty(t, client.executed)
 		})
 	}
@@ -966,7 +966,7 @@ func TestExporter_InitClient(t *testing.T) {
 			err := e.initClient(context.TODO())
 
 			if tt.wantErr != "" {
-				assert.ErrorContains(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantErr)
 				assert.ErrorContains(t,
 					(&Exporter{AwsConfig: tt.awsConfig, ClusterIdentifier: "c", Database: "d"}).
 						Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)}),

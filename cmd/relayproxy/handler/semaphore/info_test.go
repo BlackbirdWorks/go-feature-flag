@@ -10,6 +10,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -77,7 +78,7 @@ func Test_info_Handler(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			srv := service.NewMonitoring(flagsetManager)
 			infoCtrl := controller.NewInfo(srv)
@@ -100,7 +101,7 @@ func Test_info_Handler(t *testing.T) {
 			// Parse the response JSON to check the structure
 			var response map[string]any
 			err = json.Unmarshal(rec.Body.Bytes(), &response)
-			assert.NoError(t, err, "Response should be valid JSON")
+			require.NoError(t, err, "Response should be valid JSON")
 
 			// Check that cacheRefresh field exists and is a valid timestamp
 			cacheRefreshStr, exists := response["cacheRefresh"]
@@ -108,20 +109,20 @@ func Test_info_Handler(t *testing.T) {
 
 			// Parse the timestamp string
 			cacheRefresh, err := time.Parse(time.RFC3339, cacheRefreshStr.(string))
-			assert.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
+			require.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
 			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
 
 			if tt.config.FlagSets != nil {
 				flagsets, exists := response["flagsets"]
 				assert.True(t, exists, "Response should contain flagsets field")
-				assert.Equal(t, len(tt.config.FlagSets), len(flagsets.(map[string]any)), "Number of flagsets should match")
+				assert.Len(t, flagsets.(map[string]any), len(tt.config.FlagSets), "Number of flagsets should match")
 				for _, flagset := range tt.config.FlagSets {
 					flagsetName := flagset.Name
 					flagsetRefreshDateStr, exists := flagsets.(map[string]any)[flagsetName]
 					assert.True(t, exists, "Response should contain flagset %s field", flagsetName)
 
 					flagsetRefreshDate, err := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
-					assert.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
+					require.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
 					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
 				}
 			}
@@ -149,7 +150,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		res := infoCtrl.Handler(c)
 
 		// Verify that the handler returns an error
-		assert.Error(t, res, "Handler should return an error when monitoring service fails")
+		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
 		httpError := &echo.HTTPError{}
@@ -177,7 +178,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		res := infoCtrl.Handler(c)
 
 		// Verify that the handler returns an error
-		assert.Error(t, res, "Handler should return an error when monitoring service fails")
+		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
 		httpError := &echo.HTTPError{}

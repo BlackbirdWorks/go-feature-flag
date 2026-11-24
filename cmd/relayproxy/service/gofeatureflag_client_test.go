@@ -536,7 +536,7 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 		ExporterEventType: ffclient.TrackingEventExporter,
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, ffclient.TrackingEventExporter, got.ExporterEventType)
 	bigQueryExporter, ok := got.Exporter.(*bigqueryexporter.Exporter)
 	assert.True(t, ok)
@@ -694,7 +694,7 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
@@ -752,7 +752,7 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
@@ -810,7 +810,7 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Nil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
 	)
@@ -824,7 +824,7 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		// We expect am error because the settings are nil
-		assert.Error(t, settings.Config.Validate())
+		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
 		assert.NoError(t, err)
@@ -884,14 +884,14 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		// We expect am error because the settings are nil
-		assert.Error(t, settings.Config.Validate())
+		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
 		assert.NoError(t, err)
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
 		assert.NoError(t, kafkaConfig.Config.Validate())
-		assert.Equal(t, true, settings.Config.Net.SASL.Enable)
+		assert.True(t, settings.Config.Net.SASL.Enable)
 		assert.Equal(t, "TODO", settings.Config.Net.SASL.User)
 		assert.Equal(t, "TODO", settings.Config.Net.SASL.Password)
 	})
@@ -902,7 +902,7 @@ func TestSetKafkaConfig(t *testing.T) {
 			Addresses: []string{"addr1", "addr2"},
 		}
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, kafkaConfig.Config)
 	})
 
@@ -915,7 +915,7 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// the kafka exporter is using a sarama.SyncProducer, and it refuses to start if one of those is false.
 		assert.True(t, kafkaConfig.Producer.Return.Errors)

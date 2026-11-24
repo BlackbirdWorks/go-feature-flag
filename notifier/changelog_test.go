@@ -111,7 +111,7 @@ func TestFlagChanges_error(t *testing.T) {
 	before := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	after := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	got, err := notifier.FlagChanges(before, after)
-	assert.ErrorContains(t, err, "impossible to compute flag changes")
+	require.ErrorContains(t, err, "impossible to compute flag changes")
 	assert.Nil(t, got)
 }
 

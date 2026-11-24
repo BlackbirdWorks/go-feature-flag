@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
@@ -62,9 +63,9 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 			queryCtx := &queryContext{ctx: tt.ctx}
 
 			first, err := queryCtx.jsonOnce()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			second, err := queryCtx.jsonOnce()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.JSONEq(t, tt.want, string(first))
 			assert.Same(t, &first[0], &second[0], "the JSON must be marshalled once")
@@ -79,7 +80,7 @@ func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
 
 	_, err := queryCtx.jsonOnce()
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, queryCtx.parsedEvalCtxAsBytes)
 }
 
@@ -100,7 +101,7 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			_, err := queryCtx.dataOnce()
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, queryCtx.parsedEvalCtxAsData)
 			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "first rule")
 			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "later rules must not see partial data")
@@ -140,7 +141,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 
 			_, err := tt.rule.evaluate("user-1", queryCtx, "my-flag", tt.isDefault)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantMapped, queryCtx.parsedEvalCtxAsMap != nil)
 		})
 	}

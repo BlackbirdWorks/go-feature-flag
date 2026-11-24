@@ -140,7 +140,7 @@ func TestFloat64(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.InDelta(t, tt.want, *result, 0, "Value should match input")
 		})
 	}
 }

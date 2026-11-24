@@ -12,6 +12,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -128,7 +129,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
 
@@ -139,7 +140,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -150,7 +151,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			handlerErr := ctrl.Handler(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, "handler should return an error")
 				he := &echo.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
@@ -170,7 +171,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
 
 			// validate the result
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
 		})
@@ -263,7 +264,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
 
@@ -274,7 +275,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -286,7 +287,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			handlerErr := ctrl.Handler(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
+				require.Error(t, handlerErr, "handler should return an error")
 				he := &echo.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
@@ -306,7 +307,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
 
 			// validate the result
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
 		})

@@ -7,6 +7,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -29,7 +30,7 @@ func TestVersion(t *testing.T) {
 	})
 
 	err := handler(c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.VersionHeaderName))
 	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.LegacyVersionHeaderName))
 	assert.Equal(t, "1.0.0", rec.Header().Get("X-Semaphore-Version"))
@@ -57,7 +58,7 @@ func TestNoVersion(t *testing.T) {
 	})
 
 	err := handler(c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, rec.Header().Get("X-Gofeatureflag-Version"))
 	assert.Empty(t, rec.Header().Get("X-Semaphore-Version"))
 }

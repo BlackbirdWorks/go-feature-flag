@@ -190,7 +190,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			multi.Retrievers = &[]retrieverconf.RetrieverConf{*multi.Retriever}
 			for _, fs := range []config.FlagSet{folder, other, multi} {
 				_, err := reg.retrieverFor(&fs)
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 			assert.Equal(t, 0, reg.groupCount())
 		}},
@@ -198,7 +198,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
-			assert.ErrorContains(t, err, "no AWS")
+			require.ErrorContains(t, err, "no AWS")
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 		{name: "concurrent callers build the group once", run: func(t *testing.T) {
@@ -268,13 +268,13 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 		{name: "invalid configuration", run: func(t *testing.T) {
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			bad := s3FlagSet("c", "b1", "")
-			assert.Error(t, reg.preRegister(&bad))
+			require.Error(t, reg.preRegister(&bad))
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 		{name: "factory error", run: func(t *testing.T) {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
-			assert.ErrorContains(t, reg.preRegister(&fs), "no AWS")
+			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 	}

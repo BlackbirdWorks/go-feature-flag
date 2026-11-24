@@ -264,7 +264,7 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 			if tt.expected.err {
 				assert.ErrorContains(t, err, tt.expected.errMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				hostname, _ := os.Hostname()
 				content, err := os.ReadFile(tt.expected.bodyPath)
 				require.NoError(t, err)

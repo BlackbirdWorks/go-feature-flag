@@ -9,6 +9,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -63,17 +64,17 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = file.Close()
 				_ = os.Remove(file.Name())
 			}()
 
 			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			errWF := os.WriteFile(file.Name(), content, 0644)
-			assert.NoError(t, errWF)
+			require.NoError(t, errWF)
 			file.Close()
 
 			// Update the config to use the temp file
@@ -90,7 +91,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
@@ -105,17 +106,17 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			c := e.NewContext(req, rec)
 			c.SetPath("/v1/flag/change")
 			handlerErr := ctrl.Handler(c)
-			assert.NoError(t, handlerErr)
+			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(testdataDir + "/flag_change/flag_change_with_config_change.json")
 			assert.JSONEq(t, string(want), rec.Body.String())
 			assert.Equal(t, http.StatusOK, rec.Code)
 
 			content, err = os.ReadFile(testdataDir + "/config_flags_v2.yaml")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			errWF = os.WriteFile(file.Name(), content, 0644)
-			assert.NoError(t, errWF)
+			require.NoError(t, errWF)
 
 			time.Sleep(1500 * time.Millisecond)
 
@@ -123,7 +124,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			c2 := e.NewContext(req, rec2)
 			c2.SetPath("/v1/flag/change")
 			handlerErr2 := ctrl.Handler(c2)
-			assert.NoError(t, handlerErr2)
+			require.NoError(t, handlerErr2)
 			assert.NotEqual(t, want, rec2.Body.String())
 		})
 	}
@@ -173,17 +174,17 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
 			file, err := os.CreateTemp(t.TempDir(), "")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				_ = file.Close()
 				_ = os.Remove(file.Name())
 			}()
 
 			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			errWF := os.WriteFile(file.Name(), content, 0644)
-			assert.NoError(t, errWF)
+			require.NoError(t, errWF)
 			file.Close()
 
 			// Update the config to use the temp file
@@ -200,7 +201,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
@@ -215,7 +216,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			c := e.NewContext(req, rec)
 			c.SetPath("/v1/flag/change")
 			handlerErr := ctrl.Handler(c)
-			assert.NoError(t, handlerErr)
+			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
 				testdataDir + "/flag_change/flag_change_without_config_change.json",
@@ -229,7 +230,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			c2 := e.NewContext(req, rec2)
 			c2.SetPath("/v1/flag/change")
 			handlerErr2 := ctrl.Handler(c2)
-			assert.NoError(t, handlerErr2)
+			require.NoError(t, handlerErr2)
 			assert.JSONEq(t, string(want), rec2.Body.String())
 		})
 	}

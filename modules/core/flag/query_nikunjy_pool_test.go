@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
@@ -210,7 +211,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 
 			if tt.name == "repeated evaluation hits cache" {
 				got2, err2 := tt.rule.Evaluate(tt.args.key, tt.args.ctx, tt.args.flagName, tt.args.isDefault)
-				assert.NoError(t, err2)
+				require.NoError(t, err2)
 				assert.Equal(t, got, got2)
 			}
 		})
@@ -241,7 +242,7 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	wg.Wait()
 
 	for i := range goroutines {
-		assert.NoError(t, errs[i], "goroutine %d returned an error", i)
+		require.NoError(t, errs[i], "goroutine %d returned an error", i)
 		assert.Equal(t, "on", results[i], "goroutine %d returned wrong variation", i)
 	}
 }
@@ -299,7 +300,7 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 		expected := fmt.Sprintf("var-%d", i)
 		for j := range goroutinesPerQuery {
 			idx := i*goroutinesPerQuery + j
-			assert.NoError(t, results[idx].err, "query %d goroutine %d returned an error", i, j)
+			require.NoError(t, results[idx].err, "query %d goroutine %d returned an error", i, j)
 			assert.Equal(t, expected, results[idx].variation, "query %d goroutine %d returned wrong variation", i, j)
 		}
 	}
@@ -330,7 +331,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 
 	for i := range goroutines {
 		var target *internalerror.RuleNotApplyError
-		assert.ErrorAs(t, errs[i], &target, "goroutine %d should get RuleNotApplyError", i)
+		require.ErrorAs(t, errs[i], &target, "goroutine %d should get RuleNotApplyError", i)
 		assert.Empty(t, results[i], "goroutine %d should return empty variation", i)
 	}
 }
