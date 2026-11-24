@@ -17,6 +17,8 @@ type Target struct {
 	client   *http.Client
 	endpoint Endpoint
 	flagKey  string
+	h2c      bool
+	perCall  int
 }
 
 // NewTarget starts a relay proxy and returns a soak target for the endpoint.
@@ -31,19 +33,93 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 	if err != nil {
 		return nil, err
 	}
-	return &Target{
+	t := &Target{
 		relay:    r,
 		endpoint: endpoint,
 		flagKey:  flagKey,
+		h2c:      o.H2C,
+		perCall:  1,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:        workers * 2,
 				MaxIdleConnsPerHost: workers * 2,
 				IdleConnTimeout:     time.Minute,
+				Protocols:           clientProtocols(o.H2C),
 			},
 		},
-	}, nil
+	}
+	if !endpoint.EmitsEvents() {
+		if t.perCall, err = t.countFlagsPerCall(); err != nil {
+			t.Close()
+			return nil, err
+		}
+	}
+	return t, nil
+}
+
+// clientProtocols is HTTP/1.1 with keep-alive, or HTTP/2 over cleartext with prior knowledge (no HTTP/1.1
+// fallback, so a server that does not speak h2c is an error and not a silent downgrade).
+func clientProtocols(h2c bool) *http.Protocols {
+	var p http.Protocols
+	if h2c {
+		p.SetUnencryptedHTTP2(true)
+	} else {
+		p.SetHTTP1(true)
+	}
+	return &p
+}
+
+// countFlagsPerCall sends one request and counts the flags of the bulk response.
+func (t *Target) countFlagsPerCall() (int, error) {
+	req, err := t.endpoint.NewRequest(t.relay.BaseURL, t.flagKey, 0)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}
+	return countFlags(body)
+}
+
+// countFlags returns the number of flags of a bulk response: the "flags" member is an object keyed by flag
+// (all flags endpoint) or an array (OFREP bulk).
+func countFlags(body []byte) (int, error) {
+	var v struct {
+		Flags json.RawMessage `json:"flags"`
+	}
+	if err := json.Unmarshal(body, &v); err != nil {
+		return 0, fmt.Errorf("invalid bulk response: %w", err)
+	}
+	var asArray []json.RawMessage
+	if err := json.Unmarshal(v.Flags, &asArray); err == nil {
+		return max(1, len(asArray)), nil
+	}
+	var asMap map[string]json.RawMessage
+	if err := json.Unmarshal(v.Flags, &asMap); err != nil {
+		return 0, fmt.Errorf("bulk response without flags: %w", err)
+	}
+	return max(1, len(asMap)), nil
+}
+
+// FlagsPerCall implements loadtest.Weighted: the number of flags of a bulk response, 1 for a single evaluation.
+func (t *Target) FlagsPerCall() int { return t.perCall }
+
+// Protocol returns the HTTP protocol the target speaks ("HTTP/1.1" or "h2c").
+func (t *Target) Protocol() string {
+	if t.h2c {
+		return "h2c"
+	}
+	return "HTTP/1.1"
 }
 
 func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
@@ -117,6 +193,10 @@ func (t *Target) Eval(worker, i int) error {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
+	if want := 1 + btoi(t.h2c); resp.ProtoMajor != want {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return fmt.Errorf("response protocol is HTTP/%d, expected HTTP/%d", resp.ProtoMajor, want)
+	}
 	if t.endpoint != SemaphoreEval {
 		// the body is never inspected: drain it (to reuse the connection) without buffering it,
 		// a bulk response is large and would distort the memory measurements of the soak
@@ -139,4 +219,11 @@ func (t *Target) Extra() map[string]int64 {
 func (t *Target) Close() {
 	t.client.CloseIdleConnections()
 	t.relay.Close()
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }

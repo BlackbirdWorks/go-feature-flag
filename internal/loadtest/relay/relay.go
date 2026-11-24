@@ -37,6 +37,8 @@ type Options struct {
 	MaxEventInMemory int64
 	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
 	TempDir string
+	// H2C makes the relay proxy accept HTTP/2 over cleartext (server.enableH2C); only with Listen.
+	H2C bool
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
 	Listen bool
 }
@@ -79,7 +81,7 @@ func Start(opts Options) (_ *Relay, err error) {
 			Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		},
 		// the server (and its monitoring port) only listens on the loopback interface
-		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1"},
+		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", EnableH2C: opts.H2C},
 	}
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))

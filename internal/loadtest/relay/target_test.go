@@ -142,3 +142,34 @@ func TestStart_CleansUpOnFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries, "the temp dir created by Start must be removed on failure")
 }
+
+func TestTarget_ProtocolAndFlagsPerCall(t *testing.T) {
+	t.Parallel()
+	for _, h2c := range []bool{false, true} {
+		for _, ep := range relay.Endpoints {
+			name := "http1 " + string(ep)
+			wantProto := "HTTP/1.1"
+			if h2c {
+				name, wantProto = "h2c "+string(ep), "h2c"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				mode := loadtest.ExporterMode("")
+				if ep.EmitsEvents() {
+					mode = loadtest.ExporterDiscard
+				}
+				tg, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: h2c},
+					ep, "rule-bool-track", 2)
+				require.NoError(t, err)
+				defer tg.Close()
+				require.NoError(t, tg.Eval(0, 1), "the response is served with the expected protocol")
+				assert.Equal(t, wantProto, tg.Protocol())
+				if ep.EmitsEvents() {
+					assert.Equal(t, 1, tg.FlagsPerCall())
+				} else {
+					assert.Greater(t, tg.FlagsPerCall(), 1, "a bulk response evaluates every flag")
+				}
+			})
+		}
+	}
+}
