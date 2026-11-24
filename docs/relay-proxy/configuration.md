@@ -626,7 +626,7 @@ Feature Flag providers.
 ### `enableBulkMetricFlagNames`
 
 Enables per-flag metrics for bulk evaluation endpoints.
-This adds `flag_name` labels to the `all_flags_evaluations_total_with_flag` metric.
+This adds `flag_name` labels to the `all_flags_evaluations_with_flag_total` metric.
 
 > [!NOTE]
 > When enabled, this option provides more granular metrics by including the flag name in the metric labels for bulk evaluation endpoints. This can be useful for monitoring and alerting on specific flags, but may increase the cardinality of your metrics.

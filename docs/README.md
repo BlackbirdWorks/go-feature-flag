@@ -46,6 +46,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 
 ## Migration
 - [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)
+- [Prometheus metric renames](migration/metric-renames.md)
 - [Removal of `ffuser` and the `user` request field](migration/remove-ffuser.md)
 - [Removal of the package-level singleton client](migration/remove-singleton.md)
 - [JsonLogic behaviour changes (`jsonlogic` v3.11.0)](migration/jsonlogic-3-11.md)
