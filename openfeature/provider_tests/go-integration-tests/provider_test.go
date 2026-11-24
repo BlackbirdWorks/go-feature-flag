@@ -160,12 +160,7 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 			err = of.SetProviderAndWait(provider)
 			assert.NoError(t, err)
 			client := of.NewClient("test-app")
-			value, err := client.BooleanValueDetails(
-				context.TODO(),
-				tt.args.flag,
-				tt.args.defaultValue,
-				tt.args.evalCtx,
-			)
+			value, err := client.BooleanValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
 				assert.Error(t, err)
@@ -800,12 +795,7 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 			err = of.SetProviderAndWait(provider)
 			assert.NoError(t, err)
 			client := of.NewClient("test-app")
-			value, err := client.BooleanValueDetails(
-				context.TODO(),
-				"bool_targeting_match",
-				false,
-				defaultEvaluationCtx(),
-			)
+			value, err := client.BooleanValueDetails(context.TODO(), "bool_targeting_match", false, defaultEvaluationCtx())
 
 			if tt.want.ErrorCode != "" {
 				assert.Error(t, err)
@@ -894,12 +884,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 			err = of.SetProviderAndWait(provider)
 			assert.NoError(t, err)
 			client := of.NewClient("test-app")
-			value, err := client.BooleanValueDetails(
-				context.TODO(),
-				tt.args.flag,
-				tt.args.defaultValue,
-				tt.args.evalCtx,
-			)
+			value, err := client.BooleanValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
 				assert.Error(t, err)

@@ -101,75 +101,13 @@ func testProcessDifferential(t *testing.T) {
 	}
 
 	ops := []string{"eq", "==", "ne", "!=", "gt", ">", "lt", "<", "ge", ">=", "le", "<=", "co", "sw", "ew", "in", "IN"}
-	attrs := []string{
-		"i",
-		"i64",
-		"i32",
-		"f",
-		"s",
-		"b",
-		"n",
-		"v",
-		"l",
-		"m",
-		"missing",
-		"str",
-		"e",
-		"u.plan",
-		"u.age",
-		"u.n",
-		"u.deep.x",
-		"u.deep.s",
-		"u.deep.o.z",
-		"u.missing.y",
-		"missing.a.b",
-		"u2.a",
-		"i.x",
-		"nilmap.a",
-		"nm.a",
-		"st",
-		"f32",
-		"esc",
-		"uni",
-		"r.r.r.r.r.z",
-		"r.r.r.r.r.r.n.x",
-	}
+	attrs := []string{"i", "i64", "i32", "f", "s", "b", "n", "v", "l", "m", "missing", "str", "e", "u.plan", "u.age", "u.n", "u.deep.x", "u.deep.s", "u.deep.o.z", "u.missing.y", "missing.a.b", "u2.a", "i.x", "nilmap.a", "nm.a", "st", "f32", "esc", "uni", "r.r.r.r.r.z", "r.r.r.r.r.r.n.x"}
 	values := []string{
-		`1`,
-		`-3`,
-		`5`,
-		`0`,
-		`1e3`,
-		`-2E+1`,
-		`2E+1`,
-		`"a\"b"`,
-		`"\u0041"`,
-		`"\\"`,
-		`2.5`,
-		`-0.5`,
-		`1.0e2`,
-		`"hello"`,
-		`"HELLO"`,
-		`""`,
-		`"1.2.4"`,
-		`1.2.3`,
-		`0.0.1`,
-		`true`,
-		`false`,
-		`null`,
-		`[1, 2, 3]`,
-		`[5]`,
-		`[1.5, 2.5]`,
-		`[2.5]`,
-		`["a", "hello"]`,
-		`["x"]`,
-		`99999999999999999999`,
-		`[1, 99999999999999999999]`,
-		`[99999999999999999999, 2]`,
-		`1e999`,
-		`1.5e999`,
-		`[1.5, 1.5e999]`,
-		`[1.5e999]`,
+		`1`, `-3`, `5`, `0`, `1e3`, `-2E+1`, `2E+1`, `"a\"b"`, `"\u0041"`, `"\\"`, `2.5`, `-0.5`, `1.0e2`, `"hello"`, `"HELLO"`, `""`, `"1.2.4"`, `1.2.3`, `0.0.1`,
+		`true`, `false`, `null`,
+		`[1, 2, 3]`, `[5]`, `[1.5, 2.5]`, `[2.5]`, `["a", "hello"]`, `["x"]`,
+		`99999999999999999999`, `[1, 99999999999999999999]`, `[99999999999999999999, 2]`,
+		`1e999`, `1.5e999`, `[1.5, 1.5e999]`, `[1.5e999]`,
 	}
 
 	type group struct {
@@ -298,10 +236,7 @@ func testProcessDifferential(t *testing.T) {
 		if end > len(randRules) {
 			end = len(randRules)
 		}
-		groups = append(
-			groups,
-			group{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs},
-		)
+		groups = append(groups, group{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs})
 	}
 
 	for _, tt := range groups {
@@ -329,14 +264,7 @@ func testProcessDifferential(t *testing.T) {
 							t.Errorf("%q input %d (%s): result: got %v, want %v", rule, i, name, gotRet, wantRet)
 						}
 						if errString(gotErr) != errString(wantErr) {
-							t.Errorf(
-								"%q input %d (%s): err: got %q, want %q",
-								rule,
-								i,
-								name,
-								errString(gotErr),
-								errString(wantErr),
-							)
+							t.Errorf("%q input %d (%s): err: got %q, want %q", rule, i, name, errString(gotErr), errString(wantErr))
 						}
 						if got, want := errString(ev.LastDebugErr()), errString(wantDebug); got != want {
 							t.Errorf("%q input %d (%s): debug err: got %q, want %q", rule, i, name, got, want)
@@ -614,12 +542,7 @@ func testProcessConcurrent(t *testing.T) {
 		want  bool
 	}{
 		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": 2}, want: true},
-		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}},
-			want:  true,
-		},
+		{name: "nested", rule: `u.plan eq "pro" and u.age gt 18`, items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}}, want: true},
 		{name: "debug err", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": "s"}},
 	}
 	for _, tt := range tests {
@@ -659,28 +582,9 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 		// wantListTypeObj: the error's typeObj also holds the rule list
 		wantListTypeObj bool
 	}{
-		{
-			name:  "ints",
-			rule:  `x eq [1, 2]`,
-			items: map[string]interface{}{"x": 1},
-			mut:   func(v interface{}) { v.([]int)[0] = 99 },
-			want:  []int{1, 2},
-		},
-		{
-			name:  "floats",
-			rule:  `x eq [1.5, 2.5]`,
-			items: map[string]interface{}{"x": 1.0},
-			mut:   func(v interface{}) { v.([]float64)[0] = 99 },
-			want:  []float64{1.5, 2.5},
-		},
-		{
-			name:            "strings",
-			rule:            `x eq ["a", "b"]`,
-			items:           map[string]interface{}{"x": "a"},
-			mut:             func(v interface{}) { v.([]string)[0] = "zzz" },
-			want:            []string{"a", "b"},
-			wantListTypeObj: true,
-		},
+		{name: "ints", rule: `x eq [1, 2]`, items: map[string]interface{}{"x": 1}, mut: func(v interface{}) { v.([]int)[0] = 99 }, want: []int{1, 2}},
+		{name: "floats", rule: `x eq [1.5, 2.5]`, items: map[string]interface{}{"x": 1.0}, mut: func(v interface{}) { v.([]float64)[0] = 99 }, want: []float64{1.5, 2.5}},
+		{name: "strings", rule: `x eq ["a", "b"]`, items: map[string]interface{}{"x": "a"}, mut: func(v interface{}) { v.([]string)[0] = "zzz" }, want: []string{"a", "b"}, wantListTypeObj: true},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -733,12 +637,7 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 		want  bool
 	}{
 		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": 2}, want: true},
-		{
-			name:  "nested",
-			rule:  `u.plan eq "pro" and u.age gt 18`,
-			items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}},
-			want:  true,
-		},
+		{name: "nested", rule: `u.plan eq "pro" and u.age gt 18`, items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}}, want: true},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -789,18 +688,8 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 			ev := &Evaluator{tree: tt.tree}
 			for call := 0; call < 2; call++ {
 				gotRet, gotErr := ev.Process(tt.items)
-				if gotRet != wantRet || errString(gotErr) != errString(wantErr) ||
-					errString(ev.LastDebugErr()) != errString(wantDebug) {
-					t.Errorf(
-						"call %d: got (%v, %q, %q), want (%v, %q, %q)",
-						call,
-						gotRet,
-						errString(gotErr),
-						errString(ev.LastDebugErr()),
-						wantRet,
-						errString(wantErr),
-						errString(wantDebug),
-					)
+				if gotRet != wantRet || errString(gotErr) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
+					t.Errorf("call %d: got (%v, %q, %q), want (%v, %q, %q)", call, gotRet, errString(gotErr), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
 				}
 			}
 			if ev.root != nil || ev.tree == nil {
@@ -968,9 +857,7 @@ func TestParsePlainVersion(t *testing.T) {
 			t.Errorf("%q: accepted, semver.Make error %v", in, err)
 			continue
 		}
-		if len(want.Pre) != 0 || got.Major != want.Major || got.Minor != want.Minor || got.Patch != want.Patch ||
-			got.Pre != nil ||
-			got.Build != nil {
+		if len(want.Pre) != 0 || got.Major != want.Major || got.Minor != want.Minor || got.Patch != want.Patch || got.Pre != nil || got.Build != nil {
 			t.Errorf("%q: got %+v, semver.Make %+v", in, got, want)
 		}
 	}
@@ -1022,21 +909,9 @@ func testProcessConcurrentStaleList(t *testing.T) {
 		rule  string
 		items map[string]interface{}
 	}{
-		{
-			name:  "ints",
-			rule:  `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`,
-			items: map[string]interface{}{"a": 1, "b": 2, "c": 6},
-		},
-		{
-			name:  "floats",
-			rule:  `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`,
-			items: map[string]interface{}{"a": 1, "b": 2.5, "c": 4.5},
-		},
-		{
-			name:  "strings",
-			rule:  `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`,
-			items: map[string]interface{}{"a": 1, "b": "y", "c": "w"},
-		},
+		{name: "ints", rule: `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`, items: map[string]interface{}{"a": 1, "b": 2, "c": 6}},
+		{name: "floats", rule: `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`, items: map[string]interface{}{"a": 1, "b": 2.5, "c": 4.5}},
+		{name: "strings", rule: `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`, items: map[string]interface{}{"a": 1, "b": "y", "c": "w"}},
 	}
 	for _, tt := range tests {
 		tt := tt

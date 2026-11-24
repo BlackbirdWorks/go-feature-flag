@@ -38,25 +38,7 @@ func seqInts(n int) string {
 }
 
 func randStrList(r *rand.Rand, n int) string {
-	pool := []string{
-		"a",
-		"A",
-		"u1",
-		"U1",
-		"",
-		"ß",
-		"é",
-		"é",
-		"1.2.3",
-		"5",
-		"true",
-		"null",
-		"x y",
-		`q\"q`,
-		"日本",
-		"İ",
-		"i",
-	}
+	pool := []string{"a", "A", "u1", "U1", "", "ß", "é", "é", "1.2.3", "5", "true", "null", "x y", `q\"q`, "日本", "İ", "i"}
 	parts := make([]string, n)
 	for i := range parts {
 		s := fmt.Sprintf("u%d", r.Intn(n*2+1))
@@ -161,18 +143,9 @@ func TestInSet(t *testing.T) {
 				if got != tc.want {
 					t.Fatalf("pass %d: got %v, want %v (err %v)", pass, got, tc.want, err)
 				}
-				if got != wantRet || errString(err) != errString(wantErr) ||
-					errString(ev.LastDebugErr()) != errString(wantDebug) {
-					t.Fatalf(
-						"pass %d: got %v/%q/%q, visitor %v/%q/%q",
-						pass,
-						got,
-						errString(err),
-						errString(ev.LastDebugErr()),
-						wantRet,
-						errString(wantErr),
-						errString(wantDebug),
-					)
+				if got != wantRet || errString(err) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
+					t.Fatalf("pass %d: got %v/%q/%q, visitor %v/%q/%q", pass,
+						got, errString(err), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
 				}
 			}
 			if hasSet := countSets(ev.root) > 0; hasSet != tc.wantSet {
@@ -204,15 +177,7 @@ func TestInSetThreshold(t *testing.T) {
 				var rule string
 				var first, last, miss interface{}
 				if kind == "string" {
-					rule, first, last, miss = "x in "+seqStrs(
-						tc.n,
-					), "u0", fmt.Sprintf(
-						"u%d",
-						tc.n-1,
-					), fmt.Sprintf(
-						"u%d",
-						tc.n,
-					)
+					rule, first, last, miss = "x in "+seqStrs(tc.n), "u0", fmt.Sprintf("u%d", tc.n-1), fmt.Sprintf("u%d", tc.n)
 				} else {
 					rule, first, last, miss = "x in "+seqInts(tc.n), 0, tc.n-1, tc.n
 				}
@@ -242,50 +207,9 @@ func TestInSetThreshold(t *testing.T) {
 // errors and debug errors must be identical.
 func TestInSetDifferential(t *testing.T) {
 	t.Parallel()
-	vals := []interface{}{
-		"u1",
-		"U1",
-		"u3",
-		"a",
-		"A",
-		"",
-		"é",
-		"é",
-		"ß",
-		"SS",
-		"5",
-		"1.2.3",
-		"null",
-		"i",
-		"İ",
-		"日本",
-		0,
-		1,
-		3,
-		-1,
-		5,
-		15,
-		int64(3),
-		int32(3),
-		uint(3),
-		3.0,
-		2.0,
-		0.0,
-		math.Copysign(0, -1),
-		math.NaN(),
-		math.Inf(1),
-		float32(3),
-		true,
-		false,
-		nil,
-		[]string{"u1"},
-		[]int{3},
-		kv{"a": 1},
-		testStringer{"u1"},
-		testStringer{"U1"},
-		fmt.Stringer(nil),
-		"\xff",
-	}
+	vals := []interface{}{"u1", "U1", "u3", "a", "A", "", "é", "é", "ß", "SS", "5", "1.2.3", "null", "i", "İ", "日本",
+		0, 1, 3, -1, 5, 15, int64(3), int32(3), uint(3), 3.0, 2.0, 0.0, math.Copysign(0, -1), math.NaN(), math.Inf(1), float32(3),
+		true, false, nil, []string{"u1"}, []int{3}, kv{"a": 1}, testStringer{"u1"}, testStringer{"U1"}, fmt.Stringer(nil), "\xff"}
 	inputs := []kv{nil, {}}
 	for _, v := range vals {
 		inputs = append(inputs, kv{"s": v, "n": v, "u": kv{"s": v, "n": v}})
@@ -326,21 +250,9 @@ func TestInSetDifferential(t *testing.T) {
 					fresh := &Evaluator{rule: rule, tree: tree}
 					for name, ev := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
 						gotRet, gotErr := ev.Process(in)
-						if gotRet != wantRet || errString(gotErr) != errString(wantErr) ||
-							errString(ev.LastDebugErr()) != errString(wantDebug) {
-							t.Errorf(
-								"%.80q input %d %v (%s): got %v/%q/%q want %v/%q/%q",
-								rule,
-								i,
-								in,
-								name,
-								gotRet,
-								errString(gotErr),
-								errString(ev.LastDebugErr()),
-								wantRet,
-								errString(wantErr),
-								errString(wantDebug),
-							)
+						if gotRet != wantRet || errString(gotErr) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
+							t.Errorf("%.80q input %d %v (%s): got %v/%q/%q want %v/%q/%q", rule, i, in, name,
+								gotRet, errString(gotErr), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
 						}
 					}
 				}
@@ -366,24 +278,9 @@ func TestInSetConcurrent(t *testing.T) {
 		val  func(i int) interface{}
 		want func(i int) bool
 	}{
-		{
-			"string",
-			"s in " + seqStrs(300),
-			func(i int) interface{} { return fmt.Sprintf("u%d", i%600) },
-			func(i int) bool { return i%600 < 300 },
-		},
-		{
-			"int",
-			"s in " + seqInts(300),
-			func(i int) interface{} { return i % 600 },
-			func(i int) bool { return i%600 < 300 },
-		},
-		{
-			"string not in",
-			"not (s in " + seqStrs(300) + ")",
-			func(i int) interface{} { return fmt.Sprintf("u%d", i%600) },
-			func(i int) bool { return i%600 >= 300 },
-		},
+		{"string", "s in " + seqStrs(300), func(i int) interface{} { return fmt.Sprintf("u%d", i%600) }, func(i int) bool { return i%600 < 300 }},
+		{"int", "s in " + seqInts(300), func(i int) interface{} { return i % 600 }, func(i int) bool { return i%600 < 300 }},
+		{"string not in", "not (s in " + seqStrs(300) + ")", func(i int) interface{} { return fmt.Sprintf("u%d", i%600) }, func(i int) bool { return i%600 >= 300 }},
 	}
 	for _, tc := range tests {
 		tc := tc
