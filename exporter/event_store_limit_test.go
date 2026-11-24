@@ -27,7 +27,10 @@ type droppedCounter interface{ DroppedEvents() int64 }
 
 func Test_EventStoreWithLimit(t *testing.T) {
 	t.Parallel()
-	process := func(out *[]testutils.ExportableMockEvent, err error) func(context.Context, []testutils.ExportableMockEvent) error {
+	process := func(
+		out *[]testutils.ExportableMockEvent,
+		err error,
+	) func(context.Context, []testutils.ExportableMockEvent) error {
 		return func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			if err != nil {
 				return err

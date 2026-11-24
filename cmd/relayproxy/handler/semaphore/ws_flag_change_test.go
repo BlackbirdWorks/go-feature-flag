@@ -68,7 +68,9 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
-			wantMessage: `{"added":null,"deleted":null,"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
+			wantMessage: `{"added":null,"deleted":null,"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false` +
+				`},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation` +
+				`":"B"}}}}}`,
 		},
 		{
 			name: "Update remove and add flag at the same time",
@@ -118,7 +120,10 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
-			wantMessage: `{"added":{"flag-2":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"deleted":{"flag-1":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
+			wantMessage: `{"added":{"flag-2":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"deleted` +
+				`":{"flag-1":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"updated":{"my-flag":{"old` +
+				`_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":` +
+				`true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -226,7 +231,8 @@ func broadcastUntilRegistered(
 // connection. Without synchronization gorilla/websocket panics with
 // "concurrent write to websocket connection" and crashes the relay proxy.
 // Run with -race to surface the data race if the writes are not serialized.
-// Observable outcome: no panic and no data race (race detector) while the ping loop and the broadcasts write the same connection.
+// Observable outcome: no panic and no data race (race detector) while the ping loop and the broadcasts write the same
+// connection.
 func Test_websocket_concurrent_writes(t *testing.T) {
 	t.Parallel()
 

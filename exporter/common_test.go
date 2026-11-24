@@ -237,7 +237,9 @@ func TestFormatEventInJSON(t *testing.T) {
 				Default:      false,
 				Source:       "SERVER",
 			}},
-			want:    "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":1617970547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\",\"source\":\"SERVER\"}\n",
+			want: "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":161797" +
+				"0547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\"," +
+				"\"source\":\"SERVER\"}\n",
 			wantErr: assert.NoError,
 		},
 	}

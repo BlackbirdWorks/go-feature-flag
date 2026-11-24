@@ -77,40 +77,46 @@ func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 			wantErr: `unknown exporter "flaky" (want discard | slow | failing)`,
 		},
 		{
-			name:    "slow exporter on semaphore bulk",
-			ep:      relay.SemaphoreAllFlags,
-			mode:    loadtest.ExporterSlow,
-			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "slow" would never be exercised: use semaphore-eval or ofrep-eval`,
+			name: "slow exporter on semaphore bulk",
+			ep:   relay.SemaphoreAllFlags,
+			mode: loadtest.ExporterSlow,
+			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "slow" would never be exercised: use` +
+				` semaphore-eval or ofrep-eval`,
 		},
 		{
-			name:    "failing exporter on semaphore bulk",
-			ep:      relay.SemaphoreAllFlags,
-			mode:    loadtest.ExporterFailing,
-			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "failing" would never be exercised: use semaphore-eval or ofrep-eval`,
+			name: "failing exporter on semaphore bulk",
+			ep:   relay.SemaphoreAllFlags,
+			mode: loadtest.ExporterFailing,
+			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "failing" would never be exercised: ` +
+				`use semaphore-eval or ofrep-eval`,
 		},
 		{
-			name:    "slow exporter on ofrep bulk",
-			ep:      relay.OFREPBulk,
-			mode:    loadtest.ExporterSlow,
-			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "slow" would never be exercised: use semaphore-eval or ofrep-eval`,
+			name: "slow exporter on ofrep bulk",
+			ep:   relay.OFREPBulk,
+			mode: loadtest.ExporterSlow,
+			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "slow" would never be exercised: use semapho` +
+				`re-eval or ofrep-eval`,
 		},
 		{
-			name:    "failing exporter on ofrep bulk",
-			ep:      relay.OFREPBulk,
-			mode:    loadtest.ExporterFailing,
-			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "failing" would never be exercised: use semaphore-eval or ofrep-eval`,
+			name: "failing exporter on ofrep bulk",
+			ep:   relay.OFREPBulk,
+			mode: loadtest.ExporterFailing,
+			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "failing" would never be exercised: use sema` +
+				`phore-eval or ofrep-eval`,
 		},
 		{
-			name:    "slow exporter on an untracked flag",
-			ep:      relay.SemaphoreEval,
-			mode:    loadtest.ExporterSlow,
-			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "slow" would never be exercised: choose a flag with tracking on`,
+			name: "slow exporter on an untracked flag",
+			ep:   relay.SemaphoreEval,
+			mode: loadtest.ExporterSlow,
+			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "slow" would never be exercised: choo` +
+				`se a flag with tracking on`,
 		},
 		{
-			name:    "failing exporter on an untracked flag",
-			ep:      relay.OFREPEval,
-			mode:    loadtest.ExporterFailing,
-			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "failing" would never be exercised: choose a flag with tracking on`,
+			name: "failing exporter on an untracked flag",
+			ep:   relay.OFREPEval,
+			mode: loadtest.ExporterFailing,
+			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "failing" would never be exercised: c` +
+				`hoose a flag with tracking on`,
 		},
 	}
 	for _, tt := range tests {

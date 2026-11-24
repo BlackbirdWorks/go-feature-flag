@@ -33,7 +33,9 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Cacheable:     true,
 				Metadata:      map[string]any{"key": "value"},
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT","errorCode":"GENERAL","errorDetails":"test error","value":true,"cacheable":true,"metadata":{"key":"value"}}`,
+			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
+				`","errorCode":"GENERAL","errorDetails":"test error","value":true,"cacheable":true,"metadata":{"key":"value"` +
+				`}}`,
 		},
 		{
 			name: "string variation result",
@@ -47,7 +49,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         "test-value",
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING_MATCH","errorCode":"FLAG_NOT_FOUND","value":"test-value","cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING` +
+				`_MATCH","errorCode":"FLAG_NOT_FOUND","value":"test-value","cacheable":false}`,
 		},
 		{
 			name: "int variation result",
@@ -62,7 +65,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         42,
 				Cacheable:     true,
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"disabled","failed":true,"version":"3.0.0","reason":"ERROR","errorCode":"TYPE_MISMATCH","errorDetails":"type error","value":42,"cacheable":true}`,
+			wantJSON: `{"trackEvents":true,"variationType":"disabled","failed":true,"version":"3.0.0","reason":"ERROR","er` +
+				`rorCode":"TYPE_MISMATCH","errorDetails":"type error","value":42,"cacheable":true}`,
 		},
 		{
 			name: "float64 variation result",
@@ -76,7 +80,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         3.14,
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":false,"version":"4.0.0","reason":"SPLIT","errorCode":"PARSE_ERROR","value":3.14,"cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":false,"version":"4.0.0","reason":"SPLIT"` +
+				`,"errorCode":"PARSE_ERROR","value":3.14,"cacheable":false}`,
 		},
 		{
 			name: "map variation result",
@@ -91,7 +96,9 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"5.0.0","reason":"TARGETING_MATCH_SPLIT","errorCode":"INVALID_CONTEXT","value":{"nested":"value","number":123},"cacheable":true,"metadata":{"meta":"data"}}`,
+			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"5.0.0","reason":"TARGETING_` +
+				`MATCH_SPLIT","errorCode":"INVALID_CONTEXT","value":{"nested":"value","number":123},"cacheable":true,"metada` +
+				`ta":{"meta":"data"}}`,
 		},
 		{
 			name: "slice variation result",
@@ -105,7 +112,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         []any{"item1", "item2", 123},
 				Cacheable:     true,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"disabled","failed":false,"version":"6.0.0","reason":"STATIC","errorCode":"TARGETING_KEY_MISSING","value":["item1","item2",123],"cacheable":true}`,
+			wantJSON: `{"trackEvents":false,"variationType":"disabled","failed":false,"version":"6.0.0","reason":"STATIC",` +
+				`"errorCode":"TARGETING_KEY_MISSING","value":["item1","item2",123],"cacheable":true}`,
 		},
 		{
 			name: "variation result without optional fields",
@@ -119,7 +127,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         "default",
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"","reason":"DISABLED","errorCode":"PROVIDER_NOT_READY","value":"default","cacheable":false}`,
+			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"","reason":"DISABLED","e` +
+				`rrorCode":"PROVIDER_NOT_READY","value":"default","cacheable":false}`,
 		},
 		{
 			name: "variation result with empty metadata",
@@ -134,7 +143,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Cacheable:     true,
 				Metadata:      map[string]any{},
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"1.0.0","reason":"OFFLINE","errorCode":"FLAG_CONFIG","value":false,"cacheable":true}`,
+			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"1.0.0","reason":"OFFLINE","` +
+				`errorCode":"FLAG_CONFIG","value":false,"cacheable":true}`,
 		},
 		{
 			name: "variation result with unknown reason",
@@ -148,7 +158,8 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Value:         0,
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":true,"version":"1.0.0","reason":"UNKNOWN","errorCode":"GENERAL","value":0,"cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":true,"version":"1.0.0","reason":"UNKNOWN` +
+				`","errorCode":"GENERAL","value":0,"cacheable":false}`,
 		},
 	}
 
@@ -208,7 +219,9 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Cacheable:     true,
 				Metadata:      map[string]any{"key": "value"},
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT","errorCode":"GENERAL","errorDetails":"test error","value":"test-value","cacheable":true,"metadata":{"key":"value"}}`,
+			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
+				`","errorCode":"GENERAL","errorDetails":"test error","value":"test-value","cacheable":true,"metadata":{"key"` +
+				`:"value"}}`,
 		},
 		{
 			name: "raw var result with bool value",
@@ -222,7 +235,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         true,
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING_MATCH","errorCode":"FLAG_NOT_FOUND","value":true,"cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING` +
+				`_MATCH","errorCode":"FLAG_NOT_FOUND","value":true,"cacheable":false}`,
 		},
 		{
 			name: "raw var result with int value",
@@ -237,7 +251,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         42,
 				Cacheable:     true,
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"disabled","failed":true,"version":"3.0.0","reason":"ERROR","errorCode":"TYPE_MISMATCH","errorDetails":"type error","value":42,"cacheable":true}`,
+			wantJSON: `{"trackEvents":true,"variationType":"disabled","failed":true,"version":"3.0.0","reason":"ERROR","er` +
+				`rorCode":"TYPE_MISMATCH","errorDetails":"type error","value":42,"cacheable":true}`,
 		},
 		{
 			name: "raw var result with float64 value",
@@ -251,7 +266,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         3.14,
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":false,"version":"4.0.0","reason":"SPLIT","errorCode":"PARSE_ERROR","value":3.14,"cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":false,"version":"4.0.0","reason":"SPLIT"` +
+				`,"errorCode":"PARSE_ERROR","value":3.14,"cacheable":false}`,
 		},
 		{
 			name: "raw var result with map value",
@@ -266,7 +282,9 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"5.0.0","reason":"TARGETING_MATCH_SPLIT","errorCode":"INVALID_CONTEXT","value":{"nested":"value","number":123},"cacheable":true,"metadata":{"meta":"data"}}`,
+			wantJSON: `{"trackEvents":true,"variationType":"enabled","failed":false,"version":"5.0.0","reason":"TARGETING_` +
+				`MATCH_SPLIT","errorCode":"INVALID_CONTEXT","value":{"nested":"value","number":123},"cacheable":true,"metada` +
+				`ta":{"meta":"data"}}`,
 		},
 		{
 			name: "raw var result with slice value",
@@ -280,7 +298,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         []any{"item1", "item2", 123},
 				Cacheable:     true,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"disabled","failed":false,"version":"6.0.0","reason":"STATIC","errorCode":"TARGETING_KEY_MISSING","value":["item1","item2",123],"cacheable":true}`,
+			wantJSON: `{"trackEvents":false,"variationType":"disabled","failed":false,"version":"6.0.0","reason":"STATIC",` +
+				`"errorCode":"TARGETING_KEY_MISSING","value":["item1","item2",123],"cacheable":true}`,
 		},
 		{
 			name: "raw var result without optional fields",
@@ -294,7 +313,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         "default",
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"","reason":"DISABLED","errorCode":"PROVIDER_NOT_READY","value":"default","cacheable":false}`,
+			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"","reason":"DISABLED","e` +
+				`rrorCode":"PROVIDER_NOT_READY","value":"default","cacheable":false}`,
 		},
 		{
 			name: "raw var result with nil value",
@@ -308,7 +328,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Value:         nil,
 				Cacheable:     false,
 			},
-			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":true,"version":"1.0.0","reason":"UNKNOWN","errorCode":"GENERAL","value":null,"cacheable":false}`,
+			wantJSON: `{"trackEvents":false,"variationType":"SdkDefault","failed":true,"version":"1.0.0","reason":"UNKNOWN` +
+				`","errorCode":"GENERAL","value":null,"cacheable":false}`,
 		},
 	}
 
@@ -355,8 +376,9 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "deserialize valid JSON",
-			jsonStr: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT","errorCode":"GENERAL","value":"test","cacheable":true}`,
+			name: "deserialize valid JSON",
+			jsonStr: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT"` +
+				`,"errorCode":"GENERAL","value":"test","cacheable":true}`,
 			want: model.VariationResult[string]{
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
@@ -370,8 +392,9 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "deserialize JSON with metadata",
-			jsonStr: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING_MATCH","errorCode":"FLAG_NOT_FOUND","value":"value","cacheable":false,"metadata":{"key":"value"}}`,
+			name: "deserialize JSON with metadata",
+			jsonStr: `{"trackEvents":false,"variationType":"enabled","failed":false,"version":"2.0.0","reason":"TARGETING_` +
+				`MATCH","errorCode":"FLAG_NOT_FOUND","value":"value","cacheable":false,"metadata":{"key":"value"}}`,
 			want: model.VariationResult[string]{
 				TrackEvents:   false,
 				VariationType: "enabled",

@@ -378,8 +378,9 @@ func TestCmdEvaluate(t *testing.T) {
 				"--format",
 				"yaml",
 			},
-			wantErr:     assert.Error,
-			expectedErr: "impossible to init flagset retriever: cannot parse `inv4lid`: failed to parse as keyword/value (invalid keyword/value)",
+			wantErr: assert.Error,
+			expectedErr: "impossible to init flagset retriever: cannot parse `inv4lid`: failed to parse as keyword/value (" +
+				"invalid keyword/value)",
 		},
 		{
 			name: "should return RetrieverConfError with CLI-friendly message when required property is missing",

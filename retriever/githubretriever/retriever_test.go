@@ -131,7 +131,11 @@ func Test_github_Retrieve(t *testing.T) {
 				repositorySlug: "thomaspoignant/go-feature-flag",
 				filePath:       "testdata/flag-config.yaml",
 			},
-			errMsg: "request to https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config.yaml?ref=main failed with code 429. GitHub Headers: map[X-Content-Type-Options:nosniff X-Frame-Options:deny X-Github-Media-Type:github.v3; format=json X-Github-Request-Id:F82D:37B98C:232EF263:235C93BD:6650BDC6 X-Ratelimit-Limit:60 X-Ratelimit-Remaining:0 X-Ratelimit-Reset:" + strconv.FormatInt(
+			errMsg: "request to https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config." +
+				"yaml?ref=main failed with code 429. GitHub Headers: map[X-Content-Type-Options:nosniff " +
+				"X-Frame-Options:deny X-Github-Media-Type:github.v3; format=json X-Github-Request-Id:F82" +
+				"D:37B98C:232EF263:235C93BD:6650BDC6 X-Ratelimit-Limit:60 X-Ratelimit-Remaining:0 X-Rate" +
+				"limit-Reset:" + strconv.FormatInt(
 				endRatelimit.Unix(),
 				10,
 			) + " X-Ratelimit-Resource:core X-Ratelimit-Used:60 X-Xss-Protection:1; mode=block]",
@@ -259,8 +263,9 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
   defaultRule:
     variation: false_var	
 `),
-			wantErr:     false,
-			expectedURL: "https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config.yaml?ref=main",
+			wantErr: false,
+			expectedURL: "https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config.yaml?r" +
+				"ef=main",
 		},
 		{
 			name: "GitHub Enterprise with different branch",

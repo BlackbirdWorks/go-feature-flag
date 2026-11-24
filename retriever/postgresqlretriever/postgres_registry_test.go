@@ -23,9 +23,10 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 			wantErr: "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)",
 		},
 		{
-			name:    "unreachable database",
-			uri:     "postgres://user:pw@127.0.0.1:1/db?connect_timeout=1&sslmode=disable",
-			wantErr: "failed to connect to `user=user database=db`: 127.0.0.1:1 (127.0.0.1): dial error: dial tcp 127.0.0.1:1: connect: connection refused",
+			name: "unreachable database",
+			uri:  "postgres://user:pw@127.0.0.1:1/db?connect_timeout=1&sslmode=disable",
+			wantErr: "failed to connect to `user=user database=db`: 127.0.0.1:1 (127.0.0.1): dial error: dial tcp 127.0.0." +
+				"1:1: connect: connection refused",
 		},
 	}
 	for _, tt := range tests {

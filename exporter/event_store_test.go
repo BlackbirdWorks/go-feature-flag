@@ -185,7 +185,11 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
 	var countersMu sync.Mutex
-	consumeFunc := func(eventStore exporter.EventStore[testutils.ExportableMockEvent], consumerName string, eventCounters *map[string]int) {
+	consumeFunc := func(
+		eventStore exporter.EventStore[testutils.ExportableMockEvent],
+		consumerName string,
+		eventCounters *map[string]int,
+	) {
 		defer wg.Done()
 		err := eventStore.ProcessPendingEvents(consumerName,
 			func(_ context.Context, events []testutils.ExportableMockEvent) error {

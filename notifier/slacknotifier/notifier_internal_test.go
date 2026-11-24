@@ -174,8 +174,9 @@ func TestSlackNotifier_Notify(t *testing.T) {
 		{
 			name: "missing slack url",
 			expected: expected{
-				err:    true,
-				errMsg: "error: (Slack Notifier) invalid notifier configuration, no SlackWebhookURL provided for the slack notifier",
+				err: true,
+				errMsg: "error: (Slack Notifier) invalid notifier configuration, no SlackWebhookURL provided for the slack no" +
+					"tifier",
 			},
 			args: args{
 				statusCode: http.StatusOK,

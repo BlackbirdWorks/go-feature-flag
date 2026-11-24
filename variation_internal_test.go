@@ -1601,9 +1601,10 @@ func TestJSONArrayVariation(t *testing.T) {
 					&flag.InternalFlag{},
 					errImpossibleToReadThe),
 			},
-			want:        []any{"toto"},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[toto\\]\"\n",
+			want:    []any{"toto"},
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[to" +
+				"to\\]\"\n",
 		},
 		{
 			name: "Get default value with key not exist",
@@ -1616,9 +1617,10 @@ func TestJSONArrayVariation(t *testing.T) {
 					errFlagKeyNotExist,
 				),
 			},
-			want:        []any{"toto"},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[toto\\]\"\n",
+			want:    []any{"toto"},
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[to" +
+				"to\\]\"\n",
 		},
 		{
 			name: "Get default value, rule not apply",
@@ -1737,9 +1739,10 @@ func TestJSONArrayVariation(t *testing.T) {
 					},
 				}, nil),
 			},
-			want:        []any{"toto"},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[toto\\]\"\n",
+			want:    []any{"toto"},
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
+				"toto\\]\"\n",
 		},
 		{
 			name: "No exported log",
@@ -1913,8 +1916,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					&flag.InternalFlag{},
 					errImpossibleToReadThe),
 			},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[toto\\]\"\n",
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[to" +
+				"to\\]\"\n",
 		},
 		{
 			name: "Get default value with key not exist",
@@ -1927,8 +1931,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					errFlagKeyNotExist,
 				),
 			},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[toto\\]\"\n",
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[to" +
+				"to\\]\"\n",
 		},
 		{
 			name: "Get default value, rule not apply",
@@ -2078,8 +2083,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				Reason:        flag.ReasonDefault,
 				Value:         []any{"toto"},
 			},
-			wantErr:     true,
-			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[toto\\]\"\n",
+			wantErr: true,
+			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
+				"toto\\]\"\n",
 		},
 		{
 			name: "Get sdk default value if offline",

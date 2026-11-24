@@ -45,7 +45,8 @@ func TestLinter_Lint(t *testing.T) {
 				InputFormat: "yaml",
 			},
 			wantErrs: []string{
-				"testdata/invalid.yaml: could not parse file (yaml): yaml: unmarshal errors:\n  line 7: cannot unmarshal !!str \u0060toto\u0060 into map[string]float64",
+				"testdata/invalid.yaml: could not parse file (yaml): yaml: unmarshal errors:\n  line 7: cannot unmarshal !!st" +
+					"r \u0060toto\u0060 into map[string]float64",
 			},
 		},
 		{

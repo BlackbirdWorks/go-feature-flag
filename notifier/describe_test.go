@@ -483,10 +483,12 @@ func TestDescribeChanges(t *testing.T) {
 				"Scheduled step on 2026-10-05 09:00 UTC: Version no longer set",
 				"Scheduled step on 2026-10-05 09:00 UTC: Variation `legacy` no longer set",
 				"Scheduled step on 2026-10-05 09:00 UTC: Variation `next` set to `\"y\"`",
-				"Scheduled step on 2026-10-05 09:00 UTC: Targeting rule `beta` now updated with variation `off`, `disable: false` (was variation `on`)",
+				"Scheduled step on 2026-10-05 09:00 UTC: Targeting rule `beta` now updated with variation `off`, `disable: fa" +
+					"lse` (was variation `on`)",
 				"Scheduled step on 2026-10-05 09:00 UTC: Default rule no longer changed",
 				"Scheduled step on 2026-10-05 09:00 UTC: Experimentation start no longer set",
-				"Scheduled step on 2026-10-05 09:00 UTC: Experimentation end changed from 2026-10-12 09:00 UTC to 2026-10-12 10:00 UTC",
+				"Scheduled step on 2026-10-05 09:00 UTC: Experimentation end changed from 2026-10-12 09:00 UTC to 2026-10-12 " +
+					"10:00 UTC",
 			},
 		},
 		{
@@ -503,7 +505,8 @@ func TestDescribeChanges(t *testing.T) {
 				}
 			},
 			want: []string{
-				"Scheduled step on 2026-10-05 09:00 UTC: Default rule now updated with a progressive rollout from 10% to an unset step (was nothing)",
+				"Scheduled step on 2026-10-05 09:00 UTC: Default rule now updated with a progressive rollout from 10% to an u" +
+					"nset step (was nothing)",
 			},
 		},
 		{
@@ -515,7 +518,8 @@ func TestDescribeChanges(t *testing.T) {
 				}}
 			},
 			want: []string{
-				"Scheduled step #1 added: Default rule updated with nothing; Scheduled rollout changed (not applied by scheduled steps)",
+				"Scheduled step #1 added: Default rule updated with nothing; Scheduled rollout changed (not applied by schedu" +
+					"led steps)",
 			},
 		},
 		{

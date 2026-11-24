@@ -12,16 +12,17 @@ import (
 
 // ExporterConf contains all the field to configure an exporter.
 type ExporterConf struct {
-	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
-	TracerName              string                 `mapstructure:"tracerName"              koanf:"tracername"`
-	OutputDir               string                 `mapstructure:"outputDir"               koanf:"outputdir"`
-	Format                  string                 `mapstructure:"format"                  koanf:"format"`
-	Filename                string                 `mapstructure:"filename"                koanf:"filename"`
-	CsvTemplate             string                 `mapstructure:"csvTemplate"             koanf:"csvtemplate"`
-	Bucket                  string                 `mapstructure:"bucket"                  koanf:"bucket"`
-	Path                    string                 `mapstructure:"path"                    koanf:"path"`
-	EndpointURL             string                 `mapstructure:"endpointUrl"             koanf:"endpointurl"`
-	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"` //nolint:gosec // G117: the field is a configuration value read from the file, it is never logged
+	Kind        ExporterKind `mapstructure:"kind"        koanf:"kind"`
+	TracerName  string       `mapstructure:"tracerName"  koanf:"tracername"`
+	OutputDir   string       `mapstructure:"outputDir"   koanf:"outputdir"`
+	Format      string       `mapstructure:"format"      koanf:"format"`
+	Filename    string       `mapstructure:"filename"    koanf:"filename"`
+	CsvTemplate string       `mapstructure:"csvTemplate" koanf:"csvtemplate"`
+	Bucket      string       `mapstructure:"bucket"      koanf:"bucket"`
+	Path        string       `mapstructure:"path"        koanf:"path"`
+	EndpointURL string       `mapstructure:"endpointUrl" koanf:"endpointurl"`
+	//nolint:gosec // G117: the field is a configuration value read from the file, it is never logged
+	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"`
 	Meta                    map[string]string      `mapstructure:"meta"                    koanf:"meta"`
 	LogFormat               string                 `mapstructure:"logFormat"               koanf:"logformat"`
 	FlushInterval           int64                  `mapstructure:"flushInterval"           koanf:"flushinterval"`
@@ -53,7 +54,8 @@ type ExporterConf struct {
 // errInvalidExporter is the root of the errors reported for an exporter configuration that is not valid.
 var errInvalidExporter = errors.New("invalid exporter")
 
-// invalidExporterf builds an error that wraps errInvalidExporter: its text is "invalid exporter: " + the formatted text.
+// invalidExporterf builds an error that wraps errInvalidExporter: its text is "invalid exporter: " + the formatted
+// text.
 func invalidExporterf(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", errInvalidExporter, fmt.Sprintf(format, args...))
 }

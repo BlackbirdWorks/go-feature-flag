@@ -115,8 +115,9 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			fields: retrieverconf.RetrieverConf{
 				Kind: "s3", Bucket: "testBucket", Prefix: "flags/", Pattern: "sub/*.yaml",
 			},
-			wantErr:  true,
-			errValue: "invalid retriever: invalid pattern \"sub/*.yaml\": it is matched against the file name only and can't contain \"/\" for kind \"s3\"",
+			wantErr: true,
+			errValue: "invalid retriever: invalid pattern \"sub/*.yaml\": it is matched against the file name only and can" +
+				"'t contain \"/\" for kind \"s3\"",
 		},
 		{
 			name: "kind s3 with prefix and no bucket",
@@ -556,8 +557,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 				GitHubInstallationID: 67890,
 				GitHubAppPrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...",
 			},
-			wantErr:  true,
-			errValue: `invalid retriever: token and GitHub App fields (githubAppId, githubInstallationId, githubAppPrivateKey / githubAppPrivateKeyFile) are mutually exclusive for kind "github"`,
+			wantErr: true,
+			errValue: `invalid retriever: token and GitHub App fields (githubAppId, githubInstallationId, githubAppPrivate` +
+				`Key / githubAppPrivateKeyFile) are mutually exclusive for kind "github"`,
 		},
 		{
 			name: "invalid: App fields missing AppID",

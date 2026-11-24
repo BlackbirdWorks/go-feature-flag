@@ -209,7 +209,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 				Default:  false,
 				Metadata: map[string]any{},
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":""}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -229,7 +231,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 				},
 				Default: false,
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":""}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -254,7 +258,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 					"metadata3": true,
 				},
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":"","metadata":{"metadata1":"metadata1","metadata2":24,"metadata3":true}}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":"","metadata":{"metadata1":"metadata1","metadata2":24,"metadata3":true}}`,
 			wantErr: assert.NoError,
 		},
 	}

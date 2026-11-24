@@ -183,12 +183,14 @@ func TestEndpoints_Loading(t *testing.T) {
 		{name: "unset keeps zero values (defaults are applied by the handler)", file: base},
 		{
 			name: "integers in the file",
-			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2048\n    maxYAMLBodySize: 4096\n    maxTOMLBodySize: 8192\n",
+			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2048\n    maxYAMLBodySize: 4096\n    maxTOMLB" +
+				"odySize: 8192\n",
 			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048, MaxYAMLBodySize: 4096, MaxTOMLBodySize: 8192},
 		},
 		{
 			name: "strings in the file",
-			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOMLBodySize: \"256 KiB\"\n",
+			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOM" +
+				"LBodySize: \"256 KiB\"\n",
 			want: config.ValidateFlagsEndpoint{
 				MaxJSONBodySize: 2 << 20,
 				MaxYAMLBodySize: 128 << 10,

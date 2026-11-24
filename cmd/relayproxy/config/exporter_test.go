@@ -298,8 +298,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				ClusterIdentifier: "my-cluster",
 				TableName:         "events; DROP TABLE users",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: \"tableName\" \"events; DROP TABLE users\" is not a valid table name for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: \"tableName\" \"events; DROP TABLE users\" is not a valid table name for kind \"r" +
+				"edshift\"",
 		},
 		{
 			name: "kind Redshift without database",
@@ -316,8 +317,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				Kind:     "redshift",
 				Database: "analytics",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
+				"redshift\"",
 		},
 		{
 			name: "kind Redshift with both cluster and workgroup",
@@ -327,8 +329,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				ClusterIdentifier: "my-cluster",
 				WorkgroupName:     "my-workgroup",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
+				"redshift\"",
 		},
 		{
 			name: "kind Redshift valid with cluster and dbUser",

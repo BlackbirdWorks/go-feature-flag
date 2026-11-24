@@ -134,13 +134,15 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 			roundTripper: newMockRoundTripper(http.StatusAccepted),
 			wantErr:      assert.NoError,
 			want:         "./testdata/should_call_webhook_and_have_valid_results.json",
-			webhookURL:   "https://prod-22.francecentral.logic.azure.com:443/workflows/XXXXXX/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXX",
+			webhookURL: "https://prod-22.francecentral.logic.azure.com:443/workflows/XXXXXX/triggers/manual/paths/invoke" +
+				"?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXX",
 		},
 		{
 			name:         "should err if http code is superior to 399",
 			roundTripper: newMockRoundTripper(http.StatusBadRequest),
 			wantErr:      assert.Error,
-			webhookURL:   "https://prod-22.francecentral.logic.azure.com:443/workflows/XXXXXX/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXX",
+			webhookURL: "https://prod-22.francecentral.logic.azure.com:443/workflows/XXXXXX/triggers/manual/paths/invoke" +
+				"?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXX",
 		},
 		{
 			name:         "missing microsoft teams url",
@@ -153,7 +155,8 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 			diff:         notifier.DiffCache{},
 			roundTripper: newMockRoundTripper(http.StatusAccepted),
 			wantErr:      assert.Error,
-			webhookURL:   "https://{}}/workflows/XXXXXX/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=XXX",
+			webhookURL: "https://{}}/workflows/XXXXXX/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers" +
+				"%2Fmanual%2Frun&sv=1.0&sig=XXX",
 		},
 	}
 

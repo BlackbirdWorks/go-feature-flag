@@ -33,7 +33,8 @@ func TestStartWithoutRetriever(t *testing.T) {
 	assert.EqualError(
 		t,
 		err,
-		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, impossible to get the flags",
+		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, i"+
+			"mpossible to get the flags",
 	)
 }
 
@@ -405,7 +406,8 @@ func TestInvalidConf(t *testing.T) {
 	defer gff.Close()
 	assert.Equal(
 		t,
-		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, please check your configuration: yaml: line 43: did not find expected ',' or '}'",
+		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, pl"+
+			"ease check your configuration: yaml: line 43: did not find expected ',' or '}'",
 		err.Error(),
 	)
 }

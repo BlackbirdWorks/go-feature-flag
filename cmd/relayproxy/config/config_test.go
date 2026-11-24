@@ -73,7 +73,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -106,7 +107,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -143,7 +145,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -180,7 +183,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporters: &[]config.ExporterConf{
 					{
@@ -219,7 +223,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -262,7 +267,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -290,7 +296,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -396,7 +403,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -1283,7 +1291,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1361,7 +1370,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1433,7 +1443,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1511,7 +1522,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 					},
 					{
 						Kind: "file",
@@ -1562,7 +1574,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 					},
 					{
 						Kind: "file",

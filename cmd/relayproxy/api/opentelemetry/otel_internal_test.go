@@ -26,7 +26,9 @@ var (
 	errTestError = errors.New("test error")
 )
 
-//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
+// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
+//
+//nolint:paralleltest,tparallel // see the comment above
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -64,7 +66,9 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
+// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
+//
+//nolint:paralleltest,tparallel // see the comment above
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -179,7 +183,9 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry SDK (third-party code) reads OTEL_* from the process environment
+// T.Setenv: the OpenTelemetry SDK (third-party code) reads OTEL_* from the process environment.
+//
+//nolint:paralleltest,tparallel // see the comment above
 func TestInit(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
 		svc := NewOtelService()
@@ -256,7 +262,10 @@ func TestNewPropagator(t *testing.T) {
 	assert.ElementsMatch(t, []string{"traceparent", "tracestate", "baggage"}, newPropagator().Fields())
 }
 
-//nolint:paralleltest,tparallel // Install registers the provider in the process-wide OpenTelemetry registry, which every test of the package that starts a span reads
+// Install registers the provider in the process-wide OpenTelemetry registry, which every test of the package that
+// starts a span reads.
+//
+//nolint:paralleltest,tparallel // see the comment above
 func TestInstall(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 	previous := otel.GetTracerProvider()
@@ -279,7 +288,9 @@ func TestInstall(t *testing.T) {
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
-//nolint:paralleltest,tparallel // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads
+// ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads.
+//
+//nolint:paralleltest,tparallel // see the comment above
 func TestExportEnvironment(t *testing.T) {
 	tests := []struct {
 		name         string

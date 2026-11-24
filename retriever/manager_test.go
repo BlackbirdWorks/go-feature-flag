@@ -125,7 +125,8 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				mockretriever.NewInitializableRetrieverWithFlagset("flagset"),
 			},
 			startWithRetrieverError: true,
-			expectError:             true, // Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
+			// Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
+			expectError: true,
 			expectedInitCalls: map[string]bool{
 				"standard": true,
 				"flagset":  true,
@@ -309,7 +310,8 @@ variation = "A"
 			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat: "",
 			globalFmt:  "yaml",
-			wantErr:    "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
+			wantErr: "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  lin" +
+				"e 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 
