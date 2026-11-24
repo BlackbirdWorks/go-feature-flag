@@ -51,3 +51,18 @@ updates:
       prefix: "chore"
     cooldown:
       default-days: 7
+
+  # Base images of the release and local Dockerfiles (pinned by digest)
+  - package-ecosystem: "docker"
+    directories:
+      - "/cmd/relayproxy"
+      - "/cmd/cli"
+    schedule:
+      interval: weekly
+      time: "04:00"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore"
+    cooldown:
+      default-days: 7

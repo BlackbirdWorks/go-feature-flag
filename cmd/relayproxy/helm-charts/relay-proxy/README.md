@@ -72,6 +72,12 @@ relayproxy:
 
 **Homepage:** <https://github.com/BlackbirdWorks/semaphore>
 
+## Maintainers
+
+| Name | Email | Url |
+| ---- | ------ | --- |
+| agbishop |  | <https://github.com/agbishop> |
+
 ## Source Code
 
 * <https://github.com/BlackbirdWorks/semaphore>
@@ -88,7 +94,7 @@ relayproxy:
 	<tbody>
 		<tr>
 			<td id="affinity">
-				<a href="./values.yaml#L163">affinity</a>
+				<a href="./values.yaml#L165">affinity</a>
             </td>
 			<td>
 object
@@ -106,7 +112,7 @@ object
 		</tr>
 		<tr>
 			<td id="autoscaling">
-				<a href="./values.yaml#L144">autoscaling</a>
+				<a href="./values.yaml#L146">autoscaling</a>
             </td>
 			<td>
 object
@@ -130,7 +136,7 @@ object
 		</tr>
 		<tr>
 			<td id="autoscaling--enabled">
-				<a href="./values.yaml#L146">autoscaling.enabled</a>
+				<a href="./values.yaml#L148">autoscaling.enabled</a>
             </td>
 			<td>
 bool
@@ -148,7 +154,7 @@ false
 		</tr>
 		<tr>
 			<td id="autoscaling--maxReplicas">
-				<a href="./values.yaml#L150">autoscaling.maxReplicas</a>
+				<a href="./values.yaml#L152">autoscaling.maxReplicas</a>
             </td>
 			<td>
 int
@@ -166,7 +172,7 @@ int
 		</tr>
 		<tr>
 			<td id="autoscaling--minReplicas">
-				<a href="./values.yaml#L148">autoscaling.minReplicas</a>
+				<a href="./values.yaml#L150">autoscaling.minReplicas</a>
             </td>
 			<td>
 int
@@ -184,7 +190,7 @@ int
 		</tr>
 		<tr>
 			<td id="autoscaling--targetCPUUtilizationPercentage">
-				<a href="./values.yaml#L152">autoscaling.targetCPUUtilizationPercentage</a>
+				<a href="./values.yaml#L154">autoscaling.targetCPUUtilizationPercentage</a>
             </td>
 			<td>
 int
@@ -202,7 +208,7 @@ int
 		</tr>
 		<tr>
 			<td id="autoscaling--targetMemoryUtilizationPercentage">
-				<a href="./values.yaml#L154">autoscaling.targetMemoryUtilizationPercentage</a>
+				<a href="./values.yaml#L156">autoscaling.targetMemoryUtilizationPercentage</a>
             </td>
 			<td>
 int
@@ -220,7 +226,7 @@ int
 		</tr>
 		<tr>
 			<td id="commonLabels">
-				<a href="./values.yaml#L70">commonLabels</a>
+				<a href="./values.yaml#L72">commonLabels</a>
             </td>
 			<td>
 object
@@ -238,7 +244,7 @@ object
 		</tr>
 		<tr>
 			<td id="enableServiceLinks">
-				<a href="./values.yaml#L197">enableServiceLinks</a>
+				<a href="./values.yaml#L199">enableServiceLinks</a>
             </td>
 			<td>
 bool
@@ -256,7 +262,7 @@ false
 		</tr>
 		<tr>
 			<td id="env">
-				<a href="./values.yaml#L18">env</a>
+				<a href="./values.yaml#L20">env</a>
             </td>
 			<td>
 object
@@ -274,7 +280,7 @@ object
 		</tr>
 		<tr>
 			<td id="extraManifests">
-				<a href="./values.yaml#L166">extraManifests</a>
+				<a href="./values.yaml#L168">extraManifests</a>
             </td>
 			<td>
 list
@@ -292,7 +298,7 @@ list
 		</tr>
 		<tr>
 			<td id="fullnameOverride">
-				<a href="./values.yaml#L49">fullnameOverride</a>
+				<a href="./values.yaml#L51">fullnameOverride</a>
             </td>
 			<td>
 string
@@ -310,7 +316,7 @@ string
 		</tr>
 		<tr>
 			<td id="image--fips">
-				<a href="./values.yaml#L42">image.fips</a>
+				<a href="./values.yaml#L44">image.fips</a>
             </td>
 			<td>
 bool
@@ -328,7 +334,7 @@ false
 		</tr>
 		<tr>
 			<td id="image--pullPolicy">
-				<a href="./values.yaml#L38">image.pullPolicy</a>
+				<a href="./values.yaml#L40">image.pullPolicy</a>
             </td>
 			<td>
 string
@@ -346,7 +352,7 @@ string
 		</tr>
 		<tr>
 			<td id="image--repository">
-				<a href="./values.yaml#L36">image.repository</a>
+				<a href="./values.yaml#L38">image.repository</a>
             </td>
 			<td>
 string
@@ -359,12 +365,12 @@ string
 </div>
 			</td>
 			<td>
-				The image repository to pull from. This repository does not publish images from CI: build and push your own (see docs/relay-proxy/install.md) and override this value and `image.tag` if the default is not available to you.
+				The image repository to pull from. Images are published by the release workflow (available after the first release, see docs/RELEASING.md). Until then build your own image (docs/relay-proxy/install.md) and override this value and `image.tag`.
 			</td>
 		</tr>
 		<tr>
 			<td id="image--tag">
-				<a href="./values.yaml#L40">image.tag</a>
+				<a href="./values.yaml#L42">image.tag</a>
             </td>
 			<td>
 string
@@ -382,7 +388,7 @@ string
 		</tr>
 		<tr>
 			<td id="imagePullSecrets">
-				<a href="./values.yaml#L45">imagePullSecrets</a>
+				<a href="./values.yaml#L47">imagePullSecrets</a>
             </td>
 			<td>
 list
@@ -400,7 +406,7 @@ list
 		</tr>
 		<tr>
 			<td id="ingress">
-				<a href="./values.yaml#L117">ingress</a>
+				<a href="./values.yaml#L119">ingress</a>
             </td>
 			<td>
 object
@@ -434,7 +440,7 @@ object
 		</tr>
 		<tr>
 			<td id="ingress--annotations">
-				<a href="./values.yaml#L123">ingress.annotations</a>
+				<a href="./values.yaml#L125">ingress.annotations</a>
             </td>
 			<td>
 object
@@ -452,7 +458,7 @@ object
 		</tr>
 		<tr>
 			<td id="ingress--className">
-				<a href="./values.yaml#L121">ingress.className</a>
+				<a href="./values.yaml#L123">ingress.className</a>
             </td>
 			<td>
 string
@@ -470,7 +476,7 @@ string
 		</tr>
 		<tr>
 			<td id="ingress--enabled">
-				<a href="./values.yaml#L119">ingress.enabled</a>
+				<a href="./values.yaml#L121">ingress.enabled</a>
             </td>
 			<td>
 bool
@@ -488,7 +494,7 @@ false
 		</tr>
 		<tr>
 			<td id="lifecycle">
-				<a href="./values.yaml#L101">lifecycle</a>
+				<a href="./values.yaml#L103">lifecycle</a>
             </td>
 			<td>
 object
@@ -506,7 +512,7 @@ object
 		</tr>
 		<tr>
 			<td id="nameOverride">
-				<a href="./values.yaml#L47">nameOverride</a>
+				<a href="./values.yaml#L49">nameOverride</a>
             </td>
 			<td>
 string
@@ -524,7 +530,7 @@ string
 		</tr>
 		<tr>
 			<td id="nodeSelector">
-				<a href="./values.yaml#L157">nodeSelector</a>
+				<a href="./values.yaml#L159">nodeSelector</a>
             </td>
 			<td>
 object
@@ -542,7 +548,7 @@ object
 		</tr>
 		<tr>
 			<td id="nonRoot--enabled">
-				<a href="./values.yaml#L95">nonRoot.enabled</a>
+				<a href="./values.yaml#L97">nonRoot.enabled</a>
             </td>
 			<td>
 bool
@@ -560,7 +566,7 @@ false
 		</tr>
 		<tr>
 			<td id="pdb--enable">
-				<a href="./values.yaml#L61">pdb.enable</a>
+				<a href="./values.yaml#L63">pdb.enable</a>
             </td>
 			<td>
 bool
@@ -578,7 +584,7 @@ false
 		</tr>
 		<tr>
 			<td id="pdb--maxUnavailable">
-				<a href="./values.yaml#L64">pdb.maxUnavailable</a>
+				<a href="./values.yaml#L66">pdb.maxUnavailable</a>
             </td>
 			<td>
 int or string
@@ -596,7 +602,7 @@ null
 		</tr>
 		<tr>
 			<td id="pdb--minAvailable">
-				<a href="./values.yaml#L62">pdb.minAvailable</a>
+				<a href="./values.yaml#L64">pdb.minAvailable</a>
             </td>
 			<td>
 int
@@ -614,7 +620,7 @@ int
 		</tr>
 		<tr>
 			<td id="podAnnotations">
-				<a href="./values.yaml#L67">podAnnotations</a>
+				<a href="./values.yaml#L69">podAnnotations</a>
             </td>
 			<td>
 object
@@ -632,7 +638,7 @@ object
 		</tr>
 		<tr>
 			<td id="podLabels">
-				<a href="./values.yaml#L73">podLabels</a>
+				<a href="./values.yaml#L75">podLabels</a>
             </td>
 			<td>
 object
@@ -650,7 +656,7 @@ object
 		</tr>
 		<tr>
 			<td id="podSecurityContext">
-				<a href="./values.yaml#L76">podSecurityContext</a>
+				<a href="./values.yaml#L78">podSecurityContext</a>
             </td>
 			<td>
 object
@@ -685,8 +691,26 @@ string
 			</td>
 		</tr>
 		<tr>
+			<td id="relayproxy--extraFiles">
+				<a href="./values.yaml#L18">relayproxy.extraFiles</a>
+            </td>
+			<td>
+object
+</td>
+			<td>
+				<div style="max-width: 300px;">
+<pre lang="json">
+{}
+</pre>
+</div>
+			</td>
+			<td>
+				Additional files created next to the configuration file (the ConfigMap is mounted on /semaphore), as `name: content`. Accepts templates. Use it to ship a small flag file read with a `file` retriever (`path: /semaphore/<name>`) instead of an HTTP URL.
+			</td>
+		</tr>
+		<tr>
 			<td id="replicaCount">
-				<a href="./values.yaml#L29">replicaCount</a>
+				<a href="./values.yaml#L31">replicaCount</a>
             </td>
 			<td>
 int
@@ -704,7 +728,7 @@ int
 		</tr>
 		<tr>
 			<td id="resources--requests--cpu">
-				<a href="./values.yaml#L141">resources.requests.cpu</a>
+				<a href="./values.yaml#L143">resources.requests.cpu</a>
             </td>
 			<td>
 string
@@ -722,7 +746,7 @@ string
 		</tr>
 		<tr>
 			<td id="resources--requests--memory">
-				<a href="./values.yaml#L139">resources.requests.memory</a>
+				<a href="./values.yaml#L141">resources.requests.memory</a>
             </td>
 			<td>
 string
@@ -740,7 +764,7 @@ string
 		</tr>
 		<tr>
 			<td id="securityContext">
-				<a href="./values.yaml#L80">securityContext</a>
+				<a href="./values.yaml#L82">securityContext</a>
             </td>
 			<td>
 object
@@ -758,7 +782,7 @@ object
 		</tr>
 		<tr>
 			<td id="service--port">
-				<a href="./values.yaml#L114">service.port</a>
+				<a href="./values.yaml#L116">service.port</a>
             </td>
 			<td>
 int
@@ -776,7 +800,7 @@ int
 		</tr>
 		<tr>
 			<td id="service--type">
-				<a href="./values.yaml#L112">service.type</a>
+				<a href="./values.yaml#L114">service.type</a>
             </td>
 			<td>
 string
@@ -794,7 +818,7 @@ string
 		</tr>
 		<tr>
 			<td id="serviceAccount--annotations">
-				<a href="./values.yaml#L55">serviceAccount.annotations</a>
+				<a href="./values.yaml#L57">serviceAccount.annotations</a>
             </td>
 			<td>
 object
@@ -812,7 +836,7 @@ object
 		</tr>
 		<tr>
 			<td id="serviceAccount--create">
-				<a href="./values.yaml#L53">serviceAccount.create</a>
+				<a href="./values.yaml#L55">serviceAccount.create</a>
             </td>
 			<td>
 bool
@@ -830,7 +854,7 @@ true
 		</tr>
 		<tr>
 			<td id="serviceAccount--name">
-				<a href="./values.yaml#L58">serviceAccount.name</a>
+				<a href="./values.yaml#L60">serviceAccount.name</a>
             </td>
 			<td>
 string
@@ -848,7 +872,7 @@ string
 		</tr>
 		<tr>
 			<td id="terminationGracePeriodSeconds">
-				<a href="./values.yaml#L108">terminationGracePeriodSeconds</a>
+				<a href="./values.yaml#L110">terminationGracePeriodSeconds</a>
             </td>
 			<td>
 int
@@ -866,7 +890,7 @@ null
 		</tr>
 		<tr>
 			<td id="tolerations">
-				<a href="./values.yaml#L160">tolerations</a>
+				<a href="./values.yaml#L162">tolerations</a>
             </td>
 			<td>
 list

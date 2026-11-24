@@ -14,6 +14,8 @@ relayproxy:
       kind: log
     enableSwagger: true
 #    envVariablePrefix: "SEMAPHORE_"
+  # -- Additional files created next to the configuration file (the ConfigMap is mounted on /semaphore), as `name: content`. Accepts templates. Use it to ship a small flag file read with a `file` retriever (`path: /semaphore/<name>`) instead of an HTTP URL.
+  extraFiles: {}
 # -- Environment variables to pass to the relay proxy
 env: {}
 # Examples:
@@ -30,9 +32,9 @@ replicaCount: 1
 
 image:
   # -- The image repository to pull from.
-  # This repository does not publish images from CI: build and push your own
-  # (see docs/relay-proxy/install.md) and override this value and `image.tag`
-  # if the default is not available to you.
+  # Images are published by the release workflow (available after the first release,
+  # see docs/RELEASING.md). Until then build your own image (docs/relay-proxy/install.md)
+  # and override this value and `image.tag`.
   repository: ghcr.io/blackbirdworks/semaphore
   # -- The image is pulled only if it is not already present locally
   pullPolicy: IfNotPresent

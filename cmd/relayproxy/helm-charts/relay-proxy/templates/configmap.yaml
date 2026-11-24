@@ -12,3 +12,6 @@ metadata:
     {{- end }}
 data:
   semaphore-proxy.yml: {{- toYaml (tpl .Values.relayproxy.config .) | nindent 4 }}
+  {{- range $name, $content := .Values.relayproxy.extraFiles }}
+  {{ $name }}: {{- toYaml (tpl $content $) | nindent 4 }}
+  {{- end }}

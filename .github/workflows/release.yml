@@ -1,0 +1,202 @@
+name: Release
+
+# Publishes a release of Semaphore when a version tag (v*) is pushed:
+#   - GitHub Release with the archives, checksums, SBOMs and the Helm chart package,
+#   - container images on ghcr.io/blackbirdworks/semaphore and ghcr.io/blackbirdworks/semaphore-cli,
+#   - build provenance attestations (keyless, GitHub OIDC) for the release files and the images.
+# Only the GITHUB_TOKEN is used: no other secret, no other registry, nothing is pushed to a
+# branch or to another repository.
+#
+# Manual run (workflow_dispatch) with dry_run=true (the default) builds exactly the same
+# artifacts (snapshot archives, every image variant, the chart package) and publishes NOTHING,
+# so the pipeline can be exercised before the first tag. dry_run=false is accepted only when the
+# workflow is run on a tag ref: it re-publishes that tag after a failed release run.
+# See docs/RELEASING.md.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build everything but publish nothing (false is accepted only on a tag ref)"
+        type: boolean
+        default: true
+
+permissions: {}
+
+# One release at a time; a release in progress is never cancelled.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # Version of GoReleaser (the config file uses the `version: 2` schema).
+  GORELEASER_VERSION: "~> v2"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Decides what the run does and rejects a tag that is not a release version.
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      dry-run: ${{ steps.plan.outputs.dry-run }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Decide dry run or release and validate the version
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          dry=true
+          if [[ "$EVENT_NAME" == push ]]; then
+            dry=false
+          elif [[ "$INPUT_DRY_RUN" == false ]]; then
+            [[ "$REF_TYPE" == tag ]] || { echo "::error::dry_run=false needs a tag ref: pick the tag in 'Use workflow from'"; exit 1; }
+            dry=false
+          fi
+          echo "dry-run=$dry" >> "$GITHUB_OUTPUT"
+          if [[ "$dry" == false ]]; then
+            # vMAJOR.MINOR.PATCH with an optional pre-release suffix (v0.1.0-rc.1).
+            if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::$REF_NAME is not a release version (vMAJOR.MINOR.PATCH[-prerelease])"
+              exit 1
+            fi
+            chart_app=$(sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' cmd/relayproxy/helm-charts/relay-proxy/Chart.yaml)
+            if [[ "$chart_app" != "$REF_NAME" ]]; then
+              echo "::error::Chart.yaml appVersion ($chart_app) must equal the tag ($REF_NAME): the chart's default image tag is the appVersion"
+              exit 1
+            fi
+          fi
+
+  # Dry run: the same builds as a release, with nothing published. Also builds the multi-arch
+  # image variants (they are not pushed: GoReleaser skips publishing in snapshot mode).
+  dry-run:
+    name: dry run (snapshot build, no publish)
+    needs: [plan]
+    if: needs.plan.outputs.dry-run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: $/.github/actions/setup-go
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Install syft (SBOMs)
+        uses: anchore/sbom-action/download-syft@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
+      - name: Run GoReleaser (snapshot, nothing is published)
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: ${{ env.GORELEASER_VERSION }}
+          args: release --snapshot --clean --skip=publish
+      - name: Package the Helm chart
+        run: |
+          mkdir -p release/chart
+          helm package cmd/relayproxy/helm-charts/relay-proxy --destination release/chart
+      - name: List the artifacts
+        run: |
+          ls -lh release/ release/chart
+          cat release/checksums.txt
+          docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}'
+      - name: Upload the archives for inspection
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dry-run-release
+          path: |
+            release/*.tar.gz
+            release/*.zip
+            release/*.txt
+            release/*.json
+            release/chart/
+          retention-days: 3
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: [plan]
+    if: needs.plan.outputs.dry-run == 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # One job on purpose: GoReleaser pushes the images and creates the GitHub Release.
+    permissions:
+      contents: write # create the GitHub Release and upload its files
+      packages: write # push the images to ghcr.io/blackbirdworks/*
+      id-token: write # keyless OIDC identity for the provenance attestations
+      attestations: write # store the provenance attestations
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The changelog is computed between tags.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: $/.github/actions/setup-go
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to ghcr.io
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install syft (SBOMs)
+        uses: anchore/sbom-action/download-syft@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
+      - name: Release notes
+        id: notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The history holds the commits of the project this one derives from, so with no
+          # previous release tag the generated changelog would list all of them.
+          if git describe --tags --abbrev=0 --match 'v[0-9]*' "${TAG}^" > /dev/null 2>&1; then
+            echo "args=" >> "$GITHUB_OUTPUT"
+          else
+            printf 'First release of Semaphore %s.\n\nSee the [documentation](https://github.com/BlackbirdWorks/semaphore/tree/%s/docs).\n' "$TAG" "$TAG" > "$RUNNER_TEMP/notes.md"
+            echo "args=--release-notes=$RUNNER_TEMP/notes.md" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: ${{ env.GORELEASER_VERSION }}
+          args: release --clean ${{ steps.notes.outputs.args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Attest the release files
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: release/checksums.txt
+      - name: Package the Helm chart and attach it to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p release/chart
+          helm package cmd/relayproxy/helm-charts/relay-proxy --destination release/chart
+          gh release upload "$TAG" release/chart/*.tgz --repo "$GITHUB_REPOSITORY"

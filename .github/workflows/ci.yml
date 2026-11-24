@@ -581,6 +581,111 @@ jobs:
           dotnet-version: "9.0.x"
       - run: make provider-tests
 
+  # The release configuration is exercised on every pull request so it cannot rot between
+  # releases: `goreleaser check`, then a snapshot build of every build target for the runner
+  # (regular, FIPS, CLI, lambda), which compiles the same entry points and ldflags as a
+  # release. Nothing is published; the full multi-platform snapshot and the images are built
+  # by the "Release" workflow dry run (workflow_dispatch).
+  release-check:
+    name: release (goreleaser check, snapshot build)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: $/.github/actions/setup-go
+      - name: Check the GoReleaser configuration
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+      - name: Snapshot build for this platform
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --snapshot --clean --single-target
+      - name: Check the version baked into the binary
+        run: |
+          bin=$(ls release/semaphore_linux_amd64*/semaphore)
+          go version -m "$bin" | grep -- '-X main.version='
+      - name: Check the Dockerfiles that GoReleaser does not build here
+        run: |
+          # Every release Dockerfile must drop root and keep the documented command.
+          for f in cmd/relayproxy/DockerfileGoreleaser* cmd/cli/Dockerfile; do
+            grep -q '^USER 65532:65532$' "$f" || { echo "::error file=$f::the image must run as uid 65532"; exit 1; }
+          done
+
+  # Helm chart: lint, render with the default and the smoke values, validate the manifests.
+  helm-lint:
+    name: helm (lint, template, validate)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: $/.github/actions/setup-go
+        with:
+          cache: "false"
+          download: "false"
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: v3.18.4
+      - name: Lint and render the chart
+        env:
+          CHART: cmd/relayproxy/helm-charts/relay-proxy
+        run: |
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
+          helm lint "$CHART"
+          helm lint "$CHART" -f "$CHART/ci/smoke-values.yaml"
+          helm template t "$CHART" | kubeconform -strict -summary -ignore-missing-schemas
+          helm template t "$CHART" -f "$CHART/ci/smoke-values.yaml" | kubeconform -strict -summary -ignore-missing-schemas
+
+  # Install the chart into a kind cluster with an image built from this pull request and
+  # loaded into the cluster (no relay proxy image is pulled from a registry), then check the
+  # rollout, /health and one OFREP evaluation. Closes the chart install test of issue #29.
+  chart-install:
+    name: helm (install in kind with a local image)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Build the relay proxy image from source
+        run: make build-relayproxy-docker RELAYPROXY_IMAGE=semaphore:chart-test RELAYPROXY_IMAGE_VERSION=chart-test
+      - name: Create the kind cluster
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          cluster_name: chart-testing
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+        with:
+          version: v3.18.4
+      - name: Install the chart and smoke test it
+        run: .github/ci-scripts/chart-install-test.sh semaphore:chart-test chart-testing
 
   # Single required check for branch protection. `needs` lists every job above;
   # a job skipped by the path filter counts as success, a failed or cancelled
@@ -605,6 +710,9 @@ jobs:
       - fuzz-plan
       - fuzz
       - provider-tests
+      - release-check
+      - helm-lint
+      - chart-install
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

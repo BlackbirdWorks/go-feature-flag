@@ -1,0 +1,25 @@
+# Self-contained values used by the chart install test (.github/ci-scripts/chart-install-test.sh):
+# the flags come from a file shipped in the ConfigMap, so the pod needs no network access.
+relayproxy:
+  config: |
+    server:
+      mode: http
+      port: 1031
+    pollingInterval: 1000
+    startWithRetrieverError: false
+    logLevel: info
+    retriever:
+      kind: file
+      path: /semaphore/flags.yaml
+    exporter:
+      kind: log
+  extraFiles:
+    flags.yaml: |
+      smoke-flag:
+        variations:
+          enabled: true
+          disabled: false
+        defaultRule:
+          variation: enabled
+nonRoot:
+  enabled: true
