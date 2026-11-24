@@ -203,10 +203,15 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	}
 	done := make(chan struct{})
 	var unexpected, requests atomic.Int64
-	var wg sync.WaitGroup
+	var wg, firstRequests sync.WaitGroup
+	firstRequests.Add(len(wantStatuses))
 	for key, want := range wantStatuses {
 		wg.Go(func() {
 			client := &http.Client{}
+			var once sync.Once
+			// the reloads start once every worker is sending requests (or gave up)
+			signalFirst := func() { once.Do(firstRequests.Done) }
+			defer signalFirst()
 			for {
 				select {
 				case <-done:
@@ -231,12 +236,14 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 				_, _ = io.Copy(io.Discard, resp.Body)
 				_ = resp.Body.Close()
 				requests.Add(1)
+				signalFirst()
 				if !slices.Contains(want, resp.StatusCode) {
 					unexpected.Add(1)
 				}
 			}
 		})
 	}
+	firstRequests.Wait()
 	for i := range 301 {
 		if i%2 == 0 {
 			manager.OnConfigChange(&config.Config{FlagSets: stateTwo()})

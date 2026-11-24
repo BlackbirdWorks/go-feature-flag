@@ -138,6 +138,8 @@ func Start(opts Options) (_ *Relay, err error) {
 		s := api.New(conf, r.Services, logger.ZapLogger, api.WithListener(listener))
 		r.server = &s
 		go s.StartWithContext(context.Background())
+		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
+		listener = nil
 		r.BaseURL = baseURL
 		if err := waitHealthy(baseURL); err != nil {
 			return nil, err

@@ -1284,6 +1284,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	// another test take the port in between.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	proxyConf := &config.Config{
