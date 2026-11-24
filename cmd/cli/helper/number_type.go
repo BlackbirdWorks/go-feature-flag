@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -9,7 +10,7 @@ import (
 
 func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) {
 	if variations == nil {
-		return "", fmt.Errorf("impossible to find type, no variations found")
+		return "", errors.New("impossible to find type, no variations found")
 	}
 	variationTypes := make(map[model.FlagType]any, len(variations))
 	for _, val := range variations {
@@ -60,7 +61,7 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 		}
 		return model.FlagTypeInteger, nil
 	}
-	return "", fmt.Errorf("impossible to find type")
+	return "", errors.New("impossible to find type")
 }
 
 func numberType(value any) (string, error) {

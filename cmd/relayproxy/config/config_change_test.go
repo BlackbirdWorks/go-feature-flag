@@ -492,7 +492,7 @@ func newAPIServerWithLogger(
 // doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
-	request, err := http.NewRequest("POST", url, strings.NewReader(body))
+	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
 	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
 	if check.apiKey != "" {

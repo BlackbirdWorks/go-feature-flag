@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/redis/go-redis/v9"
@@ -66,13 +67,15 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 			if err == nil {
 				flagStr := "{"
+				var flagStrSb69 strings.Builder
 				for index, file := range tt.flagsToLoad {
 					flagName, content := readFile(t, file)
-					flagStr += `"` + flagName + `":` + string(content)
+					flagStrSb69.WriteString(`"` + flagName + `":` + string(content))
 					if index < len(tt.flagsToLoad)-1 {
-						flagStr += ","
+						flagStrSb69.WriteString(",")
 					}
 				}
+				flagStr += flagStrSb69.String()
 				flagStr += "}"
 				assert.JSONEq(t, string(got), flagStr)
 			}

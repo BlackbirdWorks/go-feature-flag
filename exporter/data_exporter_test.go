@@ -2,7 +2,7 @@ package exporter_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 	"sync"
@@ -115,12 +115,12 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 	}{
 		{
 			name:        "classic exporter",
-			exporter:    &mock.Exporter{Err: fmt.Errorf("error"), ExpectedNumberErr: 1},
+			exporter:    &mock.Exporter{Err: errors.New("error"), ExpectedNumberErr: 1},
 			expectedLog: "error while exporting data: error\n",
 		},
 		{
 			name:        "deprecated exporter",
-			exporter:    &mock.ExporterDeprecated{Err: fmt.Errorf("error"), ExpectedNumberErr: 1},
+			exporter:    &mock.ExporterDeprecated{Err: errors.New("error"), ExpectedNumberErr: 1},
 			expectedLog: "error while exporting data (deprecated): error\n",
 		},
 	}

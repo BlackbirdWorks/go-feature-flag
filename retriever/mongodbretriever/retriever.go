@@ -3,7 +3,7 @@ package mongodbretriever
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -62,7 +62,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 // if a document does not comply with the specification it will be ignored
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.dbConnection == nil {
-		return nil, fmt.Errorf("database connection is not initialized")
+		return nil, errors.New("database connection is not initialized")
 	}
 
 	opt := options.CollectionOptions{}

@@ -65,7 +65,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				time.Hour, tt.limit, func(total int64) { mu.Lock(); onDropTotal = total; mu.Unlock() })
 			defer store.Stop()
 			store.AddConsumer("c")
-			for i := 0; i < tt.adds; i++ {
+			for i := range tt.adds {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 			}
 			if tt.consume {
@@ -78,7 +78,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 					assert.Len(t, out, tt.adds-int(tt.wantDropped))
 				}
 			}
-			for i := 0; i < tt.addsAfter; i++ {
+			for i := range tt.addsAfter {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
@@ -127,9 +127,9 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 			defer store.Stop()
 			store.AddConsumer("c")
 			var wg sync.WaitGroup
-			for w := 0; w < tt.workers; w++ {
+			for range tt.workers {
 				wg.Go(func() {
-					for i := 0; i < tt.perW; i++ {
+					for range tt.perW {
 						store.Add(testutils.NewExportableMockEvent("e"))
 						assert.LessOrEqual(t, store.GetTotalEventCount(), tt.limit)
 					}

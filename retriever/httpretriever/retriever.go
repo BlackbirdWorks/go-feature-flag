@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -148,7 +149,7 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 
 func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
-		return nil, fmt.Errorf("client certificate and client key must be provided together")
+		return nil, errors.New("client certificate and client key must be provided together")
 	}
 	if r.ClientCertPath == "" {
 		return nil, nil
@@ -179,7 +180,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		return nil, err
 	}
 	if !rootCAs.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to parse CA certificate")
+		return nil, errors.New("failed to parse CA certificate")
 	}
 	return rootCAs, nil
 }

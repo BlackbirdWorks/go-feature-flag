@@ -2,7 +2,7 @@ package exporter_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/rand"
 	"sync"
 	"testing"
@@ -222,7 +222,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 		consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 1000, len(events))
-			return fmt.Errorf("error")
+			return errors.New("error")
 		},
 	)
 	assert.NotNil(t, err)

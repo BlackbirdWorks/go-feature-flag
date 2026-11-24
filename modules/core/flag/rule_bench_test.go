@@ -32,7 +32,7 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 		Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
 	}
 }
@@ -56,7 +56,7 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 		Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		if i%queries == 0 {
 			b.StopTimer()
 			runtime.GC()
@@ -79,7 +79,7 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 		Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
 	}
 }
@@ -102,7 +102,7 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 		Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
 	}
 }
@@ -134,7 +134,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 	flagCtx := flag.Context{DefaultSdkValue: false}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = f.Value("multi-rule", ctx, flagCtx)
 	}
 }
@@ -168,7 +168,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 	flagCtx := flag.Context{DefaultSdkValue: false}
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = f.Value("multi-rule-jsonlogic", ctx, flagCtx)
 	}
 }

@@ -1,6 +1,7 @@
 package ffclient
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -380,7 +381,7 @@ func getVariation[T model.JSONType](
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
 			Cacheable:     false,
-		}, fmt.Errorf("semaphore is not initialised, default value is used")
+		}, errors.New("semaphore is not initialised, default value is used")
 	}
 	if g.config.Offline {
 		return model.VariationResult[T]{

@@ -102,7 +102,7 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 	useFreshNikunjyEvaluators(b)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		if i%1000 == 0 {
 			b.StopTimer()
 			nikunjyEvaluators = newNikunjyEvaluatorCache()

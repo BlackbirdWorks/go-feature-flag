@@ -1,8 +1,8 @@
 package testutils
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,5 +20,5 @@ func GetFreePort(t *testing.T) int {
 // GetFreePortAsString returns a free port on the local machine as a string.
 func GetFreePortAsString(t *testing.T) string {
 	port := GetFreePort(t)
-	return fmt.Sprintf("%d", port)
+	return strconv.Itoa(port)
 }

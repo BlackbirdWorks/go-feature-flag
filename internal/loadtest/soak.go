@@ -177,7 +177,7 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 
 	stats := make([]*workerStats, o.Workers)
 	var wg sync.WaitGroup
-	for w := 0; w < o.Workers; w++ {
+	for w := range o.Workers {
 		stats[w] = &workerStats{}
 		wg.Add(1)
 		go func(w int, st *workerStats) {

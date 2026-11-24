@@ -75,7 +75,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
-		return nil, fmt.Errorf("redis client is not initialized")
+		return nil, errors.New("redis client is not initialized")
 	}
 
 	var flagsData = make(map[string]any)

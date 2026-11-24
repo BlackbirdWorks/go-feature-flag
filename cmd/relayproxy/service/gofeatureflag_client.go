@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -93,7 +94,7 @@ func newGoFeatureFlagClient(
 ) (_ *ffclient.GoFeatureFlag, retErr error) {
 	var err error
 	if cFlagSet == nil {
-		return nil, fmt.Errorf("proxy config is empty")
+		return nil, errors.New("proxy config is empty")
 	}
 	var o clientOptions
 	for _, opt := range opts {
@@ -231,7 +232,7 @@ func initRetrieversWithRegistry(
 	retrievers := make([]retriever.Retriever, 0)
 	if proxyConf.EnableSharedPollerPerBucket {
 		if registry == nil {
-			return nil, fmt.Errorf("enableSharedPollerPerBucket requires a shared bucket registry")
+			return nil, errors.New("enableSharedPollerPerBucket requires a shared bucket registry")
 		}
 		r, err := registry.retrieverFor(proxyConf)
 		if err != nil {

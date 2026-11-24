@@ -99,7 +99,7 @@ func Test_Manager_QueueEvents(t *testing.T) {
 			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
 			total := 0
-			for b := 0; b < tt.batches; b++ {
+			for range tt.batches {
 				batch := make([]exporter.FeatureEvent, tt.batchSize)
 				am.QueueEvents(batch)
 				total += tt.batchSize

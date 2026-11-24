@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -54,7 +55,7 @@ func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) Con
 func (h *flagEval) Handler(c *echo.Context) error {
 	flagKey := helper.FlagKey(c)
 	if flagKey == "" {
-		return fmt.Errorf("impossible to find the flag key in the URL")
+		return errors.New("impossible to find the flag key in the URL")
 	}
 
 	reqBody := new(model.EvalFlagRequest)

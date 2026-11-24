@@ -3,6 +3,7 @@ package sqsexporter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -45,7 +46,7 @@ func (f *Exporter) Export(
 	}
 
 	if f.QueueURL == "" {
-		return fmt.Errorf("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+		return errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
 	}
 
 	if f.sqsService == nil {

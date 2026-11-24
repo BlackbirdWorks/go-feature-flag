@@ -3,7 +3,7 @@ package manifest
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 
@@ -18,7 +18,7 @@ import (
 
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
-		return Manifest{}, fmt.Errorf("--flag_manifest_destination is mandatory")
+		return Manifest{}, errors.New("--flag_manifest_destination is mandatory")
 	}
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,

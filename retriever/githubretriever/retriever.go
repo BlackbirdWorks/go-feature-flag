@@ -268,10 +268,10 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", err)
 	}
 	if result.Token == "" {
-		return "", time.Time{}, fmt.Errorf("github app: token response contained no token")
+		return "", time.Time{}, errors.New("github app: token response contained no token")
 	}
 	if result.ExpiresAt.IsZero() {
-		return "", time.Time{}, fmt.Errorf("github app: token response contained no expires_at")
+		return "", time.Time{}, errors.New("github app: token response contained no expires_at")
 	}
 	return result.Token, result.ExpiresAt, nil
 }
@@ -292,7 +292,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, fmt.Errorf("github app: failed to decode PEM block from private key")
+		return nil, errors.New("github app: failed to decode PEM block from private key")
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -327,10 +327,10 @@ func (r *Retriever) checkRateLimit() error {
 func (r *Retriever) buildURL(branch string) (string, error) {
 	// Validate inputs to prevent path traversal attacks
 	if strings.Contains(r.FilePath, "..") {
-		return "", fmt.Errorf("filepath must not contain '..'")
+		return "", errors.New("filepath must not contain '..'")
 	}
 	if strings.Contains(r.RepositorySlug, "..") {
-		return "", fmt.Errorf("repository slug must not contain '..'")
+		return "", errors.New("repository slug must not contain '..'")
 	}
 
 	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)

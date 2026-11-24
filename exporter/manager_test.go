@@ -122,7 +122,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 
 			// Initialize inputEvents slice
 			var inputEvents []exporter.FeatureEvent
-			for i := 0; i <= 100; i++ {
+			for range 101 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
 						AddCustom("anonymous", true).
@@ -181,7 +181,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 
 			// Initialize inputEvents slice
 			var inputEvents []exporter.FeatureEvent
-			for i := 0; i <= 100000; i++ {
+			for range 100001 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
 						AddCustom("anonymous", true).
@@ -226,7 +226,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i <= 200; i++ {
+	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))

@@ -3,7 +3,7 @@ package sqsexporter
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -25,7 +25,7 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 	params *sqs.SendMessageInput,
 	_ ...func(*sqs.Options)) (*sqs.SendMessageOutput, error) {
 	if params.QueueUrl != nil && strings.HasSuffix(*params.QueueUrl, "error") {
-		return nil, fmt.Errorf("random error")
+		return nil, errors.New("random error")
 	}
 	s.messages = append(s.messages, *params)
 	return nil, nil

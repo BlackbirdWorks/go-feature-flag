@@ -243,7 +243,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
-	req, err := http.NewRequest("POST",
+	req, err := http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -254,7 +254,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -265,7 +265,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/test-flag",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -429,7 +429,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				request, err := http.NewRequest("POST", baseURL+"/admin/v1/retriever/refresh", nil)
+				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
 				require.NoError(t, err)
 				request.Header.Add("Content-Type", "application/json")
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
@@ -751,7 +751,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test OFREP evaluate all flags endpoint
-	req, err := http.NewRequest("POST",
+	req, err := http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -763,7 +763,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (non-existent flag)
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -775,7 +775,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (existing flag)
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/test-flag",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)

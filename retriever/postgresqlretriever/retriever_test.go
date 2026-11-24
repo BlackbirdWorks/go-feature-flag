@@ -111,7 +111,6 @@ func TestPostgreSQLRetriever(t *testing.T) {
 			want, err := os.ReadFile(filepath.Join("testdata", tt.want))
 			assert.NoError(t, err)
 			assert.JSONEq(t, string(want), string(got))
-
 		})
 	}
 }

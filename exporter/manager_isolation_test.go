@@ -119,7 +119,7 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
-			for i := 0; i < tt.events; i++ {
+			for range tt.events {
 				m.AddEvent(exporter.FeatureEvent{})
 			}
 			// no Stop yet: nothing but the event count can have triggered the flushes.

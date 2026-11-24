@@ -2,6 +2,7 @@ package k8sretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,7 +34,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	if s.client == nil {
-		return nil, fmt.Errorf("k8s client is nil after initialization")
+		return nil, errors.New("k8s client is nil after initialization")
 	}
 
 	configMap, err := s.client.CoreV1().

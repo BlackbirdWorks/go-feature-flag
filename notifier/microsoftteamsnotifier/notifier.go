@@ -1,6 +1,7 @@
 package microsoftteamsnotifier
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -24,7 +25,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.MicrosoftTeamsWebhookURL == "" {
-		return fmt.Errorf("error: (Microsoft Teams Notifier) invalid notifier configuration, no " +
+		return errors.New("error: (Microsoft Teams Notifier) invalid notifier configuration, no " +
 			"MicrosoftTeamsWebhookURL provided for the microsoft teams notifier")
 	}
 	msgText := convertToMicrosoftTeamsMessage(diff)

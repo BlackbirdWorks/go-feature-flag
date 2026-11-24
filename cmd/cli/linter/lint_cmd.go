@@ -1,7 +1,7 @@
 package linter
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/spf13/cobra"
 
@@ -37,7 +37,7 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
 		output.PrintLines(cmd)
-		return fmt.Errorf("invalid Semaphore configuration")
+		return errors.New("invalid Semaphore configuration")
 	}
 
 	output.Add("Valid Semaphore configuration", helper.InfoLevel)

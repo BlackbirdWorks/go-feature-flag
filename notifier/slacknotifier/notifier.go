@@ -3,6 +3,7 @@ package slacknotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,7 +40,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.SlackWebhookURL == "" {
-		return fmt.Errorf("error: (Slack Notifier) invalid notifier configuration, no " +
+		return errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
 			"SlackWebhookURL provided for the slack notifier")
 	}
 

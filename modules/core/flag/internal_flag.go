@@ -212,7 +212,7 @@ func (f *InternalFlag) selectVariation(
 	}
 
 	if f.DefaultRule == nil {
-		return variationSelection{}, fmt.Errorf("no default targeting for the flag")
+		return variationSelection{}, errors.New("no default targeting for the flag")
 	}
 
 	variationName, err := f.GetDefaultRule().evaluate(key, queryCtx, flagName, true)
@@ -343,7 +343,7 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 // their queries cached across reloads.
 func (f *InternalFlag) IsValid() error {
 	if len(f.GetVariations()) == 0 {
-		return fmt.Errorf("no variation available")
+		return errors.New("no variation available")
 	}
 
 	// Check that all variation has the same types
@@ -360,7 +360,7 @@ func (f *InternalFlag) IsValid() error {
 				return err
 			}
 			if currentType != expectedVarType {
-				return fmt.Errorf("all variations should have the same type")
+				return errors.New("all variations should have the same type")
 			}
 		} else {
 			var err error
@@ -373,7 +373,7 @@ func (f *InternalFlag) IsValid() error {
 
 	// Validate that we have a default Rule
 	if f.GetDefaultRule() == nil {
-		return fmt.Errorf("missing default rule")
+		return errors.New("missing default rule")
 	}
 
 	// Retained before the rules are validated, so the parses made by the validation
@@ -543,7 +543,7 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 			}
 			return v, nil
 		default:
-			return "", fmt.Errorf("invalid bucketing key")
+			return "", errors.New("invalid bucketing key")
 		}
 	}
 

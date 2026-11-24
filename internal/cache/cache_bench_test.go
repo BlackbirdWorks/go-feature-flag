@@ -48,7 +48,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			_ = m.UpdateCache(flags, nil, false)
 			b.ReportAllocs()
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				if _, err := m.GetFlag("flag-5"); err != nil {
 					b.Fatal(err)
 				}

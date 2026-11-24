@@ -1,7 +1,7 @@
 package generate
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/spf13/cobra"
 
@@ -18,7 +18,7 @@ func NewGenerateCmd() *cobra.Command {
 			output := helper.Output{}
 			output.Add("you must specify a subcommand (e.g., manifest)", helper.ErrorLevel)
 			output.PrintLines(cmd)
-			return fmt.Errorf("no subcommand provided")
+			return errors.New("no subcommand provided")
 		},
 		SilenceErrors: true,
 		SilenceUsage:  true,

@@ -76,7 +76,7 @@ func benchValue(b *testing.B, flags []*flag.InternalFlag, key string) {
 	ctx := ffcontext.NewEvaluationContext(key)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		flags[i%len(flags)].Value("flag", ctx, flag.Context{})
 	}
 }
@@ -139,7 +139,7 @@ func benchReload(b *testing.B, ids int) {
 	previous := load()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		// The loader builds the flags from the file before validating them.
 		b.StopTimer()
 		next := make([]*flag.InternalFlag, 100)
@@ -175,7 +175,7 @@ func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		f.Value("flag", ctx, flag.Context{})
 	}
 }
@@ -188,7 +188,7 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContext("someone-else")
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		if i%10 == 0 {
 			b.StopTimer()
 			runtime.GC()
@@ -228,7 +228,7 @@ func benchLoad(b *testing.B, n int) {
 	queries := smallQueries(n)
 	var keep []*flag.InternalFlag
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		b.StopTimer()
 		flags := make([]*flag.InternalFlag, n)
 		for j := range flags {
@@ -262,7 +262,7 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		flags[i%len(flags)].Value("flag", ctx, flag.Context{})
 	}
 }
@@ -290,7 +290,7 @@ func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContext("user-1")
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		f.Value("flag", ctx, flag.Context{})
 	}
 }
@@ -303,7 +303,7 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		f.Value("flag", ctx, flag.Context{})
 	}
 }
@@ -318,7 +318,7 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, _ = r.Evaluate("user-1", ctx, "flag", false)
 	}
 }
@@ -341,7 +341,7 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		f.Value("flag", ctx, flag.Context{})
 	}
 }
@@ -359,7 +359,7 @@ func heapInUse() float64 {
 // change every query (heap-reloads-B).
 func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		base := heapInUse()
 		load := func(generation int) []*flag.InternalFlag {
 			flags := make([]*flag.InternalFlag, 1000)
@@ -388,7 +388,7 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 // a 20000 ids list, each reload with another list, every flag evaluated once (heap-B).
 func BenchmarkHeap_LargeListReloads(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContext("someone-else")
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		base := heapInUse()
 		var current []*flag.InternalFlag
 		for g := range 8 {

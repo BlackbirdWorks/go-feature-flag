@@ -291,7 +291,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			after := map[string]any{}
-			for i := 0; i < tt.changes; i++ {
+			for i := range tt.changes {
 				after[fmt.Sprintf("key%02d", i)] = strings.Repeat("x", tt.valueLength)
 			}
 			embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{

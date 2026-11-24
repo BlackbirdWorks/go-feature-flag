@@ -3,6 +3,7 @@ package discordnotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,9 +41,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.DiscordWebhookURL == "" {
-		return fmt.Errorf(
-			"error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided",
-		)
+		return errors.New("error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided")
 	}
 
 	// init the notifier

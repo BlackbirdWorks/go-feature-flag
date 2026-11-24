@@ -2,7 +2,7 @@ package helper_test
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/pterm/pterm"
@@ -86,7 +86,7 @@ func TestPrintFatalAndExit(t *testing.T) {
 	})
 	defer restore()
 
-	helper.PrintFatalAndExit(fmt.Errorf("boom"))
+	helper.PrintFatalAndExit(errors.New("boom"))
 
 	assert.True(t, called, "exitFunc should have been called")
 	assert.Equal(t, "ERROR: error executing command: boom\n", buf.String())

@@ -1,6 +1,7 @@
 package flag
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -29,7 +30,7 @@ func (r *Rule) validate(
 	}
 
 	if r.Percentages == nil && r.ProgressiveRollout == nil && r.VariationResult == nil {
-		return nil, fmt.Errorf("impossible to return value")
+		return nil, errors.New("impossible to return value")
 	}
 
 	ev := known
@@ -66,7 +67,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 
 	percentages := r.GetPercentages()
 	if len(percentages) == 0 {
-		return fmt.Errorf("invalid percentages: should not be empty")
+		return errors.New("invalid percentages: should not be empty")
 	}
 
 	count := float64(0)
@@ -81,7 +82,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 	}
 
 	if count == 0 {
-		return fmt.Errorf("invalid percentages: should not be equal to 0")
+		return errors.New("invalid percentages: should not be equal to 0")
 	}
 
 	// the buckets are scaled by PercentageMultiplier and stored as uint32.
@@ -111,7 +112,7 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 
 	progRollout := r.GetProgressiveRollout()
 	if progRollout.Initial == nil || progRollout.End == nil {
-		return fmt.Errorf("invalid progressive rollout, initial and end steps are required")
+		return errors.New("invalid progressive rollout, initial and end steps are required")
 	}
 
 	initialPct := progRollout.Initial.getPercentage()
@@ -183,14 +184,14 @@ func (r *Rule) validateQuery(defaultRule bool) (*parser.Evaluator, error) {
 	}
 
 	if r.Query == nil {
-		return nil, fmt.Errorf("each targeting should have a query")
+		return nil, errors.New("each targeting should have a query")
 	}
 
 	// Validate the query with the parser
 	switch r.GetQueryFormat() {
 	case JSONLogicQueryFormat:
 		if !jsonlogic.IsValid(strings.NewReader(r.GetQuery())) {
-			return nil, fmt.Errorf("invalid jsonlogic query")
+			return nil, errors.New("invalid jsonlogic query")
 		}
 		return nil, nil
 	default:

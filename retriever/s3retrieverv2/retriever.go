@@ -173,7 +173,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	defer s.mu.Unlock()
 	if s.downloader == nil {
 		s.status = retriever.RetrieverError
-		return nil, fmt.Errorf("downloader is not initialized")
+		return nil, errors.New("downloader is not initialized")
 	}
 
 	if s.mode == folderMode {

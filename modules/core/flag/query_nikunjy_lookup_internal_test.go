@@ -657,7 +657,7 @@ func TestHashNikunjyQuery(t *testing.T) {
 
 	t.Run("every length from 0 to 100 has a different hash and is stable", func(t *testing.T) {
 		seen := map[uint64]int{}
-		for n := 0; n <= 100; n++ {
+		for n := range 101 {
 			h := hashNikunjyQuery(strings.Repeat("a", n))
 			assert.Equal(t, h, hashNikunjyQuery(strings.Repeat("a", n)))
 			if other, ok := seen[h]; ok {
@@ -680,7 +680,7 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := useIndexingNikunjyEvaluators(t)
 			f := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
-			for i := 0; i < tt.validations; i++ {
+			for range tt.validations {
 				require.NoError(t, f.IsValid())
 			}
 			hashes := []uint64{(*f.Rules)[0].QueryHash, (*f.Rules)[1].QueryHash}

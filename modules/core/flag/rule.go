@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -97,13 +96,13 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	ctx := queryCtx.ctx
 	// Only require key if this rule needs bucketing
 	if key == "" && r.RequiresBucketing() {
-		return "", fmt.Errorf("evaluate Rule: no key for bucketing-required rule")
+		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
 	}
 
 	evaluationDate := DateFromContextOrDefault(ctx, time.Now())
 	// check that we have an evaluation context
 	if ctx == nil {
-		return "", fmt.Errorf("evaluate Rule: no evaluation context")
+		return "", errors.New("evaluate Rule: no evaluation context")
 	}
 
 	// Check if the rule applies for this user
@@ -116,20 +115,20 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.ProgressiveRollout != nil {
 		if key == "" {
-			return "", fmt.Errorf("progressive rollout requires a bucketing key")
+			return "", errors.New("progressive rollout requires a bucketing key")
 		}
 		return r.EvaluateProgressiveRollout(key, flagName, evaluationDate)
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
-			return "", fmt.Errorf("percentage rollout requires a bucketing key")
+			return "", errors.New("percentage rollout requires a bucketing key")
 		}
 		return r.EvaluatePercentageRollout(key, flagName)
 	}
 	if r.VariationResult != nil {
 		return r.GetVariationResult(), nil
 	}
-	return "", fmt.Errorf("error in the configuration, no variation available for this rule")
+	return "", errors.New("error in the configuration, no variation available for this rule")
 }
 
 // queryContext is the evaluation context as targeting queries read it. The map is built on
@@ -388,7 +387,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		}
 		return r.ProgressiveRollout.Initial.getVariation(), nil
 	}
-	return "", fmt.Errorf("error in the progressive rollout, missing params")
+	return "", errors.New("error in the progressive rollout, missing params")
 }
 
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
@@ -409,7 +408,7 @@ func variationFromBuckets(percentage map[string]float64, names []string, hash ui
 		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
 		return last, nil
 	}
-	return "", fmt.Errorf("impossible to find the variation")
+	return "", errors.New("impossible to find the variation")
 }
 
 // MergeRules is merging 2 rules.

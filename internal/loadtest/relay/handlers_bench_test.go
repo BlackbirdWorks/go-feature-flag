@@ -63,7 +63,7 @@ func BenchmarkHandlers(b *testing.B) {
 			h := handlers[ep]
 			b.Run(fmt.Sprintf("%s/track=%t", ep, track), func(b *testing.B) {
 				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
+				for i := range b.N {
 					invoke(b, e, h, ep, key, i)
 				}
 			})

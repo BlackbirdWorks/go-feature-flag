@@ -2,7 +2,7 @@ package stream_test
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -22,7 +22,7 @@ type mockConn struct {
 
 func (m *mockConn) WriteJSON(v any) error {
 	if m.throwError {
-		return fmt.Errorf("error websocket connection")
+		return errors.New("error websocket connection")
 	}
 	if m.writeJSONFunc != nil {
 		return m.writeJSONFunc(v)

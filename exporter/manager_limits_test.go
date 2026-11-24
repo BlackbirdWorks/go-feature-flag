@@ -58,7 +58,7 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
-			for i := 0; i < tt.events; i++ {
+			for range tt.events {
 				if tt.async {
 					m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 1))
 				} else {

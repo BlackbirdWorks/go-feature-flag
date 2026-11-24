@@ -2,6 +2,7 @@ package azblobretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -39,9 +40,7 @@ type Retriever struct {
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if r.AccountName == "" {
-		return fmt.Errorf(
-			"unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty",
-		)
+		return errors.New("unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
 	}
 
 	url := r.ServiceURL
@@ -96,7 +95,7 @@ func (r *Retriever) Status() retriever.Status {
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
 		r.status = retriever.RetrieverError
-		return nil, fmt.Errorf("client is not initialized")
+		return nil, errors.New("client is not initialized")
 	}
 
 	if r.Object == "" || r.Container == "" {

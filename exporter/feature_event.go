@@ -3,7 +3,7 @@ package exporter
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"text/template"
 	"time"
 
@@ -124,7 +124,7 @@ func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
 func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
-		return "", fmt.Errorf("no value to convert, returning empty string")
+		return "", errors.New("no value to convert, returning empty string")
 	}
 	b, err := json.Marshal(f.Value)
 	if err != nil {

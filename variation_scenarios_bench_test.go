@@ -98,7 +98,7 @@ func BenchmarkScenarios(b *testing.B) {
 				name := fmt.Sprintf("%s/%s/track=%t", sc, typ, track)
 				b.Run(name, func(b *testing.B) {
 					b.ReportAllocs()
-					for i := 0; i < b.N; i++ {
+					for i := range b.N {
 						if err := evalOne(c, key, typ, benchContext(i)); err != nil {
 							b.Fatal(err)
 						}
@@ -138,7 +138,7 @@ func BenchmarkAllFlagsState(b *testing.B) {
 		c := newBenchClient(b, loadtest.ManyFlagsYAML(n), false)
 		b.Run(fmt.Sprintf("flags=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				s := c.AllFlagsState(benchContext(i))
 				if len(s.GetFlags()) != n {
 					b.Fatalf("expected %d flags got %d", n, len(s.GetFlags()))
@@ -170,7 +170,7 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 			name := fmt.Sprintf("%s/track=%t", sc, track)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
+				for range b.N {
 					if err := evalOne(c, key, "bool", ctx); err != nil {
 						b.Fatal(err)
 					}

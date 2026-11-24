@@ -1,7 +1,7 @@
 package service
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -35,7 +35,7 @@ func (m *monitoringImpl) Health() model.HealthResponse {
 // Info returns information about the relay-proxy
 func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 	if m.flagsetManager == nil {
-		return model.InfoResponse{}, fmt.Errorf("flagset manager is not initialized")
+		return model.InfoResponse{}, errors.New("flagset manager is not initialized")
 	}
 	flagSets, err := m.flagsetManager.AllFlagSets()
 	if err != nil {
@@ -44,7 +44,7 @@ func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 
 	if m.flagsetManager.IsDefaultFlagSet() {
 		if m.flagsetManager.Default() == nil {
-			return model.InfoResponse{}, fmt.Errorf("no default flagset configured")
+			return model.InfoResponse{}, errors.New("no default flagset configured")
 		}
 		cacheRefreshDate := m.flagsetManager.Default().GetCacheRefreshDate()
 		return model.InfoResponse{

@@ -14,7 +14,7 @@ import (
 // IsValid contains all the validation of the configuration.
 func (c *Config) IsValid() error {
 	if c == nil {
-		return fmt.Errorf("empty config")
+		return errors.New("empty config")
 	}
 	if err := validateLogLevel(c.LogLevel); err != nil {
 		return err
@@ -100,7 +100,7 @@ func (c *Config) validateDefaultMode() error {
 // validateFlagSets validates all configured flagsets
 func (c *Config) validateFlagSets() error {
 	if len(c.FlagSets) == 0 {
-		return fmt.Errorf("no flagsets configured")
+		return errors.New("no flagsets configured")
 	}
 
 	// Track which flagset owns each credential to ensure no duplicates across flagsets.
@@ -156,7 +156,7 @@ func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 // validateRetrievers validates the retrievers
 func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]retrieverconf.RetrieverConf) error {
 	if retriever == nil && retrievers == nil {
-		return fmt.Errorf("no retriever available in the configuration")
+		return errors.New("no retriever available in the configuration")
 	}
 	if retriever != nil {
 		if err := retriever.IsValid(); err != nil {

@@ -28,7 +28,6 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 	}
 	seen[t] = true
 	for f := range t.Fields() {
-		f := f
 		if !f.IsExported() {
 			continue
 		}

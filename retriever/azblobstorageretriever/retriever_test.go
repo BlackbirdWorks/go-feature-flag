@@ -118,7 +118,6 @@ func TestInit(t *testing.T) {
 		_, err := retriever.Retrieve(context.Background())
 		assert.Error(t, err)
 	})
-
 }
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {

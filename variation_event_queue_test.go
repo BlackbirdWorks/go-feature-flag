@@ -118,7 +118,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			var maxG atomic.Int64
 			for range 4 {
 				wg.Go(func() {
-					for i := 0; i < tt.evals/4; i++ {
+					for range tt.evals / 4 {
 						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)

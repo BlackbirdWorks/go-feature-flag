@@ -3,6 +3,7 @@ package postgresqlretriever
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -80,7 +81,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 // Retrieve fetches flag configuration from PostgreSQL.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.pool == nil {
-		return nil, fmt.Errorf("database connection pool is not initialized")
+		return nil, errors.New("database connection pool is not initialized")
 	}
 
 	// Build the query using the configured table and column names

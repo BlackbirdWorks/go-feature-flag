@@ -3,6 +3,7 @@ package webhooknotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,9 +89,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.EndpointURL == "" {
-		return fmt.Errorf(
-			"invalid notifier configuration, no endpointURL provided for the webhook notifier",
-		)
+		return errors.New("invalid notifier configuration, no endpointURL provided for the webhook notifier")
 	}
 
 	// init the notifier
@@ -140,7 +139,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	request := http.Request{
-		Method: "POST",
+		Method: http.MethodPost,
 		URL:    endpointURL,
 		Header: headers,
 		Body:   io.NopCloser(bytes.NewReader(payload)),

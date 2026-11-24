@@ -2,6 +2,7 @@ package retriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -258,7 +259,7 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 		m.logger.Warn("No persistent flag configuration found",
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
-	return fmt.Errorf("no persistent flag available")
+	return errors.New("no persistent flag available")
 }
 
 // GetCacheRefreshDate gives the last refresh date of the cache
@@ -276,7 +277,7 @@ func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
 // error reporting this is returned.
 func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
 	if m == nil || m.cacheManager == nil {
-		return nil, fmt.Errorf("cache is not initialized")
+		return nil, errors.New("cache is not initialized")
 	}
 	return m.cacheManager.AllFlags()
 }
@@ -285,7 +286,7 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 // callers inside the module that only read them (evaluation of all the flags).
 func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
 	if m == nil || m.cacheManager == nil {
-		return nil, fmt.Errorf("cache is not initialized")
+		return nil, errors.New("cache is not initialized")
 	}
 	return m.cacheManager.AllFlagsReadOnly()
 }

@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -254,7 +254,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       fmt.Errorf("apiKey is required when using flagsets"),
+				err:       errors.New("apiKey is required when using flagsets"),
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -263,7 +263,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "unknown-key",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       fmt.Errorf("unknown api key"),
+				err:       errors.New("unknown api key"),
 			},
 			expectedStatus: http.StatusBadRequest,
 		},

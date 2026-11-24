@@ -208,7 +208,7 @@ func (e *Exporter) Export(
 	case e.Settings.StreamName != nil:
 		input.StreamName = e.Settings.StreamName
 	default:
-		return fmt.Errorf("send: no StreamName or StreamArn provided")
+		return errors.New("send: no StreamName or StreamArn provided")
 	}
 
 	if len(records) == 0 {

@@ -46,7 +46,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 		ev := benchEvent()
 		b.ReportAllocs()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for i := range b.N {
 			s.Add(ev)
 			if (i+1)%resetEvery == 0 {
 				resetStore(b, s)
@@ -83,7 +83,7 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 			ev := benchEvent()
 			b.ReportAllocs()
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+			for range b.N {
 				for range n {
 					s.Add(ev)
 				}
@@ -125,7 +125,7 @@ func BenchmarkManagerAddEvent(b *testing.B) {
 						}
 					})
 				} else {
-					for i := 0; i < b.N; i++ {
+					for range b.N {
 						m.AddEvent(ev)
 					}
 				}
