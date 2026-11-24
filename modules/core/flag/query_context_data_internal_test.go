@@ -95,7 +95,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 			for k, v := range tt.custom {
 				ctx.AddCustomAttribute(k, v)
 			}
-			qc := &queryContext{ctx: ctx}
+			qc := &queryContext{svc: NewService(), ctx: ctx}
 			defer qc.release()
 			got, gotErr := qc.dataOnce()
 

@@ -23,8 +23,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-// defaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
-var defaultFlagsetMgr = &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
+// newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
+func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {
+	return &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
+}
 
 func Test_websocket_flag_change(t *testing.T) {
 	t.Parallel()
@@ -130,7 +132,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			}()
 
 			log := zap.L()
-			ctrl := controller.NewWsFlagChange(websocketService, defaultFlagsetMgr, log)
+			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), log)
 
 			e := echo.New()
 			e.GET("/ws/v1/flag/change", ctrl.Handler)
@@ -217,7 +219,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, defaultFlagsetMgr, zap.L())
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), zap.L())
 
 	e := echo.New()
 	e.GET("/ws/v1/flag/change", ctrl.Handler)
@@ -309,7 +311,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, defaultFlagsetMgr, zap.L())
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), zap.L())
 
 	e := echo.New()
 	e.GET("/ws/v1/flag/change", ctrl.LegacyHandler)

@@ -6,12 +6,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func TestRuleEvaluateProgressiveRollout(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := clocktest.Instant()
 	r := &Rule{
 		ProgressiveRollout: &ProgressiveRollout{
 			Initial: &ProgressiveRolloutStep{

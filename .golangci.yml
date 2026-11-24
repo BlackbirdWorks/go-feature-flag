@@ -219,7 +219,6 @@ linters:
     - depguard # 9: log -> log/slog, math/rand -> math/rand/v2
     - err113 # 318: dynamic errors, needs sentinel errors
     - exhaustive # 3
-    - gochecknoglobals # 55
     - mnd # 107 magic numbers
     - nestif # 2
     - nilnil # 14

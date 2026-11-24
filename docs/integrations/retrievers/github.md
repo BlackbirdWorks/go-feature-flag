@@ -41,7 +41,7 @@ To configure your GO module to use the GitHub retriever, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 ```go
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "your-org/your-repo",
@@ -51,7 +51,7 @@ err := ffclient.Init(ffclient.Config{
         Timeout: 2 * time.Second,
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | Field                |    Mandatory     | Description                                                                                                                                                                                                                               |
@@ -108,7 +108,7 @@ retrievers:
 ### GO Module Configuration
 
 ```go
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "myorg/my-flags-repo",
@@ -121,7 +121,7 @@ err := ffclient.Init(ffclient.Config{
         // PrivateKey: os.Getenv("GITHUB_APP_PRIVATE_KEY"),
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 ## GitHub Enterprise / Self-hosted instances
@@ -143,7 +143,7 @@ retrievers:
 ### GO Module Configuration
 
 ```go
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "myorg/myrepo",
@@ -153,5 +153,5 @@ err := ffclient.Init(ffclient.Config{
         GithubToken: "XXXX",
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```

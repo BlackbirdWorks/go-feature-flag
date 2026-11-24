@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func scheduledFlag(base time.Time) *InternalFlag {
@@ -33,7 +34,7 @@ func scheduledFlag(base time.Time) *InternalFlag {
 func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	t.Parallel()
 
-	base := time.Now()
+	base := clocktest.Instant()
 	tests := []struct {
 		name        string
 		offset      time.Duration
@@ -48,17 +49,18 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			svc := NewService()
 			f := scheduledFlag(base)
 			before := *f.Scheduled
 			runParallel(200, func(int) {
 				ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
 					"currentDateTime": base.Add(tt.offset).Format(time.RFC3339Nano)})
-				v, d := f.Value("flag", ctx, Context{})
+				v, d := f.Value("flag", ctx, Context{Service: svc})
 				assert.Equal(t, tt.wantVar == "A", v == "a")
 				assert.Equal(t, tt.wantVar, d.Variant)
 			})
-			res, err := f.applyScheduledRolloutSteps(base.Add(tt.offset))
+			res, err := f.applyScheduledRolloutSteps(svc, base.Add(tt.offset))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantVersion, res.GetVersion())
 			// the flag itself is never modified
@@ -72,16 +74,17 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 // the memoized flags must not outlive the flag they were built for.
 func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	t.Parallel()
-	f := scheduledFlag(time.Now())
+	svc := NewService()
+	f := scheduledFlag(clocktest.Instant())
 	key := weak.Make(f.Scheduled)
-	_, err := f.applyScheduledRolloutSteps(time.Now())
+	_, err := f.applyScheduledRolloutSteps(svc, clocktest.Instant())
 	require.NoError(t, err)
-	_, ok := scheduledFlags.entries.Load(key)
+	_, ok := svc.scheduled.entries.Load(key)
 	require.True(t, ok)
 	// f is not used past this point, so the flag (and its Scheduled) is unreachable and collectable.
 	assert.Eventually(t, func() bool {
 		runtime.GC()
-		_, ok := scheduledFlags.entries.Load(key)
+		_, ok := svc.scheduled.entries.Load(key)
 
 		return !ok
 	}, 5*time.Second, 20*time.Millisecond)
@@ -119,7 +122,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			base := time.Now()
+			base := clocktest.Instant()
 			val := tt.value()
 			f := &InternalFlag{
 				Variations:  &map[string]*any{"A": &val},
@@ -130,9 +133,9 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 				}},
 			}
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			first, _ := f.Value("flag", ctx, Context{})
+			first, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			tt.mutate(first)
-			second, _ := f.Value("flag", ctx, Context{})
+			second, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.value(), second)
 		})
 	}

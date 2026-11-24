@@ -6,8 +6,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
-var strTrimSink string
-
 func BenchmarkStrTrim(b *testing.B) {
 	tests := []struct {
 		name  string
@@ -23,7 +21,7 @@ func BenchmarkStrTrim(b *testing.B) {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				strTrimSink = utils.StrTrim(tt.input)
+				_ = utils.StrTrim(tt.input)
 			}
 		})
 	}

@@ -205,7 +205,13 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := tt.rule.Evaluate(tt.args.key, tt.args.ctx, tt.args.flagName, tt.args.isDefault)
+			got, err := tt.rule.Evaluate(
+				flag.NewService(),
+				tt.args.key,
+				tt.args.ctx,
+				tt.args.flagName,
+				tt.args.isDefault,
+			)
 			if tt.wantErr != nil {
 				tt.wantErr(t, err)
 			}
@@ -214,7 +220,13 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			}
 
 			if tt.name == "repeated evaluation hits cache" {
-				got2, err2 := tt.rule.Evaluate(tt.args.key, tt.args.ctx, tt.args.flagName, tt.args.isDefault)
+				got2, err2 := tt.rule.Evaluate(
+					flag.NewService(),
+					tt.args.key,
+					tt.args.ctx,
+					tt.args.flagName,
+					tt.args.isDefault,
+				)
 				require.NoError(t, err2)
 				assert.Equal(t, got, got2)
 			}
@@ -242,7 +254,7 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
-			results[idx], errs[idx] = rule.Evaluate("concurrent-user", ctx, "test-concurrent", false)
+			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "concurrent-user", ctx, "test-concurrent", false)
 		}(i)
 	}
 	wg.Wait()
@@ -297,7 +309,7 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 			qc := cases[i]
 			go func() {
 				defer wg.Done()
-				v, err := qc.rule.Evaluate(qc.key, qc.ctx, "test-diffquery", false)
+				v, err := qc.rule.Evaluate(flag.NewService(), qc.key, qc.ctx, "test-diffquery", false)
 				results[idx] = result{variation: v, err: err}
 			}()
 		}
@@ -334,7 +346,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
-			results[idx], errs[idx] = rule.Evaluate("user-1", ctx, "test-concurrent-invalid", false)
+			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "user-1", ctx, "test-concurrent-invalid", false)
 		}(i)
 	}
 	wg.Wait()

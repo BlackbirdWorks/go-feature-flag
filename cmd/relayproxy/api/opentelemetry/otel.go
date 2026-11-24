@@ -29,17 +29,20 @@ func NewOtelService() OtelService {
 	return OtelService{}
 }
 
-// Init the OpenTelemetry service.
-func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *config.Config) error {
-	// Require the endpoint to be set either by the openTelemetryOtlpEndpoint
-	// config element or otel.exporter.otlp.endpoint
-	if (config.OpenTelemetryOtlpEndpoint == "" && config.OtelConfig.Exporter.Otlp.Endpoint == "") ||
-		config.OtelConfig.SDK.Disabled {
-		otel.SetTracerProvider(noop.NewTracerProvider())
+// isDisabled is true when OpenTelemetry has no endpoint to send to, or is disabled.
+// The endpoint is set either by the openTelemetryOtlpEndpoint config element or otel.exporter.otlp.endpoint.
+func isDisabled(config *config.Config) bool {
+	return (config.OpenTelemetryOtlpEndpoint == "" && config.OtelConfig.Exporter.Otlp.Endpoint == "") ||
+		config.OtelConfig.SDK.Disabled
+}
 
-		return nil
+// ExportEnvironment gives the OTLP endpoint of the configuration to the OpenTelemetry SDK, which reads it
+// from OTEL_EXPORTER_OTLP_ENDPOINT. It changes the environment of the process, so it belongs to the
+// startup wiring (main): call it once, before Init.
+func ExportEnvironment(config *config.Config) {
+	if isDisabled(config) {
+		return
 	}
-
 	// support the openTelemetryOtlpEndpoint config element
 	if config.OpenTelemetryOtlpEndpoint != "" &&
 		config.OtelConfig.Exporter.Otlp.Endpoint == "" {
@@ -47,6 +50,14 @@ func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *conf
 		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", config.OpenTelemetryOtlpEndpoint)
 	} else if config.OtelConfig.Exporter.Otlp.Endpoint != "" && os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") == "" {
 		_ = os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", config.OtelConfig.Exporter.Otlp.Endpoint)
+	}
+}
+
+// Init creates the OpenTelemetry tracer provider of the service. It does not change any process-wide
+// state: Install does, and is called by the startup wiring only.
+func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
+	if isDisabled(config) {
+		return nil
 	}
 
 	exporter, err := autoexport.NewSpanExporter(ctx)
@@ -81,20 +92,37 @@ func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *conf
 		sdktrace.WithResource(resource),
 	)
 
+	return nil
+}
+
+// Install makes the tracer provider of the service (or a no-op one when Init found OpenTelemetry disabled)
+// the global OpenTelemetry provider, with the error handler and the propagator of the relay proxy.
+// The OpenTelemetry API only offers process-wide registration, so it is the startup wiring (main) that
+// asks for it.
+func (s *OtelService) Install(zapLog *zap.Logger) {
+	if s.otelTraceProvider == nil {
+		otel.SetTracerProvider(noop.NewTracerProvider())
+
+		return
+	}
 	otel.SetTracerProvider(s.otelTraceProvider)
+	otel.SetErrorHandler(newErrorHandler(zapLog))
+	otel.SetTextMapPropagator(newPropagator())
+}
 
-	// log OTel errors to zap rather than the default log package
-	otel.SetErrorHandler(otelErrHandler(func(err error) {
+// newErrorHandler logs the OTel errors to zap rather than the default log package.
+func newErrorHandler(zapLog *zap.Logger) otel.ErrorHandler {
+	return otelErrHandler(func(err error) {
 		zapLog.Error("OTel error", zap.Error(err))
-	}))
+	})
+}
 
-	propagator := propagation.NewCompositeTextMapPropagator(
+// newPropagator is the propagator of the relay proxy: W3C trace context and baggage.
+func newPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
-	otel.SetTextMapPropagator(propagator)
-
-	return nil
 }
 
 type otelErrHandler func(err error)

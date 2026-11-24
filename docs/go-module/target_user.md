@@ -59,7 +59,7 @@ There is a Variation method for each type:
 , [`JSONVariation`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#JSONVariation)
 
 ```go showLineNumbers
-result, _ := ffclient.BoolVariation("your.feature.key", user, false)
+result, _ := client.BoolVariation("your.feature.key", user, false)
 
 // result is now true or false depending on the setting of
 // this boolean feature flag
@@ -115,13 +115,13 @@ Here is the full list of reason available:
 ## Get all flags for a specific user
 If you want to send the information about a specific user to the front-end, you will need a snapshot of all the flags of this user at a specific time.
 
-The method `ffclient.AllFlagsState` returns a snapshot of flag values and metadata.  
+The method `AllFlagsState` of the client returns a snapshot of flag values and metadata.  
 The function is evaluating all available flags for the user and returns a `flagstate.AllFlagsState` object containing the information you need.
 
 ```go showLineNumbers
 user := ffcontext.NewEvaluationContext("example")
 // AllFlagsState will give you the value for all the flags available.
-allFlagsState := ffclient.AllFlagsState(u)
+allFlagsState := client.AllFlagsState(user)
 
 // If you want to send it to the front-end you can Marshal it by calling MarshalJSON()
 forFE, err := allFlagsState.MarshalJSON()

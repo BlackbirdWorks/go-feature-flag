@@ -3,6 +3,7 @@ package linter
 import (
 	"fmt"
 
+	clihelper "github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	helper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
 
@@ -15,7 +16,8 @@ func (l *Linter) Lint() []error {
 	flags, err := helper.LoadConfigFile(
 		l.InputFile,
 		l.InputFormat,
-		helper.ConfigFileDefaultLocations,
+		helper.ConfigFileDefaultLocations(),
+		clihelper.LegacyWarner(),
 	)
 	if err != nil {
 		return []error{err}

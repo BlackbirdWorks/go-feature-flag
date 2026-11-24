@@ -120,28 +120,32 @@ func textCol(name string, maxBytes int) column {
 	return column{name: name, sqlType: fmt.Sprintf("VARCHAR(%d)", maxBytes), kind: textColumn, maxBytes: maxBytes}
 }
 
-var featureEventColumns = []column{
-	textCol("kind", 50),
-	textCol("context_kind", 50),
-	textCol("user_key", 512),
-	{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-	textCol("key", 256),
-	textCol("variation", 256),
-	{name: "value", sqlType: sqlTypeSuper, kind: superColumn},
-	{name: "default", sqlType: sqlTypeBoolean, kind: booleanColumn},
-	textCol("version", 64),
-	textCol("source", 64),
-	{name: "metadata", sqlType: sqlTypeSuper, kind: superColumn},
+func featureEventColumns() []column {
+	return []column{
+		textCol("kind", 50),
+		textCol("context_kind", 50),
+		textCol("user_key", 512),
+		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
+		textCol("key", 256),
+		textCol("variation", 256),
+		{name: "value", sqlType: sqlTypeSuper, kind: superColumn},
+		{name: "default", sqlType: sqlTypeBoolean, kind: booleanColumn},
+		textCol("version", 64),
+		textCol("source", 64),
+		{name: "metadata", sqlType: sqlTypeSuper, kind: superColumn},
+	}
 }
 
-var trackingEventColumns = []column{
-	textCol("kind", 50),
-	textCol("context_kind", 50),
-	textCol("user_key", 512),
-	{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-	textCol("key", 256),
-	{name: "tracking_details", sqlType: sqlTypeSuper, kind: superColumn},
-	{name: "evaluation_context", sqlType: sqlTypeSuper, kind: superColumn},
+func trackingEventColumns() []column {
+	return []column{
+		textCol("kind", 50),
+		textCol("context_kind", 50),
+		textCol("user_key", 512),
+		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
+		textCol("key", 256),
+		{name: "tracking_details", sqlType: sqlTypeSuper, kind: superColumn},
+		{name: "evaluation_context", sqlType: sqlTypeSuper, kind: superColumn},
+	}
 }
 
 // Exporter inserts events in an AWS Redshift table using the Redshift Data API.
@@ -551,10 +555,10 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 
 func columnsForEventType(eventType string) []column {
 	if eventType == trackingEventType {
-		return trackingEventColumns
+		return trackingEventColumns()
 	}
 
-	return featureEventColumns
+	return featureEventColumns()
 }
 
 func featureEventRow(event exporter.FeatureEvent) ([]string, error) {

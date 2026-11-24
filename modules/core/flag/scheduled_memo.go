@@ -7,7 +7,7 @@ import (
 	"weak"
 )
 
-// scheduledFlags memoizes, for each flag with a scheduled rollout, the flag obtained by applying
+// scheduledMemo memoizes, for each flag with a scheduled rollout, the flag obtained by applying
 // the n first due steps (n = 0 .. number of steps), because that is all the result depends on.
 // Building it needs a deep copy of the flag, which is far more expensive than the evaluation.
 //
@@ -15,8 +15,7 @@ import (
 // InternalFlag struct), through a weak pointer: the entry does not keep the flag alive and is
 // removed when the steps are garbage collected, so a reloaded configuration does not leak.
 // The memoized flags are read-only. The steps of a flag must not be modified once it is evaluated.
-var scheduledFlags scheduledMemo
-
+// A Service owns one memo.
 type scheduledMemo struct {
 	entries sync.Map // weak.Pointer[[]ScheduledStep] -> *scheduledEntry
 }

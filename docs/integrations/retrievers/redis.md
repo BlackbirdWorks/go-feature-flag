@@ -37,7 +37,7 @@ To configure your GO module to use the Redis retriever, you need to add the foll
 configuration to your `ffclient.Config{}` object:
 
 ```go
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
 	  Retriever: &redisretriever.Retriever{
         Prefix: "semaphore:",
@@ -46,7 +46,7 @@ err := ffclient.Init(ffclient.Config{
         },
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | Field         |    Mandatory     | Description                                                                                                                                      |

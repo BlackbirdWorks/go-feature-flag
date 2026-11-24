@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func progressiveFlag(endPercentage *float64) *InternalFlag {
@@ -23,12 +24,12 @@ func progressiveFlag(endPercentage *float64) *InternalFlag {
 				Initial: &ProgressiveRolloutStep{
 					Variation:  new("B"),
 					Percentage: new(float64(0)),
-					Date:       new(time.Now().Add(-time.Hour)),
+					Date:       new(clocktest.Instant().Add(-time.Hour)),
 				},
 				End: &ProgressiveRolloutStep{
 					Variation:  new("A"),
 					Percentage: endPercentage,
-					Date:       new(time.Now().Add(time.Hour)),
+					Date:       new(clocktest.Instant().Add(time.Hour)),
 				},
 			},
 		},
@@ -66,7 +67,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 			f := progressiveFlag(tt.endPercentage)
 			runParallel(300, func(i int) {
 				ctx := ffcontext.NewEvaluationContext("user")
-				_, d := f.Value("flag", ctx, Context{})
+				_, d := f.Value("flag", ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
 			assert.Equal(t, tt.endPercentage, f.DefaultRule.ProgressiveRollout.End.Percentage,
@@ -126,7 +127,8 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				Rules:       &[]Rule{{Query: new(tt.query), VariationResult: new("A")}},
 				DefaultRule: &Rule{VariationResult: new("B")},
 			}
-			require.NoError(t, f.IsValid())
+			svc := NewService()
+			require.NoError(t, f.IsValid(svc))
 			ctx := &customContext{key: "user", custom: tt.ctxCustom}
 			var before map[string]any
 			if tt.ctxCustom != nil {
@@ -134,7 +136,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				maps.Copy(before, tt.ctxCustom)
 			}
 			runParallel(200, func(i int) {
-				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment})
+				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)
 			})
 			assert.Equal(t, before, ctx.custom, "the evaluation context must not be modified")

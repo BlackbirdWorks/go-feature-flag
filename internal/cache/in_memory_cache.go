@@ -16,17 +16,21 @@ type InMemoryCache struct {
 	// as read-only once it is in the map.
 	Flags  map[string]*flag.InternalFlag
 	Logger *fflog.FFLogger
+	// Service validates the flags that are added, and keeps the parses of their queries.
+	Service *flag.Service
 }
 
-func NewInMemoryCache(logger *fflog.FFLogger) *InMemoryCache {
+// NewInMemoryCache creates an empty cache, which validates its flags with svc.
+func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache {
 	return &InMemoryCache{
-		Flags:  map[string]*flag.InternalFlag{},
-		Logger: logger,
+		Flags:   map[string]*flag.InternalFlag{},
+		Logger:  logger,
+		Service: svc,
 	}
 }
 
 func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
-	if err := value.IsValid(); err == nil {
+	if err := value.IsValid(fc.Service); err == nil {
 		fc.Flags[key] = &value
 	} else {
 		fc.Logger.Error("[cache] invalid configuration for flag",
@@ -47,7 +51,7 @@ func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 }
 
 func (fc *InMemoryCache) Copy() Cache {
-	inMemoryCache := NewInMemoryCache(fc.Logger)
+	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
 		inMemoryCache.addFlag(k, *v)
 	}
@@ -82,7 +86,7 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
 		flagToAdd := flagDto.Convert()
-		if err := flagToAdd.IsValid(); err == nil {
+		if err := flagToAdd.IsValid(fc.Service); err == nil {
 			cache[key] = &flagToAdd
 		} else {
 			fc.Logger.Error("[cache] invalid configuration for flag",

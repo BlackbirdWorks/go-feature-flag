@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
@@ -17,7 +18,7 @@ import (
 func Test_github_Retrieve(t *testing.T) {
 	t.Parallel()
 
-	endRatelimit := time.Now().Add(1 * time.Hour)
+	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
 		context        context.Context

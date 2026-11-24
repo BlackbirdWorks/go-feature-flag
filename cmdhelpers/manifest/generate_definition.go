@@ -17,7 +17,7 @@ type options struct {
 }
 
 // WithLogger sets the logger that receives the warnings and errors about the flags that are
-// ignored. The default is slog.Default().
+// ignored. Without it nothing is logged.
 func WithLogger(logger *slog.Logger) Option {
 	return func(o *options) {
 		if logger != nil {
@@ -27,7 +27,7 @@ func WithLogger(logger *slog.Logger) Option {
 }
 
 func newOptions(opts []Option) options {
-	o := options{logger: slog.Default()}
+	o := options{logger: slog.New(slog.DiscardHandler)}
 	for _, opt := range opts {
 		opt(&o)
 	}

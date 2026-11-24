@@ -7,9 +7,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-var ruleEvaluateSink string
-
 func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
+	svc := flag.NewService()
 	const key = "3f1c1a52-8a5e-4c1e-9d0a-2b7f6c2e9a10"
 	tests := []struct {
 		name        string
@@ -32,13 +31,14 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				ruleEvaluateSink, _ = rule.Evaluate(key, ctx, "my-flag", true)
+				_, _ = rule.Evaluate(svc, key, ctx, "my-flag", true)
 			}
 		})
 	}
 }
 
 func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
+	svc := flag.NewService()
 	rule := flag.Rule{
 		VariationResult: new("on"),
 		Query: new(
@@ -51,6 +51,6 @@ func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 		Build()
 	b.ReportAllocs()
 	for b.Loop() {
-		ruleEvaluateSink, _ = rule.Evaluate("user-1", ctx, "my-flag", false)
+		_, _ = rule.Evaluate(svc, "user-1", ctx, "my-flag", false)
 	}
 }

@@ -222,6 +222,8 @@ func (m *managerImpl[T]) addAll(store EventStore[T], events []T) {
 func (m *managerImpl[T]) addEventsWaiting(
 	store EventStore[T], fit interface{ AddWhileRoom([]T) int }, events []T,
 ) {
+	// The wait budget and the flush back-off below measure real elapsed time (they pace goroutines
+	// and tickers), so they use the real clock rather than clock.Now.
 	deadline := time.Now().Add(flushWaitBudget)
 	rest := events
 	for len(rest) > 0 {

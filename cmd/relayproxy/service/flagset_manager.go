@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
@@ -96,6 +97,9 @@ type flagsetManagerImpl struct {
 
 	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
 	sharedRegistry *sharedBucketRegistry
+
+	// postgresPools shares the PostgreSQL connection pools between the flagsets that use the same database.
+	postgresPools *postgresqlretriever.PoolRegistry
 
 	// clientOptions are extra options for the clients created at runtime (nil outside the tests).
 	clientOptions []clientOption
@@ -181,6 +185,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 ) (FlagsetManager, error) {
 	flagsets := make(map[string]*ffclient.GoFeatureFlag)
 	apiKeysToFlagSet := make(map[string]string)
+	postgresPools := postgresqlretriever.NewPoolRegistry()
 
 	// Register all the shared-poller items first so that the first listing of a bucket covers all of them.
 	registry.preRegisterAll(config.FlagSets)
@@ -202,7 +207,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
 		client, err := newGoFeatureFlagClient(
-			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry),
+			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
 			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.Error(
@@ -235,6 +240,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		mode:           flagsetManagerModeFlagsets,
 		logger:         logger,
 		sharedRegistry: registry,
+		postgresPools:  postgresPools,
 	}, nil
 }
 
@@ -468,6 +474,7 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
 	opts := append([]clientOption{
 		withSharedBucketRegistry(m.sharedRegistry),
+		withPostgresPools(m.postgresPools),
 		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
 	}, m.clientOptions...)
 	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)

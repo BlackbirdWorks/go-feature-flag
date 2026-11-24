@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // signAppJWT creates a minimal RS256 JWT for GitHub App authentication using
@@ -19,7 +21,7 @@ import (
 //   - iat: now − 60 s  (clock-skew tolerance)
 //   - exp: now + 9 min
 func signAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
-	now := time.Now()
+	now := clock.Now()
 
 	// json.Marshal on map[string]string and map[string]int64 cannot fail;
 	// errors are intentionally ignored.

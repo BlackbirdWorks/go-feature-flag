@@ -34,6 +34,7 @@ const (
 func New(config *config.Config,
 	services service.Services,
 	zapLog *zap.Logger,
+	opts ...Option,
 ) Server {
 	stopRequested := make(chan struct{})
 	s := Server{
@@ -45,10 +46,23 @@ func New(config *config.Config,
 		stop:          sync.OnceFunc(func() { close(stopRequested) }),
 		stopped:       make(chan struct{}),
 	}
+	for _, opt := range opts {
+		opt(&s)
+	}
 	s.apiEcho = echo.New()
 	s.initRoutes()
 
 	return s
+}
+
+// Option customizes the Server that New creates.
+type Option func(*Server)
+
+// WithGlobalTelemetry makes the server install its OpenTelemetry tracer provider, error handler and
+// propagator as the process-wide ones when it starts. Only the startup wiring (main) asks for it: the
+// OpenTelemetry API has no other way to give a provider to the instrumented libraries.
+func WithGlobalTelemetry() Option {
+	return func(s *Server) { s.installGlobalTelemetry = true }
 }
 
 // Server is the struct that represents the API server.
@@ -59,6 +73,8 @@ type Server struct {
 	services       service.Services
 	zapLog         *zap.Logger
 	otelService    opentelemetry.OtelService
+	// installGlobalTelemetry is set by WithGlobalTelemetry.
+	installGlobalTelemetry bool
 
 	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
 	// the servers started by StartWithContext.

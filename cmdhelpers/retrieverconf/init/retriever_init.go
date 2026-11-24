@@ -28,35 +28,76 @@ import (
 // retrieverFactory defines the signature for retriever factory functions.
 type retrieverFactory func(*retrieverconf.RetrieverConf, time.Duration) (retriever.Retriever, error)
 
-// retrieverFactories maps retriever kinds to their factory functions.
-var retrieverFactories = map[retrieverconf.RetrieverKind]retrieverFactory{
-	retrieverconf.GitHubRetriever:        createGitHubRetriever,
-	retrieverconf.GitlabRetriever:        createGitlabRetriever,
-	retrieverconf.BitbucketRetriever:     createBitbucketRetriever,
-	retrieverconf.FileRetriever:          createFileRetriever,
-	retrieverconf.S3Retriever:            createS3Retriever,
-	retrieverconf.HTTPRetriever:          createHTTPRetriever,
-	retrieverconf.GoogleStorageRetriever: createGoogleStorageRetriever,
-	retrieverconf.KubernetesRetriever:    createKubernetesRetriever,
-	retrieverconf.MongoDBRetriever:       createMongoDBRetriever,
-	retrieverconf.RedisRetriever:         createRedisRetriever,
-	retrieverconf.AzBlobStorageRetriever: createAzBlobStorageRetriever,
-	retrieverconf.PostgreSQLRetriever:    createPostgreSQLRetriever,
+// factoryFor returns the factory function of a retriever kind.
+func factoryFor(kind retrieverconf.RetrieverKind) (retrieverFactory, bool) {
+	switch kind {
+	case retrieverconf.GitHubRetriever:
+		return createGitHubRetriever, true
+	case retrieverconf.GitlabRetriever:
+		return createGitlabRetriever, true
+	case retrieverconf.BitbucketRetriever:
+		return createBitbucketRetriever, true
+	case retrieverconf.FileRetriever:
+		return createFileRetriever, true
+	case retrieverconf.S3Retriever:
+		return createS3Retriever, true
+	case retrieverconf.HTTPRetriever:
+		return createHTTPRetriever, true
+	case retrieverconf.GoogleStorageRetriever:
+		return createGoogleStorageRetriever, true
+	case retrieverconf.KubernetesRetriever:
+		return createKubernetesRetriever, true
+	case retrieverconf.MongoDBRetriever:
+		return createMongoDBRetriever, true
+	case retrieverconf.RedisRetriever:
+		return createRedisRetriever, true
+	case retrieverconf.AzBlobStorageRetriever:
+		return createAzBlobStorageRetriever, true
+	case retrieverconf.PostgreSQLRetriever:
+		return createPostgreSQLRetriever, true
+	default:
+		return nil, false
+	}
+}
+
+// Option customizes InitRetriever.
+type Option func(*options)
+
+type options struct {
+	postgresPools *postgresqlretriever.PoolRegistry
+}
+
+// WithPostgresPools makes the PostgreSQL retrievers that InitRetriever creates share the connection pools
+// of pools (a registry owned by the caller, e.g. the relay proxy, which shares them between its flag sets).
+// Without it each PostgreSQL retriever owns its pool.
+func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
+	return func(o *options) { o.postgresPools = pools }
 }
 
 // InitRetriever initialize the retriever based on the configuration.
 func InitRetriever(
-	c *retrieverconf.RetrieverConf) (retriever.Retriever, error) {
-	retrieverTimeout := retrieverconf.DefaultRetrieverConfig.Timeout
+	c *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	retrieverTimeout := retrieverconf.DefaultTimeout
 	if c.Timeout != 0 {
 		retrieverTimeout = time.Duration(c.Timeout) * time.Millisecond
 	}
-	retrieverFactory, exists := retrieverFactories[c.Kind]
+	factory, exists := factoryFor(c.Kind)
 	if !exists {
 		return nil, fmt.Errorf("invalid retriever: kind \"%s\" is not supported", c.Kind)
 	}
+	r, err := factory(c, retrieverTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if pg, ok := r.(*postgresqlretriever.Retriever); ok && o.postgresPools != nil {
+		pg.Pools = o.postgresPools
+	}
 
-	return retrieverFactory(c, retrieverTimeout)
+	return r, nil
 }
 
 // Factory functions for each retriever type.
@@ -71,7 +112,7 @@ func createGitHubRetriever(
 		RepositorySlug: c.RepositorySlug,
 		Branch: func() string {
 			if c.Branch == "" {
-				return retrieverconf.DefaultRetrieverConfig.GitBranch
+				return retrieverconf.DefaultGitBranch
 			}
 
 			return c.Branch
@@ -93,7 +134,7 @@ func createGitlabRetriever(
 		BaseURL: c.BaseURL,
 		Branch: func() string {
 			if c.Branch == "" {
-				return retrieverconf.DefaultRetrieverConfig.GitBranch
+				return retrieverconf.DefaultGitBranch
 			}
 
 			return c.Branch
@@ -111,7 +152,7 @@ func createBitbucketRetriever(
 		RepositorySlug: c.RepositorySlug,
 		Branch: func() string {
 			if c.Branch == "" {
-				return retrieverconf.DefaultRetrieverConfig.GitBranch
+				return retrieverconf.DefaultGitBranch
 			}
 
 			return c.Branch
@@ -146,7 +187,7 @@ func createHTTPRetriever(
 		URL: c.URL,
 		Method: func() string {
 			if c.HTTPMethod == "" {
-				return retrieverconf.DefaultRetrieverConfig.HTTPMethod
+				return retrieverconf.DefaultHTTPMethod
 			}
 
 			return c.HTTPMethod

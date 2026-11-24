@@ -90,7 +90,7 @@ func events(n int) []exporter.ExportableEvent {
 
 func TestE2E_Export(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name     string
@@ -131,7 +131,7 @@ func TestE2E_Export(t *testing.T) {
 
 func TestE2E_Export_Errors(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name     string
@@ -157,7 +157,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 
 func TestE2E_Export_FifoQueue(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	cfg := srv.MustAwsConfig(t)
 	client := sqs.NewFromConfig(cfg)
 	out, err := client.CreateQueue(t.Context(), &sqs.CreateQueueInput{

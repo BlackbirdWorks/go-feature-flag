@@ -3,8 +3,6 @@ package ffcontext
 import (
 	"encoding/json"
 	"maps"
-
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 var _ Context = (*EvaluationContext)(nil)
@@ -132,9 +130,8 @@ func HasReservedKey(attributes map[string]any) bool {
 func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 	specifics := GoffContextSpecifics{}
 	if v, ok := u.attributes[LegacyReservedKey]; ok {
-		legacy.Default.Warn(legacy.KindEvaluationContext, "the evaluation context attribute \""+
-			LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+ReservedKey+"\" is preferred")
 		specifics = readSpecifics(v, specifics)
+		specifics.UsedLegacyKey = true
 	}
 	if v, ok := u.attributes[ReservedKey]; ok {
 		specifics = readSpecifics(v, specifics)

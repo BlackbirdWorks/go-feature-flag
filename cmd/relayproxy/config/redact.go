@@ -44,58 +44,60 @@ const (
 //
 // A field whose name matches sensitiveNamePattern MUST be listed here (a test enforces it), this way adding a
 // field named "xxxToken" forces the author to take a decision. If a new field is not listed it is redacted anyway.
-var fieldClassification = map[string]bool{
-	// Config
-	"config.ValidateFlagsEndpoint.MaxYAMLBodySize": plainField, // sizes
-	"config.ValidateFlagsEndpoint.MaxTOMLBodySize": plainField,
-	"config.ValidateFlagsEndpoint.MaxJSONBodySize": plainField,
-	"config.Config.DisableVersionHeader":           plainField, // a boolean
-	"config.Config.AuthorizedKeys":                 secretField,
-	"config.Config.APIKeys":                        secretField,
-	// FlagSet
-	"config.FlagSet.APIKeys": secretField,
-	// APIKeys (admin / evaluation keys)
-	// Studio
-	"config.Studio.URL":     secretField, // pre-signed URLs carry credentials in the query string
-	"config.Studio.Headers": secretField, // typically an Authorization header
-	// OFREP event stream
-	"config.OfrepEventStream.BaseURL": secretField, // may embed credentials (user info)
-	// Notifiers
-	"config.NotifierConf.SlackWebhookURL": secretField, // the Slack webhook URL is itself the secret
-	"config.NotifierConf.EndpointURL":     secretField,
-	"config.NotifierConf.Secret":          secretField,
-	"config.NotifierConf.Headers":         secretField,
-	"config.NotifierConf.WebhookURL":      secretField,
-	// Exporters
-	"config.ExporterConf.EndpointURL":       secretField,
-	"config.ExporterConf.Secret":            secretField,
-	"config.ExporterConf.Headers":           secretField,
-	"config.ExporterConf.QueueURL":          secretField,
-	"config.ExporterConf.GoogleCredentials": secretField,
-	"config.ExporterConf.AccountKey":        secretField,
-	"config.ExporterConf.SecretArn":         secretField,
-	// Retrievers
-	"retrieverconf.RetrieverConf.GithubToken":             secretField,
-	"retrieverconf.RetrieverConf.URL":                     secretField,
-	"retrieverconf.RetrieverConf.HTTPBody":                secretField, // the request body may carry credentials
-	"retrieverconf.RetrieverConf.HTTPHeaders":             secretField,
-	"retrieverconf.RetrieverConf.BaseURL":                 secretField,
-	"retrieverconf.RetrieverConf.AuthToken":               secretField,
-	"retrieverconf.RetrieverConf.URI":                     secretField, // MongoDB / PostgreSQL connection strings
-	"retrieverconf.RetrieverConf.AccountKey":              secretField,
-	"retrieverconf.RetrieverConf.GitHubAppPrivateKey":     secretField,
-	"retrieverconf.RetrieverConf.HTTPClientKeyPath":       plainField, // a file path
-	"retrieverconf.RetrieverConf.HTTPClientCertPath":      plainField, // a file path
-	"retrieverconf.RetrieverConf.HTTPCACertPath":          plainField, // a file path
-	"retrieverconf.RetrieverConf.GitHubAppPrivateKeyFile": plainField, // a file path
-	"retrieverconf.RetrieverConf.Key":                     plainField, // name of the key inside a ConfigMap
-	"retrieverconf.SerializableRedisOptions.Password":     secretField,
+func fieldClassification() map[string]bool {
+	return map[string]bool{
+		// Config
+		"config.ValidateFlagsEndpoint.MaxYAMLBodySize": plainField, // sizes
+		"config.ValidateFlagsEndpoint.MaxTOMLBodySize": plainField,
+		"config.ValidateFlagsEndpoint.MaxJSONBodySize": plainField,
+		"config.Config.DisableVersionHeader":           plainField, // a boolean
+		"config.Config.AuthorizedKeys":                 secretField,
+		"config.Config.APIKeys":                        secretField,
+		// FlagSet
+		"config.FlagSet.APIKeys": secretField,
+		// APIKeys (admin / evaluation keys)
+		// Studio
+		"config.Studio.URL":     secretField, // pre-signed URLs carry credentials in the query string
+		"config.Studio.Headers": secretField, // typically an Authorization header
+		// OFREP event stream
+		"config.OfrepEventStream.BaseURL": secretField, // may embed credentials (user info)
+		// Notifiers
+		"config.NotifierConf.SlackWebhookURL": secretField, // the Slack webhook URL is itself the secret
+		"config.NotifierConf.EndpointURL":     secretField,
+		"config.NotifierConf.Secret":          secretField,
+		"config.NotifierConf.Headers":         secretField,
+		"config.NotifierConf.WebhookURL":      secretField,
+		// Exporters
+		"config.ExporterConf.EndpointURL":       secretField,
+		"config.ExporterConf.Secret":            secretField,
+		"config.ExporterConf.Headers":           secretField,
+		"config.ExporterConf.QueueURL":          secretField,
+		"config.ExporterConf.GoogleCredentials": secretField,
+		"config.ExporterConf.AccountKey":        secretField,
+		"config.ExporterConf.SecretArn":         secretField,
+		// Retrievers
+		"retrieverconf.RetrieverConf.GithubToken":             secretField,
+		"retrieverconf.RetrieverConf.URL":                     secretField,
+		"retrieverconf.RetrieverConf.HTTPBody":                secretField, // the request body may carry credentials
+		"retrieverconf.RetrieverConf.HTTPHeaders":             secretField,
+		"retrieverconf.RetrieverConf.BaseURL":                 secretField,
+		"retrieverconf.RetrieverConf.AuthToken":               secretField,
+		"retrieverconf.RetrieverConf.URI":                     secretField, // MongoDB / PostgreSQL connection strings
+		"retrieverconf.RetrieverConf.AccountKey":              secretField,
+		"retrieverconf.RetrieverConf.GitHubAppPrivateKey":     secretField,
+		"retrieverconf.RetrieverConf.HTTPClientKeyPath":       plainField, // a file path
+		"retrieverconf.RetrieverConf.HTTPClientCertPath":      plainField, // a file path
+		"retrieverconf.RetrieverConf.HTTPCACertPath":          plainField, // a file path
+		"retrieverconf.RetrieverConf.GitHubAppPrivateKeyFile": plainField, // a file path
+		"retrieverconf.RetrieverConf.Key":                     plainField, // name of the key inside a ConfigMap
+		"retrieverconf.SerializableRedisOptions.Password":     secretField,
+	}
 }
 
 // IsSecretField returns true if the field must never be logged.
 // "typeName" is the "<package>.<Type>" of the struct holding the field.
 func IsSecretField(typeName, fieldName string) bool {
-	if secret, classified := fieldClassification[typeName+"."+fieldName]; classified {
+	if secret, classified := fieldClassification()[typeName+"."+fieldName]; classified {
 		return secret
 	}
 

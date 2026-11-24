@@ -12,6 +12,7 @@ import (
 	"github.com/r3labs/sse/v2"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -62,7 +63,7 @@ type sseServiceImpl struct {
 // BroadcastFlagChanges only notifies that the flags changed, the diff is not sent:
 // providers re-fetch their evaluations when they receive the event.
 func (s *sseServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
-	now := time.Now()
+	now := clock.Now()
 	data, err := json.Marshal(model.OFREPSSEEvent{
 		Type:         model.OFREPSSEEventTypeRefetchEvaluation,
 		LastModified: now.Unix(),

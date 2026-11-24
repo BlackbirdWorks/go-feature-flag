@@ -8,26 +8,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-// AllFlagsState return the values of all the flags for a specific user.
-// If a valid field is false, it means that we had an error when checking the flags.
-func AllFlagsState(ctx ffcontext.Context) flagstate.AllFlags {
-	return ff.AllFlagsState(ctx)
-}
-
-// GetFlagsFromCache returns all the flags present in the cache with their
-// current state when calling this method. If cache hasn't been initialized, an
-// error reporting this is returned.
-func GetFlagsFromCache() (map[string]flag.Flag, error) {
-	return ff.GetFlagsFromCache()
-}
-
-// GetFlagsFromCacheWithContext returns all the flags present in the cache with their
-// current state when calling this method. If cache hasn't been initialized, an
-// error reporting this is returned. The provided context is used for the operation.
-func GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flag.Flag, error) {
-	return ff.GetFlagsFromCacheWithContext(ctx)
-}
-
 // GetFlagStates is evaluating all the flags in flagsToEvaluate based on the context provided.
 // If flagsToEvaluate is nil or empty, it will evaluate all the flags available in Semaphore.
 func (g *GoFeatureFlag) GetFlagStates(
@@ -45,6 +25,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 	flagCtx := flag.Context{
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 		DefaultSdkValue:             nil,
+		Service:                     g.evaluationService,
 	}
 
 	// Evaluate only the flags in flagsToEvaluate

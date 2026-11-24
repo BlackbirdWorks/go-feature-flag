@@ -23,7 +23,8 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,
 		configFormat,
-		configHelper.ConfigFileDefaultLocations,
+		configHelper.ConfigFileDefaultLocations(),
+		helper.LegacyWarner(),
 	)
 	if err != nil {
 		return Manifest{}, err

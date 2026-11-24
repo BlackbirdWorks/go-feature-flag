@@ -10,33 +10,11 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
-
-// Init the feature flag component with the configuration of ffclient.Config
-//
-//	func main() {
-//	  err := ffclient.Init(ffclient.Config{
-//	           PollingInterval: 3 * time.Second,
-//	           Retriever: &httpretriever.Retriever{
-//	             URL:    "http://example.com/flag-config.yaml",
-//	           },
-//	         })
-//	  defer ffclient.Close()
-func Init(config Config) error {
-	var err error
-	onceFF.Do(func() {
-		var tmpFF *GoFeatureFlag
-		tmpFF, err = New(config)
-		if err == nil {
-			ff = tmpFF
-		}
-	})
-
-	return err
-}
 
 // GoFeatureFlag is the main object of the library
 // it contains the cache, the config, the updater and the exporter.
@@ -45,6 +23,10 @@ type GoFeatureFlag struct {
 	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
 	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
 	retrieverManager          *retriever.Manager
+	// evaluationService owns the caches of the flag evaluation (parsed queries, scheduled rollouts, ...).
+	// It is created with the client, shared by the cache that validates the flags and by the
+	// evaluations, and released by Close.
+	evaluationService *flag.Service
 	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
@@ -70,20 +52,15 @@ type GoFeatureFlag struct {
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.
 const DefaultEventQueueSize = 65536
 
-// ff is the default object for semaphore.
-var (
-	ff     *GoFeatureFlag
-	onceFF sync.Once
-)
-
 // New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
 func New(config Config) (*GoFeatureFlag, error) {
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
-		config:         config,
-		evalExporterWg: sync.WaitGroup{},
+		config:            config,
+		evalExporterWg:    sync.WaitGroup{},
+		evaluationService: flag.NewService(flag.WithLogger(config.serviceLogger())),
 	}
 
 	if config.Offline {
@@ -93,7 +70,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 		return goFF, nil
 	}
 
-	retrieverManager, err := initializeRetrieverManager(config)
+	retrieverManager, err := initializeRetrieverManager(config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
 		return nil, fmt.Errorf(
 			"impossible to initialize the retrievers, please check your configuration: %w",
@@ -118,7 +95,7 @@ func initializeNotificationService(config Config) notification.Service {
 }
 
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
-func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
+func initializeRetrieverManager(config Config, evaluationService *flag.Service) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
 		return nil, err
@@ -139,6 +116,7 @@ func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 		notificationService,
 		config.PersistentFlagConfigurationFile,
 		config.internalLogger,
+		cache.WithService(evaluationService),
 	)
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
@@ -213,6 +191,7 @@ func (g *GoFeatureFlag) Close() {
 		if g.trackingEventDataExporter != nil {
 			g.trackingEventDataExporter.Stop()
 		}
+		g.evaluationService.Close()
 	}
 }
 
@@ -223,6 +202,13 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	}
 
 	return g.retrieverManager.GetCacheRefreshDate()
+}
+
+// EvaluationService returns the evaluation service of the client: the owner of the caches that
+// evaluating (and validating) its flags uses. Pass it in flag.Context.Service when you evaluate the
+// flags that GetFlagsFromCache returns. It is never nil.
+func (g *GoFeatureFlag) EvaluationService() *flag.Service {
+	return g.evaluationService
 }
 
 // GetEvaluationContextEnrichment returns the evaluation context enrichment.
@@ -241,12 +227,33 @@ func (g *GoFeatureFlag) ForceRefresh() bool {
 // This function can be called explicitly to refresh the flags if you know that a change has been made in
 // the configuration.
 func (g *GoFeatureFlag) ForceRefreshWithContext(ctx context.Context) bool {
+	if g.IsOffline() {
+		return false
+	}
+
 	return g.retrieverManager.ForceRefresh(ctx)
 }
 
 // SetOffline updates the config Offline parameter.
 func (g *GoFeatureFlag) SetOffline(control bool) {
 	g.config.SetOffline(control)
+}
+
+// SetOfflineWithContext updates the config Offline parameter, and stops (going offline) or restarts
+// (going back online) the background polling of the retrievers.
+//
+// Known limitation: going back online does not restart the background polling. StopPolling
+// closes the background updater channel for good, so the StartPolling call below returns
+// immediately. Fixing this requires recreating the background updater, which is tracked
+// separately.
+func (g *GoFeatureFlag) SetOfflineWithContext(ctx context.Context, control bool) {
+	if !g.IsOffline() && control {
+		g.retrieverManager.StopPolling()
+	}
+	if g.IsOffline() && !control {
+		g.retrieverManager.StartPolling(ctx)
+	}
+	g.SetOffline(control)
 }
 
 // IsOffline allows knowing if the feature flag is in offline mode.
@@ -257,56 +264,4 @@ func (g *GoFeatureFlag) IsOffline() bool {
 // GetPollingInterval is the polling interval between two refreshes of the cache.
 func (g *GoFeatureFlag) GetPollingInterval() int64 {
 	return g.config.PollingInterval.Milliseconds()
-}
-
-// SetOffline updates the config Offline parameter.
-func SetOffline(control bool) {
-	SetOfflineWithContext(context.Background(), control)
-}
-
-// SetOfflineWithContext updates the config Offline parameter
-//
-// Known limitation: going back online does not restart the background polling. StopPolling
-// closes the background updater channel for good, so the StartPolling call below returns
-// immediately. Fixing this requires recreating the background updater, which is tracked
-// separately.
-func SetOfflineWithContext(ctx context.Context, control bool) {
-	if !ff.IsOffline() && control {
-		ff.retrieverManager.StopPolling()
-	}
-	if ff.IsOffline() && !control {
-		ff.retrieverManager.StartPolling(ctx)
-	}
-	ff.SetOffline(control)
-}
-
-// IsOffline allows knowing if the feature flag is in offline mode.
-func IsOffline() bool {
-	return ff.IsOffline()
-}
-
-// GetCacheRefreshDate gives the last refresh date of the cache.
-func GetCacheRefreshDate() time.Time {
-	if ff.IsOffline() {
-		return time.Time{}
-	}
-
-	return ff.GetCacheRefreshDate()
-}
-
-// ForceRefresh is a function that forces to call the retrievers and refresh the configuration of flags.
-// This function can be called explicitly to refresh the flags if you know that a change has been made in
-// the configuration.
-func ForceRefresh() bool {
-	if ff.IsOffline() {
-		return false
-	}
-
-	return ff.ForceRefresh()
-}
-
-// Close the component by stopping the background refresh and clean the cache.
-func Close() {
-	onceFF = sync.Once{}
-	ff.Close()
 }

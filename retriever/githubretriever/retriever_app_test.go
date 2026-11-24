@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 )
@@ -92,7 +93,7 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 		if body == nil {
 			body = tokenResponse(
 				fmt.Sprintf("ghs_token_%d", m.tokenCalls),
-				time.Now().Add(cmp.Or(m.tokenTTL, time.Hour)),
+				clocktest.Instant().Add(cmp.Or(m.tokenTTL, time.Hour)),
 			)
 		}
 
@@ -108,7 +109,7 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 	}
 	resp := newResponse(http.StatusOK, []byte(flagBody))
 	resp.Header.Set("X-Ratelimit-Remaining", "4999")
-	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(clocktest.Instant().Add(time.Hour).Unix(), 10))
 
 	return resp, nil
 }
@@ -168,7 +169,7 @@ func assertAppJWT(t *testing.T, authorization string, pub *rsa.PublicKey) {
 
 	var claims struct{ Iss, Iat, Exp int64 }
 	decodeJWTPart(t, parts[1], &claims)
-	now := time.Now().Unix()
+	now := clocktest.Instant().Unix()
 	assert.Equal(t, testAppID, claims.Iss)
 	assert.InDelta(t, now-60, claims.Iat, 5, "iat should be backdated ~60s")
 	assert.Greater(t, claims.Exp, now)
@@ -359,7 +360,7 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 		},
 		{
 			name:    "empty token in response",
-			mock:    &appMockHTTP{tokenBody: tokenResponse("", time.Now().Add(time.Hour))},
+			mock:    &appMockHTTP{tokenBody: tokenResponse("", clocktest.Instant().Add(time.Hour))},
 			wantErr: "token response contained no token",
 		},
 		{

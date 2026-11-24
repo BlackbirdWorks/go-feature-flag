@@ -20,7 +20,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-var containerName = "testcontainer"
+const containerName = "testcontainer"
 
 func TestAzureBlobStorageRetriever(t *testing.T) {
 	t.Parallel()

@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 // stagedRolloutFlag: step 1 adds the rule "r", step 2 then step 3 change it.
@@ -57,12 +59,13 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			base := time.Now()
+			base := clocktest.Instant()
+			svc := NewService()
 			f := stagedRolloutFlag(base, progressive)
 			snapshot := stagedRolloutFlag(base, progressive)
 			// stages 2, 3, 2 (also 1 then 3 then 1), on the same loaded flag
 			for _, due := range []int{2, 3, 2, 1, 3, 1, 3, 2} {
-				got, err := f.applyScheduledRolloutSteps(base.Add(time.Duration(due)*time.Hour + time.Minute))
+				got, err := f.applyScheduledRolloutSteps(svc, base.Add(time.Duration(due)*time.Hour+time.Minute))
 				require.NoError(t, err)
 				want, err := stagedRolloutFlag(
 					base,

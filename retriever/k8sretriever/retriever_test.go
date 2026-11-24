@@ -14,7 +14,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
-var expectedContent = `
+const expectedContent = `
 test-flag:
   variations:
     true_var: true
@@ -42,12 +42,8 @@ test-flag2:
   trackEvents: false
 `
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable kubeClientProvider; removed by the service-object refactor (follow-up PR)
 func Test_kubernetesRetriever_Retrieve(t *testing.T) {
-	originalKubeClientProvider := kubeClientProvider
-	defer func() {
-		kubeClientProvider = originalKubeClientProvider
-	}()
+	t.Parallel()
 
 	kubeClientProviderFactory := func(object ...runtime.Object) func(*restclient.Config) (kubernetes.Interface, error) {
 		return func(config *restclient.Config) (kubernetes.Interface, error) {
@@ -142,10 +138,12 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeClientProvider = kubeClientProviderFactory(tt.fields.object)
+			t.Parallel()
+
+			newClient := kubeClientProviderFactory(tt.fields.object)
 			if tt.name == "k8s client is nil" {
-				// mocking the kubeClientProvider function
-				kubeClientProvider = func(config *restclient.Config) (kubernetes.Interface, error) {
+				// mocking the client factory
+				newClient = func(config *restclient.Config) (kubernetes.Interface, error) {
 					return nil, nil
 				}
 			}
@@ -153,6 +151,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				ConfigMapName: tt.fields.configMapName,
 				Key:           tt.fields.key,
 				Namespace:     tt.fields.namespace,
+				newClient:     newClient,
 			}
 			if tt.fields.setClient {
 				s.client = fake.NewSimpleClientset()

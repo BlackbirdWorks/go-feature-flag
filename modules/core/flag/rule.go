@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
@@ -75,10 +74,14 @@ func (r *Rule) RequiresBucketing() bool {
 }
 
 // Evaluate is checking if the rule applies to for the user.
-// If yes, it returns the variation you should use for this rule.
-func (r *Rule) Evaluate(key string, ctx ffcontext.Context, flagName string, isDefault bool,
+// If yes, it returns the variation you should use for this rule. The queries are parsed and cached
+// by svc, which is required.
+func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagName string, isDefault bool,
 ) (string, error) {
-	v, err := r.evaluate(key, &queryContext{ctx: ctx}, flagName, isDefault)
+	if svc == nil {
+		return "", errNoService
+	}
+	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
@@ -100,7 +103,6 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
 	}
 
-	evaluationDate := DateFromContextOrDefault(ctx, time.Now())
 	// check that we have an evaluation context
 	if ctx == nil {
 		return "", errors.New("evaluate Rule: no evaluation context")
@@ -119,7 +121,8 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 			return "", errors.New("progressive rollout requires a bucketing key")
 		}
 
-		return r.EvaluateProgressiveRollout(key, flagName, evaluationDate)
+		// only the progressive rollout depends on the date: the clock is not read for the other rules.
+		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
@@ -141,21 +144,19 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 // the query engines must only read the map, never modify it. The JSON form JsonLogic reads
 // is shared the same way.
 type queryContext struct {
+	// svc owns the caches and the pool that evaluating the queries uses.
+	svc                  *Service
 	ctx                  ffcontext.Context
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
 	parsedEvalCtxAsData  any
-	// pooled is true when parsedEvalCtxAsMap comes from queryMapPool (see release).
+	// pooled is true when parsedEvalCtxAsMap comes from the pool of svc (see release).
 	pooled bool
 }
 
-// queryMapPool recycles the maps of the queryContexts: the map is only read by the query engines
-// during the evaluation and never retained, so it is cleared and reused by the next evaluation.
-var queryMapPool = sync.Pool{New: func() any { return make(map[string]any, 16) }}
-
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		pooled := queryMapPool.Get().(map[string]any) //nolint:errcheck // the pool only holds map[string]any
+		pooled := q.svc.queryMaps.Get().(map[string]any) //nolint:errcheck // the pool only holds map[string]any
 		q.parsedEvalCtxAsMap = utils.ContextToMapInto(pooled, q.ctx)
 		q.pooled = true
 	}
@@ -167,7 +168,7 @@ func (q *queryContext) mapOnce() map[string]any {
 func (q *queryContext) release() {
 	if q.pooled {
 		clear(q.parsedEvalCtxAsMap)
-		queryMapPool.Put(q.parsedEvalCtxAsMap)
+		q.svc.queryMaps.Put(q.parsedEvalCtxAsMap)
 		q.parsedEvalCtxAsMap = nil
 		q.pooled = false
 	}
@@ -214,12 +215,12 @@ func (q *queryContext) dataOnce() (any, error) {
 func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 	if r.QueryHash != 0 { // the rule was validated
 		raw := r.GetQuery()
-		if ev := nikunjyEvaluators.lookup(r.QueryHash, raw); ev != nil {
+		if ev := queryCtx.svc.nikunjy.lookup(r.QueryHash, raw); ev != nil {
 			return evaluateNikunjy(ev, raw, queryCtx)
 		}
 	}
 
-	return evaluateRule(getCompiledQuery(r.GetQuery()), queryCtx)
+	return evaluateRule(queryCtx.svc.compiledQuery(r.GetQuery()), queryCtx)
 }
 
 // evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
@@ -227,7 +228,7 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 	// Catch any panics that may occur during evaluation
 	defer func() {
 		if r := recover(); r != nil {
-			slog.ErrorContext(context.Background(), "panic recovered while evaluating query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
@@ -235,13 +236,13 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 		}
 	}()
 
-	return processNikunjy(ev, query, queryCtx.mapOnce())
+	return processNikunjy(queryCtx.svc.logger, ev, query, queryCtx.mapOnce())
 }
 
-func processNikunjy(ev *parser.Evaluator, query string, mapCtx map[string]any) bool {
+func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, mapCtx map[string]any) bool {
 	ok, err := ev.Process(mapCtx)
 	if err != nil {
-		slog.Error("error while evaluating the nikunjy query",
+		logger.Error("error while evaluating the nikunjy query",
 			slog.String("query", query), slog.Any("error", err))
 
 		return false
@@ -260,7 +261,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	// Catch any panics that may occur during evaluation
 	defer func() {
 		if r := recover(); r != nil {
-			slog.ErrorContext(context.Background(), "panic recovered while evaluating query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
@@ -273,14 +274,18 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	case JSONLogicQueryFormat:
 		data, err := queryCtx.dataOnce()
 		if err != nil {
-			slog.ErrorContext(context.Background(), "error while marshalling the context for the jsonlogic query",
-				slog.Any("mapCtx", mapCtx), slog.Any("error", err.Error()))
+			queryCtx.svc.logger.ErrorContext(
+				context.Background(),
+				"error while marshalling the context for the jsonlogic query",
+				slog.Any("mapCtx", mapCtx),
+				slog.Any("error", err.Error()),
+			)
 
 			return false
 		}
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
-			slog.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
 				slog.String("query", query), slog.Any("error", err.Error()))
 
 			return false
@@ -288,15 +293,15 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 
 		return isJSONLogicTruthy(result)
 	default:
-		ev, err := nikunjyEvaluators.get(query)
+		ev, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
-			slog.Error("error while parsing the nikunjy query",
+			queryCtx.svc.logger.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))
 
 			return false
 		}
 
-		return processNikunjy(ev, query, mapCtx)
+		return processNikunjy(queryCtx.svc.logger, ev, query, mapCtx)
 	}
 }
 

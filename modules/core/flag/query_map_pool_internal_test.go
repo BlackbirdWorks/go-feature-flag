@@ -21,7 +21,8 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 		Rules:       &[]Rule{{Query: new(`secret eq "x"`), VariationResult: new("A")}},
 		DefaultRule: &Rule{VariationResult: new("B")},
 	}
-	require.NoError(t, f.IsValid())
+	svc := NewService()
+	require.NoError(t, f.IsValid(svc))
 
 	tests := []struct {
 		name string
@@ -43,9 +44,9 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 				_, _ = f.Value(
 					"flag",
 					ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(),
-					Context{},
+					Context{Service: svc},
 				)
-				v, _ := f.Value("flag", tt.ctx, Context{})
+				v, _ := f.Value("flag", tt.ctx, Context{Service: svc})
 				assert.Equal(t, tt.want, v)
 			})
 		})

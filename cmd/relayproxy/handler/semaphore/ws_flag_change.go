@@ -140,6 +140,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 	const readDeadline = 60 * time.Second
 
 	conn.SetPongHandler(func(string) error {
+		// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now.
 		_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
 
 		return nil

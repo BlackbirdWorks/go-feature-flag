@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -46,12 +47,24 @@ type cacheManagerImpl struct {
 	persistentFlagConfigurationFile string
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
+	// service validates the flags that are loaded, and owns the parses of their queries.
+	service *flag.Service
+}
+
+// Option customizes the Manager that New creates.
+type Option func(*cacheManagerImpl)
+
+// WithService makes the manager validate its flags with svc, which the caller owns (and closes).
+// By default the manager creates a Service of its own.
+func WithService(svc *flag.Service) Option {
+	return func(m *cacheManagerImpl) { m.service = svc }
 }
 
 func New(
 	notificationService notification.Service,
 	persistentFlagConfigurationFile string,
 	logger *fflog.FFLogger,
+	opts ...Option,
 ) Manager {
 	m := &cacheManagerImpl{
 		logger:                          logger,
@@ -59,7 +72,13 @@ func New(
 		notificationService:             notificationService,
 		persistentFlagConfigurationFile: persistentFlagConfigurationFile,
 	}
-	var initial Cache = NewInMemoryCache(logger)
+	for _, opt := range opts {
+		opt(m)
+	}
+	if m.service == nil {
+		m.service = flag.NewService()
+	}
+	var initial Cache = NewInMemoryCache(m.service, logger)
 	m.inMemoryCache.Store(&initial)
 
 	return m
@@ -89,7 +108,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	log *fflog.FFLogger,
 	notifyChanges bool,
 ) error {
-	newCache := NewInMemoryCache(c.logger)
+	newCache := NewInMemoryCache(c.service, c.logger)
 	newCache.Init(newFlags)
 	newCacheFlags := newCache.All()
 	oldCacheFlags := map[string]flag.Flag{}
@@ -97,7 +116,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	var swapped Cache = newCache
 	c.mutex.Lock()
 	old := c.inMemoryCache.Swap(&swapped)
-	c.latestUpdate = time.Now()
+	c.latestUpdate = clock.Now()
 	c.mutex.Unlock()
 	// collect flags for compare (the old cache is immutable, no lock needed).
 	if old != nil {

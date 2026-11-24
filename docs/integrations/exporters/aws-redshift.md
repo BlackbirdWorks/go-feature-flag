@@ -98,8 +98,8 @@ ffConfig := ffclient.Config{
     },
     // ...
 }
-err := ffclient.Init(ffConfig)
-defer ffclient.Close()
+client, err := ffclient.New(ffConfig)
+defer client.Close()
 ```
 
 | Field               |    Mandatory     | Default                                                            | Description                                                                                       |

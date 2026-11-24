@@ -452,3 +452,39 @@ func Test_InitRetriever_Redis(t *testing.T) {
 		})
 	}
 }
+
+func Test_InitRetriever_WithPostgresPools(t *testing.T) {
+	t.Parallel()
+
+	pools := postgresqlretriever.NewPoolRegistry()
+	tests := []struct {
+		name      string
+		opts      []Option
+		wantPools *postgresqlretriever.PoolRegistry
+	}{
+		{name: "the registry of the caller is shared", opts: []Option{WithPostgresPools(pools)}, wantPools: pools},
+		{name: "without it the retriever owns its pool", opts: nil, wantPools: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := InitRetriever(&retrieverconf.RetrieverConf{
+				Kind: retrieverconf.PostgreSQLRetriever, URI: "postgres://localhost/db", Table: "flags",
+			}, tt.opts...)
+
+			require.NoError(t, err)
+			pg, ok := got.(*postgresqlretriever.Retriever)
+			require.True(t, ok)
+			assert.Same(t, tt.wantPools, pg.Pools)
+		})
+	}
+}
+
+func Test_InitRetriever_UnknownKind(t *testing.T) {
+	t.Parallel()
+
+	_, err := InitRetriever(&retrieverconf.RetrieverConf{Kind: "unknown"})
+
+	require.EqualError(t, err, `invalid retriever: kind "unknown" is not supported`)
+}

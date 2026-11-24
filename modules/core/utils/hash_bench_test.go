@@ -6,8 +6,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
-var buildHashSink uint32
-
 func BenchmarkBuildHash(b *testing.B) {
 	tests := []struct {
 		name string
@@ -20,7 +18,7 @@ func BenchmarkBuildHash(b *testing.B) {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				buildHashSink = utils.BuildHash("my-flag", tt.key, 100000)
+				_ = utils.BuildHash("my-flag", tt.key, 100000)
 			}
 		})
 	}

@@ -1,10 +1,9 @@
 package ffclient
 
 import (
-	"time"
-
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // Track is used to track an event.
@@ -23,20 +22,11 @@ func (g *GoFeatureFlag) Track(
 			Kind:              "tracking",
 			ContextKind:       contextKind,
 			UserKey:           ctx.GetKey(),
-			CreationDate:      time.Now().Unix(),
+			CreationDate:      clock.Now().Unix(),
 			Key:               trackingEventName,
 			EvaluationContext: ctx.ToMap(),
 			TrackingDetails:   trackingEventDetails,
 		}
 		g.trackingEventDataExporter.AddEvent(event)
 	}
-}
-
-// Track is used to track an event.
-func Track(
-	trackingEventName string,
-	ctx ffcontext.EvaluationContext,
-	trackingEventDetails exporter.TrackingEventDetails,
-) {
-	ff.Track(trackingEventName, ctx, trackingEventDetails)
 }

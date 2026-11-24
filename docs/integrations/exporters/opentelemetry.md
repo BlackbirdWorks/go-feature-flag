@@ -47,8 +47,8 @@ cfg := ffclient.Config{
     },
 }
 
-_ = ffclient.Init(cfg)
-defer ffclient.Close()
+client, _ := ffclient.New(cfg)
+defer client.Close()
 ```
 
 | Field      |    Mandatory     | Description |

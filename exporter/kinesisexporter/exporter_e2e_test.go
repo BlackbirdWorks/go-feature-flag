@@ -95,7 +95,7 @@ func events(n int) []exporter.ExportableEvent {
 
 func TestE2E_Export(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name         string
@@ -161,7 +161,7 @@ func TestE2E_Export(t *testing.T) {
 
 func TestE2E_Export_Errors(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name     string
@@ -197,7 +197,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 // into several calls, so 501 events must all be delivered.
 func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	cfg := srv.MustAwsConfig(t)
 	client := kinesis.NewFromConfig(cfg)
 	stream := createStream(t, client, 1)
