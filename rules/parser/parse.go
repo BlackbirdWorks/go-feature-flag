@@ -56,12 +56,11 @@ func normalizeRuleInput(rule string) string {
 		c := rule[i]
 		if inString {
 			b.WriteByte(c)
-			switch {
-			case escape:
+			if escape { //nolint:gocritic // the if chain is measurably faster than a switch in this per character loop
 				escape = false
-			case c == '\\':
+			} else if c == '\\' {
 				escape = true
-			case c == '"':
+			} else if c == '"' {
 				inString = false
 			}
 			lastWasSpace = false

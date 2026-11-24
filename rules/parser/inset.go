@@ -107,8 +107,9 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 	size := tableSize(len(tokens))
 	s.tab = make([]uint32, size)
 	s.mask = uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
+	seed := s.seed
 	for i := range tokens {
-		j := maphash.String(s.seed, s.at(uint32(i))) & s.mask
+		j := maphash.String(seed, s.at(uint32(i))) & s.mask
 		for s.tab[j] != 0 {
 			j = (j + 1) & s.mask
 		}

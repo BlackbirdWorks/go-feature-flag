@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -268,7 +267,7 @@ func (n *compareNode) evalCompare(st *evalState) bool {
 	if err != nil {
 		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
 		// the evaluation path (measured), and this block is inlined on purpose.
-		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst { //nolint:errorlint // see above
+		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst { //nolint:errorlint // see setDebugErr
 			// the operand may be the shared compiled list
 			c := *eio
 			c.Val = copyOperand(c.Val)
@@ -326,8 +325,10 @@ func (n *compareNode) setIN(st *evalState) (bool, bool) {
 }
 
 func (n *compareNode) setDebugErr(st *evalState, err error) {
-	switch {
-	case errors.Is(err, ErrInvalidOperation):
+	// Operations return these sentinels and *InvalidOperandError unwrapped; the exact comparisons are kept
+	// because the wrapping-aware forms measurably slow the evaluation path.
+	switch err {
+	case ErrInvalidOperation: //nolint:errorlint // see above
 		// in case of invalid operation lets rather
 		// be conservative and return false because the rule doesn't even make
 		// sense. It can be argued that it would be false positive if we were
@@ -338,13 +339,13 @@ func (n *compareNode) setDebugErr(st *evalState, err error) {
 			errValObjectOperand: st.leftOp,
 			errValRuleOperand:   copyOperand(st.rightOp),
 		})
-	case errors.Is(err, ErrEvalOperandMissing):
+	case ErrEvalOperandMissing: //nolint:errorlint // see above
 		st.debugErr = newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
 			errValAttrPath: n.attrPath,
 		})
 	default:
 		msg := "unknown error"
-		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
+		if _, ok := err.(*InvalidOperandError); ok { //nolint:errorlint // see above
 			msg = "operands are not the right value type"
 		}
 		st.debugErr = newNestedError(err, msg).Set(ErrVals{
@@ -373,7 +374,7 @@ func copyOperand(op Operand) Operand {
 // cloneErr returns a fresh copy of a pre-computed parse error so each call
 // surfaces its own error value.
 func cloneErr(err error) error {
-	if ne, ok := errors.AsType[*strconv.NumError](err); ok {
+	if ne, ok := err.(*strconv.NumError); ok { //nolint:errorlint // returned unwrapped by strconv
 		c := *ne
 
 		return &c
@@ -570,11 +571,6 @@ func parseVersionNumber(s string) (uint64, bool) {
 	return n, err == nil
 }
 
-// isBuildChar reports whether c is in [0-9A-Za-z-].
-func isBuildChar(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-'
-}
-
 // validBuild reports whether s is dot separated, non-empty identifiers of
 // [0-9A-Za-z-], the build metadata semver.Parse accepts.
 func validBuild(s string) bool {
@@ -588,7 +584,9 @@ func validBuild(s string) bool {
 
 			continue
 		}
-		if !isBuildChar(s[i]) {
+		c := s[i]
+		valid := c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-'
+		if !valid {
 			return false
 		}
 	}

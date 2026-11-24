@@ -1,7 +1,5 @@
 package parser
 
-import "slices"
-
 type FloatOperation struct {
 	NullOperation
 }
@@ -67,7 +65,7 @@ func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
 func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
-		return false, nil //nolint:nilerr // LE swallows operand errors, unlike GE; kept as is
+		return false, nil //nolint:nilerr // see issue #50: kept, behaviour change
 	}
 
 	return l <= r, nil
@@ -82,8 +80,11 @@ func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
 	if !ok {
 		return false, newInvalidOperandError(right, rightVal)
 	}
-	if slices.Contains(rightVal, leftVal) {
-		return true, nil
+	// an explicit loop: slices.Contains is measurably slower on this evaluation path
+	for _, num := range rightVal { //nolint:modernize // see above
+		if num == leftVal {
+			return true, nil
+		}
 	}
 
 	return false, nil

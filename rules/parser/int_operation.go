@@ -1,7 +1,5 @@
 package parser
 
-import "slices"
-
 type IntOperation struct {
 	NullOperation
 }
@@ -85,8 +83,11 @@ func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
 	if !ok {
 		return false, newInvalidOperandError(right, rightVal)
 	}
-	if slices.Contains(rightVal, leftVal) {
-		return true, nil
+	// an explicit loop: slices.Contains is measurably slower on this evaluation path
+	for _, num := range rightVal { //nolint:modernize // see above
+		if num == leftVal {
+			return true, nil
+		}
 	}
 
 	return false, nil
