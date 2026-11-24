@@ -35,8 +35,8 @@ import (
 // newTestLogger returns a logger that writes to stderr. server.go reports a failed bind with a fatal log,
 // and its default reaction is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
 // takes the test binary down and every remaining test in the package is silently skipped. The servers of these
-// tests are built with api.WithExit(runtime.Goexit): the server goroutine dies, the fatal error is still logged,
-// and the test fails on its own readiness assertion with a message that points at the right place.
+// tests are built with newTestServer, whose exit function fails the test and ends the server goroutine; the
+// fatal error is still logged.
 func newTestLogger(t *testing.T) *cmdlog.Logger {
 	t.Helper()
 
@@ -192,7 +192,6 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		proxyConf,
 		services,
 		log.Slog,
-		api.WithExit(runtime.Goexit),
 		api.WithListener(ln),
 		api.WithMonitoringListener(monitoringLn),
 	)

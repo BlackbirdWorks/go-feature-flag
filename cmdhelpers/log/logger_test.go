@@ -165,29 +165,27 @@ func callerPC(t *testing.T) uintptr {
 	return pcs[0]
 }
 
-// logHere is small enough to be inlined into its caller: the caller field must still be the line that called it.
-func logHere(l *slog.Logger) {
-	l.LogAttrs(context.Background(), slog.LevelInfo, "inlined") // call site: inlined-record
+// here returns the line of its caller. It is derived from the runtime, so the test does not read its source file
+// (under -trimpath the file name is a module path, not a file on disk).
+//
+//go:noinline
+func here() int {
+	_, _, line, _ := runtime.Caller(1)
+
+	return line
+}
+
+// logHere is small enough to be inlined into its caller: the caller field must still be the line of the record.
+// It returns the line of the record it logged.
+func logHere(l *slog.Logger) int {
+	line := here() + 1
+	l.LogAttrs(context.Background(), slog.LevelInfo, "inlined")
+
+	return line
 }
 
 func TestCallerField(t *testing.T) {
 	t.Parallel()
-
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok)
-	// the call sites are on the lines found by their marker, so the test does not break when lines move.
-	lineOf := func(marker string) int {
-		src, err := os.ReadFile(thisFile)
-		require.NoError(t, err)
-		for i, line := range strings.Split(string(src), "\n") {
-			if strings.HasSuffix(line, "// call site: "+marker) {
-				return i + 1
-			}
-		}
-		require.FailNow(t, "marker not found", marker)
-
-		return 0
-	}
 
 	tests := []struct {
 		name       string
@@ -205,13 +203,14 @@ func TestCallerField(t *testing.T) {
 			logger, err := log.New(tt.format, "info", log.WithWriter(&out))
 			require.NoError(t, err)
 
-			logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "direct") // call site: direct
-			logHere(logger.Slog)
+			directLine := here() + 1
+			logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "direct")
+			inlinedLine := logHere(logger.Slog)
 
 			lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 			require.Len(t, lines, 2)
-			assert.Contains(t, lines[0], fmt.Sprintf(tt.wantFormat, lineOf("direct")))
-			assert.Contains(t, lines[1], fmt.Sprintf(tt.wantFormat, lineOf("inlined-record")))
+			assert.Contains(t, lines[0], fmt.Sprintf(tt.wantFormat, directLine))
+			assert.Contains(t, lines[1], fmt.Sprintf(tt.wantFormat, inlinedLine))
 		})
 	}
 }
