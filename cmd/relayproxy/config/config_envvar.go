@@ -222,7 +222,7 @@ func fetchOrInitConfigItemAtIndex(configArray []any, index int) map[string]any {
 		return make(map[string]any)
 	}
 
-	return configArray[index].(map[string]any)
+	return configArray[index].(map[string]any) //nolint:errcheck // the array items are maps built by this package
 }
 
 // shouldHandleRecursively determines if the configuration should be handled recursively.
@@ -358,20 +358,20 @@ func (c *ConfigLoader) parseOtelResourceAttributes(attributes string, log *zap.L
 	configMap := c.k.Raw()
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {
-		configMap["otel"] = make(map[string]any)
-		otel = configMap["otel"].(map[string]any)
+		otel = make(map[string]any)
+		configMap["otel"] = otel
 	}
 
 	resource, ok := otel["resource"].(map[string]any)
 	if !ok {
-		otel["resource"] = make(map[string]any)
-		resource = otel["resource"].(map[string]any)
+		resource = make(map[string]any)
+		otel["resource"] = resource
 	}
 
 	attrs, ok := resource["attributes"].(map[string]any)
 	if !ok {
-		resource["attributes"] = make(map[string]any)
-		attrs = resource["attributes"].(map[string]any)
+		attrs = make(map[string]any)
+		resource["attributes"] = attrs
 	}
 
 	for i, attr := range strings.Split(attributes, ",") {

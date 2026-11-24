@@ -713,7 +713,7 @@ func (g *SharedItems) pollOnce(ctx context.Context) {
 		return
 	}
 	if fl.err != nil {
-		logger.Error("unable to list the S3 bucket, the flagsets are not refreshed",
+		logger.ErrorContext(ctx, "unable to list the S3 bucket, the flagsets are not refreshed",
 			slog.String("bucket", g.bucket), slog.Any("error", fl.err))
 
 		return

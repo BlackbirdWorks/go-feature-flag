@@ -44,7 +44,7 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 						if err == nil {
 							assert.NotNil(t, f)
 						} else if !tt.close {
-							require.NoError(t, err)
+							assert.NoError(t, err) //nolint:testifylint // off the test goroutine
 						}
 						all, err := m.AllFlags()
 						if err == nil {

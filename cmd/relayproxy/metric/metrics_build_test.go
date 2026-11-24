@@ -18,7 +18,7 @@ import (
 //nolint:paralleltest,tparallel // assigns to the package-level variable promversion.Version; removed by the service-object refactor (follow-up PR)
 func TestMetrics_BuildInfo(t *testing.T) {
 	version := "9.9.9"
-	promversion.Version = version
+	promversion.Version = version //nolint:reassign // prometheus/common/version exposes no setter
 
 	metricSrv, err := metric.NewMetrics()
 	require.NoError(t, err)

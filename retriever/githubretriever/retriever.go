@@ -141,12 +141,12 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	URL, err := r.buildURL(branch)
+	requestURL, err := r.buildURL(branch)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := r.fetch(ctx, URL, token)
+	resp, err := r.fetch(ctx, requestURL, token)
 	if err != nil {
 		return nil, err
 	}
@@ -160,13 +160,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		if token, err = r.resolveToken(ctx); err != nil {
 			return nil, err
 		}
-		if resp, err = r.fetch(ctx, URL, token); err != nil {
+		if resp, err = r.fetch(ctx, requestURL, token); err != nil {
 			return nil, err
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := r.checkResponseError(resp, URL); err != nil {
+	if err := r.checkResponseError(resp, requestURL); err != nil {
 		return nil, err
 	}
 

@@ -46,6 +46,8 @@ issues:
 
 formatters:
   enable:
+    - gci # kept from the previous configuration: import grouping
+    - gofmt # kept from the previous configuration (with its rewrite rule)
     - goimports # checks if the code and import statements are formatted according to the 'goimports' command
     - golines # checks if code is formatted, and fixes long lines
 
@@ -63,6 +65,20 @@ formatters:
       # Default: []
       local-prefixes:
         - github.com/blackbirdworks/semaphore
+
+    gci:
+      # kept from the previous configuration (no-lex-order); the prefix section matches
+      # goimports local-prefixes below.
+      no-lex-order: true
+      sections:
+        - standard
+        - default
+        - prefix(github.com/blackbirdworks/semaphore)
+    gofmt:
+      simplify: false
+      rewrite-rules:
+        - pattern: "a[b:len(a)]"
+          replacement: "a[b:]"
 
     golines:
       # Target maximum line length.
@@ -143,6 +159,19 @@ linters:
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
 
+    # ---- kept from the previous configuration (extra relative to gopherstack) ----
+    - decorder
+    - dogsled
+    - ginkgolinter
+    - godox
+    - goheader
+    - gomodguard_v2
+    - grouper
+    - importas
+    - interfacebloat
+    - misspell
+    - zerologlint
+
     ## you may want to enable
     #- decorder # checks declaration order and count of types, constants, variables and functions
     #- exhaustruct # [highly recommend to enable] checks if all structure fields are initialized
@@ -189,25 +218,14 @@ linters:
     - cyclop # 4 functions over the complexity limit
     - depguard # 9: log -> log/slog, math/rand -> math/rand/v2
     - err113 # 318: dynamic errors, needs sentinel errors
-    - errcheck # 18: unchecked type assertions
     - exhaustive # 3
     - gochecknoglobals # 55
-    - gochecknoinits # 1
-    - gocognit # 3
-    - gocritic # 2
-    - gosec # 1
-    - lll # 124 long lines in tests (golines wraps what it can)
     - mnd # 107 magic numbers
     - nestif # 2
     - nilnil # 14
     - nolintlint # 95 (explanations, unused directives)
     - nonamedreturns # 13
-    - prealloc # 8
     - promlinter # 5 (renaming a metric breaks dashboards: needs a decision)
-    - reassign # 2 (tests swap os.Stderr, http.DefaultTransport, version vars)
-    - revive # 62
-    - sloglint # 9
-    - staticcheck # 74
     - testpackage # 54 (white-box tests)
     - thelper # 125
     - usetesting # 12
@@ -350,7 +368,8 @@ linters:
       # Checks the number of lines in a function.
       # If lower than 0, disable the check.
       # Default: 60
-      lines: 100
+      # TEMPORARY: main's limit (gopherstack: 100).
+      lines: 90
       # Checks the number of statements in a function.
       # If lower than 0, disable the check.
       # Default: 40
@@ -364,7 +383,9 @@ linters:
     gocognit:
       # Minimal code complexity to report.
       # Default: 30 (but we recommend 10-20)
-      min-complexity: 20
+      # TEMPORARY: main's threshold (gopherstack: 20, tightened in a follow-up PR; 3 functions are
+      # between 20 and 30: helper.FlagTypeFromVariations, ExporterConf.IsValid, InternalFlag.IsValid).
+      min-complexity: 30
 
     gocritic:
       # Settings passed to gocritic.
@@ -390,6 +411,17 @@ linters:
         # Require proper doc links to standard library declarations where applicable.
         # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#require-stdlib-doclink
         - require-stdlib-doclink
+
+    gosec:
+      # kept from the previous configuration
+      excludes:
+        - G304
+
+    revive:
+      # TEMPORARY: main's setting (confidence 0.8 with the default rule set reports nothing on
+      # this tree). gopherstack's default confidence reports 62 findings (18 non-test:
+      # var-naming/stutter renames of exported API, unused-parameter, comment forms), enabled in a follow-up PR.
+      confidence: 0.8
 
     gomoddirectives:
       replace-local: true
@@ -495,7 +527,10 @@ linters:
       # - "default": report only the default slog logger
       # https://github.com/go-simpler/sloglint?tab=readme-ov-file#no-global
       # Default: ""
-      no-global: all
+      # TEMPORARY: main's setting (disabled). gopherstack: all; 8 slog.*Context/Warn calls on the
+      # default logger (exporter/data_exporter.go, modules/core/flag/rule.go x6, modules/core/legacy)
+      # need an injected logger, follow-up PR.
+      no-global: ""
       # Enforce using methods that accept a context.
       # Values:
       # - "": disabled
@@ -520,6 +555,15 @@ linters:
         # Omit embedded fields from selector expression.
         # https://staticcheck.dev/docs/checks/#QF1008
         - -QF1008
+        # TEMPORARY (main's scope, which did not run these two; follow-up PR): renaming exported
+        # identifiers (DbUser -> DBUser, Error doc comment form) is an API/config change.
+        - -ST1003
+        - -ST1020
+
+    testifylint:
+      # go-require (no require.* off the test goroutine) is in the default set; kept explicit.
+      enable:
+        - go-require
 
     usetesting:
       # Enable/disable `os.TempDir()` detections.
@@ -545,6 +589,13 @@ linters:
       - std-error-handling
       - common-false-positives
     rules:
+      # TEMPORARY: main's scope, tightened in follow-up PRs. Main excluded these linters in
+      # test files and mocks; remaining findings at the time of this PR: staticcheck 63,
+      # lll 124 (test files), lll 5 (testutils/mongodb_mock.go).
+      - path: '_test\.go'
+        linters: [ staticcheck, lll ]
+      - path: '_mock\.go'
+        linters: [ lll ]
       - source: 'TODO'
         linters: [ godot ]
       # swag annotations are parsed by swag init, a trailing period would break them

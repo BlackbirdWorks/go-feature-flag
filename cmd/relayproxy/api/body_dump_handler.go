@@ -48,7 +48,7 @@ func bodyDumpHandler(logger *zap.Logger) middleware.BodyDumpHandler {
 		}
 
 		// body is too large, truncate the request body and log it
-		bufPtr := bufferPool.Get().(*[]byte)
+		bufPtr := bufferPool.Get().(*[]byte) //nolint:errcheck // the pool only ever holds *[]byte (see its New func)
 		truncated := *bufPtr
 		copy(truncated[:maxBodyLogSize], reqBody[:maxBodyLogSize])
 		logger.Debug("Request info", zap.ByteString("request_body", truncated))

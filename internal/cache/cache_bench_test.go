@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
@@ -25,7 +24,7 @@ func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 
 func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
 	tb.Helper()
-	var sb []byte
+	sb := make([]byte, 0, n*128)
 	for i := range n {
 		sb = append(sb, fmt.Sprintf(`flag-%d:
   variations: {A: true, B: false}

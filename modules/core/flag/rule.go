@@ -155,7 +155,8 @@ var queryMapPool = sync.Pool{New: func() any { return make(map[string]any, 16) }
 
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
+		pooled := queryMapPool.Get().(map[string]any) //nolint:errcheck // the pool only holds map[string]any
+		q.parsedEvalCtxAsMap = utils.ContextToMapInto(pooled, q.ctx)
 		q.pooled = true
 	}
 

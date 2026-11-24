@@ -14,10 +14,10 @@ func Test_constructMetadataParallel(t *testing.T) {
 		"key1": "value1",
 	}
 
-	var tests []struct {
+	tests := make([]struct {
 		name                  string
 		wantEvaluatedRuleName string
-	}
+	}, 0, 10_000)
 
 	// generate test cases
 	for i := range 10_000 {
