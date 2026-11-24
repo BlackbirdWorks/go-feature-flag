@@ -9,18 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/diegoholiveira/jsonlogic/v3"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/diegoholiveira/jsonlogic/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCompiledQuery(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name        string
 		raw         string
@@ -36,8 +33,6 @@ func TestGetCompiledQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			c := getCompiledQuery(tt.raw)
 			assert.Equal(t, tt.wantTrimmed, c.trimmed)
 			assert.Equal(t, tt.wantFormat, c.format)
@@ -52,8 +47,6 @@ type namedBool bool
 type namedString string
 
 func TestIsJSONLogicTruthy(t *testing.T) {
-	t.Parallel()
-
 	f, tr, empty := false, true, ""
 	tests := []struct {
 		name  string
@@ -79,18 +72,12 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			assert.Equal(t, tt.want, isJSONLogicTruthy(tt.value))
 		})
 	}
 }
 
 func TestGetCompiledQuery_OnlyEvaluationStores(t *testing.T) {
-	t.Parallel()
-
-	// Local deviation from upstream (see UPSTREAM.md): not parallel. It asserts the exact size of the
-	// process-wide compiledQueryCache, which the parallel evaluations of the other tests fill.
 	t.Cleanup(compiledQueryCache.Clear)
 	compiledQueryCache.Clear()
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
@@ -117,8 +104,6 @@ func compiledQueryCacheLen() int {
 }
 
 func TestAsJSONData(t *testing.T) {
-	t.Parallel()
-
 	cyclicMap := map[string]any{}
 	cyclicMap["self"] = cyclicMap
 	cyclicSlice := []any{nil}
@@ -146,8 +131,6 @@ func TestAsJSONData(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			got, ok := asJSONData(tt.value, 0)
 			assert.Equal(t, tt.wantOK, ok)
 			if !tt.wantOK {
@@ -164,8 +147,6 @@ func TestAsJSONData(t *testing.T) {
 
 // TestEvaluateRule_JSONLogicMatchesApply checks the cached path gives the same answer as jsonlogic.Apply.
 func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
-	t.Parallel()
-
 	queries := []string{
 		`{"==": [{"var": "key"}, "abc"]}`,
 		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
@@ -203,8 +184,6 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 	for _, q := range queries {
 		for _, ctx := range ctxs {
 			t.Run(q+"/"+ctx.GetKey(), func(t *testing.T) {
-				t.Parallel()
-
 				assert.Equal(t, applyReference(t, q, ctx), evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 			})
 		}
@@ -212,8 +191,6 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 }
 
 func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
-	t.Parallel()
-
 	f, tr, empty := false, true, ""
 	results := map[string]any{
 		"nil_slice":    []any(nil),
@@ -233,8 +210,6 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 		jsonlogic.AddOperator(op, func(_, _ any) any { return result })
 		q := `{"` + op + `": []}`
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
 			assert.Equal(t, applyReference(t, q, ctx), evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 		})
 	}
@@ -287,8 +262,6 @@ func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 }
 
 func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
-	t.Parallel()
-
 	q := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"some": [{"var": "tags"}, {"==": [{"var": ""}, "b"]}]}]}`
 	var wg sync.WaitGroup
 	for i := range 32 {
