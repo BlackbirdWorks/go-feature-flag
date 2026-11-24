@@ -108,13 +108,13 @@ SHA and PR number.
   `git diff --name-only --cached | grep -E '\.(go|mod)$' | xargs sed -i "s#github.com/thomaspoignant/go-feature-flag#$MOD#g"`
   and `git commit -c <sha>`; or
   `git format-patch -1 --stdout <sha> | sed "s#github.com/thomaspoignant/go-feature-flag#$MOD#g" | git am -3 --trailer "(cherry picked from upstream $sha)"`.
-  Do not rewrite `go.sum` hunks or the `replace` lines for `modules/core`/`rules`; keep local `replace` directives.
+  Do not rewrite `go.sum` hunks or the `replace` line for `rules`; keep the local `replace` directive. Upstream's go.mod/go.sum hunks under `modules/core` have no counterpart here (`modules/core` is a plain directory of the root module): drop them and carry their dependency changes into the root `go.mod`.
   Upstream names that were renamed here (directories, binaries, `goff-proxy`, `gofeatureflag*` keys) are listed in
   `UPSTREAM.md`, "Path and name mapping": port such hunks by hand to the Semaphore name and keep the alias behaviour.
 - Paths deleted locally (e.g. `cmd/wasm`): in a conflict, `git rm` the "deleted by us" files and
   continue; the rest of the commit still applies.
 - Dependency bumps: do not cherry-pick `go.sum` hunks. Re-run the bump in each module that uses it
-  (`rules`, `modules/core`, root): `go get <mod>@<ver> && go mod tidy`, then `make tidy-check`.
+  (`rules`, root; dependencies of `modules/core` live in the root `go.mod`): `go get <mod>@<ver> && go mod tidy`, then `make tidy-check`.
 - ALREADY-HAVE: reconcile as described in step 3.
 
 ## 6. Verify

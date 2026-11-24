@@ -14,8 +14,6 @@ updates:
       prefix: "chore"
     cooldown:
       default-days: 7
-      exclude:
-        - "github.com/blackbirdworks/semaphore/modules/core"
     # Never let a bot bump a module that is replaced by a local directory or published
     # by the original upstream project: that would pull upstream code into this tree.
     ignore:
@@ -52,28 +50,6 @@ updates:
       - "automerge"
     commit-message:
       prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: gomod
-    directory: "/modules/core"
-    schedule:
-      interval: daily
-      time: "01:15"
-    open-pull-requests-limit: 20
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore(dependencies)"
-    # Never let a bot bump a module that is replaced by a local directory or published
-    # by the original upstream project: that would pull upstream code into this tree.
-    ignore:
-      - dependency-name: "github.com/blackbirdworks/semaphore*"
-      - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
-      - dependency-name: "github.com/go-feature-flag/*"
-      - dependency-name: "github.com/nikunjy/rules"
-      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     cooldown:
       default-days: 7
 

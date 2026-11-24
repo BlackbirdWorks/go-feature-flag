@@ -61,7 +61,7 @@ Done in this tree:
 
 - WASM/WASI build of the evaluation engine removed (`cmd/wasm`, TinyGo-specific code paths, wasm release workflows/scripts).
 - Go toolchain pinned to the latest release (`go 1.27.4`) in all modules.
-- `modules/core` and `rules` are consumed through local `replace` directives, not released module versions.
+- `rules` is consumed through a local `replace` directive, not a released module version. `modules/core` is a plain directory of the root module here (upstream: a separate module).
 - Docs website, bundled OpenFeature provider SDKs (`openfeature/providers`, including the python provider's WASM submodule), `examples/` and the upstream release/community tooling removed; plain Markdown docs live in `docs/`.
 - gopherstack-based end-to-end tests (`testutils/gopherstack`, `*_e2e_test.go`, build tag `docker`).
 
@@ -84,7 +84,7 @@ without its Semaphore counterpart.
 | Upstream | This repository |
 |---|---|
 | `github.com/thomaspoignant/go-feature-flag` (root module) | `github.com/blackbirdworks/semaphore` |
-| `github.com/thomaspoignant/go-feature-flag/modules/core` | `github.com/blackbirdworks/semaphore/modules/core` |
+| `github.com/thomaspoignant/go-feature-flag/modules/core` (separate module upstream) | `github.com/blackbirdworks/semaphore/modules/core` (package directory of the root module) |
 | `github.com/thomaspoignant/koanf-http-provider` | `github.com/blackbirdworks/semaphore/internal/koanfhttpprovider` |
 | `cmd/relayproxy/handler/goff/` | `cmd/relayproxy/handler/semaphore/` |
 | `cmd/relayproxy/api/routes_goff.go` | `cmd/relayproxy/api/routes_semaphore.go` |

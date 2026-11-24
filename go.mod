@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
-	github.com/blackbirdworks/semaphore/modules/core v0.8.2
+	github.com/diegoholiveira/jsonlogic/v3 v3.11.0
 	github.com/dustin/go-humanize v1.1.0
 	github.com/fsouza/fake-gcs-server v1.56.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -48,6 +48,7 @@ require (
 	github.com/labstack/echo-prometheus v0.0.1
 	github.com/labstack/echo/v5 v5.4.7
 	github.com/luci/go-render v0.0.0-20160219211803-9a04cc21af0f
+	github.com/nikunjy/rules v1.5.0
 	github.com/pablor21/echo-etag/v5 v5.0.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/prometheus/client_golang v1.25.0
@@ -142,7 +143,6 @@ require (
 	github.com/containerd/platforms v0.2.1 // indirect
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/diegoholiveira/jsonlogic/v3 v3.11.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -223,7 +223,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/montanaflynn/stats v0.14.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nikunjy/rules v1.5.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pandatix/go-abnf v0.5.5 // indirect
@@ -316,7 +315,3 @@ replace github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0
 // It adds proper semver support (prerelease comparison, see https://github.com/thomaspoignant/go-feature-flag/issues/4736)
 // and rejects invalid rule syntax at parse time.
 replace github.com/nikunjy/rules => ./rules
-
-// Build against the modules/core of this repository instead of the released version from the module proxy,
-// so that changes to modules/core reach the relay proxy.
-replace github.com/blackbirdworks/semaphore/modules/core => ./modules/core
