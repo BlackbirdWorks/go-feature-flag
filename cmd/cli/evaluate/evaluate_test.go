@@ -59,6 +59,7 @@ func buildEvaluate(
 
 // assertEvaluate runs a single evaluateTestCase and verifies its outcome.
 func assertEvaluate(t *testing.T, tt evaluateTestCase) {
+	t.Helper()
 	e, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)

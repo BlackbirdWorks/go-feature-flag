@@ -349,6 +349,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
+				t.Helper()
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "localhost:6379", redisRet.Options.Addr)
@@ -371,6 +372,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
+				t.Helper()
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "redis.example.com:6380", redisRet.Options.Addr)
@@ -392,6 +394,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
+				t.Helper()
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "new:6380", redisRet.Options.Addr)
@@ -418,6 +421,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 			},
 			wantErr: false,
 			validateRetriever: func(t *testing.T, r retriever.Retriever) {
+				t.Helper()
 				redisRet, ok := r.(*redisretriever.Retriever)
 				require.True(t, ok, "expected *redisretriever.Retriever")
 				assert.Equal(t, "redis:6379", redisRet.Options.Addr)

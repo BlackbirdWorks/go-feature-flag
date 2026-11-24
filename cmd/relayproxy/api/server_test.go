@@ -447,6 +447,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
+				t.Helper()
 				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
 				require.NoError(t, err)
 				request.Header.Add("Content-Type", "application/json")

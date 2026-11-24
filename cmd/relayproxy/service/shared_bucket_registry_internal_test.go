@@ -162,6 +162,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		want []int
 	}{
 		{name: "same bucket shares a group, other bucket has its own", run: func(t *testing.T) []int {
+			t.Helper()
 			var created atomic.Int32
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
 			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
@@ -182,6 +183,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return append(got, reg.groupCount())
 		}, want: []int{2, 2, 2}},
 		{name: "group is dropped after the last shutdown", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml")
 			r1, err := reg.retrieverFor(&fs1)
@@ -196,6 +198,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return append(got, reg.groupCount())
 		}, want: []int{1, 0}},
 		{name: "unsupported configurations", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			folder := s3FlagSet("a", "b1", "")
 			other := s3FlagSet("a", "b1", "x")
@@ -210,6 +213,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
+			t.Helper()
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
@@ -218,6 +222,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "concurrent callers build the group once", run: func(t *testing.T) []int {
+			t.Helper()
 			const callers = 4
 			var building sync.WaitGroup
 			building.Add(callers)
@@ -275,6 +280,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 	}{
 		{name: "claimed retrievers are the pre-registered ones, the unclaimed ones are released",
 			run: func(t *testing.T) []int {
+				t.Helper()
 				var created atomic.Int32
 				reg := newFakeRegistry(t, &fakeS3{}, &created)
 				fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "q/b.yaml")
@@ -294,6 +300,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 				return append(got, reg.groupCount())
 			}, want: []int{1, 1, 0}},
 		{name: "invalid configuration", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			bad := s3FlagSet("c", "b1", "")
 			require.Error(t, reg.preRegister(&bad))
@@ -301,6 +308,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
+			t.Helper()
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")

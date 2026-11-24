@@ -415,14 +415,22 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing object",
-			bucket:  func(t *testing.T) string { return srv.CreateBucket(t, "sherr") },
+			name: "missing object",
+			bucket: func(t *testing.T) string {
+				t.Helper()
+
+				return srv.CreateBucket(t, "sherr")
+			},
 			item:    "nope/flags.json",
 			wantErr: `item "nope/flags.json" not found in S3 bucket "sherr-`,
 		},
 		{
-			name:    "missing bucket",
-			bucket:  func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			name: "missing bucket",
+			bucket: func(t *testing.T) string {
+				t.Helper()
+
+				return gopherstack.UniqueName(t, "nobucket")
+			},
 			item:    "nope/flags.json",
 			wantErr: `NoSuchBucket: The specified bucket does not exist.`,
 		},

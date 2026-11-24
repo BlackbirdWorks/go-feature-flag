@@ -89,6 +89,7 @@ func TestEvaluatorProcess(t *testing.T) {
 // testProcessDifferential compares the compiled evaluator, fresh and reused,
 // and Evaluate against the visitor over a broad rule and input corpus.
 func testProcessDifferential(t *testing.T) {
+	t.Helper()
 	type kv = map[string]any
 	inputs := []kv{
 		{},
@@ -501,6 +502,7 @@ func genMap(r *rand.Rand, depth int) map[string]any {
 }
 
 func testProcessZeroValue(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name  string
 		items map[string]any
@@ -527,6 +529,7 @@ func testProcessZeroValue(t *testing.T) {
 }
 
 func testProcessDoesNotLeakRuleConstants(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name   string
 		rule   string
@@ -574,6 +577,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 }
 
 func testProcessErrorIdentity(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name string
 		rule string
@@ -600,6 +604,7 @@ func testProcessErrorIdentity(t *testing.T) {
 }
 
 func testProcessConcurrent(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name  string
 		rule  string
@@ -637,6 +642,7 @@ func testProcessConcurrent(t *testing.T) {
 }
 
 func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name  string
 		rule  string
@@ -702,6 +708,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 }
 
 func testProcessConcurrentFirstCall(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name  string
 		rule  string
@@ -740,6 +747,7 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 }
 
 func testProcessCompileFailureFallsBack(t *testing.T) {
+	t.Helper()
 	// compileQuery panics on an incomplete tree; every Process call must
 	// then report what the visitor reports for that tree, not a
 	// half-initialized evaluator.
@@ -770,6 +778,7 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 }
 
 func testProcessDropsTreeAfterCompile(t *testing.T) {
+	t.Helper()
 	ev, err := NewEvaluator(`x eq 1`)
 	require.NoError(t, err)
 	require.NotNil(t, ev.tree, "NewEvaluator must only parse")
@@ -782,6 +791,7 @@ func testProcessDropsTreeAfterCompile(t *testing.T) {
 }
 
 func testProcessVersionFastPath(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		rule     string
 		wantFast bool
@@ -825,6 +835,7 @@ func testProcessVersionFastPath(t *testing.T) {
 }
 
 func testProcessStaleDebugErr(t *testing.T) {
+	t.Helper()
 	bad := map[string]any{"x": "s"}
 	good := map[string]any{"x": 1}
 	tests := []struct {
@@ -919,6 +930,7 @@ func TestParsePlainVersion(t *testing.T) {
 // capacity: a stale list operand is appended to, which must copy it rather
 // than write into the shared compiled list.
 func testProcessListCapacity(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		rule string
 	}{
@@ -947,6 +959,7 @@ func testProcessListCapacity(t *testing.T) {
 // appended elements, so without the cap the goroutines would write into the
 // shared list. Run with -race.
 func testProcessConcurrentStaleList(t *testing.T) {
+	t.Helper()
 	tests := []struct {
 		name  string
 		rule  string

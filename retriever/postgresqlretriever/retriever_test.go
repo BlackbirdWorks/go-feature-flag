@@ -119,6 +119,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 
 // startPostgreSQLAndAddData starts a PostgreSQL container, removed when the test ends, and loads the files in it.
 func startPostgreSQLAndAddData(t *testing.T, files []string) string {
+	t.Helper()
 	ctx := context.TODO()
 	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)

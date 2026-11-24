@@ -22,6 +22,7 @@ const (
 )
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
+	t.Helper()
 	configFile := testutils.CopyContentToNewTempFile(t, configContent)
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String(configFlagName, "", configFlagUsage)
@@ -104,6 +105,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 		{
 			name: "Successfully stop watcher when configLoader is initialized",
 			setupConfig: func(t *testing.T) *config.Config {
+				t.Helper()
 				cfg, _ := createTestConfig(t, `server:
   port: 1031
 pollingInterval: 1000
@@ -116,6 +118,7 @@ loglevel: info`)
 		{
 			name: "Stop watcher when configLoader is nil - should return nil",
 			setupConfig: func(t *testing.T) *config.Config {
+				t.Helper()
 				return &config.Config{}
 			},
 			wantErr: nil,

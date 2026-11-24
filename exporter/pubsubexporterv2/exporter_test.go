@@ -248,6 +248,7 @@ func assertMessages(
 	expectedEvents []exporter.ExportableEvent,
 	messages []*pstest.Message,
 ) {
+	t.Helper()
 	events := make([]exporter.FeatureEvent, len(messages))
 	for i, message := range messages {
 		assert.Equal(t, map[string]string{"emitter": "GO Feature Flag"}, message.Attributes,
@@ -267,6 +268,7 @@ func assertPublisherSettings(
 	expectedSettings *pubsub.PublishSettings,
 	publisher *pubsub.Publisher,
 ) {
+	t.Helper()
 	if expectedSettings != nil {
 		assert.Equal(t, *expectedSettings, publisher.PublishSettings)
 	} else {

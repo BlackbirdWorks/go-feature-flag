@@ -20,6 +20,7 @@ import (
 
 // invoke runs the handler once the way the router would, without any network.
 func invoke(b *testing.B, e *echo.Echo, h func(*echo.Context) error, ep relay.Endpoint, key string, i int) {
+	b.Helper()
 	req := httptest.NewRequest(http.MethodPost, ep.Path(key), strings.NewReader(ep.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

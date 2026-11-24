@@ -67,6 +67,7 @@ func sharedBy100Flags(b *testing.B, svc *flag.Service) []*flag.InternalFlag {
 }
 
 func benchValue(b *testing.B, svc *flag.Service, flags []*flag.InternalFlag, key string) {
+	b.Helper()
 	ctx := ffcontext.NewEvaluationContext(key)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -127,6 +128,7 @@ func BenchmarkInternalFlagValue_LargeIn300kParallel(b *testing.B) {
 // benchReload is the time to load a configuration of 100 flags that carry the same list of ids
 // while the previous configuration is still loaded.
 func benchReload(b *testing.B, ids int) {
+	b.Helper()
 	svc := flag.NewService()
 	query := largeInQueryVariant(ids, "")
 	load := func() []*flag.InternalFlag {
@@ -228,6 +230,7 @@ func smallQueries(n int) []string {
 // benchLoad measures IsValid of n flags that each carry a distinct short query, the shape of a
 // typical configuration file. The flags are built outside the measure.
 func benchLoad(b *testing.B, n int) {
+	b.Helper()
 	svc := flag.NewService()
 	queries := smallQueries(n)
 	var keep []*flag.InternalFlag

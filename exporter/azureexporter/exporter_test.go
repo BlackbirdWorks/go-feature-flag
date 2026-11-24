@@ -286,6 +286,7 @@ func TestAzureBlobStorage_IsBulk(t *testing.T) {
 }
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
+	t.Helper()
 	ctx := context.Background()
 	azuriteContainer, err := azurite.Run(
 		ctx,
@@ -320,6 +321,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 }
 
 func tearDown(t *testing.T, container *azurite.Container) {
+	t.Helper()
 	err := testcontainers.TerminateContainer(container)
 	require.NoError(t, err)
 }

@@ -177,6 +177,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 		{
 			name: "unknown stream",
 			settings: func(t *testing.T) *kinesisexporter.Settings {
+				t.Helper()
 				return kinesisexporter.NewSettings(
 					kinesisexporter.WithStreamName(gopherstack.UniqueName(t, "nostream")),
 				)

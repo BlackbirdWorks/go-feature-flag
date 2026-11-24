@@ -41,6 +41,7 @@ func flagSetNames(c *config.Config) []string {
 
 // newStudioServer serves body when the Authorization header matches, it is down when body is empty.
 func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeader {
 			w.WriteHeader(http.StatusUnauthorized)

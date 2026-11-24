@@ -147,6 +147,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 		{
 			name: "unknown queue",
 			queueURL: func(t *testing.T) string {
+				t.Helper()
 				return srv.Endpoint + "/000000000000/" + gopherstack.UniqueName(t, "noqueue")
 			},
 			wantErr: "AWS.SimpleQueueService.NonExistentQueue: The specified queue does not exist.",

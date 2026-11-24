@@ -78,6 +78,7 @@ func TestE2E_Export(t *testing.T) {
 			name: "csv default template", format: "csv", s3Path: "exports/csv", nbEvents: 4,
 			wantKeyRegex: "^exports/csv/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.csv$`,
 			check: func(t *testing.T, content []byte, n int) {
+				t.Helper()
 				lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 				require.Len(t, lines, n)
 				for i, l := range lines {
@@ -99,6 +100,7 @@ func TestE2E_Export(t *testing.T) {
 			filename: "fixed.csv", csvTemplate: "{{ .UserKey }},{{ .Key }},{{ .Value }}\n",
 			wantKeyRegex: "^exports/csv2/fixed.csv$",
 			check: func(t *testing.T, content []byte, n int) {
+				t.Helper()
 				assert.Equal(t, "user-0,my-flag,value-0\nuser-1,my-flag,value-1\n", string(content))
 			},
 		},
@@ -106,6 +108,7 @@ func TestE2E_Export(t *testing.T) {
 			name: "parquet", format: "parquet", s3Path: "exports/parquet", nbEvents: 6,
 			wantKeyRegex: "^exports/parquet/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.parquet$`,
 			check: func(t *testing.T, content []byte, n int) {
+				t.Helper()
 				f := filepath.Join(t.TempDir(), "out.parquet")
 				require.NoError(t, os.WriteFile(f, content, 0o600))
 				fr, err := local.NewLocalFileReader(f)
@@ -146,6 +149,7 @@ func TestE2E_Export(t *testing.T) {
 }
 
 func checkJSON(t *testing.T, content []byte, n int) {
+	t.Helper()
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 	require.Len(t, lines, n)
 	for i, l := range lines {
@@ -168,8 +172,12 @@ func TestE2E_Export_Errors(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing bucket",
-			bucket:  func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			name: "missing bucket",
+			bucket: func(t *testing.T) string {
+				t.Helper()
+
+				return gopherstack.UniqueName(t, "nobucket")
+			},
 			wantErr: "NoSuchBucket: The specified bucket does not exist.",
 		},
 	}

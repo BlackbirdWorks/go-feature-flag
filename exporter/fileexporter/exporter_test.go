@@ -520,6 +520,7 @@ func TestFile_Export(t *testing.T) {
 				},
 			},
 			setup: func(t *testing.T, fields fields) {
+				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
 				if runtime.GOOS == "windows" {
@@ -531,6 +532,7 @@ func TestFile_Export(t *testing.T) {
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
+				t.Helper()
 				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -558,6 +560,7 @@ func TestFile_Export(t *testing.T) {
 				},
 			},
 			setup: func(t *testing.T, fields fields) {
+				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
 				if runtime.GOOS == "windows" {
@@ -572,6 +575,7 @@ func TestFile_Export(t *testing.T) {
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
+				t.Helper()
 				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},

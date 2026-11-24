@@ -159,10 +159,10 @@ func (s *Server) AwsConfig(ctx context.Context) (aws.Config, error) {
 }
 
 // MustAwsConfig is AwsConfig failing the test on error.
-func (s *Server) MustAwsConfig(t testing.TB) aws.Config {
-	t.Helper()
-	cfg, err := s.AwsConfig(t.Context())
-	require.NoError(t, err)
+func (s *Server) MustAwsConfig(tb testing.TB) aws.Config {
+	tb.Helper()
+	cfg, err := s.AwsConfig(tb.Context())
+	require.NoError(tb, err)
 
 	return cfg
 }
@@ -217,11 +217,11 @@ func Main(m *testing.M) int {
 
 // Connect returns the emulator that Main started (or that GOPHERSTACK_ENDPOINT points to). The test is
 // skipped if there is none, because Docker is not available.
-func Connect(t testing.TB) *Server {
-	t.Helper()
+func Connect(tb testing.TB) *Server {
+	tb.Helper()
 	endpoint := strings.TrimRight(os.Getenv(EnvEndpoint), "/")
 	if endpoint == "" {
-		t.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
+		tb.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
 	}
 
 	return &Server{Endpoint: endpoint}
@@ -231,9 +231,9 @@ var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)
 
 // UniqueName returns a name unique to the test and the run (lowercase, DNS valid, <= 63 chars),
 // usable as bucket, queue or stream name.
-func UniqueName(t testing.TB, prefix string) string {
-	t.Helper()
-	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(t.Name()), "-"), "-")
+func UniqueName(tb testing.TB, prefix string) string {
+	tb.Helper()
+	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(tb.Name()), "-"), "-")
 	if len(base) > maxNameBase {
 		base = strings.Trim(base[:maxNameBase], "-")
 	}

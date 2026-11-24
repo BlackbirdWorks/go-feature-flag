@@ -203,6 +203,7 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 		{
 			name: "private key file",
 			configure: func(t *testing.T, r *githubretriever.Retriever) {
+				t.Helper()
 				r.PrivateKeyFile = filepath.Join(t.TempDir(), "key.pem")
 				require.NoError(t, os.WriteFile(r.PrivateKeyFile, []byte(r.PrivateKey), 0o600))
 				r.PrivateKey = ""

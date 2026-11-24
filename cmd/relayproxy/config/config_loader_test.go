@@ -38,6 +38,7 @@ pollingInterval: 2000
 loglevel: debug`,
 			wantCallbacks: 1,
 			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
 
@@ -62,6 +63,7 @@ pollingInterval: 3000
 loglevel: warn`,
 			wantCallbacks: 2,
 			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
 
@@ -92,6 +94,7 @@ pollingInterval: 5000
 loglevel: error`,
 			wantCallbacks: 1,
 			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
 

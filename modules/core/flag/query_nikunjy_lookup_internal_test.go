@@ -54,10 +54,10 @@ func applies(svc *Service, r *Rule, key string) bool {
 	return err == nil
 }
 
-func validatedFlag(t testing.TB, svc *Service, queries ...string) *InternalFlag {
-	t.Helper()
+func validatedFlag(tb testing.TB, svc *Service, queries ...string) *InternalFlag {
+	tb.Helper()
 	f := newFlagWithQueries(queries...)
-	require.NoError(t, f.IsValid(svc))
+	require.NoError(tb, f.IsValid(svc))
 
 	return f
 }

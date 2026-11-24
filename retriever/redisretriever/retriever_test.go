@@ -89,6 +89,7 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 // startRedisAndAddData starts a Redis container, terminated when the test ends, and seeds it with the flag files.
 func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Options {
+	t.Helper()
 	ctx := context.TODO()
 
 	redisContainer, err := testcontainerRedis.RunContainer(ctx,
@@ -274,6 +275,7 @@ func Test_Redis_OutputFormat(t *testing.T) {
 }
 
 func readFile(t *testing.T, file string) (string, []byte) {
+	t.Helper()
 	content, err := os.ReadFile(filepath.Join("testdata", file))
 	if err != nil {
 		return "", nil

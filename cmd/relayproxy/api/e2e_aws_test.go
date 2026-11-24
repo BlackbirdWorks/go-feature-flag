@@ -701,6 +701,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	// assertSink checks that the events read from a sink contain every evaluation made above.
 	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
+		t.Helper()
 		var got []sinkEvent
 		require.Eventually(t, func() bool {
 			got = read(t)
@@ -737,6 +738,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "s3 exporter",
 			read: func(t *testing.T) []sinkEvent {
+				t.Helper()
 				var res []sinkEvent
 				for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
 					require.True(t, strings.HasSuffix(k, ".json"), k)
@@ -752,6 +754,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "kinesis exporter",
 			read: func(t *testing.T) []sinkEvent {
+				t.Helper()
 				desc, describeStreamErr := kc.DescribeStream(
 					t.Context(),
 					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
@@ -784,6 +787,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "sqs exporter",
 			read: func(t *testing.T) []sinkEvent {
+				t.Helper()
 				return receiveSQS(t, sc, aws.ToString(q.QueueUrl), sqsReceived)
 			},
 			wantUsers: wantUsers,

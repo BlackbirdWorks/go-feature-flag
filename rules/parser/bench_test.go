@@ -66,6 +66,7 @@ func checkBenchProcess(b *testing.B, rule string, input map[string]any, want boo
 }
 
 func benchNewAndProcess(b *testing.B, rule string) {
+	b.Helper()
 	benchInput := newBenchInput()
 	b.Helper()
 	checkBenchProcess(b, rule, benchInput, false)
