@@ -96,7 +96,11 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 
 			var gotRefresh bool
 			label := t.Name()
-			pprof.Do(t.Context(), pprof.Labels("leakcheck", label), func(ctx context.Context) {
+			// The timeout is only a bound: the slow retrievers give up with the context if the refresh
+			// ever stops returning on the first error, so the test fails instead of hanging.
+			refreshCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+			defer cancel()
+			pprof.Do(refreshCtx, pprof.Labels("leakcheck", label), func(ctx context.Context) {
 				gotRefresh = manager.ForceRefresh(ctx)
 			})
 			// The slow retrievers answer after the refresh already returned its error.

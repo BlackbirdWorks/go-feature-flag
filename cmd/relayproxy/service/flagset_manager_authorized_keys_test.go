@@ -102,21 +102,18 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing.T) {
 	t.Parallel()
 
-	cfg := &config.Config{
-		FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
-		AuthorizedKeys: config.APIKeys{Admin: []string{"admin-a"}},
+	reloadWith := func(admin ...string) *config.Config {
+		return &config.Config{
+			FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
+			AuthorizedKeys: config.APIKeys{Admin: admin},
+		}
 	}
+	cfg := reloadWith("admin-a", "admin-keep")
 	cfg.ForceReloadAPIKeys()
 	manager, _ := setupManager(t, cfg)
 
-	withA := &config.Config{
-		FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
-		AuthorizedKeys: config.APIKeys{Admin: []string{"admin-a"}},
-	}
-	withB := &config.Config{
-		FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
-		AuthorizedKeys: config.APIKeys{Admin: []string{"admin-b"}},
-	}
+	withA := reloadWith("admin-a", "admin-keep")
+	withB := reloadWith("admin-b", "admin-keep")
 
 	done := make(chan struct{})
 	var violations atomic.Int64
@@ -128,9 +125,9 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 				case <-done:
 					return
 				default:
-					// The key of the flag set is accepted throughout the reloads and the admin keys
-					// are never seen half updated: exactly one of the two keys is configured.
-					if !cfg.APIKeyExists("flagset-key") || len(cfg.GetAuthorizedKeys().Admin) != 1 {
+					// The keys present before and after the reload are accepted throughout it: the
+					// accepted set is never seen empty or half built.
+					if !cfg.APIKeysAdminExists("admin-keep") || !cfg.APIKeyExists("flagset-key") {
 						violations.Add(1)
 					}
 				}
@@ -151,6 +148,34 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 
 	assert.Equal(t, int64(0), violations.Load(), "the keys must never be seen half updated during a reload")
 	assert.True(t, cfg.APIKeysAdminExists("admin-a"), "the last applied configuration has the admin-a key")
+	assert.False(t, cfg.APIKeysAdminExists("admin-b"), "the last applied configuration drops the admin-b key")
+}
+
+// TestFlagsetManager_OnConfigChange_EvaluationKeysStayRejectedWithoutRunningFlagset checks that a reload which
+// removes the last running flag set, whose replacement fails to start, does not make the top-level evaluation
+// keys valid again: the manager still routes by flag set.
+func TestFlagsetManager_OnConfigChange_EvaluationKeysStayRejectedWithoutRunningFlagset(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{
+		FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
+		AuthorizedKeys: config.APIKeys{Evaluation: []string{"evaluation-key"}},
+	}
+	cfg.ForceReloadAPIKeys()
+	manager, _ := setupManager(t, cfg)
+
+	broken := config.FlagSet{
+		Name:      "fs-broken",
+		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: "/does/not/exist/flags.yaml"},
+		APIKeys:   []string{"broken-key"},
+	}
+	manager.OnConfigChange(&config.Config{
+		FlagSets:       []config.FlagSet{broken},
+		AuthorizedKeys: config.APIKeys{Evaluation: []string{"evaluation-key"}},
+	})
+
+	assert.Empty(t, cfg.GetFlagSets(), "no flag set is running anymore")
+	assert.False(t, cfg.APIKeyExists("evaluation-key"))
 }
 
 func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {

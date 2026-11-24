@@ -169,11 +169,17 @@ type Config struct {
 	// - FlagSets
 	// - apiKeysSet
 	// - forceAuthenticatedRequests
+	// - hadFlagSets
 	mutex sync.RWMutex
 
 	// apiKeySet is the internal representation of an API keys list configured
 	// we store them in a set to be
 	apiKeysSet map[string]ApiKeyType
+
+	// hadFlagSets latches to true once the configuration has had a flag set: the relay proxy cannot switch
+	// between default and flag set mode at runtime, so a reload that leaves no running flag set (their
+	// replacement failed to start) must not turn the top-level evaluation keys valid again.
+	hadFlagSets bool
 
 	// forceAuthenticatedRequests is true if we have at least 1 AuthorizedKey.Evaluation key set.
 	forceAuthenticatedRequests bool

@@ -55,7 +55,10 @@ func (c *Config) preloadAPIKeysLocked() {
 	// In flag set mode an evaluation request is routed by its key to a flag set, so only the keys of
 	// the flag sets can evaluate. authorizedKeys.evaluation and the top-level apiKeys are not linked
 	// to any flag set: accepting them would authenticate a request that then fails the flag set lookup.
-	if len(c.FlagSets) == 0 {
+	if len(c.FlagSets) > 0 {
+		c.hadFlagSets = true
+	}
+	if !c.hadFlagSets {
 		addAPIKeys(c.AuthorizedKeys.Evaluation, EvaluationKeyType)
 		addAPIKeys(c.APIKeys, EvaluationKeyType)
 	}
@@ -112,5 +115,5 @@ func (c *Config) HasUnroutableEvaluationKeys() bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
-	return len(c.FlagSets) > 0 && (len(c.AuthorizedKeys.Evaluation) > 0 || len(c.APIKeys) > 0)
+	return (c.hadFlagSets || len(c.FlagSets) > 0) && (len(c.AuthorizedKeys.Evaluation) > 0 || len(c.APIKeys) > 0)
 }

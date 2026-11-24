@@ -377,7 +377,8 @@ List of authorized API keys.
 > When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration.  
 > This works in both default mode and flagset mode.
 > In flagset mode, `authorizedKeys.admin` and the [`apiKeys` of each flag set](#flagsetapikeys) are reloaded.
-> The new keys replace the old ones in a single step: a request is always checked against either the previous or the new keys.
+> The `authorizedKeys` are replaced in a single step: a request is always checked against either the previous or the new keys.
+> A key moved or removed from the `apiKeys` of a flag set takes effect in two steps (routing, then authentication), so a request using it during the reload can briefly get a routing error.
 
 ### `evaluationContextEnrichment`
 
