@@ -168,11 +168,16 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		}
 	}
 	// rotating-key moves from a to b, old-key is replaced by new-key.
-	stateOne := flagsets([]string{"a-key", "rotating-key", "old-key"}, []string{"b-key"})
-	stateTwo := flagsets([]string{"a-key", "new-key"}, []string{"b-key", "rotating-key"})
+	// The states are built for each use: a reload stores the keys of the configuration it applies.
+	stateOne := func() []config.FlagSet {
+		return flagsets([]string{"a-key", "rotating-key", "old-key"}, []string{"b-key"})
+	}
+	stateTwo := func() []config.FlagSet {
+		return flagsets([]string{"a-key", "new-key"}, []string{"b-key", "rotating-key"})
+	}
 
 	port := testutils.GetFreePort(t)
-	proxyConf := &config.Config{FlagSets: stateOne, Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
+	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
 	log := newTestLogger(t)
 	manager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
@@ -234,9 +239,9 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	}
 	for i := range 300 {
 		if i%2 == 0 {
-			manager.OnConfigChange(&config.Config{FlagSets: stateTwo})
+			manager.OnConfigChange(&config.Config{FlagSets: stateTwo()})
 		} else {
-			manager.OnConfigChange(&config.Config{FlagSets: stateOne})
+			manager.OnConfigChange(&config.Config{FlagSets: stateOne()})
 		}
 	}
 	close(done)
@@ -244,4 +249,10 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 
 	assert.Equal(t, int64(0), unexpected.Load(), "a key was authenticated and then failed, or got a wrong flag set")
 	assert.Positive(t, requests.Load())
+
+	// The last reload (an odd iteration) applied the first state: the keys really rotated back and forth.
+	_, errOld := manager.FlagSet("old-key")
+	_, errNew := manager.FlagSet("new-key")
+	assert.NoError(t, errOld) //nolint:testifylint
+	assert.Error(t, errNew)   //nolint:testifylint
 }
