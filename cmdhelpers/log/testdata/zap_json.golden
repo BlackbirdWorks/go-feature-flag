@@ -1,0 +1,12 @@
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:33","msg":"plain message"}
+{"level":"debug","ts":1767323045.6789012,"caller":"tmpgolden/main.go:34","msg":"debug message"}
+{"level":"warn","ts":1767323045.6789012,"caller":"tmpgolden/main.go:35","msg":"warn message"}
+{"level":"error","ts":1767323045.6789012,"caller":"tmpgolden/main.go:36","msg":"error message","stacktrace":"main.emit\n\t/home/agbishop/Code/semaphore-wt-slog/internal/tmpgolden/main.go:36\nmain.main\n\t/home/agbishop/Code/semaphore-wt-slog/internal/tmpgolden/main.go:60\nruntime.main\n\t/usr/lib/go-1.27/src/runtime/proc.go:302"}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:37","msg":"all types","s":"value","i":-42,"i64":1099511627776,"b":true,"f":1.5,"d":1.5,"t":1767323045.6789012,"error":"boom","str":"stringer-value","list":["a","b c"],"bytes":"raw body"}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:42","msg":"special chars","s":"quote\" back\\ nl\n tab\t unicode é 日本","empty":"","space":"a b","eq":"a=b"}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:43","msg":"with attrs","flagset":"fs1","n":1}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:44","msg":"request","remote_ip":"10.0.0.1","latency":"1.5ms","host":"localhost:1031","request":"GET /v1/feature/x/eval?apiKey=REDACTED","status":200,"size":12,"user_agent":"curl/8","request_id":"abc"}
+{"level":"error","ts":1767323045.6789012,"caller":"tmpgolden/main.go:47","msg":"with error","error":"fail","stacktrace":"main.emit\n\t/home/agbishop/Code/semaphore-wt-slog/internal/tmpgolden/main.go:47\nmain.main\n\t/home/agbishop/Code/semaphore-wt-slog/internal/tmpgolden/main.go:60\nruntime.main\n\t/usr/lib/go-1.27/src/runtime/proc.go:302"}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:48","msg":"any struct","connection":{"name":"x","n":2}}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:49","msg":"any map","m":{"k":1}}
+{"level":"info","ts":1767323045.6789012,"caller":"tmpgolden/main.go:50","msg":"nil error"}
