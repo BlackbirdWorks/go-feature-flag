@@ -60,7 +60,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	reqBody := convertToSlackMessage(diff)
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Slack Notifier) impossible to read differences; %v", err)
+		return fmt.Errorf("error: (Slack Notifier) impossible to read differences; %w", err)
 	}
 	request := http.Request{
 		Method: http.MethodPost,

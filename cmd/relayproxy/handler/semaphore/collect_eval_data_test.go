@@ -2,6 +2,7 @@ package controller_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -317,7 +318,8 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
 	assert.Error(t, handlerErr, "handler should return an error")
-	he, ok := handlerErr.(*echo.HTTPError)
+	he := &echo.HTTPError{}
+	ok := errors.As(handlerErr, &he)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
 		return

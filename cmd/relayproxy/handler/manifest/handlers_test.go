@@ -2,6 +2,7 @@ package manifest_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -165,7 +166,8 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, handlerErr, "handler should return an error")
-				he, ok := handlerErr.(*echo.HTTPError)
+				he := &echo.HTTPError{}
+				ok := errors.As(handlerErr, &he)
 				assert.True(t, ok, "handler error should be an echo.HTTPError")
 				assert.Equal(t, tt.want.errorCode, he.Code)
 				assert.Contains(t, he.Message, tt.want.errorMsgContains)
@@ -199,7 +201,8 @@ func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	handlerErr := ctrl.GetManifest(c)
 
 	assert.Error(t, handlerErr, "handler should return an error when flagset manager is nil")
-	he, ok := handlerErr.(*echo.HTTPError)
+	he := &echo.HTTPError{}
+	ok := errors.As(handlerErr, &he)
 	assert.True(t, ok, "handler error should be an echo.HTTPError")
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
 	assert.Equal(t, "flagset manager is not initialized", he.Message)

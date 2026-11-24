@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -225,7 +226,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
 				assert.Error(t, err, "handler should return an error for invalid API key")
-				he, ok := err.(*echo.HTTPError)
+				he := &echo.HTTPError{}
+				ok := errors.As(err, &he)
 				if ok {
 					assert.Equal(t, tt.want.statusCode, he.Code)
 				}

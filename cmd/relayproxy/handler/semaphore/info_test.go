@@ -151,7 +151,8 @@ func Test_info_Handler_Error(t *testing.T) {
 		assert.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError, ok := res.(*echo.HTTPError)
+		httpError := &echo.HTTPError{}
+		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")
 		assert.Equal(t, "flagset manager is not initialized", httpError.Message, "Error message should match")
@@ -178,7 +179,8 @@ func Test_info_Handler_Error(t *testing.T) {
 		assert.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError, ok := res.(*echo.HTTPError)
+		httpError := &echo.HTTPError{}
+		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")
 		assert.Equal(t, "failed to get flagsets", httpError.Message, "Error message should match")

@@ -118,7 +118,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil,
 			fmt.Errorf(
-				"unable to read from Azure Blob Storage Object %s in Container %s, error: %s",
+				"unable to read from Azure Blob Storage Object %s in Container %s, error: %w",
 				r.Object,
 				r.Container,
 				err,

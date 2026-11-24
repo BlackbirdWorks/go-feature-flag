@@ -123,7 +123,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Webhook Notifier) impossible to read differences; %v", err)
+		return fmt.Errorf("error: (Webhook Notifier) impossible to read differences; %w", err)
 	}
 
 	// Notifications can overlap, so each request needs its own headers and signature.

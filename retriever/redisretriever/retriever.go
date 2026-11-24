@@ -85,23 +85,23 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		keyWithoutPrefix := strings.Replace(key, r.Prefix, "", 1)
 		value, err := r.client.Get(ctx, key).Result()
 		if err != nil {
-			return nil, fmt.Errorf("error retrieving flag '%s': %v", key, err)
+			return nil, fmt.Errorf("error retrieving flag '%s': %w", key, err)
 		}
 
 		var flagData any
 		if err := json.Unmarshal([]byte(value), &flagData); err != nil {
-			return nil, fmt.Errorf("error unmarshalling flag '%s': %v", key, err)
+			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, err)
 		}
 
 		flagsData[keyWithoutPrefix] = flagData
 	}
 	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating through Redis keys: %v", err)
+		return nil, fmt.Errorf("error iterating through Redis keys: %w", err)
 	}
 
 	content, err := json.Marshal(flagsData)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling flags data: %v", err)
+		return nil, fmt.Errorf("error marshalling flags data: %w", err)
 	}
 	return content, nil
 }

@@ -226,7 +226,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 		}
 	case !m.config.StartWithRetrieverError:
 		return fmt.Errorf(
-			"impossible to retrieve the flags, please check your configuration: %v",
+			"impossible to retrieve the flags, please check your configuration: %w",
 			err,
 		)
 	default:

@@ -63,7 +63,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	reqBody := convertToDiscordMessage(diff)
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Discord Notifier) failed to create message payload; %v", err)
+		return fmt.Errorf("error: (Discord Notifier) failed to create message payload; %w", err)
 	}
 	request := http.Request{
 		Method: http.MethodPost,

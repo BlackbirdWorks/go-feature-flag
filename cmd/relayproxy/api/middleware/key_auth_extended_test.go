@@ -123,7 +123,8 @@ func TestKeyAuthExtended(t *testing.T) {
 
 			if tt.expectedError {
 				assert.Error(t, err)
-				if httpErr, ok := err.(*echo.HTTPError); ok {
+				httpErr := &echo.HTTPError{}
+				if errors.As(err, &httpErr) {
 					assert.Equal(t, tt.expectedStatus, httpErr.Code)
 				}
 			} else {
@@ -184,7 +185,8 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 		// Request without a key falls through to Echo's KeyAuth, which returns 401.
 		err := handler(c)
 		require.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})
@@ -210,7 +212,8 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 		// Default skipper should not skip, so request without key should fail
 		err := handler(c)
 		require.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})
@@ -424,7 +427,8 @@ func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 
 		err := handler(c)
 		assert.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})

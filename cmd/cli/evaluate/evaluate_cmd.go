@@ -146,7 +146,8 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 
 			err := retrieverConf.IsValid()
 			if err != nil {
-				if rcErr, ok := err.(*rerr.RetrieverConfError); ok {
+				rcErr := &rerr.RetrieverConfError{}
+				if errors.As(err, &rcErr) {
 					return errors.New(rcErr.CliErrorMessage())
 				}
 				return err
@@ -297,7 +298,7 @@ func runCheck(
 func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger) error {
 	if r, ok := r.(retriever.InitializableRetriever); ok {
 		if err := r.Init(ctx, logger); err != nil {
-			return fmt.Errorf("impossible to init retriever: %v", err)
+			return fmt.Errorf("impossible to init retriever: %w", err)
 		}
 	}
 
@@ -308,7 +309,7 @@ func tryInitializeWithFlagset(
 	ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger, flagset string) error {
 	if r, ok := r.(retriever.InitializableRetrieverWithFlagset); ok {
 		if err := r.Init(ctx, logger, &flagset); err != nil {
-			return fmt.Errorf("impossible to init flagset retriever: %v", err)
+			return fmt.Errorf("impossible to init flagset retriever: %w", err)
 		}
 	}
 

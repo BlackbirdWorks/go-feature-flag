@@ -77,7 +77,7 @@ func (c *ExporterConf) IsValid() error {
 	}
 	if len(c.ParquetCompressionCodec) > 0 {
 		if _, err := parquet.CompressionCodecFromString(c.ParquetCompressionCodec); err != nil {
-			return fmt.Errorf("invalid exporter: \"parquetCompressionCodec\" err: %v", err)
+			return fmt.Errorf("invalid exporter: \"parquetCompressionCodec\" err: %w", err)
 		}
 	}
 	if c.Kind == SQSExporter && c.QueueURL == "" {

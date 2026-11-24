@@ -71,7 +71,7 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 		if f.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
-				initErr = fmt.Errorf("impossible to init S3 exporter: %v", err)
+				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
 				return
 			}
 			f.AwsConfig = &cfg

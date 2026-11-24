@@ -2,6 +2,7 @@ package ofrep_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -153,7 +154,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, handlerErr, "handler should return an error")
-				he, ok := handlerErr.(*echo.HTTPError)
+				he := &echo.HTTPError{}
+				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
 					assert.Equal(t, tt.want.errorMsg, he.Message)

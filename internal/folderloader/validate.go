@@ -26,7 +26,7 @@ func validatePattern(pattern string) error {
 		return nil
 	}
 	if _, err := path.Match(pattern, ""); err != nil {
-		return fmt.Errorf("invalid pattern %q: %v", pattern, err)
+		return fmt.Errorf("invalid pattern %q: %w", pattern, err)
 	}
 	if strings.Contains(pattern, "/") {
 		return fmt.Errorf(

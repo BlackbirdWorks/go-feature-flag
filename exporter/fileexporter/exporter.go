@@ -96,7 +96,7 @@ func (f *Exporter) Export(
 		// Ensure OutputDir exists or create it
 		// nolint:gosec
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
-			return fmt.Errorf("failed to create output directory: %v", err)
+			return fmt.Errorf("failed to create output directory: %w", err)
 		}
 		filePath = filepath.Join(outputDir, filename)
 	}
@@ -136,11 +136,11 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 
 		// Handle error and write line into the file
 		if err != nil {
-			return fmt.Errorf("impossible to format the event in %s: %v", f.Format, err)
+			return fmt.Errorf("impossible to format the event in %s: %w", f.Format, err)
 		}
 		_, errWrite := file.Write(line)
 		if errWrite != nil {
-			return fmt.Errorf("error while writing the export file: %v", errWrite)
+			return fmt.Errorf("error while writing the export file: %w", errWrite)
 		}
 	}
 	return nil
@@ -190,7 +190,7 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 		}
 		event.Value = eventValue
 		if err = pw.Write(event); err != nil {
-			return fmt.Errorf("error while writing the parquet export file: %v", err)
+			return fmt.Errorf("error while writing the parquet export file: %w", err)
 		}
 	}
 
@@ -220,7 +220,7 @@ func (f *Exporter) writeParquetTrackingEvent(
 
 	for _, event := range events {
 		if err = pw.Write(event); err != nil {
-			return fmt.Errorf("error while writing the parquet export file: %v", err)
+			return fmt.Errorf("error while writing the parquet export file: %w", err)
 		}
 	}
 

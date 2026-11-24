@@ -167,7 +167,7 @@ func (l *Loader) OutputFormat() string {
 func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	files, err := l.list(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %v", l.from(), l.opts.Prefix, err)
+		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
 	keys := sortedKeys(files)
 	if err := checkFormats(keys); err != nil {
@@ -224,7 +224,7 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 		}
 		content, version, err := l.store.Get(ctx, key)
 		if err != nil {
-			return fmt.Errorf("unable to download item%s %q, %v", l.from(), key, err)
+			return fmt.Errorf("unable to download item%s %q, %w", l.from(), key, err)
 		}
 		flags, err := parseFile(key, content)
 		if err != nil {
@@ -271,7 +271,7 @@ func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
 		out, err = json.Marshal(flags)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal the merged flags: %v", err)
+		return nil, fmt.Errorf("unable to marshal the merged flags: %w", err)
 	}
 	return out, nil
 }
@@ -366,7 +366,7 @@ func parseFile(key string, content []byte) (map[string]dto.DTO, error) {
 	}
 	flags, err := cache.ConvertToFlagStruct(content, formatOf(key))
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse file %q: %v", key, err)
+		return nil, fmt.Errorf("unable to parse file %q: %w", key, err)
 	}
 	return flags, nil
 }

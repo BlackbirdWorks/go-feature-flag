@@ -92,7 +92,7 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	s.status = retriever.RetrieverNotReady
 	if err := folderloader.Validate("item", s.Item, s.Prefix, s.Pattern, s.Recursive); err != nil {
 		s.status = retriever.RetrieverError
-		return fmt.Errorf("impossible to init S3 retriever v2: %v", err)
+		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
 	}
 
 	s.mu.Lock()
@@ -108,7 +108,7 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	// Single file mode only needs a downloader, folder mode needs a lister too.
 	if err := s.initClients(ctx, s.mode == folderMode); err != nil {
 		s.status = retriever.RetrieverError
-		return fmt.Errorf("impossible to init S3 retriever v2: %v", err)
+		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
 	}
 	s.status = retriever.RetrieverReady
 	return nil
@@ -190,7 +190,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	content, _, err := s.downloadWithETag(ctx, s.Item)
 	if err != nil {
-		return nil, fmt.Errorf("unable to download item from S3 %q, %v", s.Item, err)
+		return nil, fmt.Errorf("unable to download item from S3 %q, %w", s.Item, err)
 	}
 	return content, nil
 }

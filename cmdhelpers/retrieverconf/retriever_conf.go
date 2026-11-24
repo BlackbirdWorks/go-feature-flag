@@ -275,7 +275,7 @@ func (r RetrieverKind) IsValid() error {
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.
 func (c *RetrieverConf) validateS3Retriever() error {
 	if err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive); err != nil {
-		return fmt.Errorf("invalid retriever: %v for kind \"%s\"", err, c.Kind)
+		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
 	}
 	return nil
 }

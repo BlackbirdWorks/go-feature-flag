@@ -143,7 +143,7 @@ func (f *Exporter) uploadFile(
 	}
 	if err != nil {
 		return fmt.Errorf(
-			"error: [GCP Exporter] impossible to copy the file from %s to bucket %s: %v",
+			"error: [GCP Exporter] impossible to copy the file from %s to bucket %s: %w",
 			source,
 			f.Bucket,
 			err,

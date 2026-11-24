@@ -28,7 +28,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if s.client == nil {
 		client, clientErr := kubeClientProvider(&s.ClientConfig)
 		if clientErr != nil {
-			return nil, fmt.Errorf("unable to create client, error: %s", clientErr)
+			return nil, fmt.Errorf("unable to create client, error: %w", clientErr)
 		}
 		s.client = client
 	}
@@ -42,7 +42,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		Get(ctx, s.ConfigMapName, v1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"unable to read from config map %s.%s, error: %s", s.ConfigMapName, s.Namespace, err,
+			"unable to read from config map %s.%s, error: %w", s.ConfigMapName, s.Namespace, err,
 		)
 	}
 	content, ok := configMap.Data[s.Key]

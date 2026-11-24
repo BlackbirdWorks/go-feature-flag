@@ -40,7 +40,7 @@ func (f *Exporter) Export(
 	if f.AwsConfig == nil {
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
-			return fmt.Errorf("impossible to init SQS exporter: %v", err)
+			return fmt.Errorf("impossible to init SQS exporter: %w", err)
 		}
 		f.AwsConfig = &cfg
 	}
