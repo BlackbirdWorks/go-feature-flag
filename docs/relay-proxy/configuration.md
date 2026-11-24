@@ -716,6 +716,19 @@ The server port used by the relay proxy to bind the HTTP server.
 - mandatory: No
 - This field is used only in `http` mode.
 
+#### `server.enableH2C`
+
+Accept HTTP/2 over cleartext TCP (h2c with prior knowledge) on the API port, next to HTTP/1.1. Clients that
+do not speak h2c keep working. HTTP/2 multiplexes many requests on one connection, which matters mostly for clients
+that open few connections; see the [performance page](../performance.md) for what it changed in our measurements.
+Behind a TLS terminating proxy or load balancer the HTTP/2 hop is usually handled there, so you rarely need it.
+
+- option name: `enableH2C`
+- type: **bool**
+- default: **false**
+- mandatory: No
+- This field is used only in `http` mode. Environment variable: `SERVER_ENABLEH2C`.
+
 #### `server.monitoringPort`
 
 If set the monitoring endpoints will be served on this specific port.

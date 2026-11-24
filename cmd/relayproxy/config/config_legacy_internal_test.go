@@ -213,3 +213,27 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadEnvVariablesEnableH2C(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		environ []string
+		want    bool
+	}{
+		{name: "off by default"},
+		{name: "unprefixed variable", environ: []string{"SERVER_ENABLEH2C=true"}, want: true},
+		{name: "SEMAPHORE_ variable", environ: []string{"SEMAPHORE_SERVER_ENABLEH2C=true"}, want: true},
+		{name: "SEMAPHORE_ wins", environ: []string{"SERVER_ENABLEH2C=true", "SEMAPHORE_SERVER_ENABLEH2C=false"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c := &ConfigLoader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c.loadEnvVariables()
+			conf, err := c.ToConfig()
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, conf.Server.EnableH2C)
+		})
+	}
+}

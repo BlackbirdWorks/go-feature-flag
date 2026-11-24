@@ -43,6 +43,10 @@ type Server struct {
 	// UnixSocket is the server unix socket path.
 	UnixSocketPath string `mapstructure:"unixSocketPath" koanf:"unixsocketpath"`
 
+	// EnableH2C makes the HTTP server also accept HTTP/2 over cleartext TCP (h2c, prior knowledge), next to HTTP/1.1.
+	// It is only used in http mode and is off by default.
+	EnableH2C bool `mapstructure:"enableH2C" koanf:"enableh2c"`
+
 	// AWS Lambda configuration
 	// LambdaAdapter is the adapter to use when the relay proxy is started as an AWS Lambda.
 	// default: APIGatewayV2

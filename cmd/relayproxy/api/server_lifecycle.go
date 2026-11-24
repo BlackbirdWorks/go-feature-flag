@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -127,6 +128,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,
+		BeforeServeFunc: s.httpServerProtocols,
 		OnShutdownError: func(err error) {
 			s.zapLog.Error("error shutting down api server", zap.Error(err))
 		},
@@ -134,6 +136,19 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if err != nil {
 		s.zapLog.Fatal("Error starting relay proxy", zap.Error(err))
 	}
+}
+
+// httpServerProtocols enables HTTP/2 over cleartext (h2c, prior knowledge) next to HTTP/1.1 when
+// server.enableH2C is set. Without it the server keeps net/http's default (HTTP/1.1 only).
+func (s *Server) httpServerProtocols(srv *http.Server) error {
+	if !s.config.Server.EnableH2C {
+		return nil
+	}
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	srv.Protocols = &p
+	return nil
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
