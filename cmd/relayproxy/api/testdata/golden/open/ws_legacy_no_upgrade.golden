@@ -1,0 +1,10 @@
+status: 400
+Content-Type: text/plain; charset=utf-8
+Deprecation: true
+Link: </stream/v1/ws/flag/change>; rel="successor-version"
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+X-Content-Type-Options: nosniff
+---
+"Bad Request\n"

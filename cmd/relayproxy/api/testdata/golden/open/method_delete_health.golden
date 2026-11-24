@@ -1,0 +1,8 @@
+status: 405
+Allow: OPTIONS, GET
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"message\":\"Method Not Allowed\"}\n"

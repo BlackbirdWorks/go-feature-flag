@@ -1,0 +1,7 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"trackEvents\":true,\"variationType\":\"Default\",\"failed\":false,\"version\":\"\",\"reason\":\"DEFAULT\",\"errorCode\":\"\",\"value\":false,\"cacheable\":true,\"metadata\":{\"defaultValue\":false,\"description\":\"this is a simple feature flag\",\"issue-link\":\"https://jira.xxx/GOFF-01\"}}\n"

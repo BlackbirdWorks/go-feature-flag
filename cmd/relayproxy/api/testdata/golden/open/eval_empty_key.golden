@@ -1,0 +1,7 @@
+status: 500
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"message\":\"Internal Server Error\"}\n"

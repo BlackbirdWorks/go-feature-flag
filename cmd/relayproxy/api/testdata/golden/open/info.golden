@@ -1,0 +1,7 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"cacheRefresh\":\"2025-06-15T12:00:00Z\"}\n"

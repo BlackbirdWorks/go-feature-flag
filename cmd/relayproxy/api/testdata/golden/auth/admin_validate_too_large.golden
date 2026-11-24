@@ -1,0 +1,7 @@
+status: 413
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"message\":\"request body too large (max 1.0 MiB for json)\"}\n"

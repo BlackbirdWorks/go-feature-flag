@@ -1,0 +1,51 @@
+# TYPE semaphore_all_flag_evaluations_total counter
+# TYPE semaphore_build_info gauge
+# TYPE semaphore_collect_eval_data_total counter
+# TYPE semaphore_flag_changes_total counter
+# TYPE semaphore_flag_configuration_total counter
+# TYPE semaphore_flag_create_total counter
+# TYPE semaphore_flag_delete_total counter
+# TYPE semaphore_flag_evaluations_total counter
+# TYPE semaphore_flag_update_total counter
+# TYPE semaphore_force_refresh_total counter
+# TYPE semaphore_get_manifest_total counter
+# TYPE semaphore_request_duration_seconds histogram
+# TYPE semaphore_request_size_bytes histogram
+# TYPE semaphore_requests_total counter
+# TYPE semaphore_response_size_bytes histogram
+semaphore_request_duration_seconds_count{code="200",host="HOST",method="GET",url="/health"} 2
+semaphore_request_duration_seconds_count{code="200",host="HOST",method="GET",url="/v1/flag/change"} 1
+semaphore_request_duration_seconds_count{code="200",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_request_duration_seconds_count{code="200",host="HOST",method="POST",url="/v1/allflags"} 1
+semaphore_request_duration_seconds_count{code="200",host="HOST",method="POST",url="/v1/feature/:flagKey/eval"} 2
+semaphore_request_duration_seconds_count{code="404",host="HOST",method="GET",url="/nope"} 1
+semaphore_request_duration_seconds_count{code="404",host="HOST",method="GET",url="/v1/*"} 1
+semaphore_request_duration_seconds_count{code="404",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_request_duration_seconds_count{code="405",host="HOST",method="DELETE",url="/health"} 1
+semaphore_request_size_bytes_count{code="200",host="HOST",method="GET",url="/health"} 2
+semaphore_request_size_bytes_count{code="200",host="HOST",method="GET",url="/v1/flag/change"} 1
+semaphore_request_size_bytes_count{code="200",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_request_size_bytes_count{code="200",host="HOST",method="POST",url="/v1/allflags"} 1
+semaphore_request_size_bytes_count{code="200",host="HOST",method="POST",url="/v1/feature/:flagKey/eval"} 2
+semaphore_request_size_bytes_count{code="404",host="HOST",method="GET",url="/nope"} 1
+semaphore_request_size_bytes_count{code="404",host="HOST",method="GET",url="/v1/*"} 1
+semaphore_request_size_bytes_count{code="404",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_request_size_bytes_count{code="405",host="HOST",method="DELETE",url="/health"} 1
+semaphore_requests_total{code="200",host="HOST",method="GET",url="/health"} 2
+semaphore_requests_total{code="200",host="HOST",method="GET",url="/v1/flag/change"} 1
+semaphore_requests_total{code="200",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_requests_total{code="200",host="HOST",method="POST",url="/v1/allflags"} 1
+semaphore_requests_total{code="200",host="HOST",method="POST",url="/v1/feature/:flagKey/eval"} 2
+semaphore_requests_total{code="404",host="HOST",method="GET",url="/nope"} 1
+semaphore_requests_total{code="404",host="HOST",method="GET",url="/v1/*"} 1
+semaphore_requests_total{code="404",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_requests_total{code="405",host="HOST",method="DELETE",url="/health"} 1
+semaphore_response_size_bytes_count{code="200",host="HOST",method="GET",url="/health"} 2
+semaphore_response_size_bytes_count{code="200",host="HOST",method="GET",url="/v1/flag/change"} 1
+semaphore_response_size_bytes_count{code="200",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_response_size_bytes_count{code="200",host="HOST",method="POST",url="/v1/allflags"} 1
+semaphore_response_size_bytes_count{code="200",host="HOST",method="POST",url="/v1/feature/:flagKey/eval"} 2
+semaphore_response_size_bytes_count{code="404",host="HOST",method="GET",url="/nope"} 1
+semaphore_response_size_bytes_count{code="404",host="HOST",method="GET",url="/v1/*"} 1
+semaphore_response_size_bytes_count{code="404",host="HOST",method="POST",url="/ofrep/v1/evaluate/flags/:flagKey"} 1
+semaphore_response_size_bytes_count{code="405",host="HOST",method="DELETE",url="/health"} 1
