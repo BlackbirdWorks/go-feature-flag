@@ -209,6 +209,12 @@ func TestRun_CountsEvaluationsAndErrors(t *testing.T) {
 	assert.NotEmpty(t, rep.Samples)
 	assert.Equal(t, rep.TotalEval, rep.Extra["evals"])
 	assert.Contains(t, out.String(), "goroutines")
+	assert.Positive(t, rep.Window.Samples, "the window covers the samples after the warm-up")
+	assert.Equal(t, len(rep.Samples)-2, rep.Window.Samples)
+	assert.Positive(t, rep.Window.CallsPerSec)
+	assert.Equal(t, 1, rep.Window.FlagsPerCall)
+	assert.Positive(t, rep.Window.P50)
+	assert.GreaterOrEqual(t, rep.Window.P99, rep.Window.P50)
 
 	var sum bytes.Buffer
 	rep.Summary(&sum)
