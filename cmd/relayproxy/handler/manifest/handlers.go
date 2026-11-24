@@ -56,7 +56,7 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 	_, span := tracer.Start(c.Request().Context(), "getManifest")
 	defer span.End()
 
-	flagset, httpErr := helper.FlagSet(m.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.RequestFlagSet(c, m.flagsetManager)
 	if httpErr != nil {
 		return httpErr
 	}

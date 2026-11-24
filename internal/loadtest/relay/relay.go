@@ -99,13 +99,20 @@ func Start(opts Options) (_ *Relay, err error) {
 		}
 	}
 	var baseURL string
+	var listener net.Listener
+	defer func() {
+		if err != nil && listener != nil {
+			_ = listener.Close()
+		}
+	}()
 	if opts.Listen {
-		l, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+		// The listener stays bound until the server serves on it: closing it to reuse its port would let
+		// another test (or an outgoing connection) take the port before the server binds it.
+		listener, err = (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 		if err != nil {
 			return nil, err
 		}
-		port := l.Addr().(*net.TCPAddr).Port //nolint:errcheck // a tcp listener always has a *net.TCPAddr
-		_ = l.Close()
+		port := listener.Addr().(*net.TCPAddr).Port //nolint:errcheck // a tcp listener always has a *net.TCPAddr
 		conf.Server.Port = port
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
@@ -128,9 +135,11 @@ func Start(opts Options) (_ *Relay, err error) {
 		Metrics:           metrics,
 	}
 	if opts.Listen {
-		s := api.New(conf, r.Services, logger.ZapLogger)
+		s := api.New(conf, r.Services, logger.ZapLogger, api.WithListener(listener))
 		r.server = &s
 		go s.StartWithContext(context.Background())
+		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
+		listener = nil
 		r.BaseURL = baseURL
 		if err := waitHealthy(baseURL); err != nil {
 			return nil, err

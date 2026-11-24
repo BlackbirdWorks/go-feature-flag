@@ -1280,11 +1280,12 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 func Test_StopBeforeStart(t *testing.T) {
 	t.Parallel()
 
-	// Pick a free port.
+	// The server is given a listener that stays bound: closing it and binding the port again later would let
+	// another test take the port in between, and the server closes it when it is stopped before it started.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
 	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -1307,7 +1308,7 @@ func Test_StopBeforeStart(t *testing.T) {
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
 	}
-	s := api.New(proxyConf, services, l.ZapLogger)
+	s := api.New(proxyConf, services, l.ZapLogger, api.WithListener(ln))
 
 	// StartWithContext has not run, so Stop cannot see the servers drain and must give up
 	// when its context is done instead of blocking forever.
@@ -1336,9 +1337,8 @@ func Test_StopBeforeStart(t *testing.T) {
 		require.Fail(t, "StartWithContext did not return for a server already stopped")
 	}
 
-	ln2, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	require.NoError(t, err, "port %d should never have been bound", port)
-	ln2.Close()
+	// The server never served and it closed the listener it owns: closing it again fails.
+	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
 }
 
 func Test_New_Options(t *testing.T) {

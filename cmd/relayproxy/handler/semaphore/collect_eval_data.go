@@ -75,6 +75,8 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 
 	span.SetAttributes(attribute.Int("collectEventData.eventCollectionSize", len(reqBody.Events)))
 
+	// The flag set is looked up after the body is read, not taken from the authentication: the events are
+	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
 	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
 	if httpErr != nil {
 		return httpErr

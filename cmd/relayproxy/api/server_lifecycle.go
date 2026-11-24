@@ -26,7 +26,11 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
 	select {
 	case <-s.stopRequested:
-		// Stop has been called before the server started.
+		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
+		if s.listener != nil {
+			_ = s.listener.Close()
+		}
+
 		return
 	default:
 	}
@@ -129,6 +133,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	// Start blocks until ctx is cancelled and the graceful shutdown has drained the connections.
 	err := echo.StartConfig{
 		Address:         address,
+		Listener:        s.listener,
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,
