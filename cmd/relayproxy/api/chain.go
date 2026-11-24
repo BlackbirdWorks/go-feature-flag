@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
@@ -23,7 +24,8 @@ import (
 //  2. the version header, so that every answer carries it, the 500 of a recovered panic included;
 //  3. the panic recovery (it logs the panic with the error level and answers 500);
 //  4. the access log, with the status that was sent;
-//  5. tracing (OpenTelemetry server span, the library does it with otelhttp);
+//  5. tracing (OpenTelemetry server span, the library does it with otelhttp), only when OpenTelemetry is
+//     configured: without an exporter there is nothing to send and the middleware is not installed;
 //  6. the request body dump (debug level) and the HTTP metrics (API listener only);
 //  7. CORS (answers the preflight requests, so these are logged, traced and counted too).
 //
@@ -50,6 +52,8 @@ func (s *Server) tracingOptions() []tracing.Option {
 func (s *Server) loggingOptions() []logging.Option {
 	return []logging.Option{
 		logging.WithLogger(s.logger),
+		// nothing reads the logger of the request: the handlers log with the logger they were given.
+		logging.WithoutRequestAttrs(),
 		logging.WithAccessLogFunc(reqlog.AccessLog()),
 		logging.WithRequestSkip(reqlog.SkipRequest(s.config.IsDebugEnabled())),
 	}
@@ -57,6 +61,13 @@ func (s *Server) loggingOptions() []logging.Option {
 
 func (s *Server) accessLog() middleware.Func {
 	return func(next http.Handler) http.Handler { return logging.Handler(next, s.loggingOptions()...) }
+}
+
+// tracingEnabled reports whether the requests are traced: there is an exporter configured (or a tracer provider was
+// given to the server). Otherwise the tracing middleware is not installed, it would cost on every request for
+// spans nobody receives.
+func (s *Server) tracingEnabled() bool {
+	return s.tracerProvider != nil || opentelemetry.Enabled(s.config)
 }
 
 func (s *Server) tracing() middleware.Func {
@@ -70,9 +81,11 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 		middleware.VersionHeader(s.config),
 		middleware.Recover(s.logger, s.config.IsDebugEnabled()),
 		s.accessLog(),
-		s.tracing(),
-		middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler(s.logger)),
 	}
+	if s.tracingEnabled() {
+		chain = append(chain, s.tracing())
+	}
+	chain = append(chain, middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler(s.logger)))
 	if s.services.Metrics != (metric.Metrics{}) {
 		prom, err := middleware.Prometheus(middleware.PrometheusConfig{
 			Subsystem:  metric.SubSystem,

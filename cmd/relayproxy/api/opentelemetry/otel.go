@@ -30,6 +30,10 @@ func NewOtelService() OtelService {
 	return OtelService{}
 }
 
+// Enabled reports whether the configuration enables OpenTelemetry tracing: without an OTLP endpoint there is no
+// exporter, and nothing is traced.
+func Enabled(config *config.Config) bool { return !isDisabled(config) }
+
 // isDisabled is true when OpenTelemetry has no endpoint to send to, or is disabled.
 // The endpoint is set either by the openTelemetryOtlpEndpoint config element or otel.exporter.otlp.endpoint.
 func isDisabled(config *config.Config) bool {
