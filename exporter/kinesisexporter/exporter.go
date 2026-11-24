@@ -20,6 +20,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errSendNoStreamNameOr = errors.New("send: no StreamName or StreamArn provided")
+	errSend               = errors.New("send")
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 const (
@@ -217,7 +222,7 @@ func (e *Exporter) Export(
 	case e.Settings.StreamName != nil:
 		input.StreamName = e.Settings.StreamName
 	default:
-		return errors.New("send: no StreamName or StreamArn provided")
+		return errSendNoStreamNameOr
 	}
 
 	if len(records) == 0 {
@@ -301,7 +306,7 @@ func (e *Exporter) sendChunk(
 			"failed", len(retry), "total", total, "attempt", attempt)
 
 		if attempt >= maxAttempts {
-			return fmt.Errorf("send: %d of %d records failed after %d attempts (error codes: %s)",
+			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
 				len(retry), total, attempt, distinctCodes(failures))
 		}
 		pending = retry

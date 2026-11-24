@@ -16,6 +16,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
 
+var (
+	errFlagsetNotFoundFor = errors.New("flagset not found for API key")
+	errNoAPIKeyProvided   = errors.New("no API key provided")
+	errTestError          = errors.New("test error")
+)
+
 func TestAPIKey(t *testing.T) {
 	t.Parallel()
 
@@ -217,7 +223,7 @@ func TestFlagSet(t *testing.T) {
 		},
 		{
 			name:           "flagset manager error should return bad request error",
-			flagsetManager: &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("flagset not found for API key")},
+			flagsetManager: &mock.MockFlagsetManager{GetFlagSetsErr: errFlagsetNotFoundFor},
 			apiKey:         "invalid-api-key",
 			wantError:      true,
 			wantMsg:        "error while getting flagset: flagset not found for API key",
@@ -232,7 +238,7 @@ func TestFlagSet(t *testing.T) {
 		},
 		{
 			name:           "empty api key with error should return bad request error",
-			flagsetManager: &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("no API key provided")},
+			flagsetManager: &mock.MockFlagsetManager{GetFlagSetsErr: errNoAPIKeyProvided},
 			apiKey:         "",
 			wantError:      true,
 			wantMsg:        "error while getting flagset: no API key provided",
@@ -267,7 +273,7 @@ func TestFlagSetIntegration(t *testing.T) {
 	t.Run("should handle specific error messages correctly", func(t *testing.T) {
 		t.Parallel()
 
-		mockManager := &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("test error")}
+		mockManager := &mock.MockFlagsetManager{GetFlagSetsErr: errTestError}
 		flagset, err := helper.FlagSet(mockManager, "test-key")
 		require.Error(t, err)
 		assert.Nil(t, flagset)

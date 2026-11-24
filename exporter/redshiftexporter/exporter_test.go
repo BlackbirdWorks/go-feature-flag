@@ -29,6 +29,13 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errCreateFailed = errors.New("create failed")
+	errThrottled    = errors.New("throttled")
+	errCancelDenied = errors.New("cancel denied")
+	errAccessDenied = errors.New("access denied")
+)
+
 func TestExporter_IsBulk(t *testing.T) {
 	t.Parallel()
 
@@ -620,7 +627,7 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{
-		executeErrs: []error{errors.New("create failed")},
+		executeErrs: []error{errCreateFailed},
 	}
 	e := &Exporter{
 		ClusterIdentifier: "my-cluster",
@@ -686,7 +693,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 		},
 		{
 			name:      "transient describe errors",
-			client:    &mockRedshiftDataClient{describeErrs: []error{errors.New("throttled"), errors.New("throttled")}},
+			client:    &mockRedshiftDataClient{describeErrs: []error{errThrottled, errThrottled}},
 			wantPolls: 3,
 		},
 		{
@@ -721,7 +728,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 		},
 		{
 			name:       "describe errors until the deadline",
-			client:     &mockRedshiftDataClient{describeErr: errors.New("throttled")},
+			client:     &mockRedshiftDataClient{describeErr: errThrottled},
 			timeout:    30 * time.Millisecond,
 			wantErr:    []string{"did not complete", "last describe statement error: throttled"},
 			wantErrIs:  context.DeadlineExceeded,
@@ -754,7 +761,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 			name: "timeout and cancel error",
 			client: &mockRedshiftDataClient{
 				statuses:  []types.StatusString{types.StatusStringStarted},
-				cancelErr: errors.New("cancel denied"),
+				cancelErr: errCancelDenied,
 			},
 			timeout:    30 * time.Millisecond,
 			wantErr:    []string{"did not complete", "cancel statement: cancel denied"},
@@ -955,7 +962,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name: "execute statement error",
 			exporter: &Exporter{
 				Database: "analytics", ClusterIdentifier: "my-cluster",
-				client: &mockRedshiftDataClient{executeErrs: []error{errors.New("access denied")}},
+				client: &mockRedshiftDataClient{executeErrs: []error{errAccessDenied}},
 			},
 			events:  featureEvents,
 			wantErr: "redshift exporter: execute statement: access denied",

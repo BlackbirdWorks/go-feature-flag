@@ -15,6 +15,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDialError            = errors.New("dial error")
+	errFailureToSendMessage = errors.New("failure to send message: datacenter on fire")
+)
+
 type messageSenderMock struct {
 	messages []*sarama.ProducerMessage
 	error    error
@@ -55,7 +60,7 @@ func TestExporter_Export(t *testing.T) {
 				Addresses: []string{"addr1", "addr2"},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
-				return nil, errors.New("dial error")
+				return nil, errDialError
 			},
 		},
 		{
@@ -169,7 +174,7 @@ func TestExporter_Export(t *testing.T) {
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return &messageSenderMock{
-					error: errors.New("failure to send message: datacenter on fire"),
+					error: errFailureToSendMessage,
 				}, nil
 			},
 		},

@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errInitializationFailed = errors.New("initialization failed")
+)
+
 // InitializableRetriever implements the standard InitializableRetriever interface.
 type InitializableRetriever struct {
 	Name           string
@@ -34,7 +38,7 @@ func (m *InitializableRetriever) Init(_ context.Context, logger *fflog.FFLogger)
 	m.InitCalled = true
 	m.ReceivedLogger = logger
 	if m.InitShouldFail {
-		return errors.New("initialization failed")
+		return errInitializationFailed
 	}
 
 	return nil

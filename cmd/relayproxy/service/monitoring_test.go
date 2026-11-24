@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+var (
+	errFailedToGetFlagsets = errors.New("failed to get flagsets")
+)
+
 func TestWithDefaultMode(t *testing.T) {
 	t.Parallel()
 
@@ -234,7 +238,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		mockManager := &mock.MockFlagsetManager{
 			FlagSets:       nil,
 			DefaultFlagSet: nil,
-			GetFlagSetsErr: errors.New("failed to get flagsets"),
+			GetFlagSetsErr: errFailedToGetFlagsets,
 		}
 		monitoring := service.NewMonitoring(mockManager)
 		info, err := monitoring.Info()

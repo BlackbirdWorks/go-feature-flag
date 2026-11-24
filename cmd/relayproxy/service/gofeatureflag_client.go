@@ -41,6 +41,15 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+var (
+	errProxyConfigIsEmpty                         = errors.New("proxy config is empty")
+	errEnableSharedPollerPerBucketRequiresAShared = errors.New(
+		"enableSharedPollerPerBucket requires a shared bucket registry",
+	)
+	errInvalidExporterKind = errors.New("invalid exporter: kind")
+	errInvalidNotifierKind = errors.New("invalid notifier: kind")
+)
+
 // clientOptions are the internal options of NewGoFeatureFlagClient.
 type clientOptions struct {
 	sharedRegistry *sharedBucketRegistry
@@ -121,7 +130,7 @@ func newGoFeatureFlagClient(
 ) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
 	var err error
 	if cFlagSet == nil {
-		return nil, errors.New("proxy config is empty")
+		return nil, errProxyConfigIsEmpty
 	}
 	var o clientOptions
 	for _, opt := range opts {
@@ -265,7 +274,7 @@ func initRetrieversWithRegistry(
 	retrievers := make([]retriever.Retriever, 0)
 	if proxyConf.EnableSharedPollerPerBucket {
 		if registry == nil {
-			return nil, errors.New("enableSharedPollerPerBucket requires a shared bucket registry")
+			return nil, errEnableSharedPollerPerBucketRequiresAShared
 		}
 		r, err := registry.retrieverFor(proxyConf)
 		if err != nil {
@@ -451,7 +460,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 			TracerName: c.TracerName,
 		}, nil
 	default:
-		return nil, fmt.Errorf("invalid exporter: kind \"%s\" is not supported", c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, c.Kind)
 	}
 }
 
@@ -585,7 +594,7 @@ func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notif
 				&discordnotifier.Notifier{DiscordWebhookURL: cNotif.WebhookURL},
 			)
 		default:
-			return nil, fmt.Errorf("invalid notifier: kind \"%s\" is not supported", cNotif.Kind)
+			return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidNotifierKind, cNotif.Kind)
 		}
 	}
 

@@ -25,6 +25,25 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var errRequestTo = errors.New("request to")
+
+var (
+	errGithubAppGithubTokenAnd = errors.New(
+		"github app: GithubToken and GitHub App fields are mutually exclusive",
+	)
+	errGithubAppAppIDInstallationID = errors.New(
+		"github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required",
+	)
+	errMissingMandatoryInformationFilePath = errors.New("missing mandatory information filePath")
+	errGithubAppAccessTokens               = errors.New("github app: access_tokens endpoint returned")
+	errGithubAppTokenResponse              = errors.New("github app: token response contained no token")
+	errGithubAppTokenResponseContained     = errors.New("github app: token response contained no expires_at")
+	errGithubAppFailedTo                   = errors.New("github app: failed to decode PEM block from private key")
+	errRateLimitExceededNext               = errors.New("rate limit exceeded. Next call will be after")
+	errFilepathMustNotContain              = errors.New("filepath must not contain '..'")
+	errRepositorySlugMustNot               = errors.New("repository slug must not contain '..'")
+)
+
 // Retriever is a configuration struct for a GitHub retriever.
 type Retriever struct {
 	RepositorySlug string
@@ -107,10 +126,10 @@ func (r *Retriever) validateAppAuth() error {
 		return nil
 	}
 	if r.GithubToken != "" {
-		return errors.New("github app: GithubToken and GitHub App fields are mutually exclusive")
+		return errGithubAppGithubTokenAnd
 	}
 	if !r.isAppAuth() {
-		return errors.New("github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required")
+		return errGithubAppAppIDInstallationID
 	}
 	_, err := r.loadPrivateKey()
 
@@ -120,8 +139,7 @@ func (r *Retriever) validateAppAuth() error {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information filePath=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationFilePath,
 			r.FilePath,
 			r.RepositorySlug,
 		)
@@ -270,8 +288,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		// GitHub explains the failure in the body (bad app id, suspended installation, clock skew...).
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 
-		return "", time.Time{}, fmt.Errorf(
-			"github app: access_tokens endpoint returned %d for installation %d: %s",
+		return "", time.Time{}, fmt.Errorf("%w %d for installation %d: %s", errGithubAppAccessTokens,
 			resp.StatusCode, r.InstallationID, strings.TrimSpace(string(msg)),
 		)
 	}
@@ -286,10 +303,10 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
 	if result.Token == "" {
-		return "", time.Time{}, errors.New("github app: token response contained no token")
+		return "", time.Time{}, errGithubAppTokenResponse
 	}
 	if result.ExpiresAt.IsZero() {
-		return "", time.Time{}, errors.New("github app: token response contained no expires_at")
+		return "", time.Time{}, errGithubAppTokenResponseContained
 	}
 
 	return result.Token, result.ExpiresAt, nil
@@ -311,7 +328,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, errors.New("github app: failed to decode PEM block from private key")
+		return nil, errGithubAppFailedTo
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -339,7 +356,7 @@ func (r *Retriever) checkRateLimit() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.rateLimitRemaining <= 0 && clock.Now().Before(r.rateLimitReset) {
-		return fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
+		return fmt.Errorf("%w %s", errRateLimitExceededNext, r.rateLimitReset)
 	}
 
 	return nil
@@ -349,10 +366,10 @@ func (r *Retriever) checkRateLimit() error {
 func (r *Retriever) buildURL(branch string) (string, error) {
 	// Validate inputs to prevent path traversal attacks
 	if strings.Contains(r.FilePath, "..") {
-		return "", errors.New("filepath must not contain '..'")
+		return "", errFilepathMustNotContain
 	}
 	if strings.Contains(r.RepositorySlug, "..") {
-		return "", errors.New("repository slug must not contain '..'")
+		return "", errRepositorySlugMustNot
 	}
 
 	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
@@ -394,8 +411,8 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 			}
 		}
 
-		return fmt.Errorf("request to %s failed with code %d."+
-			" GitHub Headers: %v", url, resp.StatusCode, ghHeaders)
+		return fmt.Errorf("%w %s failed with code %d. GitHub Headers: %v",
+			errRequestTo, url, resp.StatusCode, ghHeaders)
 	}
 
 	return nil

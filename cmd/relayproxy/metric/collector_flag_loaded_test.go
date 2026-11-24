@@ -18,6 +18,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
+var (
+	errNoFlagsetsConfigured = errors.New("no flagsets configured")
+)
+
 type fakeFlagsetSource struct {
 	flagsets map[string]*ffclient.GoFeatureFlag
 	err      error
@@ -225,7 +229,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 		source     FlagsetSource
 		wantSeries int
 	}{
-		{name: "source error", source: fakeFlagsetSource{err: errors.New("no flagsets configured")}, wantSeries: 0},
+		{name: "source error", source: fakeFlagsetSource{err: errNoFlagsetsConfigured}, wantSeries: 0},
 		{
 			name:       "nil flagset",
 			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}},

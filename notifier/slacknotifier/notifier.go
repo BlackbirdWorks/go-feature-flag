@@ -16,6 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var errNoWebhookURL = errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
+	"SlackWebhookURL provided for the slack notifier")
+
+var (
+	errErrorSlackNotifierWhile = errors.New("error: (Slack Notifier) while calling slack webhook, statusCode")
+)
+
 var _ notifier.Notifier = &Notifier{}
 
 const (
@@ -42,8 +49,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.SlackWebhookURL == "" {
-		return errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
-			"SlackWebhookURL provided for the slack notifier")
+		return errNoWebhookURL
 	}
 
 	// init the notifier
@@ -77,7 +83,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode > 399 {
-		return fmt.Errorf("error: (Slack Notifier) while calling slack webhook, statusCode = %d",
+		return fmt.Errorf("%w = %d", errErrorSlackNotifierWhile,
 			response.StatusCode)
 	}
 

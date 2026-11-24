@@ -1,12 +1,22 @@
 package retrieverconf
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
+)
+
+var errGitHubTokenAndApp = errors.New(
+	"invalid retriever: token and GitHub App fields (githubAppId, githubInstallationId, " +
+		"githubAppPrivateKey / githubAppPrivateKeyFile) are mutually exclusive for kind",
+)
+
+var (
+	errInvalidRetrieverKind = errors.New("invalid retriever: kind")
 )
 
 // The defaults of the retriever configuration.
@@ -187,11 +197,7 @@ func (c *RetrieverConf) validateGitHubAuth() error {
 		c.GitHubAppPrivateKey != "" || c.GitHubAppPrivateKeyFile != ""
 
 	if hasToken && hasAppFields {
-		return fmt.Errorf(
-			"invalid retriever: token and GitHub App fields (githubAppId, githubInstallationId, "+
-				"githubAppPrivateKey / githubAppPrivateKeyFile) are mutually exclusive for kind %q",
-			string(c.Kind),
-		)
+		return fmt.Errorf("%w %q", errGitHubTokenAndApp, string(c.Kind))
 	}
 
 	if hasAppFields {
@@ -291,7 +297,7 @@ func (r RetrieverKind) IsValid() error {
 		return nil
 	}
 
-	return fmt.Errorf("invalid retriever: kind \"%s\" is not supported", r)
+	return fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, r)
 }
 
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.

@@ -15,9 +15,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
-const (
-	errorFlagNotAvailable = "flag %v is not present or disabled"
+var (
+	errSemaphoreIsNotInitialised = errors.New("semaphore is not initialised, default value is used")
 )
+
+var errNotPresentOrDisabled = errors.New("is not present or disabled")
 
 // BoolVariation return the value of the flag in boolean.
 // An error is return if you don't have init the library before calling the function.
@@ -207,7 +209,7 @@ func (g *GoFeatureFlag) RawVariation(
 func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (flag.Flag, error) {
 	f, err := g.retrieverManager.GetFlag(flagKey)
 	if err != nil {
-		return f, fmt.Errorf(errorFlagNotAvailable, flagKey)
+		return f, fmt.Errorf("flag %v %w", flagKey, errNotPresentOrDisabled)
 	}
 
 	return f, nil
@@ -291,7 +293,7 @@ func getVariation[T model.JSONType](
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
 			Cacheable:     false,
-		}, errors.New("semaphore is not initialised, default value is used")
+		}, errSemaphoreIsNotInitialised
 	}
 	if g.config.Offline {
 		return model.VariationResult[T]{

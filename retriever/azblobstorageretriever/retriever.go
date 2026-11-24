@@ -13,6 +13,14 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errUnableToConnectTo = errors.New(
+		"unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty",
+	)
+	errClientIsNotInitialized            = errors.New("client is not initialized")
+	errMissingMandatoryInformationObject = errors.New("missing mandatory information object")
+)
+
 // Retriever is the interface to fetch the flags from Azure Blob Storage.
 type Retriever struct {
 	// Container is the name of your Azure Blob Storage Container.
@@ -40,7 +48,7 @@ type Retriever struct {
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if r.AccountName == "" {
-		return errors.New("unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
+		return errUnableToConnectTo
 	}
 
 	url := r.ServiceURL
@@ -101,12 +109,11 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
 		r.status = retriever.RetrieverError
 
-		return nil, errors.New("client is not initialized")
+		return nil, errClientIsNotInitialized
 	}
 
 	if r.Object == "" || r.Container == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information object=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationObject,
 			r.Object,
 			r.Container,
 		)

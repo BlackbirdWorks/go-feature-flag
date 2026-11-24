@@ -22,6 +22,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
+var (
+	errTestError = errors.New("test error")
+)
+
 //nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
@@ -224,10 +228,10 @@ func TestNewErrorHandler(t *testing.T) {
 	}{
 		{
 			name:        "the error is logged to zap",
-			err:         errors.New("test error"),
+			err:         errTestError,
 			wantLevel:   zap.ErrorLevel,
 			wantMessage: "OTel error",
-			wantContext: []zapcore.Field{zap.Error(errors.New("test error"))},
+			wantContext: []zapcore.Field{zap.Error(errTestError)},
 		},
 	}
 	for _, tt := range tests {

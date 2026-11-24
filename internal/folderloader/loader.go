@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -20,6 +21,11 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errDuplicateFlag    = errors.New("duplicate flag")
+	errAllTheFilesUnder = errors.New("all the files under the prefix must have the same format")
 )
 
 // Entry is an object found by Store.List.
@@ -255,8 +261,7 @@ func (l *Loader) mergeFlags(keys []string) (map[string]dto.DTO, error) {
 	for _, key := range keys {
 		for flagKey, flag := range l.cache[key].flags {
 			if prev, dup := origin[flagKey]; dup {
-				return nil, fmt.Errorf(
-					"duplicate flag %q found in files %q and %q", flagKey, prev, key)
+				return nil, fmt.Errorf("%w %q found in files %q and %q", errDuplicateFlag, flagKey, prev, key)
 			}
 			origin[flagKey] = key
 			merged[flagKey] = flag
@@ -366,8 +371,7 @@ func checkFormats(keys []string) error {
 			continue
 		}
 		if f != firstFormat {
-			return fmt.Errorf(
-				"all the files under the prefix must have the same format: %q is %s but %q is %s",
+			return fmt.Errorf("%w: %q is %s but %q is %s", errAllTheFilesUnder,
 				firstKey, firstFormat, key, f)
 		}
 	}

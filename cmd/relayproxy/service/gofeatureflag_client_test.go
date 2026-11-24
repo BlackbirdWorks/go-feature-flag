@@ -53,6 +53,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+var (
+	errAccessDenied = errors.New("AccessDenied")
+)
+
 func Test_initRetrieversWithRegistry(t *testing.T) {
 	t.Parallel()
 
@@ -1153,7 +1157,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 		},
 		{
 			name:       "first retrieve fails",
-			s3:         &fakeS3{listErr: errors.New("AccessDenied")},
+			s3:         &fakeS3{listErr: errAccessDenied},
 			mod:        func(*config.FlagSet) {},
 			wantGroups: 0,
 		},

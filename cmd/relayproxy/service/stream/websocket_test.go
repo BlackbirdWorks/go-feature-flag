@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errErrorWebsocketConnection = errors.New("error websocket connection")
+)
+
 type mockConn struct {
 	writeJSONFunc func(v any) error
 	throwError    bool
@@ -20,7 +24,7 @@ type mockConn struct {
 
 func (m *mockConn) WriteJSON(v any) error {
 	if m.throwError {
-		return errors.New("error websocket connection")
+		return errErrorWebsocketConnection
 	}
 	if m.writeJSONFunc != nil {
 		return m.writeJSONFunc(v)

@@ -23,6 +23,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
+)
+
 // newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {
 	return &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
@@ -504,7 +508,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 
 			flagsetMgr := &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("no flag set associated to the API key"),
+				err:       errNoFlagSetAssociated,
 			}
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, zap.NewNop())
 

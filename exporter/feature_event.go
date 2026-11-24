@@ -11,6 +11,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+var (
+	errNoValueToConvert = errors.New("no value to convert, returning empty string")
+)
+
 type FeatureEventMetadata = map[string]any
 
 func NewFeatureEvent(
@@ -129,7 +133,7 @@ func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
 func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
-		return "", errors.New("no value to convert, returning empty string")
+		return "", errNoValueToConvert
 	}
 	b, err := json.Marshal(f.Value)
 	if err != nil {

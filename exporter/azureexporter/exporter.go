@@ -2,6 +2,7 @@ package azureexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,6 +14,11 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errYouShouldSpecifyAn = errors.New("you should specify an AccountName.")
+	errYouShouldSpecifyA  = errors.New("you should specify a container.")
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -64,7 +70,7 @@ func (f *Exporter) Export(
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	if f.AccountName == "" {
-		return fmt.Errorf("you should specify an AccountName. %v is invalid", f.AccountName)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyAn, f.AccountName)
 	}
 
 	client, err := f.initializeAzureClient()
@@ -73,7 +79,7 @@ func (f *Exporter) Export(
 	}
 
 	if f.Container == "" {
-		return fmt.Errorf("you should specify a container. %v is invalid", f.Container)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyA, f.Container)
 	}
 
 	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")

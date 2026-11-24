@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+)
+
+var (
+	errImpossibleToDescribeChanges = errors.New("impossible to describe changes between flags of type")
 )
 
 // DescribeChanges returns one sentence per change between two versions of a flag,
@@ -52,7 +57,7 @@ func describeChanges(before, after flag.Flag, code func(string) string) ([]strin
 	b, okBefore := before.(*flag.InternalFlag)
 	a, okAfter := after.(*flag.InternalFlag)
 	if !okBefore || !okAfter || b == nil || a == nil {
-		return nil, fmt.Errorf("impossible to describe changes between flags of type %T and %T", before, after)
+		return nil, fmt.Errorf("%w %T and %T", errImpossibleToDescribeChanges, before, after)
 	}
 	d := &describer{code: code}
 	d.flag(b, a)

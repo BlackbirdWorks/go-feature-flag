@@ -12,6 +12,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+var (
+	errMissingDefaultRule          = errors.New("missing default rule")
+	errInternalValidationErrorFlag = errors.New("internal validation error: flag definition could not be validated")
+)
+
 func TestValidateFlags(t *testing.T) {
 	t.Parallel()
 	panicking := dto.DTO{
@@ -35,8 +40,8 @@ func TestValidateFlags(t *testing.T) {
 			name:  "invalid flags sorted by key",
 			flags: map[string]dto.DTO{"z": invalid, "ok": valid, "b": invalid},
 			want: []configfile.FlagError{
-				{Flag: "b", Err: errors.New("missing default rule")},
-				{Flag: "z", Err: errors.New("missing default rule")},
+				{Flag: "b", Err: errMissingDefaultRule},
+				{Flag: "z", Err: errMissingDefaultRule},
 			},
 		},
 		{
@@ -45,9 +50,7 @@ func TestValidateFlags(t *testing.T) {
 			want: []configfile.FlagError{
 				{
 					Flag: "p",
-					Err: errors.New(
-						"internal validation error: flag definition could not be validated",
-					),
+					Err:  errInternalValidationErrorFlag,
 				},
 			},
 		},

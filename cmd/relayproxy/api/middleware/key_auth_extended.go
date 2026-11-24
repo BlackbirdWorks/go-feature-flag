@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
+var (
+	errEchoKeyAuthExtended = errors.New("echo: key auth extended middleware requires a validator function")
+)
+
 // KeyAuthExtendedConfig defines the configuration for the extended key auth middleware.
 // It extends middleware.KeyAuthConfig to also check the X-API-Key header.
 type KeyAuthExtendedConfig struct {
@@ -35,7 +39,7 @@ type KeyAuthExtendedConfig struct {
 // setDefaults sets default values for the KeyAuthExtendedConfig.
 func setDefaults(config *KeyAuthExtendedConfig) error {
 	if config.Validator == nil {
-		return errors.New("echo: key auth extended middleware requires a validator function")
+		return errEchoKeyAuthExtended
 	}
 	if config.ErrorHandler == nil {
 		config.ErrorHandler = middleware.DefaultKeyAuthConfig.ErrorHandler

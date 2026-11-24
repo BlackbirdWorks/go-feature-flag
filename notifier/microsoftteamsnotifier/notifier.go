@@ -13,6 +13,9 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var errNoWebhookURL = errors.New("error: (Microsoft Teams Notifier) invalid notifier configuration, no " +
+	"MicrosoftTeamsWebhookURL provided for the microsoft teams notifier")
+
 var _ notifier.Notifier = &Notifier{}
 
 // Notifier is the component in charge of sending flag changes to Microsoft Teams.
@@ -25,8 +28,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.MicrosoftTeamsWebhookURL == "" {
-		return errors.New("error: (Microsoft Teams Notifier) invalid notifier configuration, no " +
-			"MicrosoftTeamsWebhookURL provided for the microsoft teams notifier")
+		return errNoWebhookURL
 	}
 	msgText := convertToMicrosoftTeamsMessage(diff)
 	msg, err := adaptivecard.NewSimpleMessage(msgText, "Semaphore", true)

@@ -1,8 +1,13 @@
 package relay
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+)
+
+var (
+	errUnknownEndpoint = errors.New("unknown endpoint")
 )
 
 // Endpoint is one of the relay proxy evaluation endpoints.
@@ -39,7 +44,7 @@ func ParseEndpoint(s string) (Endpoint, error) {
 		}
 	}
 
-	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints())
+	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, s, Endpoints())
 }
 
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the
@@ -82,7 +87,7 @@ func (e Endpoint) Body(i int) string {
 // NewRequest builds the HTTP request (without a URL host) for the endpoint.
 func (e Endpoint) NewRequest(baseURL, flagKey string, i int) (*http.Request, error) {
 	if e.Path(flagKey) == "" {
-		return nil, fmt.Errorf("unknown endpoint %q", string(e))
+		return nil, fmt.Errorf("%w %q", errUnknownEndpoint, string(e))
 	}
 
 	return newJSONRequest(baseURL+e.Path(flagKey), e.Body(i))

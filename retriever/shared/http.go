@@ -10,6 +10,10 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 )
 
+var (
+	errURLIsAMandatory = errors.New("URL is a mandatory parameter when using httpretriever.Retriever")
+)
+
 // CallHTTPAPI is the default function to make an HTTP call in the retrievers.
 func CallHTTPAPI(
 	ctx context.Context,
@@ -22,7 +26,7 @@ func CallHTTPAPI(
 	}
 
 	if url == "" {
-		return nil, errors.New("URL is a mandatory parameter when using httpretriever.Retriever")
+		return nil, errURLIsAMandatory
 	}
 
 	if method == "" {

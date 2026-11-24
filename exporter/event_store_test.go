@@ -2,7 +2,6 @@ package exporter_test
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"sync"
 	"testing"
@@ -245,7 +244,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
-			return errors.New("error")
+			return errError
 		},
 	)
 	require.Error(t, err)

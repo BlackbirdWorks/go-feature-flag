@@ -12,10 +12,14 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errConnectionRefused = errors.New("connection refused")
+)
+
 type failingClient struct{}
 
 func (failingClient) Do(req *http.Request) (*http.Response, error) {
-	return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errors.New("connection refused")}
+	return nil, &url.Error{Op: "Post", URL: req.URL.String(), Err: errConnectionRefused}
 }
 
 // The Slack webhook URL is the secret of the integration: it must not end up in the errors that are logged.

@@ -4,6 +4,7 @@ package evaluation
 // It will be now part of the modules/core package.
 // The old package is still available for backward compatibility, but will not be maintained anymore.
 import (
+	"errors"
 	"fmt"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
@@ -11,7 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
-const errorWrongVariation = "wrong variation used for flag %v"
+var errWrongVariationUsed = errors.New("wrong variation used for flag")
 
 func Evaluate[T model.JSONType](
 	f flag.Flag,
@@ -49,7 +50,7 @@ func Evaluate[T model.JSONType](
 				TrackEvents:   f.IsTrackEvents(),
 				Version:       f.GetVersion(),
 				Metadata:      f.GetMetadata(),
-			}, fmt.Errorf(errorWrongVariation, flagKey)
+			}, fmt.Errorf("%w %v", errWrongVariationUsed, flagKey)
 		}
 	}
 

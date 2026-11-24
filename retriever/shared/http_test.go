@@ -13,10 +13,15 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/shared"
 )
 
+var (
+	errConnectionRefused       = errors.New("connection refused")
+	errStoppedAfter10Redirects = errors.New("stopped after 10 redirects")
+)
+
 type failingClient struct{}
 
 func (failingClient) Do(req *http.Request) (*http.Response, error) {
-	return nil, &url.Error{Op: "Get", URL: req.URL.String(), Err: errors.New("connection refused")}
+	return nil, &url.Error{Op: "Get", URL: req.URL.String(), Err: errConnectionRefused}
 }
 
 func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
@@ -66,7 +71,7 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 type redirectRejectingClient struct{ resp *http.Response }
 
 func (c redirectRejectingClient) Do(req *http.Request) (*http.Response, error) {
-	return c.resp, &url.Error{Op: "Get", URL: req.URL.String(), Err: errors.New("stopped after 10 redirects")}
+	return c.resp, &url.Error{Op: "Get", URL: req.URL.String(), Err: errStoppedAfter10Redirects}
 }
 
 func TestCallHTTPAPI_KeepsResponseOnClientError(t *testing.T) {

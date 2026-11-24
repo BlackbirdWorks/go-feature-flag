@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errNoRetrieverInThe = errors.New("no retriever in the configuration, impossible to get the flags")
+)
+
 // Config is the configuration of semaphore.
 // You should also have a retriever to specify where to read the flags file.
 type Config struct {
@@ -190,7 +194,7 @@ func adjustPollingInterval(pollingInterval time.Duration) time.Duration {
 // GetRetrievers returns a retriever.Retriever configure with the retriever available in the config.
 func (c *Config) GetRetrievers() ([]retriever.Retriever, error) {
 	if c.Retriever == nil && len(c.Retrievers) == 0 {
-		return nil, errors.New("no retriever in the configuration, impossible to get the flags")
+		return nil, errNoRetrieverInThe
 	}
 
 	retrievers := make([]retriever.Retriever, 0)

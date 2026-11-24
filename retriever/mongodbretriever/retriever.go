@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDatabaseConnectionIsNot = errors.New("database connection is not initialized")
+)
+
 // Retriever is a configuration struct for a MongoDB connection and Collection.
 type Retriever struct {
 	// MongoDB connection URI
@@ -92,7 +96,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	dbConnection := r.dbConnection
 	r.mu.RUnlock()
 	if dbConnection == nil {
-		return nil, errors.New("database connection is not initialized")
+		return nil, errDatabaseConnectionIsNot
 	}
 
 	opt := options.CollectionOptions{}

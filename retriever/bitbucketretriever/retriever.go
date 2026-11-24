@@ -2,6 +2,7 @@ package bitbucketretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,13 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
+)
+
+var errRequestTo = errors.New("request to")
+
+var (
+	errMissingMandatoryInformationFilePath = errors.New("missing mandatory information filePath")
+	errRateLimitExceededNext               = errors.New("rate limit exceeded. Next call will be after")
 )
 
 // Retriever is the interface to fetch the flags from Bitbucket.
@@ -31,8 +39,7 @@ type Retriever struct {
 // Retrieve get the content of the file from the Bitbucket API.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information filePath=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationFilePath,
 			r.FilePath,
 			r.RepositorySlug,
 		)
@@ -51,7 +58,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	if (r.rateLimitRemaining <= 0) && clock.Now().Before(r.rateLimitReset) {
-		return nil, fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
+		return nil, fmt.Errorf("%w %s", errRateLimitExceededNext, r.rateLimitReset)
 	}
 
 	if r.BaseURL == "" {
@@ -82,8 +89,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			}
 		}
 
-		return nil, fmt.Errorf("request to %s failed with code %d."+
-			" Bitbucket Headers: %v", requestURL, resp.StatusCode, bitbucketHeaders)
+		return nil, fmt.Errorf("%w %s failed with code %d. Bitbucket Headers: %v",
+			errRequestTo, requestURL, resp.StatusCode, bitbucketHeaders)
 	}
 
 	body, err := io.ReadAll(resp.Body)

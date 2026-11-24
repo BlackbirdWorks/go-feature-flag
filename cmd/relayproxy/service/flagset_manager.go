@@ -23,6 +23,19 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+var (
+	errConfigurationIsNil         = errors.New("configuration is nil")
+	errNoFlagsetConfigured        = errors.New("no flagset configured")
+	errNoAPIKeyProvided           = errors.New("no API key provided")
+	errFlagsetNotFoundFor         = errors.New("flagset not found for API key")
+	errImpossibleToFindThe        = errors.New("impossible to find the flagset with the name")
+	errNoConfiguredFlagset        = errors.New("no configured flagset")
+	errApiKeyIsRequiredWhen       = errors.New("apiKey is required when using flagsets")
+	errNoFlagSetAssociated        = errors.New("no flag set associated to the API key")
+	errNoFlagsetsConfigured       = errors.New("no flagsets configured")
+	errNoDefaultFlagsetConfigured = errors.New("no default flagset configured")
+)
+
 type flagsetManagerMode string
 
 const (
@@ -114,7 +127,7 @@ func NewFlagsetManager(
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	if config == nil {
-		return nil, errors.New("configuration is nil")
+		return nil, errConfigurationIsNil
 	}
 
 	var flagsetMngr FlagsetManager
@@ -233,7 +246,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	}
 
 	if len(flagsets) == 0 {
-		return nil, errors.New("no flagset configured")
+		return nil, errNoFlagsetConfigured
 	}
 
 	return &flagsetManagerImpl{
@@ -255,7 +268,7 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
-			return nil, errors.New("no API key provided")
+			return nil, errNoAPIKeyProvided
 		}
 
 		m.flagsetsMutex.RLock()
@@ -263,16 +276,16 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		flagset, flagsetExists := m.FlagSets[flagsetName]
 		m.flagsetsMutex.RUnlock()
 		if !exists {
-			return nil, errors.New("flagset not found for API key")
+			return nil, errFlagsetNotFoundFor
 		}
 		if !flagsetExists {
-			return nil, fmt.Errorf("impossible to find the flagset with the name %s", flagsetName)
+			return nil, fmt.Errorf("%w %s", errImpossibleToFindThe, flagsetName)
 		}
 
 		return flagset, nil
 	default:
 		if m.DefaultFlagSet == nil {
-			return nil, errors.New("no configured flagset")
+			return nil, errNoConfiguredFlagset
 		}
 
 		return m.DefaultFlagSet, nil
@@ -284,7 +297,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
-			return "", errors.New("apiKey is required when using flagsets")
+			return "", errApiKeyIsRequiredWhen
 		}
 		m.flagsetsMutex.RLock()
 		name, ok := m.FlagSetRouting[apiKey]
@@ -293,7 +306,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 			return name, nil
 		}
 
-		return "", errors.New("no flag set associated to the API key")
+		return "", errNoFlagSetAssociated
 	default:
 		return utils.DefaultFlagSetName, nil
 	}
@@ -306,7 +319,7 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		m.flagsetsMutex.RLock()
 		defer m.flagsetsMutex.RUnlock()
 		if len(m.FlagSets) == 0 {
-			return nil, errors.New("no flagsets configured")
+			return nil, errNoFlagsetsConfigured
 		}
 		// Return a shallow copy so callers can iterate safely even if flagsets are
 		// added or removed concurrently.
@@ -316,7 +329,7 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		return out, nil
 	default:
 		if m.DefaultFlagSet == nil {
-			return nil, errors.New("no default flagset configured")
+			return nil, errNoDefaultFlagsetConfigured
 		}
 
 		return map[string]*ffclient.GoFeatureFlag{

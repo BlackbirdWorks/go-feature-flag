@@ -24,6 +24,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+var (
+	errImpossibleToFindConfig     = errors.New("impossible to find config file")
+	errImpossibleToFindConfigFile = errors.New("impossible to find config file in the default locations")
+)
+
 const (
 	// EnvVariablePrefix is the prefix of the environment variables that is always read,
 	// SEMAPHORE_SERVER_PORT sets server.port.
@@ -413,7 +418,7 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 
 	if inputFilePath != "" {
 		if _, err := os.Stat(inputFilePath); err != nil {
-			return "", fmt.Errorf("impossible to find config file %s", inputFilePath)
+			return "", fmt.Errorf("%w %s", errImpossibleToFindConfig, inputFilePath)
 		}
 
 		return inputFilePath, nil
@@ -436,8 +441,7 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 		}
 	}
 
-	return "", fmt.Errorf(
-		"impossible to find config file in the default locations [%s]",
+	return "", fmt.Errorf("%w [%s]", errImpossibleToFindConfigFile,
 		strings.Join(locations, ","),
 	)
 }

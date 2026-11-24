@@ -23,6 +23,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBoom   = errors.New("boom")
+	errKaboom = errors.New("kaboom")
+)
+
 const (
 	yamlA = "flagA:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"
 	yamlB = "flagB:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: off\n"
@@ -231,7 +236,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "list error",
-			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errors.New("boom") },
+			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errBoom },
 			r:     cfg{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to list objects from S3 with prefix "f/", boom`}},
 		},
@@ -239,7 +244,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "download error",
 			setup: func(m *testutils.S3PrefixMock) {
 				m.Put("f/a.yaml", yamlA)
-				m.DownloadErr = errors.New("kaboom")
+				m.DownloadErr = errKaboom
 			},
 			r:     cfg{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to download item from S3 "f/a.yaml", kaboom`}},

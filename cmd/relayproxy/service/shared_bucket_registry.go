@@ -18,6 +18,12 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+var (
+	errEnableSharedPollerPerBucketRequiresASingle = errors.New(
+		"enableSharedPollerPerBucket requires a single s3 retriever with item set",
+	)
+)
+
 // sharedItemsFactory builds the shared group of a bucket.
 type sharedItemsFactory func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error)
 
@@ -151,7 +157,7 @@ func (r *sharedBucketRegistry) releasePending() {
 func checkSharedPollerFlagSet(fs *config.FlagSet) error {
 	rc := fs.Retriever
 	if fs.Retrievers != nil || rc == nil || rc.Kind != retrieverconf.S3Retriever || rc.Item == "" {
-		return errors.New("enableSharedPollerPerBucket requires a single s3 retriever with item set")
+		return errEnableSharedPollerPerBucketRequiresASingle
 	}
 
 	return nil

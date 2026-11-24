@@ -21,6 +21,15 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errImpossibleToInitShared   = errors.New("impossible to init shared S3 items: bucket is empty")
+	errItemIsNotRegistered      = errors.New("item is not registered in the shared listing")
+	errTheListingOfPrefix       = errors.New("the listing of prefix")
+	errItem                     = errors.New("item")
+	errImpossibleToInitSharedS3 = errors.New("impossible to init shared S3 retriever: item is empty")
+	errSharedS3RetrieverIs      = errors.New("shared S3 retriever is not initialized")
+)
+
 const (
 	// DefaultSharedPollingInterval is the polling interval assumed for an item registered without one.
 	DefaultSharedPollingInterval = 60 * time.Second
@@ -149,7 +158,7 @@ func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, erro
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
 func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
-		return nil, errors.New("impossible to init shared S3 items: bucket is empty")
+		return nil, errImpossibleToInitShared
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -371,7 +380,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 		}
 	}
 
-	return listedItem{}, errors.New("item is not registered in the shared listing")
+	return listedItem{}, errItemIsNotRegistered
 }
 
 // listingLocked returns the listing in progress, and starts one if there is none. The caller must
@@ -427,7 +436,7 @@ func (g *SharedItems) list(
 	truncated := false
 	for pages := 0; paginator.HasMorePages(); pages++ {
 		if pages >= maxSharedListPages {
-			return nil, fmt.Errorf("the listing of prefix %q has more than %d pages", prefix, maxSharedListPages)
+			return nil, fmt.Errorf("%w %q has more than %d pages", errTheListingOfPrefix, prefix, maxSharedListPages)
 		}
 		page, err := g.listPage(base, paginator)
 		if err != nil {
@@ -442,7 +451,7 @@ func (g *SharedItems) list(
 	}
 	if truncated {
 		// no (new) continuation token: the end of the listing was not reached
-		return nil, fmt.Errorf("the listing of prefix %q is incomplete", prefix)
+		return nil, fmt.Errorf("%w %q is incomplete", errTheListingOfPrefix, prefix)
 	}
 
 	return res, nil
@@ -463,7 +472,7 @@ func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, erro
 		return nil, "", fmt.Errorf("unable to list S3 bucket %q, %w", g.bucket, err)
 	}
 	if !listed.found {
-		return nil, "", fmt.Errorf("item %q not found in S3 bucket %q", key, g.bucket)
+		return nil, "", fmt.Errorf("%w %q not found in S3 bucket %q", errItem, key, g.bucket)
 	}
 
 	g.mu.Lock()
@@ -577,7 +586,7 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if r.item == "" {
 		r.status.Store(retriever.RetrieverError)
 
-		return errors.New("impossible to init shared S3 retriever: item is empty")
+		return errImpossibleToInitSharedS3
 	}
 	r.group.register(r)
 	r.status.Store(retriever.RetrieverReady)
@@ -612,7 +621,7 @@ func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 		ctx = context.Background()
 	}
 	if r.Status() != retriever.RetrieverReady {
-		return nil, errors.New("shared S3 retriever is not initialized")
+		return nil, errSharedS3RetrieverIs
 	}
 	data, etag, err := r.group.get(ctx, r.item)
 	if err != nil {

@@ -14,6 +14,16 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
+var (
+	errKeyINVALIDNotExisting = errors.New("key INVALID not existing in config map ConfigMap1.Namespace")
+	errUnableToReadFrom      = errors.New(
+		"unable to read from config map NotExisting.WrongNamespace, error: configmaps \"NotExisting\" not found",
+	)
+	errUnableToReadFromConfig = errors.New(
+		"unable to read from config map ConfigMap1.Namespace, error: configmaps \"ConfigMap1\" not found",
+	)
+)
+
 const expectedContent = `
 test-flag:
   variations:
@@ -90,7 +100,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				configMapName: "ConfigMap1",
 				key:           "INVALID",
 			},
-			wantErr: errors.New("key INVALID not existing in config map ConfigMap1.Namespace"),
+			wantErr: errKeyINVALIDNotExisting,
 		},
 		{
 			name: "Config Map not existing",
@@ -102,9 +112,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				namespace:     "WrongNamespace",
 				configMapName: "NotExisting",
 			},
-			wantErr: errors.New(
-				"unable to read from config map NotExisting.WrongNamespace, error: configmaps \"NotExisting\" not found",
-			),
+			wantErr: errUnableToReadFrom,
 		},
 		{
 			name: "Client already there",
@@ -118,9 +126,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				key:           "valid",
 				setClient:     true,
 			},
-			wantErr: errors.New(
-				"unable to read from config map ConfigMap1.Namespace, error: configmaps \"ConfigMap1\" not found",
-			),
+			wantErr: errUnableToReadFromConfig,
 		},
 		{
 			name: "k8s client is nil",
@@ -133,7 +139,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 				configMapName: "ConfigMap1",
 				key:           "valid",
 			},
-			wantErr: errors.New("k8s client is nil after initialization"),
+			wantErr: errK8sClientIsNil,
 		},
 	}
 	for _, tt := range tests {

@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDatabaseConnectionPoolIs = errors.New("database connection pool is not initialized")
+)
+
 // defaultColumns returns the names of the columns when the configuration does not set them.
 func defaultColumns() map[string]string {
 	return map[string]string{
@@ -96,7 +100,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 // Retrieve fetches flag configuration from PostgreSQL.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.pool == nil {
-		return nil, errors.New("database connection pool is not initialized")
+		return nil, errDatabaseConnectionPoolIs
 	}
 
 	// Build the query using the configured table and column names

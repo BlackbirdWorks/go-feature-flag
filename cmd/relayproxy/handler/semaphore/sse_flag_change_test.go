@@ -27,6 +27,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errApiKeyIsRequiredWhen = errors.New("apiKey is required when using flagsets")
+	errUnknownApiKey        = errors.New("unknown api key")
+)
+
 type mockFlagsetManagerSSE struct {
 	flagsetName string
 	isDefault   bool
@@ -268,7 +273,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("apiKey is required when using flagsets"),
+				err:       errApiKeyIsRequiredWhen,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -277,7 +282,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "unknown-key",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("unknown api key"),
+				err:       errUnknownApiKey,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},

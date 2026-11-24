@@ -26,7 +26,7 @@ func (s testStringer) String() string { return s.s }
 func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr error, debugErr error) {
 	defer func() {
 		if info := recover(); info != nil {
-			retErr = fmt.Errorf("%q", info)
+			retErr = recoveredPanicError{info: info}
 			ret = false
 		}
 	}()

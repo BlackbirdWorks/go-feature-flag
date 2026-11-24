@@ -2,6 +2,7 @@ package gcstorageexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,10 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errYouShouldSpecifyA = errors.New("you should specify a bucket.")
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -71,7 +76,7 @@ func (f *Exporter) Export(
 	defer func() { _ = client.Close() }()
 
 	if f.Bucket == "" {
-		return fmt.Errorf("you should specify a bucket. %v is invalid", f.Bucket)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyA, f.Bucket)
 	}
 
 	// Create a temp directory to store the file we will produce

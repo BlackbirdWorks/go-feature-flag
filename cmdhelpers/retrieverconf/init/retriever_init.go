@@ -2,6 +2,7 @@ package init
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,6 +24,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+)
+
+var (
+	errInvalidRetrieverKind = errors.New("invalid retriever: kind")
 )
 
 // retrieverFactory defines the signature for retriever factory functions.
@@ -87,7 +92,7 @@ func InitRetriever(
 	}
 	factory, exists := factoryFor(c.Kind)
 	if !exists {
-		return nil, fmt.Errorf("invalid retriever: kind \"%s\" is not supported", c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, c.Kind)
 	}
 	r, err := factory(c, retrieverTimeout)
 	if err != nil {

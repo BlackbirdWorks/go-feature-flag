@@ -18,6 +18,14 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDownloaderIsNotInitialized = errors.New("downloader is not initialized")
+	errListerIsNotInitialized     = errors.New("lister is not initialized")
+	errS3RetrieverNotInitialized  = errors.New(
+		"S3 retriever not initialized: call Init (Item is empty means folder mode)",
+	)
+)
+
 // retrieverMode is how the retriever reads the bucket, it is derived from the configuration by Init.
 type retrieverMode string
 
@@ -179,21 +187,21 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if s.downloader == nil {
 		s.status = retriever.RetrieverError
 
-		return nil, errors.New("downloader is not initialized")
+		return nil, errDownloaderIsNotInitialized
 	}
 
 	if s.mode == folderMode {
 		if s.lister == nil {
 			s.status = retriever.RetrieverError
 
-			return nil, errors.New("lister is not initialized")
+			return nil, errListerIsNotInitialized
 		}
 
 		return s.loader.Load().Load(ctx)
 	}
 
 	if s.Item == "" {
-		return nil, errors.New("S3 retriever not initialized: call Init (Item is empty means folder mode)")
+		return nil, errS3RetrieverNotInitialized
 	}
 
 	content, _, err := s.downloadWithETag(ctx, s.Item)

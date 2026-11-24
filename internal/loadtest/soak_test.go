@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+var (
+	errBoom = errors.New("boom")
+)
+
 func samples(heap []uint64, gor []int) []Sample {
 	out := make([]Sample, len(heap))
 	for i := range heap {
@@ -209,7 +213,7 @@ type fakeTarget struct {
 func (f *fakeTarget) Eval(_, _ int) error {
 	n := f.evals.Add(1)
 	if f.failEv > 0 && n%int64(f.failEv) == 0 {
-		return errors.New("boom")
+		return errBoom
 	}
 	time.Sleep(50 * time.Microsecond)
 

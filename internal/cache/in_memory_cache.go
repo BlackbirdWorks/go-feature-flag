@@ -1,12 +1,17 @@
 package cache
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errFlag = errors.New("flag")
 )
 
 var _ Cache = (*InMemoryCache)(nil)
@@ -44,7 +49,7 @@ func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 	f, ok := fc.Flags[key]
 	if !ok {
 		// callers expect a usable (empty) flag next to the error
-		return &flag.InternalFlag{}, fmt.Errorf("flag [%v] does not exists", key)
+		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
 	}
 
 	return f, nil

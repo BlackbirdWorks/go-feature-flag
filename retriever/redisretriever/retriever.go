@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRedisClientIsNot = errors.New("redis client is not initialized")
+)
+
 // Retriever is the interface to fetch the flags from Redis.
 type Retriever struct {
 	// Options to connect to Redis
@@ -81,7 +85,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
-		return nil, errors.New("redis client is not initialized")
+		return nil, errRedisClientIsNot
 	}
 
 	var flagsData = make(map[string]any)

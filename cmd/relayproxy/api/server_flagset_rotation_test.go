@@ -29,6 +29,11 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+var (
+	errFlagsetNotFoundFor  = errors.New("flagset not found for API key")
+	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
+)
+
 // routingLostManager is a flag set manager whose routing table does not know the keys of lostKeys anymore,
 // as right after a reload removed them, while everything else is delegated to the real manager.
 type routingLostManager struct {
@@ -38,7 +43,7 @@ type routingLostManager struct {
 
 func (m routingLostManager) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
 	if m.lostKeys[apiKey] {
-		return nil, errors.New("flagset not found for API key")
+		return nil, errFlagsetNotFoundFor
 	}
 
 	return m.FlagsetManager.FlagSet(apiKey)
@@ -46,7 +51,7 @@ func (m routingLostManager) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, err
 
 func (m routingLostManager) FlagSetName(apiKey string) (string, error) {
 	if m.lostKeys[apiKey] {
-		return "", errors.New("no flag set associated to the API key")
+		return "", errNoFlagSetAssociated
 	}
 
 	return m.FlagsetManager.FlagSetName(apiKey)

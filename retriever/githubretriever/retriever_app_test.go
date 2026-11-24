@@ -34,6 +34,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 )
 
+var (
+	errConnectionReset = errors.New("connection reset")
+)
+
 var _ retriever.InitializableRetriever = &githubretriever.Retriever{}
 
 // flagBody is what the mock contents API returns.
@@ -370,7 +374,7 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 		},
 		{
 			name:    "transport error on the retry after a 401",
-			mock:    &appMockHTTP{first401ThenOK: true, retryErr: errors.New("connection reset")},
+			mock:    &appMockHTTP{first401ThenOK: true, retryErr: errConnectionReset},
 			wantErr: "connection reset",
 		},
 		{

@@ -2,12 +2,18 @@ package exporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
+)
+
+var (
+	errConsumerWithName    = errors.New("consumer with name")
+	errInvalidOffsetOffset = errors.New("invalid offset: offset")
 )
 
 const minOffset = int64(math.MinInt64)
@@ -340,7 +346,7 @@ func (e *eventStoreImpl[T]) fetchPendingEvents(currentConsumer *consumer) *Event
 func (e *eventStoreImpl[T]) getConsumer(consumerID string) (*consumer, error) {
 	currentConsumer, ok := e.consumers[consumerID]
 	if !ok {
-		return nil, fmt.Errorf("consumer with name %s not found", consumerID)
+		return nil, fmt.Errorf("%w %s not found", errConsumerWithName, consumerID)
 	}
 
 	return currentConsumer, nil
@@ -350,8 +356,7 @@ func (e *eventStoreImpl[T]) getConsumer(consumerID string) (*consumer, error) {
 // WARNING: please call this function only in a function that has locked the mutex first.
 func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offset int64) error {
 	if offset > e.lastOffset {
-		return fmt.Errorf(
-			"invalid offset: offset %d is greater than the last offset %d",
+		return fmt.Errorf("%w %d is greater than the last offset %d", errInvalidOffsetOffset,
 			offset,
 			e.lastOffset,
 		)

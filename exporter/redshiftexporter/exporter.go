@@ -24,6 +24,20 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var errRedshiftExporter = errors.New("redshift exporter")
+
+var (
+	errRedshiftExporterInvalidTable = errors.New("redshift exporter: invalid table name")
+	errRedshiftExporterDatabaseIs   = errors.New("redshift exporter: Database is required")
+	errRedshiftExporterOneOf        = errors.New(
+		"redshift exporter: one of ClusterIdentifier or WorkgroupName is required",
+	)
+	errRedshiftExporterClusterIdentifierAnd = errors.New(
+		"redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive",
+	)
+	errRedshiftExporterReceivedMixed = errors.New("redshift exporter received mixed event types")
+)
+
 const (
 	defaultFeatureTableName  = "feature_flag_evaluations"
 	defaultTrackingTableName = "tracking_events"
@@ -238,7 +252,7 @@ func (e *Exporter) Export(
 	}
 	table, columns := e.tableName(eventType), columnsForEventType(eventType)
 	if !IsValidTableName(table) {
-		return fmt.Errorf("redshift exporter: invalid table name %q", table)
+		return fmt.Errorf("%w %q", errRedshiftExporterInvalidTable, table)
 	}
 
 	rows, skippedKeys := prepareRows(columns, rows, len(insertPrefix(table, columns)))
@@ -272,13 +286,13 @@ func (e *Exporter) IsBulk() bool {
 
 func (e *Exporter) validate() error {
 	if e.Database == "" {
-		return errors.New("redshift exporter: Database is required")
+		return errRedshiftExporterDatabaseIs
 	}
 	if e.ClusterIdentifier == "" && e.WorkgroupName == "" {
-		return errors.New("redshift exporter: one of ClusterIdentifier or WorkgroupName is required")
+		return errRedshiftExporterOneOf
 	}
 	if e.ClusterIdentifier != "" && e.WorkgroupName != "" {
-		return errors.New("redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive")
+		return errRedshiftExporterClusterIdentifierAnd
 	}
 
 	return nil
@@ -481,12 +495,12 @@ func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (
 	case types.StatusStringFinished:
 		return true, nil
 	case types.StatusStringFailed, types.StatusStringAborted:
-		msg := fmt.Sprintf("redshift exporter: statement %s %s", aws.ToString(id), output.Status)
+		stmtErr := fmt.Errorf("%w: statement %s %s", errRedshiftExporter, aws.ToString(id), output.Status)
 		if detail := statementError(output); detail != "" {
-			msg += ": " + detail
+			stmtErr = fmt.Errorf("%w: %s", stmtErr, detail)
 		}
 
-		return true, errors.New(msg)
+		return true, stmtErr
 	default:
 		return false, nil
 	}
@@ -533,7 +547,7 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 			eventType = rowType
 		}
 		if eventType != rowType {
-			return nil, "", errors.New("redshift exporter received mixed event types")
+			return nil, "", errRedshiftExporterReceivedMixed
 		}
 		if err != nil {
 			skippedKeys = append(skippedKeys, event.GetKey())

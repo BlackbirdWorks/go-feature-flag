@@ -6,6 +6,10 @@ import (
 	"os"
 )
 
+var (
+	errFailedToReadFrom = errors.New("failed to read from GCP")
+)
+
 type GCStorageReaderMock struct {
 	ShouldFail bool
 	FileToRead string
@@ -19,7 +23,7 @@ func (r *GCStorageReaderMock) Close() error {
 
 func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
 	if r.ShouldFail {
-		return 0, errors.New("failed to read from GCP")
+		return 0, errFailedToReadFrom
 	}
 
 	// Set the mocked data to be read.

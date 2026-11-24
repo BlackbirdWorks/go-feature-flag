@@ -24,6 +24,11 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
 
+var (
+	errUnknownProtocol = errors.New("unknown protocol")
+	errUnknownTarget   = errors.New("unknown target")
+)
+
 func main() {
 	// Ctrl+C / SIGTERM stop the workers (the relay proxy also shuts itself down on them).
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -87,7 +92,7 @@ func newTarget(o options) (loadtest.Target, error) {
 			return nil, parseEndpointErr
 		}
 		if o.protocol != "http1" && o.protocol != "h2c" {
-			return nil, fmt.Errorf("unknown protocol %q (want http1 or h2c)", o.protocol)
+			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, o.protocol)
 		}
 
 		return relay.NewTarget(relay.Options{
@@ -95,7 +100,7 @@ func newTarget(o options) (loadtest.Target, error) {
 			FlushIntervalMs: o.flushMs, MaxEventInMemory: o.maxEvents,
 		}, ep, o.flagKey, o.workers)
 	default:
-		return nil, fmt.Errorf("unknown target %q", o.target)
+		return nil, fmt.Errorf("%w %q", errUnknownTarget, o.target)
 	}
 }
 

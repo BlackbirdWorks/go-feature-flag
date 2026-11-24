@@ -15,6 +15,13 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 )
 
+var (
+	errBoom                  = errors.New("boom")
+	errFailedToParseLocation = errors.New("failed to parse Location header")
+	errBadHttpsUSECRETMARKER = errors.New("bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here")
+	errRandomError           = errors.New("random error")
+)
+
 func TestRedactURLError(t *testing.T) {
 	t.Parallel()
 	const secretURL = "https://user:SECRETMARKER-pass@hooks.example.com/services/SECRETMARKER-token?key=SECRETMARKER-q"
@@ -38,16 +45,24 @@ func TestRedactURLError(t *testing.T) {
 		{name: "http client error", err: doErr, wantMessage: `Get "[REDACTED]": dial tcp`},
 		{
 			name: "url.Error from a custom client", wantMessage: `Post "[REDACTED]": boom`,
-			err: &url.Error{Op: "Post", URL: secretURL, Err: errors.New("boom")},
+			err: &url.Error{Op: "Post", URL: secretURL, Err: errBoom},
 		},
 		{
 			name: "wrapped url.Error", wantMessage: `Get "[REDACTED]": EOF`,
 			err: fmt.Errorf("wrapped: %w", &url.Error{Op: "Get", URL: secretURL, Err: io.EOF}),
 		},
 		{
-			name: "malformed redirect location", wantMessage: `Get "[REDACTED]": invalid Location header`,
-			err: &url.Error{Op: "Get", URL: secretURL, Err: fmt.Errorf(
-				"failed to parse Location header %q: invalid character", "https://u:SECRETMARKER-p@bad host/x")},
+			name:        "malformed redirect location",
+			wantMessage: `Get "[REDACTED]": invalid Location header`,
+			err: &url.Error{
+				Op:  "Get",
+				URL: secretURL,
+				Err: fmt.Errorf(
+					"%w %q: invalid character",
+					errFailedToParseLocation,
+					"https://u:SECRETMARKER-p@bad host/x",
+				),
+			},
 		},
 		{
 			name:        "cause quoting an url",
@@ -55,12 +70,12 @@ func TestRedactURLError(t *testing.T) {
 			err: &url.Error{
 				Op:  "Get",
 				URL: secretURL,
-				Err: errors.New(`bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here`),
+				Err: errBadHttpsUSECRETMARKER,
 			},
 		},
 		{
 			name:        "plain error is untouched",
-			err:         errors.New("random error"),
+			err:         errRandomError,
 			wantMessage: "random error",
 			wantSame:    true,
 		},

@@ -15,6 +15,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
 
+var (
+	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
+	errNotFound            = errors.New("not found")
+)
+
 // namedManager is a flag set manager that routes the keys of names to a flag set name.
 type namedManager struct {
 	mock.MockFlagsetManager
@@ -26,7 +31,7 @@ func (m *namedManager) FlagSetName(apiKey string) (string, error) {
 		return name, nil
 	}
 
-	return "", errors.New("no flag set associated to the API key")
+	return "", errNoFlagSetAssociated
 }
 
 func newRequestContext(t *testing.T, apiKey string) *echo.Context {
@@ -42,7 +47,7 @@ func TestRequestFlagSet(t *testing.T) {
 
 	routed := &ffclient.GoFeatureFlag{}
 	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"tenant": routed}}
-	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("flagset not found for API key")}
+	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errFlagsetNotFoundFor}
 
 	tests := []struct {
 		name         string
@@ -86,7 +91,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 		{name: "a key that routes to a flag set",
 			manager: &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"t": {}}}, want: true},
 		{name: "a key that does not route to a flag set",
-			manager: &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("not found")}, want: false},
+			manager: &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

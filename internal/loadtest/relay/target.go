@@ -2,6 +2,7 @@ package relay
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,15 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
+)
+
+var errChooseFlagWithTracking = errors.New("choose a flag with tracking on")
+
+var (
+	errUnexpectedStatus       = errors.New("unexpected status")
+	errEndpoint               = errors.New("endpoint")
+	errEvaluationFailed       = errors.New("evaluation failed")
+	errResponseProtocolIsHTTP = errors.New("response protocol is HTTP/")
 )
 
 // Target evaluates flags against a real relay proxy over loopback HTTP.
@@ -90,7 +100,7 @@ func (t *Target) countFlagsPerCall() (int, error) {
 		return 0, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
 	}
 
 	return countFlags(body)
@@ -140,14 +150,20 @@ func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
 	}
 	if !endpoint.EmitsEvents() &&
 		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) {
-		return fmt.Errorf("endpoint %q does not emit events, so exporter %q would never be exercised: use %s or %s",
-			endpoint, o.ExporterMode, SemaphoreEval, OFREPEval)
+		return fmt.Errorf(
+			"%w %q does not emit events, so exporter %q would never be exercised: use %s or %s",
+			errEndpoint,
+			endpoint,
+			o.ExporterMode,
+			SemaphoreEval,
+			OFREPEval,
+		)
 	}
 	if endpoint.EmitsEvents() &&
 		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) &&
 		!tracksEvents(o.FlagsYAML, flagKey) {
-		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: "+
-			"choose a flag with tracking on", flagKey, o.ExporterMode)
+		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: %w",
+			flagKey, o.ExporterMode, errChooseFlagWithTracking)
 	}
 
 	return nil
@@ -182,7 +198,7 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 		return fmt.Errorf("invalid response: %w", err)
 	}
 	if v.Failed {
-		return fmt.Errorf("evaluation failed: %s", v.ErrorCode)
+		return fmt.Errorf("%w: %s", errEvaluationFailed, v.ErrorCode)
 	}
 
 	return nil
@@ -202,12 +218,12 @@ func (t *Target) Eval(worker, i int) error {
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
-		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+		return fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
 	}
 	if want := 1 + btoi(t.h2c); resp.ProtoMajor != want {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
-		return fmt.Errorf("response protocol is HTTP/%d, expected HTTP/%d", resp.ProtoMajor, want)
+		return fmt.Errorf("%w%d, expected HTTP/%d", errResponseProtocolIsHTTP, resp.ProtoMajor, want)
 	}
 	if t.endpoint != SemaphoreEval {
 		// the body is never inspected: drain it (to reuse the connection) without buffering it,

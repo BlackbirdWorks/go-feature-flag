@@ -15,6 +15,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBigqueryExporterReceivedMixed = errors.New("bigquery exporter received mixed event types")
+)
+
 const (
 	defaultTableName = "feature_flag_evaluations"
 
@@ -173,7 +177,7 @@ func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, big
 			eventType = rowType
 		}
 		if eventType != rowType {
-			return nil, nil, errors.New("bigquery exporter received mixed event types")
+			return nil, nil, errBigqueryExporterReceivedMixed
 		}
 		rows = append(rows, row)
 	}

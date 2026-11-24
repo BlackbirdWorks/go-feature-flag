@@ -1,12 +1,19 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
+)
+
+var errMustNotBeNegative = errors.New("must not be negative")
+
+var (
+	errInvalidSize = errors.New("invalid size")
 )
 
 const (
@@ -33,7 +40,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 		return nil
 	}
 	if strings.HasPrefix(s, "-") {
-		return fmt.Errorf("invalid size %q: must not be negative", s)
+		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, s)
 	}
 	if n, err := strconv.ParseUint(s, 10, 63); err == nil {
 		*b = ByteSize(n)
@@ -42,14 +49,14 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 	}
 	if _, err := strconv.ParseFloat(s, 64); err == nil {
 		// a number without unit that is not an integer (1.5, 1e3), do not truncate it silently.
-		return fmt.Errorf("invalid size %q: a number of bytes must be an integer", s)
+		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, s)
 	}
 	n, err := humanize.ParseBytes(s)
 	if err != nil {
 		return fmt.Errorf("invalid size %q: %w", s, err)
 	}
 	if n > math.MaxInt64 {
-		return fmt.Errorf("invalid size %q: too large", s)
+		return fmt.Errorf("%w %q: too large", errInvalidSize, s)
 	}
 	*b = ByteSize(n)
 
@@ -107,7 +114,7 @@ func (v ValidateFlagsEndpoint) IsValid() error {
 		{"endpoints.validateFlags.maxTOMLBodySize", v.MaxTOMLBodySize},
 	} {
 		if limit.size < 0 {
-			return fmt.Errorf("%s must not be negative", limit.name)
+			return fmt.Errorf("%s %w", limit.name, errMustNotBeNegative)
 		}
 	}
 

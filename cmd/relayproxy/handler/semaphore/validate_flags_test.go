@@ -18,6 +18,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
+var (
+	errReadFailure = errors.New("read failure")
+)
+
 const (
 	jsonBodyLimit = 1 << 20
 	yamlBodyLimit = 64 << 10
@@ -27,7 +31,7 @@ const (
 // failingReader is a request body that always fails to be read.
 type failingReader struct{}
 
-func (failingReader) Read([]byte) (int, error) { return 0, errors.New("read failure") }
+func (failingReader) Read([]byte) (int, error) { return 0, errReadFailure }
 
 // normalizeAltMessage replaces the single error message equal to alt by the expected one.
 func normalizeAltMessage(got []controller.FlagValidationError, alt string, want []controller.FlagValidationError) {

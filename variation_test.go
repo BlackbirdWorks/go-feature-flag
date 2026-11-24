@@ -26,6 +26,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errImpossibleToReadThe = errors.New("impossible to read the toggle before the initialisation")
+	errFlagKeyNotExist     = errors.New("flag [key-not-exist] does not exists")
+)
+
 type cacheMock struct {
 	flag flag.Flag
 	err  error
@@ -148,7 +153,7 @@ func TestBoolVariation(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        true,
 			wantErr:     true,
@@ -162,7 +167,7 @@ func TestBoolVariation(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        true,
@@ -473,7 +478,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			wantErr:     true,
 			expectedLog: `user="random-key", flag="key-not-exist", value="true", variation="SdkDefault"`,
@@ -486,7 +491,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			wantErr:     true,
@@ -944,7 +949,7 @@ func TestFloat64Variation(t *testing.T) {
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        118.12,
 			wantErr:     true,
@@ -958,7 +963,7 @@ func TestFloat64Variation(t *testing.T) {
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        118.12,
@@ -1270,7 +1275,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			wantErr:     true,
 			expectedLog: `user="random-key", flag="key-not-exist", value="118.12", variation="SdkDefault"`,
@@ -1283,7 +1288,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			wantErr:     true,
@@ -1594,7 +1599,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        []any{"toto"},
 			wantErr:     true,
@@ -1608,7 +1613,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        []any{"toto"},
@@ -1906,7 +1911,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			wantErr:     true,
 			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[toto\\]\"\n",
@@ -1919,7 +1924,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			wantErr:     true,
@@ -2224,7 +2229,7 @@ func TestJSONVariation(t *testing.T) {
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        map[string]any{"default-notkey": true},
 			wantErr:     true,
@@ -2238,7 +2243,7 @@ func TestJSONVariation(t *testing.T) {
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        map[string]any{"default-notkey": true},
@@ -2755,7 +2760,7 @@ func TestStringVariation(t *testing.T) {
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        "default-notkey",
 			wantErr:     true,
@@ -2769,7 +2774,7 @@ func TestStringVariation(t *testing.T) {
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        "default-notkey",
@@ -3315,7 +3320,7 @@ func TestIntVariation(t *testing.T) {
 				defaultValue:  118,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want:        118,
 			wantErr:     true,
@@ -3329,7 +3334,7 @@ func TestIntVariation(t *testing.T) {
 				defaultValue:  118,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want:        118,
@@ -3930,7 +3935,7 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  "defaultValue",
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("impossible to read the toggle before the initialisation")),
+					errImpossibleToReadThe),
 			},
 			want: model.RawVarResult{
 				Value:         "defaultValue",
@@ -3952,7 +3957,7 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  123456,
 				cacheMock: NewCacheMock(
 					&flag.InternalFlag{},
-					errors.New("flag [key-not-exist] does not exists"),
+					errFlagKeyNotExist,
 				),
 			},
 			want: model.RawVarResult{

@@ -18,6 +18,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRandomError = errors.New("random error")
+)
+
 type SQSSendMessageAPIMock struct {
 	messages []sqs.SendMessageInput
 }
@@ -26,7 +30,7 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 	params *sqs.SendMessageInput,
 	_ ...func(*sqs.Options)) (*sqs.SendMessageOutput, error) {
 	if params.QueueUrl != nil && strings.HasSuffix(*params.QueueUrl, "error") {
-		return nil, errors.New("random error")
+		return nil, errRandomError
 	}
 	s.messages = append(s.messages, *params)
 

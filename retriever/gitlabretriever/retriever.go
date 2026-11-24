@@ -2,6 +2,7 @@ package gitlabretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal"
 	httpretriever "github.com/blackbirdworks/semaphore/retriever/httpretriever"
+)
+
+var (
+	errMissingMandatoryInformationFilePath = errors.New("missing mandatory information filePath")
 )
 
 // Retriever is a configuration struct for a GitHub retriever.
@@ -42,8 +47,7 @@ type Retriever struct {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information filePath=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationFilePath,
 			r.FilePath,
 			r.RepositorySlug,
 		)

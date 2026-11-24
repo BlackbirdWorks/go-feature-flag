@@ -29,6 +29,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+var (
+	errNoAWS = errors.New("no AWS")
+)
+
 // fakeS3 serves the same flag file for every key and counts the requests.
 type fakeS3 struct {
 	content []byte
@@ -314,7 +318,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 
 func failingRegistry(logger *zap.Logger) *sharedBucketRegistry {
 	return newSharedBucketRegistry(func(context.Context, string) (*s3retrieverv2.SharedItems, error) {
-		return nil, errors.New("no AWS")
+		return nil, errNoAWS
 	}, 0, false, logger)
 }
 

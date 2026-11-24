@@ -20,6 +20,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errNotExpectedNumberOf      = errors.New("not expected number of options")
+	errUnexpectedOptionProvided = errors.New("unexpected option provided")
+	errErroredClient            = errors.New("errored client")
+)
+
 func TestExporter_Export(t *testing.T) {
 	t.Parallel()
 
@@ -101,9 +107,9 @@ func TestExporter_Export(t *testing.T) {
 				newClientFunc: func(client *pubsub.Client) clientFactory {
 					return func(_ context.Context, _ string, opts ...option.ClientOption) (*pubsub.Client, error) {
 						if len(opts) != 1 {
-							return nil, errors.New("not expected number of options")
+							return nil, errNotExpectedNumberOf
 						} else if opts[0] != option.WithAPIKey("some-api-key") {
-							return nil, errors.New("unexpected option provided")
+							return nil, errUnexpectedOptionProvided
 						}
 
 						return client, nil
@@ -167,7 +173,7 @@ func TestExporter_Export(t *testing.T) {
 				topic: topic,
 				newClientFunc: func(*pubsub.Client) clientFactory {
 					return func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error) {
-						return nil, errors.New("errored client")
+						return nil, errErroredClient
 					}
 				},
 			},

@@ -17,6 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRequestTo                  = errors.New("request to")
+	errHttpDefaultTransportIs     = errors.New("http default transport is")
+	errClientCertificateAndClient = errors.New("client certificate and client key must be provided together")
+	errFailedToParseCA            = errors.New("failed to parse CA certificate")
+)
+
 // Retriever is a configuration struct for an HTTP endpoint retriever.
 type Retriever struct {
 	// URL of your endpoint
@@ -104,7 +111,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode > 399 {
-		return nil, fmt.Errorf("request to %s failed with code %d", internal.RedactURL(r.URL), resp.StatusCode)
+		return nil, fmt.Errorf("%w %s failed with code %d", errRequestTo, internal.RedactURL(r.URL), resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -132,7 +139,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 		}
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", base)
+			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHttpDefaultTransportIs, base)
 		}
 
 		tlsTransport := defaultTransport.Clone()
@@ -167,7 +174,7 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 
 func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
-		return nil, errors.New("client certificate and client key must be provided together")
+		return nil, errClientCertificateAndClient
 	}
 	if r.ClientCertPath == "" {
 		return nil, nil
@@ -200,7 +207,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		return nil, err
 	}
 	if !rootCAs.AppendCertsFromPEM(caCert) {
-		return nil, errors.New("failed to parse CA certificate")
+		return nil, errFailedToParseCA
 	}
 
 	return rootCAs, nil

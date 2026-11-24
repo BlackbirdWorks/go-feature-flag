@@ -25,6 +25,12 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+var (
+	errNoSuchKey    = errors.New("NoSuchKey")
+	errAccessDenied = errors.New("AccessDenied")
+	errDenied       = errors.New("denied")
+)
+
 // fakeBucket is a fake S3 bucket counting the requests it receives.
 type fakeBucket struct {
 	mu      sync.Mutex
@@ -160,7 +166,7 @@ func (b *fakeBucket) DownloadObject(
 	}
 	obj, ok := b.objects[key]
 	if !ok {
-		return nil, errors.New("NoSuchKey")
+		return nil, errNoSuchKey
 	}
 	if _, err := in.WriterAt.WriteAt([]byte(obj.data), 0); err != nil {
 		return nil, err
@@ -300,13 +306,13 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		{
 			name:  "list error is returned once per window for all the callers",
 			items: map[string]time.Duration{"p1/dev/flags.yaml": 20 * time.Second, "p2/flags.yaml": 20 * time.Second},
-			setup: func(b *fakeBucket) { b.listErr = errors.New("AccessDenied") },
+			setup: func(b *fakeBucket) { b.listErr = errAccessDenied },
 			run:   runListError,
 		},
 		{
 			name:  "download error is returned",
 			items: map[string]time.Duration{"p2/flags.yaml": 0},
-			setup: func(b *fakeBucket) { b.getErr = errors.New("denied") },
+			setup: func(b *fakeBucket) { b.getErr = errDenied },
 			run:   runDownloadError,
 		},
 		{
@@ -1114,7 +1120,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pc := newPollCase(t, s3retrieverv2.PollerConfig{Interval: 10 * time.Second}, dev)
 			pc.start(t)
 			pc.b.mu.Lock()
-			pc.b.listErr = errors.New("AccessDenied")
+			pc.b.listErr = errAccessDenied
 			pc.b.mu.Unlock()
 			pc.b.put(dev, `"e1b"`, "dev2")
 			time.Sleep(10 * time.Second)

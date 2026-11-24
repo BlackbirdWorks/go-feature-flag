@@ -17,6 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errErrorDiscordNotifierInvalid = errors.New(
+		"error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided",
+	)
+	errErrorDiscordNotifierWebhook = errors.New("error: (Discord Notifier) webhook call failed with statusCode")
+)
+
 var _ notifier.Notifier = &Notifier{}
 
 const (
@@ -41,7 +48,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.DiscordWebhookURL == "" {
-		return errors.New("error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided")
+		return errErrorDiscordNotifierInvalid
 	}
 
 	// init the notifier
@@ -77,8 +84,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode > 399 {
-		return fmt.Errorf(
-			"error: (Discord Notifier) webhook call failed with statusCode = %d",
+		return fmt.Errorf("%w = %d", errErrorDiscordNotifierWebhook,
 			response.StatusCode,
 		)
 	}

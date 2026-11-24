@@ -150,7 +150,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 			if err != nil {
 				rcErr := &rerr.RetrieverConfError{}
 				if errors.As(err, &rcErr) {
-					return errors.New(rcErr.CliErrorMessage())
+					return cliMessageError(rcErr.CliErrorMessage())
 				}
 
 				return err
@@ -364,3 +364,8 @@ func parsePostgresColumns(columns []string) map[string]string {
 
 	return result
 }
+
+// cliMessageError is an error whose text is the message to show on the command line.
+type cliMessageError string
+
+func (e cliMessageError) Error() string { return string(e) }

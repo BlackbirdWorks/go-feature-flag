@@ -12,6 +12,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+var (
+	errHttpError = errors.New("http error")
+)
+
 type HTTP struct {
 	Req           http.Request
 	RateLimit     bool
@@ -72,7 +76,7 @@ func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if strings.Contains(req.URL.String(), "error") {
-		return nil, errors.New("http error")
+		return nil, errHttpError
 	} else if strings.HasSuffix(req.URL.String(), "httpError") {
 		return errorResponse, nil
 	}

@@ -8,9 +8,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
 
+var (
+	errImpossibleToFindType  = errors.New("impossible to find type, no variations found")
+	errImpossibleToFindType2 = errors.New("impossible to find type")
+	errUnknownType           = errors.New("unknown type")
+)
+
 func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) {
 	if variations == nil {
-		return "", errors.New("impossible to find type, no variations found")
+		return "", errImpossibleToFindType
 	}
 	variationTypes := collectVariationTypes(variations)
 
@@ -27,7 +33,7 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 		return numberFlagType(variations)
 	}
 
-	return "", errors.New("impossible to find type")
+	return "", errImpossibleToFindType2
 }
 
 // collectVariationTypes returns the set of the flag types of the variations that have a known type.
@@ -92,6 +98,6 @@ func numberType(value any) (string, error) {
 
 		return "float", nil
 	default:
-		return "", fmt.Errorf("unknown type %v", val.Kind())
+		return "", fmt.Errorf("%w %v", errUnknownType, val.Kind())
 	}
 }

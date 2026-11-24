@@ -8,6 +8,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errFirstInitFailed = errors.New("first init failed")
+)
+
 // ContextAwareRetriever is a mock that respects context cancellation.
 type ContextAwareRetriever struct{}
 
@@ -97,7 +101,7 @@ func (m *RecoverableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error 
 	m.InitCallCount++
 
 	if m.FailFirstInit && m.InitCallCount == 1 {
-		return errors.New("first init failed")
+		return errFirstInitFailed
 	}
 
 	return nil

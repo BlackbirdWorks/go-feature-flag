@@ -3,7 +3,6 @@ package mockretriever
 
 import (
 	"context"
-	"errors"
 	"log"
 
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -34,7 +33,7 @@ func (m *InitializableRetrieverLegacy) Init(_ context.Context, logger *log.Logge
 	m.InitCalled = true
 	m.ReceivedLogger = logger
 	if m.InitShouldFail {
-		return errors.New("initialization failed")
+		return errInitializationFailed
 	}
 
 	return nil

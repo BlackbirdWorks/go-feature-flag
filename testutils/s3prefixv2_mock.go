@@ -15,6 +15,10 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+var (
+	errNoSuchKey = errors.New("NoSuchKey")
+)
+
 // S3PrefixMock is an in-memory fake of a S3 bucket implementing both the lister and the
 // downloader APIs used by the S3 retriever v2. It supports prefix/delimiter semantics,
 // pagination, ETags and call counters.
@@ -210,11 +214,11 @@ func (m *S3PrefixMock) DownloadObject(
 		return nil, err
 	}
 	if input.WriterAt == nil {
-		return nil, errors.New("WriterAt is required")
+		return nil, errWriterAtIsRequired
 	}
 	content, ok := m.objects[key]
 	if !ok {
-		return nil, fmt.Errorf("NoSuchKey: %s", key)
+		return nil, fmt.Errorf("%w: %s", errNoSuchKey, key)
 	}
 	_, _ = input.WriterAt.WriteAt(content, 0)
 	out := &transfermanager.DownloadObjectOutput{}

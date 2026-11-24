@@ -17,6 +17,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errFailureToSendMessage = errors.New("failure to send message: datacenter on fire")
+)
+
 func TestExporter_IsBulk(t *testing.T) {
 	t.Parallel()
 
@@ -313,5 +317,5 @@ func (k *MockKinesisSenderWithError) SendMessages(
 	_ context.Context,
 	_ *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {
-	return nil, errors.New("failure to send message: datacenter on fire")
+	return nil, errFailureToSendMessage
 }

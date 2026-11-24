@@ -56,7 +56,7 @@ var errInvalidExporter = errors.New("invalid exporter")
 
 // invalidExporterf builds an error that wraps errInvalidExporter: its text is "invalid exporter: " + the formatted text.
 func invalidExporterf(format string, args ...any) error {
-	return fmt.Errorf("%w: "+format, append([]any{errInvalidExporter}, args...)...)
+	return fmt.Errorf("%w: %s", errInvalidExporter, fmt.Sprintf(format, args...))
 }
 
 // IsValid checks that the exporter has the settings its kind requires.
@@ -69,7 +69,7 @@ func (c *ExporterConf) IsValid() error {
 	}
 	if len(c.ParquetCompressionCodec) > 0 {
 		if _, err := parquet.CompressionCodecFromString(c.ParquetCompressionCodec); err != nil {
-			return invalidExporterf("\"parquetCompressionCodec\" err: %w", err)
+			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, err)
 		}
 	}
 	if err := c.validateMessaging(); err != nil {

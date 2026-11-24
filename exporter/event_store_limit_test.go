@@ -18,6 +18,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBoom          = errors.New("boom")
+	errAlwaysFailing = errors.New("always failing")
+)
+
 type droppedCounter interface{ DroppedEvents() int64 }
 
 func Test_EventStoreWithLimit(t *testing.T) {
@@ -51,7 +56,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 		{name: "over the limit drops the newest", limit: 10, adds: 25, wantStored: 10, wantDropped: 15},
 		{
 			name: "failing consumer never grows the store", limit: 10, adds: 25,
-			consume: true, consumeErr: errors.New("boom"), addsAfter: 25, wantStored: 10, wantDropped: 40,
+			consume: true, consumeErr: errBoom, addsAfter: 25, wantStored: 10, wantDropped: 40,
 			wantConsumeErr: "boom",
 		},
 		{
@@ -197,7 +202,7 @@ func (f *failingExporter) IsBulk() bool { return true }
 func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
 
-	return errors.New("always failing")
+	return errAlwaysFailing
 }
 
 type queueCleaner interface{ CleanQueue() }

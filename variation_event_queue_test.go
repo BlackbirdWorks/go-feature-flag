@@ -19,6 +19,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errFailing = errors.New("failing")
+)
+
 type queueTestExporter struct {
 	bulk   bool
 	block  chan struct{} // when not nil, Export blocks until it is closed
@@ -32,7 +36,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 		<-e.block
 	}
 	if e.fail {
-		return errors.New("failing")
+		return errFailing
 	}
 	e.events.Add(int64(len(ev)))
 

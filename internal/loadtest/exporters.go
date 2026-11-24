@@ -11,6 +11,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errUnknownExporter           = errors.New("unknown exporter")
+	errLoadtestExporterIsFailing = errors.New("loadtest: exporter is failing")
+)
+
 // ExporterMode selects the behaviour of the exporter used by the harness and the benchmarks.
 type ExporterMode string
 
@@ -29,7 +34,7 @@ func ParseExporterMode(s string) (ExporterMode, error) {
 	case ExporterDiscard, ExporterSlow, ExporterFailing:
 		return m, nil
 	default:
-		return "", fmt.Errorf("unknown exporter %q (want discard | slow | failing)", s)
+		return "", fmt.Errorf("%w %q (want discard | slow | failing)", errUnknownExporter, s)
 	}
 }
 
@@ -61,7 +66,7 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 	case ExporterFailing:
 		e.Failures.Add(1)
 
-		return errors.New("loadtest: exporter is failing")
+		return errLoadtestExporterIsFailing
 	case ExporterDiscard:
 		// counts the batch below, like a healthy exporter
 	case ExporterSlow:

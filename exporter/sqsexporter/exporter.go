@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errImpossibleToInitSQS = errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
@@ -46,7 +50,7 @@ func (f *Exporter) Export(
 	}
 
 	if f.QueueURL == "" {
-		return errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+		return errImpossibleToInitSQS
 	}
 
 	if f.sqsService == nil {

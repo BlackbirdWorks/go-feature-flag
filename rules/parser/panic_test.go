@@ -11,10 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errSomeRandomError = errors.New("some random error")
+)
+
 func TestNestedError(t *testing.T) {
 	t.Parallel()
 
-	base := errors.New("some random error")
+	base := errSomeRandomError
 	wrapper := fmt.Errorf("wrapped: %w", newNestedError(base, "a"))
 	tests := []struct {
 		name     string

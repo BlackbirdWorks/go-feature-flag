@@ -23,6 +23,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errNoSuchKey = errors.New("no such key")
+	errBoom      = errors.New("boom")
+	errKaboom    = errors.New("kaboom")
+)
+
 const (
 	yamlA = "flagA:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"
 	yamlB = "flagB:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: off\n"
@@ -139,7 +145,7 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	}
 	c, ok := f.files[key]
 	if !ok {
-		return nil, "", fmt.Errorf("no such key: %s", key)
+		return nil, "", fmt.Errorf("%w: %s", errNoSuchKey, key)
 	}
 	if f.getNoVersion {
 		return []byte(c), "", nil
@@ -542,7 +548,7 @@ func TestLoader_Load(t *testing.T) {
 		},
 		{
 			name:  "list error",
-			setup: func(s *fakeStore) { s.listErr = errors.New("boom") },
+			setup: func(s *fakeStore) { s.listErr = errBoom },
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to list objects with prefix "f/", boom`}},
 		},
@@ -550,7 +556,7 @@ func TestLoader_Load(t *testing.T) {
 			name: "download error",
 			setup: func(s *fakeStore) {
 				s.put("f/a.yaml", yamlA)
-				s.getErr = errors.New("kaboom")
+				s.getErr = errKaboom
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to download item "f/a.yaml", kaboom`}},
@@ -560,7 +566,7 @@ func TestLoader_Load(t *testing.T) {
 			setup: func(s *fakeStore) {
 				s.put("f/a.yaml", yamlA)
 				s.put("f/b.yaml", yamlB)
-				s.setGetErrKey("f/b.yaml", errors.New("kaboom"))
+				s.setGetErrKey("f/b.yaml", errKaboom)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
@@ -743,11 +749,11 @@ func TestLoader_Load_Provider(t *testing.T) {
 			logs := &bytes.Buffer{}
 			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 
-			ls := &fakeStore{listErr: errors.New("boom")}
+			ls := &fakeStore{listErr: errBoom}
 			_, err := folderloader.New(ls, tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantList)
 
-			gs := &fakeStore{getErr: errors.New("kaboom")}
+			gs := &fakeStore{getErr: errKaboom}
 			gs.put("f/a.yaml", yamlA)
 			_, err = folderloader.New(gs, tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantGet)

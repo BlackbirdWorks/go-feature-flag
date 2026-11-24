@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
+var (
+	errBoom = errors.New("boom")
+)
+
 func TestOutput_PrintLines(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +89,7 @@ func TestPrintFatal(t *testing.T) {
 	helper.PrintFatal(pterm.Error.WithWriter(&buf), func(code int) {
 		gotCode = code
 		called = true
-	}, errors.New("boom"))
+	}, errBoom)
 
 	assert.True(t, called, "the exit function should have been called")
 	assert.Equal(t, 1, gotCode)

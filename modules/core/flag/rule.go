@@ -17,6 +17,16 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+var (
+	errEvaluateRuleNoKey           = errors.New("evaluate Rule: no key for bucketing-required rule")
+	errEvaluateRuleNoEvaluation    = errors.New("evaluate Rule: no evaluation context")
+	errProgressiveRolloutRequiresA = errors.New("progressive rollout requires a bucketing key")
+	errPercentageRolloutRequiresA  = errors.New("percentage rollout requires a bucketing key")
+	errErrorInTheConfiguration     = errors.New("error in the configuration, no variation available for this rule")
+	errErrorInTheProgressive       = errors.New("error in the progressive rollout, missing params")
+	errImpossibleToFindThe         = errors.New("impossible to find the variation")
+)
+
 type QueryFormat = string
 
 const (
@@ -100,12 +110,12 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	ctx := queryCtx.ctx
 	// Only require key if this rule needs bucketing
 	if key == "" && r.RequiresBucketing() {
-		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
+		return "", errEvaluateRuleNoKey
 	}
 
 	// check that we have an evaluation context
 	if ctx == nil {
-		return "", errors.New("evaluate Rule: no evaluation context")
+		return "", errEvaluateRuleNoEvaluation
 	}
 
 	// Check if the rule applies for this user
@@ -118,7 +128,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.ProgressiveRollout != nil {
 		if key == "" {
-			return "", errors.New("progressive rollout requires a bucketing key")
+			return "", errProgressiveRolloutRequiresA
 		}
 
 		// only the progressive rollout depends on the date: the clock is not read for the other rules.
@@ -126,7 +136,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
-			return "", errors.New("percentage rollout requires a bucketing key")
+			return "", errPercentageRolloutRequiresA
 		}
 
 		return r.EvaluatePercentageRollout(key, flagName)
@@ -135,7 +145,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return r.GetVariationResult(), nil
 	}
 
-	return "", errors.New("error in the configuration, no variation available for this rule")
+	return "", errErrorInTheConfiguration
 }
 
 // queryContext is the evaluation context as targeting queries read it. The map is built on
@@ -383,7 +393,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
 
 	if !isRolloutValid {
-		return "", errors.New("error in the progressive rollout, missing params")
+		return "", errErrorInTheProgressive
 	}
 
 	if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
@@ -442,7 +452,7 @@ func variationFromBuckets(percentage map[string]float64, names []string, hash ui
 		return last, nil
 	}
 
-	return "", errors.New("impossible to find the variation")
+	return "", errImpossibleToFindThe
 }
 
 // MergeRules is merging 2 rules.

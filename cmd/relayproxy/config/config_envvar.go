@@ -16,6 +16,12 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	errEnvProviderDoesNot  = errors.New("env provider does not support this method")
+	errEnvironmentVariable = errors.New("environment variable")
+	errTheConfigEntryAt    = errors.New("the config entry at index")
+)
+
 // environProvider is koanf's env provider reading the variables from environ instead of os.Environ, so
 // the tests do not have to change the environment of the process.
 type environProvider struct {
@@ -30,7 +36,7 @@ type environProvider struct {
 
 // ReadBytes is not supported by the environment provider.
 func (p *environProvider) ReadBytes() ([]byte, error) {
-	return nil, errors.New("env provider does not support this method")
+	return nil, errEnvProviderDoesNot
 }
 
 // Read returns the variables that start with the prefix, mapped with the callback, as a nested map.
@@ -183,7 +189,7 @@ func (c *ConfigLoader) environ() func() []string {
 func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error) {
 	paths := normalizePaths(s)
 	if len(paths) < 3 {
-		return configMap, fmt.Errorf("environment variable %q: expected <ARRAY>_<INDEX>_<FIELD>", s)
+		return configMap, fmt.Errorf("%w %q: expected <ARRAY>_<INDEX>_<FIELD>", errEnvironmentVariable, s)
 	}
 	prefixKey := paths[0]
 
@@ -199,7 +205,7 @@ func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error)
 		return configMap, fmt.Errorf("environment variable %q: invalid index %q: %w", s, paths[1], err)
 	}
 	if index < 0 {
-		return configMap, fmt.Errorf("environment variable %q: negative index %d", s, index)
+		return configMap, fmt.Errorf("%w %q: negative index %d", errEnvironmentVariable, s, index)
 	}
 
 	configItem, err := fetchOrInitConfigItemAtIndex(configArray, index)
@@ -236,7 +242,7 @@ func fetchOrInitConfigItemAtIndex(configArray []any, index int) (map[string]any,
 
 	item, ok := configArray[index].(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("the config entry at index %d is a %T, expected an object", index, configArray[index])
+		return nil, fmt.Errorf("%w %d is a %T, expected an object", errTheConfigEntryAt, index, configArray[index])
 	}
 
 	return item, nil

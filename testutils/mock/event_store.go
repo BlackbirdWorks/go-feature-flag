@@ -7,6 +7,10 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+var (
+	errError = errors.New("error")
+)
+
 const consumerNameError = "error"
 
 type implMockEventStore[T exporter.ExportableEvent] struct {
@@ -30,7 +34,7 @@ func (e *implMockEventStore[T]) Add(data T) {
 func (e *implMockEventStore[T]) ProcessPendingEvents(consumerID string,
 	processFunc func(context.Context, []T) error) error {
 	if consumerID == consumerNameError {
-		return errors.New("error")
+		return errError
 	}
 	if err := processFunc(context.TODO(), e.store); err != nil {
 		return err
@@ -41,7 +45,7 @@ func (e *implMockEventStore[T]) ProcessPendingEvents(consumerID string,
 
 func (e *implMockEventStore[T]) GetPendingEventCount(consumerName string) (int64, error) {
 	if consumerName == consumerNameError {
-		return 0, errors.New("error")
+		return 0, errError
 	}
 
 	return int64(len(e.store)), nil

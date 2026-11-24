@@ -22,6 +22,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errFlagsetManagerIsNot = errors.New("flagset manager is not initialized")
+	errFailedToGetFlagsets = errors.New("failed to get flagsets")
+)
+
 func Test_info_Handler(t *testing.T) {
 	t.Parallel()
 
@@ -145,7 +150,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
 			InfoResponse:   model.InfoResponse{},
-			InfoError:      errors.New("flagset manager is not initialized"),
+			InfoError:      errFlagsetManagerIsNot,
 		}
 
 		infoCtrl := controller.NewInfo(mockMonitoring)
@@ -175,7 +180,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
 			InfoResponse:   model.InfoResponse{},
-			InfoError:      errors.New("failed to get flagsets"),
+			InfoError:      errFailedToGetFlagsets,
 		}
 
 		infoCtrl := controller.NewInfo(mockMonitoring)

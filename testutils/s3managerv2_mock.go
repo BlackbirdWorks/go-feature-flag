@@ -11,6 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 )
 
+var (
+	errCannotCreateContextFrom = errors.New("cannot create context from nil parent")
+	errInvalidBucket           = errors.New("invalid bucket")
+	errWriterAtIsRequired      = errors.New("WriterAt is required")
+	errNoFile                  = errors.New("no file")
+)
+
 type S3ManagerV2Mock struct {
 	S3ManagerMockFileSystem map[string]string
 	TestDataLocation        string
@@ -22,10 +29,10 @@ func (s *S3ManagerV2Mock) UploadObject(
 	opts ...func(*transfermanager.Options),
 ) (*transfermanager.UploadObjectOutput, error) {
 	if ctx == nil {
-		return nil, errors.New("cannot create context from nil parent")
+		return nil, errCannotCreateContextFrom
 	}
 	if uploadInput.Bucket == nil || *uploadInput.Bucket == "" {
-		return nil, errors.New("invalid bucket")
+		return nil, errInvalidBucket
 	}
 
 	if s.S3ManagerMockFileSystem == nil {
@@ -50,10 +57,10 @@ func (s *S3ManagerV2Mock) DownloadObject(
 	opts ...func(*transfermanager.Options),
 ) (*transfermanager.DownloadObjectOutput, error) {
 	if ctx == nil {
-		return nil, errors.New("cannot create context from nil parent")
+		return nil, errCannotCreateContextFrom
 	}
 	if input.WriterAt == nil {
-		return nil, errors.New("WriterAt is required")
+		return nil, errWriterAtIsRequired
 	}
 
 	if input.Key != nil && *input.Key == "valid" {
@@ -63,7 +70,7 @@ func (s *S3ManagerV2Mock) DownloadObject(
 		return &transfermanager.DownloadObjectOutput{}, nil
 	}
 	if input.Key != nil && *input.Key == "no-file" {
-		return nil, errors.New("no file")
+		return nil, errNoFile
 	}
 
 	return &transfermanager.DownloadObjectOutput{}, nil

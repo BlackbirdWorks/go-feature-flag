@@ -139,7 +139,7 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if _, err := c.getFlagSetIndexFromName(flagset.Name); err == nil {
-		return fmt.Errorf("flagset %s already exists", flagset.Name)
+		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
 	c.FlagSets = append(c.FlagSets, flagset)
 
@@ -194,5 +194,5 @@ func (c *Config) getFlagSetIndexFromName(flagsetName string) (int, error) {
 		}
 	}
 
-	return -1, fmt.Errorf("flagset %s not found", flagsetName)
+	return -1, fmt.Errorf("%w %s not found", errFlagset, flagsetName)
 }

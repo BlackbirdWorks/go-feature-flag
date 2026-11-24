@@ -15,6 +15,16 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+var (
+	errNoDefaultTargetingFor   = errors.New("no default targeting for the flag")
+	errNilValueForVariation    = errors.New("nil value for variation")
+	errAllVariationsShouldHave = errors.New("all variations should have the same type")
+	errNoVariationAvailable    = errors.New("no variation available")
+	errMissingDefaultRule      = errors.New("missing default rule")
+	errDuplicatedRuleName      = errors.New("duplicated rule name")
+	errInvalidBucketingKey     = errors.New("invalid bucketing key")
+)
+
 const (
 	PercentageMultiplier = float64(1000)
 )
@@ -234,7 +244,7 @@ func (f *InternalFlag) selectVariation(
 	}
 
 	if f.DefaultRule == nil {
-		return variationSelection{}, errors.New("no default targeting for the flag")
+		return variationSelection{}, errNoDefaultTargetingFor
 	}
 
 	variationName, err := f.GetDefaultRule().evaluate(key, queryCtx, flagName, true)
@@ -381,7 +391,7 @@ func validateVariationTypes(variations map[string]*any) error {
 	for _, name := range slices.Sorted(maps.Keys(variations)) {
 		value := variations[name]
 		if value == nil {
-			return fmt.Errorf("nil value for variation: %s", name)
+			return fmt.Errorf("%w: %s", errNilValueForVariation, name)
 		}
 		currentType, err := utils.JSONTypeExtractor(*value)
 		if err != nil {
@@ -393,7 +403,7 @@ func validateVariationTypes(variations map[string]*any) error {
 			continue
 		}
 		if currentType != expectedVarType {
-			return errors.New("all variations should have the same type")
+			return errAllVariationsShouldHave
 		}
 	}
 
@@ -406,7 +416,7 @@ func validateVariationTypes(variations map[string]*any) error {
 // their queries cached across reloads.
 func (f *InternalFlag) IsValid(svc *Service) error {
 	if len(f.GetVariations()) == 0 {
-		return errors.New("no variation available")
+		return errNoVariationAvailable
 	}
 
 	if err := validateVariationTypes(f.GetVariations()); err != nil {
@@ -415,7 +425,7 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 
 	// Validate that we have a default Rule
 	if f.GetDefaultRule() == nil {
-		return errors.New("missing default rule")
+		return errMissingDefaultRule
 	}
 
 	// Retained before the rules are validated, so the parses made by the validation
@@ -460,7 +470,7 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 
 		// Check if we have duplicated rule name
 		if _, ok := ruleNames[rule.GetName()]; ok && rule.GetName() != "" {
-			return nil, fmt.Errorf("duplicated rule name: %s", rule.GetName())
+			return nil, fmt.Errorf("%w: %s", errDuplicatedRuleName, rule.GetName())
 		} else if rule.GetName() != "" {
 			ruleNames[rule.GetName()] = nil
 		}
@@ -609,7 +619,7 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 
 			return v, nil
 		default:
-			return "", errors.New("invalid bucketing key")
+			return "", errInvalidBucketingKey
 		}
 	}
 

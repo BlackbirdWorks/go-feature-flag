@@ -18,6 +18,13 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+var (
+	errClientInitFailed  = errors.New("client init failed")
+	errEnsureTableFailed = errors.New("ensure table failed")
+	errPutRowsFailed     = errors.New("put rows failed")
+	errBoom              = errors.New("boom")
+)
+
 func TestExporter_IsBulk(t *testing.T) {
 	t.Parallel()
 
@@ -298,9 +305,9 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 func TestExporter_ExportErrors(t *testing.T) {
 	t.Parallel()
 
-	clientErr := errors.New("client init failed")
-	ensureErr := errors.New("ensure table failed")
-	putErr := errors.New("put rows failed")
+	clientErr := errClientInitFailed
+	ensureErr := errEnsureTableFailed
+	putErr := errPutRowsFailed
 
 	tests := []struct {
 		name                string
@@ -658,7 +665,7 @@ func TestIsAlreadyExists(t *testing.T) {
 		},
 		{
 			name: "non google error",
-			err:  errors.New("boom"),
+			err:  errBoom,
 			want: false,
 		},
 		{
