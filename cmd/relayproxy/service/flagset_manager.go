@@ -178,11 +178,17 @@ func newFlagsetManagerWithFlagsets(
 			nil, time.Duration(config.PollingInterval)*time.Millisecond, config.EnablePollingJitter, logger))
 }
 
+const unroutableKeysWarning = "authorizedKeys.evaluation and apiKeys are ignored in flag set mode: " +
+	"an evaluation key must be listed in the apiKeys of a flag set"
+
 func newFlagsetManagerWithFlagsetsAndRegistry(
 	config *config.Config, logger *zap.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 	registry *sharedBucketRegistry,
 ) (FlagsetManager, error) {
+	if config.HasUnroutableEvaluationKeys() {
+		logger.Warn(unroutableKeysWarning)
+	}
 	flagsets := make(map[string]*ffclient.GoFeatureFlag)
 	apiKeysToFlagSet := make(map[string]string)
 	postgresPools := postgresqlretriever.NewPoolRegistry()
@@ -450,6 +456,9 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 	}
 	m.config.ReplaceAPIKeys(newConfig.GetAuthorizedKeys(), newConfig.GetAPIKeys())
+	if newConfig.HasUnroutableEvaluationKeys() {
+		m.logger.Warn(unroutableKeysWarning)
+	}
 }
 
 // isNamedFlagset returns true if the flagset has an explicit, stable name that allows it to be

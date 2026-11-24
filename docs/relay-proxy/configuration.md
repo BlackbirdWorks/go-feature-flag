@@ -647,6 +647,10 @@ If set, we will check for each evaluation if an authorized key is provided.
 
 Each request will need to provide one of authorized key inside `X-API-Key` header.
 
+> [!WARNING]
+> In [flag set mode](#use-multiple-flag-sets) this option is **ignored**: a request is routed to a flag set from its key, so only the [`apiKeys` of the flag sets](#flagsetapikeys) can evaluate flags.
+> A key that is only listed here is rejected with `401` on the evaluation endpoints, and a warning is logged at startup and on each reload.
+
 - option name: `evaluation`
 - type: **[]string**
 - default: **none**

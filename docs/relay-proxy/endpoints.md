@@ -61,7 +61,7 @@ The API key is passed with the `apiKey` query parameter, for example `ws://local
 When the relay proxy runs with [flag sets](../concepts/flagset.md), each stream is scoped to a single flag set:
 
 - The connection only receives the changes of the flag set associated to its API key.
-- The API key **must be associated to a flag set**. A missing or unknown key is rejected with `401`, and a valid key that is not associated to any flag set (for example a key from `authorizedKeys`) is rejected with `400`, before the WebSocket upgrade.
+- The API key **must be associated to a flag set**. A missing or unknown key is rejected with `401`, and a valid key that is not associated to any flag set (for example an `authorizedKeys.admin` key) is rejected with `400`, before the WebSocket upgrade.
 - To watch several flag sets, open **one connection per flag set**, each with an API key of that flag set.
 
 > [!WARNING]

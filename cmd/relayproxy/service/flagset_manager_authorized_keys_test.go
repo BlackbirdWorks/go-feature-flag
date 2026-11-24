@@ -6,8 +6,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
@@ -95,7 +99,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 	}
 }
 
-func TestFlagsetManager_OnConfigChange_AuthorizedKeysAreAppliedAtomically(t *testing.T) {
+func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing.T) {
 	t.Parallel()
 
 	cfg := &config.Config{
@@ -115,7 +119,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysAreAppliedAtomically(t *tes
 	}
 
 	done := make(chan struct{})
-	var neither atomic.Int64
+	var violations atomic.Int64
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Go(func() {
@@ -124,9 +128,10 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysAreAppliedAtomically(t *tes
 				case <-done:
 					return
 				default:
-					// a key is always accepted: either the old one or the new one.
-					if !cfg.APIKeysAdminExists("admin-a") && !cfg.APIKeysAdminExists("admin-b") {
-						neither.Add(1)
+					// The key of the flag set is accepted throughout the reloads and the admin keys
+					// are never seen half updated: exactly one of the two keys is configured.
+					if !cfg.APIKeyExists("flagset-key") || len(cfg.GetAuthorizedKeys().Admin) != 1 {
+						violations.Add(1)
 					}
 				}
 			}
@@ -144,5 +149,37 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysAreAppliedAtomically(t *tes
 	})
 	wg.Wait()
 
-	assert.Equal(t, int64(0), neither.Load(), "no admin key must be accepted-less window during a reload")
+	assert.Equal(t, int64(0), violations.Load(), "the keys must never be seen half updated during a reload")
+	assert.True(t, cfg.APIKeysAdminExists("admin-a"), "the last applied configuration has the admin-a key")
+}
+
+func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		keys     config.APIKeys
+		apiKeys  []string
+		wantWarn int
+	}{
+		{name: "no evaluation key", keys: config.APIKeys{Admin: []string{"admin"}}, wantWarn: 0},
+		{name: "authorizedKeys.evaluation", keys: config.APIKeys{Evaluation: []string{"k"}}, wantWarn: 1},
+		{name: "top-level apiKeys", apiKeys: []string{"k"}, wantWarn: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			obs, logs := observer.New(zap.WarnLevel)
+			manager, err := service.NewFlagsetManager(&config.Config{
+				FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
+				AuthorizedKeys: tt.keys,
+				APIKeys:        tt.apiKeys,
+			}, zap.New(obs), nil, nil, nil)
+			require.NoError(t, err)
+			t.Cleanup(manager.Close)
+
+			assert.Equal(t, tt.wantWarn, logs.FilterMessageSnippet("are ignored in flag set mode").Len())
+		})
+	}
 }
