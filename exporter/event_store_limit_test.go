@@ -189,13 +189,15 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 			}}, time.Hour, nil)
 			defer m.Stop()
 			const n = 100000
-			// The backoff paces real goroutines, so it reads the real clock (the package clock is
-			// frozen by TestMain): measure the real time the loop takes.
-			begin := time.Now()
+			// The flush backoff compares time.Now().UnixNano() (wall clock) against its deadline, on
+			// purpose: it paces real goroutines, and the package clock is frozen by TestMain. Measure
+			// the elapsed time on that same wall clock. A backwards wall-clock step during the test
+			// is out of scope (a negative elapsed is treated as 0).
+			begin := time.Now().UnixNano()
 			for range n {
 				m.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
-			elapsed := time.Since(begin)
+			elapsed := max(time.Duration(time.Now().UnixNano()-begin), 0)
 			assert.Equal(t, int64(n)-tt.wantCap, m.(exporter.DroppedEventsCounter).DroppedEvents())
 			// Without backoff the exporter would have been called for every event above the threshold.
 			// A failed flush delays the next event-count flush by flushRetryBackoff (1s) from the end
