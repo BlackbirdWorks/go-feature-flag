@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net"
 	"net/http"
 	"sync"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
@@ -58,6 +60,14 @@ func New(config *config.Config,
 // Option customizes the Server that New creates.
 type Option func(*Server)
 
+// WithListener makes the HTTP server serve on an already bound listener instead of binding the configured
+// address. A caller that needs a free port keeps it bound until the server uses it, instead of closing it
+// and hoping that nothing else takes the port before the server binds it. The server owns the listener: it
+// closes it when it stops, or when it is stopped before it started.
+func WithListener(l net.Listener) Option {
+	return func(s *Server) { s.listener = l }
+}
+
 // WithGlobalTelemetry makes the server install its OpenTelemetry tracer provider, error handler and
 // propagator as the process-wide ones when it starts. Only the startup wiring (main) asks for it: the
 // OpenTelemetry API has no other way to give a provider to the instrumented libraries.
@@ -75,6 +85,8 @@ type Server struct {
 	otelService    opentelemetry.OtelService
 	// installGlobalTelemetry is set by WithGlobalTelemetry.
 	installGlobalTelemetry bool
+	// listener is set by WithListener, the server then serves on it instead of listening on the configured address.
+	listener net.Listener
 
 	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
 	// the servers started by StartWithContext.
@@ -184,8 +196,15 @@ func (s *Server) getAuthMiddleware(middlewareType AuthMiddlewareType) echo.Middl
 		})
 	default:
 		return custommiddleware.KeyAuthExtended(custommiddleware.KeyAuthExtendedConfig{
-			Validator: func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
-				return s.config.APIKeyExists(key), nil
+			Validator: func(c *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
+				manager := s.services.FlagsetManager
+				if manager == nil || manager.IsDefaultFlagSet() {
+					return s.config.APIKeyExists(key), nil
+				}
+				// In flag set mode a key is accepted if it routes to a flag set: the routing is the single
+				// table, and the flag set resolved here is the one the handler uses.
+				// An admin key is accepted and then refused by the handler, as documented.
+				return helper.AuthenticateFlagSet(c, manager, key) || s.config.APIKeysAdminExists(key), nil
 			},
 			ErrorHandler: custommiddleware.AuthMiddlewareErrHandler,
 			Skipper: func(_ *echo.Context) bool {

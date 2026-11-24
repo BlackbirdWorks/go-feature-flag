@@ -376,6 +376,9 @@ List of authorized API keys.
 > **Runtime updates**: API keys can be updated at runtime without restarting the relay proxy.  
 > When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration.  
 > This works in both default mode and flagset mode.
+> In flagset mode, `authorizedKeys.admin` and the [`apiKeys` of each flag set](#flagsetapikeys) are reloaded.
+> The `authorizedKeys` are replaced in a single step: a request is always checked against either the previous or the new keys.
+> In flag set mode a flag set key is accepted when it is routed to a flag set, and the flag set found at authentication is the one the request uses: a request using a key that is moved or removed during a reload is either served by one of its flag sets or rejected with `401`, never failed half way. The only exception is `/v1/data/collector`, which looks its flag set up again once the body is read, so that the events are never acknowledged to a flag set that was closed meanwhile.
 
 ### `evaluationContextEnrichment`
 
@@ -644,6 +647,10 @@ This adds `flag_name` labels to the `all_flags_evaluations_total_with_flag` metr
 If set, we will check for each evaluation if an authorized key is provided.
 
 Each request will need to provide one of authorized key inside `X-API-Key` header.
+
+> [!WARNING]
+> In [flag set mode](#use-multiple-flag-sets) this option is **ignored**: a request is routed to a flag set from its key, so only the [`apiKeys` of the flag sets](#flagsetapikeys) can evaluate flags.
+> A key that is only listed here is rejected with `401` on the evaluation endpoints, and a warning is logged at startup and on each reload.
 
 - option name: `evaluation`
 - type: **[]string**
