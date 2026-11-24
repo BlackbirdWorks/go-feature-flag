@@ -124,4 +124,4 @@ make provider-tests
 
 ## Releases
 
-Tags, releases and images are published only by the release workflow on a deliberate tag; never publish by hand. See [docs/RELEASING.md](docs/RELEASING.md).
+Tags, releases and images are created only by the release workflow, run by hand with a bump type (patch, minor, major); never tag or publish by hand. See [docs/RELEASING.md](docs/RELEASING.md).

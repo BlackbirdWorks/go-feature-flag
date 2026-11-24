@@ -1,16 +1,22 @@
 name: Release
 
-# Publishes a release of Semaphore when a version tag (v*) is pushed:
+# A release is cut by running this workflow by hand (workflow_dispatch) on main and choosing
+# a bump type (patch, minor or major). The workflow reads the latest stable vMAJOR.MINOR.PATCH
+# tag, computes the next version, creates the annotated tag and publishes it, all in this one
+# run (a tag pushed with GITHUB_TOKEN does not start another workflow run, so the release job
+# is chained to the tag job here instead):
 #   - GitHub Release with the archives, checksums and SBOMs,
 #   - container images on ghcr.io/blackbirdworks/semaphore and ghcr.io/blackbirdworks/semaphore-cli,
 #   - build provenance attestations (keyless, GitHub OIDC) for the release files (the archives, through checksums.txt).
 # Only the GITHUB_TOKEN is used: no other secret, no other registry, nothing is pushed to a
 # branch or to another repository.
 #
-# Manual run (workflow_dispatch) with dry_run=true (the default) builds exactly the same
-# artifacts (snapshot archives, every image variant) and publishes NOTHING,
-# so the pipeline can be exercised before the first tag. dry_run=false is accepted only when the
-# workflow is run on a tag ref: it re-publishes that tag after a failed release run.
+# dry_run=true (the default) computes and prints the next version, builds exactly the same
+# artifacts (snapshot archives, every image variant) and creates no tag and publishes NOTHING.
+#
+# Other entry points, both of which publish an existing tag and never create or move one:
+#   - a pushed tag (v*), for example a pre-release such as v0.2.0-rc.1 pushed by an owner;
+#   - release_tag=<tag> on a manual run with dry_run=false, to re-publish a tag whose release run failed.
 # See docs/RELEASING.md.
 
 on:
@@ -19,10 +25,23 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
+      bump:
+        description: "Version part to increment from the latest stable tag (no tag yet: the first release is v0.1.0 whatever is chosen)"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
       dry_run:
-        description: "Build everything but publish nothing (false is accepted only on a tag ref)"
+        description: "Compute the next version and build everything, but create no tag and publish nothing"
         type: boolean
         default: true
+      release_tag:
+        description: "Re-publish this EXISTING tag instead of creating one (needs dry_run=false; the bump input is ignored; never moves the tag)"
+        type: string
+        required: false
+        default: ""
 
 permissions: {}
 
@@ -41,39 +60,128 @@ defaults:
     shell: bash
 
 jobs:
-  # Decides what the run does and rejects a tag that is not a release version.
+  # Decides what the run does and computes the version: the next one for a bump, or the tag
+  # that was pushed or named in release_tag (validated: it must be a release version).
   plan:
     name: plan
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions: {}
+    permissions:
+      contents: read
     outputs:
       dry-run: ${{ steps.plan.outputs.dry-run }}
+      tag: ${{ steps.plan.outputs.tag }}
+      create-tag: ${{ steps.plan.outputs.create-tag }}
     steps:
-      - name: Decide dry run or release and validate the version
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # every tag is needed to find the latest one
+          persist-credentials: false
+      - name: Compute the version and decide what the run does
         id: plan
         env:
           EVENT_NAME: ${{ github.event_name }}
-          REF_TYPE: ${{ github.ref_type }}
+          REF: ${{ github.ref }}
           REF_NAME: ${{ github.ref_name }}
+          INPUT_BUMP: ${{ inputs.bump }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
+          set -euo pipefail
+          # vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N suffix. Other
+          # suffixes are refused: they could collide with the -fips/-bookworm/-trixie image tags.
+          release_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[0-9]+)?$'
+          stable_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+
           dry=true
+          create=false
           if [[ "$EVENT_NAME" == push ]]; then
             dry=false
-          elif [[ "$INPUT_DRY_RUN" == false ]]; then
-            [[ "$REF_TYPE" == tag ]] || { echo "::error::dry_run=false needs a tag ref: pick the tag in 'Use workflow from'"; exit 1; }
+            tag="$REF_NAME"
+          elif [[ -n "$INPUT_RELEASE_TAG" ]]; then
+            [[ "$INPUT_DRY_RUN" == false ]] || { echo "::error::release_tag publishes a tag: set dry_run=false (a dry run of an existing tag is a plain dry run, leave release_tag empty)"; exit 1; }
             dry=false
-          fi
-          echo "dry-run=$dry" >> "$GITHUB_OUTPUT"
-          if [[ "$dry" == false ]]; then
-            # vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N suffix. Other
-            # suffixes are refused: they could collide with the -fips/-bookworm/-trixie image tags.
-            if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
-              echo "::error::$REF_NAME is not a release version (vMAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N])"
-              exit 1
+            tag="$INPUT_RELEASE_TAG"
+            git rev-parse -q --verify "refs/tags/$tag" > /dev/null || { echo "::error::tag $tag does not exist: release_tag never creates a tag"; exit 1; }
+          else
+            [[ "$INPUT_DRY_RUN" == false ]] && dry=false
+            if [[ "$dry" == false ]]; then
+              # Only main may be released. The dry run is allowed from any ref so a branch can be tested.
+              [[ "$REF" == refs/heads/main ]] || { echo "::error::a release is cut from main only: pick main in 'Use workflow from'"; exit 1; }
+              create=true
             fi
+            # Latest stable tag, highest version first. Pre-release tags are ignored.
+            latest=$(git tag --list 'v*' | grep -E "$stable_re" | sort -V | tail -1 || true)
+            if [[ -z "$latest" ]]; then
+              # First release: v0.1.0 whatever the bump (the owner's chosen first version).
+              tag=v0.1.0
+            else
+              IFS=. read -r major minor patch <<< "${latest#v}"
+              case "$INPUT_BUMP" in
+                major) tag="v$((major + 1)).0.0" ;;
+                minor) tag="v${major}.$((minor + 1)).0" ;;
+                patch) tag="v${major}.${minor}.$((patch + 1))" ;;
+                *) echo "::error::unknown bump '$INPUT_BUMP' (patch, minor or major)"; exit 1 ;;
+              esac
+            fi
+            # The Go module path has no /vN suffix: a tag at major >= 2 would be invisible to the
+            # Go module proxy. A v2 needs a deliberate module path change first.
+            [[ "$tag" =~ ^v[01]\. ]] || { echo "::error::refusing $tag: major >= 2 needs a /vN module path first"; exit 1; }
+            if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+              echo "::error::refusing to overwrite existing tag $tag"; exit 1
+            fi
+            echo "Next version: $tag (latest stable tag: ${latest:-none}, bump: $INPUT_BUMP)"
+            {
+              echo "### Release plan"
+              echo "- latest stable tag: \`${latest:-none}\`"
+              echo "- bump: \`$INPUT_BUMP\`"
+              echo "- next version: \`$tag\`"
+              echo "- dry run: \`$dry\`"
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+          if [[ "$dry" == false ]] && ! [[ "$tag" =~ $release_re ]]; then
+            echo "::error::$tag is not a release version (vMAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N])"
+            exit 1
+          fi
+          {
+            echo "dry-run=$dry"
+            echo "tag=$tag"
+            echo "create-tag=$create"
+          } >> "$GITHUB_OUTPUT"
+
+  # Creates the annotated tag on the commit this run was started on (main) and pushes it.
+  # The tag is made by github-actions[bot] and is not signed (the project has no signing key).
+  create-tag:
+    name: create tag
+    needs: [plan]
+    if: needs.plan.outputs.create-tag == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # push the tag
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false # the token is passed to the push explicitly below
+      - name: Create and push the tag
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Re-check right before pushing: the plan job ran earlier.
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null 2>&1; then
+            echo "::error::tag $TAG already exists"; exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "refs/tags/$TAG"
 
   # Dry run: the same builds as a release, with nothing published. Also builds the multi-arch
   # image variants (they are not pushed: GoReleaser skips publishing in snapshot mode).
@@ -123,8 +231,9 @@ jobs:
 
   release:
     name: release
-    needs: [plan]
-    if: needs.plan.outputs.dry-run == 'false'
+    needs: [plan, create-tag]
+    # create-tag is skipped for a pushed tag or release_tag; when it ran it must have succeeded.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.dry-run == 'false' && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     # One job on purpose: GoReleaser pushes the images and creates the GitHub Release.
@@ -137,7 +246,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # The changelog is computed between tags.
+          # Always the tag itself (just created, pushed or named in release_tag): GoReleaser
+          # derives the version from the tag on HEAD. The changelog is computed between tags.
+          ref: refs/tags/${{ needs.plan.outputs.tag }}
           fetch-depth: 0
           persist-credentials: false
       - uses: $/.github/actions/setup-go
@@ -156,7 +267,7 @@ jobs:
       - name: Release notes
         id: notes
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.plan.outputs.tag }}
         run: |
           # The history holds the commits of the project this one derives from, so with no
           # previous release tag the generated changelog would list all of them.
