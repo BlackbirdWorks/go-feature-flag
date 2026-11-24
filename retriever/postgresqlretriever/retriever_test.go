@@ -389,16 +389,15 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
-		// Create a context with a very short timeout to cause timeout errors
-		shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
+		// A context whose deadline has already passed: the query fails deterministically,
+		// whatever the speed of the database (no race against a tiny timeout).
+		expiredCtx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 		defer cancel()
 
-		// This should cause a timeout error during query execution
-		_, initErr = r.Retrieve(shortCtx)
-		// We expect either success (if query completes quickly) or timeout error
-		if initErr != nil {
-			assert.Contains(t, initErr.Error(), "failed to execute query")
-		}
+		_, retrieveErr := r.Retrieve(expiredCtx)
+		require.Error(t, retrieveErr)
+		require.ErrorIs(t, retrieveErr, context.DeadlineExceeded)
+		assert.Contains(t, retrieveErr.Error(), "failed to execute query")
 	})
 }
 
