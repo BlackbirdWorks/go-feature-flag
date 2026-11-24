@@ -1,53 +1,81 @@
-# AGENTS.md - Semaphore codebase guide
+# AGENTS.md - the rules of the Semaphore repository
 
-Guide for AI agents and developers working in this repository. Prefer the `Makefile` (`make help`).
+The single place to read before changing this repository (contributors and coding agents alike). Prefer the
+`Makefile` (`make help`). [CONTRIBUTING.md](CONTRIBUTING.md) covers issues and the pull request flow and points here.
 
 ## What this is
 
-A self-hosted feature flag **relay proxy** plus the Go **engine** it is built on. Applications use the
-standard OpenFeature SDKs over HTTP (OFREP / the relay proxy API). It is an independent derivative of
-GO Feature Flag by Thomas Poignant (MIT); see `UPSTREAM.md` for the upstream baseline and the intentional
-divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs), and `NOTICE` for attribution.
+A self-hosted feature flag **relay proxy** plus the Go **engine** it is built on. Applications use the standard
+OpenFeature SDKs over HTTP (OFREP / the relay proxy API). It is an independent derivative of GO Feature Flag by Thomas
+Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergences, and `NOTICE` for attribution.
 
-## Layout
+## Where things are
 
-- Root `.go` files: the Go engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: HTTP relay proxy (Echo, Zap logging, Prometheus metrics, OpenTelemetry). Swagger in `cmd/relayproxy/docs/`, Helm chart in `cmd/relayproxy/helm-charts/relay-proxy/`.
-- `cmd/cli/`: command line (`evaluate`, `lint`, `generate`); `cmd/jsonschema-generator/`.
-- `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
-- `modules/core/`: flag, context and evaluation logic (a directory of the root module, not a separate module).
-- `rules/`: vendored rules engine (a directory of the root module, import path `github.com/blackbirdworks/semaphore/rules`; own `LICENSE`, must be kept).
-- `internal/`, `ffcontext/`, `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
-- `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
+- Root `.go` files: the engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
+- `cmd/relayproxy/`: relay proxy (Echo, Zap, Prometheus, OpenTelemetry); `docs/` is generated swagger, `helm-charts/` the chart.
+- `cmd/cli/`, `cmd/jsonschema-generator/`: command line (`evaluate`, `lint`, `generate`) and the schema generator.
+- `modules/core/`: flag, context, evaluation, `clock` (directories of the root module, not separate modules).
+- `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
+- `internal/cache/`: flag cache. `ffcontext/`, `model/`, `utils/`: public helper packages of the engine.
+- `retriever/`, `exporter/`, `notifier/`: integrations (flag sources, evaluation-data sinks, change notifications).
+- `testutils/` (mocks, `gopherstack` emulator helpers), `testdata/`: test helpers and fixtures.
+- `openfeature/provider_tests/`: compatibility tests of the relay proxy against real OpenFeature providers.
+- `.github/ci-scripts/`: CI helper scripts (test sharding, coverage, fuzz); `docs/`: Markdown documentation (`docs/README.md`).
 - `.schema/flag-schema.json`: JSON schema of the flag file.
-- `docs/`: plain Markdown documentation (index in `docs/README.md`).
+- Entry points: `ffclient.New()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`; interfaces `Retriever`, `Exporter`, `Notifier`.
 
-## Commands
+## Tests
 
-Go workspace mode is not used by CI: export `GOWORK=off`.
+- Table-driven and parallel: `t.Parallel()` at the top of the test and in every `t.Run`.
+- testify only: `require` stops the test, `assert` continues; `t.Fatal*`/`t.Error*` are forbidden (lint).
+- Every test and every table case asserts the outcome against an expected value in a `want...` field; "no error" alone is
+  not enough when a concrete result exists.
+- Black-box tests in `package x_test` by default; white-box tests that need unexported names live in `*_internal_test.go`.
+  Never add `export_test.go`.
+- No wall clock: read time through `clock.Now` (`modules/core/clock`), set it once per test package in `TestMain` with
+  `clocktest` (fixed or stepping clock), and never reassign it in a test.
+- Never call `require` off the test goroutine (goroutines, handlers): use `assert`.
+- No `time.Sleep` as synchronisation: wait on a channel, `Eventually` or a signal.
+- A test server keeps its listener open from the start (no pick-a-port-then-rebind).
+- Fix a flaky test at its cause: no retries, skips or loosened thresholds.
+
+## Design
+
+- No mutable package-level state and no singletons (`gochecknoglobals`, `gochecknoinits`, `reassign` enforce it): state is
+  owned by an object created at startup and passed in (`flag.Service`, the client, the registries).
+- The only global is `clock.Now`; loggers and clients are injected. Go module logging uses `slog` (`utils/fflog`); the
+  relay proxy uses Zap.
+- Use concrete types on the evaluation path.
+- Return errors, do not panic. Sentinel or typed errors, never ad-hoc `errors.New` at the call site (`err113`).
+- Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
+
+## Performance
+
+- The evaluation hot path must not regress: `rules/`, `modules/core/flag`, `modules/core/ffcontext`, `internal/cache`, the
+  root `variation*.go`, and the relay evaluation handlers (OFREP and eval). Allocations per operation must not increase.
+- Some code there keeps a faster hand-written form under a `//nolint` with a measured reason (for example loops instead of
+  `slices.Contains`, exact error type checks instead of `errors.As`). Do not modernise it.
+- Never run lint autofix or `golangci-lint fmt` across the tree blindly: apply it per linter and per directory and review
+  the hot path diffs by hand.
+- Benchmark before and after with test binaries built once and run interleaved on pinned CPUs:
 
 ```shell
-export GOWORK=off
-make build             # relay proxy, cli, jsonschema generator, all modules
-make test-unit         # unit tests (root, which includes modules/core, + rules)
-make test-integration  # testcontainers tests (Docker)
-make test-e2e          # gopherstack e2e tests (Docker)
-make test-shards-check # CI test groups must cover every package
-make lint              # golangci-lint
-make tidy-check        # go.mod / go.sum tidy
-make swagger           # regenerate swagger after API annotation changes
+go test -c -o base/parser.test ./rules/parser        # same for ./modules/core/flag, ./internal/cache
+go test -c -tags=bench -o base/root.test .           # scenario benchmarks of the root package
+taskset -c 2,3 ./base/parser.test -test.run '^$' -test.bench . -test.benchmem -test.count 10 -test.cpu 1 > base.txt
+taskset -c 2,3 ./new/parser.test  -test.run '^$' -test.bench . -test.benchmem -test.count 10 -test.cpu 1 > new.txt
+benchstat base.txt new.txt                           # alternate base and new runs, and check `uptime` (load < 3) first
 ```
 
-## Conventions
+## Compatibility
 
-- Tests: parallel table-driven tests (`t.Parallel()`), testify only (`require` stops the test and replaces `t.Fatal`, `assert` continues and replaces `t.Error`; no `t.Fatal*`/`t.Error*`, enforced by forbidigo); no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
-- No package-level state: `gochecknoglobals`, `gochecknoinits` and `reassign` are enforced. State is owned by objects created at startup and passed down (the client owns a `flag.Service` with the evaluation caches; the relay owns its Postgres pool registry; loggers are injected). The only package-level variable is `clock.Now` (`modules/core/clock`): read the wall clock through it, never `time.Now()` (except for measured durations and network deadlines), and pin it once in a test package's `TestMain` with `clocktest.Freeze()`, building fixtures relative to `clocktest.Instant()`. Tests never reassign it.
-- Return errors, do not panic. Go module logging uses `slog` (`utils/fflog`); the relay proxy uses Zap.
-- Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
-- PR titles use Conventional Commits and commits are signed. Never force-push `main`.
-- Do not add or alter licence headers; keep `LICENSE`, `rules/LICENSE` and `NOTICE` intact.
+- Clients are OpenFeature/OFREP providers over HTTP: responses, headers, config keys, CLI output and the legacy aliases
+  below stay stable unless a change is decided explicitly. `openfeature/provider_tests` is the guard (`make provider-tests`).
+- Struct field order is output order for JSON, CSV and Parquet exports and the CLI: the exporter events, the manifest and the
+  evaluation results keep their order under a reasoned `//nolint:govet` (fieldalignment).
+- The Go API is internal (nothing imports this module): it may change.
 
-## Names: Semaphore first, GO Feature Flag still accepted
+### Names: Semaphore first, GO Feature Flag still accepted
 
 The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
 that keeps working (one warning per owner (relay config loader, client, CLI command) and kind when it is used, `modules/core/legacy`). Do not remove an alias
@@ -60,6 +88,37 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 - Wire paths, JSON field names and the flag file format are not renamed; the provider tests in `openfeature/provider_tests` run the upstream providers and must keep passing.
 - Go module path `github.com/blackbirdworks/semaphore` (a single Go module; `openfeature/provider_tests/go-integration-tests` is the only other `go.mod`).
 
-## Entry points
+## Lint
 
-`ffclient.New()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.
+- `make lint` must be clean (golangci-lint, version pinned in the `Makefile`; see `.golangci.yml`, every linter is enabled
+  or listed there with a reason). Run `make tidy-check` and `make swagger` (tree stays clean) too.
+- No blanket or path-wide exclusions. A suppression is one line, `//nolint:<linter> // <specific reason>`, and unused ones
+  are removed (`nolintlint`). Generated files are excluded by their `Code generated` header only.
+
+## Commits and pull requests
+
+- Commits are signed; pull request titles and commit subjects follow Conventional Commits.
+- `main` is squash-merged. Never force-push or rebase a shared branch.
+- Verify every review finding, then fix it or answer it before merging.
+- Keep pushes few: batch a round of changes and verify locally first:
+
+```shell
+export GOWORK=off
+go build ./... && go vet -tags=docker,bench ./...
+make lint && make tidy-check && make swagger && make test-shards-check && make test-ci-scripts
+go test -race -shuffle=on -count=1 ./...
+make test-unit && make test-integration && make test-e2e   # integration and e2e need Docker
+make coverage COVERAGE_MIN=92                              # coverage floor
+make provider-tests
+```
+
+## Upstream
+
+- The project is an independent derivative: never push, open issues or pull requests, or comment on the upstream projects,
+  and never publish to their registries. Write upstream names in backticks, without links or mentions.
+- Provenance lives in `UPSTREAM.md` and `NOTICE`; keep `NOTICE`, `LICENSE` and `rules/LICENSE` intact and do not alter licence headers.
+- Bugs found in this project are filed in this repository.
+
+## Releases
+
+Tags, releases and images are published only by the release workflow on a deliberate tag; never publish by hand.

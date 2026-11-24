@@ -19,7 +19,7 @@ Rules enforced by CI and review:
 
 - The pull request **title** must follow [Conventional Commits](https://www.conventionalcommits.org/)
   (for example `fix: handle empty targeting key`); the `Lint PR title` workflow checks it.
-- Commits must be **signed**.
+- Commits must be **signed**; see [AGENTS.md](AGENTS.md#commits-and-pull-requests) for the rest of the rules.
 - Do not remove the GO Feature Flag names that are still accepted, they are listed in [AGENTS.md](AGENTS.md#names-semaphore-first-go-feature-flag-still-accepted).
 
 ## Development setup
@@ -45,13 +45,10 @@ run `go work edit -dropuse=./modules/core -dropuse=./rules` once from the reposi
 
 Optional: `pre-commit install` runs `gofumpt` and the import-order linter before each commit.
 
-### Tests
+### Tests and project rules
 
-Every change needs tests. The style used here is:
-
-- table-driven tests, run in parallel (`t.Parallel()` on the test and its sub-tests);
-- no `export_test.go` files: test through the public API, or in the package under test;
-- testify only: `require` (stops the test, replaces `t.Fatal`) and `assert` (continues, replaces `t.Error`); never `t.Fatal*`/`t.Error*` (forbidigo enforces it). Never call `require` from a goroutine other than the test's: use `assert`.
+Every change needs tests. The test style, the design, performance, compatibility and lint rules are in
+[AGENTS.md](AGENTS.md), the single place for them.
 
 ## License
 
