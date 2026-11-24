@@ -3,7 +3,7 @@
 ## Overview
 The relay-proxy is providing a list of REST endpoints to interact with Semaphore.
 
-Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/docs/swagger.json) to have the most updated list of endpoints.
+Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/api/testdata/openapi.golden.json) to have the most updated list of endpoints.
 
 ### Endpoint list
 
@@ -27,7 +27,7 @@ The streams are listed in [Flag change streams](#flag-change-streams).
 ### Swagger
 The relay proxy can expose a [swagger UI](https://swagger.io/tools/swagger-ui/) to test your REST endpoints.
 
-This swagger UI is available at the `/swagger/` endpoint and will show all the available endpoints and the parameters needed.
+This swagger UI is available at the `/swagger/` endpoint (it redirects to `/swagger/index.html`; the document it displays is `/swagger/openapi.json`) and will show all the available endpoints and the parameters needed. The page loads the Swagger UI scripts from a public CDN, so the browser needs internet access.
 
 > [!NOTE]
 > By default, this endpoint is not exposed, you need to have this configuration in your **relay proxy** configuration file:
@@ -42,7 +42,7 @@ This swagger UI is available at the `/swagger/` endpoint and will show all the a
 
 ## OpenAPI documentation
 
-The OpenAPI specification is generated into `cmd/relayproxy/docs/` (`swagger.json`, `swagger.yaml`, `api.md`) by `make swagger`.
+The OpenAPI 3.1 document is generated from the typed operations the relay proxy registers. With `enableSwagger: true` it is served at `/swagger/openapi.json` (and `/swagger/openapi.yaml`, plus the 3.0 downgrade `/swagger/openapi-3.0.json`). A test compares it with the committed copy `cmd/relayproxy/api/testdata/openapi.golden.json`. The document describes the whole API, the monitoring endpoints included, and it advertises no server: the Swagger UI calls the origin of its page.
 
 ## Flag change streams
 

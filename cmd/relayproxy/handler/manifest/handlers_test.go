@@ -5,16 +5,15 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -59,21 +58,17 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	defer flagsetManager.Close()
 
 	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)
-	c := e.NewContext(req, rec)
-	c.SetPath(manifestEndpoint)
-
-	require.NoError(t, ctrl.GetManifest(c))
-	assert.Equal(t, http.StatusOK, rec.Code, "Invalid HTTP Code")
+	out, err := ctrl.GetManifest(t.Context(), &manifest.Input{})
+	require.NoError(t, err)
 	assert.Equal(
 		t,
 		manifestCapabilitiesValue,
-		rec.Header().Get(manifestCapabilitiesHeader),
+		out.Capabilities,
 		"capabilities header missing or wrong",
 	)
-	assertManifestEqual(t, manifestSuccessResponse, rec.Body.Bytes())
+	body, err := json.Marshal(out.Body)
+	require.NoError(t, err)
+	assertManifestEqual(t, manifestSuccessResponse, body)
 }
 
 func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
@@ -172,22 +167,15 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			t.Parallel()
 
 			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
-			e := echo.New()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)
-			if tt.apiKey != "" {
-				req.Header.Set(helper.AuthorizationHeader, helper.BearerPrefix+tt.apiKey)
-			}
-			c := e.NewContext(req, rec)
-			c.SetPath(manifestEndpoint)
-
-			handlerErr := ctrl.GetManifest(c)
+			out, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{
+				Request: controller.NewRequest(tt.apiKey, ""),
+			})
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
-				assert.True(t, ok, "handler error should be an echo.HTTPError")
+				assert.True(t, ok, "handler error should be an helper.HTTPError")
 				assert.Equal(t, tt.want.errorCode, he.Code)
 				assert.Contains(t, he.Message, tt.want.errorMsgContains)
 
@@ -195,16 +183,18 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			}
 
 			require.NoError(t, handlerErr)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
+			assert.Equal(t, http.StatusOK, tt.want.httpCode, "Invalid HTTP Code")
 			assert.Equal(
 				t,
 				manifestCapabilitiesValue,
-				rec.Header().Get(manifestCapabilitiesHeader),
+				out.Capabilities,
 				"capabilities header missing or wrong",
 			)
 
 			if tt.want.bodyFile != "" {
-				assertManifestEqual(t, tt.want.bodyFile, rec.Body.Bytes())
+				body, marshalErr := json.Marshal(out.Body)
+				require.NoError(t, marshalErr)
+				assertManifestEqual(t, tt.want.bodyFile, body)
 			}
 		})
 	}
@@ -214,18 +204,12 @@ func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	t.Parallel()
 
 	ctrl := manifest.NewManifest(nil, metric.Metrics{}, slog.New(slog.DiscardHandler))
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)
-	c := e.NewContext(req, rec)
-	c.SetPath(manifestEndpoint)
-
-	handlerErr := ctrl.GetManifest(c)
+	_, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{})
 
 	require.Error(t, handlerErr, "handler should return an error when flagset manager is nil")
-	he := &echo.HTTPError{}
+	he := &helper.HTTPError{}
 	ok := errors.As(handlerErr, &he)
-	assert.True(t, ok, "handler error should be an echo.HTTPError")
+	assert.True(t, ok, "handler error should be an helper.HTTPError")
 	assert.Equal(t, http.StatusInternalServerError, he.Code)
 	assert.Equal(t, "flagset manager is not initialized", he.Message)
 }

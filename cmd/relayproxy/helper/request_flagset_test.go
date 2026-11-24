@@ -2,11 +2,8 @@ package helper_test
 
 import (
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,20 +32,12 @@ func (m *namedManager) FlagSetName(apiKey string) (string, error) {
 	return "", errNoFlagSetAssociated
 }
 
-func newRequestContext(t *testing.T, apiKey string) *echo.Context {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set(helper.XAPIKeyHeader, apiKey)
-
-	return echo.New().NewContext(req, httptest.NewRecorder())
-}
-
 func TestRequestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	routed := &ffclient.GoFeatureFlag{}
 	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"tenant": routed}}
-	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errFlagsetNotFoundFor}
+	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound}
 
 	tests := []struct {
 		manager      *mock.MockFlagsetManager
@@ -67,14 +56,16 @@ func TestRequestFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := newRequestContext(t, "key")
+			ctx := t.Context()
 			if tt.authenticate {
-				require.True(t, helper.AuthenticateFlagSet(c, tt.manager, "key"))
+				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, "key")
+				require.True(t, ok)
+				ctx = authCtx
 				// the routing changed after the authentication: the resolved flag set is still the one used
 				tt.manager = unrouted
 			}
 
-			flagset, err := helper.RequestFlagSet(c, tt.manager)
+			flagset, err := helper.RequestFlagSet(ctx, tt.manager, "key")
 			assert.Equal(t, tt.wantFlagSet, flagset)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})
@@ -98,7 +89,8 @@ func TestAuthenticateFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, tt.want, helper.AuthenticateFlagSet(newRequestContext(t, "key"), tt.manager, "key"))
+			_, ok := helper.AuthenticateFlagSet(t.Context(), tt.manager, "key")
+			assert.Equal(t, tt.want, ok)
 		})
 	}
 }
@@ -125,12 +117,14 @@ func TestRequestFlagSetName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := newRequestContext(t, tt.apiKey)
+			ctx := t.Context()
 			if tt.authenticate {
-				assert.Equal(t, tt.wantAuth, helper.AuthenticateFlagSetName(c, manager, tt.apiKey))
+				authCtx, ok := helper.AuthenticateFlagSetName(ctx, manager, tt.apiKey)
+				assert.Equal(t, tt.wantAuth, ok)
+				ctx = authCtx
 			}
 
-			name, err := helper.RequestFlagSetName(c, manager, tt.apiKey)
+			name, err := helper.RequestFlagSetName(ctx, manager, tt.apiKey)
 			assert.Equal(t, tt.wantName, name)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})

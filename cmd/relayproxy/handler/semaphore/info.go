@@ -1,39 +1,35 @@
 package controller
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/labstack/echo/v5"
-
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
-type info struct {
+// Info is the controller of the info endpoint.
+type Info struct {
 	monitoringService service.Monitoring
 }
 
-func NewInfo(monitoring service.Monitoring) Controller {
-	return &info{
-		monitoringService: monitoring,
-	}
+// InfoOutput is the response of the info endpoint.
+type InfoOutput struct {
+	Body model.InfoResponse
 }
 
-// Handler is the entry point for the Info API
-// @Summary      Info
-// @Tags Monitoring
-// @Description  Making a **GET** request to the URL path `/info` will give you information about the actual state
-// @Description  of the relay proxy.
-// @Description
-// @Description	As of Today the level of information is small be we can improve this endpoint to returns more
-// @Description information.
-// @Produce      json
-// @Success      200  {object}   model.InfoResponse
-// @Router       /info [get]
-func (h *info) Handler(c *echo.Context) error {
+// NewInfo is the constructor of the controller of the info endpoint.
+func NewInfo(monitoring service.Monitoring) *Info {
+	return &Info{monitoringService: monitoring}
+}
+
+// Handle returns information about the state of the relay proxy.
+func (h *Info) Handle(_ context.Context, _ *struct{}) (*InfoOutput, error) {
 	info, err := h.monitoringService.Info()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, info)
+	return &InfoOutput{Body: info}, nil
 }

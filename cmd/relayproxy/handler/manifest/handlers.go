@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"sort"
 
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -24,44 +24,44 @@ const (
 )
 
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *slog.Logger) Ctrl {
-	return Ctrl{
+	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *slog.Logger) *Ctrl {
+	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		logger:         logger,
 	}
 }
 
+// Ctrl is the controller of the manifest endpoint.
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
 	logger         *slog.Logger
 	metrics        metric.Metrics
 }
 
-// GetManifest is a GET endpoint to return the flags configured in Semaphore as a OpenFeature flag manifest.
-// @Summary   GetManifest is a GET endpoint to return the flags configured in Semaphore.
-// @Tags OpenFeature Manisfest API
-// @Description **GET** request to the URL `/openfeature/v0/manifest` returns the project manifest
-// @Description containing active flags. Archived flags are excluded.
-// @Security     ApiKeyAuth
-// @Produce      json
-// @Accept	 	 json
-// @Success      200  {object} model.ManifestSuccessResponse "Success"
-// @Failure      401 {object}  model.ManifestError "Unauthorized"
-// @Failure      403 {object}  model.ManifestError "Forbidden"
-// @Failure      500 {object}  model.ManifestError "Internal server error"
-// @Router       /openfeature/v0/manifest [GET]
-func (m *Ctrl) GetManifest(c *echo.Context) error {
-	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
-	_, span := tracer.Start(c.Request().Context(), "getManifest")
+// Input is the request of the manifest endpoint.
+type Input struct {
+	controller.Request
+}
+
+// Output is the response of the manifest endpoint.
+type Output struct {
+	Capabilities string `header:"X-Manifest-Capabilities"`
+	Body         model.ManifestSuccessResponse
+}
+
+// GetManifest returns the flags configured in Semaphore as an OpenFeature flag manifest: the active flags,
+// the archived flags are excluded.
+func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
+	ctx, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(ctx, "getManifest")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(c, m.flagsetManager)
+	flagset, httpErr := helper.RequestFlagSet(ctx, m.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return httpErr
+		return nil, httpErr
 	}
 
-	flags, err := flagset.GetFlagsFromCacheWithContext(c.Request().Context())
+	flags, err := flagset.GetFlagsFromCacheWithContext(ctx)
 	if err != nil {
 		m.logger.LogAttrs(
 			context.Background(),
@@ -70,35 +70,31 @@ func (m *Ctrl) GetManifest(c *echo.Context) error {
 			cmdlog.Err(err),
 		)
 
-		return echo.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
+		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
 	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(m.logger))
 	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 
-		return echo.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
+		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}
-	manifestSuccessResponse := model.ManifestSuccessResponse{
-		Flags: func() []model.ManifestDefinitionSuccessResponse {
-			responses := make([]model.ManifestDefinitionSuccessResponse, 0, len(manifest))
-			for k, v := range manifest {
-				responses = append(responses, model.ManifestDefinitionSuccessResponse{
-					Key:          k,
-					FlagType:     v.FlagType,
-					DefaultValue: v.DefaultValue,
-					Description:  v.Description,
-				})
-			}
-			sort.Slice(responses, func(i, j int) bool {
-				return responses[i].Key < responses[j].Key
-			})
-
-			return responses
-		}(),
+	responses := make([]model.ManifestDefinitionSuccessResponse, 0, len(manifest))
+	for k, v := range manifest {
+		responses = append(responses, model.ManifestDefinitionSuccessResponse{
+			Key:          k,
+			FlagType:     v.FlagType,
+			DefaultValue: v.DefaultValue,
+			Description:  v.Description,
+		})
 	}
-	c.Response().Header().Set(manifestCapabilitiesHeader, manifestCapabilitiesValue)
+	sort.Slice(responses, func(i, j int) bool {
+		return responses[i].Key < responses[j].Key
+	})
 	m.metrics.IncGetManifestCall()
 
-	return c.JSON(http.StatusOK, manifestSuccessResponse)
+	return &Output{
+		Capabilities: manifestCapabilitiesValue,
+		Body:         model.ManifestSuccessResponse{Flags: responses},
+	}, nil
 }

@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v5"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
@@ -75,51 +75,26 @@ type WSFlagChange struct {
 	pingInterval time.Duration
 }
 
-// LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited
-// @Summary      Websocket endpoint to be notified about flag changes
-// @Tags         Semaphore Evaluation Stream API
-// @Deprecated
-// @Description  Deprecated: use /stream/v1/ws/flag/change instead. This endpoint
-// @Description  is a websocket endpoint to be notified about flag changes; every
-// @Description  change pushes a notifier.DiffCache message to the client.
-// @Description  When disableFlagDetailsInStream is true, values are empty objects.
-// @Produce      json
-// @Accept       json
-// @Param        apiKey query string false "apiKey to authorize the connection to the relay proxy"
-// @Success      200  {object} notifier.DiffCache "Success"
-// @Failure      400  {object} modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      401  {object} modeldocs.HTTPErrorDoc "Unauthorized"
-// @Failure      500  {object} modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /ws/v1/flag/change [get]
-func (f *WSFlagChange) LegacyHandler(c *echo.Context) error {
+// LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited.
+func (f *WSFlagChange) LegacyHandler(w http.ResponseWriter, r *http.Request) error {
 	// This handler is deprecated and we keep it for the documentation.
-	return f.Handler(c)
+	return f.Handler(w, r)
 }
 
-// Handler is the entry point for the websocket endpoint to get notified when a flag has been edited
-// @Summary      Websocket endpoint to be notified about flag changes
-// @Tags         Semaphore Evaluation Stream API
-// @Description  This endpoint is a websocket endpoint to be notified about flag changes;
-// @Description  every change pushes a notifier.DiffCache message to the client.
-// @Description  When disableFlagDetailsInStream is true, values are empty objects.
-// @Produce      json
-// @Accept       json
-// @Param        apiKey query string false "apiKey to authorize the connection to the relay proxy"
-// @Success      200  {object} notifier.DiffCache "Success"
-// @Failure      400  {object} modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      401  {object} modeldocs.HTTPErrorDoc "Unauthorized"
-// @Failure      500  {object} modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /stream/v1/ws/flag/change [get]
-func (f *WSFlagChange) Handler(c *echo.Context) error {
+// Handler is the entry point for the websocket endpoint to get notified when a flag has been edited.
+func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
-	flagsetName, err := helper.RequestFlagSetName(c, f.flagsetManager, c.QueryParam("apiKey"))
+	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, r.URL.Query().Get("apiKey"))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	conn, err := f.upgrader.Upgrade(c.Response(), c.Request(), nil)
+	conn, err := f.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		return err
+		// the upgrader sent the error response (a 400 or a 426): only the access log has the reason.
+		reqlog.RecordError(r.Context(), err)
+
+		return nil
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -138,7 +113,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 	)
 
 	// Create context for cancellation
-	ctx, cancel := context.WithCancel(c.Request().Context())
+	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
 	// Start the ping pong loop
@@ -188,7 +163,7 @@ func (f *WSFlagChange) pingPongLoop(ctx context.Context, conn *threadSafeConn) {
 			// Send a ping message to the client
 			err := conn.ping()
 			if err != nil {
-				f.logger.LogAttrs(context.Background(), slog.LevelDebug,
+				f.logger.LogAttrs(ctx, slog.LevelDebug,
 					"closing websocket connection",
 					cmdlog.Err(err),
 					slog.Any("connection", conn),

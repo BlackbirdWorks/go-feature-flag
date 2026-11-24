@@ -1,0 +1,9 @@
+status: 200
+Content-Type: application/json
+Etag: "624-d6e56ed8977df5475bf2cb80334bd244428a5173"
+Last-Modified: Sun, 15 Jun 2025 12:00:00 UTC
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"flags\":{\"test-flag\":{\"variations\":{\"Default\":false,\"False\":false,\"True\":true},\"targeting\":[{\"name\":\"rule1\",\"query\":\"key eq \\\"random-key\\\"\",\"percentage\":{\"False\":0,\"True\":100}}],\"defaultRule\":{\"name\":\"defaultRule\",\"variation\":\"Default\"},\"metadata\":{\"defaultValue\":false,\"description\":\"this is a simple feature flag\",\"issue-link\":\"https://jira.xxx/GOFF-01\"}},\"test-flag2\":{\"variations\":{\"Default\":false,\"False\":false,\"True\":true},\"targeting\":[{\"name\":\"rule1\",\"query\":\"key eq \\\"not-a-key\\\"\",\"percentage\":{\"False\":0,\"True\":100}}],\"defaultRule\":{\"name\":\"defaultRule\",\"variation\":\"Default\"},\"metadata\":{\"defaultValue\":false}}}}\n"

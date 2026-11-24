@@ -1,11 +1,11 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -21,7 +21,7 @@ type FlagConfigurationAPICtrl struct {
 	metrics        metric.Metrics
 }
 
-func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metric.Metrics) Controller {
+func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metric.Metrics) *FlagConfigurationAPICtrl {
 	return &FlagConfigurationAPICtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
@@ -29,7 +29,7 @@ func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metr
 }
 
 type FlagConfigurationRequest struct {
-	Flags []string `json:"flags"`
+	Flags []string `json:"flags" required:"false"`
 }
 
 type FlagConfigurationError = string
@@ -46,50 +46,58 @@ type FlagConfigurationResponse struct {
 	ErrorDetails                string               `json:"errorDetails,omitempty"`
 }
 
-// Handler is the endpoint to poll if you want to get the configuration of the flags.
-// @Summary    Endpoint to poll if you want to get the configuration of the flags.
-// @Tags Semaphore Evaluation API
-// @Description Making a **POST** request to the URL `/v1/flag/configuration` will give you the list of
-// @Description the flags to use them for local evaluation in your provider.
-// @Security    ApiKeyAuth
-// @Security    XApiKeyAuth
-// @Produce     json
-// @Accept      json
-// @Param 		data body FlagConfigurationRequest false "List of flags to get the configuration from."
-// @Param       If-None-Match header string false "The request will be processed only if ETag doesn't match."
-// @Success     200  {object} FlagConfigurationResponse "Success"
-// @Success     304 {string} string "Etag: \"117-0193435c612c50d93b798619d9464856263dbf9f\""
-// @Failure     500 {object}  modeldocs.HTTPErrorDoc "Internal server error"
-// @Router      /v1/flag/configuration [post]
-func (h *FlagConfigurationAPICtrl) Handler(c *echo.Context) error {
+// FlagConfigurationInput is the request of the flag configuration endpoint.
+type FlagConfigurationInput struct {
+	Request
+
+	IfNoneMatch string `header:"If-None-Match" doc:"The request will be processed only if ETag doesn't match."`
+	// RawBody is the JSON document of a FlagConfigurationRequest, the handler decodes it.
+	RawBody []byte `contentType:"application/json"`
+}
+
+// FlagConfigurationOutput is the response of the flag configuration endpoint.
+type FlagConfigurationOutput struct {
+	LastModified string `header:"Last-Modified"`
+	Body         FlagConfigurationResponse
+	Status       int
+}
+
+// Handle is the endpoint to poll if you want to get the configuration of the flags. A request that can not be
+// served is answered with the FlagConfigurationResponse that describes the error.
+func (h *FlagConfigurationAPICtrl) Handle(
+	ctx context.Context,
+	in *FlagConfigurationInput,
+) (*FlagConfigurationOutput, error) {
 	h.metrics.IncFlagConfigurationCall()
 
-	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
-	_, span := tracer.Start(c.Request().Context(), "flagConfiguration")
+	ctx, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(ctx, "flagConfiguration")
 	defer span.End()
 
 	reqBody := new(FlagConfigurationRequest)
-	if err := c.Bind(reqBody); err != nil {
-		return c.JSON(
-			http.StatusBadRequest,
-			FlagConfigurationResponse{
+	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
+		return &FlagConfigurationOutput{
+			Status: http.StatusBadRequest,
+			Body: FlagConfigurationResponse{
 				ErrorCode:    FlagConfigErrorInvalidRequest,
 				ErrorDetails: fmt.Sprintf("impossible to read request body: %s", err),
 			},
-		)
+		}, nil
 	}
 
-	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return httpErr
+		return nil, httpErr
 	}
 
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, FlagConfigurationResponse{
-			ErrorCode:    FlagConfigErrorRetrievingFlags,
-			ErrorDetails: fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
-		})
+		return &FlagConfigurationOutput{
+			Status: http.StatusInternalServerError,
+			Body: FlagConfigurationResponse{
+				ErrorCode:    FlagConfigErrorRetrievingFlags,
+				ErrorDetails: fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
+			},
+		}, nil
 	}
 
 	// filter if we have a list of flags in the request.
@@ -104,15 +112,13 @@ func (h *FlagConfigurationAPICtrl) Handler(c *echo.Context) error {
 	}
 
 	span.SetAttributes(attribute.Int("flagConfiguration.configurationSize", len(flags)))
-	c.Response().Header().
-		Set(echo.HeaderLastModified, flagset.GetCacheRefreshDate().
-			Format(time.RFC1123))
 
-	return c.JSON(
-		http.StatusOK,
-		FlagConfigurationResponse{
+	return &FlagConfigurationOutput{
+		Status:       http.StatusOK,
+		LastModified: flagset.GetCacheRefreshDate().Format(time.RFC1123),
+		Body: FlagConfigurationResponse{
 			EvaluationContextEnrichment: flagset.GetEvaluationContextEnrichment(),
 			Flags:                       flags,
 		},
-	)
+	}, nil
 }

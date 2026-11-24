@@ -1,0 +1,5 @@
+status: 200
+Content-Type: application/json
+Vary: Origin
+---
+"{\"initialized\":true}\n"

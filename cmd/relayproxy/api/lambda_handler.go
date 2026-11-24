@@ -2,21 +2,21 @@ package api
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/awslabs/aws-lambda-go-api-proxy/httpadapter"
-	"github.com/labstack/echo/v5"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // newAwsLambdaHandlerManager is creating a new awsLambdaHandler struct with the httpadapter
-// to proxy all lambda event to echo (*echo.Echo is an [http.Handler]).
-func newAwsLambdaHandlerManager(echoInstance *echo.Echo, basePath string) awsLambdaHandler {
-	adapterAPIGtwV2 := httpadapter.NewV2(echoInstance)
-	adapterALB := httpadapter.NewALB(echoInstance)
-	adapterAPIGtwV1 := httpadapter.New(echoInstance)
+// to proxy all lambda event to the API handler.
+func newAwsLambdaHandlerManager(handler http.Handler, basePath string) awsLambdaHandler {
+	adapterAPIGtwV2 := httpadapter.NewV2(handler)
+	adapterALB := httpadapter.NewALB(handler)
+	adapterAPIGtwV1 := httpadapter.New(handler)
 
 	// Configure base path stripping if a base path is provided
 	if basePath != "" {
@@ -50,7 +50,7 @@ func (h *awsLambdaHandler) SelectAdapter(mode string) any {
 	}
 }
 
-// HandlerAPIGatewayV2 is the function that proxy the lambda events to echo calls for API Gateway V2.
+// HandlerAPIGatewayV2 is the function that proxy the lambda events to the API handler for API Gateway V2.
 func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 	ctx context.Context,
 	req events.APIGatewayV2HTTPRequest,
@@ -59,7 +59,7 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 	return h.adapterAPIGtwV2.ProxyWithContext(ctx, req)
 }
 
-// HandlerAPIGatewayV1 is the function that proxy the lambda events to echo calls for API Gateway V1.
+// HandlerAPIGatewayV1 is the function that proxy the lambda events to the API handler for API Gateway V1.
 func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 	ctx context.Context,
 	req events.APIGatewayProxyRequest,
@@ -68,7 +68,7 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 	return h.adapterAPIGtwV1.ProxyWithContext(ctx, req)
 }
 
-// HandlerALB is the function that proxy the lambda events to echo calls for API Gateway V1.
+// HandlerALB is the function that proxy the lambda events to the API handler for API Gateway V1.
 func (h *awsLambdaHandler) HandlerALB(ctx context.Context, req events.ALBTargetGroupRequest) (
 	events.ALBTargetGroupResponse, error) {
 	return h.adapterALB.ProxyWithContext(ctx, req)

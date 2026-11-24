@@ -23,7 +23,7 @@ You call something like `client.track("event-name", context, details)` when the 
 ### With the relay-proxy and SDKs
 
 Tracking events are received by the relay-proxy on the `POST /v1/data/collector` endpoint (see the OpenAPI documentation in
-`cmd/relayproxy/docs/swagger.yaml` for the payload). The relay-proxy then forwards them to the **tracking** exporters you configured.
+`cmd/relayproxy/api/testdata/openapi.golden.json` for the payload). The relay-proxy then forwards them to the **tracking** exporters you configured.
 
 > [!NOTE]
 > The generic OFREP providers do not call this endpoint: sending tracking events requires a client that implements it

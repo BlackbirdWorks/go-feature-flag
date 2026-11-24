@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -138,7 +138,6 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
-			e := echo.New()
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -150,15 +149,12 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags", bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-
-			c.SetPath("/ofrep/v1/evaluate/flags")
-			handlerErr := ctrl.BulkEvaluate(c)
+			req.Header.Set("Content-Type", "application/json")
+			handlerErr := ctrl.BulkEvaluate(rec, req)
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
@@ -262,15 +258,13 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
 			require.NoError(t, err)
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags", strings.NewReader(string(body)))
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 			for k, v := range tt.args.headers {
 				req.Header.Set(k, v)
 			}
 			rec := httptest.NewRecorder()
-			c := echo.New().NewContext(req, rec)
-			c.SetPath("/ofrep/v1/evaluate/flags")
 
-			require.NoError(t, ctrl.BulkEvaluate(c))
+			require.NoError(t, ctrl.BulkEvaluate(rec, req))
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var got model.OFREPBulkEvaluateSuccessResponse
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
@@ -390,8 +384,10 @@ func Test_Evaluate(t *testing.T) {
 				flagKey:             "",
 			},
 			want: want{
-				httpCode: http.StatusNotFound,
-				bodyFile: testdataDir + "/ofrep/responses/not_found.json",
+				// the router answers 404 before the handler when the key is missing, the handler still
+				// refuses an empty key.
+				httpCode: http.StatusBadRequest,
+				bodyFile: testdataDir + "/ofrep/responses/empty_key.json",
 			},
 		},
 		{
@@ -428,8 +424,8 @@ func Test_Evaluate(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
-			e := echo.New()
-			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
+			e := http.NewServeMux()
+			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 			rec := httptest.NewRecorder()
 
 			flagKey := tt.args.flagKey
@@ -442,7 +438,7 @@ func Test_Evaluate(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 
 			e.ServeHTTP(rec, req)
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
@@ -510,15 +506,15 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err)
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metrics, config.OfrepEventStream{})
-			e := echo.New()
-			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
+			e := http.NewServeMux()
+			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequest(
 					http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+				req.Header.Set("Content-Type", "application/json")
 				e.ServeHTTP(httptest.NewRecorder(), req)
 			}
 
@@ -557,8 +553,8 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
-			e := echo.New()
-			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
+			e := http.NewServeMux()
+			e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
 			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
 			require.NoError(t, err)
 			req := httptest.NewRequest(
@@ -566,7 +562,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 				"/ofrep/v1/evaluate/flags/number-flag",
 				strings.NewReader(string(body)),
 			)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, req)
 

@@ -9,7 +9,7 @@ type ManifestSuccessResponse struct {
 
 type ManifestDefinitionSuccessResponse struct {
 	Key          string         `json:"key"`
-	FlagType     model.FlagType `json:"type"`
+	FlagType     model.FlagType `json:"type"         enum:"boolean,string,integer,float,object"`
 	DefaultValue any            `json:"defaultValue"`
 	Description  string         `json:"description"`
 }

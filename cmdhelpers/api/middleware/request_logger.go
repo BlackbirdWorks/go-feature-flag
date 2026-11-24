@@ -3,24 +3,25 @@ package middleware
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
+	"github.com/danielgtaylor/huma/v2"
 
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
-// DefaultSkipper is what we use as a default.
+// skipURL is what we use as a default.
 // Some endpoints are excluded from the logs to avoid flooding the logs and
 // because they are not bringing a lot of value.
-func DefaultSkipper(c *echo.Context) bool {
+func skipURL(u *url.URL) bool {
 	skipperURL := []string{"/health", "/info", "/metrics"}
 	for _, ignoredPath := range skipperURL {
-		if strings.HasPrefix(ignoredPath, c.Request().URL.String()) {
+		if strings.HasPrefix(ignoredPath, u.String()) {
 			return true
 		}
 	}
@@ -28,9 +29,63 @@ func DefaultSkipper(c *echo.Context) bool {
 	return false
 }
 
-// DebugSkipper is the skipper used in debug mode, we log everything.
-func DebugSkipper(_ *echo.Context) bool {
-	return false
+// SkipHuma is the skipper of the access log for a huma operation: the monitoring endpoints are not logged, unless
+// the debug level is on and everything is logged.
+func SkipHuma(debug bool) func(huma.Context) bool {
+	return func(ctx huma.Context) bool {
+		u := ctx.URL()
+
+		return !debug && skipURL(&u)
+	}
+}
+
+// SkipRequest is [SkipHuma] for a plain [http.Handler].
+func SkipRequest(debug bool) func(*http.Request) bool {
+	return func(r *http.Request) bool { return !debug && skipURL(r.URL) }
+}
+
+// RecordError keeps err as the error of the request: the access log reports it.
+func RecordError(ctx context.Context, err error) {
+	if err != nil {
+		logging.AddAttrs(ctx, slog.Any(errorKey, err))
+	}
+}
+
+// errorKey is the name of the attribute that carries the error of the request.
+const errorKey = "error"
+
+// AccessLog writes the access log record of a request, the one [LogRequest] defines, from what the logging
+// middleware of huma-middleware knows about it. It is the function given to logging.WithAccessLogFunc.
+func AccessLog() func(ctx context.Context, l *slog.Logger, r logging.Record) {
+	return func(ctx context.Context, l *slog.Logger, r logging.Record) {
+		rec := RequestRecord{
+			RemoteIP:  remoteIP(r.RemoteAddr),
+			Latency:   r.Duration,
+			Host:      r.Host,
+			Method:    r.Method,
+			URI:       r.RequestURI(),
+			UserAgent: r.UserAgent,
+			RequestID: r.RequestID,
+			Status:    r.Status,
+			Size:      r.Size,
+		}
+		for _, a := range r.Extra {
+			if err, ok := a.Value.Any().(error); ok && a.Key == errorKey {
+				rec.Err = err
+			}
+		}
+		LogRequest(ctx, l, &rec)
+	}
+}
+
+// remoteIP returns the address of the peer of the connection, without its port.
+func remoteIP(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+
+	return host
 }
 
 // RequestRecord is what the request logger logs about a request. It holds no framework type, so the logging is
@@ -80,43 +135,6 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		slog.String("user_agent", r.UserAgent),
 		slog.String("request_id", r.RequestID),
 	)
-}
-
-// RequestLogger is a middleware to provide an "access log" like logging for each request.
-func RequestLogger(logger *slog.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
-	// select the right skipper
-	skipper := DefaultSkipper
-	if isDebugEnabled {
-		skipper = DebugSkipper
-	}
-
-	return middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		Skipper: skipper,
-		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
-			req := c.Request()
-			res := c.Response()
-			rec := RequestRecord{
-				Err:       v.Error,
-				RemoteIP:  c.RealIP(),
-				Latency:   time.Since(v.StartTime),
-				Host:      req.Host,
-				Method:    req.Method,
-				URI:       req.RequestURI,
-				UserAgent: req.UserAgent(),
-				RequestID: req.Header.Get(echo.HeaderXRequestID),
-			}
-			if r, err := echo.UnwrapResponse(res); err == nil {
-				rec.Status = r.Status
-				rec.Size = r.Size
-			}
-			if rec.RequestID == "" {
-				rec.RequestID = res.Header().Get(echo.HeaderXRequestID)
-			}
-			LogRequest(req.Context(), logger, &rec)
-
-			return nil
-		},
-	})
 }
 
 // redactAPIKey masks the apiKey query parameter value so it never reaches the logs.

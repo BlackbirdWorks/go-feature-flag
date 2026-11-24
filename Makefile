@@ -105,9 +105,6 @@ watch-relayproxy: ## Launch the relay proxy in watch mode.
 		--build.cmd "$(GOWORK_ENV) go build $(MODFLAG) -o out/bin/semaphore ./cmd/relayproxy/" \
 		--build.bin "./out/bin/semaphore"
 
-swagger: ## Build swagger documentation
-	$(GOWORK_ENV) $(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
-	cd cmd/relayproxy && swag init --parseDependency --parseDepth=1 --parseInternal --markdownFiles docs
 
 ## Test:
 # Test types run as separate targets (and separate CI jobs):

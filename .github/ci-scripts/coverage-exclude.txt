@@ -10,8 +10,7 @@
 # to raise the number. coverage.py also fails when a file carrying a
 # "Code generated ... DO NOT EDIT." header is not listed here.
 
-# Generated: swagger docs (swag init), antlr parser of the rules engine.
-cmd/relayproxy/docs/
+# Generated: antlr parser of the rules engine.
 rules/parser/jsonquery_lexer.go
 rules/parser/jsonquery_parser.go
 rules/parser/jsonquery_visitor.go
@@ -21,7 +20,7 @@ testutils/
 modules/core/testutils/
 cmd/relayproxy/testdata/
 
-# Type-only structs that exist to feed swagger; no behaviour.
+# Type-only structs that exist to feed the OpenAPI document; no behaviour.
 cmd/relayproxy/modeldocs/
 
 # Developer-only tools, not shipped: schema generator, rules demo CLI.

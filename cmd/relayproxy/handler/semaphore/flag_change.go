@@ -1,10 +1,9 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
-
-	"github.com/labstack/echo/v5"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -12,50 +11,49 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+// FlagChangeAPICtrl is the controller of the endpoint to poll to know if the flags changed.
 type FlagChangeAPICtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 }
 
-func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics metric.Metrics) Controller {
-	return &FlagChangeAPICtrl{
-		flagsetManager: flagsetManager,
-		metrics:        metrics,
-	}
+// NewAPIFlagChange is the constructor of the controller of the flag change endpoint.
+func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics metric.Metrics) *FlagChangeAPICtrl {
+	return &FlagChangeAPICtrl{flagsetManager: flagsetManager, metrics: metrics}
 }
 
+// FlagChangeResponse is the response of the flag change endpoint.
 type FlagChangeResponse struct {
 	Flags map[string]uint32 `json:"flags"`
 	Hash  uint32            `json:"hash"`
 }
 
-// Handler is the endpoint to poll if you want to know if there is a configuration change in the flags
-// @Summary    Endpoint to poll if you want to know if there is a configuration change in the flags
-// @Tags Semaphore Evaluation API
-// @Description Making a **GET** request to the URL `/v1/flag/change` will give you the hash of the current
-// @Description configuration, you can use this hash to know if the configuration has changed.
-// @Security    ApiKeyAuth
-// @Security    XApiKeyAuth
-// @Produce     json
-// @Accept      json
-// @Param       If-None-Match header string false "The request will be processed only if ETag doesn't match."
-// @Success     200  {object} FlagChangeResponse "Success"
-// @Success     304 {string} string "Etag: \"117-0193435c612c50d93b798619d9464856263dbf9f\""
-// @Failure     500 {object}  modeldocs.HTTPErrorDoc "Internal server error"
-// @Router      /v1/flag/change [get]
-func (h *FlagChangeAPICtrl) Handler(c *echo.Context) error {
-	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
+// FlagChangeInput is the request of the flag change endpoint.
+type FlagChangeInput struct {
+	Request
+
+	IfNoneMatch string `header:"If-None-Match" doc:"The request will be processed only if ETag doesn't match."`
+}
+
+// FlagChangeOutput is the response of the flag change endpoint.
+type FlagChangeOutput struct {
+	Body FlagChangeResponse
+}
+
+// Handle is the endpoint to poll if you want to know if there is a configuration change in the flags.
+func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*FlagChangeOutput, error) {
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return httpErr
+		return nil, httpErr
 	}
 
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 	res, err := json.Marshal(flags)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	flagHashes := map[string]uint32{}
@@ -64,8 +62,5 @@ func (h *FlagChangeAPICtrl) Handler(c *echo.Context) error {
 		flagHashes[key] = utils.Hash(string(jsonFlag))
 	}
 
-	return c.JSON(
-		http.StatusOK,
-		FlagChangeResponse{Hash: utils.Hash(string(res)), Flags: flagHashes},
-	)
+	return &FlagChangeOutput{Body: FlagChangeResponse{Hash: utils.Hash(string(res)), Flags: flagHashes}}, nil
 }

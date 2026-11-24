@@ -36,7 +36,7 @@ make test-integration # testcontainers tests, needs Docker
 make test-e2e         # gopherstack-backed end-to-end tests, needs Docker
 make lint             # golangci-lint on all modules
 make tidy-check       # go.mod / go.sum must be tidy
-make swagger          # regenerate cmd/relayproxy/docs after changing API annotations
+GOLDEN_UPDATE=1 go test ./cmd/relayproxy/api   # refresh the golden files (OpenAPI document, HTTP behaviour) after a deliberate change
 ```
 
 If you created a `go.work` with `make workspace-init` before `modules/core` and `rules` were folded into the root module,

@@ -1,0 +1,7 @@
+status: 400
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"errorCode\":\"INVALID_CONTEXT\",\"errorDetails\":\"code=400, message=Bad Request, err=unexpected end of JSON input\",\"key\":\"test-flag\"}\n"

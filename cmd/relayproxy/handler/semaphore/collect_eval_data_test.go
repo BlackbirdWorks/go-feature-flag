@@ -3,23 +3,21 @@ package controller_test
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -258,25 +256,18 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			logger := slog.New(slog.DiscardHandler)
 			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, logger)
 
-			e := echo.New()
-			rec := httptest.NewRecorder()
-
 			// read wantBody request file
-			var bodyReq io.Reader
+			var bodyReq []byte
 			if tt.args.bodyFile != "" {
-				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				var readFileErr error
+				bodyReq, readFileErr = os.ReadFile(tt.args.bodyFile)
 				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
-				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/data/collector", bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			if tt.apiKey != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
-			}
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/data/collector")
-			handlerErr := ctrl.Handler(c)
+			out, handlerErr := ctrl.Handle(t.Context(), &controller.CollectEvalDataInput{
+				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				RawBody: bodyReq,
+			})
 
 			if tt.want.handlerErr {
 				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
@@ -293,11 +284,11 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 
 			// replace the timestamps in the response
 			regex := regexp.MustCompile(`\d{10}`)
-			replacedStr := regex.ReplaceAllString(rec.Body.String(), "1652273630")
+			replacedStr := regex.ReplaceAllString(jsonOf(t, out.Body), "1652273630")
 
 			// validate the result
 			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
+			assert.Equal(t, http.StatusOK, tt.want.httpCode, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
 			assert.JSONEq(t, string(wantCollectData), string(exportedData), "Invalid exported data")
 		})
@@ -325,11 +316,11 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 }
 
 // assertCollectEvalDataHandlerError asserts that the handler returned the
-// expected error, supporting both echo.HTTPError and plain error values.
+// expected error, supporting both helper.HTTPError and plain error values.
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
 	require.Error(t, handlerErr, "handler should return an error")
-	he := &echo.HTTPError{}
+	he := &helper.HTTPError{}
 	ok := errors.As(handlerErr, &he)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
@@ -359,16 +350,16 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	body := `{"events":[` + strings.Repeat(event+",", 19999) + event + `]}`
 
 	ctx, cancel := context.WithCancel(t.Context())
-	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/data/collector", strings.NewReader(body))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-
-	e := echo.New()
-	c := e.NewContext(req, httptest.NewRecorder())
+	in := &controller.CollectEvalDataInput{
+		Request: controller.NewRequest("", "application/json"),
+		RawBody: []byte(body),
+	}
 
 	// run handler in background, cancel after 10ms
 	done := make(chan error, 1)
 	go func() {
-		done <- ctrl.Handler(c)
+		_, handleErr := ctrl.Handle(ctx, in)
+		done <- handleErr
 	}()
 
 	time.Sleep(10 * time.Millisecond)
@@ -507,17 +498,10 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)
-			e := echo.New()
-			rec := httptest.NewRecorder()
-
-			req := httptest.NewRequest(http.MethodPost, "/v1/data/collector", strings.NewReader(string(bodyReq)))
-			if tt.apiKey != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
-			}
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/data/collector")
-			handlerErr := ctrl.Handler(c)
+			_, handlerErr := ctrl.Handle(t.Context(), &controller.CollectEvalDataInput{
+				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				RawBody: bodyReq,
+			})
 			require.NoError(t, handlerErr)
 			flagsetManager.Close()
 			evalEvents, err := os.ReadFile(evalExporter.Name())

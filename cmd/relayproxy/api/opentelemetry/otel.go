@@ -2,16 +2,19 @@ package opentelemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"time"
 
 	"go.opentelemetry.io/contrib/exporters/autoexport"
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -21,14 +24,42 @@ import (
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
+// OtelService owns the OpenTelemetry providers of the relay proxy: the tracer provider and, with the same
+// configuration, the meter provider (Go runtime metrics, and the HTTP server metrics of the requests).
 type OtelService struct {
 	otelTraceProvider *sdktrace.TracerProvider
 	otelExporter      sdktrace.SpanExporter
+	meterProvider     *sdkmetric.MeterProvider
+	// metricReader replaces the reader built from the OTEL_* environment, see WithMetricReader.
+	metricReader sdkmetric.Reader
 }
 
-func NewOtelService() OtelService {
-	return OtelService{}
+// Option customizes an OtelService.
+type Option func(*OtelService)
+
+// WithMetricReader makes the metrics go to the reader instead of the exporter that the OTEL_* environment
+// variables select. It is for the tests, which read the metrics themselves.
+func WithMetricReader(reader sdkmetric.Reader) Option {
+	return func(s *OtelService) { s.metricReader = reader }
 }
+
+// NewOtelService returns an OtelService, with no provider: Init creates them.
+func NewOtelService(opts ...Option) OtelService {
+	s := OtelService{}
+	for _, opt := range opts {
+		opt(&s)
+	}
+
+	return s
+}
+
+// MeterProvider returns the meter provider of the service, nil when OpenTelemetry is not configured or InitMetrics
+// was not called.
+func (s *OtelService) MeterProvider() *sdkmetric.MeterProvider { return s.meterProvider }
+
+// Enabled reports whether the configuration enables OpenTelemetry tracing: without an OTLP endpoint there is no
+// exporter, and nothing is traced.
+func Enabled(config *config.Config) bool { return !isDisabled(config) }
 
 // isDisabled is true when OpenTelemetry has no endpoint to send to, or is disabled.
 // The endpoint is set either by the openTelemetryOtlpEndpoint config element or otel.exporter.otlp.endpoint.
@@ -92,6 +123,43 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 		sdktrace.WithSampler(sampler),
 		sdktrace.WithResource(resource),
 	)
+
+	return nil
+}
+
+// InitMetrics creates the OpenTelemetry meter provider of the service and starts the Go runtime metrics on it, when
+// OpenTelemetry is configured (same condition as the tracer provider). The metrics are exported like the traces:
+// the protocol, the endpoint and the headers follow the OTEL_EXPORTER_OTLP_* variables, and OTEL_METRICS_EXPORTER
+// selects the exporter (none disables the export). The export interval is the one of the SDK.
+// It changes no process-wide state: the meter provider is given where it is used (MeterProvider).
+func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) error {
+	if isDisabled(config) {
+		return nil
+	}
+
+	serviceName := "semaphore"
+	if v := config.OtelConfig.Service.Name; v != "" {
+		serviceName = v
+	}
+	res, err := initResource(ctx, serviceName, config.Version, config.OtelConfig.Resource.Attributes)
+	if err != nil {
+		return fmt.Errorf("initializing OTel resources: %w", err)
+	}
+
+	reader := s.metricReader
+	if reader == nil {
+		reader, err = autoexport.NewMetricReader(ctx)
+		if err != nil {
+			return fmt.Errorf("initializing OTel metric exporter: %w", err)
+		}
+	}
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithResource(res))
+	if err = runtime.Start(runtime.WithMeterProvider(provider)); err != nil {
+		_ = provider.Shutdown(ctx)
+
+		return fmt.Errorf("starting the Go runtime metrics: %w", err)
+	}
+	s.meterProvider = provider
 
 	return nil
 }
@@ -222,21 +290,23 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	return samplerURL, samplerRefreshInterval, maxOperations, nil
 }
 
-// Stop the OpenTelemetry service.
+// Stop the OpenTelemetry service. The exporter, the tracer provider and the meter provider are all shut down, whatever
+// the failure of one of them (the metrics are flushed within the deadline of ctx even when the traces fail to stop);
+// the errors are joined.
 func (s *OtelService) Stop(ctx context.Context) error {
+	var errs []error
 	if s.otelExporter != nil {
-		err := s.otelExporter.Shutdown(ctx)
-		if err != nil {
-			return err
-		}
+		errs = append(errs, s.otelExporter.Shutdown(ctx))
 	}
-
 	if s.otelTraceProvider != nil {
-		err := s.otelTraceProvider.Shutdown(ctx)
-		if err != nil {
-			return err
+		errs = append(errs, s.otelTraceProvider.Shutdown(ctx))
+	}
+	// Shutdown flushes the metrics that were not exported yet.
+	if s.meterProvider != nil {
+		if err := s.meterProvider.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("stopping the OTel meter provider: %w", err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

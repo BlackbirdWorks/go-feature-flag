@@ -14,7 +14,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -72,21 +71,6 @@ const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ 
 Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
-// @title Semaphore relay proxy endpoints
-// @description.markdown
-// @contact.name Semaphore relay proxy
-// @license.name MIT
-// @license.url https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
-// @BasePath /
-// @securitydefinitions.apikey ApiKeyAuth
-// @in header
-// @name Authorization
-// @description Use configured APIKeys in yaml config as authorization keys, disabled when this yaml config is not set.
-// @securitydefinitions.apikey XApiKeyAuth
-// @in header
-// @name X-API-Key
-// @description Use configured APIKeys in yaml config as authorization keys via X-API-Key header,
-// @description disabled when this yaml config is not set.
 func main() {
 	if versionRequested(os.Args[1:]) {
 		fmt.Print(versionText()) //nolint:forbidigo // --version output on stdout
@@ -133,8 +117,6 @@ func main() {
 	logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
 
 	// Init swagger
-	docs.SwaggerInfo.Version = proxyConf.Version
-	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", proxyConf.SwaggerHost(), proxyConf.ServerPort(logger.Slog))
 
 	// Initialize metrics
 	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{

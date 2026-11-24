@@ -12,7 +12,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 ## Where things are
 
 - Root `.go` files: the engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: relay proxy (Echo, `log/slog`, Prometheus, OpenTelemetry); `docs/` is generated swagger.
+- `cmd/relayproxy/`: relay proxy (`net/http` ServeMux, huma operations, `log/slog`, Prometheus, OpenTelemetry); the OpenAPI document is generated from the registered operations at runtime (`api.OpenAPI`), `cmd/relayproxy/api/testdata/openapi.golden.json` pins it.
 - `cmd/cli/`, `cmd/jsonschema-generator/`: command line (`evaluate`, `lint`, `generate`) and the schema generator.
 - `modules/core/`: flag, context, evaluation, `clock` (directories of the root module, not separate modules).
 - `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
@@ -94,7 +94,7 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 ## Lint
 
 - `make lint` must be clean (golangci-lint plus `mulint` through `go vet -vettool`, version pinned in the `Makefile`; see `.golangci.yml`, every linter is enabled
-  or listed there with a reason). Run `make tidy-check` and `make swagger` (tree stays clean) too.
+  or listed there with a reason). Run `make tidy-check` (tree stays clean) too.
 - No blanket or path-wide exclusions. A suppression is one line, `//nolint:<linter> // <specific reason>`, and unused ones
   are removed (`nolintlint`). Generated files are excluded by their `Code generated` header only.
 
@@ -108,7 +108,7 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 ```shell
 export GOWORK=off
 go build ./... && go vet -tags=docker,bench ./...
-make lint && make tidy-check && make swagger && make test-shards-check && make test-ci-scripts
+make lint && make tidy-check && make test-shards-check && make test-ci-scripts
 go test -race -shuffle=on -count=1 ./...
 make test-unit && make test-integration && make test-e2e   # integration and e2e need Docker
 make coverage COVERAGE_MIN=92                              # coverage floor

@@ -27,6 +27,13 @@ When your collector is up, you can configure Semaphore relay-proxy by setting th
 openTelemetryOtlpEndpoint: http://localhost:4318
 ```
 
+Jaeger only accepts **traces**: it answers `404` to the OpenTelemetry metrics that the relay proxy also exports when
+OpenTelemetry is configured. Start the relay proxy with the metrics export turned off:
+
+```bash
+OTEL_METRICS_EXPORTER=none ./semaphore --config <your config>
+```
+
 You can connect to **`jaeger`** at this address: http://localhost:16686/search.
 
 After a 1st call to the API you will see a service call `semaphore` and you can check the traces.

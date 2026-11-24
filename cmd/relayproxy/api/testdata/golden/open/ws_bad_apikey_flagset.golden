@@ -1,0 +1,8 @@
+status: 200
+Cache-Control: no-cache
+Content-Type: text/event-stream
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+(stream, body not recorded)

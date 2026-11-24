@@ -1,0 +1,7 @@
+status: 304
+Etag: "313-2c34e051b85ea2c6bc3330ebe1654f0be28d3c60"
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+""

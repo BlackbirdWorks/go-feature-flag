@@ -1,0 +1,8 @@
+status: 200
+Access-Control-Allow-Origin: *
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"initialized\":true}\n"

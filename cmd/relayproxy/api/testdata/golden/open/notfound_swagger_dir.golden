@@ -1,0 +1,8 @@
+status: 307
+Content-Type: text/html; charset=utf-8
+Location: /swagger/
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"<a href=\"/swagger/\">Temporary Redirect</a>.\n\n"

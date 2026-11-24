@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -28,7 +27,8 @@ const (
 	maxCreationDateSeconds = 9999999999
 )
 
-type collectEvalData struct {
+// CollectEvalData is the controller of the endpoint that collects the events of the providers.
+type CollectEvalData struct {
 	flagsetManager service.FlagsetManager
 	logger         *slog.Logger
 	metrics        metric.Metrics
@@ -39,54 +39,49 @@ func NewCollectEvalData(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,
 	logger *slog.Logger,
-) Controller {
-	return &collectEvalData{
+) *CollectEvalData {
+	return &CollectEvalData{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		logger:         logger,
 	}
 }
 
-// Handler is the entry point for the data/collector endpoint
-// @Summary      Endpoint to send usage of your flags to be collected
-// @Tags Semaphore Evaluation API
-// @Description  This endpoint is receiving the events of your flags usage to send them in the data collector.
-// @Description
-// @Description  It is used by the different Open Feature providers to send in bulk all the cached events to avoid
-// @Description  to lose track of what happen when a cached flag is used.
-// @Security     ApiKeyAuth
-// @Security     XApiKeyAuth
-// @Produce      json
-// @Accept		 json
-// @Param 		 data body model.CollectEvalDataRequest true "List of flag evaluation that be passed to the data exporter"
-// @Success      200  {object} model.CollectEvalDataResponse "Success"
-// @Failure 	 400 {object} modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      500 {object} modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /v1/data/collector [post]
-func (h *collectEvalData) Handler(c *echo.Context) error {
-	ctx := c.Request().Context()
+// CollectEvalDataInput is the request of the data collector endpoint.
+type CollectEvalDataInput struct {
+	Request
 
-	tracer := otel.Tracer(configfile.OtelTracerName)
-	ctx, span := tracer.Start(ctx, "collectEventData")
+	// RawBody is the JSON document of a model.CollectEvalDataRequest, the handler decodes it.
+	RawBody []byte `contentType:"application/json"`
+}
+
+// CollectEvalDataOutput is the response of the data collector endpoint.
+type CollectEvalDataOutput struct {
+	Body model.CollectEvalDataResponse
+}
+
+// Handle is the entry point for the data/collector endpoint.
+func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) (*CollectEvalDataOutput, error) {
+	ctx, span := otel.Tracer(configfile.OtelTracerName).Start(ctx, "collectEventData")
 	defer span.End()
 
 	reqBody := new(model.CollectEvalDataRequest)
-	if err := c.Bind(reqBody); err != nil {
-		return echo.NewHTTPError(
+	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
+		return nil, helper.NewHTTPError(
 			http.StatusBadRequest,
 			fmt.Sprintf("collectEvalData: invalid input data %v", err))
 	}
 	if reqBody.Events == nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")
+		return nil, helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")
 	}
 
 	span.SetAttributes(attribute.Int("collectEventData.eventCollectionSize", len(reqBody.Events)))
 
 	// The flag set is looked up after the body is read, not taken from the authentication: the events are
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.FlagSet(h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return httpErr
+		return nil, httpErr
 	}
 
 	counterTracking := 0
@@ -106,7 +101,7 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 
-			return err
+			return nil, err
 		default:
 			// all good, keep going
 		}
@@ -147,9 +142,9 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 	)
 	h.metrics.IncCollectEvalData(float64(len(reqBody.Events)))
 
-	return c.JSON(http.StatusOK, model.CollectEvalDataResponse{
+	return &CollectEvalDataOutput{Body: model.CollectEvalDataResponse{
 		IngestedContentCount: len(reqBody.Events),
-	})
+	}}, nil
 }
 
 func convertTrackingEvent(

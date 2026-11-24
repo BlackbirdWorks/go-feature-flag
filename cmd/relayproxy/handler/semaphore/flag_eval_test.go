@@ -10,13 +10,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -186,8 +186,6 @@ func Test_flag_eval_Handler(t *testing.T) {
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			flagEval := controller.NewFlagEval(flagsetManager, metric.Metrics{})
-
-			e := echo.New()
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -199,15 +197,13 @@ func Test_flag_eval_Handler(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/feature/:flagKey/eval")
-			c.SetPathValues(echo.PathValues{{Name: "flagKey", Value: tt.args.flagKey}})
-			handlerErr := flagEval.Handler(c)
+			req.Header.Set("Content-Type", "application/json")
+			req.SetPathValue("flagKey", tt.args.flagKey)
+			handlerErr := flagEval.Handler(rec, req)
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
@@ -286,18 +282,15 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err)
 
 			flagEval := controller.NewFlagEval(flagsetManager, metrics)
-			e := echo.New()
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequest(
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-				c := e.NewContext(req, httptest.NewRecorder())
-				c.SetPath("/v1/feature/:flagKey/eval")
-				c.SetPathValues(echo.PathValues{{Name: "flagKey", Value: flagKey}})
-				_ = flagEval.Handler(c)
+				req.Header.Set("Content-Type", "application/json")
+				req.SetPathValue("flagKey", flagKey)
+				_ = flagEval.Handler(httptest.NewRecorder(), req)
 			}
 
 			assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(tt.want), metricName))

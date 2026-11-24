@@ -2,11 +2,8 @@ package controller_test
 
 import (
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,13 +19,7 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 	t.Parallel()
 
 	ctrl := controller.NewForceFlagsRefresh(nil, metric.Metrics{})
-	e := echo.New()
-	rec := httptest.NewRecorder()
-
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/retriever/refresh", nil)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	c := e.NewContext(req, rec)
-	handlerErr := ctrl.Handler(c)
+	_, handlerErr := ctrl.Handle(t.Context(), &controller.RetrieverRefreshInput{})
 	require.Error(t, handlerErr)
 	assert.Equal(
 		t,
@@ -63,12 +54,7 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 
 	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
 	ctrl := controller.NewForceFlagsRefresh(flagsetManager, metric.Metrics{})
-	e := echo.New()
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/retriever/refresh", nil)
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	c := e.NewContext(req, rec)
-	handlerErr := ctrl.Handler(c)
+	_, handlerErr := ctrl.Handle(t.Context(), &controller.RetrieverRefreshInput{})
 	require.NoError(t, handlerErr)
 
 	assert.NotEqual(t, previousRefresh, defaultFlagset.GetCacheRefreshDate())

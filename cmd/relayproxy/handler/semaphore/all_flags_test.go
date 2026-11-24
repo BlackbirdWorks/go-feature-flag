@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -142,8 +142,6 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
-
-			e := echo.New()
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -155,14 +153,12 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/allflags")
-			handlerErr := ctrl.Handler(c)
+			req.Header.Set("Content-Type", "application/json")
+			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
@@ -287,8 +283,6 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAllFlags(flagsetManager, metric.Metrics{})
-
-			e := echo.New()
 			rec := httptest.NewRecorder()
 
 			// read wantBody request file
@@ -300,15 +294,13 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			req.Header.Set(echo.HeaderAuthorization, "Bearer test-api-key")
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/allflags")
-			handlerErr := ctrl.Handler(c)
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer test-api-key")
+			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)

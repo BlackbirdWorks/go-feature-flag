@@ -1,0 +1,7 @@
+status: 400
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"message\":\"could not parse file (json): unexpected end of JSON input\"}\n"

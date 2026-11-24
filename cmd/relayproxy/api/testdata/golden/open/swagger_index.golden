@@ -1,0 +1,7 @@
+status: 200
+Content-Type: text/html
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+(body not recorded)

@@ -3,7 +3,6 @@ package controller
 import (
 	"net/http"
 
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -20,33 +19,17 @@ type allFlags struct {
 	metrics        metric.Metrics
 }
 
-func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) Controller {
+func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) RawHandler {
 	return &allFlags{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
 }
 
-// Handler is the entry point for the allFlags endpoint
-// @Summary      All flags variations for a user
-// @Tags Semaphore Evaluation API
-// @Description  Making a **POST** request to the URL `/v1/allflags` will give you the values of all the flags for
-// @Description this user.
-// @Description
-// @Description To get a variation you should provide information about the user.
-// @Description For that you should provide some user information in JSON in the request body.
-// @Security     ApiKeyAuth
-// @Security     XApiKeyAuth
-// @Produce      json
-// @Accept		 json
-// @Param 	     data body model.AllFlagRequest true "Evaluation context to challenge against the flags."
-// @Success      200  {object} modeldocs.AllFlags "Success"
-// @Failure      400 {object} modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      500 {object} modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /v1/allflags [post]
-func (h *allFlags) Handler(c *echo.Context) error {
+// Handler is the entry point for the allFlags endpoint.
+func (h *allFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
-	if err := c.Bind(reqBody); err != nil {
+	if err := helper.BindBody(r, reqBody); err != nil {
 		return err
 	}
 	// validation that we have a reqBody key
@@ -59,10 +42,10 @@ func (h *allFlags) Handler(c *echo.Context) error {
 		return err
 	}
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
-	_, span := tracer.Start(c.Request().Context(), "AllFlagsState")
+	_, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
+	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
 		return httpErr
 	}
@@ -89,5 +72,5 @@ func (h *allFlags) Handler(c *echo.Context) error {
 		attribute.Int("AllFlagsState.numberEvaluation", len(allFlags.GetFlags())),
 	)
 
-	return c.JSON(http.StatusOK, allFlags)
+	return helper.WriteJSON(w, http.StatusOK, allFlags)
 }

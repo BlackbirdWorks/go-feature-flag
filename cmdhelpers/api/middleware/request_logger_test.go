@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
-	echomiddleware "github.com/labstack/echo/v5/middleware"
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -18,22 +17,26 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+// requestLogger is the access log of a plain handler, as the relay proxy builds it.
+func requestLogger(logger *slog.Logger, debug bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return logging.Handler(next,
+			logging.WithLogger(logger),
+			logging.WithAccessLogFunc(middleware.AccessLog()),
+			logging.WithRequestSkip(middleware.SkipRequest(debug)),
+		)
+	}
+}
+
 func TestRequestLogger200(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusOK, "")
-	}
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	err := middleware.RequestLogger(logger, false)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields["status"])
@@ -46,19 +49,12 @@ func TestRequestLogger200(t *testing.T) {
 func TestRequestLogger300(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusFound, "")
-	}
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusFound) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	err := middleware.RequestLogger(logger, false)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields["status"])
@@ -70,19 +66,12 @@ func TestRequestLogger300(t *testing.T) {
 func TestRequestLogger400(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusBadRequest, "")
-	}
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	err := middleware.RequestLogger(logger, false)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
@@ -95,19 +84,14 @@ func TestRequestLogger400(t *testing.T) {
 func TestRequestLogger500(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusInternalServerError, "")
-	}
+	h := http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
+	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	logger := obs
-	err := middleware.RequestLogger(logger, false)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
@@ -120,38 +104,28 @@ func TestRequestLogger500(t *testing.T) {
 func TestRequestLoggerHealth(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusInternalServerError, "")
-	}
+	h := http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
+	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	err := middleware.RequestLogger(logger, false)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Empty(t, logs.All())
 }
 
 func TestRequestLoggerHealthDebug(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	h := func(c *echo.Context) error {
-		return c.String(http.StatusInternalServerError, "")
-	}
+	h := http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
+	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	err := middleware.RequestLogger(logger, true)(h)(c)
-	require.NoError(t, err)
+	requestLogger(logger, true)(h).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Len(t, logs.All(), 1)
 }
 
@@ -193,16 +167,13 @@ func TestRequestLoggerRedactsAPIKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, tt.uri, nil)
-			c := e.NewContext(req, httptest.NewRecorder())
-			h := func(c *echo.Context) error {
-				return c.String(http.StatusUnauthorized, "")
-			}
+			h := http.HandlerFunc(
+				func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) },
+			)
 
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			err := middleware.RequestLogger(obs, false)(h)(c)
-			require.NoError(t, err)
+			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 			assert.Equal(t, 1, logs.Len())
 			assert.Equal(t, tt.want, logs.All()[0].ContextMap()["request"])
 		})
@@ -296,67 +267,102 @@ func TestLogRequestDisabledLevel(t *testing.T) {
 	assert.Zero(t, logs.Len())
 }
 
-func TestRequestLoggerRequestIDFromResponse(t *testing.T) {
+func TestRequestLoggerRequestID(t *testing.T) {
 	t.Parallel()
 
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	c := e.NewContext(req, httptest.NewRecorder())
-	obs, logs := slogutil.NewObserver(slog.LevelDebug)
-	h := func(c *echo.Context) error {
-		c.Response().Header().Set(echo.HeaderXRequestID, "from-response")
-
-		return c.String(http.StatusOK, "")
+	tests := []struct {
+		name           string
+		requestHeader  string
+		responseHeader string
+		wantRequestID  string
+	}{
+		{name: "from the request", requestHeader: "from-request", wantRequestID: "from-request"},
+		{name: "from the response", responseHeader: "from-response", wantRequestID: "from-response"},
+		{name: "the request wins", requestHeader: "from-request", responseHeader: "from-response",
+			wantRequestID: "from-request"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.NoError(t, middleware.RequestLogger(obs, false)(h)(c))
+			req := httptest.NewRequest(http.MethodGet, "/something", nil)
+			if tt.requestHeader != "" {
+				req.Header.Set("X-Request-ID", tt.requestHeader)
+			}
+			obs, logs := slogutil.NewObserver(slog.LevelDebug)
+			h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tt.responseHeader != "" {
+					w.Header().Set("X-Request-ID", tt.responseHeader)
+				}
+				w.WriteHeader(http.StatusOK)
+			})
 
-	assert.Equal(t, "from-response", logs.All()[0].ContextMap()["request_id"])
+			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
+			require.Equal(t, 1, logs.Len())
+			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()["request_id"])
+		})
+	}
 }
 
-// TestRequestLoggerReturnedErrors drives real requests through the echo stack to handlers that return an error or
-// panic. The logger reads the status of the response when the handler returns, before echo's error handler writes
-// the status of a returned error: the record is the "Success" one with status 200, at the debug level, exactly as
-// the zap based middleware of the previous version logged it (checked on main). The test pins that behaviour.
+// TestRequestLoggerReturnedErrors drives requests through the logger to handlers that fail or panic. The record
+// carries the status that was sent to the client, at the level of its class (issue 63): a handler that returned
+// an error is logged with its error status, and a recovered panic is a 500 whose error is in the record.
 func TestRequestLoggerReturnedErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		handler        func(*echo.Context) error
-		name           string
-		wantRespStatus int
+		handler     func(http.ResponseWriter, *http.Request)
+		name        string
+		wantMessage string
+		wantLevel   slog.Level
+		wantStatus  int
+		wantErr     bool
 	}{
-		{name: "not found", handler: func(*echo.Context) error { return echo.NewHTTPError(http.StatusNotFound, "nf") },
-			wantRespStatus: http.StatusNotFound},
 		{
-			name:           "unauthorized",
-			handler:        func(*echo.Context) error { return echo.NewHTTPError(http.StatusUnauthorized, "no") },
-			wantRespStatus: http.StatusUnauthorized,
+			name:        "not found",
+			handler:     func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNotFound) },
+			wantStatus:  http.StatusNotFound,
+			wantLevel:   slog.LevelWarn,
+			wantMessage: "Client error",
 		},
-		{name: "plain error", handler: func(*echo.Context) error { return errBoom },
-			wantRespStatus: http.StatusInternalServerError},
-		{name: "panic", handler: func(*echo.Context) error { panic("boom") },
-			wantRespStatus: http.StatusInternalServerError},
+		{name: "unauthorized", handler: func(w http.ResponseWriter, r *http.Request) {
+			middleware.RecordError(r.Context(), errBoom)
+			w.WriteHeader(http.StatusUnauthorized)
+		}, wantStatus: http.StatusUnauthorized, wantLevel: slog.LevelWarn, wantMessage: "Client error", wantErr: true},
+		{name: "server error", handler: func(w http.ResponseWriter, r *http.Request) {
+			middleware.RecordError(r.Context(), errBoom)
+			w.WriteHeader(http.StatusInternalServerError)
+		},
+			wantStatus: http.StatusInternalServerError, wantLevel: slog.LevelError,
+			wantMessage: "Server error", wantErr: true},
+		{
+			name:        "no status is a 200",
+			handler:     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("x")) },
+			wantStatus:  http.StatusOK,
+			wantLevel:   slog.LevelDebug,
+			wantMessage: "Success",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			e := echo.New()
-			e.Use(middleware.RequestLogger(obs, false))
-			e.Use(echomiddleware.Recover())
-			e.GET("/x", tt.handler)
+			h := requestLogger(obs, false)(http.HandlerFunc(tt.handler))
 			rec := httptest.NewRecorder()
 
-			e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
+			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
-			assert.Equal(t, tt.wantRespStatus, rec.Code)
+			assert.Equal(t, tt.wantStatus, rec.Code)
 			got := logs.All()
 			require.Len(t, got, 1)
-			assert.Equal(t, slog.LevelDebug, got[0].Level)
-			assert.Equal(t, "Success", got[0].Message)
-			assert.Equal(t, int64(http.StatusOK), got[0].ContextMap()["status"])
+			assert.Equal(t, tt.wantLevel, got[0].Level)
+			assert.Equal(t, tt.wantMessage, got[0].Message)
+			assert.Equal(t, int64(tt.wantStatus), got[0].ContextMap()["status"])
+			if tt.wantErr {
+				assert.Equal(t, errBoom.Error(), got[0].ContextMap()["error"])
+			}
 		})
 	}
 }

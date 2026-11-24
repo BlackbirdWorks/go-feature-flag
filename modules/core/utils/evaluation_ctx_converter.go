@@ -2,10 +2,7 @@ package utils
 
 import "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
-// ConvertEvaluationCtxFromRequest convert the result of an unmarshal request from the API to a ffcontext.Context
-// @param targetingKey the targeting key to use for the context
-// @param custom the custom attributes to add to the context
-// @return ffcontext.Context
+// ConvertEvaluationCtxFromRequest convert the result of an unmarshal request from the API to a ffcontext.Context.
 func ConvertEvaluationCtxFromRequest(
 	targetingKey string,
 	custom map[string]any,

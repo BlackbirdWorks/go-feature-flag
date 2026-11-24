@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -330,4 +333,156 @@ func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	ExportEnvironment(c)
 
 	assert.Equal(t, "https://example.com:4318", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+}
+
+// shutdownProbe records the shutdown of a part of the service and fails it on request.
+type shutdownProbe struct {
+	err  error
+	done bool
+	mu   sync.Mutex
+}
+
+func (p *shutdownProbe) shutdown() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.done = true
+
+	return p.err
+}
+
+func (p *shutdownProbe) wasShutDown() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.done
+}
+
+// probeExporter is a span exporter whose shutdown is observed.
+type probeExporter struct{ probe *shutdownProbe }
+
+func (probeExporter) ExportSpans(context.Context, []sdktrace.ReadOnlySpan) error { return nil }
+
+func (e probeExporter) Shutdown(context.Context) error { return e.probe.shutdown() }
+
+// probeProcessor is a span processor whose shutdown (the one of the tracer provider) is observed.
+type probeProcessor struct{ probe *shutdownProbe }
+
+func (probeProcessor) OnStart(context.Context, sdktrace.ReadWriteSpan) {}
+
+func (probeProcessor) OnEnd(sdktrace.ReadOnlySpan) {}
+
+func (p probeProcessor) Shutdown(context.Context) error { return p.probe.shutdown() }
+
+func (probeProcessor) ForceFlush(context.Context) error { return nil }
+
+// memoryMetricExporter keeps the metrics it receives, and its shutdown is observed.
+type memoryMetricExporter struct {
+	probe    *shutdownProbe
+	exported []string
+	mu       sync.Mutex
+}
+
+func (*memoryMetricExporter) Temporality(sdkmetric.InstrumentKind) metricdata.Temporality {
+	return metricdata.CumulativeTemporality
+}
+
+func (*memoryMetricExporter) Aggregation(kind sdkmetric.InstrumentKind) sdkmetric.Aggregation {
+	return sdkmetric.DefaultAggregationSelector(kind)
+}
+
+func (e *memoryMetricExporter) Export(_ context.Context, data *metricdata.ResourceMetrics) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for _, scope := range data.ScopeMetrics {
+		for _, m := range scope.Metrics {
+			e.exported = append(e.exported, m.Name)
+		}
+	}
+
+	return nil
+}
+
+func (*memoryMetricExporter) ForceFlush(context.Context) error { return nil }
+
+func (e *memoryMetricExporter) Shutdown(context.Context) error { return e.probe.shutdown() }
+
+func (e *memoryMetricExporter) names() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return append([]string(nil), e.exported...)
+}
+
+var (
+	errExporterShutdown = errors.New("exporter shutdown failed")
+	errTracerShutdown   = errors.New("tracer provider shutdown failed")
+	errMeterShutdown    = errors.New("meter provider shutdown failed")
+)
+
+// TestStop checks that the failure of any part of the service does not keep the others from being
+// shut down, that the errors that are returned are exactly the failing ones, and that the metrics that were pending
+// are delivered to the exporter during the shutdown (the final flush).
+func TestStop(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		exporterErr   error
+		tracerErr     error
+		meterErr      error
+		wantErrs      []error
+		wantNotErrors []error
+	}{
+		{name: "exporter fails", exporterErr: errExporterShutdown, wantErrs: []error{errExporterShutdown},
+			wantNotErrors: []error{errTracerShutdown, errMeterShutdown}},
+		{name: "tracer fails", tracerErr: errTracerShutdown, wantErrs: []error{errTracerShutdown},
+			wantNotErrors: []error{errExporterShutdown, errMeterShutdown}},
+		{name: "meter fails", meterErr: errMeterShutdown, wantErrs: []error{errMeterShutdown},
+			wantNotErrors: []error{errExporterShutdown, errTracerShutdown}},
+		{name: "all fail", exporterErr: errExporterShutdown, tracerErr: errTracerShutdown,
+			meterErr: errMeterShutdown, wantErrs: []error{errExporterShutdown, errTracerShutdown, errMeterShutdown}},
+		{name: "none fails", wantNotErrors: []error{errExporterShutdown, errTracerShutdown, errMeterShutdown}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exporterProbe := &shutdownProbe{err: tt.exporterErr}
+			tracerProbe := &shutdownProbe{err: tt.tracerErr}
+			metrics := &memoryMetricExporter{probe: &shutdownProbe{err: tt.meterErr}}
+			// the periodic reader exports on its interval, and when it is shut down: nothing is exported before.
+			reader := sdkmetric.NewPeriodicReader(metrics, sdkmetric.WithInterval(time.Hour))
+
+			svc := NewOtelService(WithMetricReader(reader))
+			svc.otelExporter = probeExporter{probe: exporterProbe}
+			svc.otelTraceProvider = sdktrace.NewTracerProvider(
+				sdktrace.WithSpanProcessor(probeProcessor{probe: tracerProbe}),
+			)
+			require.NoError(
+				t,
+				svc.InitMetrics(t.Context(), &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
+			)
+
+			counter, err := svc.MeterProvider().Meter("test").Int64Counter("test.pending")
+			require.NoError(t, err)
+			counter.Add(t.Context(), 1)
+			require.Empty(t, metrics.names(), "nothing was exported before the shutdown")
+
+			stopErr := svc.Stop(t.Context())
+
+			assert.True(t, exporterProbe.wasShutDown(), "the span exporter was shut down")
+			assert.True(t, tracerProbe.wasShutDown(), "the tracer provider was shut down")
+			assert.True(t, metrics.probe.wasShutDown(), "the meter provider (its reader and exporter) was shut down")
+			assert.Contains(t, metrics.names(), "test.pending", "the pending metrics were flushed by the shutdown")
+			for _, want := range tt.wantErrs {
+				require.ErrorIs(t, stopErr, want)
+			}
+			for _, notWant := range tt.wantNotErrors {
+				require.NotErrorIs(t, stopErr, notWant)
+			}
+			if len(tt.wantErrs) == 0 {
+				require.NoError(t, stopErr)
+			}
+		})
+	}
 }

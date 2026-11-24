@@ -1,0 +1,7 @@
+status: 415
+Content-Type: application/json
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+"{\"message\":\"unsupported or missing Content-Type, use application/json, application/yaml or application/toml\"}\n"
