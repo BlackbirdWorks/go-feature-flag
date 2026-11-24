@@ -12,8 +12,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestFromFlagEvaluation(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name          string
@@ -127,7 +127,6 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			got := flagstate.FromFlagEvaluation(
 				tt.key,

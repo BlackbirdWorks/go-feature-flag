@@ -12,8 +12,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_Value(t *testing.T) {
-	t.Parallel()
 
 	type args struct {
 		flagName    string
@@ -2179,7 +2179,6 @@ func TestInternalFlag_Value(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			got, got1 := tt.flag.Value(tt.args.flagName, tt.args.user, tt.args.flagContext)
 			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
@@ -2603,8 +2602,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_IsValid(t *testing.T) {
-	t.Parallel()
 
 	type fields struct {
 		Variations      *map[string]*any
@@ -3152,7 +3151,6 @@ func TestInternalFlag_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			f := &flag.InternalFlag{
 				Variations:      tt.fields.Variations,
@@ -3174,6 +3172,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 		})
 	}
 }
+
 func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 	t.Parallel()
 

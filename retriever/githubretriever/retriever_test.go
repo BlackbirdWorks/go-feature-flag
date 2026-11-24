@@ -14,8 +14,8 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func Test_github_Retrieve(t *testing.T) {
-	t.Parallel()
 
 	endRatelimit := time.Now().Add(1 * time.Hour)
 	type fields struct {
@@ -161,7 +161,6 @@ func Test_github_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			h := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,

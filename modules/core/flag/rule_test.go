@@ -19,8 +19,8 @@ func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bo
 	return assert.ErrorAs(t, err, &target, msgAndArgs...)
 }
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRuleEvaluate(t *testing.T) {
-	t.Parallel()
 
 	type args struct {
 		user      ffcontext.Context
@@ -654,7 +654,6 @@ func TestRuleEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			key := ""
 			if tt.args.user != nil {

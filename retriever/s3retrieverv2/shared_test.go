@@ -1334,6 +1334,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 
 func TestSharedItems_SetPoller(t *testing.T) {
 	t.Parallel()
+
 	const dev = "p1/dev/flags.yaml"
 	// polls returns the times of the polls of the first minutes, seen through a refresh function
 	// that always fails (so that it is called by every poll).
@@ -1423,6 +1424,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			synctest.Test(t, func(t *testing.T) {
 				tt.check(t, polls(t, tt.cfg, tt.change))
 			})

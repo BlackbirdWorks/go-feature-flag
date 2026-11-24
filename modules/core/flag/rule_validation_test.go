@@ -10,8 +10,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_IsValid(t *testing.T) {
-	t.Parallel()
 
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
@@ -172,7 +172,6 @@ func TestRule_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
@@ -368,8 +367,8 @@ func TestRule_validatePercentages(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_validateProgressiveRollout(t *testing.T) {
-	t.Parallel()
 
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
@@ -741,7 +740,6 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
@@ -752,8 +750,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_validateVariationResult(t *testing.T) {
-	t.Parallel()
 
 	variations := map[string]*any{
 		"variation_A": new(any("value_A")),
@@ -872,7 +870,6 @@ func TestRule_validateVariationResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)

@@ -32,6 +32,7 @@ func scheduledFlag(base time.Time) *InternalFlag {
 
 func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	t.Parallel()
+
 	base := time.Now()
 	tests := []struct {
 		name        string
@@ -46,6 +47,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			f := scheduledFlag(base)
 			before := *f.Scheduled
 			runParallel(200, func(int) {

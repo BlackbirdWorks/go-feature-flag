@@ -10,8 +10,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_RequiresBucketing(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -64,7 +64,6 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			result := tt.rule.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
@@ -72,8 +71,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_Evaluate_EmptyKey(t *testing.T) {
-	t.Parallel()
 
 	tests := []struct {
 		name          string
@@ -163,7 +162,6 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 
 			result, err := tt.rule.Evaluate(tt.key, tt.ctx, "test-flag", false)
 

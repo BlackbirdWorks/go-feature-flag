@@ -13,6 +13,7 @@ import (
 // the scheduled steps and the experimentation, as it is when the caller sets it in its context.
 func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	t.Parallel()
+
 	now := time.Now()
 	enrichmentAt := func(d time.Time) map[string]any {
 		return map[string]any{"gofeatureflag": map[string]any{"currentDateTime": d.Format(time.RFC3339Nano)}}
@@ -57,6 +58,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			if tt.callerDate != nil {
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
