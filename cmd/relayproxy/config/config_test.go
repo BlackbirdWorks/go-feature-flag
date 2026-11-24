@@ -2029,7 +2029,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 
 func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
 	t.Helper()
-	configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
+	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	flagSet.String("config", "", "Location of your config file")
