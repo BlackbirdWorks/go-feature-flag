@@ -12,7 +12,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 ## Where things are
 
 - Root `.go` files: the engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: relay proxy (gin router, huma operations, `log/slog`, Prometheus, OpenTelemetry); the OpenAPI document is generated from the registered operations at runtime (`api.OpenAPI`), `cmd/relayproxy/api/testdata/openapi.golden.json` pins it.
+- `cmd/relayproxy/`: relay proxy (`net/http` ServeMux, huma operations, `log/slog`, Prometheus, OpenTelemetry); the OpenAPI document is generated from the registered operations at runtime (`api.OpenAPI`), `cmd/relayproxy/api/testdata/openapi.golden.json` pins it.
 - `cmd/cli/`, `cmd/jsonschema-generator/`: command line (`evaluate`, `lint`, `generate`) and the schema generator.
 - `modules/core/`: flag, context, evaluation, `clock` (directories of the root module, not separate modules).
 - `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
