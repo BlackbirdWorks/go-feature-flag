@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,4 +39,22 @@ func TestCmdExist(t *testing.T) {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	})
+}
+
+func TestVersionFlag(t *testing.T) {
+	t.Parallel()
+
+	for _, flag := range []string{"--version", "-v"} {
+		t.Run(flag, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+			cmd := initRootCmd()
+			cmd.SetOut(&out)
+			cmd.SetArgs([]string{flag})
+			require.NoError(t, cmd.Execute())
+			assert.Contains(t, out.String(), "semaphore-cli localdev\ncommit: ")
+			assert.Contains(t, out.String(), "\nfips140: false\n")
+		})
+	}
 }

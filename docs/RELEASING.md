@@ -11,7 +11,7 @@ Nothing has been released yet. Everything below is "available after the first re
 
 | Artifact | Name | Destination |
 |---|---|---|
-| Relay proxy archives | `semaphore_<version>_<Os>_<arch>.tar.gz` (`.zip` on Windows) for linux, darwin, windows on `x86_64`, `arm64`, `i386` (not darwin) and `armv7` (linux) | GitHub Release of this repository |
+| Relay proxy archives | `semaphore_<version>_<Os>_<arch>.tar.gz` (`.zip` on Windows) for linux, darwin, windows on `x86_64` and `arm64` (64-bit only: there are no 32-bit builds) | GitHub Release of this repository |
 | FIPS 140-3 relay proxy archives | `semaphore-fips_<version>_Linux_<x86_64\|arm64>.tar.gz` (binary `semaphore-fips`, built with `GOFIPS140` from `.fips-version`) | GitHub Release |
 | CLI archives | `semaphore-cli_<version>_<Os>_<arch>.tar.gz` | GitHub Release |
 | AWS Lambda bundle | `semaphore-aws-lambda_<version>.zip` (linux arm64, binary `bootstrap`) | GitHub Release |
@@ -19,7 +19,7 @@ Nothing has been released yet. Everything below is "available after the first re
 | SBOMs | one SPDX JSON per archive (`*.sbom.json`, made with syft) | GitHub Release |
 | Helm chart | `relay-proxy-<chart version>.tgz` | GitHub Release (no Helm repository, no OCI registry) |
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |
-| Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>`, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64, arm/v7); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
+| Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>`, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
 | CLI image | `ghcr.io/blackbirdworks/semaphore-cli:v<version>` (+ `v<major>.<minor>`, `v<major>`, `latest`) | GitHub Container Registry |
 
 All images run as uid 65532, have `/usr/local/bin/semaphore` as command (the CLI image has
@@ -80,12 +80,13 @@ sha256sum --ignore-missing -c checksums.txt
 gh attestation verify semaphore_${V}_Linux_x86_64.tar.gz -R BlackbirdWorks/semaphore
 gh attestation verify oci://ghcr.io/blackbirdworks/semaphore:v$V -R BlackbirdWorks/semaphore
 tar xzf semaphore_${V}_Linux_x86_64.tar.gz && go version -m ./semaphore | grep -E 'main.version|GOFIPS140'
-docker run --rm ghcr.io/blackbirdworks/semaphore:v$V --version   # not available: see below
+docker run --rm ghcr.io/blackbirdworks/semaphore:v$V /usr/local/bin/semaphore --version
 ```
 
-The relay proxy has no `--version` flag. The version is printed in the startup banner, returned
-in the `X-SEMAPHORE-VERSION` response header and exposed by the `semaphore_build_info` metric;
-`go version -m <binary>` shows it in the `-X main.version=` linker flag.
+`semaphore --version` (or `-v`) and `semaphore-cli --version` print the name and version, commit,
+build date, Go version and FIPS 140 mode, and exit without reading any configuration. The version
+is also returned in the `X-SEMAPHORE-VERSION` response header and exposed by the `semaphore_build_info`
+metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
 
 ## Roll back or delete a bad release
 
@@ -105,21 +106,26 @@ in the `X-SEMAPHORE-VERSION` response header and exposed by the `semaphore_build
 
 ## First version
 
-The repository has no tag of its own. The history contains the upstream project's commits, and a
-clone of the original repository holds its tags (`v1.59.1` and the like), but this repository
-published none of them. The chart in `Chart.yaml` still says `1.59.2` / `v1.59.1`.
+Decided by the owner: the first release is `v0.1.0`. `Chart.yaml` already says `version: 0.1.0` and
+`appVersion: v0.1.0`, so the "appVersion equals the tag" check of the workflow passes for that tag.
 
-- `v0.1.0` (recommended): a fresh start. Semaphore is a different project with a different
-  surface (renamed binary, image, metrics, config files); reusing upstream's `1.x` numbers would suggest
-  it is a drop-in successor and would collide with upstream's `v1.x` in any tooling that knows both. `0.x`
-  states honestly that the first releases are not yet a stable API promise, and the Go module
-  path (`github.com/blackbirdworks/semaphore`) stays free of a `/v2` suffix until the owner decides on `v1.0.0`.
-- `v1.60.0` (continuing upstream numbering): shows the lineage and keeps `helm`/`appVersion`
-  ordering, but implies upstream's compatibility promise, and every later breaking change
-  requires a `/v2` module path.
-- `v1.0.0`: a fresh start that declares stability immediately; then breaking changes need `/v2`.
+Reasons: Semaphore is a different project with a different surface (renamed binary, image, metrics,
+config files), so reusing upstream's `1.x` numbers would suggest a drop-in successor; `0.x` states
+that the first releases are not yet a stable API promise; and the Go module path
+(`github.com/blackbirdworks/semaphore`) stays free of a `/v2` suffix until a `v1.0.0` is decided.
+A tag fetched by the Go module proxy can never be reused.
 
-Whatever is chosen, it is irreversible once the tag is fetched by the Go module proxy.
+Supported platforms are 64-bit only (amd64 and arm64); there are no 32-bit archives or images.
+
+### Tags and snapshot versions
+
+This repository (GitHub) has no tags. A clone of the original project, or a local clone that fetched its
+tags, has hundreds (`v1.59.1` and the like). GoReleaser derives the version of a snapshot from the
+nearest tag, so such a clone builds `1.59.2-next` while a clean checkout without tags builds `0.0.1-next`.
+Neither matters for a release: a release uses the pushed tag itself (`v0.1.0` gives `0.1.0`, image tags
+`v0.1.0`, `v0.1`, `v0` and `latest`). The previous-tag lookup finds none on this repository, which is why the
+workflow writes a fixed note for the first release instead of a changelog (the history contains the
+commits of the original project). Do not push or fetch the original project's tags into this repository.
 
 ## Secrets and permissions
 

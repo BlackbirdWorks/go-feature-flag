@@ -22,7 +22,7 @@ to verify them.
 
 Images are published to `ghcr.io/blackbirdworks/semaphore` (available after the first release):
 `:v<version>`, `:latest` (distroless), `-bookworm` / `-trixie` (Debian slim) and `-fips` variants, for
-linux/amd64, linux/arm64 and (not the FIPS ones) linux/arm/v7. The image runs as the non-root user 65532.
+linux/amd64 and linux/arm64 (64-bit only; there are no 32-bit builds). The image runs as the non-root user 65532.
 
 ```shell
 docker run -p 1031:1031 -v $(pwd):/semaphore:ro ghcr.io/blackbirdworks/semaphore:latest
@@ -52,6 +52,16 @@ make build-relayproxy-fips
 ```
 
 See [FIPS 140-3 mode](advanced-usage.md#fips-140-3-mode) for details on running and verifying it.
+
+## Check the version
+
+```shell
+semaphore --version        # also -v; semaphore-cli --version for the CLI
+docker run --rm ghcr.io/blackbirdworks/semaphore:latest /usr/local/bin/semaphore --version   # the image sets CMD, not ENTRYPOINT
+```
+
+It prints the version, commit, build date, Go version and whether the binary runs in FIPS 140 mode,
+and exits without loading a configuration.
 
 ## Next steps
 

@@ -17,21 +17,8 @@ builds:
       - linux
       - windows
     goarch:
-      - 386
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: linux
-        goarch: arm
-        goarm: 6
-      - goos: windows
-        goarch: arm
 
   # FIPS 140-3 build of the relay proxy.
   # Built with GOFIPS140 (Go Cryptographic Module, CMVP validated), which bakes a default
@@ -61,21 +48,8 @@ builds:
       - linux
       - windows
     goarch:
-      - 386
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: linux
-        goarch: arm
-        goarm: 6
-      - goos: windows
-        goarch: arm
 
   # Build an AWS lambda compatible binary
   - id: semaphore-lambda
@@ -87,8 +61,6 @@ builds:
       - linux
     goarch:
       - arm64
-    goarm:
-      - "7"
 
 archives:
   - id: semaphore
@@ -100,11 +72,7 @@ archives:
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore
     files:
@@ -118,11 +86,7 @@ archives:
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore-fips
     files:
@@ -140,11 +104,7 @@ archives:
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore-cli
     files:
@@ -193,7 +153,6 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -256,7 +215,6 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -287,7 +245,6 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -318,7 +275,6 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A command line tool to manage Semaphore from your terminal"

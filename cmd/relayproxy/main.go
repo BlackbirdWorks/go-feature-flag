@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/fips140"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -17,12 +18,35 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-// version is overridden by GoReleaser during the build.
-var version = "localdev"
+// version, commit and date are overridden by GoReleaser during the build (-X main.version=...).
+var (
+	version = buildinfo.DevVersion
+	commit  string
+	date    string
+)
+
+// versionText is what --version prints.
+func versionText() string {
+	return buildinfo.Text("semaphore", buildinfo.Linked{Version: version, Commit: commit, Date: date},
+		buildinfo.Read(), fips140.Enabled())
+}
+
+// versionRequested reports whether args ask for --version / -v. It uses a flag set of its
+// own so that the flag never reaches the configuration loader.
+func versionRequested(args []string) bool {
+	f := pflag.NewFlagSet("version", pflag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	f.ParseErrorsAllowlist.UnknownFlags = true
+	show := f.BoolP("version", "v", false, "Print the version and exit")
+	_ = f.Parse(args)
+
+	return *show
+}
 
 const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ ▀█▀ █ █ █▀█ █▀▀   █▀▀ █   ▄▀█ █▀▀
 █▄█ █▄█   █▀  ██▄ █▀█  █  █▄█ █▀▄ ██▄   █▀  █▄▄ █▀█ █▄█
@@ -49,6 +73,12 @@ _____________________________________________`
 // @description Use configured APIKeys in yaml config as authorization keys via X-API-Key header,
 // @description disabled when this yaml config is not set.
 func main() {
+	if versionRequested(os.Args[1:]) {
+		fmt.Print(versionText()) //nolint:forbidigo // --version output on stdout
+
+		return
+	}
+
 	// Init pFlag for config file
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String("config", "", "Location of your config file")

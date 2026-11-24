@@ -11,7 +11,7 @@ It offers a variety of commands to interact with Semaphore, for now the supporte
 
 After the first release (see [Releasing](../RELEASING.md)), download `semaphore-cli_<version>_<Os>_<arch>.tar.gz`
 from the [GitHub Releases](https://github.com/BlackbirdWorks/semaphore/releases), or use the image
-`ghcr.io/blackbirdworks/semaphore-cli:v<version>` (its entrypoint is `/semaphore-cli`).
+`ghcr.io/blackbirdworks/semaphore-cli:v<version>` (its entrypoint is `/semaphore-cli`; `semaphore-cli --version` prints the version).
 
 ## Build the Command Line
 
