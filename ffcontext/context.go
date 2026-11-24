@@ -3,7 +3,7 @@ package ffcontext
 // This file is a wrapper around the core context package to avoid any breaking changes
 // when moving the logic to the new core package.
 
-import coreCtx "github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+import coreCtx "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
 type Context = coreCtx.Context
 type EvaluationContext = coreCtx.EvaluationContext
@@ -30,4 +30,16 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 // this could be an IP address or session ID.
 func NewEvaluationContextBuilder(key string) EvaluationContextBuilder {
 	return coreCtx.NewEvaluationContextBuilder(key)
+}
+
+// ReservedKey is the evaluation context attribute holding the Semaphore specific fields.
+// LegacyReservedKey is the name used by GO Feature Flag, still accepted.
+const (
+	ReservedKey       = coreCtx.ReservedKey
+	LegacyReservedKey = coreCtx.LegacyReservedKey
+)
+
+// HasReservedKey tells if the attributes carry the reserved attribute, under any of its names.
+func HasReservedKey(attributes map[string]any) bool {
+	return coreCtx.HasReservedKey(attributes)
 }

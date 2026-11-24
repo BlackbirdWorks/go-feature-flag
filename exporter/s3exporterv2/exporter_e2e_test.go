@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
+	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/s3exporterv2"
-	"github.com/thomaspoignant/go-feature-flag/testutils/gopherstack"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
 )

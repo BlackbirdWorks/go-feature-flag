@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
-	"github.com/thomaspoignant/go-feature-flag/internal/loadtest/relay"
 )
 
 // the relay of the soak must only be reachable through the loopback interface.

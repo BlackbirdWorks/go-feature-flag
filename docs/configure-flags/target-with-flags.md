@@ -91,10 +91,10 @@ Compare Expression and their definitions (`a|b` means you can use one of either 
 - Select by version: `version gt 0.4.0-beta.1`
 - Select on multiple criteria:
   *All users with ids finishing by `@test.com` that have the role `backend engineer` in the `pro` environment for the
-  company `go-feature-flag`*
+  company `semaphore`*
 
   ```bash
-  (key ew "@test.com") and (role eq "backend engineer") and (env eq "pro") and (company eq "go-feature-flag")
+  (key ew "@test.com") and (role eq "backend engineer") and (env eq "pro") and (company eq "semaphore")
   ```
 
 ### JsonLogic format
@@ -116,15 +116,15 @@ The rule should return `true` if the user matches the rule, anything else will b
 - Select a user with a custom property: `{ "==" : [ { "var" : "userId" }, "12345"]}`
 - Select on multiple criteria:
   *All users with ids finishing by `@test.com` that have the role `backend engineer` in the `pro` environment for the
-  company `go-feature-flag`*
+  company `semaphore`*
   
   ```json
-  {"and": [{"endsWith": [{"var": "ids"}, "@test.com"]}, {"==": [{"var": "role"}, "backend engineer"]}, {"==": [{"var": "environment"}, "pro"]}, {"==": [{"var": "company"}, "go-feature-flag"]}]}
+  {"and": [{"endsWith": [{"var": "ids"}, "@test.com"]}, {"==": [{"var": "role"}, "backend engineer"]}, {"==": [{"var": "environment"}, "pro"]}, {"==": [{"var": "company"}, "semaphore"]}]}
   ```
 
 ## Environments
 
-When you initialise `go-feature-flag` you can set an **environment** for this Semaphore instance.
+When you initialise `semaphore` you can set an **environment** for this Semaphore instance.
 
 ### Relay Proxy
 

@@ -10,7 +10,7 @@ It offers a variety of commands to interact with Semaphore, for now the supporte
 ## Build the Command Line
 
 ```shell
-make build-cli   # binary: out/bin/cli
+make build-cli   # binary: out/bin/semaphore-cli
 ```
 
-The docs below call the binary `go-feature-flag-cli`; use `out/bin/cli` (or rename it) in the examples.
+The docs below call the binary `semaphore-cli`; use `out/bin/semaphore-cli` in the examples.

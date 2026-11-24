@@ -9,10 +9,10 @@ import (
 type Endpoint string
 
 const (
-	// GOFFEval is POST /v1/feature/{key}/eval.
-	GOFFEval Endpoint = "goff-eval"
-	// GOFFAllFlags is POST /v1/allflags.
-	GOFFAllFlags Endpoint = "goff-allflags"
+	// SemaphoreEval is POST /v1/feature/{key}/eval.
+	SemaphoreEval Endpoint = "semaphore-eval"
+	// SemaphoreAllFlags is POST /v1/allflags.
+	SemaphoreAllFlags Endpoint = "semaphore-allflags"
 	// OFREPEval is POST /ofrep/v1/evaluate/flags/{key}.
 	OFREPEval Endpoint = "ofrep-eval"
 	// OFREPBulk is POST /ofrep/v1/evaluate/flags.
@@ -20,10 +20,17 @@ const (
 )
 
 // Endpoints lists all the endpoints.
-var Endpoints = []Endpoint{GOFFEval, GOFFAllFlags, OFREPEval, OFREPBulk}
+var Endpoints = []Endpoint{SemaphoreEval, SemaphoreAllFlags, OFREPEval, OFREPBulk}
 
-// ParseEndpoint validates an endpoint name.
+// ParseEndpoint validates an endpoint name. The legacy goff-eval and goff-allflags names are aliases.
 func ParseEndpoint(s string) (Endpoint, error) {
+	// Legacy spellings from before the rename are still accepted.
+	switch s {
+	case "goff-eval":
+		s = string(SemaphoreEval)
+	case "goff-allflags":
+		s = string(SemaphoreAllFlags)
+	}
 	for _, e := range Endpoints {
 		if string(e) == s {
 			return e, nil
@@ -35,15 +42,15 @@ func ParseEndpoint(s string) (Endpoint, error) {
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the
 // exporter. The bulk endpoints (GetFlagStates / AllFlagsState) evaluate without emitting events.
 func (e Endpoint) EmitsEvents() bool {
-	return e == GOFFEval || e == OFREPEval
+	return e == SemaphoreEval || e == OFREPEval
 }
 
 // Path returns the URL path of the endpoint for a flag key.
 func (e Endpoint) Path(flagKey string) string {
 	switch e {
-	case GOFFEval:
+	case SemaphoreEval:
 		return "/v1/feature/" + flagKey + "/eval"
-	case GOFFAllFlags:
+	case SemaphoreAllFlags:
 		return "/v1/allflags"
 	case OFREPEval:
 		return "/ofrep/v1/evaluate/flags/" + flagKey
@@ -60,9 +67,9 @@ func (e Endpoint) Body(i int) string {
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
 	switch e {
-	case GOFFEval:
+	case SemaphoreEval:
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)
-	case GOFFAllFlags:
+	case SemaphoreAllFlags:
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}}}`, user, custom)
 	default:
 		return fmt.Sprintf(`{"context":{"targetingKey":"user-%d",%s}}`, user, custom)

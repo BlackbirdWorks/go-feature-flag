@@ -3,8 +3,8 @@ package flagstate
 import (
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // FlagState represents the state of an individual feature flag, with regard to a specific user, when it was called.

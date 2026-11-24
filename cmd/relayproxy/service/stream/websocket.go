@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // WebsocketConnector is an interface to be able to mock websocket.Conn

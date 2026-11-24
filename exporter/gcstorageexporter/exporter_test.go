@@ -9,10 +9,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/gcstorageexporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/gcstorageexporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 	"google.golang.org/api/option"
 )
 

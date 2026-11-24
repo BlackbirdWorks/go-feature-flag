@@ -7,8 +7,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // Retriever is the interface to fetch the flags from Azure Blob Storage.

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
 )
 
 func samples(heap []uint64, gor []int) []Sample {
@@ -209,6 +209,12 @@ func TestRun_CountsEvaluationsAndErrors(t *testing.T) {
 	assert.NotEmpty(t, rep.Samples)
 	assert.Equal(t, rep.TotalEval, rep.Extra["evals"])
 	assert.Contains(t, out.String(), "goroutines")
+	assert.Positive(t, rep.Window.Samples, "the window covers the samples after the warm-up")
+	assert.Equal(t, len(rep.Samples)-2, rep.Window.Samples)
+	assert.Positive(t, rep.Window.CallsPerSec)
+	assert.Equal(t, 1, rep.Window.FlagsPerCall)
+	assert.Positive(t, rep.Window.P50)
+	assert.GreaterOrEqual(t, rep.Window.P99, rep.Window.P50)
 
 	var sum bytes.Buffer
 	rep.Summary(&sum)
@@ -285,4 +291,90 @@ func TestLibraryTarget(t *testing.T) {
 	}
 	assert.Eventually(t, func() bool { return lt.Extra()["exported_events"] > 0 }, 5*time.Second, 20*time.Millisecond)
 	assert.Contains(t, lt.Extra(), "dropped_events")
+}
+
+type weightedTarget struct{ n int }
+
+func (weightedTarget) Eval(int, int) error     { return nil }
+func (weightedTarget) Extra() map[string]int64 { return nil }
+func (weightedTarget) Close()                  {}
+func (w weightedTarget) FlagsPerCall() int     { return w.n }
+
+func TestFlagsPerCall(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		target Target
+		want   int
+	}{
+		{name: "plain target evaluates one flag", target: &fakeTarget{}, want: 1},
+		{name: "weighted target", target: weightedTarget{n: 12}, want: 12},
+		{name: "a weight below 1 counts as 1", target: weightedTarget{n: 0}, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, flagsPerCall(tt.target))
+		})
+	}
+}
+
+func TestWarmupCount(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, 2, warmupCount(5, Options{}), "at least two samples")
+	assert.Equal(t, 6, warmupCount(30, Options{}), "20 percent of the samples")
+	assert.Equal(t, 4, warmupCount(30, Options{WarmupIntervals: 4}), "explicit value wins")
+}
+
+func TestSummarize(t *testing.T) {
+	t.Parallel()
+	hist := func(durations ...time.Duration) []int64 {
+		h := make([]int64, latBuckets)
+		for _, d := range durations {
+			h[bucket(d.Nanoseconds())]++
+		}
+		return h
+	}
+	us := time.Microsecond
+	samples := []Sample{
+		{EvalsPerSec: 1, Errors: 100}, // warm-up, ignored
+		{EvalsPerSec: 1000, Errors: 1},
+		{EvalsPerSec: 3000, Errors: 2},
+	}
+	hists := [][]int64{
+		hist(time.Second), // warm-up, ignored
+		hist(100*us, 100*us, 100*us, 100*us),
+		hist(100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 10*time.Millisecond),
+	}
+
+	w := summarize(samples, hists, 1, 25)
+	assert.Equal(t, 2, w.Samples)
+	assert.InDelta(t, 2000, w.CallsPerSec, 1e-9)
+	assert.InDelta(t, 50000, w.FlagsPerSec, 1e-9)
+	assert.Equal(t, 25, w.FlagsPerCall)
+	assert.Equal(t, int64(3), w.Errors, "the warm-up errors are not counted")
+	assert.Less(t, w.P50, time.Millisecond)
+	assert.GreaterOrEqual(t, w.P50, 100*us)
+	assert.GreaterOrEqual(t, w.P99, 10*time.Millisecond, "the slow call shows in the tail")
+	assert.LessOrEqual(t, w.P95, w.P99)
+	assert.Less(t, w.P99, time.Second, "the warm-up latency is not counted")
+
+	assert.Equal(t, Window{}, summarize(samples, hists, 3, 1), "no sample after the warm-up")
+}
+
+func TestSummaryPrintsTheWindow(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	Report{Name: "x", Pass: true, Window: Window{
+		Samples: 4, CallsPerSec: 100, FlagsPerCall: 3, FlagsPerSec: 300, Errors: 2,
+		P50: 100 * time.Microsecond, P95: 200 * time.Microsecond, P99: 300 * time.Microsecond,
+	}}.Summary(&buf)
+	out := buf.String()
+	assert.Contains(t, out, "100 calls/s, 300 flags/s (3 per call)")
+	assert.Contains(t, out, "2 errors")
+	assert.Contains(t, out, "p95 200.0us")
+
+	buf.Reset()
+	Report{Name: "y", Pass: true}.Summary(&buf)
+	assert.NotContains(t, buf.String(), "window (")
 }

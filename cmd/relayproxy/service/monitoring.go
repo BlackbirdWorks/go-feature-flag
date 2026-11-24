@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 )
 
 // Monitoring is the interface of the monitoring service

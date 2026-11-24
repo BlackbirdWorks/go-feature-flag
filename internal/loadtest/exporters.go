@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // ExporterMode selects the behaviour of the exporter used by the harness and the benchmarks.

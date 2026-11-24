@@ -58,8 +58,8 @@ In param you will receive a `notifier.DiffCache` struct that will tell you what 
 
 ```go
 import (
-    ffclient "github.com/thomaspoignant/go-feature-flag"
-    "github.com/thomaspoignant/go-feature-flag/notifier"
+    ffclient "github.com/blackbirdworks/semaphore"
+    "github.com/blackbirdworks/semaphore/notifier"
     "sync"
 )
 
@@ -86,7 +86,7 @@ for key, update := range diff.Updated {
 ```
 
 > [!NOTE]
-> If you think your custom notifier could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/go-feature-flag/pulls) to add it to the list of available notifiers.
+> If you think your custom notifier could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls) to add it to the list of available notifiers.
 
 > [!WARNING]
 > If you are using a custom notifier, it is easy to use it for the GO Module, but if you want to use it in the relay proxy you will have to recompile it yourself.

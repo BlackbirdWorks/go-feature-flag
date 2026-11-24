@@ -3,7 +3,7 @@ package mock
 import (
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 type Notifier struct {

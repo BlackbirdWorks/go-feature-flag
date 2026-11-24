@@ -9,6 +9,9 @@ import (
 	"sync"
 	"time"
 
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml/v2"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -17,9 +20,15 @@ import (
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
-	"github.com/thomaspoignant/go-feature-flag/utils"
-	httpprovider "github.com/thomaspoignant/koanf-http-provider"
 	"go.uber.org/zap"
+)
+
+const (
+	// EnvVariablePrefix is the prefix of the environment variables that is always read,
+	// SEMAPHORE_SERVER_PORT sets server.port.
+	EnvVariablePrefix = "SEMAPHORE_"
+	// legacyEnvVariablePrefix is what the prefixes used with GO Feature Flag start with (GOFF_, GOFFPROXY_).
+	legacyEnvVariablePrefix = "GOFF"
 )
 
 type ConfigLoader struct {
@@ -33,6 +42,10 @@ type ConfigLoader struct {
 	k              *koanf.Koanf
 	fileProvider   *file.File
 	configFilePath string // stored config file path for reload
+	// environFunc returns the environment variables, os.Environ when nil (it is set by the tests).
+	environFunc func() []string
+	// warner is where the use of a legacy name is reported, legacy.Default when nil (it is set by the tests).
+	warner *legacy.Warner
 
 	// flagSets loaded from studio.url, the provider and its parser are reused on reload
 	studioProvider *httpprovider.HTTP
@@ -288,9 +301,30 @@ func (c *ConfigLoader) loadConfigFile() {
 	}
 }
 
-// loadEnvVariables loads the environment variables
+// loadEnvVariables loads the environment variables.
+//
+// The variables are read with the prefix of the envVariablePrefix setting (no prefix by default), then with
+// the SEMAPHORE_ prefix, which is always accepted. A variable with the SEMAPHORE_ prefix wins over the same
+// variable without it.
 func (c *ConfigLoader) loadEnvVariables() {
-	_ = c.k.Load(c.mapEnvVariablesProvider(c.k.String("envVariablePrefix"), c.log), nil)
+	prefix := c.k.String("envVariablePrefix")
+	if strings.HasPrefix(strings.ToUpper(prefix), legacyEnvVariablePrefix) {
+		c.legacyWarner().Warn(legacy.KindEnvPrefix, fmt.Sprintf(
+			"envVariablePrefix %q is a legacy GO Feature Flag prefix, it still works, "+
+				"%s is the Semaphore prefix and is always accepted", prefix, EnvVariablePrefix))
+	}
+	_ = c.k.Load(c.mapEnvVariablesProvider(prefix, c.log), nil)
+	if prefix != EnvVariablePrefix {
+		_ = c.k.Load(c.mapEnvVariablesProvider(EnvVariablePrefix, c.log), nil)
+	}
+}
+
+// legacyWarner returns where the use of a legacy name is reported.
+func (c *ConfigLoader) legacyWarner() *legacy.Warner {
+	if c.warner != nil {
+		return c.warner
+	}
+	return legacy.Default
 }
 
 // loadStudioFlagSets loads the flagSets from studio.url, if it is set
@@ -327,10 +361,27 @@ func (c *ConfigLoader) loadStudioFlagSets() {
 	c.studioFlagSets = studioConf.FlagSets
 }
 
+// Names of the relay proxy configuration file, without extension.
+const (
+	configFileName       = "semaphore-proxy"
+	legacyConfigFileName = "goff-proxy"
+)
+
+// configFileLocations are the folders searched for the configuration file when --config is not set.
+// The /goff/ folders are the ones of GO Feature Flag, they are searched after the Semaphore ones.
+var configFileLocations = []string{
+	"./", "/semaphore/", "/etc/opt/semaphore/",
+	"/goff/", "/etc/opt/goff/",
+}
+
 // locateConfigFile is selecting the configuration file we will use.
+// In every location semaphore-proxy.<ext> is searched before the legacy goff-proxy.<ext>.
 func locateConfigFile(inputFilePath string) (string, error) {
-	filename := "goff-proxy"
-	defaultLocations := []string{"./", "/goff/", "/etc/opt/goff/"}
+	return locateConfigFileIn(inputFilePath, configFileLocations, legacy.Default)
+}
+
+// locateConfigFileIn is locateConfigFile with the folders to search.
+func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy.Warner) (string, error) {
 	supportedExtensions := []string{"yaml", "toml", "json", "yml"}
 
 	if inputFilePath != "" {
@@ -339,17 +390,25 @@ func locateConfigFile(inputFilePath string) (string, error) {
 		}
 		return inputFilePath, nil
 	}
-	for _, location := range defaultLocations {
-		for _, ext := range supportedExtensions {
-			configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
-			if _, err := os.Stat(configFile); err == nil {
+	for _, location := range locations {
+		for _, filename := range []string{configFileName, legacyConfigFileName} {
+			for _, ext := range supportedExtensions {
+				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
+				if _, err := os.Stat(configFile); err != nil {
+					continue
+				}
+				if filename == legacyConfigFileName {
+					warner.Warn(legacy.KindConfigFile, fmt.Sprintf(
+						"the configuration file %s uses the legacy name %s, it is still accepted, "+
+							"rename it to %s.%s", configFile, legacyConfigFileName, configFileName, ext))
+				}
 				return configFile, nil
 			}
 		}
 	}
 	return "", fmt.Errorf(
 		"impossible to find config file in the default locations [%s]",
-		strings.Join(defaultLocations, ","),
+		strings.Join(locations, ","),
 	)
 }
 

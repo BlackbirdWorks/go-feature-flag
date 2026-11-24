@@ -7,7 +7,7 @@ Tools to measure the throughput and the memory stability of the evaluation hot p
 | What | Where | Run |
 | --- | --- | --- |
 | Library variations per scenario (no rule, rule, multiple rules, JsonLogic, percentage, progressive, scheduled, large `in` list), tracking off/on, serial/parallel, all-flags state (10/100/1000) | `variation_scenarios_bench_test.go` (build tag `bench`) | `go test -tags bench -run xxx -bench 'Scenarios\|AllFlagsState' -benchmem .` |
-| Relay proxy handlers in-process (GOFF eval/allflags, OFREP eval/bulk) | `internal/loadtest/relay/handlers_bench_test.go` | `go test -run xxx -bench Handlers -benchmem ./internal/loadtest/relay` |
+| Relay proxy handlers in-process (Semaphore eval/allflags, OFREP eval/bulk) | `internal/loadtest/relay/handlers_bench_test.go` | `go test -run xxx -bench Handlers -benchmem ./internal/loadtest/relay` |
 | Event store, flush cycle, manager with discard/slow/failing exporter | `exporter/exporter_bench_test.go` | `go test -run xxx -bench . -benchmem ./exporter` |
 | Flag cache reads, with concurrent `UpdateCache` | `internal/cache/cache_bench_test.go` | `go test -run xxx -bench . -benchmem ./internal/cache` |
 
@@ -23,13 +23,18 @@ HeapObjects), NumGC and goroutines.
 
 ```
 go run ./internal/loadtest/cmd/soak -target library -exporter slow -duration 60s
-go run ./internal/loadtest/cmd/soak -target relay -endpoint goff-eval -exporter failing -duration 60s
+go run ./internal/loadtest/cmd/soak -target relay -endpoint semaphore-eval -exporter failing -duration 60s
 go run ./internal/loadtest/cmd/soak -target relay -endpoint ofrep-bulk -flag x -duration 60s
 ```
 
-Endpoints: `goff-eval`, `goff-allflags`, `ofrep-eval`, `ofrep-bulk`. Only `goff-eval` and `ofrep-eval` queue events: `-exporter slow|failing` is rejected on the bulk
+Endpoints: `semaphore-eval`, `semaphore-allflags`, `ofrep-eval`, `ofrep-bulk`. Only `semaphore-eval` and `ofrep-eval` queue events: `-exporter slow|failing` is rejected on the bulk
 endpoints (they would bypass the exporter). Unknown `-endpoint`/`-exporter` values are rejected, a failed evaluation
 (for example an unknown `-flag`) counts as an error, and Ctrl+C stops the run without a verdict (exit status 130). `-cpuprofile` writes a CPU profile.
+`-protocol http1|h2c` (relay target) selects HTTP/1.1 with keep-alive or HTTP/2 over cleartext with prior knowledge (the proxy is started
+with `server.enableH2C`; a response that does not use the expected protocol counts as an error). For the bulk endpoints the
+report gives flags evaluated per second next to calls per second (one probe request counts the flags of a response), and the last
+lines print the window after the warm-up: calls/s, flags/s, errors and p50/p95/p99 latency. See
+[the performance page](../../docs/performance.md) for a measured matrix.
 For the relay target the proxy runs in the same process as the load generator (the heap and the
 CPU are shared), the exporter is the webhook exporter pointed at a local sink with the chosen
 behaviour.

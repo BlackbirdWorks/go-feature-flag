@@ -5,9 +5,9 @@ The relay proxy can be deployed in Kubernetes using a helm chart.
 Helm is an invaluable tool for configuring and deploying applications to a Kubernetes environment.
 
 The Helm chart lives in this repository under
-[`cmd/relayproxy/helm-charts/relay-proxy`](https://github.com/BlackbirdWorks/go-feature-flag/tree/main/cmd/relayproxy/helm-charts/relay-proxy).
+[`cmd/relayproxy/helm-charts/relay-proxy`](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/helm-charts/relay-proxy).
 This repository does not publish the chart to a Helm repository, so install it from a local checkout.
-The default image is `ghcr.io/blackbirdworks/go-feature-flag`; override `image.repository` and `image.tag` to
+The default image is `ghcr.io/blackbirdworks/semaphore`; override `image.repository` and `image.tag` to
 use an image you built and pushed.
 
 ## Install Semaphore relay proxy in Kubernetes using Helm
@@ -19,14 +19,14 @@ use an image you built and pushed.
 ### Step 1: Get the chart
 
 ```shell
-git clone https://github.com/BlackbirdWorks/go-feature-flag.git
-cd go-feature-flag
+git clone https://github.com/BlackbirdWorks/semaphore.git
+cd semaphore
 ```
 
 ### Step 2: Install the Chart
 
 Install the chart from the local directory with your values file.
-You can look at the [chart README](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/cmd/relayproxy/helm-charts/relay-proxy/README.md) to know exactly what you can change in the values.yaml file.
+You can look at the [chart README](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/helm-charts/relay-proxy/README.md) to know exactly what you can change in the values.yaml file.
 
 ```shell
 helm install relay-proxy ./cmd/relayproxy/helm-charts/relay-proxy -f values.yaml

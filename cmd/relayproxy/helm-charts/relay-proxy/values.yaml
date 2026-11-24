@@ -9,11 +9,11 @@ relayproxy:
     logLevel: info
     retriever:
       kind: http
-      url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
+      url: https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml
     exporter:
       kind: log
     enableSwagger: true
-#    envVariablePrefix: "GOFFPROXY_"
+#    envVariablePrefix: "SEMAPHORE_"
 # -- Environment variables to pass to the relay proxy
 env: {}
 # Examples:
@@ -33,7 +33,7 @@ image:
   # This repository does not publish images from CI: build and push your own
   # (see docs/relay-proxy/install.md) and override this value and `image.tag`
   # if the default is not available to you.
-  repository: ghcr.io/blackbirdworks/go-feature-flag
+  repository: ghcr.io/blackbirdworks/semaphore
   # -- The image is pulled only if it is not already present locally
   pullPolicy: IfNotPresent
   # -- Overrides the image tag whose default is the chart appVersion
@@ -191,3 +191,7 @@ extraManifests: []
 #      kind: Role
 #      name: feature-flags-relay-proxy
 #      apiGroup: rbac.authorization.k8s.io
+
+# -- (bool) Whether Kubernetes injects the environment variables of the Services of the namespace into the pod.
+# They are not needed, and a Service named `semaphore` would add `SEMAPHORE_*` variables that look like settings.
+enableServiceLinks: false

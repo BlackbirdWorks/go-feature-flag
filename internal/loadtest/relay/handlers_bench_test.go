@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/ofrep"
-	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
-	"github.com/thomaspoignant/go-feature-flag/internal/loadtest/relay"
 )
 
 // invoke runs the handler once the way the router would, without any network.
@@ -43,19 +43,19 @@ func BenchmarkHandlers(b *testing.B) {
 	}
 	defer r.Close()
 	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
-	goffEval := controller.NewFlagEval(fm, metrics)
-	goffAll := controller.NewAllFlags(fm, metrics)
+	semEval := controller.NewFlagEval(fm, metrics)
+	semAll := controller.NewAllFlags(fm, metrics)
 	ofrepCtrl := ofrep.NewOFREPEvaluate(fm, metrics, config.OfrepEventStream{})
 	handlers := map[relay.Endpoint]func(*echo.Context) error{
-		relay.GOFFEval:     goffEval.Handler,
-		relay.GOFFAllFlags: goffAll.Handler,
-		relay.OFREPEval:    ofrepCtrl.Evaluate,
-		relay.OFREPBulk:    ofrepCtrl.BulkEvaluate,
+		relay.SemaphoreEval:     semEval.Handler,
+		relay.SemaphoreAllFlags: semAll.Handler,
+		relay.OFREPEval:         ofrepCtrl.Evaluate,
+		relay.OFREPBulk:         ofrepCtrl.BulkEvaluate,
 	}
 	e := echo.New()
 	for _, ep := range relay.Endpoints {
 		for _, track := range []bool{false, true} {
-			if (ep == relay.GOFFAllFlags || ep == relay.OFREPBulk) && track {
+			if (ep == relay.SemaphoreAllFlags || ep == relay.OFREPBulk) && track {
 				continue
 			}
 			key := loadtest.FlagKey("rule", "bool", track)

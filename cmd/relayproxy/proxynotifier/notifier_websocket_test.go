@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/proxynotifier"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 )
 
 type mockWebsocketService struct {

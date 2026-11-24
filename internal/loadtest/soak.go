@@ -25,6 +25,13 @@ type Target interface {
 	Close()
 }
 
+// Weighted is implemented by a target whose call evaluates several flags (a bulk request): the report
+// then also gives flags evaluated per second.
+type Weighted interface {
+	// FlagsPerCall is the number of flags one successful call evaluates (at least 1).
+	FlagsPerCall() int
+}
+
 // Options configure Run.
 type Options struct {
 	Name     string
@@ -62,6 +69,22 @@ type Sample struct {
 	Goroutines  int
 }
 
+// Window summarizes the measured part of a run (the samples after the warm-up).
+type Window struct {
+	// Samples is the number of sampling intervals in the window.
+	Samples int
+	// CallsPerSec is the mean number of calls (requests) per second.
+	CallsPerSec float64
+	// FlagsPerCall is the number of flags evaluated by one call (1 unless the target is Weighted).
+	FlagsPerCall int
+	// FlagsPerSec is CallsPerSec * FlagsPerCall.
+	FlagsPerSec float64
+	// Errors is the number of failed calls in the window.
+	Errors int64
+	// P50, P95, P99 are latency quantiles of the sampled calls of the window (upper bound of the bucket).
+	P50, P95, P99 time.Duration
+}
+
 // Report is the result of Run.
 type Report struct {
 	Name      string
@@ -73,6 +96,8 @@ type Report struct {
 	Reasons   []string
 	// HeapGrowthBytes is the growth of the peak HeapInuse between the first and the last third of the measured window.
 	HeapGrowthBytes float64
+	// Window is the throughput and latency of the measured window; the zero value when it is too short.
+	Window Window
 }
 
 const (
@@ -168,6 +193,7 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 	ticker := time.NewTicker(o.Interval)
 	defer ticker.Stop()
 	hist := make([]int64, latBuckets)
+	var sampleHists [][]int64
 loop:
 	for {
 		select {
@@ -177,22 +203,9 @@ loop:
 		}
 		now := time.Now()
 		count, errs, nLat := drain(stats, hist)
-		runtime.GC()
-		var ms runtime.MemStats
-		runtime.ReadMemStats(&ms)
-		s := Sample{
-			Elapsed:     now.Sub(start).Round(time.Second),
-			EvalsPerSec: float64(count-lastCount) / now.Sub(last).Seconds(),
-			Errors:      errs - lastErr,
-			P50:         quantile(hist, nLat, 0.50),
-			P99:         quantile(hist, nLat, 0.99),
-			HeapAlloc:   ms.HeapAlloc,
-			HeapInuse:   ms.HeapInuse,
-			HeapObjects: ms.HeapObjects,
-			NumGC:       ms.NumGC,
-			Goroutines:  runtime.NumGoroutine(),
-		}
+		s := takeSample(now.Sub(start), now.Sub(last), count-lastCount, errs-lastErr, hist, nLat)
 		rep.Samples = append(rep.Samples, s)
+		sampleHists = append(sampleHists, append([]int64(nil), hist...))
 		if out != nil {
 			if len(rep.Samples) == 1 {
 				_, _ = fmt.Fprintln(out, header)
@@ -209,6 +222,7 @@ loop:
 	}
 	rep.Extra = t.Extra()
 	judge(&rep, o)
+	rep.Window = summarize(rep.Samples, sampleHists, warmupCount(len(rep.Samples), o), flagsPerCall(t))
 	if a := abortedAt.Load(); a > 0 {
 		rep.Pass = false
 		rep.Reasons = append(rep.Reasons, fmt.Sprintf(
@@ -216,6 +230,25 @@ loop:
 			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>20))
 	}
 	return rep
+}
+
+// takeSample forces a GC and builds the sample of the interval that just ended.
+func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64, nLat int64) Sample {
+	runtime.GC()
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	return Sample{
+		Elapsed:     elapsed.Round(time.Second),
+		EvalsPerSec: float64(calls) / interval.Seconds(),
+		Errors:      errs,
+		P50:         quantile(hist, nLat, 0.50),
+		P99:         quantile(hist, nLat, 0.99),
+		HeapAlloc:   ms.HeapAlloc,
+		HeapInuse:   ms.HeapInuse,
+		HeapObjects: ms.HeapObjects,
+		NumGC:       ms.NumGC,
+		Goroutines:  runtime.NumGoroutine(),
+	}
 }
 
 // watchdog cancels the run when the live heap exceeds maxHeap, recording when in abortedAt.
@@ -282,6 +315,44 @@ func (s Sample) line() string {
 		float64(s.HeapAlloc)/(1<<20), float64(s.HeapInuse)/(1<<20), s.HeapObjects, s.NumGC, s.Goroutines)
 }
 
+// warmupCount is the number of leading samples ignored by the verdict and the window.
+func warmupCount(n int, o Options) int {
+	if o.WarmupIntervals > 0 {
+		return o.WarmupIntervals
+	}
+	return max(2, n/5)
+}
+
+// flagsPerCall returns the number of flags one call of the target evaluates.
+func flagsPerCall(t Target) int {
+	if w, ok := t.(Weighted); ok {
+		return max(1, w.FlagsPerCall())
+	}
+	return 1
+}
+
+// summarize computes the Window of the samples after warm. hists holds the latency histogram of each sample.
+func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
+	if warm >= len(samples) {
+		return Window{}
+	}
+	w := Window{Samples: len(samples) - warm, FlagsPerCall: perCall}
+	merged := make([]int64, latBuckets)
+	var total int64
+	for i := warm; i < len(samples); i++ {
+		w.CallsPerSec += samples[i].EvalsPerSec
+		w.Errors += samples[i].Errors
+		for b, c := range hists[i] {
+			merged[b] += c
+			total += c
+		}
+	}
+	w.CallsPerSec /= float64(w.Samples)
+	w.FlagsPerSec = w.CallsPerSec * float64(perCall)
+	w.P50, w.P95, w.P99 = quantile(merged, total, 0.50), quantile(merged, total, 0.95), quantile(merged, total, 0.99)
+	return w
+}
+
 // judge computes the "memory stable" verdict.
 //
 // After the warm-up, the peak post-GC HeapInuse of the last third of the samples is compared with
@@ -295,10 +366,7 @@ func judge(r *Report, o Options) {
 		r.Reasons = append(r.Reasons, fmt.Sprintf("%d of %d evaluations failed", r.TotalErr, r.TotalEval))
 	}
 	n := len(r.Samples)
-	warm := o.WarmupIntervals
-	if warm <= 0 {
-		warm = max(2, n/5)
-	}
+	warm := warmupCount(n, o)
 	if n-warm < 3 {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
@@ -359,6 +427,12 @@ func (r Report) Summary(w io.Writer) {
 		r.Name, verdict, avg, r.TotalEval, r.TotalErr, r.HeapGrowthBytes/(1<<20))
 	for _, reason := range r.Reasons {
 		_, _ = fmt.Fprintf(w, "  - %s\n", reason)
+	}
+	if r.Window.Samples > 0 {
+		_, _ = fmt.Fprintf(w, "  window (%d samples after warm-up): %.0f calls/s, %.0f flags/s (%d per call), "+
+			"%d errors, latency p50 %.1fus p95 %.1fus p99 %.1fus\n",
+			r.Window.Samples, r.Window.CallsPerSec, r.Window.FlagsPerSec, r.Window.FlagsPerCall, r.Window.Errors,
+			float64(r.Window.P50)/1e3, float64(r.Window.P95)/1e3, float64(r.Window.P99)/1e3)
 	}
 	if len(r.Extra) > 0 {
 		keys := make([]string, 0, len(r.Extra))

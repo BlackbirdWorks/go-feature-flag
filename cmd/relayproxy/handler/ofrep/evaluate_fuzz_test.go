@@ -10,14 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/ofrep"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 	"go.uber.org/zap"
 )
 

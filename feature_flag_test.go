@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/model"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock/mockretriever"
 	"gopkg.in/yaml.v3"
 )
 
@@ -710,7 +710,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 		"the updated flag configuration was never persisted on disk")
 	assert.NotEqual(t, contentP, contentP2)
 
-	// 4. Stopping GO Feature Flag and restart with a retriever that will fail.
+	// 4. Stopping Semaphore and restart with a retriever that will fail.
 	// Close() stops the polling: without it the background updater of gffClient would keep
 	// rewriting persistFile behind the back of gffClient2.
 	gffClient.Close()

@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/thejerf/slogassert"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 func TestDataExporterManager_flushWithTime(t *testing.T) {

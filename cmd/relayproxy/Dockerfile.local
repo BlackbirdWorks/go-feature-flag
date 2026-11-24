@@ -9,12 +9,12 @@
 #   make build-relayproxy-docker
 #
 # ...or directly, from the repository root (the build context must be the root):
-#   docker build -f cmd/relayproxy/Dockerfile.local -t go-feature-flag:local .
+#   docker build -f cmd/relayproxy/Dockerfile.local -t semaphore:local .
 #
 # Run it:
 #   docker run -p 1031:1031 \
-#     -v $(pwd)/goff-proxy.yaml:/goff/goff-proxy.yaml \
-#     go-feature-flag:local
+#     -v $(pwd)/semaphore-proxy.yaml:/semaphore/semaphore-proxy.yaml \
+#     semaphore:local
 
 FROM golang:1.27 AS build
 WORKDIR /src
@@ -25,9 +25,12 @@ COPY . .
 ARG VERSION=localdev
 RUN CGO_ENABLED=0 GOWORK=off go build \
     -ldflags="-s -w -X main.version=${VERSION}" \
-    -o /out/go-feature-flag ./cmd/relayproxy
+    -o /out/semaphore ./cmd/relayproxy
 
 FROM gcr.io/distroless/static-debian13:latest
-COPY --from=build /out/go-feature-flag /go-feature-flag
+COPY --from=build /out/semaphore /usr/local/bin/semaphore
+COPY LICENSE NOTICE /licenses/
+COPY rules/LICENSE /licenses/rules-LICENSE
+COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
 EXPOSE 1031
-CMD ["/go-feature-flag"]
+CMD ["/usr/local/bin/semaphore"]

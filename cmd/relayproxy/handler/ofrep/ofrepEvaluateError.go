@@ -1,8 +1,8 @@
 package ofrep
 
 import (
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func NewEvaluateError(

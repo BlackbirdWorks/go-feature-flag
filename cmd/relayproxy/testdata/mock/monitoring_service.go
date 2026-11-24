@@ -1,6 +1,6 @@
 package mock
 
-import "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
+import "github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 
 // MockMonitoringService is a mock implementation for testing error scenarios
 type MockMonitoringService struct {

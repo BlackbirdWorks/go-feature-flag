@@ -11,4 +11,4 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 data:
-  goff-proxy.yml: {{- toYaml (tpl .Values.relayproxy.config .) | nindent 4 }}
+  semaphore-proxy.yml: {{- toYaml (tpl .Values.relayproxy.config .) | nindent 4 }}

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func progressiveFlag(endPercentage *float64) *InternalFlag {

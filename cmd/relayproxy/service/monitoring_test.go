@@ -4,14 +4,14 @@ import (
 	"errors"
 	"testing"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/testdata/mock"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 	"go.uber.org/zap"
 )
 

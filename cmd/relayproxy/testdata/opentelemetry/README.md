@@ -1,6 +1,6 @@
 # Test OpenTelemetry Tracing
 
-**GO Feature Flag** is able to generate some trace if you use the OpenTelemetry.
+**Semaphore** is able to generate some trace if you use the OpenTelemetry.
 
 If you want to test it locally, you can use the following command to start a local OpenTelemetry collector:
 
@@ -21,7 +21,7 @@ docker run --rm --name jaeger \
   jaegertracing/all-in-one
 ```
 
-When your collector is up, you can configure GO Feature Flag relay-proxy by setting the OTLP endpoint in your configuration file.
+When your collector is up, you can configure Semaphore relay-proxy by setting the OTLP endpoint in your configuration file.
 ```yaml
 #...
 openTelemetryOtlpEndpoint: http://localhost:4318
@@ -29,4 +29,4 @@ openTelemetryOtlpEndpoint: http://localhost:4318
 
 You can connect to **`jaeger`** at this address: http://localhost:16686/search.
 
-After a 1st call to the API you will see a service call `go-feature-flag` and you can check the traces.
+After a 1st call to the API you will see a service call `semaphore` and you can check the traces.

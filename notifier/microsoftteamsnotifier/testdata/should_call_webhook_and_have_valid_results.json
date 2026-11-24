@@ -10,7 +10,7 @@
         "body": [
           {
             "type": "TextBlock",
-            "text": "GO Feature Flag",
+            "text": "Semaphore",
             "size": "large",
             "weight": "bolder",
             "style": "heading",

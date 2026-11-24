@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
+	rr "github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
-	rr "github.com/thomaspoignant/go-feature-flag/retriever/postgresqlretriever"
 )
 
 func TestGetPool_MultipleURIsAndReuse(t *testing.T) {

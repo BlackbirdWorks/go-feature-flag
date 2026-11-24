@@ -4,13 +4,13 @@ import (
 	"strconv"
 	"strings"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	prom "github.com/prometheus/client_golang/prometheus"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
 )
 
-const flagLoadedEvaluationKey = "gofeatureflag-flag-loaded-metric"
+const flagLoadedEvaluationKey = "semaphore-flag-loaded-metric"
 
 // FlagsetSource gives access to the flagsets currently loaded by the relay proxy.
 type FlagsetSource interface {
@@ -26,7 +26,7 @@ func newFlagLoadedCollector(source FlagsetSource) *flagLoadedCollector {
 	return &flagLoadedCollector{
 		source: source,
 		desc: prom.NewDesc(
-			prom.BuildFQName("", GOFFSubSystem, "flag_loaded"),
+			prom.BuildFQName("", SubSystem, "flag_loaded"),
 			"Flags currently loaded in the relay proxy cache, one series per flag with value 1.",
 			[]string{"flagset", flagNameLabel, "disabled"},
 			nil,
@@ -47,7 +47,8 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 		if flagset == nil {
 			continue
 		}
-		flags, err := flagset.GetFlagsFromCache()
+		// the flags are only evaluated: not copying them keeps the memoized state of the scheduled rollouts.
+		flags, err := flagset.GetFlagsFromCacheReadOnly()
 		if err != nil {
 			continue
 		}
@@ -91,7 +92,7 @@ func addNestedAttribute(ctx ffcontext.EvaluationContext, dottedKey string, value
 	current[parts[len(parts)-1]] = value
 }
 
-// RegisterFlagLoaded exposes gofeatureflag_flag_loaded, computed from the flag cache on every scrape.
+// RegisterFlagLoaded exposes semaphore_flag_loaded, computed from the flag cache on every scrape.
 func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 	if m.Registry == nil || source == nil {
 		return nil

@@ -22,11 +22,19 @@ rules/ - Rules engine
   The directory is a vendored copy of https://github.com/go-feature-flag/rules (see
   rules/README.md and UPSTREAM.md), a fork of the project above, with local changes.
 
+internal/koanfhttpprovider/ - koanf HTTP provider
+  Copyright (c) 2026 Thomas Poignant
+  Licensed under the MIT License (see internal/koanfhttpprovider/LICENSE)
+  Source: https://github.com/thomaspoignant/koanf-http-provider (v0.1.0), copied here so that
+  this repository does not depend on a module controlled by the author of the upstream project.
+
 Licence texts
 -------------
 
   LICENSE        MIT License, Copyright (c) 2020 Thomas Poignant (the whole repository)
   rules/LICENSE  MIT License, Copyright (c) 2019 Nikunj Yadav (the rules/ directory)
+  internal/koanfhttpprovider/LICENSE
+                 MIT License, Copyright (c) 2026 Thomas Poignant (that directory)
 
 No other directory in this repository carries a separate licence file or copyright
 header. Go dependencies are fetched through go.mod and are covered by their own

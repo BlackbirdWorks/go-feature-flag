@@ -36,7 +36,7 @@ func NewManifestCmd() *cobra.Command {
 	manifestCmd.Flags().StringVarP(&manifestFlagFormat,
 		"format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
 	manifestCmd.Flags().StringVarP(&manifestConfigFile,
-		"config", "c", "", "Location of your GO Feature Flag local configuration file")
+		"config", "c", "", "Location of your Semaphore local configuration file")
 	manifestCmd.Flags().StringVar(&flagManifestDestination,
 		"flag_manifest_destination", "", "Destination of your flag manifest file. "+
 			"If not provided, the manifest will be printed to the console.")

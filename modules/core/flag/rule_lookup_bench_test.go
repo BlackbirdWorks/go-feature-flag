@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // largeInQuery returns `key in ["user-0000000", ...]` with 300000 ids, a ~4.5 MB query.

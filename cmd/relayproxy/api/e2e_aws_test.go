@@ -22,10 +22,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	kinesistypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/testutils/gopherstack"
 )
 
 const e2ePollingMs = 1000
@@ -88,7 +88,7 @@ func goffCtx(key string, kv ...any) map[string]any {
 	for i := 0; i+1 < len(kv); i += 2 {
 		custom[kv[i].(string)] = kv[i+1]
 	}
-	return map[string]any{"user": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
+	return map[string]any{"evaluationContext": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
 }
 
 const flagSetsYAML = `

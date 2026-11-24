@@ -11,14 +11,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 var _ notifier.Notifier = &Notifier{}
 
 const (
-	slackFooter  = "go-feature-flag"
+	slackFooter  = "semaphore"
 	colorDeleted = "#FF0000"
 	colorUpdated = "#FFA500"
 	colorAdded   = "#008000"

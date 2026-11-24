@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
 )
 
 // captureHandler stores every slog record so tests can assert message content

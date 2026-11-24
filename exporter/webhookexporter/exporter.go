@@ -10,10 +10,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/internal/signer"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/internal/signer"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}

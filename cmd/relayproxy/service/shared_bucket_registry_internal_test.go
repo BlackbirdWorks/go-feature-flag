@@ -2,7 +2,7 @@ package service
 
 // Whitebox: sharedBucketRegistry is unexported, and its tests need the registry internals (the
 // group count, the pending retrievers, the factory) that the exported API does not expose. The
-// fakes of this file are shared by the whitebox tests of gofeatureflag_client.go and
+// fakes of this file are shared by the whitebox tests of semaphore_client.go and
 // flagset_manager.go.
 
 import (
@@ -19,11 +19,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
-	"github.com/thomaspoignant/go-feature-flag/retriever/s3retrieverv2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"cloud.google.com/go/pubsub/v2"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"google.golang.org/api/option"
 )
 

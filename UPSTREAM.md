@@ -65,11 +65,37 @@ Done in this tree:
 - Docs website, bundled OpenFeature provider SDKs (`openfeature/providers`, including the python provider's WASM submodule), `examples/` and the upstream release/community tooling removed; plain Markdown docs live in `docs/`.
 - gopherstack-based end-to-end tests (`testutils/gopherstack`, `*_e2e_test.go`, build tag `docker`).
 
+- Renamed to Semaphore: Go module path `github.com/blackbirdworks/semaphore`, binaries, images and operator-visible names, with
+  the GO Feature Flag names kept as aliases (see "Path and name mapping" and `docs/migration/rename-to-semaphore.md`).
+- `github.com/thomaspoignant/koanf-http-provider` is copied into `internal/koanfhttpprovider` (MIT, see `NOTICE`): no module
+  controlled by the upstream author is a dependency.
+- `cmd/relayproxy/testdata/web-provider-playground` (a dev tool built on the upstream npm provider) removed.
+
 Planned, not done yet:
 
-- Go module path rename to `github.com/blackbirdworks/go-feature-flag`.
 - Lint rules ported from BlackbirdWorks/gopherstack (`.golangci.yml` currently differs from upstream only by the local `replace` and `rules/` entries).
 - CI reworked.
+
+## Path and name mapping
+
+When reading an upstream commit, map it to this tree like this. Never apply an upstream hunk that reintroduces an upstream name
+without its Semaphore counterpart.
+
+| Upstream | This repository |
+|---|---|
+| `github.com/thomaspoignant/go-feature-flag` (root module) | `github.com/blackbirdworks/semaphore` |
+| `github.com/thomaspoignant/go-feature-flag/modules/core` | `github.com/blackbirdworks/semaphore/modules/core` |
+| `github.com/thomaspoignant/koanf-http-provider` | `github.com/blackbirdworks/semaphore/internal/koanfhttpprovider` |
+| `cmd/relayproxy/handler/goff/` | `cmd/relayproxy/handler/semaphore/` |
+| `cmd/relayproxy/api/routes_goff.go` | `cmd/relayproxy/api/routes_semaphore.go` |
+| `cmd/relayproxy/testdata/goff/` | `cmd/relayproxy/testdata/semaphore/` |
+| `goff-proxy.yaml`, `/goff/`, `/etc/opt/goff/` | `semaphore-proxy.yaml` first, then the legacy name (code in `cmd/relayproxy/config/config_loader.go`) |
+| `gofeatureflag` evaluation context key, `gofeatureflag_cacheable`, `X-GOFEATUREFLAG-VERSION`, `gofeatureflag_` metrics | `semaphore` / `semaphore_cacheable` / `X-SEMAPHORE-VERSION` / `semaphore_`, the old names stay as aliases |
+| binaries `go-feature-flag`, `go-feature-flag-cli`, images `thomaspoignant/go-feature-flag*` | `semaphore`, `semaphore-cli`, `ghcr.io/blackbirdworks/semaphore*` |
+
+Mechanical part: rewrite the module path (`sed` on the incoming patch, see the skill) and review every hunk that mentions one of the
+names above by hand. Upstream web links (`https://github.com/thomaspoignant/go-feature-flag/...`) are references and stay as they
+are. The upstream provider tests (`openfeature/provider_tests`) keep depending on the published upstream packages on purpose.
 
 ## Sync log
 

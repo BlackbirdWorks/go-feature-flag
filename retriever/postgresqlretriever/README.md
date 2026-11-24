@@ -5,7 +5,7 @@ This retriever is used to retrieve feature flag configurations from a PostgreSQL
 ## Installation
 
 ```bash
-go get github.com/thomaspoignant/go-feature-flag/retriever/postgresqlretriever
+go get github.com/blackbirdworks/semaphore/retriever/postgresqlretriever
 ```
 
 ## Usage

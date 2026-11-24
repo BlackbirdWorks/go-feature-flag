@@ -8,11 +8,11 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	promversion "github.com/prometheus/common/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
 )
 
 func TestMetrics_BuildInfo(t *testing.T) {
@@ -23,10 +23,10 @@ func TestMetrics_BuildInfo(t *testing.T) {
 	assert.NoError(t, err)
 
 	expected := fmt.Sprintf(`
-		# HELP gofeatureflag_build_info A metric with a constant '1' value labeled by version, revision, branch, goversion from which gofeatureflag was built, and the goos and goarch for the build.
-		# TYPE gofeatureflag_build_info gauge
-		gofeatureflag_build_info{branch="",goarch="%s",goos="%s",goversion="%s",revision="unknown",tags="docker",version="%s"} 1
+		# HELP semaphore_build_info A metric with a constant '1' value labeled by version, revision, branch, goversion from which semaphore was built, and the goos and goarch for the build.
+		# TYPE semaphore_build_info gauge
+		semaphore_build_info{branch="",goarch="%s",goos="%s",goversion="%s",revision="unknown",tags="docker",version="%s"} 1
 	`, runtime.GOARCH, runtime.GOOS, runtime.Version(), version)
 
-	require.NoError(t, testutil.GatherAndCompare(metricSrv.Registry, bytes.NewReader([]byte(expected)), "gofeatureflag_build_info"))
+	require.NoError(t, testutil.GatherAndCompare(metricSrv.Registry, bytes.NewReader([]byte(expected)), "semaphore_build_info"))
 }

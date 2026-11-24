@@ -6,17 +6,17 @@ import (
 	"net/url"
 	"sort"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/flagstate"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/helper"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/configfile"
-	"github.com/thomaspoignant/go-feature-flag/internal/flagstate"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -25,18 +25,34 @@ type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 	eventStream    config.OfrepEventStream
+	// legacyMetadataOnly drops MetadataCacheable, LegacyMetadataCacheable is always sent.
+	legacyMetadataOnly bool
+}
+
+// Option customizes an EvaluateCtrl.
+type Option func(*EvaluateCtrl)
+
+// WithLegacyMetadataOnly stops the controller from adding the Semaphore metadata keys
+// (semaphore_cacheable) next to the legacy ones.
+func WithLegacyMetadataOnly(legacyOnly bool) Option {
+	return func(h *EvaluateCtrl) { h.legacyMetadataOnly = legacyOnly }
 }
 
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,
 	eventStream config.OfrepEventStream,
+	opts ...Option,
 ) EvaluateCtrl {
-	return EvaluateCtrl{
+	h := EvaluateCtrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		eventStream:    eventStream,
 	}
+	for _, opt := range opts {
+		opt(&h)
+	}
+	return h
 }
 
 // Evaluate is the entry point to evaluate a flag using the OpenFeature Remote Evaluation Protocol
@@ -132,7 +148,10 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 		if metadata == nil {
 			metadata = make(map[string]any)
 		}
-		metadata["gofeatureflag_cacheable"] = true
+		if !h.legacyMetadataOnly {
+			metadata[MetadataCacheable] = true
+		}
+		metadata[LegacyMetadataCacheable] = true
 	}
 
 	return c.JSON(http.StatusOK, model.OFREPEvaluateSuccessResponse{
@@ -239,6 +258,14 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 }
 
 // ofrepSSEPath is the path of the relay proxy endpoint streaming flag changes over SSE.
+const (
+	// MetadataCacheable is the response metadata key telling a provider that it can cache the value.
+	MetadataCacheable = "semaphore_cacheable"
+	// LegacyMetadataCacheable is the key GO Feature Flag used for the same information. The upstream
+	// providers read it, so it is still sent next to MetadataCacheable.
+	LegacyMetadataCacheable = "gofeatureflag_cacheable"
+)
+
 const ofrepSSEPath = "/stream/v1/sse/flag/change"
 
 // buildEventStreams returns the eventStreams advertised in the OFREP bulk evaluation
@@ -268,7 +295,7 @@ func assertOFREPEvaluateRequest(
 ) *model.OFREPCommonResponseError {
 	if ofrepEvalReq.Context == nil {
 		return NewOFREPCommonError(flag.ErrorCodeInvalidContext,
-			"GO Feature Flag requires an evaluation context in the request.")
+			"Semaphore requires an evaluation context in the request.")
 	}
 
 	// An empty context object is allowed since the evaluation context is optional.
@@ -282,7 +309,7 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 	if req == nil || req.Context == nil {
 		return ffcontext.EvaluationContext{}, NewOFREPCommonError(
 			flag.ErrorCodeInvalidContext,
-			"GO Feature Flag has received an invalid context.")
+			"Semaphore has received an invalid context.")
 	}
 
 	ctx := req.Context

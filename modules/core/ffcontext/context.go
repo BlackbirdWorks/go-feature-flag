@@ -3,6 +3,8 @@ package ffcontext
 import (
 	"encoding/json"
 	"maps"
+
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 var _ Context = (*EvaluationContext)(nil)
@@ -107,20 +109,60 @@ func (u EvaluationContext) ToMap() map[string]any {
 	return resMap
 }
 
-// ExtractGOFFProtectedFields extract the goff specific attributes from the evaluation context.
+// ReservedKey is the evaluation context attribute holding the Semaphore specific fields
+// (currentDateTime, flagList, exporterMetadata).
+const ReservedKey = "semaphore"
+
+// LegacyReservedKey is the name that GO Feature Flag clients send for ReservedKey. It is still
+// accepted, ReservedKey wins when both are set.
+const LegacyReservedKey = "gofeatureflag"
+
+// HasReservedKey tells if the attributes carry the reserved attribute, under any of its names.
+func HasReservedKey(attributes map[string]any) bool {
+	_, current := attributes[ReservedKey]
+	_, legacyName := attributes[LegacyReservedKey]
+	return current || legacyName
+}
+
+// ExtractGOFFProtectedFields extract the Semaphore specific attributes from the evaluation context.
+// They are read from the "semaphore" attribute and, for the clients of Semaphore, from the
+// legacy "gofeatureflag" attribute. When both are set, a field of "semaphore" wins.
 func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
-	goff := GoffContextSpecifics{}
-	switch v := u.attributes["gofeatureflag"].(type) {
-	case map[string]string:
-		goff.addCurrentDateTime(v["currentDateTime"])
-		goff.addListFlags(v["flagList"])
-		goff.addExporterMetadata(v["exporterMetadata"])
-	case map[string]any:
-		goff.addCurrentDateTime(v["currentDateTime"])
-		goff.addListFlags(v["flagList"])
-		goff.addExporterMetadata(v["exporterMetadata"])
-	case GoffContextSpecifics:
-		return v
+	specifics := GoffContextSpecifics{}
+	if v, ok := u.attributes[LegacyReservedKey]; ok {
+		legacy.Default.Warn(legacy.KindEvaluationContext, "the evaluation context attribute \""+
+			LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+ReservedKey+"\" is preferred")
+		specifics = readSpecifics(v, specifics)
 	}
-	return goff
+	if v, ok := u.attributes[ReservedKey]; ok {
+		specifics = readSpecifics(v, specifics)
+	}
+	return specifics
+}
+
+// readSpecifics returns base with the fields found in v on top of it.
+func readSpecifics(v any, base GoffContextSpecifics) GoffContextSpecifics {
+	found := GoffContextSpecifics{}
+	switch v := v.(type) {
+	case map[string]string:
+		found.addCurrentDateTime(v["currentDateTime"])
+		found.addListFlags(v["flagList"])
+		found.addExporterMetadata(v["exporterMetadata"])
+	case map[string]any:
+		found.addCurrentDateTime(v["currentDateTime"])
+		found.addListFlags(v["flagList"])
+		found.addExporterMetadata(v["exporterMetadata"])
+	case GoffContextSpecifics:
+		found = v
+	}
+	if found.CurrentDateTime != nil {
+		base.CurrentDateTime = found.CurrentDateTime
+	}
+	if found.FlagList != nil {
+		base.FlagList = found.FlagList
+	}
+	if found.ExporterMetadata != nil {
+		base.ExporterMetadata = found.ExporterMetadata
+	}
+	return base
 }

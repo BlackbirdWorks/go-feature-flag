@@ -9,9 +9,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
 )
 
 func TestRetriever_Init_RealClients(t *testing.T) {

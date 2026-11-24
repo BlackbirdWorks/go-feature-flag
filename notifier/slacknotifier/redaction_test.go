@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 )
 
 type failingClient struct{}

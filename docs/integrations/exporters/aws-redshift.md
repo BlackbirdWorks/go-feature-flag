@@ -17,7 +17,7 @@ exporters:
   - kind: redshift
     clusterIdentifier: "my-cluster"
     database: "analytics"
-    dbUser: "goff_writer"
+    dbUser: "semaphore_writer"
     tableName: "feature_flag_evaluations"
     awsRegion: "us-east-1"
     autoMigrate: true
@@ -78,7 +78,7 @@ ffConfig := ffclient.Config{
             Exporter: &redshiftexporter.Exporter{
                 ClusterIdentifier: "my-cluster",
                 Database:          "analytics",
-                DbUser:            "goff_writer",
+                DbUser:            "semaphore_writer",
                 TableName:         "feature_flag_evaluations",
                 AwsConfig:         &awsConfig,
                 AutoMigrate:       true,
@@ -89,7 +89,7 @@ ffConfig := ffclient.Config{
             Exporter: &redshiftexporter.Exporter{
                 ClusterIdentifier: "my-cluster",
                 Database:          "analytics",
-                DbUser:            "goff_writer",
+                DbUser:            "semaphore_writer",
                 TableName:         "tracking_events",
                 AwsConfig:         &awsConfig,
                 AutoMigrate:       true,

@@ -31,7 +31,7 @@ curl -X 'POST' \
 ## Validate a flag file
 
 Before deploying a flag file you can ask the relay proxy to validate it with a POST request to
-`/admin/v1/flags/validate`. The validation uses the same rules as the `goff lint` command, and it has no side
+`/admin/v1/flags/validate`. The validation uses the same rules as the `semaphore-cli lint` command, and it has no side
 effect: the flags served by the relay proxy are never modified.
 
 The body of the request is the flag file, and the `Content-Type` header selects its format:
@@ -66,7 +66,7 @@ curl -X 'POST' \
 | `413`  | The body is larger than the limit of its format.                     |
 | `415`  | The `Content-Type` header is missing or unsupported.                 |
 
-The validation behaves like the `goff lint` command, so it has the same known gaps:
+The validation behaves like the `semaphore-cli lint` command, so it has the same known gaps:
 
 - The steps of a `scheduledRollout` are not validated.
 - Unknown or misspelled fields are ignored.
@@ -87,7 +87,7 @@ default `GODEBUG=fips140=on` into the binary, so the FIPS build runs in FIPS mod
 the box — no extra runtime configuration is required.
 
 The exact module version pinned by the project lives in the
-[`.fips-version`](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/.fips-version)
+[`.fips-version`](https://github.com/BlackbirdWorks/semaphore/blob/main/.fips-version)
 file at the repo root; the Makefile target reads from it.
 
 > [!NOTE]
@@ -105,14 +105,14 @@ file at the repo root; the Makefile target reads from it.
 make build-relayproxy-fips
 ```
 
-This produces `out/bin/relayproxy-fips`, built with `GOFIPS140=v1.0.0`.
+This produces `out/bin/semaphore-fips`, built with `GOFIPS140=v1.0.0`.
 
 ### Verifying FIPS mode
 
 **At build level** — confirm the binary was compiled against the Go Cryptographic Module:
 
 ```shell
-go version -m ./out/bin/relayproxy-fips | grep GOFIPS140
+go version -m ./out/bin/semaphore-fips | grep GOFIPS140
 # build	GOFIPS140=v1.0.0-<commit>
 ```
 
@@ -131,7 +131,7 @@ A standard (non-FIPS) build logs `"fips140":false`.
 fail if any non-FIPS-approved cryptographic algorithm is used:
 
 ```shell
-GODEBUG=fips140=only ./out/bin/relayproxy-fips --config=/goff/config.yaml
+GODEBUG=fips140=only ./out/bin/semaphore-fips --config=/semaphore/config.yaml
 ```
 
 ### Recommended hardening for FedRAMP deployments (Helm)

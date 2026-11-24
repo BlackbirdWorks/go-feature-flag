@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 const consumerNameError = "error"

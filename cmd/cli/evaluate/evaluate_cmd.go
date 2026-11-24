@@ -8,14 +8,14 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/spf13/cobra"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	rerr "github.com/thomaspoignant/go-feature-flag/cmdhelpers/err"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
-	retrieverInit "github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf/init"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 var (
@@ -164,9 +164,9 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 	evaluateCmd.Flags().StringVarP(&kind,
 		"kind", "k", "file", "Kind of the configuration file (file, http, redis, gitlab, k8s, ...)")
 	evaluateCmd.Flags().StringVarP(&evalConfigFile,
-		"config", "c", "", "Location of your GO Feature Flag local configuration file")
+		"config", "c", "", "Location of your Semaphore local configuration file")
 	evaluateCmd.Flags().StringVarP(&path, "path", "p", "",
-		"Path to your GO Feature Flag configuration file (local or remote)")
+		"Path to your Semaphore configuration file (local or remote)")
 	evaluateCmd.Flags().StringVar(&authToken,
 		"auth-token", "", "Authentication token to access your configuration file")
 	evaluateCmd.Flags().StringVar(&githubToken,

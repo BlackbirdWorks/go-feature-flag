@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/configfile"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func TestValidateFlags(t *testing.T) {

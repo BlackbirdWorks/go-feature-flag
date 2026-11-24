@@ -3,8 +3,8 @@ package utils_test
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 func Test_JSONTypeExtractor(t *testing.T) {

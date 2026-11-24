@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
+	retrieverpkg "github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	retrieverpkg "github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
 )
 
 func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {
@@ -200,7 +200,7 @@ func createClientCertificateFiles(t *testing.T) (string, string) {
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName: "go-feature-flag-test-client",
+			CommonName: "semaphore-test-client",
 		},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(time.Hour),

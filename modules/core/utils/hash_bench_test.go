@@ -3,7 +3,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 var buildHashSink uint32

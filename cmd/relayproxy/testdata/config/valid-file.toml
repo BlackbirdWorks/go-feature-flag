@@ -10,7 +10,7 @@ mode = "http"
 
 [retriever]
 kind = "http"
-url = "https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
+url = "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml"
 
 [exporter]
 kind = "log"

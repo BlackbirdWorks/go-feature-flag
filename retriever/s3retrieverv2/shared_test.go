@@ -18,10 +18,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/retriever/s3retrieverv2"
 )
 
 // fakeBucket is a fake S3 bucket counting the requests it receives.

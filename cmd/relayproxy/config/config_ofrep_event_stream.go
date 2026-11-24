@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 // OfrepEventStream holds the configuration used to advertise the flag-change SSE

@@ -17,7 +17,7 @@ divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs),
 - `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
 - `modules/core/`: separate Go module with flag, context and evaluation logic.
 - `rules/`: vendored rules engine (separate module, own `LICENSE`, must be kept).
-- `internal/`, `ffcontext/`, `ffuser/` (legacy), `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
+- `internal/`, `ffcontext/`, `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
 - `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
 - `.schema/flag-schema.json`: JSON schema of the flag file.
 - `docs/`: plain Markdown documentation (index in `docs/README.md`).
@@ -46,15 +46,18 @@ make swagger           # regenerate swagger after API annotation changes
 - PR titles use Conventional Commits and commits are signed. Never force-push `main`.
 - Do not add or alter licence headers; keep `LICENSE`, `rules/LICENSE` and `NOTICE` intact.
 
-## Identifiers that must not be renamed
+## Names: Semaphore first, GO Feature Flag still accepted
 
-These are client or deployment contracts (a rename needs a coordinated migration):
+The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
+that keeps working (one warning per process and kind when it is used, `modules/core/legacy`). Do not remove an alias
+without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table.
 
-- OFREP metadata key `gofeatureflag_cacheable`; evaluation-context key `gofeatureflag` (and its sub-keys).
-- Prometheus subsystem `gofeatureflag`.
-- Default relay proxy config file name `goff-proxy` (searched in `./`, `/goff/`, `/etc/opt/goff/`) and the environment variable prefixes.
-- OpenTelemetry tracer and service names.
-- Go module path `github.com/thomaspoignant/go-feature-flag` and all Go import paths (a later change renames the module).
+- Relay proxy config file `semaphore-proxy.<ext>` before the legacy `goff-proxy.<ext>`, searched in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, `/etc/opt/goff/`.
+- Environment variables: unprefixed, the `envVariablePrefix` setting, and the always-read `SEMAPHORE_` prefix (it wins).
+- Evaluation-context key `semaphore` (and its sub-keys), legacy `gofeatureflag`; OFREP metadata `semaphore_cacheable` and `gofeatureflag_cacheable`; headers `X-SEMAPHORE-VERSION` and `X-GOFEATUREFLAG-VERSION`.
+- Prometheus prefix `semaphore_`, legacy `gofeatureflag_` behind `exposeLegacyMetrics`. OpenTelemetry service name and scope default to `semaphore`.
+- Wire paths, JSON field names and the flag file format are not renamed; the provider tests in `openfeature/provider_tests` run the upstream providers and must keep passing.
+- Go module path `github.com/blackbirdworks/semaphore` (nested modules below it).
 
 ## Entry points
 

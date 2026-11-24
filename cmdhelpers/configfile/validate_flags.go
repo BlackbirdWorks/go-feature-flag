@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
 )
 
 // errInternalValidation is the generic error used when the validation of a flag panics,

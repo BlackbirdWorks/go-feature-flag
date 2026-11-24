@@ -15,15 +15,15 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/testutils"
 )
 
 // startRelayProxyFromYAML starts a relay proxy in the process from a YAML configuration, wired like

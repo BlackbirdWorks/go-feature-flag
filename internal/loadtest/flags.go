@@ -1,5 +1,5 @@
 // Package loadtest contains the flag fixtures, the exporter behaviours and the soak harness
-// used to measure the throughput and the memory stability of go-feature-flag.
+// used to measure the throughput and the memory stability of semaphore.
 // See README.md in this directory.
 package loadtest
 

@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
 	"github.com/stretchr/testify/assert"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock/mockretriever"
 )
 
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {

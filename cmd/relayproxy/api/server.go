@@ -4,20 +4,21 @@ import (
 	"net/http"
 	"sync"
 
+	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	echootel "github.com/labstack/echo-otel/v5"
 	echoprometheus "github.com/labstack/echo-prometheus"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
-	custommiddleware "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/opentelemetry"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/manifest"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/ofrep"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	helpermiddleware "github.com/thomaspoignant/go-feature-flag/cmdhelpers/api/middleware"
 	"go.uber.org/zap"
 )
 
@@ -68,7 +69,7 @@ type Server struct {
 // initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy
 func (s *Server) initRoutes() {
 	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
-	s.apiEcho.Use(echootel.NewMiddleware("go-feature-flag"))
+	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))
 	s.apiEcho.Use(helpermiddleware.ZapLogger(s.zapLog, s.config.IsDebugEnabled()))
 	s.apiEcho.Use(middleware.BodyDumpWithConfig(middleware.BodyDumpConfig{
 		Skipper: bodyDumpSkipper(s.zapLog),
@@ -76,7 +77,7 @@ func (s *Server) initRoutes() {
 	}))
 	if s.services.Metrics != (metric.Metrics{}) {
 		s.apiEcho.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
-			Subsystem:  metric.GOFFSubSystem,
+			Subsystem:  metric.SubSystem,
 			Registerer: s.services.Metrics.Registry,
 			HistogramOptsFunc: func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
 				// Enable native histograms for all middleware histograms
@@ -106,6 +107,7 @@ func (s *Server) initRoutes() {
 		s.services.FlagsetManager,
 		s.services.Metrics,
 		s.config.OfrepEventStream,
+		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
 	)
 	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.zapLog)
 	cEvalDataCollector := controller.NewCollectEvalData(
@@ -131,7 +133,7 @@ func (s *Server) initRoutes() {
 	// Init routes
 	userAuth := s.getAuthMiddleware(UserAuth)
 	adminAuth := s.getAuthMiddleware(AdminAuth)
-	s.addGOFFRoutes(cAllFlags, cFlagEval, cEvalDataCollector, cFlagChangeAPI, cFlagConfiguration, userAuth)
+	s.addRelayRoutes(cAllFlags, cFlagEval, cEvalDataCollector, cFlagChangeAPI, cFlagConfiguration, userAuth)
 	s.addOFREPRoutes(cFlagEvalOFREP, userAuth)
 	s.addStreamRoutes()
 	s.addMonitoringRoutes()

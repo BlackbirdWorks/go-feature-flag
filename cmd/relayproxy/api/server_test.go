@@ -15,18 +15,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testutils"
 	promdto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/log"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/testutils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protodelim"
@@ -1127,7 +1127,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 		// Only check histogram metric families from our subsystem
 		if mf.GetType() == promdto.MetricType_HISTOGRAM {
-			if strings.HasPrefix(mf.GetName(), "gofeatureflag_") {
+			if strings.HasPrefix(mf.GetName(), "semaphore_") {
 				histogramFamilies = append(histogramFamilies, &mf)
 			}
 		}

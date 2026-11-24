@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 // the currentDateTime set by the evaluation context enrichment is the date of the evaluation for

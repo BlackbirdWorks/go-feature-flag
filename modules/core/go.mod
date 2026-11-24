@@ -1,4 +1,4 @@
-module github.com/thomaspoignant/go-feature-flag/modules/core
+module github.com/blackbirdworks/semaphore/modules/core
 
 go 1.27.4
 

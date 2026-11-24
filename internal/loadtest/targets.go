@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
 // LibraryTarget evaluates a bool flag through the embedded library with event tracking.
@@ -27,7 +27,7 @@ type LibraryOptions struct {
 	MaxEventInMemory int64
 }
 
-// NewLibraryTarget starts a GoFeatureFlag client on the generated flags.
+// NewLibraryTarget starts a library client on the generated flags.
 func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 	dir, err := os.MkdirTemp("", "ffsoak")
 	if err != nil {

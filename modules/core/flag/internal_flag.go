@@ -9,17 +9,17 @@ import (
 	"sort"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/nikunjy/rules/parser"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/internalerror"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 const (
 	PercentageMultiplier = float64(1000)
 )
 
-// InternalFlag is the internal representation of a flag when using go-feature-flag.
+// InternalFlag is the internal representation of a flag when using semaphore.
 // All the flags in your configuration files can have different format but will be
 // converted into an InternalFlag to be used in the library.
 type InternalFlag struct {

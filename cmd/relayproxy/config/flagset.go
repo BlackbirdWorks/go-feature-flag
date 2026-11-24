@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 // flagSetMode is where the relay proxy gets its flagSets from.
@@ -15,7 +15,7 @@ const (
 	flagSetModeNone flagSetMode = "none"
 	// flagSetModeLocal is when the flagSets come from the configuration file or the environment variables.
 	flagSetModeLocal flagSetMode = "local"
-	// flagSetModeStudio is when the flagSets come from GO Feature Flag Studio.
+	// flagSetModeStudio is when the flagSets come from Semaphore Studio.
 	flagSetModeStudio flagSetMode = "studio"
 )
 

@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/log"
 	"go.uber.org/zap"
 )
 

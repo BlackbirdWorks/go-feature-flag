@@ -3,11 +3,11 @@ package cache_test
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/model/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/model/dto"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func TestAll(t *testing.T) {

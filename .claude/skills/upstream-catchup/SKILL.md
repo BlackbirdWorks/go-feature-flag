@@ -20,7 +20,7 @@ This skill is the only sanctioned contact with upstream (`thomaspoignant/go-feat
 - Never `git merge upstream/main` (or rebase onto it) wholesale. Upstream changes are ported
   selectively, by hand, one reviewed commit at a time (step 5).
 - Never run it on a schedule or from CI; it is not automation.
-- Every write goes to this repository only: pass `-R BlackbirdWorks/go-feature-flag` to `gh pr create`
+- Every write goes to this repository only: pass `-R BlackbirdWorks/semaphore` to `gh pr create`
   and similar commands, and keep the `upstream` remote push-disabled (step 1).
 
 Report-only mode ("what are we missing?"): do steps 1-3, print the triage table, change no files.
@@ -109,6 +109,8 @@ SHA and PR number.
   and `git commit -c <sha>`; or
   `git format-patch -1 --stdout <sha> | sed "s#github.com/thomaspoignant/go-feature-flag#$MOD#g" | git am -3 --trailer "(cherry picked from upstream $sha)"`.
   Do not rewrite `go.sum` hunks or the `replace` lines for `modules/core`/`rules`; keep local `replace` directives.
+  Upstream names that were renamed here (directories, binaries, `goff-proxy`, `gofeatureflag*` keys) are listed in
+  `UPSTREAM.md`, "Path and name mapping": port such hunks by hand to the Semaphore name and keep the alias behaviour.
 - Paths deleted locally (e.g. `cmd/wasm`): in a conflict, `git rm` the "deleted by us" files and
   continue; the rest of the commit still applies.
 - Dependency bumps: do not cherry-pick `go.sum` hunks. Re-run the bump in each module that uses it
@@ -137,7 +139,7 @@ Convention for any test you add: parallel (`t.Parallel()`) table-driven tests; n
    Sync log row: date, from, to, counts per class, NEEDS-DECISION items still open.
 2. `rm docs/upstream-sync-audit.md` and run the leak check from step 4.
 3. Push the branch and open a PR (direct pushes to `main` are blocked) with the triage table in the
-   description: `gh pr create -R BlackbirdWorks/go-feature-flag --title "chore: sync with upstream <short-sha>" --body-file <table>`.
+   description: `gh pr create -R BlackbirdWorks/semaphore --title "chore: sync with upstream <short-sha>" --body-file <table>`.
 
 ## Re-syncing vendored `rules/`
 

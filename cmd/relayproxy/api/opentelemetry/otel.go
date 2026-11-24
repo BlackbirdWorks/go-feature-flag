@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
@@ -52,7 +52,7 @@ func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *conf
 		return fmt.Errorf("initializing OTel exporter: %w", err)
 	}
 
-	serviceName := "go-feature-flag"
+	serviceName := "semaphore"
 	if v := config.OtelConfig.Service.Name; v != "" {
 		serviceName = v
 	}

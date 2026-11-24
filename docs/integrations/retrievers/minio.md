@@ -18,7 +18,7 @@ The retriever configuration is the regular `s3` one, MinIO is selected through t
 retrievers:
   - kind: s3
     bucket: my-featureflag-bucket
-    item: flag/flags.goff.yaml
+    item: flag/flags.yaml
 # ...
 ```
 
@@ -70,11 +70,11 @@ services:
       - "9001:9001"
 
   relay-proxy:
-    image: ghcr.io/blackbirdworks/go-feature-flag:latest
+    image: ghcr.io/blackbirdworks/semaphore:latest
     depends_on:
       - minio
     volumes:
-      - ./goff-proxy.yaml:/goff/goff-proxy.yaml
+      - ./semaphore-proxy.yaml:/semaphore/semaphore-proxy.yaml
     environment:
       AWS_ENDPOINT_URL_S3: http://minio:9000
       AWS_ACCESS_KEY_ID: minioadmin
@@ -104,7 +104,7 @@ err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
         Bucket:    "my-featureflag-bucket",
-        Item:      "flag/flags.goff.yaml",
+        Item:      "flag/flags.yaml",
         AwsConfig: &awsConfig,
         // highlight-start
         S3ClientOptions: []func(*s3.Options){
@@ -131,7 +131,7 @@ defer ffclient.Close()
 > ```go
 > Retriever: &s3retrieverv2.Retriever{
 >     Bucket: "my-featureflag-bucket",
->     Item:   "flag/flags.goff.yaml",
+>     Item:   "flag/flags.yaml",
 >     S3ClientOptions: []func(*s3.Options){
 >         func(o *s3.Options) { o.UsePathStyle = true },
 >     },

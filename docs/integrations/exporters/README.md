@@ -55,7 +55,7 @@ type Exporter interface {
    If you decide to manage it in streaming mode, everytime we call a variation the Export function will be called with only on event in the list.
 
 > [!NOTE]
-> If you think your custom exporter could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/go-feature-flag/pulls) to add it to the list of available exporters.
+> If you think your custom exporter could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls) to add it to the list of available exporters.
 
 > [!WARNING]
 > If you are using a custom exporter, it is easy to use it for the GO Module, but if you want to use it in the relay proxy you will have to recompile it yourself.

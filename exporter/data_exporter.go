@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -49,7 +49,7 @@ type dataExporterImpl[T ExportableEvent] struct {
 	daemonChan chan struct{}
 	ticker     *time.Ticker
 	// stopOnce guarantees that we stop the daemon only once: Close() can be called several times
-	// on a GO Feature Flag client, and closing an already closed channel panics.
+	// on a Semaphore client, and closing an already closed channel panics.
 	stopOnce sync.Once
 }
 

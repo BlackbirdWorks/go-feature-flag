@@ -13,15 +13,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/log"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
-	"github.com/thomaspoignant/go-feature-flag/internal/loadtest"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // Options configures Start.
@@ -35,6 +35,10 @@ type Options struct {
 	FlushIntervalMs int64
 	// MaxEventInMemory is the flush trigger of the exporter (default 100000).
 	MaxEventInMemory int64
+	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
+	TempDir string
+	// H2C makes the relay proxy accept HTTP/2 over cleartext (server.enableH2C); only with Listen.
+	H2C bool
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
 	Listen bool
 }
@@ -58,7 +62,7 @@ type Relay struct {
 
 // Start starts a relay proxy.
 func Start(opts Options) (_ *Relay, err error) {
-	dir, err := os.MkdirTemp("", "ffrelay")
+	dir, err := os.MkdirTemp(opts.TempDir, "ffrelay")
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +81,7 @@ func Start(opts Options) (_ *Relay, err error) {
 			Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		},
 		// the server (and its monitoring port) only listens on the loopback interface
-		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1"},
+		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", EnableH2C: opts.H2C},
 	}
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))

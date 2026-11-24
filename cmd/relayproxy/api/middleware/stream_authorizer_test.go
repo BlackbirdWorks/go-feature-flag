@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
-	middleware2 "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 func TestStreamAuthorizer(t *testing.T) {

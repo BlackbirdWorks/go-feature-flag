@@ -13,6 +13,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Configuration reference](relay-proxy/configuration.md) (including flag sets and API keys)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
+- [Performance](performance.md) (throughput and latency, single and bulk evaluation, HTTP/1.1 and HTTP/2)
 - [Advanced usage](relay-proxy/advanced-usage.md) (manual refresh, flag validation, FIPS)
 - Deployment: [Helm](relay-proxy/deployment/helm.md), [AWS Lambda](relay-proxy/deployment/aws-lambda.md)
 
@@ -42,6 +43,11 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Getting started](go-module/getting-started.md)
 - [Configuration](go-module/configuration.md)
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
+
+## Migration
+- [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)
+- [Removal of `ffuser` and the `user` request field](migration/remove-ffuser.md)
+- [JsonLogic behaviour changes (`jsonlogic` v3.11.0)](migration/jsonlogic-3-11.md)
 
 ## Tooling
 - [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md)

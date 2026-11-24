@@ -1,7 +1,7 @@
 package flag
 
 import (
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 type Flag interface {

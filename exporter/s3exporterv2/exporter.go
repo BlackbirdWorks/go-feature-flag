@@ -11,9 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/fileexporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -99,7 +99,7 @@ func (f *Exporter) Export(
 	}
 
 	// Create a temp directory to store the file we will produce
-	outputDir, err := os.MkdirTemp("", "go_feature_flag_s3_export")
+	outputDir, err := os.MkdirTemp("", "semaphore_s3_export")
 	if err != nil {
 		return err
 	}

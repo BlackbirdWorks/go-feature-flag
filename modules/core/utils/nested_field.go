@@ -3,7 +3,7 @@ package utils
 import (
 	"strings"
 
-	"github.com/thomaspoignant/go-feature-flag/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 )
 
 // GetNestedFieldValue returns the value from a nested path in the given map.

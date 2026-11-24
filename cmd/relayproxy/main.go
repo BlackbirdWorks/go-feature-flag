@@ -7,16 +7,17 @@ import (
 	"os"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/notifier"
 	promversion "github.com/prometheus/common/version"
 	"github.com/spf13/pflag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/docs"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	stream "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/log"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
 	"go.uber.org/zap"
 )
 
@@ -29,14 +30,14 @@ const banner = `█▀▀ █▀█   █▀▀ █▀▀ ▄▀█ 
      █▀█ █▀▀ █   ▄▀█ █▄█   █▀█ █▀█ █▀█ ▀▄▀ █▄█
      █▀▄ ██▄ █▄▄ █▀█  █    █▀▀ █▀▄ █▄█ █ █  █ 
 
-GO Feature Flag Relay Proxy - Version %s
+Semaphore Relay Proxy - Version %s
 _____________________________________________`
 
-// @title GO Feature Flag relay proxy endpoints
+// @title Semaphore relay proxy endpoints
 // @description.markdown
-// @contact.name GO feature flag relay proxy
+// @contact.name Semaphore relay proxy
 // @license.name MIT
-// @license.url https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
+// @license.url https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
 // @BasePath /
 // @securitydefinitions.apikey ApiKeyAuth
 // @in header
@@ -56,6 +57,10 @@ func main() {
 	// Init logger
 	logger := log.InitLogger()
 	defer func() { _ = logger.ZapLogger.Sync() }()
+	// The legacy names (GO Feature Flag) that are still accepted warn once, through the same logger.
+	legacy.Default.SetLogFunc(func(kind, message string) {
+		logger.ZapLogger.Warn(message, zap.String("legacyName", kind))
+	})
 
 	// Loading the configuration in viper
 	proxyConf, err := config.New(f, logger.ZapLogger, version)
@@ -107,7 +112,7 @@ func main() {
 	}, sseService, wsService)
 	if err != nil {
 		logger.ZapLogger.Error(
-			"impossible to start GO Feature Flag, we are not able to initialize the retrieval of flags",
+			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
 			zap.Error(err),
 		)
 		return

@@ -9,9 +9,9 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/fileexporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -73,7 +73,7 @@ func (f *Exporter) Export(
 		return fmt.Errorf("you should specify a container. %v is invalid", f.Container)
 	}
 
-	outputDir, err := os.MkdirTemp("", "go_feature_flag_AzureBlobStorage_export")
+	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")
 	if err != nil {
 		return err
 	}

@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"time"
 
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/model"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/retriever"
 )
 
 type evaluate struct {
@@ -39,7 +39,7 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 	return e.evaluateFlags(goff, listFlags, convertedEvaluationCtx)
 }
 
-// initGOFF initializes the GO Feature Flag client
+// initGOFF initializes the Semaphore client
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	c := ffclient.Config{
 		PollingInterval:       10 * time.Minute,

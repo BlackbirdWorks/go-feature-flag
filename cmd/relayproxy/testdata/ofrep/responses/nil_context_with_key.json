@@ -1,5 +1,5 @@
 {
   "errorCode": "INVALID_CONTEXT",
-  "errorDetails": "GO Feature Flag requires an evaluation context in the request.",
+  "errorDetails": "Semaphore requires an evaluation context in the request.",
   "key": "number-flag"
 }

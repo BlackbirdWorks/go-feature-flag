@@ -13,7 +13,7 @@ const (
 	ErrorCodeInvalidContext      ErrorCode = "INVALID_CONTEXT"
 	ErrorCodeTargetingKeyMissing ErrorCode = "TARGETING_KEY_MISSING"
 
-	// Custom error code for Go Feature Flag
+	// Custom error code for Semaphore
 
 	// 	ErrorFlagConfiguration is returned when we were not able to use the flag because of a misconfiguration
 	ErrorFlagConfiguration ErrorCode = "FLAG_CONFIG"

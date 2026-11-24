@@ -1,5 +1,5 @@
 // Package mockretriever provides mock implementations of various retriever interfaces
-// for testing purposes in the go-feature-flag project.
+// for testing purposes in the semaphore project.
 //
 // This package contains mock retrievers that implement different retriever interfaces:
 //   - SimpleRetriever: Basic Retriever interface only (only retrieve)

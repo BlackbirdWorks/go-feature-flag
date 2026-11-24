@@ -3,7 +3,7 @@
 ## Overview
 Retrieves the configuration from a Google Cloud Storage bucket. This retriever is useful when you are using Google Cloud and want to use GCS to store your configuration files.
 
-The [**Google Cloud Storage Retriever**](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/retriever/gcstorageretriever/#Retriever) will use the [`google-cloud-storage package`](https://pkg.go.dev/cloud.google.com/go/storage) and [`google-api-options package`](https://pkg.go.dev/google.golang.org/api/option) to access your flag in Google Cloud Storage.
+The [**Google Cloud Storage Retriever**](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/gcstorageretriever/#Retriever) will use the [`google-cloud-storage package`](https://pkg.go.dev/cloud.google.com/go/storage) and [`google-api-options package`](https://pkg.go.dev/google.golang.org/api/option) to access your flag in Google Cloud Storage.
 
 ## Configure the relay proxy
 

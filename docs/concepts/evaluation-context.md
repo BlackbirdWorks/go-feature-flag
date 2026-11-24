@@ -68,14 +68,18 @@ For instance, **Semaphore** ensures that in cases where a feature is being rolle
 
 ## Reserved properties in the evaluation context
 > [!CAUTION]
-> If you put a key named `gofeatureflag` in your evaluation context, it may break internal features of Semaphore.
-> This property name is reserved for internal use.
+> If you put a key named `semaphore` (or its legacy name `gofeatureflag`) in your evaluation context, it may break internal features of Semaphore.
+> These property names are reserved for internal use.
 
 When you create an evaluation context some fields are reserved for Semaphore.  
 Those fields are used by Semaphore directly, you can use them as will in your targeting queries, but you should be aware that they are used internally for Semaphore.
 
 | Field                            | Description                                                                                                                                                                                                                  |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `gofeatureflag.currentDateTime`  | If this property is set, we will use this date as base for all the rollout strategies which implies dates _(experimentation, progressive and scheduled)_.<br/>**Format:** Date following the RFC3339 format.                  |
-| `gofeatureflag.flagList`         | If this property is set, in the bulk evaluation mode (for the client SDK) we will only evaluate the flags in this list.<br/>If empty or not set the default behavior is to evaluate all the flags.<br/>**Format:** []string |
-| `gofeatureflag.exporterMetadata` | If this property is set, we will add all the fields in the feature event send to the provider.<br/>**Format:** map[string]string\|number\|bool                                                                               |
+| `semaphore.currentDateTime`      | If this property is set, we will use this date as base for all the rollout strategies which implies dates _(experimentation, progressive and scheduled)_.<br/>**Format:** Date following the RFC3339 format.                  |
+| `semaphore.flagList`             | If this property is set, in the bulk evaluation mode (for the client SDK) we will only evaluate the flags in this list.<br/>If empty or not set the default behavior is to evaluate all the flags.<br/>**Format:** []string |
+| `semaphore.exporterMetadata`     | If this property is set, we will add all the fields in the feature event send to the provider.<br/>**Format:** map[string]string\|number\|bool                                                                               |
+
+The reserved key is `semaphore`. The key `gofeatureflag`, which the GO Feature Flag providers send, is still accepted with
+the same sub-keys (`gofeatureflag.flagList`, ...) and the relay proxy logs one warning when it sees it. When both keys carry
+the same field, the one of `semaphore` is used.

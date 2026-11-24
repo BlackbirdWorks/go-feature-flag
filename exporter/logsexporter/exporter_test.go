@@ -6,12 +6,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
+	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/exporter/logsexporter"
-	"github.com/thomaspoignant/go-feature-flag/testutils"
-	"github.com/thomaspoignant/go-feature-flag/testutils/slogutil"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 func TestLog_Export(t *testing.T) {

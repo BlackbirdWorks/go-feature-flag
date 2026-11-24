@@ -3,7 +3,7 @@ package model
 import (
 	"encoding/json"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
 
 // DefaultFlagManifestSchemaURL is the JSON Schema URL emitted for every serialized

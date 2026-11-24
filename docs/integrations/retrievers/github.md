@@ -46,7 +46,7 @@ err := ffclient.Init(ffclient.Config{
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "your-org/your-repo",
         Branch: "main",
-        FilePath: "testdata/flag-config.goff.yaml",
+        FilePath: "testdata/flag-config.yaml",
         GithubToken: "XXXX",
         Timeout: 2 * time.Second,
     },

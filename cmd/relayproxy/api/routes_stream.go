@@ -1,9 +1,9 @@
 package api
 
 import (
+	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/labstack/echo/v5"
-	custommiddleware "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
-	controller "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/goff"
 )
 
 // addStreamRoutes registers all transports that push flag-change events to

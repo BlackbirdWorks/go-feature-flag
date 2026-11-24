@@ -4,10 +4,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/linter"
 )
 
 func TestCmdLint(t *testing.T) {
@@ -24,15 +24,15 @@ func TestCmdLint(t *testing.T) {
 			name:              "missing configuration file location",
 			args:              []string{"--format=json"},
 			wantErr:           assert.Error,
-			expectedStderr:    "ERROR: impossible to find config file in the default locations [./,/goff/,/etc/opt/goff/]\n",
-			expectedErrString: "invalid GO Feature Flag configuration",
+			expectedStderr:    "ERROR: impossible to find config file in the default locations [./,/semaphore/,/etc/opt/semaphore/,/goff/,/etc/opt/goff/]\n",
+			expectedErrString: "invalid Semaphore configuration",
 		},
 		{
 			name:              "invalid configuration",
 			args:              []string{"testdata/invalid.json", "--format=json"},
 			wantErr:           assert.Error,
 			expectedStderr:    "ERROR: testdata/invalid.json: could not parse file (json): invalid character ':' after top-level value\n",
-			expectedErrString: "invalid GO Feature Flag configuration",
+			expectedErrString: "invalid Semaphore configuration",
 		},
 		{
 			name:           "valid configuration",

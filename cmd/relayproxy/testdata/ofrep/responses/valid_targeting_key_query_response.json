@@ -4,6 +4,7 @@
   "reason": "TARGETING_MATCH",
   "variant": "true_var",
   "metadata": {
-    "gofeatureflag_cacheable": true
+    "gofeatureflag_cacheable": true,
+    "semaphore_cacheable": true
   }
 }

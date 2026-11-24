@@ -7,7 +7,7 @@ import (
 
 	goteamsnotify "github.com/atc0005/go-teams-notify/v2"
 	"github.com/atc0005/go-teams-notify/v2/adaptivecard"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 var _ notifier.Notifier = &Notifier{}
@@ -26,7 +26,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 			"MicrosoftTeamsWebhookURL provided for the microsoft teams notifier")
 	}
 	msgText := convertToMicrosoftTeamsMessage(diff)
-	msg, err := adaptivecard.NewSimpleMessage(msgText, "GO Feature Flag", true)
+	msg, err := adaptivecard.NewSimpleMessage(msgText, "Semaphore", true)
 	if err != nil {
 		return err
 	}

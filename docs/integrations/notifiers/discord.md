@@ -4,7 +4,7 @@
 Send notifications to a Discord channel.
 
 ## About Discord Notifier
-The discord notifier allows to get notified on your favorite discord channel when an instance of `go-feature-flag` is
+The discord notifier allows to get notified on your favorite discord channel when an instance of `semaphore` is
 detecting changes in the configuration of your flags.
 
 Each notification lists the flags that were created, updated or deleted.

@@ -7,12 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/internal/notification"
-	"github.com/thomaspoignant/go-feature-flag/notifier/logsnotifier"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // Init the feature flag component with the configuration of ffclient.Config
@@ -69,13 +69,13 @@ type GoFeatureFlag struct {
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.
 const DefaultEventQueueSize = 65536
 
-// ff is the default object for go-feature-flag
+// ff is the default object for semaphore
 var (
 	ff     *GoFeatureFlag
 	onceFF sync.Once
 )
 
-// New creates a new go-feature-flag instances that retrieve the config from a YAML file
+// New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
 func New(config Config) (*GoFeatureFlag, error) {
 	config.Initialize()
@@ -87,7 +87,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 
 	if config.Offline {
 		// in case we are in offline mode, we don't need to initialize the cache since we will not use it.
-		goFF.config.internalLogger.Info("GO Feature Flag is in offline mode")
+		goFF.config.internalLogger.Info("Semaphore is in offline mode")
 		return goFF, nil
 	}
 
@@ -102,7 +102,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
 		config, goFF.config.internalLogger)
 	goFF.startEventWorker()
-	config.internalLogger.Debug("GO Feature Flag is initialized")
+	config.internalLogger.Debug("Semaphore is initialized")
 	return goFF, nil
 }
 

@@ -18,7 +18,7 @@ In your relay proxy configuration file you need to set the `enablePprof` field t
 ```yaml
 retriever:
   kind: file
-  path: /goff/flags.yaml
+  path: /semaphore/flags.yaml
 #  ...
 enablePprof: true
 ```

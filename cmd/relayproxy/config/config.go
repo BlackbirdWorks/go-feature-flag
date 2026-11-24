@@ -24,17 +24,17 @@ type Config struct {
 	// It is enabled when OfrepEventStream.BaseURL is set.
 	OfrepEventStream OfrepEventStream `mapstructure:"ofrepEventStream" koanf:"ofrepeventstream"`
 
-	// HideBanner (optional) if true, we don't display the go-feature-flag relay proxy banner
+	// HideBanner (optional) if true, we don't display the semaphore relay proxy banner
 	HideBanner bool `mapstructure:"hideBanner" koanf:"hidebanner"`
 
-	// EnablePprof (optional) if true, go-feature-flag relay proxy will start
+	// EnablePprof (optional) if true, semaphore relay proxy will start
 	// the pprof endpoints on the same port as the monitoring.
 	// Default: false
 	EnablePprof bool `mapstructure:"enablePprof" koanf:"enablepprof"`
 
 	// LogLevel (optional) sets the verbosity for logging,
 	// Possible values: debug, info, warn, error, dpanic, panic, fatal
-	// If level debug go-feature-flag relay proxy will run on debug mode, with more logs and custom responses
+	// If level debug semaphore relay proxy will run on debug mode, with more logs and custom responses
 	// Default: debug
 	LogLevel string `mapstructure:"logLevel" koanf:"loglevel"`
 
@@ -46,9 +46,21 @@ type Config struct {
 	// Version is the version of the relay-proxy
 	Version string `mapstructure:"version" koanf:"version"`
 
-	// Disable x-gofeatureflag-version header in the relay-proxy HTTP response
+	// Disable the x-semaphore-version header, and its legacy name x-gofeatureflag-version, in the
+	// relay-proxy HTTP response
 	// Default: false
 	DisableVersionHeader bool `mapstructure:"disableVersionHeader" koanf:"disableversionheader"`
+
+	// ExposeLegacyMetrics (optional) also exposes every semaphore_* Prometheus series under its
+	// legacy gofeatureflag_* name, so dashboards and alerts written for GO Feature Flag keep working.
+	// Default: false
+	ExposeLegacyMetrics bool `mapstructure:"exposeLegacyMetrics" koanf:"exposelegacymetrics"`
+
+	// DisableSemaphoreMetadata (optional) stops adding semaphore_cacheable to the metadata of the OFREP
+	// evaluation responses, only the legacy gofeatureflag_cacheable is sent. It is for the clients that
+	// compare the metadata strictly.
+	// Default: false
+	DisableSemaphoreMetadata bool `mapstructure:"disableSemaphoreMetadata" koanf:"disablesemaphoremetadata"`
 
 	// AuthorizedKeys list of API keys that authorized to use endpoints
 	AuthorizedKeys APIKeys `mapstructure:"authorizedKeys" koanf:"authorizedkeys"`
@@ -66,11 +78,11 @@ type Config struct {
 	// Default: ""
 	OpenTelemetryOtlpEndpoint string `mapstructure:"openTelemetryOtlpEndpoint" koanf:"opentelemetryotlpendpoint"`
 
-	// PersistentFlagConfigurationFile (optional) if set GO Feature Flag will store flags configuration in this file
+	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
 	//  to be able to serve the flags even if none of the retrievers is available during starting time.
 	//
 	// By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here,
-	// you ensure that GO Feature Flag will always start with a configuration but which can be out-dated.
+	// you ensure that Semaphore will always start with a configuration but which can be out-dated.
 	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint: lll
 
 	// OtelConfig is the configuration for the OpenTelemetry part of the relay proxy
@@ -98,7 +110,7 @@ type Config struct {
 	// There is no inheritance between flag sets.
 	FlagSets []FlagSet `mapstructure:"flagsets" koanf:"flagsets"`
 
-	// Studio (optional) loads the FlagSets from GO Feature Flag Studio instead of the configuration file.
+	// Studio (optional) loads the FlagSets from Semaphore Studio instead of the configuration file.
 	// It is enabled when Studio.URL is set.
 	Studio Studio `mapstructure:"studio" koanf:"studio"`
 

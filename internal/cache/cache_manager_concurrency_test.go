@@ -5,11 +5,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 )
 
 // GetFlag and AllFlags are lock free and must see a complete cache while UpdateCache replaces it.
@@ -41,13 +41,18 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					for !stop.Load() {
+						// Only a reader racing with Close may see the "not initialised" error.
 						f, err := m.GetFlag("flag-1")
 						if err == nil {
 							assert.NotNil(t, f)
+						} else if !tt.close {
+							assert.NoError(t, err)
 						}
 						all, err := m.AllFlags()
 						if err == nil {
 							assert.Len(t, all, tt.flags)
+						} else if !tt.close {
+							assert.NoError(t, err)
 						}
 					}
 				}()

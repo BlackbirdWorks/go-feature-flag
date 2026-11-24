@@ -42,7 +42,7 @@ Bellow is the full list of retrievers that are available in Semaphore.
 ## Custom retriever
 If you have a specific use case that is not covered by the built-in retrievers, you can create your own custom retriever.
 
-To achieve this, you need to implement the [`InitializableRetrieverWithFlagset`](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/retriever/#InitializableRetrieverWithFlagset) interface in your custom retriever.
+To achieve this, you need to implement the [`InitializableRetrieverWithFlagset`](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/#InitializableRetrieverWithFlagset) interface in your custom retriever.
 
 ```go
 type InitializableRetrieverWithFlagset interface {
@@ -57,7 +57,7 @@ To avoid any issue to call the Retrieve function before the Init function, you h
 Semaphore will try to call the Retrieve function only if the status is `RetrieverReady`.
 
 > [!NOTE]
-> If you think your custom retriever could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/go-feature-flag/pulls) to add it to the list of available retrievers.
+> If you think your custom retriever could be useful for others, feel free to open a [pull request](https://github.com/BlackbirdWorks/semaphore/pulls) to add it to the list of available retrievers.
 
 > [!WARNING]
 > If you are using a custom retriever, it is easy to use it for the GO Module, but if you want to use it in the relay proxy you will have to recompile it yourself.

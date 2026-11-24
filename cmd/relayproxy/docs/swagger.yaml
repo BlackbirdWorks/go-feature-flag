@@ -142,13 +142,13 @@ definitions:
           type: string
         description: Custom is a map containing all extra information for this user.
         example:
-          company: GO Feature Flag
+          company: Semaphore
           email: contact@gofeatureflag.org
           firstname: John
           lastname: Doe
         type: object
       key:
-        description: Key is the identifier of the UserRequest.
+        description: Key is the identifier of the evaluation context.
         example: 08b5ffb7-7109-42f4-a6f2-b85560fbd20f
         type: string
     type: object
@@ -247,7 +247,7 @@ definitions:
         additionalProperties:
           type: string
         example:
-          company: GO Feature Flag
+          company: Semaphore
           firstname: John
           lastname: Doe
           targetingKey: 4f433951-4c8c-42b3-9f18-8c9a5ed8e9eb
@@ -413,15 +413,15 @@ definitions:
     type: object
 info:
   contact:
-    name: GO feature flag relay proxy
+    name: Semaphore relay proxy
   description: "# Introduction\n\nThis API is documented in **OpenAPI format** and
-    describe the REST API of the **GO Feature Flag relay proxy**.\n\nThe relay proxy
-    is a component to evaluate your feature flags remotely when using **GO Feature
-    Flag**.  \nThis API is mostly used by all the OpenFeature providers."
+    describe the REST API of the **Semaphore relay proxy**.\n\nThe relay proxy is
+    a component to evaluate your feature flags remotely when using **Semaphore**.
+    \ \nThis API is mostly used by all the OpenFeature providers."
   license:
     name: MIT
-    url: https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE
-  title: GO Feature Flag relay proxy endpoints
+    url: https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE
+  title: Semaphore relay proxy endpoints
 paths:
   /admin/v1/flags/validate:
     post:
@@ -473,7 +473,7 @@ paths:
       - ApiKeyAuth: []
       summary: Validate a flag file
       tags:
-      - Admin API to manage GO Feature Flag
+      - Admin API to manage Semaphore
   /admin/v1/retriever/refresh:
     post:
       description: |-
@@ -499,7 +499,7 @@ paths:
       - ApiKeyAuth: []
       summary: This endpoint is used to force the refresh of the flags in the cache.
       tags:
-      - Admin API to manage GO Feature Flag
+      - Admin API to manage Semaphore
   /debug/pprof/:
     get:
       description: |-
@@ -695,8 +695,7 @@ paths:
             $ref: '#/definitions/model.ManifestError'
       security:
       - ApiKeyAuth: []
-      summary: GetManifest is a GET endpoint to return the flags configured in GO
-        Feature Flag.
+      summary: GetManifest is a GET endpoint to return the flags configured in Semaphore.
       tags:
       - OpenFeature Manisfest API
   /stream/v1/sse/flag/change:
@@ -736,7 +735,7 @@ paths:
             $ref: '#/definitions/modeldocs.HTTPErrorDoc'
       summary: SSE endpoint to be notified about flag changes
       tags:
-      - GO Feature Flag Evaluation Stream API
+      - Semaphore Evaluation Stream API
   /stream/v1/ws/flag/change:
     get:
       consumes:
@@ -771,7 +770,7 @@ paths:
             $ref: '#/definitions/modeldocs.HTTPErrorDoc'
       summary: Websocket endpoint to be notified about flag changes
       tags:
-      - GO Feature Flag Evaluation Stream API
+      - Semaphore Evaluation Stream API
   /v1/allflags:
     post:
       consumes:
@@ -783,7 +782,7 @@ paths:
         To get a variation you should provide information about the user.
         For that you should provide some user information in JSON in the request body.
       parameters:
-      - description: Payload of the user we want to challenge against the flag.
+      - description: Evaluation context to challenge against the flags.
         in: body
         name: data
         required: true
@@ -809,7 +808,7 @@ paths:
       - XApiKeyAuth: []
       summary: All flags variations for a user
       tags:
-      - GO Feature Flag Evaluation API
+      - Semaphore Evaluation API
   /v1/data/collector:
     post:
       consumes:
@@ -846,7 +845,7 @@ paths:
       - XApiKeyAuth: []
       summary: Endpoint to send usage of your flags to be collected
       tags:
-      - GO Feature Flag Evaluation API
+      - Semaphore Evaluation API
   /v1/feature/{flag_key}/eval:
     post:
       consumes:
@@ -863,7 +862,7 @@ paths:
         an issue has occurred during the validation of the flag, in that case the value returned will be the
         default value.
       parameters:
-      - description: Payload of the user we want to get all the flags from.
+      - description: Evaluation context and default value for the flag.
         in: body
         name: data
         required: true
@@ -894,7 +893,7 @@ paths:
       - XApiKeyAuth: []
       summary: Evaluate a feature flag
       tags:
-      - GO Feature Flag Evaluation API
+      - Semaphore Evaluation API
   /v1/flag/change:
     get:
       consumes:
@@ -928,7 +927,7 @@ paths:
       summary: Endpoint to poll if you want to know if there is a configuration change
         in the flags
       tags:
-      - GO Feature Flag Evaluation API
+      - Semaphore Evaluation API
   /v1/flag/configuration:
     post:
       consumes:
@@ -966,7 +965,7 @@ paths:
       - XApiKeyAuth: []
       summary: Endpoint to poll if you want to get the configuration of the flags.
       tags:
-      - GO Feature Flag Evaluation API
+      - Semaphore Evaluation API
   /ws/v1/flag/change:
     get:
       consumes:
@@ -1003,7 +1002,7 @@ paths:
             $ref: '#/definitions/modeldocs.HTTPErrorDoc'
       summary: Websocket endpoint to be notified about flag changes
       tags:
-      - GO Feature Flag Evaluation Stream API
+      - Semaphore Evaluation Stream API
 securityDefinitions:
   ApiKeyAuth:
     description: Use configured APIKeys in yaml config as authorization keys, disabled

@@ -1,6 +1,6 @@
 -- ----------------------------------------------------------------------------
 -- GO FEATURE FLAG POSTGRESQL RETRIEVER INITIALIZATION SCRIPT
--- This script is used to initialize the PostgreSQL database for the Go Feature Flag retriever.
+-- This script is used to initialize the PostgreSQL database for the Semaphore retriever.
 -- This is a very minimal setup for the retriever, you can add more columns or constraints to the table if you need to.
 -- ----------------------------------------------------------------------------
 

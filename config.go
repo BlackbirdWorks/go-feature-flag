@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/retriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-// Config is the configuration of go-feature-flag.
+// Config is the configuration of semaphore.
 // You should also have a retriever to specify where to read the flags file.
 type Config struct {
 	// PollingInterval (optional) Poll every X time
@@ -108,15 +108,15 @@ type Config struct {
 	// Default: nil
 	EvaluationContextEnrichment map[string]any
 
-	// PersistentFlagConfigurationFile (optional) if set GO Feature Flag will store flags configuration in this file
+	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
 	//  to be able to serve the flags even if none of the retrievers is available during starting time.
 	//
 	// By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here,
-	// you ensure that GO Feature Flag will always start with a configuration but which can be out-dated.
+	// you ensure that Semaphore will always start with a configuration but which can be out-dated.
 	PersistentFlagConfigurationFile string
 
 	// Name (optional) is the name of the flagset, this is used to identify the flagset inside the
-	// GO Feature Flag instance. This allow to identify the flagset.
+	// Semaphore instance. This allow to identify the flagset.
 	// Default: nil
 	Name *string
 
@@ -193,7 +193,7 @@ func (c *Config) GetDataExporters() []DataExporter {
 	return dataExporters
 }
 
-// SetOffline set GO Feature Flag in offline mode.
+// SetOffline set Semaphore in offline mode.
 func (c *Config) SetOffline(control bool) {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
@@ -203,7 +203,7 @@ func (c *Config) SetOffline(control bool) {
 	c.Offline = control
 }
 
-// IsOffline return if the GO Feature Flag is in offline mode.
+// IsOffline return if the Semaphore is in offline mode.
 func (c *Config) IsOffline() bool {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}

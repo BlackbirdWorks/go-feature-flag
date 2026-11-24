@@ -49,10 +49,10 @@ otel:
 
 See [the OpenTelemetry documentation](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for more information.
 
-All your requests will be traced and sent to the collector with the service name **`go-feature-flag`**.
+All your requests will be traced and sent to the collector with the service name **`semaphore`**.
 
 > [!NOTE]
-> If you want to try the OpenTelemetry integration locally, follow this [example](https://github.com/BlackbirdWorks/go-feature-flag/tree/main/cmd/relayproxy/testdata/opentelemetry)
+> If you want to try the OpenTelemetry integration locally, follow this [example](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/testdata/opentelemetry)
 > to set up Jaeger and see your traces.
 
 ---
@@ -77,18 +77,22 @@ This endpoint is providing metrics about the relay proxy in the prometheus forma
 > [!NOTE]
 > The relay proxy supports [Prometheus native histograms](https://prometheus.io/docs/specs/native_histograms/) for improved latency distribution precision. When scraping with Prometheus (especially using protobuf format), histogram metrics will include both classic bucket data and native histogram data for higher-fidelity percentile calculations. Classic histogram buckets are preserved for backward compatibility.
 
+All the series of the relay proxy are prefixed with `semaphore_`. The prefix used by Semaphore was
+`gofeatureflag_`: set [`exposeLegacyMetrics`](configuration.md#exposelegacymetrics) to also expose every series under
+that prefix while you migrate your dashboards and alerts.
+
 #### Loaded flags
-The gauge `gofeatureflag_flag_loaded` exposes one series per flag currently loaded in the relay proxy cache,
+The gauge `semaphore_flag_loaded` exposes one series per flag currently loaded in the relay proxy cache,
 with the labels `flagset`, `flag_name` and `disabled`. It is computed from the cache on every scrape, so a
 deleted flag disappears on the next scrape after the cache refresh. The `disabled` label reflects the effective
 state at scrape time, including due `scheduledRollout` steps and ended `experimentation` windows.
 
 ```promql
 # all flags currently served, per flagset
-sum by (flagset) (gofeatureflag_flag_loaded)
+sum by (flagset) (semaphore_flag_loaded)
 
 # flags loaded but disabled
-gofeatureflag_flag_loaded{disabled="true"}
+semaphore_flag_loaded{disabled="true"}
 ```
 
 ---

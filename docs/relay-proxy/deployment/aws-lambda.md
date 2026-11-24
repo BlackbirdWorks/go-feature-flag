@@ -54,5 +54,5 @@ Build a binary compatible with the AWS `provided.al2023` runtime (arm64) from so
 
 ```shell
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o bootstrap ./cmd/relayproxy
-zip go-feature-flag-aws-lambda.zip bootstrap
+zip semaphore-aws-lambda.zip bootstrap
 ```

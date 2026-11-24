@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/internal/flagstate"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/internal/flagstate"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
 )
 
 func TestAllFlags(t *testing.T) {

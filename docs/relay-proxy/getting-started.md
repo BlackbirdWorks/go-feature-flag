@@ -9,7 +9,7 @@ This page starts a relay proxy locally with a file retriever.
 ## Build
 
 ```shell
-make build-relayproxy   # binary: out/bin/relayproxy
+make build-relayproxy   # binary: out/bin/semaphore
 ```
 
 See [installation](install.md) for the other options (Docker, FIPS).
@@ -17,7 +17,7 @@ See [installation](install.md) for the other options (Docker, FIPS).
 ## Create a flag file
 
 ```yaml
-# flags.goff.yaml
+# flags.yaml
 new-checkout:
   variations:
     enabled: true
@@ -33,17 +33,17 @@ new-checkout:
 ## Create the relay proxy configuration
 
 ```yaml
-# goff-proxy.yaml
+# semaphore-proxy.yaml
 pollingInterval: 1000 # poll the file every second
 retrievers:
   - kind: file
-    path: ./flags.goff.yaml
+    path: ./flags.yaml
 ```
 
 ## Start
 
 ```shell
-./out/bin/relayproxy --config goff-proxy.yaml
+./out/bin/semaphore --config semaphore-proxy.yaml
 ```
 
 What is happening?
@@ -69,7 +69,8 @@ Response:
   "variant": "enabled",
   "metadata": {
     "evaluatedRuleName": "beta users",
-    "gofeatureflag_cacheable": true
+    "gofeatureflag_cacheable": true,
+    "semaphore_cacheable": true
   }
 }
 ```

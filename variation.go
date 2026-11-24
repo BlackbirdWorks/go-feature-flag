@@ -7,11 +7,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/evaluation"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/model"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
 const (
@@ -28,7 +28,7 @@ func BoolVariation(flagKey string, ctx ffcontext.Context, defaultValue bool) (bo
 // BoolVariation return the value of the flag in boolean.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) BoolVariation(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -49,7 +49,7 @@ func BoolVariationDetails(flagKey string, ctx ffcontext.Context, defaultValue bo
 // BoolVariationDetails return the details of the evaluation for boolean flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) BoolVariationDetails(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -70,7 +70,7 @@ func IntVariation(flagKey string, ctx ffcontext.Context, defaultValue int) (int,
 // IntVariation return the value of the flag in int.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) IntVariation(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -94,7 +94,7 @@ func IntVariationDetails(
 // IntVariationDetails return the details of the evaluation for int flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) IntVariationDetails(flagKey string, ctx ffcontext.Context, defaultValue int,
 ) (model.VariationResult[int], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "int")
@@ -116,7 +116,7 @@ func Float64Variation(
 // Float64Variation return the value of the flag in float64.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) Float64Variation(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -137,7 +137,7 @@ func Float64VariationDetails(flagKey string, ctx ffcontext.Context, defaultValue
 // Float64VariationDetails return the details of the evaluation for float64 flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) Float64VariationDetails(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -158,7 +158,7 @@ func StringVariation(flagKey string, ctx ffcontext.Context, defaultValue string)
 // StringVariation return the value of the flag in string.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) StringVariation(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -179,7 +179,7 @@ func StringVariationDetails(flagKey string, ctx ffcontext.Context, defaultValue 
 // StringVariationDetails return the details of the evaluation for string flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) StringVariationDetails(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -204,7 +204,7 @@ func JSONArrayVariation(
 // JSONArrayVariation return the value of the flag in []interface{}.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) JSONArrayVariation(
 	flagKey string, ctx ffcontext.Context, defaultValue []any,
 ) ([]any, error) {
@@ -223,7 +223,7 @@ func JSONArrayVariationDetails(flagKey string, ctx ffcontext.Context, defaultVal
 // JSONArrayVariationDetails return the details of the evaluation for []interface{} flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) JSONArrayVariationDetails(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -246,7 +246,7 @@ func JSONVariation(
 // JSONVariation return the value of the flag in map[string]interface{}.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) JSONVariation(
 	flagKey string, ctx ffcontext.Context, defaultValue map[string]any,
 ) (map[string]any, error) {
@@ -268,7 +268,7 @@ func JSONVariationDetails(
 // JSONVariationDetails return the details of the evaluation for []interface{} flag.
 // An error is return if you don't have init the library before calling the function.
 // If the key does not exist we return the default value.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) JSONVariationDetails(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -280,10 +280,10 @@ func (g *GoFeatureFlag) JSONVariationDetails(
 }
 
 // RawVariation return the raw value of the flag (without any types).
-// This raw result is mostly used by software built on top of go-feature-flag such as
-// go-feature-flag relay proxy.
+// This raw result is mostly used by software built on top of semaphore such as
+// semaphore relay proxy.
 // If you are using directly the library you should avoid calling this function.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) RawVariation(
 	flagKey string,
 	ctx ffcontext.Context,
@@ -380,7 +380,7 @@ func getVariation[T model.JSONType](
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
 			Cacheable:     false,
-		}, fmt.Errorf("go-feature-flag is not initialised, default value is used")
+		}, fmt.Errorf("semaphore is not initialised, default value is used")
 	}
 	if g.config.Offline {
 		return model.VariationResult[T]{
@@ -571,7 +571,7 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 
 // changesEventFields tells if the enrichment sets an attribute that an evaluation event reads.
 func changesEventFields(enrichment map[string]any) bool {
-	_, protected := enrichment["gofeatureflag"]
+	protected := ffcontext.HasReservedKey(enrichment)
 	_, anonymous := enrichment["anonymous"]
 	return protected || anonymous
 }

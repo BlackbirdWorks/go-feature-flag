@@ -3,12 +3,12 @@ package ffclient
 import (
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 )
 
 // Track is used to track an event.
-// Note: Use this function only if you are using multiple go-feature-flag instances.
+// Note: Use this function only if you are using multiple semaphore instances.
 func (g *GoFeatureFlag) Track(
 	trackingEventName string,
 	ctx ffcontext.EvaluationContext,

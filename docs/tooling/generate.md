@@ -6,7 +6,7 @@
 The [OpenFeature cli](https://github.com/open-feature/cli) allow code generation for flag accessors for OpenFeature.  
 This allows to have a type safe way to access your flags in your code based on a flag manifest you can provide to the OpenFeature cli.
 
-To generate the OpenFeature flag manifest you can use the `generate manifest` command of the `go-feature-flag-cli`,
+To generate the OpenFeature flag manifest you can use the `generate manifest` command of the `semaphore-cli`,
 it will generate a flag manifest file compatible with the **`OpenFeature cli`** that you can use.
 
 ## Add information to your flags
@@ -45,14 +45,14 @@ usernameMaxLength:
 ```
 
 ## Install the Command Line
-Check the [installation guide](cli.md) to install the `go-feature-flag-cli`.
+Check the [installation guide](cli.md) to install the `semaphore-cli`.
 
 ## Generate the flag manifest
 
-### Option 1: Generate locally with go-feature-flag-cli
+### Option 1: Generate locally with semaphore-cli
 
 ```shell
-go-feature-flag-cli generate manifest \
+semaphore-cli generate manifest \
   --config="<location_of_your_flag_configuration_file>" \
   --flag_manifest_destination="<destination_of_your_flag_manifest>"
 ```
@@ -60,7 +60,7 @@ go-feature-flag-cli generate manifest \
 | param                         | description                                                                                                                                                            |
 |-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `--flag_manifest_destination` | (mandatory) The destination where your manifest will be stored.                                                                                                        |
-| `--config`                    | The location of your configuration file. _(if not provided we will search a file named `flags.goff.yaml`_ in one of this directories `./`, `/goff/`, `/etc/opt/goff/`. |
+| `--config`                    | The location of your configuration file. _(if not provided we will search a file named `flags.yaml`_ in one of this directories `./`, `/semaphore/`, `/etc/opt/semaphore/`. |
 | `--format`                    | The format of your configuration flag _(acceptable values:`yaml`, `json`, `toml`)_.<br/>Default: **`yaml`**                                                            |
 
 ### Example of flag manifest

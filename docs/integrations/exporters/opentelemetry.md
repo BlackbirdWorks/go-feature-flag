@@ -32,8 +32,8 @@ with `TracerName`.
 
 ```go
 import (
-    ffclient "github.com/thomaspoignant/go-feature-flag"
-    "github.com/thomaspoignant/go-feature-flag/exporter/opentelemetryexporter"
+    ffclient "github.com/blackbirdworks/semaphore"
+    "github.com/blackbirdworks/semaphore/exporter/opentelemetryexporter"
 )
 
 // ... initialize your OpenTelemetry tracer provider here (OTLP, resource, etc.) ...
@@ -42,7 +42,7 @@ cfg := ffclient.Config{
     // ... other config ...
     DataExporter: ffclient.DataExporter{
         Exporter: &opentelemetryexporter.Exporter{
-            TracerName: "app-featureflags", // optional, default: "go-feature-flag"
+            TracerName: "app-featureflags", // optional, default: "semaphore"
         },
     },
 }
@@ -53,7 +53,7 @@ defer ffclient.Close()
 
 | Field      |    Mandatory     | Description |
 |------------|:----------------:|-------------|
-| `TracerName` | No | Optional: override the OpenTelemetry tracer name. Default is `go-feature-flag`. |
+| `TracerName` | No | Optional: override the OpenTelemetry tracer name. Default is `semaphore`. |
 
 ## Configure the Relay Proxy
 
@@ -86,10 +86,10 @@ flagsets:
       - "my-api-key"
     retriever:
       kind: file
-      path: ./flags.goff.yaml
+      path: ./flags.yaml
     exporters:
       - kind: opentelemetry
-        tracerName: go-feature-flag
+        tracerName: semaphore
 ```
 
 Include `my-api-key` in your provider configuration or send it in the `X-API-Key: my-api-key` header when making requests to this flag set.

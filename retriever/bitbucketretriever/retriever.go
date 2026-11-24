@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/internal"
-	"github.com/thomaspoignant/go-feature-flag/retriever/shared"
+	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/retriever/shared"
 )
 
 // Retriever is the interface to fetch the flags from Bitbucket.

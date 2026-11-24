@@ -3,10 +3,10 @@ package helper_test
 import (
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func TestFlagTypeFromVariations(t *testing.T) {

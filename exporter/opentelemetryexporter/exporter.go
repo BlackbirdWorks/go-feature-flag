@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -19,13 +19,13 @@ import (
 var _ exporter.Exporter = &Exporter{}
 
 const (
-	defaultTracerName = "go-feature-flag"
+	defaultTracerName = "semaphore"
 	spanName          = "feature_flag.evaluate"
 )
 
 type Exporter struct {
 	// TracerName allows overriding the OpenTelemetry tracer name.
-	// Default: go-feature-flag
+	// Default: semaphore
 	TracerName string
 
 	tracer trace.Tracer

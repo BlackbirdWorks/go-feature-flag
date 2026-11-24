@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/spf13/cobra"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/evaluate"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/linter"
 )
 
 func main() {
@@ -16,9 +16,9 @@ func main() {
 
 func initRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "go-feature-flag-cli",
-		Short: "GO Feature Flag CLI tool",
-		Long:  `A command line interface for GO Feature Flag operations.`,
+		Use:   "semaphore-cli",
+		Short: "Semaphore CLI tool",
+		Long:  `A command line interface for Semaphore operations.`,
 	}
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())

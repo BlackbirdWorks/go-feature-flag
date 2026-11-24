@@ -9,15 +9,15 @@ import (
 	"sync"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/proxynotifier"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service/stream"
-	"github.com/thomaspoignant/go-feature-flag/notifier"
-	"github.com/thomaspoignant/go-feature-flag/utils"
 	"go.uber.org/zap"
 )
 
@@ -52,7 +52,7 @@ type FlagsetManager interface {
 // flagsetManagerImpl is the internal implementation of FlagsetManager
 type flagsetManagerImpl struct {
 	// DefaultFlagSet is the flagset used when no API Key is provider.
-	// It is the legacy way to handle feature flags in GO Feature Flag.
+	// It is the legacy way to handle feature flags in Semaphore.
 	// This is used only if no flag set is configured in the configuration file.
 	DefaultFlagSet *ffclient.GoFeatureFlag
 
@@ -205,7 +205,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.Error(
-				"failed to create goff client for flagset",
+				"failed to create the Semaphore client for the flagset",
 				zap.Int("flagset_index", index),
 				zap.String("flagset", flagset.Name),
 				zap.Error(err),

@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func TestUserAddCustomAttribute(t *testing.T) {
@@ -373,4 +373,112 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 		assert.Equal(t, first, second, "successive ToMap() calls must return equal maps")
 		assert.Equal(t, map[string]any{"company": "acme"}, ctx.GetCustom())
 	})
+}
+
+func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
+	t.Parallel()
+	newDate := "2025-01-02T03:04:05Z"
+	legacyDate := "2020-01-02T03:04:05Z"
+	tests := []struct {
+		name       string
+		attributes map[string]any
+		wantFlags  []string
+		wantDate   string
+		wantMeta   map[string]any
+	}{
+		{
+			name:       "semaphore key",
+			attributes: map[string]any{ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate}},
+			wantFlags:  []string{"a"},
+			wantDate:   newDate,
+		},
+		{
+			name:       "legacy key only",
+			attributes: map[string]any{ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate}},
+			wantFlags:  []string{"b"},
+			wantDate:   legacyDate,
+		},
+		{
+			name: "both keys, semaphore wins field by field",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{
+					"flagList": []any{"old"}, "currentDateTime": legacyDate, "exporterMetadata": map[string]any{"k": "legacy"},
+				},
+				ffcontext.ReservedKey: map[string]any{"flagList": []any{"new"}, "currentDateTime": newDate},
+			},
+			wantFlags: []string{"new"},
+			wantDate:  newDate,
+			wantMeta:  map[string]any{"k": "legacy"},
+		},
+		{
+			name: "an explicit empty flagList and exporterMetadata of semaphore win over the legacy ones",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{
+					"flagList": []any{"old"}, "exporterMetadata": map[string]any{"k": "legacy"},
+				},
+				ffcontext.ReservedKey: map[string]any{"flagList": []any{}, "exporterMetadata": map[string]any{}},
+			},
+			wantFlags: []string{},
+			wantMeta:  map[string]any{},
+		},
+		{
+			name: "an explicit empty typed flagList of semaphore wins over the legacy one",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []string{"old"}},
+				ffcontext.ReservedKey:       map[string]any{"flagList": []string{}},
+			},
+			wantFlags: []string{},
+		},
+		{
+			name: "a flagList of semaphore that is not a list does not hide the legacy one",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"old"}},
+				ffcontext.ReservedKey:       map[string]any{"flagList": "x"},
+			},
+			wantFlags: []string{"old"},
+		},
+		{
+			name: "string maps are read under both keys",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]string{"currentDateTime": legacyDate},
+				ffcontext.ReservedKey:       map[string]string{"flagList": "ignored-not-a-list"},
+			},
+			wantDate: legacyDate,
+		},
+		{name: "no key", attributes: map[string]any{"other": 1}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := ffcontext.NewEvaluationContext("key")
+			for k, v := range tt.attributes {
+				ctx.AddCustomAttribute(k, v)
+			}
+			got := ctx.ExtractGOFFProtectedFields()
+			assert.Equal(t, tt.wantFlags, got.FlagList)
+			assert.Equal(t, tt.wantMeta, got.ExporterMetadata)
+			switch {
+			case tt.wantDate == "":
+				assert.Nil(t, got.CurrentDateTime)
+			case assert.NotNil(t, got.CurrentDateTime):
+				assert.True(t, got.CurrentDateTime.Equal(mustParse(t, tt.wantDate)))
+			}
+			assert.Equal(t, tt.attributes["other"] == nil, ffcontext.HasReservedKey(tt.attributes))
+		})
+	}
+}
+
+func mustParse(t *testing.T, s string) time.Time {
+	t.Helper()
+	d, err := time.Parse(time.RFC3339, s)
+	assert.NoError(t, err)
+	return d
+}
+
+func TestHasReservedKey(t *testing.T) {
+	t.Parallel()
+	assert.True(t, ffcontext.HasReservedKey(map[string]any{"semaphore": 1}))
+	assert.True(t, ffcontext.HasReservedKey(map[string]any{"gofeatureflag": 1}))
+	assert.False(t, ffcontext.HasReservedKey(map[string]any{"x": 1}))
+	assert.False(t, ffcontext.HasReservedKey(nil))
 }

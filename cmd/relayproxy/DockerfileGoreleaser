@@ -1,4 +1,7 @@
 FROM gcr.io/distroless/static-debian13:latest
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/go-feature-flag /go-feature-flag
-CMD ["/go-feature-flag"]
+COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
+COPY LICENSE NOTICE /licenses/
+COPY rules/LICENSE /licenses/rules-LICENSE
+COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
+CMD ["/usr/local/bin/semaphore"]

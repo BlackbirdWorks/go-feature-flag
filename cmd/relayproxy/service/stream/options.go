@@ -3,7 +3,7 @@ package stream
 import (
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/notifier"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // defaultSSEHeartbeatInterval is the default interval between two SSE heartbeat comments.

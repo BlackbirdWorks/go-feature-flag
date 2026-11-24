@@ -10,8 +10,8 @@ import (
 	"text/template"
 
 	"cloud.google.com/go/bigquery"
+	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/exporter"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 )

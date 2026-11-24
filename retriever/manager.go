@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // ManagerConfig is the configuration of the retriever manager.
@@ -213,7 +213,7 @@ func (m *Manager) updateCacheWithRetriever(newFlags map[string]dto.DTO, isInit b
 }
 
 // handleFirstRetrieverError is a function that will handle the first error when trying to retrieve
-// the flags the first time when starting GO Feature Flag.
+// the flags the first time when starting Semaphore.
 func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) error {
 	switch {
 	case m.config.PersistentFlagConfigurationFile != "":
@@ -236,7 +236,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 }
 
 // retrievePersistentLocalDisk is a function used in case we are not able to retrieve any flag when starting
-// GO Feature Flag.
+// Semaphore.
 // This function will look at any pre-existent persistent configuration and start with it.
 func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	if m.config.PersistentFlagConfigurationFile != "" {
@@ -278,6 +278,15 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 		return nil, fmt.Errorf("cache is not initialized")
 	}
 	return m.cacheManager.AllFlags()
+}
+
+// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
+// callers inside the module that only read them (evaluation of all the flags).
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, fmt.Errorf("cache is not initialized")
+	}
+	return m.cacheManager.AllFlagsReadOnly()
 }
 
 func (m *Manager) ForceRefresh(ctx context.Context) bool {

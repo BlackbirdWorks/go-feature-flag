@@ -3,7 +3,7 @@
 ## Overview
 The relay-proxy is providing a list of REST endpoints to interact with Semaphore.
 
-Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/cmd/relayproxy/docs/swagger.json) to have the most updated list of endpoints.
+Since we are evolving the relay proxy, the list of endpoints can change, and we recommend checking the [**OpenAPI documentation**](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/relayproxy/docs/swagger.json) to have the most updated list of endpoints.
 
 ### Endpoint list
 

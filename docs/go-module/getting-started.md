@@ -2,8 +2,24 @@
 
 ## Installation
 ```bash
-go get github.com/thomaspoignant/go-feature-flag
+go get github.com/blackbirdworks/semaphore
 ```
+
+> [!NOTE]
+> The library depends on the nested module `github.com/blackbirdworks/semaphore/modules/core`, and the root module
+> replaces `github.com/nikunjy/rules` with the fork of its `rules/` directory and `github.com/xitongsys/parquet-go`
+> with `github.com/rudderlabs/parquet-go`. This repository applies these `replace` directives, which Go ignores when
+> your module is the consumer. `go get` therefore only works once a version of `modules/core` that the root `go.mod`
+> requires has been published (a `modules/core/vX.Y.Z` tag, or a pseudo-version of a commit of `main`), and even then
+> your module builds with the upstream `nikunjy/rules` and `parquet-go` unless it repeats the replacements.
+> Until then, work from a checkout of this repository, and in your `go.mod` add:
+>
+> ```
+> replace github.com/blackbirdworks/semaphore => ../semaphore
+> replace github.com/blackbirdworks/semaphore/modules/core => ../semaphore/modules/core
+> replace github.com/nikunjy/rules => ../semaphore/rules
+> replace github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0.3
+> ```
 
 ## Create a feature flag configuration
 
@@ -29,7 +45,7 @@ First, you need to initialize the `ffclient` with the location of your backend f
 err := ffclient.Init(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever:      &fileretriever.Retriever{
-        Path: "flag-config.goff.yaml",
+        Path: "flag-config.yaml",
     },
 })
 defer ffclient.Close()

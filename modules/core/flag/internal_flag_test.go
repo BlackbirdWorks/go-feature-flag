@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/ffcontext"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
 )
 
 func TestInternalFlag_Value(t *testing.T) {
@@ -506,7 +506,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						VariationResult: testconvert.String("variation_C"),
 					},
 					{
-						Query:           testconvert.String("company eq \"go-feature-flag\""),
+						Query:           testconvert.String("company eq \"semaphore\""),
 						VariationResult: testconvert.String("variation_D"),
 					},
 					{
@@ -525,7 +525,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
-					AddCustom("company", "go-feature-flag").
+					AddCustom("company", "semaphore").
 					Build(),
 				flagContext: flag.Context{
 					DefaultSdkValue: "value_default",
@@ -561,7 +561,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Query: testconvert.String(
-							`{"==":[{"var":"company"},"go-feature-flag"]}`,
+							`{"==":[{"var":"company"},"semaphore"]}`,
 						),
 						VariationResult: testconvert.String("variation_D"),
 					},
@@ -581,7 +581,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
-					AddCustom("company", "go-feature-flag").
+					AddCustom("company", "semaphore").
 					Build(),
 				flagContext: flag.Context{
 					DefaultSdkValue: "value_default",
@@ -614,7 +614,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						VariationResult: testconvert.String("variation_C"),
 					},
 					{
-						Query:           testconvert.String("company eq \"go-feature-flag\""),
+						Query:           testconvert.String("company eq \"semaphore\""),
 						VariationResult: testconvert.String("variation_D"),
 						Disable:         testconvert.Bool(true),
 					},
@@ -634,7 +634,7 @@ func TestInternalFlag_Value(t *testing.T) {
 			args: args{
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
-					AddCustom("company", "go-feature-flag").
+					AddCustom("company", "semaphore").
 					Build(),
 				flagContext: flag.Context{
 					DefaultSdkValue: "value_default",

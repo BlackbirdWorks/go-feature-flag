@@ -12,14 +12,14 @@ For now it supports the following commands:
 ## How to build the cli
 
 ```shell
-make build-cli   # from the repository root; binary: out/bin/cli
+make build-cli   # from the repository root; binary: out/bin/semaphore-cli
 ```
 
-The examples below call the binary `go-feature-flag-cli`; use `out/bin/cli` (or rename it).
+The examples below call the binary `semaphore-cli`; use `out/bin/semaphore-cli`.
 
 # How to use the command line
 
-**`go-feature-flag-cli`**  is a command line tool.
+**`semaphore-cli`**  is a command line tool.
 
 ## How to evaluate a flag
 
@@ -27,7 +27,7 @@ The evaluate command allows you to evaluate a feature flag or inspect the config
 `--check-mode`
 
 ```shell
-go-feature-flag-cli evaluate [OPTIONS]
+semaphore-cli evaluate [OPTIONS]
 ```
 
 ### Key Flags
@@ -160,28 +160,28 @@ As mentioned above the `--config` flag is deprecated and we encourage you to use
 the following command:
 
 ```shell
-go-feature-flag-cli evaluate --config="<location_of_your_flag_configuration_file>" --flag="<name_of_your_flag_to_evaluate>" --ctx='<evaluation_ctx_as_json_string>'
+semaphore-cli evaluate --config="<location_of_your_flag_configuration_file>" --flag="<name_of_your_flag_to_evaluate>" --ctx='<evaluation_ctx_as_json_string>'
 ```
 
 may be replaced by:
 
 ```shell
-go-feature-flag-cli evaluate --kind="file" --path="<location_of_your_flag_configuration_file>" --flag="<name_of_your_flag_to_evaluate>" --ctx='<evaluation_ctx_as_json_string>'
+semaphore-cli evaluate --kind="file" --path="<location_of_your_flag_configuration_file>" --flag="<name_of_your_flag_to_evaluate>" --ctx='<evaluation_ctx_as_json_string>'
 ```
 
 ## How to lint a configuration file
 
 ```shell
-go-feature-flag-cli lint <location_of_your_flag_configuration_file> --format="<yaml or json or toml>"
+semaphore-cli lint <location_of_your_flag_configuration_file> --format="<yaml or json or toml>"
 ```
 
 # License
 
-View [license](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/LICENSE) information for the software
+View [license](https://github.com/BlackbirdWorks/semaphore/blob/main/LICENSE) information for the software
 contained in this image.
 
 ## How can I contribute?
 
 This project is open for contribution, see
-the [contributor's guide](https://github.com/BlackbirdWorks/go-feature-flag/blob/main/CONTRIBUTING.md) for some helpful
+the [contributor's guide](https://github.com/BlackbirdWorks/semaphore/blob/main/CONTRIBUTING.md) for some helpful
 tips.

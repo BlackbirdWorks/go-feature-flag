@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // DeprecatedExporterV1 is an interface to describe how an exporter looks like.

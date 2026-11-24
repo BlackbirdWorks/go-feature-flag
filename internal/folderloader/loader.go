@@ -14,10 +14,10 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/thomaspoignant/go-feature-flag/internal/cache"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 	"gopkg.in/yaml.v3"
 )
 

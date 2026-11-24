@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/retriever/gitlabretriever"
-	"github.com/thomaspoignant/go-feature-flag/testutils/mock"
 )
 
 func sampleText() string {

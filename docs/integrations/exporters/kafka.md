@@ -16,7 +16,7 @@ configuration to your relay proxy configuration file:
 exporters:
   - kind: kafka
     kafka:
-      topic: "go-feature-flag-events"
+      topic: "semaphore-events"
       addresses:
         - "localhost:9092"
 # ...
@@ -40,7 +40,7 @@ config := ffclient.Config{
         // ...
         Exporter: &kafkaexporter.Exporter{
            Settings: kafkaexporter.Settings{
-              Topic: "go-feature-flag-events",
+              Topic: "semaphore-events",
               Addresses: []string{"localhost:9092", "cluster2:9092"},
            },
         },

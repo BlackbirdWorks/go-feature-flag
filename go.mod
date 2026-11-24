@@ -1,4 +1,4 @@
-module github.com/thomaspoignant/go-feature-flag
+module github.com/blackbirdworks/semaphore
 
 go 1.27.4
 
@@ -23,6 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
+	github.com/blackbirdworks/semaphore/modules/core v0.8.2
 	github.com/dustin/go-humanize v1.1.0
 	github.com/fsouza/fake-gcs-server v1.56.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -34,11 +35,11 @@ require (
 	github.com/jackc/pgx/v5 v5.13.0
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/jsternberg/zap-logfmt v1.3.0
+	github.com/knadh/koanf/maps v0.1.3
 	github.com/knadh/koanf/parsers/json v1.0.1
 	github.com/knadh/koanf/parsers/toml/v2 v2.2.2
 	github.com/knadh/koanf/parsers/yaml v1.1.1
 	github.com/knadh/koanf/providers/confmap v1.0.1
-	github.com/knadh/koanf/providers/env/v2 v2.0.2
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/providers/posflag v1.0.2
 	github.com/knadh/koanf/v2 v2.4.1
@@ -68,8 +69,6 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/redis v0.45.0
 	github.com/thejerf/slogassert v0.3.4
-	github.com/thomaspoignant/go-feature-flag/modules/core v0.8.2
-	github.com/thomaspoignant/koanf-http-provider v0.1.0
 	github.com/xdg-go/scram v1.4.0
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20241021075129-b732d2ac9c9b
@@ -203,7 +202,6 @@ require (
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.20.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.2 // indirect
-	github.com/knadh/koanf/maps v0.1.3 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lufia/plan9stats v0.0.0-20261101121723-be84dd9509a0 // indirect
@@ -321,4 +319,4 @@ replace github.com/nikunjy/rules => ./rules
 
 // Build against the modules/core of this repository instead of the released version from the module proxy,
 // so that changes to modules/core reach the relay proxy.
-replace github.com/thomaspoignant/go-feature-flag/modules/core => ./modules/core
+replace github.com/blackbirdworks/semaphore/modules/core => ./modules/core

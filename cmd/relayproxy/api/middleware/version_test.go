@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
-	middleware2 "github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/api/middleware"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 )
 
 func TestVersion(t *testing.T) {
@@ -29,6 +29,9 @@ func TestVersion(t *testing.T) {
 
 	err := handler(c)
 	assert.NoError(t, err)
+	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.VersionHeaderName))
+	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.LegacyVersionHeaderName))
+	assert.Equal(t, "1.0.0", rec.Header().Get("X-SEMAPHORE-VERSION"))
 	assert.Equal(t, "1.0.0", rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
 }
 
@@ -55,4 +58,5 @@ func TestNoVersion(t *testing.T) {
 	err := handler(c)
 	assert.NoError(t, err)
 	assert.Empty(t, rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Empty(t, rec.Header().Get("X-SEMAPHORE-VERSION"))
 }

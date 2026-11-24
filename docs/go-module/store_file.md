@@ -2,7 +2,7 @@
 
 The module supports different ways of retrieving the flag file.
 
-To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.com/thomaspoignant/go-feature-flag/retriever/#Retriever) in your `ffclient.Config{}` during the initialization.  
+To retrieve a file you need to provide a [retriever](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/#Retriever) in your `ffclient.Config{}` during the initialization.  
 
 **Available retrievers**:
 
@@ -34,7 +34,7 @@ To do that, you can call the `ForceRefresh` method on the client.
 
 ```go
 // Init ffclient with a file retriever.
-	goff, _ := ffclient.New(ffclient.Config{
+	client, _ := ffclient.New(ffclient.Config{
 		PollingInterval: 10 * time.Minute,
 		Retriever: &fileretriever.Retriever{
 			Path: "xxxx.yaml",
@@ -42,6 +42,6 @@ To do that, you can call the `ForceRefresh` method on the client.
 	})
 
 	// ...
-	goff.ForceRefresh()
+	client.ForceRefresh()
 	// ...
 ```

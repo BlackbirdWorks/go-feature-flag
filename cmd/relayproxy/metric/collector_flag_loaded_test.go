@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	ffclient "github.com/thomaspoignant/go-feature-flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/testutils/testconvert"
-	"github.com/thomaspoignant/go-feature-flag/retriever/fileretriever"
 )
 
 type fakeFlagsetSource struct {
@@ -71,13 +71,13 @@ other-flag:
 	}))
 
 	expected := `
-# HELP gofeatureflag_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
-# TYPE gofeatureflag_flag_loaded gauge
-gofeatureflag_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
-gofeatureflag_flag_loaded{disabled="false",flag_name="other-flag",flagset="team-b"} 1
+# HELP semaphore_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
+# TYPE semaphore_flag_loaded gauge
+semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
+semaphore_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
+semaphore_flag_loaded{disabled="false",flag_name="other-flag",flagset="team-b"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "gofeatureflag_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
 }
 
 func TestFlagLoaded_DisabledReflectsScheduledStepsAndExperimentation(t *testing.T) {
@@ -166,19 +166,19 @@ experiment-over-with-nested-bucketing-key:
 	}))
 
 	expected := `
-# HELP gofeatureflag_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
-# TYPE gofeatureflag_flag_loaded gauge
-gofeatureflag_flag_loaded{disabled="true",flag_name="scheduled-off",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="false",flag_name="scheduled-back-on",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="false",flag_name="future-off",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="experiment-over",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="false",flag_name="percentage-with-bucketing-key",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="disabled-with-nested-bucketing-key",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="false",flag_name="percentage-with-nested-bucketing-key",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="scheduled-off-with-bucketing-key",flagset="default"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="experiment-over-with-nested-bucketing-key",flagset="default"} 1
+# HELP semaphore_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
+# TYPE semaphore_flag_loaded gauge
+semaphore_flag_loaded{disabled="true",flag_name="scheduled-off",flagset="default"} 1
+semaphore_flag_loaded{disabled="false",flag_name="scheduled-back-on",flagset="default"} 1
+semaphore_flag_loaded{disabled="false",flag_name="future-off",flagset="default"} 1
+semaphore_flag_loaded{disabled="true",flag_name="experiment-over",flagset="default"} 1
+semaphore_flag_loaded{disabled="false",flag_name="percentage-with-bucketing-key",flagset="default"} 1
+semaphore_flag_loaded{disabled="true",flag_name="disabled-with-nested-bucketing-key",flagset="default"} 1
+semaphore_flag_loaded{disabled="false",flag_name="percentage-with-nested-bucketing-key",flagset="default"} 1
+semaphore_flag_loaded{disabled="true",flag_name="scheduled-off-with-bucketing-key",flagset="default"} 1
+semaphore_flag_loaded{disabled="true",flag_name="experiment-over-with-nested-bucketing-key",flagset="default"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "gofeatureflag_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
 }
 
 func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
@@ -188,7 +188,7 @@ func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
 	require.NoError(t, m.RegisterFlagLoaded(fakeFlagsetSource{
 		flagsets: map[string]*ffclient.GoFeatureFlag{"default": client},
 	}))
-	count, err := testutil.GatherAndCount(m.Registry, "gofeatureflag_flag_loaded")
+	count, err := testutil.GatherAndCount(m.Registry, "semaphore_flag_loaded")
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 
@@ -202,11 +202,11 @@ flag-on:
 	require.True(t, client.ForceRefresh())
 
 	expected := `
-# HELP gofeatureflag_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
-# TYPE gofeatureflag_flag_loaded gauge
-gofeatureflag_flag_loaded{disabled="false",flag_name="flag-on",flagset="default"} 1
+# HELP semaphore_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
+# TYPE semaphore_flag_loaded gauge
+semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="default"} 1
 `
-	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "gofeatureflag_flag_loaded"))
+	assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
 }
 
 func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
@@ -226,7 +226,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 			m, err := NewMetrics()
 			require.NoError(t, err)
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
-			count, err := testutil.GatherAndCount(m.Registry, "gofeatureflag_flag_loaded")
+			count, err := testutil.GatherAndCount(m.Registry, "semaphore_flag_loaded")
 			require.NoError(t, err)
 			assert.Equal(t, 0, count)
 		})
@@ -263,12 +263,12 @@ func TestFlagLoaded_SkipsSeriesWithInvalidLabelValues(t *testing.T) {
 	}))
 
 	expected := `
-# HELP gofeatureflag_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
-# TYPE gofeatureflag_flag_loaded gauge
-gofeatureflag_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
-gofeatureflag_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
+# HELP semaphore_flag_loaded Flags currently loaded in the relay proxy cache, one series per flag with value 1.
+# TYPE semaphore_flag_loaded gauge
+semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="team-a"} 1
+semaphore_flag_loaded{disabled="true",flag_name="flag-off",flagset="team-a"} 1
 `
 	assert.NotPanics(t, func() {
-		assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "gofeatureflag_flag_loaded"))
+		assert.NoError(t, testutil.GatherAndCompare(m.Registry, strings.NewReader(expected), "semaphore_flag_loaded"))
 	})
 }

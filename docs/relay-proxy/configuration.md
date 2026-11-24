@@ -10,20 +10,26 @@ Despite that you can start with a minimum configuration and fine tune it later.
 ## Configuration file
 
 The configuration of the **relay proxy** is based on a configuration file that you have to provide.
-This is a `yaml` file and usage is to call it `goff-proxy.yaml` but you can name it as you will.
+This is a `yaml` file and usage is to call it `semaphore-proxy.yaml` but you can name it as you will.
 
 You can provide the configuration file with the option `--config=/path_to_your_file.yaml` when launching the relay proxy.
 
 ```shell
-go-feature-flag --config=/goff-proxy.yaml
+semaphore --config=/semaphore-proxy.yaml
 ```
 
 > [!NOTE]
-> By default, if you omit the `--config` option, the relay proxy will look for a configuration file named `goff-proxy.yaml` in _(int this order)_:
+> By default, if you omit the `--config` option, the relay proxy will look for a configuration file named `semaphore-proxy.yaml` in _(int this order)_:
 >
 > 1. `./` _(the current directory)_
-> 1. `/goff/`
-> 1. `/etc/opt/goff/`
+> 1. `/semaphore/`
+> 1. `/etc/opt/semaphore/`
+> 1. `/goff/` _(legacy)_
+> 1. `/etc/opt/goff/` _(legacy)_
+>
+> In each folder the extensions `yaml`, `toml`, `json` and `yml` are tried, `semaphore-proxy` first and then the
+> legacy name `goff-proxy` (the name used by GO Feature Flag). When a `goff-proxy` file is used, the relay proxy
+> logs one warning at startup.
 >
 
 ## Configuration Patterns
@@ -38,7 +44,7 @@ The minimum configuration to start the **relay proxy** is to provide where to re
 ```yaml
 retrievers:
   - kind: file
-    path: /goff/flags.yaml # Location of your feature flag files
+    path: /semaphore/flags.yaml # Location of your feature flag files
 ```
 
 All the other options are optional and can be added to the configuration file to fine-tune the **relay proxy**.
@@ -76,6 +82,11 @@ You can override file configurations using environment variables.
   ```
 
 > [!NOTE]
+> The variables above have no prefix. The `SEMAPHORE_` prefix is always accepted too: `SEMAPHORE_SERVER_PORT=8080`
+> sets `server.port`. When the same option is set with and without the prefix, the `SEMAPHORE_` variable wins.
+> Mind that a Kubernetes Service named `semaphore` also injects variables such as `SEMAPHORE_PORT` in the pods of its
+> namespace, set `enableServiceLinks: false` on the pod if you want to keep that namespace of names free.
+>
 > If you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy, you can prefix your environment variables.
 >
 > You can configure the prefix using the [`envVariablePrefix`](#envvariableprefix) field in your configuration file.
@@ -107,10 +118,10 @@ This is the configuration on how to retrieve the configuration of the files.
 ```yaml
 retrievers:
   - kind: file
-    path: /goff/my-flags.yaml
+    path: /semaphore/my-flags.yaml
   - kind: s3
     bucket: my-featureflag-bucket
-    item: flag/flags.goff.yaml
+    item: flag/flags.yaml
 ```
 
 ### `startWithRetrieverError`
@@ -134,7 +145,7 @@ If set, Semaphore will store the flags configuration in this file to be able to 
 - type: **string**
 - default: **none**
 - mandatory: No
-- example: `/tmp/goff_persist_conf.yaml`
+- example: `/tmp/semaphore_persist_conf.yaml`
 
 ### `fileFormat`
 
@@ -228,7 +239,7 @@ exporters:
     bucket: evaluation-data-bucket
   - kind: kafka
     kafka:
-      topic: "go-feature-flag-events"
+      topic: "semaphore-events"
 ```
 ### `notifiers`
 
@@ -291,7 +302,7 @@ It is enabled when [`ofrepEventStream.baseUrl`](#ofrepeventstreambaseurl) is set
 
 ### `disableVersionHeader`
 
-If `disableVersionHeader` is set to **`true`**, the relay proxy will not add the header `x-gofeatureflag-version` with the Semaphore version in the HTTP response.
+If `disableVersionHeader` is set to **`true`**, the relay proxy will not add the headers `x-semaphore-version` and its legacy name `x-gofeatureflag-version` with the Semaphore version in the HTTP response.
 
 - option name: `disableVersionHeader`
 - type: **boolean**
@@ -341,7 +352,7 @@ and `ENDPOINTS_VALIDATEFLAGS_MAXTOMLBODYSIZE` (for example `ENDPOINTS_VALIDATEFL
 
 > [!WARNING]
 > The YAML and TOML limits are lower than the JSON one on purpose: the parsing cost of those formats grows
-> quadratically with the size of the body (tracked in [#6439](https://github.com/BlackbirdWorks/go-feature-flag/issues/6439)).
+> quadratically with the size of the body (tracked in [#6439](https://github.com/BlackbirdWorks/semaphore/issues/6439)).
 > Raising them exposes the relay proxy to slower requests, so keep them as small as your flag files allow.
 
 - option name: `endpoints`
@@ -544,12 +555,12 @@ server:
   mode: http
   port: 1031
 studio:
-  url: https://studio.example.com/relay-proxy/goff-proxy.yaml
+  url: https://studio.example.com/relay-proxy/semaphore-proxy.yaml
   headers:
     Authorization:
       - "Bearer my-token"
   pollingInterval: 60000
-  cacheFile: /goff/studio-cache.yaml
+  cacheFile: /semaphore/studio-cache.yaml
 ```
 
 **Runtime updates**: the URL is polled every [`studio.pollingInterval`](#studiopollinginterval) milliseconds.
@@ -564,15 +575,49 @@ A document with invalid `flagSets` is rejected, an error is logged and the relay
 Prefix for your environment variables.  
 This useful if you want to avoid any collision with existing environment variables that are not specifically related to the relay proxy.
 
-If you use this option you will have to prefix all your environment variables with the value you set here. For example if you want to override the port of the relay-proxy and the prefix is `GOFF_`.
+If you use this option you will have to prefix all your environment variables with the value you set here. For example if you want to override the port of the relay-proxy and the prefix is `MYAPP_`.
 
 ```shell
-export GOFF_SERVER_PORT=8080
+export MYAPP_SERVER_PORT=8080
 ```
+
+The `SEMAPHORE_` prefix is read in addition to this one, and wins when both are set. A prefix that starts with `GOFF`
+(`GOFF_`, `GOFFPROXY_`, the ones used with GO Feature Flag) keeps working and logs one warning at startup.
+
+Kubernetes injects, in every pod, the variables of the Services of the namespace (`<SERVICE>_SERVICE_HOST`,
+`<SERVICE>_SERVICE_PORT`, `<SERVICE>_PORT=tcp://...`, `<SERVICE>_PORT_<port>_TCP_ADDR`, ...). A Service named
+`semaphore` therefore adds variables that start with `SEMAPHORE_`. The relay proxy ignores the variables that start
+with the prefix and have both the name and the value of a service link, and logs their names (never their values) at the
+debug level. A setting such as `SEMAPHORE_SERVER_PORT=1031` is not affected. The Helm chart also sets
+`enableServiceLinks: false` on the pods.
 
 - option name: `envVariablePrefix`
 - type: **string**
 - default: **empty string**
+- mandatory: No
+
+### `exposeLegacyMetrics`
+
+The Prometheus series of the relay proxy are named `semaphore_*`. If `exposeLegacyMetrics` is set to **`true`**, every
+`semaphore_*` series is also exposed with the legacy prefix of GO Feature Flag (`gofeatureflag_*`, for example
+`gofeatureflag_flag_evaluations_total`), so the dashboards and the alerts written before the rename keep working while
+you migrate them. The Go runtime and process metrics are not duplicated.
+
+- option name: `exposeLegacyMetrics`
+- type: **boolean**
+- default: **`false`**
+- mandatory: No
+
+### `disableSemaphoreMetadata`
+
+The OFREP evaluation responses carry the metadata key `semaphore_cacheable` and its legacy name `gofeatureflag_cacheable`
+when the value can be cached by the client. If `disableSemaphoreMetadata` is set to **`true`**, only the legacy key is
+sent. Use it for the clients that compare the metadata of the response strictly, such as the test suites of the GO
+Feature Flag providers.
+
+- option name: `disableSemaphoreMetadata`
+- type: **boolean**
+- default: **`false`**
 - mandatory: No
 
 ### `enableBulkMetricFlagNames`
@@ -677,6 +722,19 @@ The server port used by the relay proxy to bind the HTTP server.
 - default: **1031**
 - mandatory: No
 - This field is used only in `http` mode.
+
+#### `server.enableH2C`
+
+Accept HTTP/2 over cleartext TCP (h2c with prior knowledge) on the API port, next to HTTP/1.1. Clients that
+do not speak h2c keep working. HTTP/2 multiplexes many requests on one connection, which matters mostly for clients
+that open few connections; see the [performance page](../performance.md) for what it changed in our measurements.
+Behind a TLS terminating proxy or load balancer the HTTP/2 hop is usually handled there, so you rarely need it.
+
+- option name: `enableH2C`
+- type: **bool**
+- default: **false**
+- mandatory: No
+- This field is used only in `http` mode. Environment variable: `SERVER_ENABLEH2C`.
 
 #### `server.monitoringPort`
 
@@ -958,7 +1016,7 @@ Headers sent with every request to [`studio.url`](#studiourl), for example an `A
 
 ```yaml
 studio:
-  url: https://studio.example.com/relay-proxy/goff-proxy.yaml
+  url: https://studio.example.com/relay-proxy/semaphore-proxy.yaml
   headers:
     Authorization:
       - "Bearer my-token"
@@ -983,7 +1041,7 @@ When [`studio.url`](#studiourl) is unreachable, the flag sets are loaded from th
 - type: **string**
 - default: **none** _(no cache)_
 - mandatory: No
-- example: `/goff/studio-cache.yaml`
+- example: `/semaphore/studio-cache.yaml`
 
 ### type `swagger`
 
@@ -1029,7 +1087,7 @@ If the OFREP request is authenticated, the API key of the caller is added to the
 
 #### `ofrepEventStream.baseUrl`
 
-The public base URL clients should use to reach the relay proxy, for example `https://gofeatureflag.example.com`. The path of the SSE endpoint is appended automatically, so a path prefix is kept (`https://example.com/goff` becomes `https://example.com/goff/stream/v1/sse/flag/change`).
+The public base URL clients should use to reach the relay proxy, for example `https://semaphore.example.com`. The path of the SSE endpoint is appended automatically, so a path prefix is kept (`https://example.com/goff` becomes `https://example.com/semaphore/stream/v1/sse/flag/change`).
 
 When not set, the `eventStreams` field is not added and OFREP providers keep polling. Do not set it when the relay proxy runs as an AWS Lambda, because Lambda cannot stream SSE.
 

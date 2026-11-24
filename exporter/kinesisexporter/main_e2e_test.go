@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/thomaspoignant/go-feature-flag/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 )
 
 // TestMain removes the gopherstack container shared by the tests of this package.

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/utils"
 )
 
 // FuzzInternalFlagValue checks that a flag which is valid at the evaluation date

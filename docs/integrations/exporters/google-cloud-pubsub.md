@@ -16,7 +16,7 @@ configuration to your relay proxy configuration file:
 exporters:
   - kind: pubsub
     projectID: "my-project-id"
-    topic: "goff-feature-events"
+    topic: "semaphore-feature-events"
 # ...
 ```
 

@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate/manifest/model"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
-	configHelper "github.com/thomaspoignant/go-feature-flag/cmdhelpers/configfile"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest"
-	"github.com/thomaspoignant/go-feature-flag/model/dto"
-	dtoCore "github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest/model"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
+	configHelper "github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	"github.com/blackbirdworks/semaphore/model/dto"
+	dtoCore "github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {

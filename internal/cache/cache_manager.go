@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/thomaspoignant/go-feature-flag/internal/notification"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/dto"
-	"github.com/thomaspoignant/go-feature-flag/modules/core/flag"
-	"github.com/thomaspoignant/go-feature-flag/utils/fflog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,7 +25,11 @@ type Manager interface {
 	UpdateCache(newFlags map[string]dto.DTO, log *fflog.FFLogger, notifyChanges bool) error
 	Close()
 	GetFlag(key string) (flag.Flag, error)
+	// AllFlags returns a snapshot of the flags that the caller is free to change.
 	AllFlags() (map[string]flag.Flag, error)
+	// AllFlagsReadOnly returns the flags of the cache without copying them (cheap): the caller must only
+	// read them, and must not keep them or hand them to code that does not.
+	AllFlagsReadOnly() (map[string]flag.Flag, error)
 	GetLatestUpdateDate() time.Time
 }
 
@@ -136,6 +140,14 @@ func (c *cacheManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
 	return (*current).All(), nil
+}
+
+func (c *cacheManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
+	current := c.inMemoryCache.Load()
+	if current == nil {
+		return nil, errors.New("impossible to read the flag before the initialisation")
+	}
+	return (*current).shared(), nil
 }
 
 func (c *cacheManagerImpl) GetLatestUpdateDate() time.Time {

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest/model"
+	helperModel "github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate/manifest/model"
-	helperModel "github.com/thomaspoignant/go-feature-flag/cmdhelpers/manifest/model"
 )
 
 func TestFlagManifest_MarshalJSON_includesSchema(t *testing.T) {

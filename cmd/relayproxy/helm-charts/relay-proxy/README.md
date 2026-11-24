@@ -14,7 +14,7 @@ After changing the working directory to `cmd/relayproxy/helm-charts/relay-proxy`
 run the below command:
 
 ```shell
-helm install . --name-template=go-feature-flag-relay-proxy
+helm install . --name-template=semaphore
 ```
 
 It will install the chart in your cluster.
@@ -70,11 +70,11 @@ relayproxy:
       kind: log
 ```
 
-**Homepage:** <https://github.com/BlackbirdWorks/go-feature-flag>
+**Homepage:** <https://github.com/BlackbirdWorks/semaphore>
 
 ## Source Code
 
-* <https://github.com/BlackbirdWorks/go-feature-flag>
+* <https://github.com/BlackbirdWorks/semaphore>
 
 ## Values
 
@@ -237,6 +237,24 @@ object
 			</td>
 		</tr>
 		<tr>
+			<td id="enableServiceLinks">
+				<a href="./values.yaml#L197">enableServiceLinks</a>
+            </td>
+			<td>
+bool
+</td>
+			<td>
+				<div style="max-width: 300px;">
+<pre lang="json">
+false
+</pre>
+</div>
+			</td>
+			<td>
+				Whether Kubernetes injects the environment variables of the Services of the namespace into the pod. They are not needed, and a Service named `semaphore` would add `SEMAPHORE_*` variables that look like settings.
+			</td>
+		</tr>
+		<tr>
 			<td id="env">
 				<a href="./values.yaml#L18">env</a>
             </td>
@@ -336,7 +354,7 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"ghcr.io/blackbirdworks/go-feature-flag"
+"ghcr.io/blackbirdworks/semaphore"
 </pre>
 </div>
 			</td>
@@ -658,7 +676,7 @@ string
 			<td>
 				<div style="max-width: 300px;">
 <pre lang="json">
-"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/BlackbirdWorks/go-feature-flag/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
+"server:\n  mode: http\n  port: 1031\npollingInterval: 1000\nstartWithRetrieverError: false\nlogLevel: info\nretriever:\n  kind: http\n  url: https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml\nexporter:\n  kind: log\nenableSwagger: true\n"
 </pre>
 </div>
 			</td>

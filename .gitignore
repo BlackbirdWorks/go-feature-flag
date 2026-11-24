@@ -29,6 +29,7 @@ tmp/
 
 # Local dev files
 goff-proxy.yaml
+semaphore-proxy.yaml
 flags.yaml
 
 # AWS SAM build folder

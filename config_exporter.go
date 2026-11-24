@@ -3,7 +3,7 @@ package ffclient
 import (
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/exporter"
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 type ExporterEventType = string

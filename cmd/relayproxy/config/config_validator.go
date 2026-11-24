@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"go.uber.org/zap/zapcore"
 )
 

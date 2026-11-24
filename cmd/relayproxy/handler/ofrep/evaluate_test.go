@@ -9,21 +9,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/handler/ofrep"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/metric"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/model"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/service"
-	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 	"go.uber.org/zap"
 )
 
 const testdataDir = "../../testdata"
-const configFlagsLocation = testdataDir + "/goff/config_flags.yaml"
+const configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
 
 func Test_Bulk_Evaluation(t *testing.T) {
 	type want struct {
@@ -444,7 +444,7 @@ func Test_Evaluate(t *testing.T) {
 }
 
 func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
-	const metricName = "gofeatureflag_flag_evaluations_total"
+	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
 
@@ -511,6 +511,58 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			}
 
 			assert.NoError(t, testutil.GatherAndCompare(metrics.Registry, strings.NewReader(tt.want), metricName))
+		})
+	}
+}
+
+func Test_Evaluate_CacheableMetadata(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		opts          []ofrep.Option
+		wantSemaphore bool
+	}{
+		{name: "both keys by default", wantSemaphore: true},
+		{name: "legacy only: option off", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(false)}, wantSemaphore: true},
+		{name: "legacy only: option on", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(true)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			conf := &config.Config{
+				CommonFlagSet: config.CommonFlagSet{
+					PollingInterval: 10000,
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
+					},
+				},
+			}
+			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			require.NoError(t, err)
+			defer flagsetManager.Close()
+
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{}, tt.opts...)
+			e := echo.New()
+			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
+			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/number-flag", strings.NewReader(string(body)))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			e.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			var resp model.OFREPEvaluateSuccessResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+			assert.Equal(t, true, resp.Metadata[ofrep.LegacyMetadataCacheable], "the legacy key is always sent")
+			assert.Equal(t, true, resp.Metadata["gofeatureflag_cacheable"])
+			if tt.wantSemaphore {
+				assert.Equal(t, true, resp.Metadata[ofrep.MetadataCacheable])
+				assert.Equal(t, true, resp.Metadata["semaphore_cacheable"])
+			} else {
+				assert.NotContains(t, resp.Metadata, ofrep.MetadataCacheable)
+			}
 		})
 	}
 }

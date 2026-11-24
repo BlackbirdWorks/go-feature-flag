@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -12,8 +13,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
-	"github.com/thomaspoignant/go-feature-flag/cmd/relayproxy/config"
 	"go.uber.org/zap"
 )
 
@@ -92,7 +93,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	}()
 
 	s.zapLog.Info(
-		"Starting go-feature-flag relay proxy as unix socket...",
+		"Starting semaphore relay proxy as unix socket...",
 		zap.String("socket", socketPath),
 		zap.String("version", s.config.Version))
 
@@ -117,7 +118,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 
 	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.zapLog))
 	s.zapLog.Info(
-		"Starting go-feature-flag relay proxy ...",
+		"Starting semaphore relay proxy ...",
 		zap.String("address", address),
 		zap.String("version", s.config.Version))
 
@@ -127,6 +128,7 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,
+		BeforeServeFunc: s.httpServerProtocols,
 		OnShutdownError: func(err error) {
 			s.zapLog.Error("error shutting down api server", zap.Error(err))
 		},
@@ -134,6 +136,19 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if err != nil {
 		s.zapLog.Fatal("Error starting relay proxy", zap.Error(err))
 	}
+}
+
+// httpServerProtocols enables HTTP/2 over cleartext (h2c, prior knowledge) next to HTTP/1.1 when
+// server.enableH2C is set. Without it the server keeps net/http's default (HTTP/1.1 only).
+func (s *Server) httpServerProtocols(srv *http.Server) error {
+	if !s.config.Server.EnableH2C {
+		return nil
+	}
+	var p http.Protocols
+	p.SetHTTP1(true)
+	p.SetUnencryptedHTTP2(true)
+	srv.Protocols = &p
+	return nil
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {

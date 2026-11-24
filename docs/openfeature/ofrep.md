@@ -71,7 +71,7 @@ curl 'http://localhost:1031/ofrep/v1/evaluate/flags/my-flag' -X POST \
 
 ## Evaluation context
 The OFREP context is the OpenFeature evaluation context, see [evaluation context](../concepts/evaluation-context.md)
-for the reserved keys (such as `gofeatureflag`) understood by the relay proxy.
+for the reserved keys (such as `semaphore`, and its legacy name `gofeatureflag`) understood by the relay proxy.
 
 ## Not available through OFREP
 In-process evaluation inside the application (as done by language-specific providers) is not available, apart from the Go module.

@@ -7,7 +7,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/thomaspoignant/go-feature-flag/ffcontext"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 )
 
 type FeatureEventMetadata = map[string]any

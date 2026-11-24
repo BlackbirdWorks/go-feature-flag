@@ -3,16 +3,16 @@ package generate
 import (
 	"fmt"
 
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/spf13/cobra"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/generate/manifest"
-	"github.com/thomaspoignant/go-feature-flag/cmd/cli/helper"
 )
 
 func NewGenerateCmd() *cobra.Command {
 	g := &cobra.Command{
 		Use:   "generate",
-		Short: "🏗️ Generate GO Feature Flag related files",
-		Long:  `🏗️ Generate GO Feature Flag relates files (examples: flag manifest, ...)`,
+		Short: "🏗️ Generate Semaphore related files",
+		Long:  `🏗️ Generate Semaphore relates files (examples: flag manifest, ...)`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			output := helper.Output{}
 			output.Add("you must specify a subcommand (e.g., manifest)", helper.ErrorLevel)
