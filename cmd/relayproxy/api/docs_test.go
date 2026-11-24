@@ -90,9 +90,17 @@ func Test_Swagger(t *testing.T) {
 
 			h := newDocsServer(t, tt.monitoringPort)
 			if tt.concurrent > 0 {
-				paths := []string{
-					"/swagger/openapi.json", "/swagger/openapi-3.0.json",
-					"/swagger/openapi.yaml", "/swagger/openapi-3.0.yaml",
+				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
+				// downgrades are 3.0
+				documents := []struct{ path, wantVersion string }{
+					{"/swagger/openapi.json", "3.1.0"},
+					{"/swagger/openapi-3.0.json", "3.0.3"},
+					{"/swagger/openapi.yaml", "3.1.0"},
+					{"/swagger/openapi-3.0.yaml", "3.0.3"},
+				}
+				paths := make([]string, 0, len(documents))
+				for _, d := range documents {
+					paths = append(paths, d.path)
 				}
 				var (
 					wg     sync.WaitGroup
@@ -113,7 +121,8 @@ func Test_Swagger(t *testing.T) {
 				}
 				wg.Wait()
 
-				for _, path := range paths {
+				for _, document := range documents {
+					path := document.path
 					require.Len(t, bodies[path], tt.concurrent)
 					// the document is complete: it parses, it is OpenAPI 3 with the version of the relay proxy and it
 					// has the operations
@@ -124,7 +133,7 @@ func Test_Swagger(t *testing.T) {
 						require.NoError(t, yaml.Unmarshal([]byte(bodies[path][0]), &doc), path)
 					}
 					assert.Equal(t, "v9.9.9", doc.Info.Version, path)
-					assert.True(t, strings.HasPrefix(doc.OpenAPI, "3."), "%s: %q", path, doc.OpenAPI)
+					assert.Equal(t, document.wantVersion, doc.OpenAPI, path)
 					for _, p := range tt.wantPaths {
 						assert.Contains(t, doc.Paths, p, path)
 					}
@@ -142,6 +151,7 @@ func Test_Swagger(t *testing.T) {
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
 			assert.Equal(t, "v9.9.9", doc.Info.Version)
+			assert.Equal(t, "3.1.0", doc.OpenAPI)
 			assert.Empty(t, doc.Servers)
 			for _, path := range tt.wantPaths {
 				assert.Contains(t, doc.Paths, path)
