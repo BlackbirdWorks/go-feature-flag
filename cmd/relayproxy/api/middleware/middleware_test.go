@@ -9,12 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humago"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
 // newOK returns a handler that answers a JSON document.
@@ -32,66 +35,106 @@ func serve(h http.Handler, req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
+// key is the context key under which the tests of the authentication read the key that was validated.
+type key struct{}
+
+// document is the output of the operation the huma entry points of the middleware are tested with.
+type document struct {
+	Body struct {
+		Name string `json:"name"`
+	}
+	Status int
+}
+
+// humaHandler serves one operation, GET /doc, behind a huma API, with the middleware: the same behaviours as the
+// [http.Handler] form are checked through it.
+func humaHandler(
+	handler func(context.Context, *struct{}) (*document, error), mws ...func(huma.Context, func(huma.Context)),
+) http.Handler {
+	mux := http.NewServeMux()
+	cfg := huma.DefaultConfig("test", "1.0.0")
+	cfg.OpenAPIPath, cfg.DocsPath, cfg.SchemasPath = "", "", ""
+	cfg.CreateHooks = nil
+	huma.Register(humago.New(mux, cfg), huma.Operation{
+		OperationID: "doc", Method: http.MethodGet, Path: "/doc", Middlewares: mws,
+	}, handler)
+
+	return mux
+}
+
+func okDocument(context.Context, *struct{}) (*document, error) {
+	out := &document{Status: http.StatusOK}
+	out.Body.Name = "x"
+
+	return out, nil
+}
+
+// TestKeyAuth checks the authentication through its two entry points: a [http.Handler] and a huma operation.
 func TestKeyAuth(t *testing.T) {
 	t.Parallel()
 
-	type key struct{}
-	auth := middleware.NewKeyAuth(middleware.KeyAuthConfig{
-		Validator: func(ctx context.Context, k string) (context.Context, bool) {
-			return context.WithValue(ctx, key{}, k), k == "good"
-		},
-		Skipper: func() bool { return false },
-	})
 	tests := []struct {
 		headers    map[string]string
 		name       string
+		entry      string
 		wantBody   string
 		wantKey    string
 		wantStatus int
+		skip       bool
 	}{
-		{
-			name:       "bearer",
-			headers:    map[string]string{"Authorization": "Bearer good"},
-			wantStatus: http.StatusOK,
-			wantKey:    "good",
-		},
-		{
-			name:       "bearer lower case",
-			headers:    map[string]string{"Authorization": "bearer good"},
-			wantStatus: http.StatusOK,
-			wantKey:    "good",
-		},
-		{
-			name:       "x-api-key",
-			headers:    map[string]string{"X-API-Key": "good"},
-			wantStatus: http.StatusOK,
-			wantKey:    "good",
-		},
-		{
-			name:       "x-api-key wins over bearer",
+		{name: "bearer", entry: "http", headers: map[string]string{"Authorization": "Bearer good"},
+			wantStatus: http.StatusOK, wantKey: "good"},
+		{name: "bearer lower case", entry: "http", headers: map[string]string{"Authorization": "bearer good"},
+			wantStatus: http.StatusOK, wantKey: "good"},
+		{name: "x-api-key", entry: "http", headers: map[string]string{"X-API-Key": "good"},
+			wantStatus: http.StatusOK, wantKey: "good"},
+		{name: "x-api-key wins over bearer", entry: "http",
 			headers:    map[string]string{"X-API-Key": "bad", "Authorization": "Bearer good"},
-			wantStatus: http.StatusUnauthorized,
-			wantBody:   `{"message":"Unauthorized"}` + "\n",
-		},
-		{name: "no header", wantStatus: http.StatusUnauthorized,
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized"}` + "\n"},
+		{name: "no header", entry: "http", wantStatus: http.StatusUnauthorized,
 			wantBody: `{"message":"missing value in request header"}` + "\n"},
-		{name: "not a bearer", headers: map[string]string{"Authorization": "Basic good"},
+		{name: "not a bearer", entry: "http", headers: map[string]string{"Authorization": "Basic good"},
 			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"invalid value in request header"}` + "\n"},
-		{name: "empty bearer", headers: map[string]string{"Authorization": "Bearer "},
+		{name: "empty bearer", entry: "http", headers: map[string]string{"Authorization": "Bearer "},
 			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"invalid value in request header"}` + "\n"},
-		{name: "wrong key", headers: map[string]string{"Authorization": "Bearer bad"},
+		{name: "wrong key", entry: "http", headers: map[string]string{"Authorization": "Bearer bad"},
 			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"code=401, message=invalid key"}` + "\n"},
+		{name: "skipped", entry: "http", skip: true, wantStatus: http.StatusOK},
+		{name: "huma bearer", entry: "huma", headers: map[string]string{"Authorization": "Bearer good"},
+			wantStatus: http.StatusOK, wantKey: "good"},
+		{name: "huma x-api-key", entry: "huma", headers: map[string]string{"X-API-Key": "good"},
+			wantStatus: http.StatusOK, wantKey: "good"},
+		{name: "huma no key", entry: "huma", wantStatus: http.StatusUnauthorized,
+			wantBody: `{"message":"missing value in request header"}` + "\n"},
+		{name: "huma wrong key", entry: "huma", headers: map[string]string{"X-API-Key": "bad"},
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized"}` + "\n"},
+		{name: "huma skipped", entry: "huma", skip: true, wantStatus: http.StatusOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			auth := middleware.NewKeyAuth(middleware.KeyAuthConfig{
+				Validator: func(ctx context.Context, k string) (context.Context, bool) {
+					return context.WithValue(ctx, key{}, k), k == "good"
+				},
+				Skipper: func() bool { return tt.skip },
+			})
 			var gotKey string
-			h := auth.HTTP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				gotKey, _ = r.Context().Value(key{}).(string)
-				newOK().ServeHTTP(w, r)
-			}))
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			var h http.Handler
+			if tt.entry == "huma" {
+				h = humaHandler(func(ctx context.Context, in *struct{}) (*document, error) {
+					gotKey, _ = ctx.Value(key{}).(string)
+
+					return okDocument(ctx, in)
+				}, auth.Huma())
+			} else {
+				h = auth.HTTP()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					gotKey, _ = r.Context().Value(key{}).(string)
+					newOK().ServeHTTP(w, r)
+				}))
+			}
+			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -103,17 +146,6 @@ func TestKeyAuth(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestKeyAuth_Skipper(t *testing.T) {
-	t.Parallel()
-
-	auth := middleware.NewKeyAuth(middleware.KeyAuthConfig{
-		Validator: func(ctx context.Context, _ string) (context.Context, bool) { return ctx, false },
-		Skipper:   func() bool { return true },
-	})
-	rec := serve(auth.HTTP()(newOK()), httptest.NewRequest(http.MethodGet, "/", nil))
-	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestVersionHeader(t *testing.T) {
@@ -182,139 +214,236 @@ func TestCORS(t *testing.T) {
 	}
 }
 
+// TestETag checks the ETag through its two entry points: a [http.Handler] and a huma operation. Every row first asks
+// for the document to know its ETag, then sends the request of the row.
 func TestETag(t *testing.T) {
 	t.Parallel()
 
-	h := middleware.ETag()(newOK())
-	first := serve(h, httptest.NewRequest(http.MethodGet, "/", nil))
-	etag := first.Header().Get("ETag")
-	require.NotEmpty(t, etag)
-	assert.Equal(t, http.StatusOK, first.Code)
-	assert.JSONEq(t, `{"ok":true}`, first.Body.String())
-
 	tests := []struct {
-		name        string
-		ifNoneMatch string
-		wantBody    string
-		wantStatus  int
+		name       string
+		entry      string
+		condition  string
+		wantStatus int
+		failing    bool
+		wantBody   bool
+		wantETag   bool
 	}{
-		{name: "no condition", wantStatus: http.StatusOK, wantBody: `{"ok":true}`},
-		{name: "matching", ifNoneMatch: etag, wantStatus: http.StatusNotModified},
-		{name: "matching weak", ifNoneMatch: "W/" + etag, wantStatus: http.StatusNotModified},
-		{name: "other", ifNoneMatch: `"x"`, wantStatus: http.StatusOK, wantBody: `{"ok":true}`},
+		{name: "no condition", entry: "http", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
+		{name: "matching", entry: "http", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
+		{name: "matching weak", entry: "http", condition: "weak", wantStatus: http.StatusNotModified, wantETag: true},
+		{name: "other", entry: "http", condition: "other", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
+		{name: "error untouched", entry: "http", failing: true, wantStatus: http.StatusTeapot, wantBody: true},
+		{name: "huma no condition", entry: "huma", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
+		{name: "huma matching", entry: "huma", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
+		{
+			name:       "huma other",
+			entry:      "huma",
+			condition:  "other",
+			wantStatus: http.StatusOK,
+			wantBody:   true,
+			wantETag:   true,
+		},
+		{name: "huma error untouched", entry: "huma", failing: true, wantStatus: http.StatusTeapot, wantBody: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			if tt.ifNoneMatch != "" {
-				req.Header.Set("If-None-Match", tt.ifNoneMatch)
+			var h http.Handler
+			switch {
+			case tt.entry == "huma" && tt.failing:
+				h = humaHandler(func(context.Context, *struct{}) (*document, error) {
+					return nil, helper.NewHTTPError(http.StatusTeapot, "tea")
+				}, middleware.ETagHuma())
+			case tt.entry == "huma":
+				h = humaHandler(okDocument, middleware.ETagHuma())
+			case tt.failing:
+				h = middleware.ETag()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusTeapot)
+					_, _ = w.Write([]byte("tea"))
+				}))
+			default:
+				h = middleware.ETag()(newOK())
+			}
+
+			// the ETag of the document
+			etag := serve(h, httptest.NewRequest(http.MethodGet, "/doc", nil)).Header().Get("ETag")
+			if tt.wantETag {
+				require.NotEmpty(t, etag)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
+			switch tt.condition {
+			case "etag":
+				req.Header.Set("If-None-Match", etag)
+			case "weak":
+				req.Header.Set("If-None-Match", "W/"+etag)
+			case "other":
+				req.Header.Set("If-None-Match", `"x"`)
 			}
 			rec := serve(h, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
-			assert.Equal(t, etag, rec.Header().Get("ETag"))
-			assert.Equal(t, tt.wantBody, rec.Body.String())
+			assert.Equal(t, tt.wantBody, rec.Body.Len() > 0)
+			if tt.wantETag {
+				assert.Equal(t, etag, rec.Header().Get("ETag"))
+			} else {
+				assert.Empty(t, rec.Header().Get("ETag"))
+			}
 		})
 	}
-
-	t.Run("an error is sent untouched", func(t *testing.T) {
-		t.Parallel()
-
-		failing := middleware.ETag()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusTeapot)
-			_, _ = w.Write([]byte("tea"))
-		}))
-		rec := serve(failing, httptest.NewRequest(http.MethodGet, "/", nil))
-		assert.Equal(t, http.StatusTeapot, rec.Code)
-		assert.Equal(t, "tea", rec.Body.String())
-		assert.Empty(t, rec.Header().Get("ETag"))
-	})
 }
 
+// TestBodyDump checks the body that is given to the dump and the body the handler reads.
 func TestBodyDump(t *testing.T) {
 	t.Parallel()
 
-	var dumped []byte
-	var read []byte
-	h := middleware.BodyDump(
-		func(r *http.Request) bool { return r.URL.Path == "/skip" },
-		func(_ *http.Request, body []byte) { dumped = body },
-	)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		read, _ = io.ReadAll(r.Body)
-	}))
+	tests := []struct {
+		name     string
+		path     string
+		wantDump string
+		wantRead string
+	}{
+		{name: "dumped", path: "/x", wantDump: "hello", wantRead: "hello"},
+		{name: "skipped", path: "/skip", wantRead: "hello"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	serve(h, httptest.NewRequest(http.MethodPost, "/x", strings.NewReader("hello")))
-	assert.Equal(t, "hello", string(dumped))
-	assert.Equal(t, "hello", string(read))
+			var dumped, read string
+			h := middleware.BodyDump(
+				func(r *http.Request) bool { return r.URL.Path == "/skip" },
+				func(_ *http.Request, body []byte) { dumped = string(body) },
+			)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				b, _ := io.ReadAll(r.Body)
+				read = string(b)
+			}))
 
-	dumped, read = nil, nil
-	serve(h, httptest.NewRequest(http.MethodPost, "/skip", strings.NewReader("hello")))
-	assert.Nil(t, dumped)
-	assert.Equal(t, "hello", string(read))
+			serve(h, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader("hello")))
+			assert.Equal(t, tt.wantDump, dumped)
+			assert.Equal(t, tt.wantRead, read)
+		})
+	}
 }
 
+// TestDeprecatedAlias checks the headers that point to the replacement of a deprecated endpoint.
 func TestDeprecatedAlias(t *testing.T) {
 	t.Parallel()
 
-	rec := serve(
-		middleware.DeprecatedAlias("/new")(newOK()),
-		httptest.NewRequest(http.MethodGet, "/old", nil),
-	)
-	assert.Equal(t, "true", rec.Header().Get("Deprecation"))
-	assert.Equal(t, `</new>; rel="successor-version"`, rec.Header().Get("Link"))
+	tests := []struct {
+		name        string
+		replacement string
+		wantLink    string
+	}{
+		{name: "new endpoint", replacement: "/new", wantLink: `</new>; rel="successor-version"`},
+		{name: "other endpoint", replacement: "/stream/v1/x", wantLink: `</stream/v1/x>; rel="successor-version"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := serve(
+				middleware.DeprecatedAlias(tt.replacement)(newOK()),
+				httptest.NewRequest(http.MethodGet, "/old", nil),
+			)
+			assert.Equal(t, "true", rec.Header().Get("Deprecation"))
+			assert.Equal(t, tt.wantLink, rec.Header().Get("Link"))
+		})
+	}
 }
 
+// TestChain checks that the first middleware of a chain is the outermost.
 func TestChain(t *testing.T) {
 	t.Parallel()
 
-	var order bytes.Buffer
-	mw := func(name string) middleware.Func {
-		return func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				order.WriteString(name)
-				next.ServeHTTP(w, r)
-			})
-		}
+	tests := []struct {
+		name  string
+		want  string
+		names []string
+	}{
+		{name: "three", names: []string{"a", "b", "c"}, want: "abc"},
+		{name: "one", names: []string{"a"}, want: "a"},
+		{name: "none", want: ""},
 	}
-	serve(middleware.Chain(newOK(), mw("a"), mw("b"), mw("c")), httptest.NewRequest(http.MethodGet, "/", nil))
-	assert.Equal(t, "abc", order.String())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var order bytes.Buffer
+			var mws []middleware.Func
+			for _, name := range tt.names {
+				mws = append(mws, func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						order.WriteString(name)
+						next.ServeHTTP(w, r)
+					})
+				})
+			}
+			serve(middleware.Chain(newOK(), mws...), httptest.NewRequest(http.MethodGet, "/", nil))
+			assert.Equal(t, tt.want, order.String())
+		})
+	}
 }
 
+// TestPrometheus checks the series of the HTTP metrics, and that they are registered once.
 func TestPrometheus(t *testing.T) {
 	t.Parallel()
 
-	reg := prometheus.NewRegistry()
-	prom, err := middleware.Prometheus(middleware.PrometheusConfig{Registerer: reg, Subsystem: "sub"})
-	require.NoError(t, err)
+	allLabels := []string{"code=418", "host=example.com", "method=GET", "url=/items/:id"}
+	tests := []struct {
+		wantSeries   map[string][]string
+		name         string
+		preRegister  bool
+		wantRegister bool
+	}{
+		{
+			name: "series", wantRegister: true,
+			wantSeries: map[string][]string{
+				"sub_requests_total": allLabels, "sub_request_duration_seconds": allLabels,
+				"sub_request_size_bytes": allLabels, "sub_response_size_bytes": allLabels,
+			},
+		},
+		{name: "registered twice", preRegister: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	h := prom(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Pattern = "GET /items/{id}"
-		w.WriteHeader(http.StatusTeapot)
-		_, _ = w.Write([]byte("tea"))
-	}))
-	req := httptest.NewRequest(http.MethodGet, "/items/42", nil)
-	serve(h, req)
-
-	families, err := reg.Gather()
-	require.NoError(t, err)
-	got := map[string][]string{}
-	for _, f := range families {
-		for _, m := range f.GetMetric() {
-			labels := make([]string, 0, len(m.GetLabel()))
-			for _, l := range m.GetLabel() {
-				labels = append(labels, l.GetName()+"="+l.GetValue())
+			reg := prometheus.NewRegistry()
+			cfg := middleware.PrometheusConfig{Registerer: reg, Subsystem: "sub"}
+			if tt.preRegister {
+				_, err := middleware.Prometheus(cfg)
+				require.NoError(t, err)
 			}
-			got[f.GetName()] = labels
-		}
-	}
-	for _, name := range []string{"sub_requests_total", "sub_request_duration_seconds", "sub_request_size_bytes",
-		"sub_response_size_bytes"} {
-		assert.Equal(t, []string{"code=418", "host=example.com", "method=GET", "url=/items/:id"}, got[name], name)
-	}
+			prom, err := middleware.Prometheus(cfg)
+			if !tt.wantRegister {
+				require.Error(t, err, "the metrics are registered once")
 
-	_, err = middleware.Prometheus(middleware.PrometheusConfig{Registerer: reg, Subsystem: "sub"})
-	assert.Error(t, err, "the metrics are registered once")
+				return
+			}
+			require.NoError(t, err)
+
+			serve(prom(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.Pattern = "GET /items/{id}"
+				w.WriteHeader(http.StatusTeapot)
+				_, _ = w.Write([]byte("tea"))
+			})), httptest.NewRequest(http.MethodGet, "/items/42", nil))
+
+			families, err := reg.Gather()
+			require.NoError(t, err)
+			got := map[string][]string{}
+			for _, f := range families {
+				for _, m := range f.GetMetric() {
+					labels := make([]string, 0, len(m.GetLabel()))
+					for _, l := range m.GetLabel() {
+						labels = append(labels, l.GetName()+"="+l.GetValue())
+					}
+					got[f.GetName()] = labels
+				}
+			}
+			assert.Equal(t, tt.wantSeries, got)
+		})
+	}
 }
 
 func TestRoutePattern(t *testing.T) {

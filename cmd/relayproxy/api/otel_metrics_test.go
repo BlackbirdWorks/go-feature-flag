@@ -16,9 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
-// Test_OTelHTTPMetrics checks that the HTTP server metrics of a request go to the meter provider of the service,
+// Test_OTelMetrics checks that the HTTP server metrics of a request go to the meter provider of the service,
 // with the route.
-func Test_OTelHTTPMetrics(t *testing.T) {
+func Test_OTelMetrics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

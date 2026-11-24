@@ -419,10 +419,10 @@ var (
 	errMeterShutdown    = errors.New("meter provider shutdown failed")
 )
 
-// TestStop_ShutsEverythingDown checks that the failure of any part of the service does not keep the others from being
+// TestStop checks that the failure of any part of the service does not keep the others from being
 // shut down, that the errors that are returned are exactly the failing ones, and that the metrics that were pending
 // are delivered to the exporter during the shutdown (the final flush).
-func TestStop_ShutsEverythingDown(t *testing.T) {
+func TestStop(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -433,13 +433,13 @@ func TestStop_ShutsEverythingDown(t *testing.T) {
 		wantErrs      []error
 		wantNotErrors []error
 	}{
-		{name: "the span exporter fails", exporterErr: errExporterShutdown, wantErrs: []error{errExporterShutdown},
+		{name: "exporter fails", exporterErr: errExporterShutdown, wantErrs: []error{errExporterShutdown},
 			wantNotErrors: []error{errTracerShutdown, errMeterShutdown}},
-		{name: "the tracer provider fails", tracerErr: errTracerShutdown, wantErrs: []error{errTracerShutdown},
+		{name: "tracer fails", tracerErr: errTracerShutdown, wantErrs: []error{errTracerShutdown},
 			wantNotErrors: []error{errExporterShutdown, errMeterShutdown}},
-		{name: "the meter provider fails", meterErr: errMeterShutdown, wantErrs: []error{errMeterShutdown},
+		{name: "meter fails", meterErr: errMeterShutdown, wantErrs: []error{errMeterShutdown},
 			wantNotErrors: []error{errExporterShutdown, errTracerShutdown}},
-		{name: "all of them fail", exporterErr: errExporterShutdown, tracerErr: errTracerShutdown,
+		{name: "all fail", exporterErr: errExporterShutdown, tracerErr: errTracerShutdown,
 			meterErr: errMeterShutdown, wantErrs: []error{errExporterShutdown, errTracerShutdown, errMeterShutdown}},
 		{name: "none fails", wantNotErrors: []error{errExporterShutdown, errTracerShutdown, errMeterShutdown}},
 	}

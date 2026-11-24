@@ -43,40 +43,39 @@ func Test_bodyDumpSkipper(t *testing.T) {
 	}
 }
 
-func Test_bodyDumpHandler_smallBody(t *testing.T) {
+func Test_bodyDumpHandler(t *testing.T) {
 	t.Parallel()
 
-	core, recorded := slogutil.NewObserver(slog.LevelDebug)
-	logger := core
+	tests := []struct {
+		name          string
+		body          string
+		wantBody      string
+		wantTruncated bool
+	}{
+		{name: "small body", body: "small body", wantBody: "small body"},
+		{
+			name:          "large body",
+			body:          strings.Repeat("x", 20*1024),
+			wantBody:      strings.Repeat("x", 8192) + "... truncated ...",
+			wantTruncated: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	body := []byte("small body")
-	handler := bodyDumpHandler(logger)
-	handler(nil, body)
+			logger, recorded := slogutil.NewObserver(slog.LevelDebug)
+			bodyDumpHandler(logger)(nil, []byte(tt.body))
 
-	logs := recorded.All()
-	assert.Len(t, logs, 1)
-	assert.Equal(t, "Request info", logs[0].Message)
-
-	assert.Equal(t, string(body), logs[0].ContextMap()["request_body"])
-}
-
-func Test_bodyDumpHandler_largeBody(t *testing.T) {
-	t.Parallel()
-
-	core, recorded := slogutil.NewObserver(slog.LevelDebug)
-	logger := core
-
-	body := []byte(strings.Repeat("x", 20*1024)) // 20KB
-	handler := bodyDumpHandler(logger)
-	handler(nil, body)
-
-	logs := recorded.All()
-	assert.Len(t, logs, 1)
-
-	loggedBody, ok := logs[0].ContextMap()["request_body"].(string)
-	require.True(t, ok)
-	assert.Less(t, len(loggedBody), len(body), "logged body should be truncated")
-	assert.True(t, strings.HasSuffix(loggedBody, "... truncated ..."))
+			logs := recorded.All()
+			require.Len(t, logs, 1)
+			assert.Equal(t, "Request info", logs[0].Message)
+			loggedBody, ok := logs[0].ContextMap()["request_body"].(string)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantBody, loggedBody)
+			assert.Equal(t, tt.wantTruncated, len(loggedBody) < len(tt.body))
+		})
+	}
 }
 
 func Benchmark_bodyDumpHandler(b *testing.B) {

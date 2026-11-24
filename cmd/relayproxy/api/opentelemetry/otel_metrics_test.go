@@ -29,7 +29,7 @@ func metricNames(t *testing.T, reader sdkmetric.Reader) []string {
 	return names
 }
 
-func Test_InitMetrics(t *testing.T) {
+func TestInitMetrics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

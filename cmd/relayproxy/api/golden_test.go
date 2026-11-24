@@ -626,46 +626,67 @@ func goldenAuthCases() []goldenCase {
 	}
 }
 
-func Test_Golden_Open(t *testing.T) {
+// Test_Golden checks every route and every request that no route serves against the golden files, for each
+// configuration of the relay proxy: the files in testdata/golden/<configuration>, the series of the HTTP metrics in
+// testdata/golden/metrics.
+func Test_Golden(t *testing.T) {
 	t.Parallel()
-	conf := testConfig(t)
-	conf.Version = goldenVersion
-	conf.Swagger.Enabled = true
-	runGoldenCases(t, conf, "open", goldenOpenCases())
-}
 
-func Test_Golden_Auth(t *testing.T) {
-	t.Parallel()
-	conf := testConfig(t)
-	conf.Version = goldenVersion
-	conf.AuthorizedKeys = config.APIKeys{Evaluation: []string{goldenEvalKey}, Admin: []string{goldenAdminKey}}
-	conf.ForceReloadAPIKeys()
-	runGoldenCases(t, conf, "auth", goldenAuthCases())
-}
+	tests := []struct {
+		configure func(*config.Config)
+		name      string
+		cases     []goldenCase
+		series    bool
+	}{
+		{
+			name:      "open",
+			configure: func(c *config.Config) { c.Swagger.Enabled = true },
+			cases:     goldenOpenCases(),
+		},
+		{
+			name: "auth",
+			configure: func(c *config.Config) {
+				c.AuthorizedKeys = config.APIKeys{Evaluation: []string{goldenEvalKey}, Admin: []string{goldenAdminKey}}
+				c.ForceReloadAPIKeys()
+			},
+			cases: goldenAuthCases(),
+		},
+		{
+			name:      "noversion",
+			configure: func(c *config.Config) { c.DisableVersionHeader = true },
+			cases: []goldenCase{
+				{name: "health", method: http.MethodGet, path: "/health"},
+				{name: "notfound", method: http.MethodGet, path: "/nope"},
+			},
+		},
+		{
+			name:      "pprof",
+			configure: func(c *config.Config) { c.EnablePprof = true },
+			cases: []goldenCase{
+				{name: "index", method: http.MethodGet, path: "/debug/pprof/"},
+				{name: "cmdline", method: http.MethodGet, path: "/debug/pprof/cmdline"},
+				{name: "symbol", method: http.MethodGet, path: "/debug/pprof/symbol"},
+				{name: "unknown_profile", method: http.MethodGet, path: "/debug/pprof/nope"},
+				{name: "post_index", method: http.MethodPost, path: "/debug/pprof/"},
+			},
+		},
+		{name: "metrics", configure: func(*config.Config) {}, series: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func Test_Golden_NoVersionHeader(t *testing.T) {
-	t.Parallel()
-	conf := testConfig(t)
-	conf.Version = goldenVersion
-	conf.DisableVersionHeader = true
-	runGoldenCases(t, conf, "noversion", []goldenCase{
-		{name: "health", method: http.MethodGet, path: "/health"},
-		{name: "notfound", method: http.MethodGet, path: "/nope"},
-	})
-}
+			conf := testConfig(t)
+			conf.Version = goldenVersion
+			tt.configure(conf)
+			if tt.series {
+				checkMetricSeries(t, startGoldenServer(t, conf))
 
-func Test_Golden_Pprof(t *testing.T) {
-	t.Parallel()
-	conf := testConfig(t)
-	conf.Version = goldenVersion
-	conf.EnablePprof = true
-	runGoldenCases(t, conf, "pprof", []goldenCase{
-		{name: "index", method: http.MethodGet, path: "/debug/pprof/"},
-		{name: "cmdline", method: http.MethodGet, path: "/debug/pprof/cmdline"},
-		{name: "symbol", method: http.MethodGet, path: "/debug/pprof/symbol"},
-		{name: "unknown_profile", method: http.MethodGet, path: "/debug/pprof/nope"},
-		{name: "post_index", method: http.MethodPost, path: "/debug/pprof/"},
-	})
+				return
+			}
+			runGoldenCases(t, conf, tt.name, tt.cases)
+		})
+	}
 }
 
 // runGoldenCases starts a relay proxy and checks the response to every case against its golden file.
@@ -804,13 +825,10 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 	return sb.String()
 }
 
-// Test_Golden_HTTPMetrics pins the series of the HTTP metrics after a fixed sequence of requests: the names, the
-// labels and the value of the url label (the route, not the path) are what the dashboards depend on.
-func Test_Golden_HTTPMetrics(t *testing.T) {
-	t.Parallel()
-	conf := testConfig(t)
-	conf.Version = goldenVersion
-	baseURL := startGoldenServer(t, conf)
+// checkMetricSeries pins the series of the HTTP metrics after a fixed sequence of requests: the names, the labels
+// and the value of the url label (the route, not the path) are what the dashboards depend on.
+func checkMetricSeries(t *testing.T, baseURL string) {
+	t.Helper()
 
 	requests := []goldenCase{
 		{method: http.MethodGet, path: "/health"},

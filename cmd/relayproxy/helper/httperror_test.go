@@ -86,17 +86,37 @@ func TestWriteError(t *testing.T) {
 func TestHandle(t *testing.T) {
 	t.Parallel()
 
-	rec := httptest.NewRecorder()
-	helper.Handle(func(http.ResponseWriter, *http.Request) error { return errBoom }, false).
-		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	tests := []struct {
+		handler    func(http.ResponseWriter, *http.Request) error
+		name       string
+		wantBody   string
+		wantStatus int
+	}{
+		{
+			name:       "error",
+			handler:    func(http.ResponseWriter, *http.Request) error { return errBoom },
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   `{"message":"Internal Server Error"}` + "\n",
+		},
+		{
+			name: "response written",
+			handler: func(w http.ResponseWriter, _ *http.Request) error {
+				return helper.WriteJSON(w, http.StatusCreated, map[string]int{"a": 1})
+			},
+			wantStatus: http.StatusCreated,
+			wantBody:   `{"a":1}` + "\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	rec = httptest.NewRecorder()
-	helper.Handle(func(w http.ResponseWriter, _ *http.Request) error {
-		return helper.WriteJSON(w, http.StatusCreated, map[string]int{"a": 1})
-	}, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
-	assert.Equal(t, http.StatusCreated, rec.Code)
-	assert.JSONEq(t, `{"a":1}`, rec.Body.String())
+			rec := httptest.NewRecorder()
+			helper.Handle(tt.handler, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			assert.Equal(t, tt.wantBody, rec.Body.String())
+		})
+	}
 }
 
 func TestBindBody(t *testing.T) {

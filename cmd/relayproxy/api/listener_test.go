@@ -32,10 +32,10 @@ func (failingListener) Close() error { return nil }
 
 func (failingListener) Addr() net.Addr { return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1)} }
 
-// Test_ListenerFailure_IsFatal checks that a listener that cannot be bound, or that fails while serving, is a
+// Test_Listener checks that a listener that cannot be bound, or that fails while serving, is a
 // fatal error of the process (as it is on main), whatever the listener, and promptly: the failing server must not
 // wait for a shutdown that nobody asks for.
-func Test_ListenerFailure_IsFatal(t *testing.T) {
+func Test_Listener(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -45,7 +45,7 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 		name        string
 	}{
 		{
-			name:        "the API listener fails while serving",
+			name:        "api accept fails",
 			wantMessage: "Error starting relay proxy",
 			wantCause:   "accept failed",
 			setup: func(*testing.T, *config.Config) []api.Option {
@@ -53,7 +53,7 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			},
 		},
 		{
-			name:        "the monitoring listener fails while serving",
+			name:        "monitoring accept fails",
 			wantMessage: "Error starting monitoring",
 			wantCause:   "accept failed",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
@@ -65,7 +65,7 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			},
 		},
 		{
-			name:        "the API port is already bound",
+			name:        "api port bound",
 			wantMessage: "Error starting relay proxy",
 			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
@@ -78,7 +78,7 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			},
 		},
 		{
-			name:        "the monitoring port is already bound",
+			name:        "monitoring port bound",
 			wantMessage: "Error starting monitoring",
 			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
