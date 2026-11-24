@@ -10,25 +10,34 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
-var ConfigFileDefaultLocations = []string{
-	"./",
-	"/semaphore/",
-	"/etc/opt/semaphore/",
-	"/goff/",
-	"/etc/opt/goff/",
+// ConfigFileDefaultLocations returns the folders searched for the flag file when no path is given.
+func ConfigFileDefaultLocations() []string {
+	return []string{
+		"./",
+		"/semaphore/",
+		"/etc/opt/semaphore/",
+		"/goff/",
+		"/etc/opt/goff/",
+	}
 }
 
-// flagFileNames are the names of the flag file searched in the default locations, in this order. The
-// second one is the name of Semaphore.
-var flagFileNames = []string{"flags.semaphore", "flags.goff"}
+// flagFileNames returns the names of the flag file searched in the default locations, in this order. The
+// first one is the name of Semaphore.
+func flagFileNames() []string {
+	return []string{"flags.semaphore", "flags.goff"}
+}
 
+// LoadConfigFile reads the flag file at inputFilePath, or the first one found in defaultLocations (the
+// default locations when nil). The use of the legacy file name is reported through warner.
 func LoadConfigFile(
 	inputFilePath, configFormat string,
 	defaultLocations []string,
+	warner *legacy.Warner,
 ) (map[string]dto.DTO, error) {
 	if defaultLocations == nil {
-		defaultLocations = ConfigFileDefaultLocations
+		defaultLocations = ConfigFileDefaultLocations()
 	}
+	fileNames := flagFileNames()
 	supportedExtensions := []string{
 		"yaml",
 		"toml",
@@ -44,16 +53,16 @@ func LoadConfigFile(
 		return readConfigFile(inputFilePath, configFormat)
 	}
 	for _, location := range defaultLocations {
-		for _, filename := range flagFileNames {
+		for _, filename := range fileNames {
 			for _, ext := range supportedExtensions {
 				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
 				if _, err := os.Stat(configFile); err != nil {
 					continue
 				}
-				if filename != flagFileNames[0] {
-					legacy.Default.Warn(legacy.KindFlagFile, fmt.Sprintf(
+				if filename != fileNames[0] {
+					warner.Warn(legacy.KindFlagFile, fmt.Sprintf(
 						"the flag file %s uses the legacy name %s, it is still accepted, rename it to %s.%s",
-						configFile, filename, flagFileNames[0], ext))
+						configFile, filename, fileNames[0], ext))
 				}
 
 				return readConfigFile(configFile, ext)

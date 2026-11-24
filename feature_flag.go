@@ -60,7 +60,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 	goFF := &GoFeatureFlag{
 		config:            config,
 		evalExporterWg:    sync.WaitGroup{},
-		evaluationService: flag.NewService(),
+		evaluationService: flag.NewService(flag.WithLogger(config.serviceLogger())),
 	}
 
 	if config.Offline {

@@ -9,18 +9,17 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	promversion "github.com/prometheus/common/version"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable promversion.Version; removed by the service-object refactor (follow-up PR)
 func TestMetrics_BuildInfo(t *testing.T) {
-	version := "9.9.9"
-	promversion.Version = version
+	t.Parallel()
 
-	metricSrv, err := metric.NewMetrics()
+	version := "9.9.9"
+
+	metricSrv, err := metric.NewMetrics(metric.MetricsOpts{Version: version})
 	require.NoError(t, err)
 
 	expected := fmt.Sprintf(`

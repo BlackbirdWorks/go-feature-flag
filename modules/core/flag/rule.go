@@ -224,7 +224,7 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 	// Catch any panics that may occur during evaluation
 	defer func() {
 		if r := recover(); r != nil {
-			slog.ErrorContext(context.Background(), "panic recovered while evaluating query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
@@ -232,13 +232,13 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 		}
 	}()
 
-	return processNikunjy(ev, query, queryCtx.mapOnce())
+	return processNikunjy(queryCtx.svc.logger, ev, query, queryCtx.mapOnce())
 }
 
-func processNikunjy(ev *parser.Evaluator, query string, mapCtx map[string]any) bool {
+func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, mapCtx map[string]any) bool {
 	ok, err := ev.Process(mapCtx)
 	if err != nil {
-		slog.Error("error while evaluating the nikunjy query",
+		logger.Error("error while evaluating the nikunjy query",
 			slog.String("query", query), slog.Any("error", err))
 
 		return false
@@ -257,7 +257,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	// Catch any panics that may occur during evaluation
 	defer func() {
 		if r := recover(); r != nil {
-			slog.ErrorContext(context.Background(), "panic recovered while evaluating query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
 				slog.String("query", query),
 			)
@@ -270,14 +270,18 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	case JSONLogicQueryFormat:
 		data, err := queryCtx.dataOnce()
 		if err != nil {
-			slog.ErrorContext(context.Background(), "error while marshalling the context for the jsonlogic query",
-				slog.Any("mapCtx", mapCtx), slog.Any("error", err.Error()))
+			queryCtx.svc.logger.ErrorContext(
+				context.Background(),
+				"error while marshalling the context for the jsonlogic query",
+				slog.Any("mapCtx", mapCtx),
+				slog.Any("error", err.Error()),
+			)
 
 			return false
 		}
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
-			slog.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
+			queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
 				slog.String("query", query), slog.Any("error", err.Error()))
 
 			return false
@@ -287,13 +291,13 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 	default:
 		ev, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
-			slog.Error("error while parsing the nikunjy query",
+			queryCtx.svc.logger.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))
 
 			return false
 		}
 
-		return processNikunjy(ev, query, mapCtx)
+		return processNikunjy(queryCtx.svc.logger, ev, query, mapCtx)
 	}
 }
 

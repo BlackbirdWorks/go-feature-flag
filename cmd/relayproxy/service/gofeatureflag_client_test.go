@@ -635,7 +635,7 @@ func Test_initNotifier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := initNotifier(tt.args.c)
+			got, err := initNotifier(tt.args.c, zap.NewNop())
 			if !tt.wantErr(t, err, fmt.Sprintf("initNotifier(%v)", tt.args.c)) {
 				return
 			}

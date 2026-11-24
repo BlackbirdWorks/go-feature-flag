@@ -32,6 +32,9 @@ const FlagNotFoundLabelValue = "FLAG_NOT_FOUND"
 type MetricsOpts struct {
 	// enables per-flag metrics for bulk evaluation endpoints
 	EnableBulkMetricFlagNames bool
+	// Version is the version that semaphore_build_info reports (the one of the binary, set at build
+	// time, when empty).
+	Version string
 }
 
 const (
@@ -177,7 +180,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 		validateFlagsCounterVec,
 		flagConfigurationCounter,
 		getManifestCounter,
-		versioncollector.NewCollector(SubSystem),
+		versioncollector.NewCollector(SubSystem, versionOptions(mo.Version)...),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		collectors.NewGoCollector(),
 	}
@@ -367,4 +370,13 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
 
 	return out, err
+}
+
+// versionOptions overrides the version label of semaphore_build_info with version, if any.
+func versionOptions(version string) []versioncollector.Option {
+	if version == "" {
+		return nil
+	}
+
+	return []versioncollector.Option{versioncollector.WithExtraConstLabels(prom.Labels{"version": version})}
 }

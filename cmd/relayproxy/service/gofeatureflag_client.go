@@ -37,12 +37,15 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
 // clientOptions are the internal options of NewGoFeatureFlagClient.
 type clientOptions struct {
 	sharedRegistry *sharedBucketRegistry
+	// postgresPools shares the connection pools of the PostgreSQL retrievers of the clients created with it.
+	postgresPools *postgresqlretriever.PoolRegistry
 	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
 	defaultExporterCleanQueueInterval time.Duration
 	// newClient builds the engine client. It defaults to ffclient.New and is replaced only by tests.
@@ -72,6 +75,21 @@ func exporterCleanQueueInterval(cFlagSet *config.FlagSet, o *clientOptions) time
 
 // clientOption customizes NewGoFeatureFlagClient.
 type clientOption func(*clientOptions)
+
+// withPostgresPools sets the registry of the connection pools that the PostgreSQL retrievers of the clients
+// share (one pool per database URI, however many flagsets use it).
+func withPostgresPools(p *postgresqlretriever.PoolRegistry) clientOption {
+	return func(o *clientOptions) { o.postgresPools = p }
+}
+
+// retrieverOptions are the options that the retrievers of a client are created with.
+func (o *clientOptions) retrieverOptions() []retrieverInit.Option {
+	if o.postgresPools == nil {
+		return nil
+	}
+
+	return []retrieverInit.Option{retrieverInit.WithPostgresPools(o.postgresPools)}
+}
 
 // withSharedBucketRegistry sets the registry providing the retrievers of the flagsets with
 // enableSharedPollerPerBucket, so that they are shared between the clients created with the same registry.
@@ -105,7 +123,7 @@ func newGoFeatureFlagClient(
 	if o.sharedRegistry == nil {
 		o.sharedRegistry = standaloneSharedRegistry(cFlagSet, logger)
 	}
-	retrievers, err := initRetrieversWithRegistry(cFlagSet, o.sharedRegistry)
+	retrievers, err := initRetrieversWithRegistry(cFlagSet, o.sharedRegistry, o.retrieverOptions()...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +138,7 @@ func newGoFeatureFlagClient(
 
 	notif := make([]notifier.Notifier, 0, len(notifiers))
 	if cFlagSet.Notifiers != nil {
-		notif, err = initNotifier(cFlagSet.Notifiers)
+		notif, err = initNotifier(cFlagSet.Notifiers, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +147,7 @@ func newGoFeatureFlagClient(
 	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
 	// fixed in version v1.46.0
 	if len(notif) == 0 && cFlagSet.FixNotifiers != nil { // nolint: staticcheck
-		notif, err = initNotifier(cFlagSet.FixNotifiers) // nolint: staticcheck
+		notif, err = initNotifier(cFlagSet.FixNotifiers, logger) // nolint: staticcheck
 		if err != nil {
 			return nil, err
 		}
@@ -233,7 +251,7 @@ func initLeveledLogger(c *config.FlagSet, logger *zap.Logger) *slog.Logger {
 // the `retriever` and `retrievers` fields. The registry provides the retriever of the flagsets with
 // enableSharedPollerPerBucket, it is required for them.
 func initRetrieversWithRegistry(
-	proxyConf *config.FlagSet, registry *sharedBucketRegistry,
+	proxyConf *config.FlagSet, registry *sharedBucketRegistry, retrieverOpts ...retrieverInit.Option,
 ) ([]retriever.Retriever, error) {
 	retrievers := make([]retriever.Retriever, 0)
 	if proxyConf.EnableSharedPollerPerBucket {
@@ -249,7 +267,7 @@ func initRetrieversWithRegistry(
 	}
 	// if the retriever is set, we add it to the retrievers
 	if proxyConf.Retriever != nil {
-		currentRetriever, err := retrieverInit.InitRetriever(proxyConf.Retriever)
+		currentRetriever, err := retrieverInit.InitRetriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -258,7 +276,7 @@ func initRetrieversWithRegistry(
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
 		for _, r := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.InitRetriever(&r)
+			currentRetriever, err := retrieverInit.InitRetriever(&r, retrieverOpts...)
 			if err != nil {
 				return nil, err
 			}
@@ -519,7 +537,7 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 	return c, nil
 }
 
-func initNotifier(c []config.NotifierConf) ([]notifier.Notifier, error) {
+func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notifier, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -529,7 +547,7 @@ func initNotifier(c []config.NotifierConf) ([]notifier.Notifier, error) {
 		switch cNotif.Kind {
 		case config.SlackNotifier:
 			if cNotif.WebhookURL == "" && cNotif.SlackWebhookURL != "" { // nolint
-				zap.L().Warn("slackWebhookURL field is deprecated, please use webhookURL instead")
+				logger.Warn("slackWebhookURL field is deprecated, please use webhookURL instead")
 				cNotif.WebhookURL = cNotif.SlackWebhookURL // nolint
 			}
 			notifiers = append(

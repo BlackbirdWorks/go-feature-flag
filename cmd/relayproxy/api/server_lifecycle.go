@@ -32,7 +32,10 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	}
 
 	// start the OpenTelemetry tracing service
-	err := s.otelService.Init(ctx, s.zapLog, s.config)
+	err := s.otelService.Init(ctx, s.config)
+	if err == nil && s.installGlobalTelemetry {
+		s.otelService.Install(s.zapLog)
+	}
 	if err != nil {
 		s.zapLog.Error(
 			"error while initializing OTel, continuing without tracing enabled",

@@ -146,6 +146,19 @@ func (c *Config) Initialize() {
 	}
 }
 
+// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
+// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
+func (c *Config) serviceLogger() *slog.Logger {
+	switch {
+	case c.LeveledLogger != nil:
+		return c.LeveledLogger
+	case c.Logger != nil:
+		return slog.New(slog.NewTextHandler(c.Logger.Writer(), nil))
+	default:
+		return nil
+	}
+}
+
 // adjustPollingInterval is a function that will check the polling interval and set it to the minimum value if it is
 // lower than 1 second. It also set the default value to 60 seconds if the polling interval is 0.
 func adjustPollingInterval(pollingInterval time.Duration) time.Duration {

@@ -14,20 +14,18 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 //nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -38,7 +36,7 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -49,7 +47,7 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -65,7 +63,7 @@ func TestInitSampler(t *testing.T) {
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		url, refreshInterval, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -80,7 +78,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MANAGER_HOST_PORT", expected)
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		url, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -93,7 +91,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", expected.String())
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		_, refreshInterval, _, err := jaegerRemoteSamplerOpts(c)
@@ -106,7 +104,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", strconv.Itoa(expected))
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		_, _, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -118,7 +116,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", "bogus")
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 
 		_, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -129,7 +127,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", "bogus")
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		_, errC := config.New(f, zap.L(), "1.X.X")
+		_, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.Error(t, errC)
 	})
 }
@@ -175,50 +173,40 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry SDK (third-party code) reads OTEL_* from the process environment
 func TestInit(t *testing.T) {
-	logger := log.InitLogger().ZapLogger
-
-	svc := NewOtelService()
-
 	t.Run("no config", func(t *testing.T) {
-		err := svc.Init(context.Background(), logger, &config.Config{})
+		svc := NewOtelService()
+		err := svc.Init(context.Background(), &config.Config{})
 		require.NoError(t, err)
 		defer func() { _ = svc.Stop(context.Background()) }()
-		assert.NotNil(t, otel.GetTracerProvider())
+		assert.Nil(t, svc.otelTraceProvider)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		t.Setenv("OTEL_SDK_DISABLED", "true")
 		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
-		err := svc.Init(context.Background(), logger, c)
+		svc := NewOtelService()
+		err := svc.Init(context.Background(), c)
 		require.NoError(t, err)
 		defer func() { _ = svc.Stop(context.Background()) }()
-		assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
+		assert.Nil(t, svc.otelTraceProvider)
 	})
 
-	t.Run("support openTelemetryOtlpEndpoint", func(t *testing.T) {
-		err := svc.Init(context.Background(), logger, &config.Config{
+	t.Run("an endpoint creates the tracer provider without installing it", func(t *testing.T) {
+		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+		before := otel.GetTracerProvider()
+		svc := NewOtelService()
+		err := svc.Init(context.Background(), &config.Config{
 			OpenTelemetryOtlpEndpoint: "https://example.com:4318",
 		})
 		require.NoError(t, err)
 		defer func() { _ = svc.Stop(context.Background()) }()
-		assert.Equal(t, "https://example.com:4318", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
-	})
-
-	t.Run("OTEL_EXPORTER_OTLP_ENDPOINT takes precedence", func(t *testing.T) {
-		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
-		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
-		require.NoError(t, errC)
-		c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
-		err := svc.Init(context.Background(), logger, c)
-		require.NoError(t, err)
-		defer func() { _ = svc.Stop(context.Background()) }()
-		assert.Equal(t, "https://example.com:4318", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+		assert.NotNil(t, svc.otelTraceProvider)
+		assert.Equal(t, before, otel.GetTracerProvider(), "Init must not change the global provider")
 	})
 
 	t.Run("error handler logs to zap", func(t *testing.T) {
@@ -229,12 +217,14 @@ func TestInit(t *testing.T) {
 
 		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.L(), "1.X.X")
+		c, errC := config.New(f, zap.NewNop(), "1.X.X")
 		require.NoError(t, errC)
 		c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
-		err := svc.Init(context.Background(), testLogger, c)
+		svc := NewOtelService()
+		err := svc.Init(context.Background(), c)
 		require.NoError(t, err)
 		defer func() { _ = svc.Stop(context.Background()) }()
+		svc.Install(testLogger) // the OpenTelemetry API only has a process-wide registry
 		otel.GetErrorHandler().Handle(expectedErr)
 
 		require.Len(t, logs.All(), 1)
@@ -246,4 +236,44 @@ func TestInit(t *testing.T) {
 
 		assert.Equal(t, want, logs.AllUntimed())
 	})
+}
+
+//nolint:paralleltest,tparallel // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads
+func TestExportEnvironment(t *testing.T) {
+	tests := []struct {
+		name         string
+		endpoint     string
+		wantEnv      string
+		wantEndpoint string
+	}{
+		{
+			name:         "the openTelemetryOtlpEndpoint element is exported",
+			endpoint:     "https://example.com:4318",
+			wantEnv:      "https://example.com:4318",
+			wantEndpoint: "https://example.com:4318",
+		},
+		{name: "no endpoint exports nothing", endpoint: "", wantEnv: "", wantEndpoint: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+			conf := &config.Config{OpenTelemetryOtlpEndpoint: tt.endpoint}
+			ExportEnvironment(conf)
+			assert.Equal(t, tt.wantEnv, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+			assert.Equal(t, tt.wantEndpoint, conf.OtelConfig.Exporter.Otlp.Endpoint)
+		})
+	}
+}
+
+//nolint:paralleltest,tparallel // t.Setenv changes the process environment, which the OpenTelemetry SDK reads
+func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	c, errC := config.New(f, zap.NewNop(), "1.X.X")
+	require.NoError(t, errC)
+	c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
+
+	ExportEnvironment(c)
+
+	assert.Equal(t, "https://example.com:4318", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 }

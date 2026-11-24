@@ -15,9 +15,6 @@ import (
 func TestOutput_PrintLines(t *testing.T) {
 	t.Parallel()
 
-	pterm.DisableStyling()
-	pterm.DisableColor()
-
 	tests := []struct {
 		name     string
 		output   helper.Output
@@ -76,23 +73,19 @@ func TestOutput_PrintLines(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable pterm.Error; removed by the service-object refactor (follow-up PR)
-func TestPrintFatalAndExit(t *testing.T) {
-	pterm.DisableStyling()
-	pterm.DisableColor()
+func TestPrintFatal(t *testing.T) {
+	t.Parallel()
 
 	var buf bytes.Buffer
-	pterm.Error.Writer = &buf // redirect Error output to buf
-
+	var gotCode int
 	called := false
-	restore := helper.SetExitFuncForTest(func(code int) {
-		assert.Equal(t, 1, code)
+
+	helper.PrintFatal(pterm.Error.WithWriter(&buf), func(code int) {
+		gotCode = code
 		called = true
-	})
-	defer restore()
+	}, errors.New("boom"))
 
-	helper.PrintFatalAndExit(errors.New("boom"))
-
-	assert.True(t, called, "exitFunc should have been called")
+	assert.True(t, called, "the exit function should have been called")
+	assert.Equal(t, 1, gotCode)
 	assert.Equal(t, "ERROR: error executing command: boom\n", buf.String())
 }

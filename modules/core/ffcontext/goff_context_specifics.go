@@ -9,6 +9,10 @@ type GoffContextSpecifics struct {
 	FlagList []string `json:"flagList"`
 	// ExporterMetadata is the metadata to be used by the exporter.
 	ExporterMetadata map[string]any `json:"exporterMetadata"`
+	// UsedLegacyKey is true when the context carried these fields under the legacy attribute name
+	// (LegacyReservedKey). The code that evaluates the flags reports it, once, through its own
+	// legacy.Warner: extracting the fields has no owner to warn.
+	UsedLegacyKey bool `json:"-"`
 }
 
 // addCurrentDateTime adds the current date time to the context.

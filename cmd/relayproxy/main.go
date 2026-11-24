@@ -7,18 +7,17 @@ import (
 	"os"
 	"time"
 
-	promversion "github.com/prometheus/common/version"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	stream "github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -58,10 +57,6 @@ func main() {
 	// Init logger
 	logger := log.InitLogger()
 	defer func() { _ = logger.ZapLogger.Sync() }()
-	// The legacy names (GO Feature Flag) that are still accepted warn once, through the same logger.
-	legacy.Default.SetLogFunc(func(kind, message string) {
-		logger.ZapLogger.Warn(message, zap.String("legacyName", kind))
-	})
 
 	// Loading the configuration in viper
 	proxyConf, err := config.New(f, logger.ZapLogger, version)
@@ -93,10 +88,9 @@ func main() {
 	docs.SwaggerInfo.Version = proxyConf.Version
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", proxyConf.SwaggerHost(), proxyConf.ServerPort(logger.ZapLogger))
 
-	// Set the version for the prometheus version collector
-	promversion.Version = version
 	// Initialize metrics
 	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{
+		Version:                   version,
 		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
 	})
 	if err != nil {
@@ -130,7 +124,9 @@ func main() {
 		Metrics:           metricsV2,
 	}
 	// Init API server
-	apiServer := api.New(proxyConf, services, logger.ZapLogger)
+	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
+	opentelemetry.ExportEnvironment(proxyConf)
+	apiServer := api.New(proxyConf, services, logger.ZapLogger, api.WithGlobalTelemetry())
 
 	defer shutdown(logger.ZapLogger, &apiServer, wsService, sseService, flagsetManager)
 	apiServer.StartWithContext(context.Background())

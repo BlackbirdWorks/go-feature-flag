@@ -1,6 +1,14 @@
 package flag
 
-import "sync"
+import (
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+)
 
 // Service owns the state that evaluating and validating flags needs, so that no package-level
 // variable holds it: the parsed nikunjy queries, the memo of the scheduled rollouts, the
@@ -19,16 +27,58 @@ type Service struct {
 	// queryMaps recycles the maps of the queryContexts: a map is only read by the query engines
 	// during an evaluation and never retained, so it is cleared and reused by the next evaluation.
 	queryMaps sync.Pool
+	// logger receives the errors of the evaluation (a query that does not parse or panics, ...).
+	logger *slog.Logger
+	// legacy reports, once, the use of a legacy name that the evaluation reads (the legacy
+	// evaluation context attribute).
+	legacy *legacy.Warner
+}
+
+// ServiceOption customizes the Service that NewService creates.
+type ServiceOption func(*Service)
+
+// WithLogger sets the logger of the Service. Without it the Service does not log.
+func WithLogger(logger *slog.Logger) ServiceOption {
+	return func(s *Service) {
+		if logger != nil {
+			s.logger = logger
+		}
+	}
 }
 
 // NewService creates an empty Service.
-func NewService() *Service {
-	return &Service{
+func NewService(opts ...ServiceOption) *Service {
+	s := &Service{
 		nikunjy: newNikunjyEvaluatorCache(),
 		queryMaps: sync.Pool{
 			New: func() any { return make(map[string]any, queryMapSize) },
 		},
+		logger: slog.New(slog.DiscardHandler),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	s.legacy = legacy.NewWarner(func(kind, message string) {
+		s.logger.Warn(message, slog.String("legacyName", kind))
+	})
+
+	return s
+}
+
+// evaluationDate is the date of an evaluation: the currentDateTime of the context, or the clock.
+// It also reports, once, that the context uses the legacy attribute name.
+func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
+	specifics := ctx.ExtractGOFFProtectedFields()
+	if specifics.UsedLegacyKey {
+		s.legacy.Warn(legacy.KindEvaluationContext, "the evaluation context attribute \""+
+			ffcontext.LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+
+			ffcontext.ReservedKey+"\" is preferred")
+	}
+	if specifics.CurrentDateTime == nil {
+		return clock.Now()
+	}
+
+	return *specifics.CurrentDateTime
 }
 
 // queryMapSize is the initial size of the maps that queryMaps hands out.
