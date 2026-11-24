@@ -53,7 +53,7 @@ var (
 	checkMode      bool
 )
 
-// nolint:funlen
+//nolint:funlen
 func NewEvaluateCmd() *cobra.Command {
 	evaluateCmd := &cobra.Command{
 		Use:   "evaluate",
@@ -284,7 +284,7 @@ func runCheck(
 	retrieverConf retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
-	// nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
+	//nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
 	detailed, err := json.MarshalIndent(retrieverConf, "", "  ")
 	if err != nil {
 		return err

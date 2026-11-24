@@ -17,19 +17,19 @@ const (
 	formatJSON = "json"
 )
 
-// MessageSender is a Kafka producer that implements the SendMessages method
+// MessageSender is a Kafka producer that implements the SendMessages method.
 type MessageSender interface {
 	SendMessages(msgs []*sarama.ProducerMessage) error
 }
 
-// Settings contains Kafka-specific configurations needed for message creation
+// Settings contains Kafka-specific configurations needed for message creation.
 type Settings struct {
 	Topic     string   `json:"topic"`
 	Addresses []string `json:"addresses"`
 	*sarama.Config
 }
 
-// Exporter sends events to a Kafka topic using a synchronous producer
+// Exporter sends events to a Kafka topic using a synchronous producer.
 type Exporter struct {
 	// Format is the output format for the message value.
 	// The only available format right now is JSON, and this field provided for future usage.

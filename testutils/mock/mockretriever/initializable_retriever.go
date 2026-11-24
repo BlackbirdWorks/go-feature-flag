@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-// InitializableRetriever implements the standard InitializableRetriever interface
+// InitializableRetriever implements the standard InitializableRetriever interface.
 type InitializableRetriever struct {
 	Name           string
 	InitShouldFail bool

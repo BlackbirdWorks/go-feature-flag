@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/redshiftexporter"
 )
 
-// ExporterConf contains all the field to configure an exporter
+// ExporterConf contains all the field to configure an exporter.
 type ExporterConf struct {
 	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
 	TracerName              string                 `mapstructure:"tracerName"             koanf:"tracername"`
@@ -184,7 +184,7 @@ const (
 	OpenTelemetryExporter ExporterKind = "opentelemetry"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r ExporterKind) IsValid() error {
 	switch r {
 	case FileExporter,

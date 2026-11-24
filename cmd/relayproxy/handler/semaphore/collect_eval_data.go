@@ -27,7 +27,7 @@ type collectEvalData struct {
 	logger         *zap.Logger
 }
 
-// NewCollectEvalData initialize the controller for the /data/collector endpoint
+// NewCollectEvalData initialize the controller for the /data/collector endpoint.
 func NewCollectEvalData(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,

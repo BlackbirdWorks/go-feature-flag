@@ -8,7 +8,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-// InitializableRetrieverWithFlagset implements the InitializableRetrieverWithFlagset interface
+// InitializableRetrieverWithFlagset implements the InitializableRetrieverWithFlagset interface.
 type InitializableRetrieverWithFlagset struct {
 	Name            string
 	InitShouldFail  bool

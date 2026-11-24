@@ -4,7 +4,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-// ConvertDtoToInternalFlag is converting a DTO to a flag.InternalFlag
+// ConvertDtoToInternalFlag is converting a DTO to a flag.InternalFlag.
 func ConvertDtoToInternalFlag(dto DTO) flag.InternalFlag {
 	var experimentation *flag.ExperimentationRollout
 	if dto.Experimentation != nil {

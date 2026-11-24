@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// SimpleRetriever implements only the basic Retriever interface
+// SimpleRetriever implements only the basic Retriever interface.
 type SimpleRetriever struct {
 	Name           string
 	RetrieveCalled bool

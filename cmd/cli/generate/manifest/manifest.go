@@ -39,7 +39,7 @@ type Manifest struct {
 	flagManifestDestination string
 }
 
-// Generate the manifest file
+// Generate the manifest file.
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
 	flags := make(map[string]flag.InternalFlag)
@@ -74,7 +74,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	return output.Add("🎉 Manifest has been created", helper.InfoLevel), nil
 }
 
-// toJSON will convert the definitions to a JSON string
+// toJSON will convert the definitions to a JSON string.
 func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {

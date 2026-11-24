@@ -19,7 +19,7 @@ import (
 )
 
 // compareJSONWithTimestampHandling compares expected and actual JSON while handling timestamp fields properly
-// to avoid flaky tests due to timing differences
+// to avoid flaky tests due to timing differences.
 func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, actualJSON []byte) {
 	t.Helper()
 

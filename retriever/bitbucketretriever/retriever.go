@@ -27,7 +27,7 @@ type Retriever struct {
 	rateLimitReset     time.Time
 }
 
-// Retrieve get the content of the file from the Bitbucket API
+// Retrieve get the content of the file from the Bitbucket API.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
 		return nil, fmt.Errorf(
@@ -91,13 +91,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
-// SetHTTPClient set the HTTP client to use for the API call if you don't want to use the default one
+// SetHTTPClient set the HTTP client to use for the API call if you don't want to use the default one.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client
 }
 
 // updateRateLimit update the rate limit information from the headers to avoid calling the API if
-// the rate limit is reached
+// the rate limit is reached.
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	if remaining := headers.Get("X-Ratelimit-Limit"); remaining != "" {
 		if remainingInt, err := strconv.Atoi(remaining); err == nil {

@@ -262,7 +262,7 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	return errors.New("no persistent flag available")
 }
 
-// GetCacheRefreshDate gives the last refresh date of the cache
+// GetCacheRefreshDate gives the last refresh date of the cache.
 func (m *Manager) GetCacheRefreshDate() time.Time {
 	return m.cacheManager.GetLatestUpdateDate()
 }

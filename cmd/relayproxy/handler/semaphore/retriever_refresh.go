@@ -22,7 +22,7 @@ type retrieverRefreshResponse struct {
 	Refreshed bool `json:"refreshed"`
 }
 
-// NewForceFlagsRefresh initialize the controller for the /data/collector endpoint
+// NewForceFlagsRefresh initialize the controller for the /data/collector endpoint.
 func NewForceFlagsRefresh(flagsetManager service.FlagsetManager, metrics metric.Metrics) Controller {
 	return &forceFlagsRefresh{
 		flagsetManager: flagsetManager,

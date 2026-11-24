@@ -2,7 +2,7 @@ package controller
 
 import "github.com/labstack/echo/v5"
 
-// Controller is the interface used by all controller struct
+// Controller is the interface used by all controller struct.
 type Controller interface {
 	Handler(c *echo.Context) error
 }

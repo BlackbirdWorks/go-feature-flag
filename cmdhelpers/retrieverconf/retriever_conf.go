@@ -19,7 +19,7 @@ var DefaultRetrieverConfig = struct {
 	GitBranch:  "main",
 }
 
-// RetrieverConf contains all the field to configure a retriever
+// RetrieverConf contains all the field to configure a retriever.
 type RetrieverConf struct {
 	Kind           RetrieverKind `mapstructure:"kind"             koanf:"kind"`
 	RepositorySlug string        `mapstructure:"repositorySlug"   koanf:"repositoryslug"`
@@ -76,13 +76,14 @@ type RetrieverConf struct {
 	// (GitHubAppPrivateKey) or as a file path (GitHubAppPrivateKeyFile).
 	GitHubAppID          int64 `mapstructure:"githubAppId"             koanf:"githubappid"`
 	GitHubInstallationID int64 `mapstructure:"githubInstallationId"    koanf:"githubinstallationid"`
-	// nolint:gosec // G117 - these fields hold operator-supplied config, not hardcoded secrets
+	//nolint:gosec // G117 - these fields hold operator-supplied config, not hardcoded secrets
 	GitHubAppPrivateKey     string `mapstructure:"githubAppPrivateKey"     koanf:"githubappprivatekey"`
 	GitHubAppPrivateKeyFile string `mapstructure:"githubAppPrivateKeyFile" koanf:"githubappprivatekeyfile"`
 }
 
 // IsValid validate the configuration of the retriever
-// nolint:gocognit
+//
+//nolint:gocognit
 func (c *RetrieverConf) IsValid() error {
 	if err := c.Kind.IsValid(); err != nil {
 		return err
@@ -138,7 +139,7 @@ func (c *RetrieverConf) validateHTTPRetriever() error {
 	return nil
 }
 
-// validatePostgreSQLRetriever validates the configuration of the postgresql retriever
+// validatePostgreSQLRetriever validates the configuration of the postgresql retriever.
 func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
@@ -243,7 +244,7 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 	return nil
 }
 
-// RetrieverKind is an enum containing all accepted Retriever kind
+// RetrieverKind is an enum containing all accepted Retriever kind.
 type RetrieverKind string
 
 const (
@@ -261,7 +262,7 @@ const (
 	PostgreSQLRetriever    RetrieverKind = "postgresql"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r RetrieverKind) IsValid() error {
 	switch r {
 	case HTTPRetriever, GitHubRetriever, GitlabRetriever, S3Retriever, RedisRetriever,

@@ -14,7 +14,7 @@
 // such as initialization failures, retrieval errors, and status changes.
 package mockretriever
 
-// Default flag configuration used by all mock retrievers
+// Default flag configuration used by all mock retrievers.
 const defaultFlagConfig = `{
     "test-flag": {
         "variations": {

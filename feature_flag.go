@@ -69,7 +69,7 @@ type GoFeatureFlag struct {
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.
 const DefaultEventQueueSize = 65536
 
-// ff is the default object for semaphore
+// ff is the default object for semaphore.
 var (
 	ff     *GoFeatureFlag
 	onceFF sync.Once
@@ -106,14 +106,14 @@ func New(config Config) (*GoFeatureFlag, error) {
 	return goFF, nil
 }
 
-// initializeNotificationService is a function that will initialize the notification service with the notifiers
+// initializeNotificationService is a function that will initialize the notification service with the notifiers.
 func initializeNotificationService(config Config) notification.Service {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
 	return notification.NewService(notifiers)
 }
 
-// initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers
+// initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
@@ -209,7 +209,7 @@ func (g *GoFeatureFlag) Close() {
 	}
 }
 
-// GetCacheRefreshDate gives the last refresh date of the cache
+// GetCacheRefreshDate gives the last refresh date of the cache.
 func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	if g.IsOffline() {
 		return time.Time{}
@@ -217,7 +217,7 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	return g.retrieverManager.GetCacheRefreshDate()
 }
 
-// GetEvaluationContextEnrichment returns the evaluation context enrichment
+// GetEvaluationContextEnrichment returns the evaluation context enrichment.
 func (g *GoFeatureFlag) GetEvaluationContextEnrichment() map[string]any {
 	return g.config.EvaluationContextEnrichment
 }
@@ -236,22 +236,22 @@ func (g *GoFeatureFlag) ForceRefreshWithContext(ctx context.Context) bool {
 	return g.retrieverManager.ForceRefresh(ctx)
 }
 
-// SetOffline updates the config Offline parameter
+// SetOffline updates the config Offline parameter.
 func (g *GoFeatureFlag) SetOffline(control bool) {
 	g.config.SetOffline(control)
 }
 
-// IsOffline allows knowing if the feature flag is in offline mode
+// IsOffline allows knowing if the feature flag is in offline mode.
 func (g *GoFeatureFlag) IsOffline() bool {
 	return g.config.IsOffline()
 }
 
-// GetPollingInterval is the polling interval between two refreshes of the cache
+// GetPollingInterval is the polling interval between two refreshes of the cache.
 func (g *GoFeatureFlag) GetPollingInterval() int64 {
 	return g.config.PollingInterval.Milliseconds()
 }
 
-// SetOffline updates the config Offline parameter
+// SetOffline updates the config Offline parameter.
 func SetOffline(control bool) {
 	SetOfflineWithContext(context.Background(), control)
 }
@@ -272,12 +272,12 @@ func SetOfflineWithContext(ctx context.Context, control bool) {
 	ff.SetOffline(control)
 }
 
-// IsOffline allows knowing if the feature flag is in offline mode
+// IsOffline allows knowing if the feature flag is in offline mode.
 func IsOffline() bool {
 	return ff.IsOffline()
 }
 
-// GetCacheRefreshDate gives the last refresh date of the cache
+// GetCacheRefreshDate gives the last refresh date of the cache.
 func GetCacheRefreshDate() time.Time {
 	if ff.IsOffline() {
 		return time.Time{}

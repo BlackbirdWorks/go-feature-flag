@@ -166,7 +166,7 @@ func stopPostgreSQL(t *testing.T, testName string) {
 	}
 }
 
-// TestRetrieverErrorHandling tests various error conditions in the PostgreSQL retriever
+// TestRetrieverErrorHandling tests various error conditions in the PostgreSQL retriever.
 func TestRetrieverErrorHandling(t *testing.T) {
 	t.Run("Init - Invalid connection URI", func(t *testing.T) {
 		r := postgresqlretriever.Retriever{
@@ -242,7 +242,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 	})
 }
 
-// TestRetrieverQueryErrors tests query-related error conditions using a real PostgreSQL container
+// TestRetrieverQueryErrors tests query-related error conditions using a real PostgreSQL container.
 func TestRetrieverQueryErrors(t *testing.T) {
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql", "sql/insert_data.sql"})
 	defer stopPostgreSQL(t, t.Name())
@@ -307,7 +307,7 @@ func TestRetrieverQueryErrors(t *testing.T) {
 	})
 }
 
-// TestRetrieverDataHandlingErrors tests data processing error conditions
+// TestRetrieverDataHandlingErrors tests data processing error conditions.
 func TestRetrieverDataHandlingErrors(t *testing.T) {
 	// Create a test container with some test data
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
@@ -380,7 +380,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	})
 }
 
-// TestRetrieverEdgeCases tests additional edge cases and boundary conditions
+// TestRetrieverEdgeCases tests additional edge cases and boundary conditions.
 func TestRetrieverEdgeCases(t *testing.T) {
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
 	defer stopPostgreSQL(t, t.Name())
@@ -498,7 +498,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 	})
 }
 
-// TestRetrieverShutdownErrors tests shutdown error conditions
+// TestRetrieverShutdownErrors tests shutdown error conditions.
 func TestRetrieverShutdownErrors(t *testing.T) {
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
 	defer stopPostgreSQL(t, t.Name())

@@ -8,7 +8,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-// ContextAwareRetriever is a mock that respects context cancellation
+// ContextAwareRetriever is a mock that respects context cancellation.
 type ContextAwareRetriever struct{}
 
 func NewContextAwareRetriever() *ContextAwareRetriever {
@@ -41,7 +41,7 @@ func (m *ContextAwareRetriever) Status() retriever.Status {
 	return retriever.RetrieverReady
 }
 
-// StatusChangingRetriever allows testing status changes during operations
+// StatusChangingRetriever allows testing status changes during operations.
 type StatusChangingRetriever struct {
 	StatusCalled  bool
 	CurrentStatus retriever.Status
@@ -73,7 +73,7 @@ func (m *StatusChangingRetriever) Status() retriever.Status {
 	return m.CurrentStatus
 }
 
-// RecoverableRetriever can fail initially but succeed on retry
+// RecoverableRetriever can fail initially but succeed on retry.
 type RecoverableRetriever struct {
 	Name          string
 	FailFirstInit bool

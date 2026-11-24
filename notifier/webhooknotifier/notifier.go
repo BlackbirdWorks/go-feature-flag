@@ -18,7 +18,7 @@ import (
 
 var _ notifier.Notifier = &Notifier{}
 
-// webhookReqBody is the format we are sending to the webhook
+// webhookReqBody is the format we are sending to the webhook.
 type webhookReqBody struct {
 	Meta  map[string]string  `json:"meta"`
 	Flags notifier.DiffCache `json:"flags"`

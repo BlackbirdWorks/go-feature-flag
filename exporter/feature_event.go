@@ -41,7 +41,8 @@ func NewFeatureEvent(
 }
 
 // FeatureEvent represent an Event that we store in the data storage
-// nolint:lll
+//
+//nolint:lll
 type FeatureEvent struct {
 	// Kind for a feature event is feature.
 	// A feature event will only be generated if the trackEvents attribute of the flag is set to true.
@@ -85,12 +86,12 @@ type FeatureEvent struct {
 	Metadata FeatureEventMetadata `json:"metadata,omitempty" parquet:"name=metadata, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
-// GetKey returns the key of the event
+// GetKey returns the key of the event.
 func (f FeatureEvent) GetKey() string {
 	return f.Key
 }
 
-// GetUserKey returns the user key of the event
+// GetUserKey returns the user key of the event.
 func (f FeatureEvent) GetUserKey() string {
 	return f.UserKey
 }

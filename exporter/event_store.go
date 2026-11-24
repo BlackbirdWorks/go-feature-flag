@@ -140,7 +140,7 @@ func (e *eventStoreImpl[T]) SetConsumerLimit(consumerID string, limit int64) {
 }
 
 // ProcessPendingEvents is processing all the available item in the Event store for this consumer
-// with the process events function in parameter,
+// with the process events function in parameter,.
 func (e *eventStoreImpl[T]) ProcessPendingEvents(
 	consumerID string, processEventsFunc func(context.Context, []T) error) error {
 	e.mutex.RLock()
@@ -351,7 +351,7 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 	return nil
 }
 
-// cleanQueue removes all events that have been consumed by all consumers
+// cleanQueue removes all events that have been consumed by all consumers.
 func (e *eventStoreImpl[T]) cleanQueue() {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
@@ -408,7 +408,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	e.events = e.events[removed:]
 }
 
-// periodicCleanQueue periodically cleans the queue
+// periodicCleanQueue periodically cleans the queue.
 func (e *eventStoreImpl[T]) periodicCleanQueue() {
 	ticker := time.NewTicker(e.cleanQueueInterval)
 	defer ticker.Stop()

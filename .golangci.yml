@@ -509,6 +509,9 @@ linters:
     rules:
       - source: 'TODO'
         linters: [ godot ]
+      # swag annotations are parsed by swag init, a trailing period would break them
+      - source: '^\s*// @\w+'
+        linters: [ godot ]
       # swagger model-doc stubs (long annotation lines, never executed)
       - path: 'cmd/relayproxy/modeldocs/'
         linters: [ lll, revive, godot, gochecknoglobals ]

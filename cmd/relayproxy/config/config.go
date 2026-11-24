@@ -189,7 +189,7 @@ type Config struct {
 	// ---------- End of private fields ----------
 }
 
-// New is reading the configuration file
+// New is reading the configuration file.
 func New(cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string) (*Config, error) {
 	// Map environment variables
 	configLoader := NewConfigLoader(cmdLineFlagSet, log, version, true)
@@ -203,7 +203,7 @@ func New(cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string) (*Confi
 	return proxyConf, nil
 }
 
-// IsDebugEnabled returns true if the log level is debug
+// IsDebugEnabled returns true if the log level is debug.
 func (c *Config) IsDebugEnabled() bool {
 	if c == nil {
 		return false
@@ -211,7 +211,7 @@ func (c *Config) IsDebugEnabled() bool {
 	return strings.ToLower(c.LogLevel) == "debug"
 }
 
-// ZapLogLevel returns the zap core level for the log level
+// ZapLogLevel returns the zap core level for the log level.
 func (c *Config) ZapLogLevel() zapcore.Level {
 	if c == nil {
 		return zapcore.InvalidLevel
@@ -223,21 +223,21 @@ func (c *Config) ZapLogLevel() zapcore.Level {
 	return level
 }
 
-// IsUsingFlagsets returns true if the configuration is using flagsets
+// IsUsingFlagsets returns true if the configuration is using flagsets.
 func (c *Config) IsUsingFlagsets() bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return len(c.FlagSets) > 0
 }
 
-// Deprecated: use SetAuthorizedKeys instead
+// Deprecated: use SetAuthorizedKeys instead.
 func (c *Config) SetAPIKeys(apiKeys []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.APIKeys = apiKeys
 }
 
-// SetAuthorizedKeys sets the authorized keys for the configuration
+// SetAuthorizedKeys sets the authorized keys for the configuration.
 func (c *Config) SetAuthorizedKeys(authorizedKeys APIKeys) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

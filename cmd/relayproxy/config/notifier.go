@@ -53,7 +53,7 @@ const (
 	DiscordNotifier        NotifierKind = "discord"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r NotifierKind) IsValid() error {
 	switch r {
 	case SlackNotifier, WebhookNotifier, DiscordNotifier, MicrosoftTeamsNotifier:

@@ -1,7 +1,7 @@
 package log
 
 import (
-	// register logfmt encoder
+	// register logfmt encoder.
 	_ "github.com/jsternberg/zap-logfmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

@@ -37,7 +37,7 @@ const (
 	phaseAfterChange   = "after change"
 )
 
-// httpRequestCheck defines a check to perform on an HTTP request
+// httpRequestCheck defines a check to perform on an HTTP request.
 type httpRequestCheck struct {
 	apiKey          string   // API key to use in the request (empty means no API key header)
 	expectedStatus  int      // expected HTTP status code
@@ -489,7 +489,7 @@ func newAPIServerWithLogger(
 	return s, c
 }
 
-// doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks
+// doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks.
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
 	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))

@@ -44,7 +44,7 @@ const (
 	// its statements and the Data API rejects more than 200KB of them ("Parameter size exceeds 200 kB").
 	// They are measured JSON-encoded, as sent on the wire, with a safe margin.
 	maxBatchParamBytes = 180 * 1024
-	// paramOverheadBytes is the JSON envelope of a parameter: {"name":,"value":},
+	// paramOverheadBytes is the JSON envelope of a parameter: {"name":,"value":},.
 	paramOverheadBytes = 20
 	// maxSuperBytes is the maximum size of a JSON value: it is sent as a VARCHAR parameter to JSON_PARSE,
 	// and a Redshift VARCHAR cannot be longer than 65535 bytes.

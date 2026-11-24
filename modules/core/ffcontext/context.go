@@ -36,7 +36,7 @@ func NewEvaluationContext(key string) EvaluationContext {
 // Please use NewEvaluationContext instead and add a attributes attribute to know that it is an anonymous user.
 //
 // ctx := NewEvaluationContext("my-targetingKey")
-// ctx.AddCustomAttribute("anonymous", true)
+// ctx.AddCustomAttribute("anonymous", true).
 func NewAnonymousEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{
 		anonymousAttribute: true,

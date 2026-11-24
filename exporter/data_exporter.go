@@ -110,7 +110,7 @@ func (d *dataExporterImpl[T]) Stop() {
 	d.Flush()
 }
 
-// Flush is sending the data to the exporter
+// Flush is sending the data to the exporter.
 func (d *dataExporterImpl[T]) Flush() {
 	_ = d.flush()
 }
@@ -132,17 +132,17 @@ func (d *dataExporterImpl[T]) flush() error {
 	return nil
 }
 
-// IsBulk return false if we should directly send the data as soon as it is produce
+// IsBulk return false if we should directly send the data as soon as it is produce.
 func (d *dataExporterImpl[T]) IsBulk() bool {
 	return d.exporter.Exporter.IsBulk()
 }
 
-// GetConsumerID return the consumer ID used in the event store
+// GetConsumerID return the consumer ID used in the event store.
 func (d *dataExporterImpl[T]) GetConsumerID() string {
 	return d.consumerID
 }
 
-// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush()
+// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush().
 func (d *dataExporterImpl[T]) GetMaxEventInMemory() int64 {
 	return d.exporter.MaxEventInMemory
 }

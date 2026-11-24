@@ -9,16 +9,16 @@ import (
 	"time"
 )
 
-// LogDateFormat is the default log format
+// LogDateFormat is the default log format.
 const LogDateFormat = time.RFC3339
 
-// FFLogger is the internal logger struct for Semaphore
+// FFLogger is the internal logger struct for Semaphore.
 type FFLogger struct {
 	LeveledLogger *slog.Logger
 	LegacyLogger  *log.Logger
 }
 
-// Error is the function to use to log error
+// Error is the function to use to log error.
 func (f *FFLogger) Error(msg string, keysAndValues ...any) {
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.ErrorContext(context.Background(), msg, keysAndValues...)
@@ -27,7 +27,7 @@ func (f *FFLogger) Error(msg string, keysAndValues ...any) {
 	f.legacyLog("ERROR", msg, keysAndValues...)
 }
 
-// Info is the function to use to log info
+// Info is the function to use to log info.
 func (f *FFLogger) Info(msg string, keysAndValues ...any) {
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.InfoContext(context.Background(), msg, keysAndValues...)
@@ -36,7 +36,7 @@ func (f *FFLogger) Info(msg string, keysAndValues ...any) {
 	f.legacyLog("INFO", msg, keysAndValues...)
 }
 
-// Debug is the function to use to log debug
+// Debug is the function to use to log debug.
 func (f *FFLogger) Debug(msg string, keysAndValues ...any) {
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.DebugContext(context.Background(), msg, keysAndValues...)
@@ -45,7 +45,7 @@ func (f *FFLogger) Debug(msg string, keysAndValues ...any) {
 	f.legacyLog("DEBUG", msg, keysAndValues...)
 }
 
-// Warn is the function to use to log warn
+// Warn is the function to use to log warn.
 func (f *FFLogger) Warn(msg string, keysAndValues ...any) {
 	if f != nil && f.LeveledLogger != nil {
 		f.LeveledLogger.WarnContext(context.Background(), msg, keysAndValues...)
@@ -75,7 +75,7 @@ func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 	}
 }
 
-// GetLogLogger is returning a classic logger from a slog logger
+// GetLogLogger is returning a classic logger from a slog logger.
 func (f *FFLogger) GetLogLogger(level slog.Level) *log.Logger {
 	if f.LeveledLogger != nil {
 		return slog.NewLogLogger(f.LeveledLogger.Handler(), level)

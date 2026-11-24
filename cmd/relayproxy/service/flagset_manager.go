@@ -50,7 +50,7 @@ type FlagsetManager interface {
 	OnConfigChange(newConfig *config.Config)
 }
 
-// flagsetManagerImpl is the internal implementation of FlagsetManager
+// flagsetManagerImpl is the internal implementation of FlagsetManager.
 type flagsetManagerImpl struct {
 	// DefaultFlagSet is the flagset used when no API Key is provider.
 	// It is the legacy way to handle feature flags in Semaphore.
@@ -235,7 +235,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	}, nil
 }
 
-// FlagSet is returning the flag set linked to the API Key
+// FlagSet is returning the flag set linked to the API Key.
 func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
@@ -262,7 +262,7 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 	}
 }
 
-// FlagSetName returns the name of the flagset linked to the API Key
+// FlagSetName returns the name of the flagset linked to the API Key.
 func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
@@ -305,17 +305,17 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 	}
 }
 
-// Default returns the default flagset
+// Default returns the default flagset.
 func (m *flagsetManagerImpl) Default() *ffclient.GoFeatureFlag {
 	return m.DefaultFlagSet
 }
 
-// IsDefaultFlagSet returns true if the manager is in default mode (no flagsets configured)
+// IsDefaultFlagSet returns true if the manager is in default mode (no flagsets configured).
 func (m *flagsetManagerImpl) IsDefaultFlagSet() bool {
 	return m.mode == flagsetManagerModeDefault
 }
 
-// Close closes the flagset manager
+// Close closes the flagset manager.
 func (m *flagsetManagerImpl) Close() {
 	if m.DefaultFlagSet != nil {
 		m.DefaultFlagSet.Close()
@@ -335,7 +335,7 @@ func (m *flagsetManagerImpl) Close() {
 	}
 }
 
-// OnConfigChange is called when the configuration changes
+// OnConfigChange is called when the configuration changes.
 func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 	if err := newConfig.IsValid(); err != nil {
 		m.logger.Error("the new configuration is invalid, it will not be applied", zap.Error(err))
@@ -690,10 +690,10 @@ func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 		reloadAPIKeys = true
 	}
 
-	// nolint: staticcheck
+	//nolint: staticcheck
 	if !cmp.Equal(currentAPIKeys, newAPIKeys) {
 		m.logger.Info("Configuration changed: reloading the APIKeys")
-		// nolint: staticcheck
+		//nolint: staticcheck
 		m.config.SetAPIKeys(newAPIKeys)
 		reloadAPIKeys = true
 	}

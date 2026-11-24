@@ -10,7 +10,7 @@ import (
 	"github.com/nikunjy/rules/parser"
 )
 
-// IsValid is checking if the rule is valid
+// IsValid is checking if the rule is valid.
 func (r *Rule) IsValid(defaultRule bool, variations map[string]*any) error {
 	_, err := r.validate(defaultRule, variations, nil)
 	return err

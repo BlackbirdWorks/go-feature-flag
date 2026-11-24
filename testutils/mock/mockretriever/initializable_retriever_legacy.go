@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
-// InitializableRetrieverLegacy implements the standard InitializableRetriever interface
+// InitializableRetrieverLegacy implements the standard InitializableRetriever interface.
 type InitializableRetrieverLegacy struct {
 	Name           string
 	InitShouldFail bool

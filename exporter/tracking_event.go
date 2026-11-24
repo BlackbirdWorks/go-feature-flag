@@ -10,7 +10,8 @@ import (
 type TrackingEventDetails = map[string]any
 
 // TrackingEvent represent an Event that we store in the data storage
-// nolint:lll
+//
+//nolint:lll
 type TrackingEvent struct {
 	// Kind for a feature event is feature.
 	// A feature event will only be generated if the trackEvents attribute of the flag is set to true.
@@ -41,7 +42,7 @@ func (f TrackingEvent) GetKey() string {
 	return f.Key
 }
 
-// GetUserKey returns the user key of the event
+// GetUserKey returns the user key of the event.
 func (f TrackingEvent) GetUserKey() string {
 	return f.UserKey
 }

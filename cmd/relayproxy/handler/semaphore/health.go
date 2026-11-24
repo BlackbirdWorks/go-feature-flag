@@ -12,7 +12,7 @@ type health struct {
 	monitoringService service.Monitoring
 }
 
-// NewHealth is a constructor to create a new controller for the health method
+// NewHealth is a constructor to create a new controller for the health method.
 func NewHealth(monitoring service.Monitoring) Controller {
 	return &health{
 		monitoringService: monitoring,

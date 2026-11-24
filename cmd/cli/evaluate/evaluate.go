@@ -19,7 +19,7 @@ type evaluate struct {
 	evaluationCtx string
 }
 
-// Evaluate evaluates the feature flags based on the configuration and context
+// Evaluate evaluates the feature flags based on the configuration and context.
 func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 	goff, err := e.initGOFF()
 	if err != nil {
@@ -39,7 +39,7 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 	return e.evaluateFlags(goff, listFlags, convertedEvaluationCtx)
 }
 
-// initGOFF initializes the Semaphore client
+// initGOFF initializes the Semaphore client.
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	c := ffclient.Config{
 		PollingInterval:       10 * time.Minute,
@@ -51,7 +51,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	return ffclient.New(c)
 }
 
-// parseEvaluationContext parses the evaluation context from the command line arguments
+// parseEvaluationContext parses the evaluation context from the command line arguments.
 func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
 	if e.evaluationCtx == "" {
 		return ffcontext.NewEvaluationContextBuilder("").Build(), nil
@@ -72,7 +72,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
 	return convertedEvaluationCtx, nil
 }
 
-// getFlagList gets the list of flags to evaluate
+// getFlagList gets the list of flags to evaluate.
 func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 	if e.flag != "" {
 		return []string{e.flag}, nil
@@ -90,7 +90,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 	return listFlags, nil
 }
 
-// evaluateFlags evaluates the flags
+// evaluateFlags evaluates the flags.
 func (e evaluate) evaluateFlags(
 	goff *ffclient.GoFeatureFlag,
 	listFlags []string,

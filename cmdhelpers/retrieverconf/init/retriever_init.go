@@ -25,10 +25,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
-// retrieverFactory defines the signature for retriever factory functions
+// retrieverFactory defines the signature for retriever factory functions.
 type retrieverFactory func(*retrieverconf.RetrieverConf, time.Duration) (retriever.Retriever, error)
 
-// retrieverFactories maps retriever kinds to their factory functions
+// retrieverFactories maps retriever kinds to their factory functions.
 var retrieverFactories = map[retrieverconf.RetrieverKind]retrieverFactory{
 	retrieverconf.GitHubRetriever:        createGitHubRetriever,
 	retrieverconf.GitlabRetriever:        createGitlabRetriever,
@@ -44,7 +44,7 @@ var retrieverFactories = map[retrieverconf.RetrieverKind]retrieverFactory{
 	retrieverconf.PostgreSQLRetriever:    createPostgreSQLRetriever,
 }
 
-// InitRetriever initialize the retriever based on the configuration
+// InitRetriever initialize the retriever based on the configuration.
 func InitRetriever(
 	c *retrieverconf.RetrieverConf) (retriever.Retriever, error) {
 	retrieverTimeout := retrieverconf.DefaultRetrieverConfig.Timeout
@@ -58,12 +58,12 @@ func InitRetriever(
 	return retrieverFactory(c, retrieverTimeout)
 }
 
-// Factory functions for each retriever type
+// Factory functions for each retriever type.
 func createGitHubRetriever(
 	c *retrieverconf.RetrieverConf, timeout time.Duration) (retriever.Retriever, error) {
 	token := c.AuthToken
-	if token == "" && c.GithubToken != "" { // nolint: staticcheck
-		token = c.GithubToken // nolint: staticcheck
+	if token == "" && c.GithubToken != "" { //nolint: staticcheck
+		token = c.GithubToken //nolint: staticcheck
 	}
 	return &githubretriever.Retriever{
 		RepositorySlug: c.RepositorySlug,

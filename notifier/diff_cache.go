@@ -12,7 +12,7 @@ type DiffCache struct {
 	Updated map[string]DiffUpdated `json:"updated"`
 }
 
-// HasDiff check if we have differences
+// HasDiff check if we have differences.
 func (d *DiffCache) HasDiff() bool {
 	return len(d.Deleted) > 0 || len(d.Added) > 0 || len(d.Updated) > 0
 }

@@ -46,7 +46,7 @@ func main() {
 	}
 }
 
-// PrettyString will prettify the JSON string
+// PrettyString will prettify the JSON string.
 func PrettyString(str string) ([]byte, error) {
 	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, []byte(str), "", "    "); err != nil {

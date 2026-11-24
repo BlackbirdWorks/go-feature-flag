@@ -35,7 +35,7 @@ type MetricsOpts struct {
 }
 
 const (
-	// SubSystem is the name of the prefix we are using for all the metrics
+	// SubSystem is the name of the prefix we are using for all the metrics.
 	SubSystem = "semaphore"
 	// LegacySubSystem is the prefix GO Feature Flag used for the same metrics. The series are only
 	// exposed under it when the configuration asks for it (exposeLegacyMetrics), see Metrics.Gatherer.
@@ -43,7 +43,8 @@ const (
 )
 
 // NewMetrics is the constructor for the custom metrics
-// nolint:funlen
+//
+//nolint:funlen
 func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	// default opts
 	mo := &MetricsOpts{
@@ -209,7 +210,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	}, nil
 }
 
-// Metrics is a struct containing all custom prometheus metrics
+// Metrics is a struct containing all custom prometheus metrics.
 type Metrics struct {
 	opts                     MetricsOpts
 	Registry                 *prom.Registry
@@ -244,7 +245,7 @@ func (m *Metrics) IncFlagNotFoundEvaluation() {
 	m.IncFlagEvaluation(FlagNotFoundLabelValue)
 }
 
-// IncAllFlag increment the number call to AllFlag
+// IncAllFlag increment the number call to AllFlag.
 func (m *Metrics) IncAllFlag(flagNames ...string) {
 	if m.allFlagCounter != nil {
 		m.allFlagCounter.Inc()
@@ -257,7 +258,7 @@ func (m *Metrics) IncAllFlag(flagNames ...string) {
 	}
 }
 
-// IncForceRefresh increment the number call to ForceRefresh
+// IncForceRefresh increment the number call to ForceRefresh.
 func (m *Metrics) IncForceRefresh() {
 	if m.forceRefreshCounter != nil {
 		m.forceRefreshCounter.Inc()

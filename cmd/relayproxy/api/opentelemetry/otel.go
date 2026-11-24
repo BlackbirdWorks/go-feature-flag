@@ -29,7 +29,7 @@ func NewOtelService() OtelService {
 	return OtelService{}
 }
 
-// Init the OpenTelemetry service
+// Init the OpenTelemetry service.
 func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *config.Config) error {
 	// Require the endpoint to be set either by the openTelemetryOtlpEndpoint
 	// config element or otel.exporter.otlp.endpoint
@@ -190,7 +190,7 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	return samplerURL, samplerRefreshInterval, maxOperations, nil
 }
 
-// Stop the OpenTelemetry service
+// Stop the OpenTelemetry service.
 func (s *OtelService) Stop(ctx context.Context) error {
 	if s.otelExporter != nil {
 		err := s.otelExporter.Shutdown(ctx)

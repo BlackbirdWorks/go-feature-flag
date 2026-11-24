@@ -19,7 +19,7 @@ func TestKeyAuthExtended(t *testing.T) {
 	validKey := "valid-api-key"
 	invalidKey := "invalid-api-key"
 
-	// nolint:unparam
+	//nolint:unparam
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
@@ -138,7 +138,7 @@ func TestKeyAuthExtended(t *testing.T) {
 func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 	validKey := "valid-api-key"
 
-	// nolint:unparam
+	//nolint:unparam
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}

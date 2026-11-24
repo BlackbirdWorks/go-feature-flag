@@ -54,7 +54,7 @@ func validateExporterCleanQueueInterval(interval time.Duration) error {
 	return nil
 }
 
-// validateServerConfig validates the server configuration
+// validateServerConfig validates the server configuration.
 func (c *Config) validateServerConfig() error {
 	mode := c.ServerMode(nil)
 	if mode == ServerModeUnixSocket {
@@ -65,7 +65,7 @@ func (c *Config) validateServerConfig() error {
 	return nil
 }
 
-// validateLogFormat validates the log format
+// validateLogFormat validates the log format.
 func validateLogFormat(logFormat string) error {
 	switch strings.ToLower(logFormat) {
 	case "json", "logfmt", "":
@@ -75,7 +75,7 @@ func validateLogFormat(logFormat string) error {
 	}
 }
 
-// validateLogLevel validates the log level
+// validateLogLevel validates the log level.
 func validateLogLevel(logLevel string) error {
 	if logLevel == "" {
 		return nil
@@ -86,7 +86,7 @@ func validateLogLevel(logLevel string) error {
 	return nil
 }
 
-// validateDefaultMode validates the default mode
+// validateDefaultMode validates the default mode.
 func (c *Config) validateDefaultMode() error {
 	if err := validateRetrievers(c.Retriever, c.Retrievers); err != nil {
 		return err
@@ -97,7 +97,7 @@ func (c *Config) validateDefaultMode() error {
 	return validateNotifiers(c.Notifiers)
 }
 
-// validateFlagSets validates all configured flagsets
+// validateFlagSets validates all configured flagsets.
 func (c *Config) validateFlagSets() error {
 	if len(c.FlagSets) == 0 {
 		return errors.New("no flagsets configured")
@@ -130,7 +130,7 @@ func (c *Config) validateFlagSets() error {
 	return nil
 }
 
-// validateFlagSetCommonConfig validates the CommonFlagSet configuration for a single flagset
+// validateFlagSetCommonConfig validates the CommonFlagSet configuration for a single flagset.
 func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	if err := validateRetrievers(flagset.Retriever, flagset.Retrievers); err != nil {
 		return err
@@ -153,7 +153,7 @@ func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	return nil
 }
 
-// validateRetrievers validates the retrievers
+// validateRetrievers validates the retrievers.
 func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]retrieverconf.RetrieverConf) error {
 	if retriever == nil && retrievers == nil {
 		return errors.New("no retriever available in the configuration")
@@ -174,7 +174,7 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 	return nil
 }
 
-// validateExporters validates the exporters
+// validateExporters validates the exporters.
 func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error {
 	if exporter != nil {
 		if err := exporter.IsValid(); err != nil {
@@ -191,7 +191,7 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 	return nil
 }
 
-// validateNotifiers validates the notifiers
+// validateNotifiers validates the notifiers.
 func validateNotifiers(notifiers []NotifierConf) error {
 	if len(notifiers) > 0 {
 		for i, notif := range notifiers {

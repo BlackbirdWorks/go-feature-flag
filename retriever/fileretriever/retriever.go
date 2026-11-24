@@ -10,7 +10,7 @@ type Retriever struct {
 	Path string
 }
 
-// Retrieve is reading the file and return the content
+// Retrieve is reading the file and return the content.
 func (r *Retriever) Retrieve(_ context.Context) ([]byte, error) {
 	content, err := os.ReadFile(r.Path)
 	if err != nil {

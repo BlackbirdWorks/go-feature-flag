@@ -109,7 +109,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	}
 }
 
-// startAsHTTPServer launch the API server
+// startAsHTTPServer launch the API server.
 func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
@@ -171,7 +171,7 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 	}
 }
 
-// startAwsLambda is starting the relay proxy as an AWS Lambda
+// startAwsLambda is starting the relay proxy as an AWS Lambda.
 func (s *Server) startAwsLambda() {
 	lambda.Start(s.lambdaHandler())
 }

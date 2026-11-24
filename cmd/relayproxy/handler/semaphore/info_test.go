@@ -128,7 +128,7 @@ func Test_info_Handler(t *testing.T) {
 	}
 }
 
-// Test_info_Handler_Error tests the error scenario in the info handler
+// Test_info_Handler_Error tests the error scenario in the info handler.
 func Test_info_Handler_Error(t *testing.T) {
 	t.Run("monitoring service returns error", func(t *testing.T) {
 		// Create a mock monitoring service that returns an error

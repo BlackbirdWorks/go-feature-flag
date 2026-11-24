@@ -1,6 +1,6 @@
 package config
 
-// APIKeys is a struct to store the API keys for the different endpoints
+// APIKeys is a struct to store the API keys for the different endpoints.
 type APIKeys struct {
 	Admin      []string `mapstructure:"admin"      koanf:"admin"`
 	Evaluation []string `mapstructure:"evaluation" koanf:"evaluation"`
@@ -8,7 +8,7 @@ type APIKeys struct {
 
 type ApiKeyType = string
 
-// Enum for the type of the API keys
+// Enum for the type of the API keys.
 const (
 	EvaluationKeyType ApiKeyType = "EVALUATION"
 	AdminKeyType      ApiKeyType = "ADMIN"
@@ -16,14 +16,14 @@ const (
 	ErrorKeyType      ApiKeyType = "ERROR"
 )
 
-// APIKeysAdminExists is checking if an admin API Key exist in the relay proxy configuration
+// APIKeysAdminExists is checking if an admin API Key exist in the relay proxy configuration.
 func (c *Config) APIKeysAdminExists(apiKey string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.apiKeysSet[apiKey] == AdminKeyType
 }
 
-// APIKeyExists is checking if an API Key exist in the relay proxy configuration
+// APIKeyExists is checking if an API Key exist in the relay proxy configuration.
 func (c *Config) APIKeyExists(apiKey string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()

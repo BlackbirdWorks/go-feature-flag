@@ -6,7 +6,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-// JSONType contains all acceptable flag value types
+// JSONType contains all acceptable flag value types.
 type JSONType interface {
 	float64 | int | string | bool | any | map[string]any
 }

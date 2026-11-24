@@ -518,7 +518,7 @@ func skipUnixSocketOnWindows(t *testing.T) {
 	}
 }
 
-// Helper function to create an HTTP client that can connect via Unix socket
+// Helper function to create an HTTP client that can connect via Unix socket.
 func newUnixSocketHTTPClient(socketPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{

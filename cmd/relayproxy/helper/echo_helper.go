@@ -31,7 +31,7 @@ func APIKey(c *echo.Context) string {
 }
 
 // FlagSet retrieves the flagset for the given API key from the flagset manager
-// This layer ensure that the flagset manager is initialized and that the API key is valid
+// This layer ensure that the flagset manager is initialized and that the API key is valid.
 func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.GoFeatureFlag, *echo.HTTPError) {
 	if flagsetManager == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "flagset manager is not initialized")

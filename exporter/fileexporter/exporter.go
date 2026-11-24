@@ -94,7 +94,7 @@ func (f *Exporter) Export(
 		filePath = filename
 	} else {
 		// Ensure OutputDir exists or create it
-		// nolint:gosec
+		//nolint:gosec
 		if err := os.MkdirAll(outputDir, 0755); err != nil {
 			return fmt.Errorf("failed to create output directory: %w", err)
 		}
@@ -165,7 +165,7 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 	return f.writeParquetFeatureEvent(filePath, parquetFeatureEvents)
 }
 
-// writeParquetFeatureEvent writes the feature events in a parquet file
+// writeParquetFeatureEvent writes the feature events in a parquet file.
 func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.FeatureEvent) error {
 	fw, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
@@ -197,7 +197,7 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 	return pw.WriteStop()
 }
 
-// writeParquetTrackingEvent writes the tracking events in a parquet file
+// writeParquetTrackingEvent writes the tracking events in a parquet file.
 func (f *Exporter) writeParquetTrackingEvent(
 	filePath string,
 	events []exporter.TrackingEvent,

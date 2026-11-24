@@ -61,7 +61,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 	return nil
 }
 
-// Status returns the current status of the retriever
+// Status returns the current status of the retriever.
 func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady

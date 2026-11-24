@@ -652,7 +652,7 @@ func assertFlushedOnClose(t *testing.T, manager service.FlagsetManager, outputDi
 	assert.NotEmpty(t, files, "Close should flush the buffered events to the exporter")
 }
 
-// setupManager is a helper function to create a manager and capture log messages
+// setupManager is a helper function to create a manager and capture log messages.
 func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *observer.ObservedLogs) {
 	t.Helper()
 	obs, logs := observer.New(zap.ErrorLevel)

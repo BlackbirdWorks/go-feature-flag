@@ -30,7 +30,7 @@ const (
 	AdminAuth AuthMiddlewareType = "ADMIN"
 )
 
-// New is used to create a new instance of the API server
+// New is used to create a new instance of the API server.
 func New(config *config.Config,
 	services service.Services,
 	zapLog *zap.Logger,
@@ -50,7 +50,7 @@ func New(config *config.Config,
 	return s
 }
 
-// Server is the struct that represents the API server
+// Server is the struct that represents the API server.
 type Server struct {
 	config         *config.Config
 	apiEcho        *echo.Echo
@@ -67,7 +67,7 @@ type Server struct {
 	stopped chan struct{}
 }
 
-// initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy
+// initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy.
 func (s *Server) initRoutes() {
 	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
 	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))

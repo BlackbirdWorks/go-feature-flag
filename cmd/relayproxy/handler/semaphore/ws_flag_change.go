@@ -61,7 +61,7 @@ func NewWsFlagChange(
 // defaultPingInterval is how often a keep-alive ping is sent to the client.
 const defaultPingInterval = 1 * time.Second
 
-// WSFlagChange is the implementation of the controller
+// WSFlagChange is the implementation of the controller.
 type WSFlagChange struct {
 	websocketService stream.WebsocketService
 	flagsetManager   service.FlagsetManager

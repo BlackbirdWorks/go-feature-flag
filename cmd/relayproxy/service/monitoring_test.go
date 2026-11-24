@@ -190,7 +190,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 	})
 }
 
-// TestMonitoringInfoErrors tests the error scenarios in the Info() function
+// TestMonitoringInfoErrors tests the error scenarios in the Info() function.
 func TestMonitoringInfoErrors(t *testing.T) {
 	t.Run("nil flagsetManager should return error", func(t *testing.T) {
 		monitoring := service.NewMonitoring(nil)

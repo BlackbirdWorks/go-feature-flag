@@ -57,7 +57,7 @@ func (m *Exporter) initMutex() {
 	m.mutex = sync.Mutex{}
 }
 
-// ExporterDeprecated -----
+// ExporterDeprecated -----.
 type ExporterDeprecated struct {
 	ExportedEvents    []exporter.FeatureEvent
 	Err               error
@@ -107,7 +107,7 @@ func (m *ExporterDeprecated) initMutex() {
 	m.mutex = sync.Mutex{}
 }
 
-// ExporterDeprecatedV2 -----
+// ExporterDeprecatedV2 -----.
 type ExporterDeprecatedV2 struct {
 	ExportedEvents    []exporter.FeatureEvent
 	Err               error
