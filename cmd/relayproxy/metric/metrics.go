@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"sort"
 	"strings"
 
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -334,10 +335,11 @@ func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
 	if !exposeLegacy {
 		return m.Registry
 	}
-	return prom.Gatherers{m.Registry, legacyGatherer{source: m.Registry}}
+	return legacyGatherer{source: m.Registry}
 }
 
-// legacyGatherer re-labels the series of the SubSystem with the LegacySubSystem prefix.
+// legacyGatherer gathers the source once and serves its families with, next to each family of the SubSystem,
+// a copy named with the LegacySubSystem prefix. Both names so carry the values of the same collection.
 type legacyGatherer struct {
 	source prom.Gatherer
 }
@@ -345,7 +347,8 @@ type legacyGatherer struct {
 func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
-	legacy := make([]*dto.MetricFamily, 0, len(families))
+	out := make([]*dto.MetricFamily, 0, len(families)*2)
+	out = append(out, families...)
 	for _, family := range families {
 		name := family.GetName()
 		if !strings.HasPrefix(name, prefix) {
@@ -356,7 +359,9 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 			continue
 		}
 		clone.Name = proto.String(LegacySubSystem + "_" + strings.TrimPrefix(name, prefix))
-		legacy = append(legacy, clone)
+		out = append(out, clone)
 	}
-	return legacy, err
+	// the exposition format wants the families sorted by name, as prom.Gatherers does.
+	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
+	return out, err
 }
