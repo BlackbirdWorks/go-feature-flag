@@ -653,7 +653,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 			require.NoError(t, r2.Shutdown(t.Context()))
 			assert.Equal(t, retriever.RetrieverNotReady, r2.Status())
 			_, err = r2.Retrieve(t.Context())
-			require.Error(t, err)
+			require.EqualError(t, err, "shared S3 retriever is not initialized")
 
 			time.Sleep(s3retrieverv2.DefaultSharedPollingInterval)
 			_, err = r1.Retrieve(t.Context())
@@ -666,7 +666,8 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		t.Parallel()
 		r := initRetriever(t, newGroup(t, newFakeBucket(nil)), "a/1.yaml")
 		//nolint:staticcheck // a nil context is tolerated on purpose
-		assert.NoError(t, r.Shutdown(nil))
+		require.NoError(t, r.Shutdown(nil))
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 
 	t.Run("shutting down an item that is not registered is harmless", func(t *testing.T) {
@@ -674,6 +675,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		r := newGroup(t, newFakeBucket(nil)).Retriever("")
 		assert.NoError(t, r.Shutdown(t.Context()))
 		assert.NoError(t, r.Shutdown(t.Context()))
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 
 	t.Run("re-Init joins the group again", func(t *testing.T) {
@@ -1368,20 +1370,20 @@ func TestSharedItems_SetPoller(t *testing.T) {
 		name   string
 		cfg    s3retrieverv2.PollerConfig
 		change func(*pollCase)
-		check  func(t *testing.T, polls []time.Duration)
+		// the expected polls: exactly wantPolls when set, otherwise wantCount polls (or more than wantAtLeast), the
+		// first one at wantFirst, and every gap between wantMinGap and wantMaxGap when they are set
+		wantPolls    []time.Duration
+		wantCount    int
+		wantAtLeast  int
+		wantFirst    time.Duration
+		wantMinGap   time.Duration
+		wantMaxGap   time.Duration
+		wantVariable bool // the gaps are not all the same
 	}{
-		{
-			name: "default interval is 60s", cfg: s3retrieverv2.PollerConfig{},
-			check: func(t *testing.T, p []time.Duration) {
-				require.Len(t, p, 10)
-				assert.Equal(t, time.Minute, p[0])
-			},
-		},
+		{name: "default interval is 60s", cfg: s3retrieverv2.PollerConfig{}, wantCount: 10, wantFirst: time.Minute},
 		{
 			name: "the interval is at least 1s", cfg: s3retrieverv2.PollerConfig{Interval: time.Millisecond},
-			check: func(t *testing.T, p []time.Duration) {
-				assert.Len(t, p, 600)
-			},
+			wantCount: 600,
 		},
 		{
 			name: "a running poller uses the new interval",
@@ -1389,37 +1391,16 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			change: func(pc *pollCase) {
 				pc.g.SetPoller(s3retrieverv2.PollerConfig{Interval: 5 * time.Minute})
 			},
-			check: func(t *testing.T, p []time.Duration) {
-				assert.Equal(t, []time.Duration{5 * time.Minute, 10 * time.Minute}, p)
-			},
+			wantPolls: []time.Duration{5 * time.Minute, 10 * time.Minute},
 		},
 		{
 			name: "jitter never goes below 1s", cfg: s3retrieverv2.PollerConfig{Interval: time.Second, Jitter: true},
-			check: func(t *testing.T, p []time.Duration) {
-				require.NotEmpty(t, p)
-				prev := time.Duration(0)
-				for _, at := range p {
-					assert.GreaterOrEqual(t, at-prev, time.Second)
-					prev = at
-				}
-			},
+			wantAtLeast: 1, wantMinGap: time.Second,
 		},
 		{
-			name: "jitter randomizes the interval by 10%",
-			cfg:  s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
-			check: func(t *testing.T, p []time.Duration) {
-				require.Greater(t, len(p), 50)
-				distinct := map[time.Duration]struct{}{}
-				prev := time.Duration(0)
-				for _, at := range p {
-					d := at - prev
-					prev = at
-					assert.GreaterOrEqual(t, d, 9*time.Second)
-					assert.LessOrEqual(t, d, 11*time.Second)
-					distinct[d] = struct{}{}
-				}
-				assert.Greater(t, len(distinct), 1)
-			},
+			name:        "jitter randomizes the interval by 10%",
+			cfg:         s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
+			wantAtLeast: 50, wantMinGap: 9 * time.Second, wantMaxGap: 11 * time.Second, wantVariable: true,
 		},
 	}
 	for _, tt := range tests {
@@ -1427,7 +1408,36 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				tt.check(t, polls(t, tt.cfg, tt.change))
+				got := polls(t, tt.cfg, tt.change)
+				switch {
+				case tt.wantPolls != nil:
+					assert.Equal(t, tt.wantPolls, got)
+
+					return
+				case tt.wantCount > 0:
+					require.Len(t, got, tt.wantCount)
+				default:
+					require.Greater(t, len(got), tt.wantAtLeast-1)
+				}
+				if tt.wantFirst > 0 {
+					assert.Equal(t, tt.wantFirst, got[0])
+				}
+				prev := time.Duration(0)
+				distinct := map[time.Duration]struct{}{}
+				for _, at := range got {
+					gap := at - prev
+					prev = at
+					distinct[gap] = struct{}{}
+					if tt.wantMinGap > 0 {
+						assert.GreaterOrEqual(t, gap, tt.wantMinGap)
+					}
+					if tt.wantMaxGap > 0 {
+						assert.LessOrEqual(t, gap, tt.wantMaxGap)
+					}
+				}
+				if tt.wantVariable {
+					assert.Greater(t, len(distinct), 1)
+				}
 			})
 		})
 	}

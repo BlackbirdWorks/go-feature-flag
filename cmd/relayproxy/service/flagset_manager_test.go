@@ -187,23 +187,23 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		config   *config.Config
-		flagsets []string
+		name         string
+		config       *config.Config
+		wantFlagsets []string
 	}{
 		{
 			name: "default mode",
 			config: &config.Config{
 				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
 			},
-			flagsets: []string{utils.DefaultFlagSetName},
+			wantFlagsets: []string{utils.DefaultFlagSetName},
 		},
 		{
 			name: "flagsets mode",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{flagset("flagset-1"), flagset("flagset-2")},
 			},
-			flagsets: []string{"flagset-1", "flagset-2"},
+			wantFlagsets: []string{"flagset-1", "flagset-2"},
 		},
 	}
 	for _, tt := range tests {
@@ -211,7 +211,7 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 			t.Parallel()
 
 			_, sse, ws := newStreamManager(t, tt.config)
-			assertBroadcasts(t, sse, ws, tt.flagsets)
+			assertBroadcasts(t, sse, ws, tt.wantFlagsets)
 		})
 	}
 
@@ -234,87 +234,70 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 	t.Parallel()
 
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	file := &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig}
 
-	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
-		t.Parallel()
-
-		config := &config.Config{
-			FlagSets: []config.FlagSet{
-				{
-					Name: "test-flagset",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
-						Path: flagConfig,
-					},
-					APIKeys: []string{"test-api-key"},
-				},
-			},
-		}
-		logger := zap.NewNop()
-		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
-		assert.NotNil(t, manager)
-		defer manager.Close()
-
-		t.Run("valid api key", func(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *config.Config
+		apiKey string
+		// wantFlagset is the name under which AllFlagSets lists the flagset that FlagSet must return.
+		wantFlagset string
+		wantErr     string
+	}{
+		{
+			name: "flagset mode, valid api key",
+			config: &config.Config{FlagSets: []config.FlagSet{
+				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+			}},
+			apiKey:      "test-api-key",
+			wantFlagset: "test-flagset",
+		},
+		{
+			name: "flagset mode, invalid api key",
+			config: &config.Config{FlagSets: []config.FlagSet{
+				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+			}},
+			apiKey:  "invalid-key",
+			wantErr: "flagset not found for API key",
+		},
+		{
+			name: "flagset mode, empty api key",
+			config: &config.Config{FlagSets: []config.FlagSet{
+				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+			}},
+			apiKey:  "",
+			wantErr: "no API key provided",
+		},
+		{
+			name:        "default mode, empty api key should work",
+			config:      &config.Config{FlagSets: []config.FlagSet{}, Retriever: file},
+			apiKey:      "",
+			wantFlagset: "default",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagset, err := manager.FlagSet("test-api-key")
+			manager, err := service.NewFlagsetManager(tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			require.NoError(t, err, "failed to create FlagsetManager")
+			defer manager.Close()
+
+			got, err := manager.FlagSet(tt.apiKey)
+
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				assert.Nil(t, got)
+
+				return
+			}
 			require.NoError(t, err)
-			assert.NotNil(t, flagset)
-		})
-		t.Run("invalid api key", func(t *testing.T) {
-			t.Parallel()
-
-			flagset, err := manager.FlagSet("invalid-key")
-			require.Error(t, err)
-			assert.Nil(t, flagset)
-		})
-		t.Run("empty api key", func(t *testing.T) {
-			t.Parallel()
-
-			flagset, err := manager.FlagSet("")
-			require.Error(t, err)
-			assert.Nil(t, flagset)
-		})
-
-		t.Run("empty api key", func(t *testing.T) {
-			t.Parallel()
-
-			flagset, err := manager.FlagSet("")
-			require.Error(t, err)
-			assert.Nil(t, flagset)
-		})
-	})
-
-	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
-		t.Parallel()
-
-		config := &config.Config{
-			FlagSets: []config.FlagSet{},
-			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
-				Path: flagConfig,
-			},
-		}
-		logger := zap.NewNop()
-		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
-		assert.NotNil(t, manager)
-		defer manager.Close()
-
-		t.Run("empty api key should work", func(t *testing.T) {
-			t.Parallel()
-
-			flagset, err := manager.FlagSet("")
+			all, err := manager.AllFlagSets()
 			require.NoError(t, err)
-			assert.NotNil(t, flagset)
+			require.NotNil(t, got)
+			assert.Same(t, all[tt.wantFlagset], got)
 		})
-	})
+	}
 }
 
 func TestFlagsetManager_FlagSetName(t *testing.T) {
@@ -526,8 +509,10 @@ func TestFlagsetManager_Default(t *testing.T) {
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
-		defaultFlagset := manager.Default()
-		assert.NotNil(t, defaultFlagset)
+		all, err := manager.AllFlagSets()
+		require.NoError(t, err)
+		require.NotNil(t, manager.Default())
+		assert.Same(t, all["default"], manager.Default())
 	})
 
 	// Test flagset mode
@@ -1093,10 +1078,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		manager.OnConfigChange(newConfig)
 
-		// Verify the key was updated
+		// Verify the key was updated: the old one is no longer routed, the new one reaches the same flagset
+		assertKeyRouting(t, manager, map[string]string{"old-api-key": "", "new-api-key": "test-flagset"})
 		_, err = manager.FlagSet("old-api-key")
 		require.Error(t, err, "old API key should no longer work")
-
 		flagset, err = manager.FlagSet("new-api-key")
 		require.NoError(t, err, "new API key should work")
 		assert.NotNil(t, flagset)
@@ -1197,12 +1182,11 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		manager.OnConfigChange(newConfig)
 
-		// Verify api-key-1 still works
+		// api-key-1 still reaches the flagset, api-key-2 is no longer routed
+		assertKeyRouting(t, manager, map[string]string{"api-key-1": "test-flagset", "api-key-2": ""})
 		flagset, err := manager.FlagSet("api-key-1")
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
-
-		// Verify api-key-2 no longer works
 		_, err = manager.FlagSet("api-key-2")
 		assert.Error(t, err, "api-key-2 should no longer work")
 	})
@@ -2139,4 +2123,21 @@ func (c *countingWSConn) WriteJSON(_ any) error {
 	c.writes.Add(1)
 
 	return nil
+}
+
+// assertKeyRouting checks, for every API key of want, the name of the flagset the manager routes it to. An empty
+// name means that the key must not be routed to any flagset.
+func assertKeyRouting(t *testing.T, manager service.FlagsetManager, want map[string]string) {
+	t.Helper()
+	got := make(map[string]string, len(want))
+	for key, wantName := range want {
+		name, err := manager.FlagSetName(key)
+		if wantName == "" {
+			require.EqualError(t, err, "no flag set associated to the API key", "key %q", key)
+		} else {
+			require.NoError(t, err, "key %q", key)
+		}
+		got[key] = name
+	}
+	assert.Equal(t, want, got)
 }

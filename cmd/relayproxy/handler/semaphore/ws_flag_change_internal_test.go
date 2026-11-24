@@ -44,6 +44,7 @@ func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
 	return server, client
 }
 
+// Observable outcome: the ping frame reaches the client (signalled on a channel), and a ping on a closed connection returns an error.
 func Test_threadSafeConn_ping(t *testing.T) {
 	t.Parallel()
 
@@ -82,6 +83,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 	assert.Error(t, tc.ping())
 }
 
+// Observable outcome: the loop sends a ping, then returns once its context is cancelled (the channel done is closed).
 func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +130,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	}
 }
 
+// Observable outcome: the loop returns by itself when the ping cannot be written (the channel done is closed).
 func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 	t.Parallel()
 
@@ -154,6 +157,7 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 
 // Test_pingPongLoop_zero_interval_uses_default ensures a zero-valued interval
 // falls back to the default rather than panicking time.NewTicker.
+// Observable outcome: the loop starts and stops with a zero interval instead of panicking in time.NewTicker (done is closed).
 func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 	t.Parallel()
 

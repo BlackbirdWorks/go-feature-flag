@@ -25,11 +25,16 @@ import (
 func TestStartWithoutRetriever(t *testing.T) {
 	t.Parallel()
 
-	_, err := ffclient.New(ffclient.Config{
+	got, err := ffclient.New(ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 	})
-	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.EqualError(
+		t,
+		err,
+		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, impossible to get the flags",
+	)
 }
 
 func TestMultipleRetrievers(t *testing.T) {
@@ -79,17 +84,6 @@ func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
 	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
-}
-
-func TestStartWithMinInterval(t *testing.T) {
-	t.Parallel()
-
-	_, err := ffclient.New(ffclient.Config{
-		PollingInterval: 2,
-		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
-		LeveledLogger:   slog.Default(),
-	})
-	assert.NoError(t, err)
 }
 
 func TestValidUseCase(t *testing.T) {
@@ -289,14 +283,16 @@ test-flag:
 	)
 	assert.True(t, flagValue)
 
-	time.Sleep(2 * time.Second)
+	// the poller (every second) picks the new content up
+	require.Eventually(t, func() bool {
+		got, evalErr := gffClient1.BoolVariation(
+			"test-flag",
+			ffcontext.NewEvaluationContext("random-key"),
+			false,
+		)
 
-	flagValue, _ = gffClient1.BoolVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
-		false,
-	)
-	assert.False(t, flagValue)
+		return evalErr == nil && !got
+	}, 30*time.Second, 20*time.Millisecond, "the updated file was never picked up")
 }
 
 func TestImpossibleToLoadfile(t *testing.T) {
@@ -390,13 +386,17 @@ test-flag:
 
 	err = os.WriteFile(flagFilePath, []byte(initialFileContent), os.ModePerm)
 	require.NoError(t, err)
-	time.Sleep(2 * time.Second)
 
-	flagValue, _ = gff.StringVariation(
-		"test-flag",
-		ffcontext.NewEvaluationContext("random-key"),
-		"SDKdefault",
-	)
+	// the poller picks the file up once it exists
+	require.Eventually(t, func() bool {
+		flagValue, _ = gff.StringVariation(
+			"test-flag",
+			ffcontext.NewEvaluationContext("random-key"),
+			"SDKdefault",
+		)
+
+		return flagValue == "true"
+	}, 30*time.Second, 20*time.Millisecond, "the file was never picked up")
 	assert.Equal(t, "true", flagValue, "should use the true value")
 }
 
@@ -428,8 +428,19 @@ func TestInvalidConfAndRetrieverError(t *testing.T) {
 		LeveledLogger:           slog.Default(),
 		StartWithRetrieverError: true,
 	})
+	require.NoError(t, err)
 	defer gff.Close()
-	assert.NoError(t, err)
+	// nothing could be loaded: the flag is unknown and the default value is returned
+	got, err := gff.BoolVariationDetails("test-flag", ffcontext.NewEvaluationContext("random-key"), false)
+	require.EqualError(t, err, "flag test-flag is not present or disabled")
+	assert.Equal(t, model.VariationResult[bool]{
+		TrackEvents:   true,
+		VariationType: "SdkDefault",
+		Failed:        true,
+		Reason:        flag.ReasonError,
+		ErrorCode:     flag.ErrorCodeFlagNotFound,
+		Value:         false,
+	}, got)
 }
 
 func TestValidUseCaseBigFlagFile(t *testing.T) {
@@ -507,29 +518,29 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		fields     fields
-		hasRefresh bool
-		offline    bool
+		name          string
+		fields        fields
+		wantRefreshed bool
+		offline       bool
 	}{
 		{
-			name:       "Should be refreshed",
-			fields:     fields{waitingDuration: 5 * time.Second, pollingInterval: 1 * time.Second},
-			hasRefresh: true,
+			name:          "Should be refreshed",
+			fields:        fields{waitingDuration: 5 * time.Second, pollingInterval: 1 * time.Second},
+			wantRefreshed: true,
 		},
 		{
 			// The polling interval is far longer than the waiting duration, so a single tick
 			// can never happen during the wait, even if time.Sleep overshoots (which it does
 			// more on Windows, where the timer granularity is ~15ms).
-			name:       "Should not be refreshed",
-			fields:     fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
-			hasRefresh: false,
+			name:          "Should not be refreshed",
+			fields:        fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
+			wantRefreshed: false,
 		},
 		{
-			name:       "Should not crash in offline mode",
-			fields:     fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
-			hasRefresh: false,
-			offline:    true,
+			name:          "Should not crash in offline mode",
+			fields:        fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
+			wantRefreshed: false,
+			offline:       true,
 		},
 	}
 	for _, tt := range tests {
@@ -546,7 +557,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 
 			date1 := gff.GetCacheRefreshDate()
 
-			if tt.hasRefresh {
+			if tt.wantRefreshed {
 				// Waiting exactly one polling interval leaves no margin for the scheduler,
 				// so we poll for the refresh instead of sleeping for a fixed duration.
 				require.Eventually(t, func() bool { return date1.Before(gff.GetCacheRefreshDate()) },
@@ -563,7 +574,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 				assert.NotEqual(t, time.Time{}, date1)
 				assert.NotEqual(t, time.Time{}, date2)
 			}
-			assert.Equal(t, tt.hasRefresh, date1.Before(date2))
+			assert.Equal(t, tt.wantRefreshed, date1.Before(date2))
 		})
 	}
 }
@@ -595,14 +606,27 @@ func Test_GetPollingInterval(t *testing.T) {
 	tests := []struct {
 		name            string
 		pollingInterval time.Duration
+		wantMillis      int64
 	}{
 		{
 			name:            "60 seconds",
 			pollingInterval: 60 * time.Second,
+			wantMillis:      60_000,
 		},
 		{
 			name:            "6 hour",
 			pollingInterval: 6 * time.Hour,
+			wantMillis:      21_600_000,
+		},
+		{
+			name:            "an interval below the minimum is raised to one second",
+			pollingInterval: 2,
+			wantMillis:      1000,
+		},
+		{
+			name:            "no interval uses the default of 60 seconds",
+			pollingInterval: 0,
+			wantMillis:      60_000,
 		},
 	}
 
@@ -615,7 +639,7 @@ func Test_GetPollingInterval(t *testing.T) {
 				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 			})
 			require.NoError(t, err)
-			assert.Equal(t, tt.pollingInterval.Milliseconds(), goff.GetPollingInterval())
+			assert.Equal(t, tt.wantMillis, goff.GetPollingInterval())
 		})
 	}
 }
@@ -652,11 +676,7 @@ func Test_ForceRefreshCache(t *testing.T) {
 	// checking that the cache has not been refreshed
 	assert.Equal(t, refreshTime, gffClient.GetCacheRefreshDate())
 
-	// Ensure the forced refresh lands on a strictly later timestamp even on
-	// platforms with a coarse monotonic clock (Windows timer granularity ~15ms),
-	// otherwise the initial load and the forced refresh can share the same instant.
-	time.Sleep(50 * time.Millisecond)
-
+	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
 	// checking that the cache has been refreshed
 	gffClient.ForceRefresh()
 	assert.NotEqual(t, refreshTime, gffClient.GetCacheRefreshDate())
@@ -978,20 +998,25 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		enrichment map[string]any
+		name           string
+		enrichment     map[string]any
+		wantEnrichment map[string]any
 	}{
 		{
 			name:       "nil enrichment",
-			enrichment: nil,
+			enrichment: nil, wantEnrichment: nil,
 		},
 		{
 			name:       "empty enrichment",
-			enrichment: map[string]any{},
+			enrichment: map[string]any{}, wantEnrichment: map[string]any{},
 		},
 		{
-			name:       "non-empty enrichment",
-			enrichment: map[string]any{"foo": "bar", "num": 42},
+			name: "non-empty enrichment",
+			enrichment: map[string]any{
+				"foo": "bar",
+				"num": 42,
+			},
+			wantEnrichment: map[string]any{"foo": "bar", "num": 42},
 		},
 	}
 
@@ -1005,7 +1030,7 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 			})
 			require.NoError(t, err)
 			got := gff.GetEvaluationContextEnrichment()
-			assert.Equal(t, tt.enrichment, got)
+			assert.Equal(t, tt.wantEnrichment, got)
 		})
 	}
 }
@@ -1047,9 +1072,11 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 	tests := []struct {
 		name    string
 		offline bool
+		// wantShared is whether the two clients share their Service
+		wantShared bool
 	}{
-		{name: "online client", offline: false},
-		{name: "offline client", offline: true},
+		{name: "online client", offline: false, wantShared: false},
+		{name: "offline client", offline: true, wantShared: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1068,13 +1095,9 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 			require.NoError(t, err)
 			defer second.Close()
 
-			assert.NotNil(t, first.EvaluationService())
-			assert.NotSame(
-				t,
-				first.EvaluationService(),
-				second.EvaluationService(),
-				"two clients never share their Service",
-			)
+			require.NotNil(t, first.EvaluationService())
+			assert.Equal(t, tt.wantShared, first.EvaluationService() == second.EvaluationService(),
+				"two clients never share their Service")
 		})
 	}
 }

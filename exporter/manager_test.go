@@ -32,18 +32,22 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "flushTime: classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 1,
 		},
 		{
 			name:         "flushTime: deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 1,
 		},
 		{
 			name:         "flushTime: deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -87,7 +91,11 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 				want[i] = event
 			}
 
-			time.Sleep(500 * time.Millisecond)
+			// the flush by time exports everything: wait for it (the timeout only bounds a failure)
+			require.Eventually(t, func() bool {
+				return len(tt.mockExporter.GetExportedEvents()) >= len(want)
+			}, 30*time.Second, 5*time.Millisecond, "the events were never exported")
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
 			assert.Equal(t, want, tt.mockExporter.GetExportedEvents())
 		})
 	}
@@ -99,18 +107,22 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "flushWithNumberOfEvents: classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 100,
 		},
 		{
 			name:         "flushWithNumberOfEvents: deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 100,
 		},
 		{
 			name:         "flushWithNumberOfEvents: deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 100,
 		},
 	}
 	for _, tt := range tests {
@@ -153,7 +165,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 				dc.AddEvent(event)
 				want[i] = event
 			}
-			assert.Equal(t, want[:100], tt.mockExporter.GetExportedEvents())
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
+			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
 	}
 }
@@ -164,18 +177,22 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 100000,
 		},
 		{
 			name:         "deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 100000,
 		},
 		{
 			name:         "deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 100000,
 		},
 	}
 
@@ -216,7 +233,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 				dc.AddEvent(event)
 				want[i] = event
 			}
-			assert.Equal(t, want[:100000], tt.mockExporter.GetExportedEvents())
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
+			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
 	}
 }
@@ -563,6 +581,7 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 		wantStopTwice bool
 	}{
 		{name: "one manager", nbManagers: 1, wantRunning: 0, wantStopTwice: true},
+		{name: "one manager stopped once", nbManagers: 1, wantRunning: 0, wantStopTwice: false},
 		{name: "many managers", nbManagers: 50, wantRunning: 0, wantStopTwice: true},
 	}
 	for _, tt := range tests {
@@ -592,7 +611,9 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 					dc.Stop()
 					// Close() can legitimately be called twice, and Stop() used to panic with
 					// "close of closed channel" on the second call.
-					assert.NotPanics(t, dc.Stop)
+					if tt.wantStopTwice {
+						assert.NotPanics(t, dc.Stop)
+					}
 				}
 			})
 

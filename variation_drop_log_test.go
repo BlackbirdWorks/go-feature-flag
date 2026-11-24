@@ -45,9 +45,11 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 		name       string
 		queueSize  int
 		evaluators int
+		// wantProgress is whether every evaluator keeps evaluating while the log sink is blocked
+		wantProgress bool
 	}{
-		{name: "queue of one event", queueSize: 1, evaluators: 4},
-		{name: "queue of two events", queueSize: 2, evaluators: 8},
+		{name: "queue of one event", queueSize: 1, evaluators: 4, wantProgress: true},
+		{name: "queue of two events", queueSize: 2, evaluators: 8, wantProgress: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,7 +106,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 				before[i] = counters[i].Load()
 			}
 			// every evaluator keeps evaluating while the sink is blocked.
-			assert.Eventually(t, func() bool {
+			progressed := assert.Eventually(t, func() bool {
 				for i := range counters {
 					if counters[i].Load() < before[i]+1000 {
 						return false
@@ -113,6 +115,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 				return true
 			}, time.Minute, time.Millisecond, "an evaluation is blocked by the log sink")
+			assert.Equal(t, tt.wantProgress, progressed)
 			// and the warning is written by someone else.
 			select {
 			case <-sink.entered:

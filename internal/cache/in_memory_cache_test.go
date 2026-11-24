@@ -137,9 +137,12 @@ func TestCopy(t *testing.T) {
 	tests := []struct {
 		name  string
 		param map[string]dto.DTO
+		// wantEqual is whether the copy equals the cache it was taken from
+		wantEqual bool
 	}{
 		{
-			name: "copy with 1 flag",
+			name:      "copy with 1 flag",
+			wantEqual: true,
 			param: map[string]dto.DTO{
 				"test": {
 					Variations: &map[string]*any{
@@ -165,7 +168,7 @@ func TestCopy(t *testing.T) {
 			c := cache.NewInMemoryCache(flag.NewService(), nil)
 			c.Init(tt.param)
 			got := c.Copy()
-			assert.Equal(t, c, got)
+			assert.Equal(t, tt.wantEqual, assert.ObjectsAreEqual(c, got))
 		})
 	}
 }

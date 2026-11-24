@@ -2,7 +2,9 @@ package cache_test
 
 import (
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,16 +27,18 @@ func Test_FlagCacheNotInit(t *testing.T) {
 
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
-	_, err := fCache.GetFlag("test-flag")
-	assert.Error(t, err, "We should have an error if the cache is not init")
+	got, err := fCache.GetFlag("test-flag")
+	assert.Nil(t, got)
+	assert.EqualError(t, err, "impossible to read the flag before the initialisation")
 }
 
 func Test_GetFlagNotExist(t *testing.T) {
 	t.Parallel()
 
 	fCache := cache.New(nil, "", nil)
-	_, err := fCache.GetFlag("not-exists-flag")
-	assert.Error(t, err, "We should have an error if the flag does not exists")
+	got, err := fCache.GetFlag("not-exists-flag")
+	assert.Equal(t, &flag.InternalFlag{}, got)
+	assert.EqualError(t, err, "flag [not-exists-flag] does not exists")
 }
 
 func Test_FlagCache(t *testing.T) {
@@ -522,18 +526,26 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	allFlags1, err := fCache.AllFlags()
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond) // waiting to let the go routine write in the file
+	// the go routine writes the file: wait until it holds the flag
+	require.Eventually(t, func() bool {
+		written, readErr := os.ReadFile(file.Name())
+
+		persisted := map[string]dto.DTO{}
+
+		return readErr == nil && yaml.Unmarshal(written, &persisted) == nil && len(persisted) == len(loadedFlagsMap)
+	}, 30*time.Second, 5*time.Millisecond, "the cache file was never written")
 
 	// we start a new cache with the file persisted
 	fCache2 := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	content, err := os.ReadFile(file.Name())
 	require.NoError(t, err)
 	loadedFlagsMap2 := map[string]dto.DTO{}
-	err = yaml.Unmarshal(content, &loadedFlagsMap)
+	err = yaml.Unmarshal(content, &loadedFlagsMap2)
 	require.NoError(t, err)
+	require.Len(t, loadedFlagsMap2, 1)
 	err = fCache2.UpdateCache(loadedFlagsMap2, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
 	require.NoError(t, err)
-	allFlags2, err := fCache.AllFlags()
+	allFlags2, err := fCache2.AllFlags()
 	require.NoError(t, err)
 
 	// Compare the 2 caches
@@ -547,6 +559,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 		name         string
 		initialFlags map[string]dto.DTO
 		updatedFlags map[string]dto.DTO
+		wantFlags    []string
 	}{
 		{
 			name: "Update existing flags",
@@ -576,6 +589,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1", "flag2"},
 		},
 		{
 			name:         "Empty initial flags",
@@ -590,6 +604,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1"},
 		},
 		{
 			name: "Remove a flag",
@@ -621,6 +636,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1"},
 		},
 	}
 
@@ -650,12 +666,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			flags, err := cm.AllFlags()
 			require.NoError(t, err)
-			assert.Len(
-				t,
-				flags,
-				len(tt.updatedFlags),
-				"Cache should be updated with correct number of flags",
-			)
+			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
+				"Cache should hold the updated flags")
 
 			// Test UpdateCacache with notification
 			mockNotificationService = &mock.NotificationService{}
@@ -679,12 +691,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			flags, err = cm.AllFlags()
 			require.NoError(t, err)
-			assert.Len(
-				t,
-				flags,
-				len(tt.updatedFlags),
-				"Cache should be updated with correct number of flags",
-			)
+			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
+				"Cache should hold the updated flags")
 		})
 	}
 }

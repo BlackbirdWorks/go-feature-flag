@@ -113,7 +113,7 @@ func TestInit(t *testing.T) {
 			Object:     "flag-config.yaml",
 		}
 		err := retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
-		assert.Error(t, err)
+		assert.EqualError(t, err, "unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
 	})
 
 	t.Run("Should error when calling retrieve without init", func(t *testing.T) {
@@ -125,8 +125,9 @@ func TestInit(t *testing.T) {
 			AccountKey:  azurite.AccountKey,
 			Object:      "flag-config.yaml",
 		}
-		_, err := retriever.Retrieve(context.Background())
-		assert.Error(t, err)
+		got, err := retriever.Retrieve(context.Background())
+		assert.Nil(t, got)
+		assert.EqualError(t, err, "client is not initialized")
 	})
 }
 

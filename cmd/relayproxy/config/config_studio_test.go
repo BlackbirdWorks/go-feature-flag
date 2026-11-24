@@ -386,14 +386,29 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 		name   string
 		body   string
 		status int
+		// wantRetryETag is the ETag the failed updates keep sending, wantCached the cache file after them and
+		// wantFlagSets the flagsets after the recovery.
+		wantRetryETag string
+		wantCached    string
+		wantFlagSets  []string
 	}{
-		{name: "HTTP error", status: http.StatusServiceUnavailable},
-		{name: "invalid YAML", body: "flagSets: [", status: http.StatusOK},
-		{name: "invalid field type", body: "flagSets: wrong-type", status: http.StatusOK},
 		{
-			name:   "invalid flagset",
-			body:   strings.Replace(studioYaml, "apiKeys:\n      - key-a", "apiKeys: []", 1),
-			status: http.StatusOK,
+			name: "HTTP error", status: http.StatusServiceUnavailable,
+			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+		},
+		{
+			name: "invalid YAML", body: "flagSets: [", status: http.StatusOK,
+			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+		},
+		{
+			name: "invalid field type", body: "flagSets: wrong-type", status: http.StatusOK,
+			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+		},
+		{
+			name:          "invalid flagset",
+			body:          strings.Replace(studioYaml, "apiKeys:\n      - key-a", "apiKeys: []", 1),
+			status:        http.StatusOK,
+			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
 		},
 	}
 	for _, tt := range tests {
@@ -426,12 +441,16 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 			// Failed updates must keep requesting the last successfully accepted ETag.
 			for range 2 {
-				require.Equal(t, `"v1"`, receive(t, attempts, "Timeout waiting for a retry of the rejected update"))
+				require.Equal(
+					t,
+					tt.wantRetryETag,
+					receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
+				)
 			}
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
 			//nolint:testifylint // the cached bytes must match exactly, not just semantically
-			assert.Equal(t, studioYaml, string(cached))
+			assert.Equal(t, tt.wantCached, string(cached))
 			mu.Lock()
 			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
 			status, rejected = http.StatusOK, false
@@ -439,7 +458,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 			// Recovery must work even when the server reuses the rejected ETag.
 			c := receive(t, configs, "Timeout waiting for recovery with the same ETag")
-			assert.Equal(t, []string{"team-b"}, flagSetNames(c))
+			assert.Equal(t, tt.wantFlagSets, flagSetNames(c))
 			assert.NoError(t, c.IsValid())
 		})
 	}

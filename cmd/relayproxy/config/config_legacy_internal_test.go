@@ -195,8 +195,9 @@ func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 
 func TestEnvironProviderReadBytesIsNotSupported(t *testing.T) {
 	t.Parallel()
-	_, err := (&environProvider{}).ReadBytes()
-	assert.Error(t, err)
+	got, err := (&environProvider{}).ReadBytes()
+	assert.Nil(t, got)
+	assert.EqualError(t, err, "env provider does not support this method")
 }
 
 func TestLegacyCompatibilityOptions(t *testing.T) {

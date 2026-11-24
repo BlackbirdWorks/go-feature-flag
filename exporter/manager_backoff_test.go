@@ -51,9 +51,20 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 		name       string
 		firstBatch int
 		queued     int
+		wantMinGap time.Duration
 	}{
-		{name: "a second batch arrives during the failing export", firstBatch: 10, queued: 20},
-		{name: "a small second batch arrives during the failing export", firstBatch: 10, queued: 1},
+		{
+			name:       "a second batch arrives during the failing export",
+			firstBatch: 10,
+			queued:     20,
+			wantMinGap: 900 * time.Millisecond,
+		},
+		{
+			name:       "a small second batch arrives during the failing export",
+			firstBatch: 10,
+			queued:     1,
+			wantMinGap: 900 * time.Millisecond,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,7 +103,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			exp.mu.Lock()
 			gap := second.Sub(exp.firstEnd)
 			exp.mu.Unlock()
-			assert.GreaterOrEqual(t, gap, 900*time.Millisecond,
+			assert.GreaterOrEqual(t, gap, tt.wantMinGap,
 				"the retry of a failed export must wait for the backoff")
 			m.Stop()
 		})

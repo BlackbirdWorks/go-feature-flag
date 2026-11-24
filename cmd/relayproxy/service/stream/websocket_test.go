@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -147,8 +146,7 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	// Call the BroadcastFlagChanges function
 	websocketService.BroadcastFlagChanges("default", diff)
 
-	// Allow some time for the WriteJSON functions to be executed
-	time.Sleep(time.Millisecond)
+	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
 	// Assertions
 	assert.True(t, conn1WriteJSONCalled, "WriteJSON should be called on conn1")
@@ -230,8 +228,7 @@ func TestDeregister(t *testing.T) {
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
 	websocketService.BroadcastFlagChanges("default", diff)
 
-	// Allow some time for the WriteJSON function to be executed
-	time.Sleep(time.Millisecond)
+	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
 	// Assertions
 	assert.False(t, conn1WriteJSONCalled, "WriteJSON should not be called after deregistering")
@@ -275,8 +272,7 @@ func TestClose(t *testing.T) {
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
 	websocketService.BroadcastFlagChanges("default", diff)
 
-	// Allow some time for the WriteJSON functions to be executed
-	time.Sleep(time.Millisecond)
+	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
 	// Assertions
 	assert.False(t, conn1WriteJSONCalled, "WriteJSON should not be called after closing")

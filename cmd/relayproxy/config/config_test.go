@@ -25,12 +25,13 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		content     string
-		environment string
+		name         string
+		content      string
+		environment  string
+		wantDisabled bool
 	}{
-		{name: "disabled by config file", content: "disableFlagDetailsInStream: true\n"},
-		{name: "disabled by environment variable", environment: "true"},
+		{name: "disabled by config file", content: "disableFlagDetailsInStream: true\n", wantDisabled: true},
+		{name: "disabled by environment variable", environment: "true", wantDisabled: true},
 	}
 
 	for _, tt := range tests {
@@ -50,7 +51,7 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 
 			got, err := config.New(flagSet, zap.NewNop(), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
-			assert.True(t, got.DisableFlagDetailsInStream)
+			assert.Equal(t, tt.wantDisabled, got.DisableFlagDetailsInStream)
 		})
 	}
 }

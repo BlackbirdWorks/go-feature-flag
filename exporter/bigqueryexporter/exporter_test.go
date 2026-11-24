@@ -249,18 +249,21 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		events []exporter.ExportableEvent
+		name           string
+		events         []exporter.ExportableEvent
+		wantClientInit bool
 	}{
 		{
-			name:   "empty event list",
-			events: nil,
+			name:           "empty event list",
+			events:         nil,
+			wantClientInit: false,
 		},
 		{
 			name: "unsupported event type",
 			events: []exporter.ExportableEvent{
 				unsupportedEvent{key: "ignored"},
 			},
+			wantClientInit: false,
 		},
 	}
 
@@ -286,7 +289,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			err := e.Export(context.TODO(), nil, tt.events)
 
 			require.NoError(t, err)
-			assert.False(t, initCalled)
+			assert.Equal(t, tt.wantClientInit, initCalled)
 			assert.Nil(t, e.client)
 		})
 	}

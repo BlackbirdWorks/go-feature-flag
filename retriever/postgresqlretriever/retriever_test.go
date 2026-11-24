@@ -246,7 +246,8 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		// Don't call Init() to ensure conn is nil
 
 		err := r.Shutdown(context.Background())
-		assert.NoError(t, err) // Should not error when connection is nil
+		require.NoError(t, err) // Should not error when connection is nil
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 }
 
@@ -551,9 +552,12 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 		err = r.Shutdown(context.Background())
 		require.NoError(t, err)
 
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
+
 		// Second shutdown should also succeed (should not error on nil connection)
 		err = r.Shutdown(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 
 	t.Run("Shutdown with cancelled context", func(t *testing.T) {
@@ -573,7 +577,8 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 
 		// Shutdown with cancelled context should still succeed
 		err = r.Shutdown(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 }
 
@@ -596,5 +601,70 @@ func TestPostgreSQLRetriever_OutputFormat(t *testing.T) {
 			r := postgresqlretriever.Retriever{}
 			assert.Equal(t, tt.want, r.OutputFormat())
 		})
+	}
+}
+
+// TestRetrieverShutdownOfASharedPool checks that the retrievers that share a pool registry only release their
+// own reference: the pool stays open for the others until the last one shuts down.
+func TestRetrieverShutdownOfASharedPool(t *testing.T) {
+	t.Parallel()
+
+	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql", "sql/insert_data.sql"})
+
+	pools := postgresqlretriever.NewPoolRegistry()
+	first := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
+	second := &postgresqlretriever.Retriever{URI: connectionString, Table: "go_feature_flag", Pools: pools}
+	require.NoError(t, first.Init(context.Background(), nil, nil))
+	require.NoError(t, second.Init(context.Background(), nil, nil))
+	want, err := second.Retrieve(context.Background())
+	require.NoError(t, err)
+	// the test holds a reference of its own: the pool is only closed when the last reference is released, which
+	// shows how many references the shutdowns released
+	pool, err := pools.GetPool(context.Background(), connectionString)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		shutdown        *postgresqlretriever.Retriever
+		release         bool // the test releases its own reference after the shutdown
+		other           *postgresqlretriever.Retriever
+		wantStatus      retriever.Status
+		wantOtherStatus retriever.Status
+		wantOtherErr    string
+		wantPoolOpen    bool
+	}{
+		{
+			name: "the first retriever leaves, the second keeps the pool", shutdown: first, other: second,
+			wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverReady, wantPoolOpen: true,
+		},
+		{
+			name: "the second retriever leaves, the reference of the test keeps the pool", shutdown: second,
+			other: first, wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
+			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: true,
+		},
+		{
+			name: "the last reference is released, the pool is closed", release: true, shutdown: first, other: first,
+			wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
+			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: false,
+		},
+	}
+	// sequential: each case depends on the previous shutdowns
+	for _, tt := range tests {
+		require.NoError(t, tt.shutdown.Shutdown(context.Background()), tt.name)
+		if tt.release {
+			pools.ReleasePool(context.Background(), connectionString)
+		}
+		assert.Equal(t, tt.wantStatus, tt.shutdown.Status(), tt.name)
+		assert.Equal(t, tt.wantOtherStatus, tt.other.Status(), tt.name)
+		assert.Equal(t, tt.wantPoolOpen, pool.Ping(context.Background()) == nil, tt.name)
+
+		got, err := tt.other.Retrieve(context.Background())
+		if tt.wantOtherErr != "" {
+			require.EqualError(t, err, tt.wantOtherErr, tt.name)
+
+			continue
+		}
+		require.NoError(t, err, tt.name)
+		assert.JSONEq(t, string(want), string(got), tt.name)
 	}
 }

@@ -17,9 +17,10 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		input    *retrieverconf.SerializableRedisOptions
-		validate func(t *testing.T, opts *redis.Options)
+		name  string
+		input *retrieverconf.SerializableRedisOptions
+		// want is the whole expected configuration of the redis client
+		want *redis.Options
 	}{
 		{
 			name: "basic configuration with addr and password",
@@ -28,11 +29,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				Password: "secret",
 				DB:       1,
 			},
-			validate: func(t *testing.T, opts *redis.Options) {
-				assert.Equal(t, "localhost:6379", opts.Addr)
-				assert.Equal(t, "secret", opts.Password)
-				assert.Equal(t, 1, opts.DB)
-			},
+			want: &redis.Options{Addr: "localhost:6379", Password: "secret", DB: 1},
 		},
 		{
 			name: "full configuration",
@@ -61,30 +58,15 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				DisableIndentity:      false,
 				IdentitySuffix:        "test",
 			},
-			validate: func(t *testing.T, opts *redis.Options) {
-				assert.Equal(t, "tcp", opts.Network)
-				assert.Equal(t, "redis.example.com:6380", opts.Addr)
-				assert.Equal(t, "semaphore", opts.ClientName)
-				assert.Equal(t, 3, opts.Protocol)
-				assert.Equal(t, "admin", opts.Username)
-				assert.Equal(t, "password123", opts.Password)
-				assert.Equal(t, 2, opts.DB)
-				assert.Equal(t, 5, opts.MaxRetries)
-				assert.Equal(t, 100*time.Millisecond, opts.MinRetryBackoff)
-				assert.Equal(t, 1000*time.Millisecond, opts.MaxRetryBackoff)
-				assert.Equal(t, 10000*time.Millisecond, opts.DialTimeout)
-				assert.Equal(t, 5000*time.Millisecond, opts.ReadTimeout)
-				assert.Equal(t, 5000*time.Millisecond, opts.WriteTimeout)
-				assert.Equal(t, 20, opts.PoolSize)
-				assert.Equal(t, 6000*time.Millisecond, opts.PoolTimeout)
-				assert.Equal(t, 5, opts.MinIdleConns)
-				assert.Equal(t, 15, opts.MaxIdleConns)
-				assert.Equal(t, 300000*time.Millisecond, opts.ConnMaxIdleTime)
-				assert.Equal(t, 600000*time.Millisecond, opts.ConnMaxLifetime)
-				assert.True(t, opts.PoolFIFO)
-				assert.True(t, opts.ContextTimeoutEnabled)
-				assert.False(t, opts.DisableIdentity)
-				assert.Equal(t, "test", opts.IdentitySuffix)
+			want: &redis.Options{
+				Network: "tcp", Addr: "redis.example.com:6380", ClientName: "semaphore", Protocol: 3,
+				Username: "admin", Password: "password123", DB: 2, MaxRetries: 5,
+				MinRetryBackoff: 100 * time.Millisecond, MaxRetryBackoff: 1000 * time.Millisecond,
+				DialTimeout: 10000 * time.Millisecond, ReadTimeout: 5000 * time.Millisecond,
+				WriteTimeout: 5000 * time.Millisecond, PoolSize: 20, PoolTimeout: 6000 * time.Millisecond,
+				MinIdleConns: 5, MaxIdleConns: 15, ConnMaxIdleTime: 300000 * time.Millisecond,
+				ConnMaxLifetime: 600000 * time.Millisecond, PoolFIFO: true, ContextTimeoutEnabled: true,
+				IdentitySuffix: "test",
 			},
 		},
 		{
@@ -93,10 +75,9 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				Addr:       "secure-redis.example.com:6379",
 				TLSEnabled: true,
 			},
-			validate: func(t *testing.T, opts *redis.Options) {
-				assert.Equal(t, "secure-redis.example.com:6379", opts.Addr)
-				assert.NotNil(t, opts.TLSConfig)
-				assert.Equal(t, uint16(tls.VersionTLS12), opts.TLSConfig.MinVersion)
+			want: &redis.Options{
+				Addr:      "secure-redis.example.com:6379",
+				TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 			},
 		},
 		{
@@ -105,23 +86,14 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				Addr:       "redis.example.com:6379",
 				TLSEnabled: false,
 			},
-			validate: func(t *testing.T, opts *redis.Options) {
-				assert.Equal(t, "redis.example.com:6379", opts.Addr)
-				assert.Nil(t, opts.TLSConfig)
-			},
+			want: &redis.Options{Addr: "redis.example.com:6379"},
 		},
 		{
 			name: "zero values are not set (use redis defaults)",
 			input: &retrieverconf.SerializableRedisOptions{
 				Addr: "localhost:6379",
 			},
-			validate: func(t *testing.T, opts *redis.Options) {
-				assert.Equal(t, "localhost:6379", opts.Addr)
-				assert.Equal(t, time.Duration(0), opts.MinRetryBackoff)
-				assert.Equal(t, time.Duration(0), opts.MaxRetryBackoff)
-				assert.Equal(t, time.Duration(0), opts.DialTimeout)
-				assert.Equal(t, 0, opts.MaxRetries)
-			},
+			want: &redis.Options{Addr: "localhost:6379"},
 		},
 	}
 
@@ -131,7 +103,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 
 			result := tt.input.ToRedisOptions()
 			require.NotNil(t, result)
-			tt.validate(t, result)
+			assert.Equal(t, tt.want, result)
 		})
 	}
 }
@@ -139,73 +111,59 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
+	basic := &retrieverconf.SerializableRedisOptions{
+		Addr:     "localhost:6379",
+		Password: "secret",
+		DB:       1,
+	}
+	full := &retrieverconf.SerializableRedisOptions{
+		Network:               "tcp",
+		Addr:                  "redis.example.com:6380",
+		ClientName:            "test-client",
+		Protocol:              3,
+		Username:              "user",
+		Password:              "pass",
+		DB:                    2,
+		MaxRetries:            5,
+		MinRetryBackoffMs:     100,
+		MaxRetryBackoffMs:     1000,
+		DialTimeoutMs:         10000,
+		ReadTimeoutMs:         5000,
+		WriteTimeoutMs:        5000,
+		PoolSize:              20,
+		PoolTimeoutMs:         6000,
+		MinIdleConns:          5,
+		MaxIdleConns:          15,
+		ConnMaxIdleTimeMs:     300000,
+		ConnMaxLifetimeMs:     600000,
+		TLSEnabled:            true,
+		PoolFIFO:              true,
+		ContextTimeoutEnabled: true,
+		DisableIndentity:      false,
+		IdentitySuffix:        "test",
+	}
+
 	tests := []struct {
 		name string
 		opts *retrieverconf.SerializableRedisOptions
+		// wantDecoded is what decoding the JSON of opts gives back: every option survives the round trip
+		wantDecoded *retrieverconf.SerializableRedisOptions
 	}{
-		{
-			name: "basic options",
-			opts: &retrieverconf.SerializableRedisOptions{
-				Addr:     "localhost:6379",
-				Password: "secret",
-				DB:       1,
-			},
-		},
-		{
-			name: "full options",
-			opts: &retrieverconf.SerializableRedisOptions{
-				Network:               "tcp",
-				Addr:                  "redis.example.com:6380",
-				ClientName:            "test-client",
-				Protocol:              3,
-				Username:              "user",
-				Password:              "pass",
-				DB:                    2,
-				MaxRetries:            5,
-				MinRetryBackoffMs:     100,
-				MaxRetryBackoffMs:     1000,
-				DialTimeoutMs:         10000,
-				ReadTimeoutMs:         5000,
-				WriteTimeoutMs:        5000,
-				PoolSize:              20,
-				PoolTimeoutMs:         6000,
-				MinIdleConns:          5,
-				MaxIdleConns:          15,
-				ConnMaxIdleTimeMs:     300000,
-				ConnMaxLifetimeMs:     600000,
-				TLSEnabled:            true,
-				PoolFIFO:              true,
-				ContextTimeoutEnabled: true,
-				DisableIndentity:      false,
-				IdentitySuffix:        "test",
-			},
-		},
+		{name: "basic options", opts: basic, wantDecoded: basic},
+		{name: "full options", opts: full, wantDecoded: full},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Marshal to JSON
 			jsonData, err := json.Marshal(tt.opts)
 			require.NoError(t, err)
-			require.NotEmpty(t, jsonData)
 
-			// Unmarshal from JSON
 			var decoded retrieverconf.SerializableRedisOptions
-			err = json.Unmarshal(jsonData, &decoded)
-			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal(jsonData, &decoded))
 
-			// Verify the data matches
-			assert.Equal(t, tt.opts.Addr, decoded.Addr)
-			assert.Equal(t, tt.opts.Password, decoded.Password)
-			assert.Equal(t, tt.opts.DB, decoded.DB)
-			assert.Equal(t, tt.opts.Username, decoded.Username)
-			assert.Equal(t, tt.opts.Network, decoded.Network)
-			assert.Equal(t, tt.opts.ClientName, decoded.ClientName)
-			assert.Equal(t, tt.opts.Protocol, decoded.Protocol)
-			assert.Equal(t, tt.opts.MaxRetries, decoded.MaxRetries)
-			assert.Equal(t, tt.opts.TLSEnabled, decoded.TLSEnabled)
+			assert.Equal(t, tt.wantDecoded, &decoded)
 		})
 	}
 }

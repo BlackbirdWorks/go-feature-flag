@@ -98,10 +98,13 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 		name   string
 		value  func() any
 		mutate func(v any)
+		// wantSecond is the value the second evaluation returns: the mutation of the first one is not shared
+		wantSecond func() any
 	}{
 		{
-			name:  "object",
-			value: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
+			name:       "object",
+			value:      func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
+			wantSecond: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
 			mutate: func(v any) {
 				m := v.(map[string]any)
 				m["theme"] = "dark"
@@ -109,8 +112,9 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			},
 		},
 		{
-			name:  "array",
-			value: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
+			name:       "array",
+			value:      func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
+			wantSecond: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
 			mutate: func(v any) {
 				a := v.([]any)
 				a[0] = "changed"
@@ -136,7 +140,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			first, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			tt.mutate(first)
 			second, _ := f.Value("flag", ctx, Context{Service: NewService()})
-			assert.Equal(t, tt.value(), second)
+			assert.Equal(t, tt.wantSecond(), second)
 		})
 	}
 }

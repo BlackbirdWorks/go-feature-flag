@@ -3,8 +3,10 @@ package config_test
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -50,7 +52,6 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		port               string
 		initialConfigFile  string
 		modifiedConfigFile string
 		checksBeforeChange []httpRequestCheck
@@ -58,7 +59,6 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 	}{
 		{
 			name:               "change authorized keys from test to test2",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/change-authorized-keys-from-test-to-test2.yaml",
 			modifiedConfigFile: "../testdata/config/change-authorized-keys-from-test-to-test2-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -72,7 +72,6 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		},
 		{
 			name:               "remove authorized keys should allow all requests",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/remove-authorized-keys-should-allow-all-requests.yaml",
 			modifiedConfigFile: "../testdata/config/remove-authorized-keys-should-allow-all-requests-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -88,20 +87,22 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
+			ln, port := testutils.ListenLocal(t)
+			portStr := strconv.Itoa(port)
+			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
+			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
 				s.Stop(context.Background())
 				_ = c.StopConfigChangeWatcher()
 			}()
-			time.Sleep(100 * time.Millisecond) // wait for the server to start
+			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
 
@@ -111,12 +112,11 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", tt.port)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
 
 			// Wait for the callback to be called
 			select {
 			case <-callbackCalled:
-				time.Sleep(100 * time.Millisecond)
 			case <-time.After(5000 * time.Millisecond):
 				require.Fail(t, timeoutCallbackMsg)
 			}
@@ -134,7 +134,6 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		port               string
 		initialConfigFile  string
 		modifiedConfigFile string
 		checksBeforeChange []httpRequestCheck
@@ -142,7 +141,6 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 	}{
 		{
 			name:               "change API key from apikey-1 to apikey-2",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-change-api-key-from-key1-to-key2.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-change-api-key-from-key1-to-key2-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -156,7 +154,6 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		},
 		{
 			name:               "add a second API key to flagset",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-add-api-key.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-add-api-key-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -170,7 +167,6 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		},
 		{
 			name:               "move API key from one flagset to another",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-move-api-key-between-flagsets.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-move-api-key-between-flagsets-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -196,20 +192,22 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
+			ln, port := testutils.ListenLocal(t)
+			portStr := strconv.Itoa(port)
+			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
+			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
 				s.Stop(context.Background())
 				_ = c.StopConfigChangeWatcher()
 			}()
-			time.Sleep(100 * time.Millisecond) // wait for the server to start
+			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20d"}}`
 
@@ -219,12 +217,11 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", tt.port)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
 
 			// Wait for the callback to be called
 			select {
 			case <-callbackCalled:
-				time.Sleep(100 * time.Millisecond)
 			case <-time.After(500 * time.Millisecond):
 				require.Fail(t, timeoutCallbackMsg)
 			}
@@ -242,7 +239,6 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 	// Tests for invalid config changes that should be rejected
 	invalidConfigTests := []struct {
 		name               string
-		port               string
 		initialConfigFile  string
 		modifiedConfigFile string
 		checksBeforeChange []httpRequestCheck
@@ -250,7 +246,6 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 	}{
 		{
 			name:               "duplicate API key in config should be rejected",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-duplicate-api-key.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-duplicate-api-key-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -264,7 +259,6 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		},
 		{
 			name:               "flagset with no API key should be rejected",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-empty-api-key.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-empty-api-key-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -282,14 +276,16 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
+			ln, port := testutils.ListenLocal(t)
+			portStr := strconv.Itoa(port)
+			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
+			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
 			core, observedLogs := observer.New(zapcore.ErrorLevel)
 			observedLogger := zap.New(core)
-			s, c := newAPIServerWithLogger(t, configFile, observedLogger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
 				callbackCalled <- true
 			})
 
@@ -297,7 +293,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 				s.Stop(context.Background())
 				_ = c.StopConfigChangeWatcher()
 			}()
-			time.Sleep(100 * time.Millisecond) // wait for the server to start
+			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
 
@@ -307,12 +303,11 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			}
 
 			// Modify the config to create an invalid config
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", tt.port)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
 
 			// The callback should be called even for invalid configs (validation happens after)
 			select {
 			case <-callbackCalled:
-				time.Sleep(100 * time.Millisecond)
 			case <-time.After(500 * time.Millisecond):
 				require.Fail(t, timeoutCallbackMsg)
 			}
@@ -337,7 +332,6 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		port               string
 		initialConfigFile  string
 		modifiedConfigFile string
 		checksBeforeChange []httpRequestCheck
@@ -345,7 +339,6 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 	}{
 		{
 			name:               "add a new flagset at runtime",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-add-flagset.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-add-flagset-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -364,7 +357,6 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		},
 		{
 			name:               "remove a flagset at runtime",
-			port:               testutils.GetFreePortAsString(t),
 			initialConfigFile:  "../testdata/config/flagset-remove-flagset.yaml",
 			modifiedConfigFile: "../testdata/config/flagset-remove-flagset-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
@@ -382,20 +374,22 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
+			ln, port := testutils.ListenLocal(t)
+			portStr := strconv.Itoa(port)
+			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
-			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
+			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
 				s.Stop(context.Background())
 				_ = c.StopConfigChangeWatcher()
 			}()
-			time.Sleep(100 * time.Millisecond) // wait for the server to start
+			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20d"}}`
 
@@ -403,11 +397,10 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 				doHTTPRequestAndCheck(t, urlAPIAllFlags, body, check, phaseBeforeChange)
 			}
 
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", tt.port)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, "1031", portStr)
 
 			select {
 			case <-callbackCalled:
-				time.Sleep(100 * time.Millisecond)
 			case <-time.After(5000 * time.Millisecond):
 				require.Fail(t, timeoutCallbackMsg)
 			}
@@ -425,21 +418,22 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePortAsString(t)
+	ln, listenPort := testutils.ListenLocal(t)
+	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
 	testutils.ReplaceInFile(t, configFile, "1031", port)
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := observer.New(zapcore.ErrorLevel)
 	observedLogger := zap.New(core)
-	s, c := newAPIServerWithLogger(t, configFile, observedLogger, func(newConfig *config.Config) {
+	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
 		callbackCalled <- true
 	})
 	defer func() {
 		s.Stop(context.Background())
 		_ = c.StopConfigChangeWatcher()
 	}()
-	time.Sleep(100 * time.Millisecond) // wait for the server to start
+	waitForHealth(t, localhostURL+port)
 
 	body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
 
@@ -457,7 +451,6 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 	select {
 	case <-callbackCalled:
-		time.Sleep(100 * time.Millisecond)
 	case <-time.After(5000 * time.Millisecond):
 		require.Fail(t, timeoutCallbackMsg)
 	}
@@ -478,6 +471,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 func newAPIServerWithLogger(
 	t *testing.T,
+	ln net.Listener,
 	configFile *os.File,
 	logger *zap.Logger,
 	callback func(newConfig *config.Config),
@@ -502,7 +496,7 @@ func newAPIServerWithLogger(
 
 	c.AttachConfigChangeCallback(callback)
 
-	s := api.New(c, services, logger)
+	s := api.New(c, services, logger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, c
@@ -540,4 +534,19 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 				"%s: expected body NOT to contain %q for apiKey=%q", phase, notExpected, check.apiKey)
 		}
 	}
+}
+
+// waitForHealth returns when the relay proxy at baseURL answers its health endpoint. The server is started in
+// a goroutine, so the test has to wait for it; the timeout only bounds a failure.
+func waitForHealth(t *testing.T, baseURL string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(baseURL + "/health") //nolint:noctx // bounded by Eventually
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+
+		return resp.StatusCode == http.StatusOK
+	}, 10*time.Second, 10*time.Millisecond)
 }

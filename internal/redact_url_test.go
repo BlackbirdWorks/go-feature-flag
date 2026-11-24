@@ -117,16 +117,42 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
+		// wantMessage is the redacted error of url.Parse(raw)
+		wantMessage string
 	}{
-		{name: "password parsed as invalid port", raw: "https://user:SECRETMARKER"},
-		{name: "invalid port with path", raw: "https://h:99999SECRETMARKER/p"},
-		{name: "invalid escape in path", raw: "https://u:p@h/%zzSECRETMARKER"},
-		{name: "invalid escape in user info", raw: "https://u%zzSECRETMARKER:p@h"},
-		{name: "control character", raw: "https://h/\x7fSECRETMARKER"},
-		{name: "missing scheme", raw: "://SECRETMARKER"},
-		{name: "colon in first path segment", raw: "1http://SECRETMARKER"},
-		{name: "unclosed ipv6 host", raw: "https://[::1SECRETMARKER/"},
-		{name: "invalid host character", raw: "https://h{}SECRETMARKER"},
+		{
+			name:        "password parsed as invalid port",
+			raw:         "https://user:SECRETMARKER",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
+		{
+			name:        "invalid port with path",
+			raw:         "https://h:99999SECRETMARKER/p",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
+		{
+			name:        "invalid escape in path",
+			raw:         "https://u:p@h/%zzSECRETMARKER",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
+		{
+			name:        "invalid escape in user info",
+			raw:         "https://u%zzSECRETMARKER:p@h",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
+		{name: "control character", raw: "https://h/\x7fSECRETMARKER", wantMessage: `parse "[REDACTED]": invalid URL`},
+		{name: "missing scheme", raw: "://SECRETMARKER", wantMessage: `parse "[REDACTED]": invalid URL`},
+		{
+			name:        "colon in first path segment",
+			raw:         "1http://SECRETMARKER",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
+		{name: "unclosed ipv6 host", raw: "https://[::1SECRETMARKER/", wantMessage: `parse "[REDACTED]": invalid URL`},
+		{
+			name:        "invalid host character",
+			raw:         "https://h{}SECRETMARKER",
+			wantMessage: `parse "[REDACTED]": invalid URL`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -138,6 +164,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			_, reqErr := http.NewRequest(http.MethodGet, tt.raw, nil) //nolint:noctx // error message only
 			require.Error(t, reqErr)
 
+			assert.Equal(t, tt.wantMessage, internal.RedactURLError(parseErr).Error())
 			for _, in := range []error{parseErr, reqErr, fmt.Errorf("wrapped: %w", parseErr)} {
 				got := internal.RedactURLError(in)
 				require.Error(t, got)

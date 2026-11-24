@@ -697,7 +697,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	}
 
 	// assertSink checks that the events read from a sink contain every evaluation made above.
-	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent) {
+	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
 		var got []sinkEvent
 		require.Eventually(t, func() bool {
 			got = read(t)
@@ -727,8 +727,9 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	sqsReceived := map[string]sinkEvent{} // only used by the sqs subtest
 	sinks := []struct {
-		name string
-		read func(t *testing.T) []sinkEvent
+		name      string
+		read      func(t *testing.T) []sinkEvent
+		wantUsers map[string]string
 	}{
 		{
 			name: "s3 exporter",
@@ -743,6 +744,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 				return res
 			},
+			wantUsers: wantUsers,
 		},
 		{
 			name: "kinesis exporter",
@@ -774,17 +776,19 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 				return res
 			},
+			wantUsers: wantUsers,
 		},
 		{
 			name: "sqs exporter",
 			read: func(t *testing.T) []sinkEvent {
 				return receiveSQS(t, sc, aws.ToString(q.QueueUrl), sqsReceived)
 			},
+			wantUsers: wantUsers,
 		},
 	}
 	for _, s := range sinks {
 		t.Run(s.name, func(t *testing.T) {
-			assertSink(t, s.read)
+			assertSink(t, s.read, s.wantUsers)
 		})
 	}
 }

@@ -121,7 +121,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		require.NoError(t, errC)
 
 		_, _, _, err := jaegerRemoteSamplerOpts(c)
-		require.Error(t, err)
+		require.EqualError(t, err, `parsing JAEGER_SAMPLER_REFRESH_INTERVAL: time: invalid duration "bogus"`)
 	})
 
 	t.Run("invalid JAEGER_SAMPLER_MAX_OPERATIONS", func(t *testing.T) {
@@ -129,7 +129,8 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 		_, errC := config.New(f, zap.NewNop(), "1.X.X")
-		require.Error(t, errC)
+		require.ErrorContains(t, errC,
+			"'jaeger.sampler.max.operations' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
 	})
 }
 
