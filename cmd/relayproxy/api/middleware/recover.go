@@ -8,6 +8,7 @@ import (
 	"runtime"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
@@ -55,6 +56,7 @@ func Recover(logger *slog.Logger, exposeError bool) Func {
 					slog.String("path", r.URL.Path),
 					slog.String("stack", string(stack)),
 				)
+				reqlog.RecordError(r.Context(), panicErr)
 				helper.WriteError(w, r, panicErr, exposeError)
 			}()
 			next.ServeHTTP(w, r)

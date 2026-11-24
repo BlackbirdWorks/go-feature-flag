@@ -106,19 +106,22 @@ func TestKeyAuth_Huma(t *testing.T) {
 	tests := []struct {
 		headers    map[string]string
 		name       string
+		wantBody   string
 		wantStatus int
 	}{
 		{name: "bearer", headers: map[string]string{"Authorization": "Bearer good"}, wantStatus: http.StatusOK},
 		{name: "x-api-key", headers: map[string]string{"X-API-Key": "good"}, wantStatus: http.StatusOK},
-		{name: "no key", wantStatus: http.StatusUnauthorized},
-		{name: "wrong key", headers: map[string]string{"X-API-Key": "bad"}, wantStatus: http.StatusUnauthorized},
+		{name: "no key", wantStatus: http.StatusUnauthorized,
+			wantBody: `{"message":"missing value in request header"}` + "\n"},
+		{name: "wrong key", headers: map[string]string{"X-API-Key": "bad"}, wantStatus: http.StatusUnauthorized,
+			wantBody: `{"message":"Unauthorized"}` + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			api := newHumaServer(t, okDocument, func(api huma.API) []func(huma.Context, func(huma.Context)) {
-				return []func(huma.Context, func(huma.Context)){auth.Huma(api)}
+			api := newHumaServer(t, okDocument, func(huma.API) []func(huma.Context, func(huma.Context)) {
+				return []func(huma.Context, func(huma.Context)){auth.Huma()}
 			})
 			req := httptest.NewRequest(http.MethodGet, "/doc", nil)
 			for k, v := range tt.headers {
@@ -126,6 +129,9 @@ func TestKeyAuth_Huma(t *testing.T) {
 			}
 			rec := serve(api, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rec.Body.String())
+			}
 		})
 	}
 }

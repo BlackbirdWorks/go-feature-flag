@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"sync"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humago"
@@ -21,29 +20,6 @@ const (
 	// schemeAPIKey is the type of the security schemes: an API key.
 	schemeAPIKey = "apiKey"
 )
-
-// installHumaErrors makes huma build its own errors (the ones it raises itself: a parameter that is refused, ...)
-// with the error model of the relay proxy instead of RFC 9457. huma holds the factories in package variables, so
-// they are set once, whatever the number of servers.
-var installHumaErrors = sync.OnceFunc(func() { //nolint:gochecknoglobals // huma has no per-API error factory
-	//nolint:reassign // huma has no per-API error factory
-	huma.NewError = func(status int, msg string, errs ...error) huma.StatusError {
-		return newHTTPError(status, msg, errs...)
-	}
-	huma.NewErrorWithContext = func( //nolint:reassign // huma has no per-API error factory
-		_ huma.Context, status int, msg string, errs ...error,
-	) huma.StatusError {
-		return newHTTPError(status, msg, errs...)
-	}
-})
-
-func newHTTPError(status int, msg string, errs ...error) *helper.HTTPError {
-	if len(errs) > 0 {
-		return helper.WrapHTTPError(status, errors.Join(errs...))
-	}
-
-	return helper.NewHTTPError(status, msg)
-}
 
 // introduction is the description of the API, the first paragraphs of the document.
 const introduction = `# Introduction
@@ -66,10 +42,22 @@ func jsonFormat() huma.Format {
 
 // errorTransformer gives the bodies of the errors the shape of the relay proxy, and reports the error to the
 // access log. exposeError adds the wrapped error to the body, at the debug level.
+//
+// The errors the handlers return are [helper.HTTPError]. The errors huma raises itself (a failure it did not get a
+// status error for, which it wraps in its RFC 9457 model) are turned into the same body: huma has no error factory
+// per API (its factories are package variables), the transformer of the API is the place that is not global.
 func errorTransformer(exposeError bool) huma.Transformer {
 	return func(ctx huma.Context, _ string, v any) (any, error) {
-		var herr *helper.HTTPError
-		if !errors.As(asError(v), &herr) {
+		if model, ok := v.(*huma.ErrorModel); ok {
+			ctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+			herr := modelError(model)
+			reqlog.RecordError(ctx.Context(), herr)
+			_, body := helper.ErrorResponse(herr, exposeError)
+
+			return body, nil
+		}
+		herr, ok := errors.AsType[*helper.HTTPError](asError(v))
+		if !ok {
 			return v, nil
 		}
 		_, body := helper.ErrorResponse(herr, exposeError)
@@ -77,6 +65,23 @@ func errorTransformer(exposeError bool) huma.Transformer {
 
 		return body, nil
 	}
+}
+
+// modelError is the error of the relay proxy for an error of the RFC 9457 model of huma: the text of the status as
+// message, what huma reports as the wrapped error.
+func modelError(model *huma.ErrorModel) *helper.HTTPError {
+	details := make([]error, 0, len(model.Errors)+1)
+	if model.Detail != "" {
+		details = append(details, errors.New(model.Detail)) //nolint:err113 // the text huma gives
+	}
+	for _, d := range model.Errors {
+		details = append(details, errors.New(d.Message)) //nolint:err113 // the text huma gives
+	}
+	if len(details) == 0 {
+		return helper.NewHTTPError(model.Status, "")
+	}
+
+	return helper.WrapHTTPError(model.Status, errors.Join(details...))
 }
 
 func asError(v any) error {
@@ -91,8 +96,6 @@ func newHumaAPI(
 	mux *http.ServeMux,
 	exposeError, docs bool,
 ) huma.API {
-	installHumaErrors()
-
 	cfg := huma.DefaultConfig("Semaphore relay proxy endpoints", "1.0.0")
 	// huma serves the document and the Swagger UI under the swagger path, only when it is enabled: the relay proxy
 	// owns every other route.

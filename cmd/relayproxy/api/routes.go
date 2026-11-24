@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
+	"maps"
 	"net/http"
 	"net/http/pprof"
-	"strconv"
 
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,8 +35,48 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 	mux.Handle("/", helper.Handle(func(http.ResponseWriter, *http.Request) error { return helper.ErrNotFound },
 		s.config.IsDebugEnabled()))
 
+	if docs {
+		// the documented entry point of the Swagger UI.
+		mux.Handle("GET /swagger/{$}", http.RedirectHandler("/swagger/index.html", http.StatusFound))
+	}
+
 	return &routeSet{mux: mux, api: newHumaAPI(mux, s.config.IsDebugEnabled(), docs)}
 }
+
+// mergeOpenAPI adds the operations and the schemas of src to dst.
+func mergeOpenAPI(dst, src *huma.OpenAPI) {
+	maps.Copy(dst.Paths, src.Paths)
+	known := dst.Components.Schemas.Map()
+	for name, schema := range src.Components.Schemas.Map() {
+		if _, ok := known[name]; !ok {
+			known[name] = schema
+		}
+	}
+}
+
+// primeDocs makes huma render the documents now. huma renders them on the first request and keeps them in a
+// variable that the handlers share without a lock: rendering them before the listener starts, once everything is
+// registered, leaves the concurrent requests nothing to write.
+func primeDocs(mux http.Handler) {
+	for _, path := range []string{
+		"/swagger/openapi.json", "/swagger/openapi-3.0.json", "/swagger/openapi.yaml", "/swagger/openapi-3.0.yaml",
+	} {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, path, nil)
+		if err != nil {
+			continue
+		}
+		mux.ServeHTTP(discardWriter{header: http.Header{}}, req)
+	}
+}
+
+// discardWriter drops the response.
+type discardWriter struct{ header http.Header }
+
+func (w discardWriter) Header() http.Header { return w.header }
+
+func (discardWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+func (discardWriter) WriteHeader(int) {}
 
 // register serves a typed operation with huma, with the middleware of the operation (they run in order).
 func register[I, O any](
@@ -45,6 +84,9 @@ func register[I, O any](
 	humaMiddleware ...func(huma.Context, func(huma.Context)),
 ) {
 	op.Middlewares = append(op.Middlewares, humaMiddleware...)
+	// the error responses are documented with the body the relay proxy sends, not huma's RFC 9457 model.
+	errorStatuses := op.Errors
+	op.Errors = nil
 	huma.Register(rs.api, op, handler)
 	// huma documents a validation error (422) and a default error on its own: the relay proxy answers neither
 	// (its handlers decode and refuse what they get), the document lists the statuses of the operation only.
@@ -53,6 +95,9 @@ func register[I, O any](
 		if o != nil && o.OperationID == op.OperationID {
 			delete(o.Responses, "default")
 			delete(o.Responses, "422")
+			for _, status := range errorStatuses {
+				o.Responses[statusKey(status)] = errorResponse(rs.api, http.StatusText(status))
+			}
 		}
 	}
 }
@@ -97,11 +142,11 @@ func (s *Server) adminKeyAuth() middleware.KeyAuth {
 // for the relay proxy, and their middleware.
 func (s *Server) initRoutes() {
 	rs := s.newRouteSet(s.config.IsSwaggerEnabled())
-	if s.config.IsSwaggerEnabled() {
-		doc := rs.api.OpenAPI()
-		doc.Info.Version = s.config.Version
-		doc.Servers = []*huma.Server{{URL: "http://" + net.JoinHostPort(
-			s.config.SwaggerHost(), strconv.Itoa(s.config.ServerPort(s.logger)))}}
+	swagger := s.config.IsSwaggerEnabled()
+	if swagger {
+		// no server is advertised: the requests of the Swagger UI go to the origin of the page, whatever scheme
+		// and host an ingress serves it with.
+		rs.api.OpenAPI().Info.Version = s.config.Version
 	}
 	var monitoring *routeSet
 	if s.config.EffectiveMonitoringPort(s.logger) != 0 {
@@ -111,6 +156,14 @@ func (s *Server) initRoutes() {
 		s.addMonitoringRoutes(rs)
 	}
 	s.addAPIRoutes(rs)
+	if swagger {
+		if monitoring != nil {
+			// one document describes the whole API, whether the monitoring endpoints are served by this listener
+			// or by the dedicated one.
+			mergeOpenAPI(rs.api.OpenAPI(), monitoring.api.OpenAPI())
+		}
+		primeDocs(rs.mux)
+	}
 
 	s.apiHandler = s.apiChain(rs.mux)
 	if monitoring != nil {
@@ -154,16 +207,16 @@ func (s *Server) addAPIRoutes(rs *routeSet) {
 	rs.raw(op, "/v1/feature/{flagKey}/eval", helper.Handle(cFlagEval.Handler, debug), userAuth.HTTP())
 
 	collector := operationCollector()
-	controller.BodyOpts(&collector)
-	register(rs, collector, cEvalDataCollector.Handle, userAuth.Huma(api))
+	controller.BodyOpts(&collector, s.readTimeout)
+	register(rs, collector, cEvalDataCollector.Handle, userAuth.Huma())
 	setRequestBody(api, collector.OperationID, jsonBody(api,
 		"List of flag evaluation that be passed to the data exporter", true, model.CollectEvalDataRequest{}))
 
-	register(rs, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(api), middleware.ETagHuma())
+	register(rs, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(), middleware.ETagHuma())
 
 	configuration := operationFlagConfiguration()
-	controller.BodyOpts(&configuration)
-	register(rs, configuration, cFlagConfiguration.Handle, userAuth.Huma(api), middleware.ETagHuma())
+	controller.BodyOpts(&configuration, s.readTimeout)
+	register(rs, configuration, cFlagConfiguration.Handle, userAuth.Huma(), middleware.ETagHuma())
 	setRequestBody(api, configuration.OperationID, jsonBody(api,
 		"List of flags to get the configuration from.", false, controller.FlagConfigurationRequest{}))
 
@@ -186,12 +239,12 @@ func (s *Server) addAPIRoutes(rs *routeSet) {
 		authorize, middleware.DeprecatedAlias("/stream/v1/ws/flag/change"))
 
 	// /admin/v1
-	register(rs, operationRefresh(), cRetrieverRefresh.Handle, adminAuth.Huma(api))
+	register(rs, operationRefresh(), cRetrieverRefresh.Handle, adminAuth.Huma())
 	rs.raw(operationValidate(api), "/admin/v1/flags/validate", helper.Handle(cValidateFlags.Handler, debug),
 		adminAuth.HTTP())
 
 	// /openfeature/v0
-	register(rs, operationManifest(), cManifest.GetManifest, userAuth.Huma(api))
+	register(rs, operationManifest(), cManifest.GetManifest, userAuth.Huma())
 }
 
 // addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics, pprof and, when it is

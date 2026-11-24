@@ -22,12 +22,13 @@ import (
 //
 //  1. cleanpath: the path is cleaned (double slash, dot segments) before the mux routes it;
 //  2. the version header, so that every answer carries it, the 500 of a recovered panic included;
-//  3. the panic recovery (it logs the panic with the error level and answers 500);
-//  4. the access log, with the status that was sent;
-//  5. tracing (OpenTelemetry server span, the library does it with otelhttp), only when OpenTelemetry is
+//  3. the access log, with the status that was sent (a recovered panic is a 500 record, at the error level);
+//  4. tracing (OpenTelemetry server span, the library does it with otelhttp), only when OpenTelemetry is
 //     configured: without an exporter there is nothing to send and the middleware is not installed;
-//  6. the request body dump (debug level) and the HTTP metrics (API listener only);
-//  7. CORS (answers the preflight requests, so these are logged, traced and counted too).
+//  5. the request body dump (debug level) and the HTTP metrics (API listener only);
+//  6. CORS (answers the preflight requests, so these are logged, traced and counted too);
+//  7. the panic recovery, innermost: it logs the panic with the error level and answers 500, which the middleware
+//     above (access log, spans, metrics) then see like any other 500.
 //
 // The order matters: the mux sets the route of the request ([http.Request.Pattern]) on the request it receives.
 // The tracing and the access log hand a copy of the request to the next handler, so the ones that read the route
@@ -79,7 +80,6 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 	chain := []middleware.Func{
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
-		middleware.Recover(s.logger, s.config.IsDebugEnabled()),
 		s.accessLog(),
 	}
 	if s.tracingEnabled() {
@@ -108,7 +108,9 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 		}
 	}
 
-	return middleware.Chain(mux, append(chain, middleware.CORS())...)
+	return middleware.Chain(
+		mux,
+		append(chain, middleware.CORS(), middleware.Recover(s.logger, s.config.IsDebugEnabled()))...)
 }
 
 // monitoringChain wraps the mux of the dedicated monitoring listener.
@@ -116,8 +118,8 @@ func (s *Server) monitoringChain(mux http.Handler) http.Handler {
 	return middleware.Chain(mux,
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
-		middleware.Recover(s.logger, s.config.IsDebugEnabled()),
 		s.accessLog(),
 		middleware.CORS(),
+		middleware.Recover(s.logger, s.config.IsDebugEnabled()),
 	)
 }

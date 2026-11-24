@@ -22,8 +22,9 @@ import (
 // gracefulShutdownTimeout is the time given to in-flight requests to complete when the servers are stopped.
 const gracefulShutdownTimeout = 5 * time.Second
 
-// readTimeout is how long the server waits for a request to be read (a defence against slow clients).
-const readTimeout = 30 * time.Second
+// defaultReadTimeout is how long the server waits for a request to be read, its body included (a defence against
+// slow clients). WithReadTimeout changes it.
+const defaultReadTimeout = 30 * time.Second
 
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
@@ -163,7 +164,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
 		// ReadTimeout is a defence against slow clients (gosec G112). There is no WriteTimeout: the streams
 		// (SSE, websocket) are long-lived.
-		ReadTimeout: readTimeout,
+		ReadTimeout: s.readTimeout,
 	}
 	if h2c {
 		var p http.Protocols
@@ -172,9 +173,14 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 		srv.Protocols = &p
 	}
 
+	// the shutdown goroutine ends when ctx is done or when Serve returned (the cancel below): a listener that
+	// fails must not wait for an external shutdown before its error reaches the caller.
 	gCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	var wg sync.WaitGroup
+	defer func() {
+		cancel()
+		wg.Wait()
+	}()
 	wg.Go(func() {
 		<-gCtx.Done()
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
@@ -183,8 +189,6 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 			s.logger.LogAttrs(context.Background(), slog.LevelError, shutdownMsg, cmdlog.Err(err))
 		}
 	})
-	defer wg.Wait()
-
 	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

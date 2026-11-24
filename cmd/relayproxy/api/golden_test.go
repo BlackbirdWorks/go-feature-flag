@@ -106,6 +106,7 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(), followETag: true,
 		},
 		{name: "swagger_index", method: http.MethodGet, path: "/swagger/index.html", headers: nil},
+		{name: "swagger_dir_slash", method: http.MethodGet, path: "/swagger/"},
 		{name: "swagger_openapi", method: http.MethodGet, path: "/swagger/openapi.json", headers: nil},
 		{
 			name: "ofrep_bulk_ok", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody,
@@ -694,7 +695,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 }
 
 // startGoldenServer is startTestServer with the streaming services, so that the stream routes serve.
-func startGoldenServer(t *testing.T, conf *config.Config) string {
+func startGoldenServer(t *testing.T, conf *config.Config, opts ...api.Option) string {
 	t.Helper()
 	ln, port := testutils.ListenLocal(t)
 	conf.Server.Port = port
@@ -713,7 +714,7 @@ func startGoldenServer(t *testing.T, conf *config.Config) string {
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metrics,
-	}, log.Slog, api.WithListener(ln))
+	}, log.Slog, append([]api.Option{api.WithListener(ln)}, opts...)...)
 	go func() { s.StartWithContext(context.Background()) }()
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	// cleanups run last in, first out: the streams end first, so the graceful shutdown has nothing to wait for.

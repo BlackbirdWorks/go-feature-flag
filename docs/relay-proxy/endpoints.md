@@ -27,7 +27,7 @@ The streams are listed in [Flag change streams](#flag-change-streams).
 ### Swagger
 The relay proxy can expose a [swagger UI](https://swagger.io/tools/swagger-ui/) to test your REST endpoints.
 
-This swagger UI is available at the `/swagger/index.html` endpoint (the document it displays is `/swagger/openapi.json`) and will show all the available endpoints and the parameters needed. The page loads the Swagger UI scripts from a public CDN, so the browser needs internet access.
+This swagger UI is available at the `/swagger/` endpoint (it redirects to `/swagger/index.html`; the document it displays is `/swagger/openapi.json`) and will show all the available endpoints and the parameters needed. The page loads the Swagger UI scripts from a public CDN, so the browser needs internet access.
 
 > [!NOTE]
 > By default, this endpoint is not exposed, you need to have this configuration in your **relay proxy** configuration file:
@@ -42,7 +42,7 @@ This swagger UI is available at the `/swagger/index.html` endpoint (the document
 
 ## OpenAPI documentation
 
-The OpenAPI 3.1 document is generated from the typed operations the relay proxy registers. With `enableSwagger: true` it is served at `/swagger/openapi.json` (and `/swagger/openapi.yaml`, plus the 3.0 downgrade `/swagger/openapi-3.0.json`). A test compares it with the committed copy `cmd/relayproxy/api/testdata/openapi.golden.json`,.
+The OpenAPI 3.1 document is generated from the typed operations the relay proxy registers. With `enableSwagger: true` it is served at `/swagger/openapi.json` (and `/swagger/openapi.yaml`, plus the 3.0 downgrade `/swagger/openapi-3.0.json`). A test compares it with the committed copy `cmd/relayproxy/api/testdata/openapi.golden.json`. The document describes the whole API, the monitoring endpoints included, and it advertises no server: the Swagger UI calls the origin of its page.
 
 ## Flag change streams
 

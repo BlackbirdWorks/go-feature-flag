@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -36,10 +37,11 @@ func (r *Request) APIKey() string { return r.apiKey }
 func (r *Request) ContentType() string { return r.contentType }
 
 // BodyOpts configures an operation that reads its own body: huma reads the bytes (the handler decodes them, so
-// the error bodies stay the ones of the relay proxy), with no size limit and no read timeout.
-func BodyOpts(op *huma.Operation) {
+// the error bodies stay the ones of the relay proxy). The body has no size limit, as before, but the read is bound
+// by readTimeout (the read timeout of the server, which also bound it before): a slow or stalled upload ends.
+func BodyOpts(op *huma.Operation, readTimeout time.Duration) {
 	op.MaxBodyBytes = -1
-	op.BodyReadTimeout = -1
+	op.BodyReadTimeout = readTimeout
 	op.SkipValidateBody = true
 	op.SkipValidateParams = true
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -38,6 +39,7 @@ func New(config *config.Config,
 		stopRequested: stopRequested,
 		stop:          sync.OnceFunc(func() { close(stopRequested) }),
 		stopped:       make(chan struct{}),
+		readTimeout:   defaultReadTimeout,
 	}
 	for _, opt := range opts {
 		opt(&s)
@@ -78,6 +80,13 @@ func WithGlobalTelemetry() Option {
 	return func(s *Server) { s.installGlobalTelemetry = true }
 }
 
+// WithReadTimeout sets how long a request may take to be read, its body included: the servers close the connection
+// of a client that is slower. The default is 30 seconds, the uploads (data collector, flag configuration) are bound
+// by the same duration.
+func WithReadTimeout(d time.Duration) Option {
+	return func(s *Server) { s.readTimeout = d }
+}
+
 // WithTracing sets the tracer provider and the propagator of the spans of the requests. Without it the server
 // uses the global ones of OpenTelemetry (the ones the telemetry installed at startup).
 func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPropagator) Option {
@@ -103,6 +112,7 @@ type Server struct {
 	exit                   func()
 	config                 *config.Config
 	services               service.Services
+	readTimeout            time.Duration
 	installGlobalTelemetry bool
 }
 

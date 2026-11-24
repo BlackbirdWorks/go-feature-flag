@@ -1055,7 +1055,7 @@ Configuration related to the swagger behavior of the relay proxy.
 
 #### `swagger.enabled`
 
-Enables Swagger for testing the APIs directly. If you are enabling Swagger you will have to provide the [`swagger.host`](#swaggerhost) configuration (default is `localhost`).
+Enables Swagger for testing the APIs directly. The Swagger UI sends its requests to the origin it is served from, behind an ingress or not, so [`swagger.host`](#swaggerhost) is no longer needed.
 
 It will start the swagger server on the same port as the relay proxy and you can access it at `http://<host>:<server.port>/swagger/`.
 
@@ -1066,7 +1066,7 @@ It will start the swagger server on the same port as the relay proxy and you can
 
 #### `swagger.host`
 
-The DNS used by the swagger configuration to access the relay proxy.
+Not used any more: the Swagger UI calls the origin of its own page. Kept so that existing configuration files stay valid.
 
 - option name: `host`
 - type: **string**

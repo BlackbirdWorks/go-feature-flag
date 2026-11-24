@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 )
 
 var (
@@ -90,7 +92,7 @@ func (k KeyAuth) HTTP() Func {
 }
 
 // Huma is the entry point for a huma operation, it only uses the huma.Context interface.
-func (k KeyAuth) Huma(api huma.API) func(huma.Context, func(huma.Context)) {
+func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 	return func(hctx huma.Context, next func(huma.Context)) {
 		values := func(name string) []string {
 			var out []string
@@ -104,7 +106,12 @@ func (k KeyAuth) Huma(api huma.API) func(huma.Context, func(huma.Context)) {
 		}
 		ctx, err := k.authenticate(hctx.Context(), hctx.Header, values)
 		if err != nil {
-			_ = huma.WriteErr(api, hctx, http.StatusUnauthorized, err.Error())
+			refusal := helper.NewHTTPError(http.StatusUnauthorized, err.Error())
+			reqlog.RecordError(hctx.Context(), refusal)
+			// the headers first: setting the status sends them.
+			hctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+			hctx.SetStatus(http.StatusUnauthorized)
+			_ = json.NewEncoder(hctx.BodyWriter()).Encode(helper.ErrorBody{Message: refusal.Message})
 
 			return
 		}
