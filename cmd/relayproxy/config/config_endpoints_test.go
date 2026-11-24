@@ -61,12 +61,20 @@ func TestValidateFlagsEndpoint_WithDefaults(t *testing.T) {
 	}{
 		{
 			name: "unset",
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1 << 20, MaxYAMLBodySize: 64 << 10, MaxTOMLBodySize: 64 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 1 << 20,
+				MaxYAMLBodySize: 64 << 10,
+				MaxTOMLBodySize: 64 << 10,
+			},
 		},
 		{
 			name: "partially set",
 			in:   config.ValidateFlagsEndpoint{MaxYAMLBodySize: 1 << 20},
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1 << 20, MaxYAMLBodySize: 1 << 20, MaxTOMLBodySize: 64 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 1 << 20,
+				MaxYAMLBodySize: 1 << 20,
+				MaxTOMLBodySize: 64 << 10,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -86,9 +94,21 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	}{
 		{name: "unset", in: config.ValidateFlagsEndpoint{}},
 		{name: "valid", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3}},
-		{name: "negative json", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}, wantErr: "maxJSONBodySize must not be negative"},
-		{name: "negative yaml", in: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}, wantErr: "maxYAMLBodySize must not be negative"},
-		{name: "negative toml", in: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}, wantErr: "maxTOMLBodySize must not be negative"},
+		{
+			name:    "negative json",
+			in:      config.ValidateFlagsEndpoint{MaxJSONBodySize: -1},
+			wantErr: "maxJSONBodySize must not be negative",
+		},
+		{
+			name:    "negative yaml",
+			in:      config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1},
+			wantErr: "maxYAMLBodySize must not be negative",
+		},
+		{
+			name:    "negative toml",
+			in:      config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1},
+			wantErr: "maxTOMLBodySize must not be negative",
+		},
 		{
 			name:    "several negatives report the first in order",
 			in:      config.ValidateFlagsEndpoint{MaxJSONBodySize: -1, MaxYAMLBodySize: -1, MaxTOMLBodySize: -1},
@@ -118,9 +138,21 @@ func TestEndpoints_IsValid(t *testing.T) {
 	}{
 		{name: "unset"},
 		{name: "valid", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: 10}}},
-		{name: "negative json", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}}, wantErr: true},
-		{name: "negative yaml", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}}, wantErr: true},
-		{name: "negative toml", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}}, wantErr: true},
+		{
+			name:    "negative json",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}},
+			wantErr: true,
+		},
+		{
+			name:    "negative yaml",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}},
+			wantErr: true,
+		},
+		{
+			name:    "negative toml",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,7 +188,11 @@ func TestEndpoints_Loading(t *testing.T) {
 		{
 			name: "strings in the file",
 			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOMLBodySize: \"256 KiB\"\n",
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2 << 20, MaxYAMLBodySize: 128 << 10, MaxTOMLBodySize: 256 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 2 << 20,
+				MaxYAMLBodySize: 128 << 10,
+				MaxTOMLBodySize: 256 << 10,
+			},
 		},
 		{
 			name: "environment variables",
@@ -166,7 +202,11 @@ func TestEndpoints_Loading(t *testing.T) {
 				"ENDPOINTS_VALIDATEFLAGS_MAXYAMLBODYSIZE": "100000",
 				"ENDPOINTS_VALIDATEFLAGS_MAXTOMLBODYSIZE": "32KiB",
 			},
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 3 << 20, MaxYAMLBodySize: 100000, MaxTOMLBodySize: 32 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 3 << 20,
+				MaxYAMLBodySize: 100000,
+				MaxTOMLBodySize: 32 << 10,
+			},
 		},
 		{
 			name: "environment overrides the file",

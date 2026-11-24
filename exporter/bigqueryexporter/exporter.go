@@ -144,7 +144,10 @@ func (e *Exporter) initClient(ctx context.Context) error {
 
 		var opts []option.ClientOption
 		if len(e.GoogleCredentials) > 0 {
-			opts = append(opts, option.WithAuthCredentialsJSON(credentialsType(e.GoogleCredentials), e.GoogleCredentials))
+			opts = append(
+				opts,
+				option.WithAuthCredentialsJSON(credentialsType(e.GoogleCredentials), e.GoogleCredentials),
+			)
 		}
 
 		e.client, e.initErr = newClientFunc(ctx, e.ProjectID, opts...)

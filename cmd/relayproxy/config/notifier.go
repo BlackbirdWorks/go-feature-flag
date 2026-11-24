@@ -3,7 +3,7 @@ package config
 import "fmt"
 
 type NotifierConf struct {
-	Kind NotifierKind `mapstructure:"kind"            koanf:"kind"`
+	Kind NotifierKind `mapstructure:"kind" koanf:"kind"`
 	// Deprecated: Use WebhookURL instead
 	SlackWebhookURL string              `mapstructure:"slackWebhookUrl" koanf:"slackwebhookurl"`
 	EndpointURL     string              `mapstructure:"endpointUrl"     koanf:"endpointurl"`

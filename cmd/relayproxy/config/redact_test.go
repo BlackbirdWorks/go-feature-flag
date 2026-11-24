@@ -191,7 +191,11 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 	t.Run("zap.Any", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		core := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(&buf), zap.DebugLevel)
+		core := zapcore.NewCore(
+			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+			zapcore.AddSync(&buf),
+			zap.DebugLevel,
+		)
 		zap.New(core).Debug("config", zap.Any("config", conf))
 		assert.NotContains(t, buf.String(), secretMarker)
 		assert.Contains(t, buf.String(), "visible-version")

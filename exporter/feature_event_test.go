@@ -40,8 +40,15 @@ func TestNewFeatureEvent(t *testing.T) {
 				source:    "SERVER",
 			},
 			want: exporter.FeatureEvent{
-				Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: time.Now().Unix(), Key: "random-key",
-				Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+				Kind:         "feature",
+				ContextKind:  "anonymousUser",
+				UserKey:      "ABCD",
+				CreationDate: time.Now().Unix(),
+				Key:          "random-key",
+				Variation:    "Default",
+				Value:        "YO",
+				Default:      false,
+				Source:       "SERVER",
 			},
 		},
 	}
@@ -141,7 +148,13 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			val, err := tt.featureEvent.ConvertValueForParquet()
 			if (err != nil) != tt.wantErr {
-				assert.Failf(t, "unexpected error", "FeatureEvent.MarshalInterface() error = %v, wantErr %v", err, tt.wantErr)
+				assert.Failf(
+					t,
+					"unexpected error",
+					"FeatureEvent.MarshalInterface() error = %v, wantErr %v",
+					err,
+					tt.wantErr,
+				)
 
 				return
 			}

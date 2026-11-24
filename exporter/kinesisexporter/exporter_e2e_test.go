@@ -54,7 +54,10 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 	var got []exporter.FeatureEvent
 	require.Eventually(t, func() bool {
 		for id, it := range iterators {
-			out, err := client.GetRecords(t.Context(), &kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)})
+			out, err := client.GetRecords(
+				t.Context(),
+				&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
+			)
 			if err != nil {
 				return false
 			}
@@ -76,8 +79,14 @@ func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "user", UserKey: fmt.Sprintf("user-%04d", i), CreationDate: int64(1617970547 + i),
-			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Source: "SERVER",
+			Kind:         "feature",
+			ContextKind:  "user",
+			UserKey:      fmt.Sprintf("user-%04d", i),
+			CreationDate: int64(1617970547 + i),
+			Key:          "my-flag",
+			Variation:    "enabled",
+			Value:        fmt.Sprintf("value-%d", i),
+			Source:       "SERVER",
 		})
 	}
 
@@ -117,9 +126,14 @@ func TestE2E_Export(t *testing.T) {
 
 			opts := []kinesisexporter.Option{kinesisexporter.WithStreamName(stream)}
 			if tt.byArn {
-				desc, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+				desc, err := client.DescribeStream(
+					t.Context(),
+					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
+				)
 				require.NoError(t, err)
-				opts = []kinesisexporter.Option{kinesisexporter.WithStreamArn(aws.ToString(desc.StreamDescription.StreamARN))}
+				opts = []kinesisexporter.Option{
+					kinesisexporter.WithStreamArn(aws.ToString(desc.StreamDescription.StreamARN)),
+				}
 			}
 			if tt.partitionKey != nil {
 				opts = append(opts, kinesisexporter.WithPartitionKey(tt.partitionKey))
@@ -157,7 +171,9 @@ func TestE2E_Export_Errors(t *testing.T) {
 		{
 			name: "unknown stream",
 			settings: func(t *testing.T) *kinesisexporter.Settings {
-				return kinesisexporter.NewSettings(kinesisexporter.WithStreamName(gopherstack.UniqueName(t, "nostream")))
+				return kinesisexporter.NewSettings(
+					kinesisexporter.WithStreamName(gopherstack.UniqueName(t, "nostream")),
+				)
 			},
 			nbEvents: 1,
 		},
@@ -185,7 +201,10 @@ func TestE2E_Export_MoreThanOnePutRecordsCall(t *testing.T) {
 	cfg := srv.MustAwsConfig(t)
 	client := kinesis.NewFromConfig(cfg)
 	stream := createStream(t, client, 1)
-	e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: kinesisexporter.NewSettings(kinesisexporter.WithStreamName(stream))}
+	e := &kinesisexporter.Exporter{
+		AwsConfig: &cfg,
+		Settings:  kinesisexporter.NewSettings(kinesisexporter.WithStreamName(stream)),
+	}
 	require.NoError(t, e.Export(context.Background(), &fflog.FFLogger{}, events(501)))
 	assert.Len(t, readAll(t, client, stream, 501), 501)
 }

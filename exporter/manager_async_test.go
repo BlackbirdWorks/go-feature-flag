@@ -28,7 +28,13 @@ func Test_EventStore_AddAll(t *testing.T) {
 		wantDropped int64
 	}{
 		{name: "unlimited", limit: 0, batches: []int{3, 4}, wantStored: 7},
-		{name: "batch crossing the limit keeps the first events", limit: 5, batches: []int{3, 4}, wantStored: 5, wantDropped: 2},
+		{
+			name:        "batch crossing the limit keeps the first events",
+			limit:       5,
+			batches:     []int{3, 4},
+			wantStored:  5,
+			wantDropped: 2,
+		},
 		{name: "empty batch", limit: 5, batches: []int{0}, wantStored: 0},
 	}
 	for _, tt := range tests {
@@ -86,8 +92,22 @@ func Test_Manager_QueueEvents(t *testing.T) {
 		maxCalls   int64
 		wantDroped bool
 	}{
-		{name: "bulk exporter, threshold reached", exp: &countingExporter{bulk: true}, maxMem: 50, batches: 20, batchSize: 25, wantAll: true},
-		{name: "non bulk exporter", exp: &countingExporter{bulk: false}, maxMem: 50, batches: 20, batchSize: 3, wantAll: true},
+		{
+			name:      "bulk exporter, threshold reached",
+			exp:       &countingExporter{bulk: true},
+			maxMem:    50,
+			batches:   20,
+			batchSize: 25,
+			wantAll:   true,
+		},
+		{
+			name:      "non bulk exporter",
+			exp:       &countingExporter{bulk: false},
+			maxMem:    50,
+			batches:   20,
+			batchSize: 3,
+			wantAll:   true,
+		},
 		{name: "failing exporter is retried with a backoff and bounded", exp: &countingExporter{bulk: true, fail: true},
 			maxMem: 10, maxQueued: 100, batches: 200, batchSize: 5, maxCalls: 5, wantDroped: true},
 	}

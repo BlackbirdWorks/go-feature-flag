@@ -105,8 +105,11 @@ func ManyFlagsYAML(n int) string {
 		case 0:
 			sb.WriteString("  defaultRule:\n    variation: A\n")
 		case 1:
-			fmt.Fprintf(&sb,
-				"  targeting:\n    - query: key eq \"user-%d\"\n      variation: A\n  defaultRule:\n    variation: B\n", i)
+			fmt.Fprintf(
+				&sb,
+				"  targeting:\n    - query: key eq \"user-%d\"\n      variation: A\n  defaultRule:\n    variation: B\n",
+				i,
+			)
 		default:
 			sb.WriteString("  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n")
 		}

@@ -64,7 +64,10 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 			for _, due := range []int{2, 3, 2, 1, 3, 1, 3, 2} {
 				got, err := f.applyScheduledRolloutSteps(base.Add(time.Duration(due)*time.Hour + time.Minute))
 				require.NoError(t, err)
-				want, err := stagedRolloutFlag(base, progressive).buildScheduledFlag(base.Add(time.Duration(due)*time.Hour + time.Minute))
+				want, err := stagedRolloutFlag(
+					base,
+					progressive,
+				).buildScheduledFlag(base.Add(time.Duration(due)*time.Hour + time.Minute))
 				require.NoError(t, err)
 				require.Len(t, got.GetRules(), 1)
 				r, w := got.GetRules()[0], want.GetRules()[0]

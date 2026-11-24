@@ -40,7 +40,7 @@ type JaegerSamplerConfiguration struct {
 type JaegerSampler struct {
 	Manager JaegerSamplerManager `mapstructure:"manager" koanf:"manager"`
 	Refresh JaegerSamplerRefresh `mapstructure:"refresh" koanf:"refresh"`
-	Max     JaegerSamplerMax     `mapstructure:"max" koanf:"max"`
+	Max     JaegerSamplerMax     `mapstructure:"max"     koanf:"max"`
 }
 
 // JaegerSamplerManager is the configuration object to configure the manager of the sampling.

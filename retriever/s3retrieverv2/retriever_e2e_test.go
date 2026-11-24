@@ -63,8 +63,20 @@ func TestE2E_SingleItem(t *testing.T) {
 			name: "larger object over several MB (multipart ranges)", key: "big.json",
 			content: bytes.Repeat([]byte("0123456789abcdef"), 6*1024*1024/16), wantContent: true,
 		},
-		{name: "missing object", key: "present.json", content: flagJSON("f1", "v1"), itemToRead: "absent.json", wantErr: "unable to download item from S3"},
-		{name: "missing bucket", key: "present.json", content: flagJSON("f1", "v1"), useMissing: true, wantErr: "unable to download item from S3"},
+		{
+			name:       "missing object",
+			key:        "present.json",
+			content:    flagJSON("f1", "v1"),
+			itemToRead: "absent.json",
+			wantErr:    "unable to download item from S3",
+		},
+		{
+			name:       "missing bucket",
+			key:        "present.json",
+			content:    flagJSON("f1", "v1"),
+			useMissing: true,
+			wantErr:    "unable to download item from S3",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,7 +104,13 @@ func TestE2E_SingleItem(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.True(t, bytes.Equal(tt.content, got), "content mismatch: want %d bytes, got %d", len(tt.content), len(got))
+			assert.True(
+				t,
+				bytes.Equal(tt.content, got),
+				"content mismatch: want %d bytes, got %d",
+				len(tt.content),
+				len(got),
+			)
 		})
 	}
 }
@@ -163,14 +181,42 @@ func TestE2E_FolderMode(t *testing.T) {
 	}{
 		{name: "prefix direct children only", prefix: "flags/", wantKeys: []string{"flag-a", "flag-b"}},
 		{name: "prefix without trailing slash", prefix: "flags", wantKeys: []string{"flag-a", "flag-b"}},
-		{name: "prefix recursive", prefix: "flags/", recursive: true, wantKeys: []string{"flag-a", "flag-b", "flag-c", "flag-d"}},
-		{name: "pattern restricts file names", prefix: "flags/", pattern: "a.*", recursive: true, wantKeys: []string{"flag-a"}},
-		{name: "pattern matches basename in sub folders", prefix: "flags/", pattern: "[cd].yaml", recursive: true, wantKeys: []string{"flag-c", "flag-d"}},
+		{
+			name:      "prefix recursive",
+			prefix:    "flags/",
+			recursive: true,
+			wantKeys:  []string{"flag-a", "flag-b", "flag-c", "flag-d"},
+		},
+		{
+			name:      "pattern restricts file names",
+			prefix:    "flags/",
+			pattern:   "a.*",
+			recursive: true,
+			wantKeys:  []string{"flag-a"},
+		},
+		{
+			name:      "pattern matches basename in sub folders",
+			prefix:    "flags/",
+			pattern:   "[cd].yaml",
+			recursive: true,
+			wantKeys:  []string{"flag-c", "flag-d"},
+		},
 		{name: "pattern without match gives empty set", prefix: "flags/", pattern: "zzz*.yaml", wantKeys: []string{}},
 		{name: "root prefix not recursive", prefix: "", pattern: "*.yaml", wantKeys: []string{"flag-root"}},
-		{name: "root prefix recursive", prefix: "/", pattern: "*.yaml", recursive: true, wantKeys: []string{"flag-a", "flag-b", "flag-c", "flag-d", "flag-e", "flag-root"}},
+		{
+			name:      "root prefix recursive",
+			prefix:    "/",
+			pattern:   "*.yaml",
+			recursive: true,
+			wantKeys:  []string{"flag-a", "flag-b", "flag-c", "flag-d", "flag-e", "flag-root"},
+		},
 		{name: "unknown prefix gives empty set", prefix: "nothing/", wantKeys: []string{}},
-		{name: "pattern with slash is rejected", prefix: "flags/", pattern: "sub/*.yaml", wantErr: "impossible to init S3 retriever v2"},
+		{
+			name:    "pattern with slash is rejected",
+			prefix:  "flags/",
+			pattern: "sub/*.yaml",
+			wantErr: "impossible to init S3 retriever v2",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -334,8 +380,16 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 		bucket func(t *testing.T) string
 		item   string
 	}{
-		{name: "missing object", bucket: func(t *testing.T) string { return srv.CreateBucket(t, "sherr") }, item: "nope/flags.json"},
-		{name: "missing bucket", bucket: func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") }, item: "nope/flags.json"},
+		{
+			name:   "missing object",
+			bucket: func(t *testing.T) string { return srv.CreateBucket(t, "sherr") },
+			item:   "nope/flags.json",
+		},
+		{
+			name:   "missing bucket",
+			bucket: func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			item:   "nope/flags.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

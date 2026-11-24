@@ -40,7 +40,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 			t.Parallel()
 			runParallel(300, func(int) {
 				// interleave with a matching context to recycle a map holding the attribute
-				_, _ = f.Value("flag", ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(), Context{})
+				_, _ = f.Value(
+					"flag",
+					ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(),
+					Context{},
+				)
 				v, _ := f.Value("flag", tt.ctx, Context{})
 				assert.Equal(t, tt.want, v)
 			})

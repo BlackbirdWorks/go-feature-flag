@@ -283,9 +283,19 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 		valueLength int
 		wantLast    string
 	}{
-		{name: "should list every change below the limits", changes: 3, valueLength: 1, wantLast: "• Metadata `key02` added: `\"x\"`"},
+		{
+			name:        "should list every change below the limits",
+			changes:     3,
+			valueLength: 1,
+			wantLast:    "• Metadata `key02` added: `\"x\"`",
+		},
 		{name: "should cap the number of changes", changes: 60, valueLength: 1, wantLast: "…and 10 more changes"},
-		{name: "should stay within the description length", changes: 40, valueLength: 200, wantLast: "…and 23 more changes"},
+		{
+			name:        "should stay within the description length",
+			changes:     40,
+			valueLength: 200,
+			wantLast:    "…and 23 more changes",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -347,8 +357,12 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			wantWhole: []string{"a", "b"},
 		},
 		{
-			name:          "should cut long lists to fit the total length",
-			updated:       map[string]notifier.DiffUpdated{"a": updated(40, 200), "b": updated(40, 200), "c": updated(40, 200)},
+			name: "should cut long lists to fit the total length",
+			updated: map[string]notifier.DiffUpdated{
+				"a": updated(40, 200),
+				"b": updated(40, 200),
+				"c": updated(40, 200),
+			},
 			wantTruncated: []string{"a", "b", "c"},
 		},
 		{

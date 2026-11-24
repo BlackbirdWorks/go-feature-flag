@@ -59,7 +59,11 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 		{name: "no persistent file and no tolerance fails", wantErr: "impossible to retrieve the flags"},
 		{name: "starts without flags when the retriever error is tolerated", startAnyway: true},
 		{name: "serves the persisted flags", withFile: true, persisted: new(persistedFlags), wantFlag: true},
-		{name: "missing persistent file fails", withFile: true, wantErr: "impossible to use the persistent flag configuration file"},
+		{
+			name:     "missing persistent file fails",
+			withFile: true,
+			wantErr:  "impossible to use the persistent flag configuration file",
+		},
 		{name: "missing persistent file is tolerated", withFile: true, startAnyway: true},
 		{name: "unreadable persistent content fails", withFile: true, persisted: new("{not: [yaml"),
 			wantErr: "impossible to use the persistent flag configuration file"},
@@ -119,7 +123,10 @@ func TestManagerForceRefresh(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := newErrorManager(tt.retriever, retriever.ManagerConfig{FileFormat: "json", StartWithRetrieverError: true})
+			m := newErrorManager(
+				tt.retriever,
+				retriever.ManagerConfig{FileFormat: "json", StartWithRetrieverError: true},
+			)
 			require.NoError(t, m.Init(context.Background()))
 			defer func() { _ = m.Shutdown(context.Background()) }()
 			assert.Equal(t, tt.want, m.ForceRefresh(context.Background()))

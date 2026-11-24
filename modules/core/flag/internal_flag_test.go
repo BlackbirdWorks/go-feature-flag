@@ -1063,8 +1063,10 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new("DEV environment"),
-						Query:           new(`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`),
+						Name: new("DEV environment"),
+						Query: new(
+							`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`,
+						),
 						VariationResult: new("variationFalse"),
 					},
 				},
@@ -1080,8 +1082,10 @@ func TestInternalFlag_Value(t *testing.T) {
 					{ // newest date, listed first
 						Rules: &[]flag.Rule{
 							{
-								Name:            new("DEV environment"),
-								Query:           new(`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`),
+								Name: new("DEV environment"),
+								Query: new(
+									`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`,
+								),
 								VariationResult: new("variationFalse"),
 							},
 						},
@@ -1090,8 +1094,10 @@ func TestInternalFlag_Value(t *testing.T) {
 					{ // oldest date, listed second
 						Rules: &[]flag.Rule{
 							{
-								Name:            new("DEV environment"),
-								Query:           new(`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`),
+								Name: new("DEV environment"),
+								Query: new(
+									`{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`,
+								),
 								VariationResult: new("variationTrue"),
 							},
 						},

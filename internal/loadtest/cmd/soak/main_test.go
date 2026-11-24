@@ -13,7 +13,18 @@ import (
 
 // fastRun keeps a run to about a second: 100 ms samples, a one sample warm-up, and a heap tolerance that
 // cannot flake (the verdict logic itself is tested in the loadtest package).
-var fastRun = []string{"-duration", "1s", "-interval", "100ms", "-warmup", "1", "-workers", "2", "-heap-tolerance", "100"}
+var fastRun = []string{
+	"-duration",
+	"1s",
+	"-interval",
+	"100ms",
+	"-warmup",
+	"1",
+	"-workers",
+	"2",
+	"-heap-tolerance",
+	"100",
+}
 
 func TestRun(t *testing.T) {
 	t.Parallel()
@@ -73,12 +84,22 @@ func TestRunCPUProfile(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "cpu.pprof")
 	var stdout, stderr bytes.Buffer
-	code := run(context.Background(), append([]string{"-target", "library", "-cpuprofile", path}, fastRun...), &stdout, &stderr)
+	code := run(
+		context.Background(),
+		append([]string{"-target", "library", "-cpuprofile", path}, fastRun...),
+		&stdout,
+		&stderr,
+	)
 	require.Equal(t, 0, code, stderr.String())
 	st, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.NotZero(t, st.Size())
 
-	code = run(context.Background(), []string{"-cpuprofile", filepath.Join(t.TempDir(), "missing", "cpu.pprof")}, &stdout, &stderr)
+	code = run(
+		context.Background(),
+		[]string{"-cpuprofile", filepath.Join(t.TempDir(), "missing", "cpu.pprof")},
+		&stdout,
+		&stderr,
+	)
 	assert.Equal(t, 2, code, "an unwritable profile path is a usage error")
 }

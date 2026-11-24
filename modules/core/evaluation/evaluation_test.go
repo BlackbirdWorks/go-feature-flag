@@ -171,7 +171,14 @@ func Test_evaluate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := evaluation.Evaluate(tt.args.flag, tt.args.flagKey, tt.args.evaluationCtx, tt.args.flagCtx, tt.args.expectedType, tt.args.sdkDefaultValue)
+			got, err := evaluation.Evaluate(
+				tt.args.flag,
+				tt.args.flagKey,
+				tt.args.evaluationCtx,
+				tt.args.flagCtx,
+				tt.args.expectedType,
+				tt.args.sdkDefaultValue,
+			)
 			tt.errAssertion(t, err)
 			if err == nil {
 				assert.Equal(t, tt.want, got)
@@ -190,7 +197,14 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 			VariationResult: new("on"),
 		},
 	}
-	got, err := evaluation.Evaluate[int](f, "my-flag", ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"), flag.Context{}, "int", 42)
+	got, err := evaluation.Evaluate[int](
+		f,
+		"my-flag",
+		ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"),
+		flag.Context{},
+		"int",
+		42,
+	)
 	require.Error(t, err)
 	want := model.VariationResult[int]{
 		VariationType: flag.VariationSDKDefault,

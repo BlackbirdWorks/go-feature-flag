@@ -519,7 +519,11 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 		wantSemaphore bool
 	}{
 		{name: "both keys by default", wantSemaphore: true},
-		{name: "legacy only: option off", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(false)}, wantSemaphore: true},
+		{
+			name:          "legacy only: option off",
+			opts:          []ofrep.Option{ofrep.WithLegacyMetadataOnly(false)},
+			wantSemaphore: true,
+		},
 		{name: "legacy only: option on", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(true)}},
 	}
 	for _, tt := range tests {
@@ -541,7 +545,11 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
 			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
 			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/number-flag", strings.NewReader(string(body)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/ofrep/v1/evaluate/flags/number-flag",
+				strings.NewReader(string(body)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, req)

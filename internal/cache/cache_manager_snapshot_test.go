@@ -162,7 +162,10 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			*r.Name = "hacked"
 		}},
 		{name: "default rule", mutate: func(f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 }},
-		{name: "experimentation", mutate: func(f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) }},
+		{
+			name:   "experimentation",
+			mutate: func(f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
+		},
 		{name: "scheduled rollout", mutate: func(f *flag.InternalFlag) {
 			step := &(*f.Scheduled)[0]
 			(*step.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"

@@ -260,7 +260,12 @@ func TestParseConfig(t *testing.T) {
 	}{
 		{name: "json", data: `{"f":{"variations":{"a":1}}}`, format: "json", wantFlags: []string{"f"}},
 		{name: "yaml", data: "f:\n  variations:\n    a: 1\n", format: "yaml", wantFlags: []string{"f"}},
-		{name: "unknown format defaults to yaml", data: "f:\n  variations:\n    a: 1\n", format: "", wantFlags: []string{"f"}},
+		{
+			name:      "unknown format defaults to yaml",
+			data:      "f:\n  variations:\n    a: 1\n",
+			format:    "",
+			wantFlags: []string{"f"},
+		},
 		{name: "toml", data: "[f.variations]\na = 1\n", format: "TOML", wantFlags: []string{"f"}},
 		{name: "invalid json", data: `{`, format: "json", wantErr: "could not parse file (json)"},
 		{name: "invalid yaml", data: "a: [", format: "yaml", wantErr: "could not parse file (yaml)"},

@@ -36,7 +36,12 @@ func TestQueryContext_MapOnce(t *testing.T) {
 			second := queryCtx.mapOnce()
 
 			assert.Equal(t, tt.want, first)
-			assert.Equal(t, reflect.ValueOf(first).Pointer(), reflect.ValueOf(second).Pointer(), "the map must be built once")
+			assert.Equal(
+				t,
+				reflect.ValueOf(first).Pointer(),
+				reflect.ValueOf(second).Pointer(),
+				"the map must be built once",
+			)
 		})
 	}
 }

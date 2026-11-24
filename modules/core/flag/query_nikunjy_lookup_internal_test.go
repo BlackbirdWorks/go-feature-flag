@@ -447,7 +447,11 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 
 			// Releasing one flag keeps the keys of the other.
 			flags[0] = nil
-			gcUntil(t, func() bool { return c.keyRefsTotal() == len(queries) }, "the collected flag must release its keys")
+			gcUntil(
+				t,
+				func() bool { return c.keyRefsTotal() == len(queries) },
+				"the collected flag must release its keys",
+			)
 			for i := range *flags[1].Rules {
 				r := &(*flags[1].Rules)[i]
 				assert.NotNil(t, indexedEvaluator(c, r))
@@ -478,7 +482,10 @@ func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(string(asJSON)), "hash")
 
 	var decoded InternalFlag
-	require.NoError(t, json.Unmarshal([]byte(`{"targeting":[{"query":"key eq \"a\"","variation":"on","queryHash":7}]}`), &decoded))
+	require.NoError(
+		t,
+		json.Unmarshal([]byte(`{"targeting":[{"query":"key eq \"a\"","variation":"on","queryHash":7}]}`), &decoded),
+	)
 	assert.Zero(t, (*decoded.Rules)[0].QueryHash)
 }
 
@@ -670,7 +677,11 @@ func TestHashNikunjyQuery(t *testing.T) {
 		{name: "one byte of a long text, first block", a: long, b: "1" + long[1:]},
 		{name: "one byte of a long text, middle", a: long, b: long[:50] + "X" + long[51:]},
 		{name: "one byte of a long text, tail", a: long, b: long[:len(long)-1] + "X"},
-		{name: "swapped blocks of 8 bytes", a: long[:8] + "ABCDEFGH" + long[16:], b: "ABCDEFGH" + long[8:16] + long[16:]},
+		{
+			name: "swapped blocks of 8 bytes",
+			a:    long[:8] + "ABCDEFGH" + long[16:],
+			b:    "ABCDEFGH" + long[8:16] + long[16:],
+		},
 		{name: "case", a: `key eq "a"`, b: `KEY eq "a"`},
 		{name: "whitespace", a: `key eq "a"`, b: `key  eq "a"`},
 	}
@@ -786,8 +797,15 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 		wantIndexed bool
 	}{
 		{name: "short query", query: `key eq "a"`},
-		{name: "query just under the length", query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`},
-		{name: "query of the length", query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`, wantIndexed: true},
+		{
+			name:  "query just under the length",
+			query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`,
+		},
+		{
+			name:        "query of the length",
+			query:       `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`,
+			wantIndexed: true,
+		},
 		{name: "long query", query: idList(200, -1, ""), wantIndexed: true},
 	}
 	for _, tt := range tests {
@@ -798,7 +816,11 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 			r := &(*f.Rules)[0]
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
 			assert.Equal(t, tt.wantIndexed, r.QueryHash != 0)
-			assert.True(t, applies(r, "user-0000001") || !strings.Contains(tt.query, "user-"), "the rule evaluates either way")
+			assert.True(
+				t,
+				applies(r, "user-0000001") || !strings.Contains(tt.query, "user-"),
+				"the rule evaluates either way",
+			)
 			runtime.KeepAlive(f)
 		})
 	}

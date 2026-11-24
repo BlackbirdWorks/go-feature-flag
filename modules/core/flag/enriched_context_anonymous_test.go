@@ -20,11 +20,38 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 		enrichment map[string]any
 		wantMatch  bool
 	}{
-		{name: "nikunjy, enrichment sets anonymous", query: "anonymous eq true", enrichment: map[string]any{"anonymous": true}, wantMatch: true},
-		{name: "jsonlogic, enrichment sets anonymous", query: `{"==":[{"var":"anonymous"},true]}`, enrichment: map[string]any{"anonymous": true}, wantMatch: true},
-		{name: "enrichment overrides an anonymous caller", query: "anonymous eq true", callerAnon: true, enrichment: map[string]any{"anonymous": false}, wantMatch: false},
-		{name: "enrichment without anonymous keeps the caller's", query: "anonymous eq true", callerAnon: true, enrichment: map[string]any{"other": 1}, wantMatch: true},
-		{name: "no anonymous anywhere", query: "anonymous eq true", enrichment: map[string]any{"other": 1}, wantMatch: false},
+		{
+			name:       "nikunjy, enrichment sets anonymous",
+			query:      "anonymous eq true",
+			enrichment: map[string]any{"anonymous": true},
+			wantMatch:  true,
+		},
+		{
+			name:       "jsonlogic, enrichment sets anonymous",
+			query:      `{"==":[{"var":"anonymous"},true]}`,
+			enrichment: map[string]any{"anonymous": true},
+			wantMatch:  true,
+		},
+		{
+			name:       "enrichment overrides an anonymous caller",
+			query:      "anonymous eq true",
+			callerAnon: true,
+			enrichment: map[string]any{"anonymous": false},
+			wantMatch:  false,
+		},
+		{
+			name:       "enrichment without anonymous keeps the caller's",
+			query:      "anonymous eq true",
+			callerAnon: true,
+			enrichment: map[string]any{"other": 1},
+			wantMatch:  true,
+		},
+		{
+			name:       "no anonymous anywhere",
+			query:      "anonymous eq true",
+			enrichment: map[string]any{"other": 1},
+			wantMatch:  false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

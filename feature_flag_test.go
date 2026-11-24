@@ -386,7 +386,6 @@ func TestInvalidConf(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(
 		t,
-
 		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, please check your configuration: yaml: line 43: did not find expected ',' or '}'",
 		err.Error(),
 	)

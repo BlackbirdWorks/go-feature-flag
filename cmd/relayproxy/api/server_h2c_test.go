@@ -39,7 +39,12 @@ func TestServerEnableH2C(t *testing.T) {
 			port := testutils.GetFreePort(t)
 			conf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
-				Server:     config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", Port: port, EnableH2C: tt.enableH2C},
+				Server: config.Server{
+					Mode:      config.ServerModeHTTP,
+					Host:      "127.0.0.1",
+					Port:      port,
+					EnableH2C: tt.enableH2C,
+				},
 			}
 			log := newTestLogger(t)
 			metrics, err := metric.NewMetrics()
@@ -50,7 +55,12 @@ func TestServerEnableH2C(t *testing.T) {
 				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, ws)
 			require.NoError(t, err)
 			s := api.New(conf, service.Services{
-				MonitoringService: service.NewMonitoring(fm), WebsocketService: ws, FlagsetManager: fm, Metrics: metrics,
+				MonitoringService: service.NewMonitoring(
+					fm,
+				),
+				WebsocketService: ws,
+				FlagsetManager:   fm,
+				Metrics:          metrics,
 			}, log.ZapLogger)
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())

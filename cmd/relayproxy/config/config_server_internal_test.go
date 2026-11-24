@@ -19,7 +19,10 @@ func TestValidateServerConfig(t *testing.T) {
 		{name: "h2c is an http option", server: Server{Mode: ServerModeHTTP, EnableH2C: true}},
 		{name: "unix socket without a path", server: Server{Mode: ServerModeUnixSocket},
 			wantErr: "unixSocketPath must be set"},
-		{name: "unix socket with a path", server: Server{Mode: ServerModeUnixSocket, UnixSocketPath: "/tmp/semaphore.sock"}},
+		{
+			name:   "unix socket with a path",
+			server: Server{Mode: ServerModeUnixSocket, UnixSocketPath: "/tmp/semaphore.sock"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

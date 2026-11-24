@@ -39,7 +39,12 @@ func TestIntegerLiteralBoundsBothImplementations(t *testing.T) {
 		{name: "2^32 does not wrap to 0", rule: `x eq 4294967296`, value: 0, want: false},
 		{name: "list with max int", rule: `x in [1, ` + maxInt + `]`, value: math.MaxInt, want: true},
 		{name: "list with max int + 1", rule: `x in [1, ` + decimalPlusOne(math.MaxInt) + `]`, value: 1, wantErr: true},
-		{name: "list with uint64 max does not wrap to -1", rule: `x in [18446744073709551615]`, value: -1, wantErr: true},
+		{
+			name:    "list with uint64 max does not wrap to -1",
+			rule:    `x in [18446744073709551615]`,
+			value:   -1,
+			wantErr: true,
+		},
 		{name: "list with 2^32 does not wrap to 0", rule: `x in [4294967296, 5]`, value: 0, want: false},
 		{name: "huge list element", rule: `x in [1, 99999999999999999999999999999999999999]`, value: 1, wantErr: true},
 	}

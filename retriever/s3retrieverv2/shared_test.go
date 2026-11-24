@@ -208,7 +208,11 @@ func TestNewSharedItems(t *testing.T) {
 		{name: "default AWS config", opts: s3retrieverv2.SharedItemsOptions{Bucket: "b"}},
 		{
 			name: "fake clients",
-			opts: s3retrieverv2.SharedItemsOptions{Bucket: "b", Lister: newFakeBucket(nil), Downloader: newFakeBucket(nil)},
+			opts: s3retrieverv2.SharedItemsOptions{
+				Bucket:     "b",
+				Lister:     newFakeBucket(nil),
+				Downloader: newFakeBucket(nil),
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -263,8 +267,11 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		run   func(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever)
 	}{
 		{
-			name:  "N facades in one window do one list and no extra get",
-			items: map[string]time.Duration{"p1/dev/flags.yaml": 10 * time.Second, "p1/prod/flags.yaml": 10 * time.Second},
+			name: "N facades in one window do one list and no extra get",
+			items: map[string]time.Duration{
+				"p1/dev/flags.yaml":  10 * time.Second,
+				"p1/prod/flags.yaml": 10 * time.Second,
+			},
 			setup: func(b *fakeBucket) { b.pageSize = 1 },
 			run:   runSameWindow,
 		},
@@ -1396,7 +1403,8 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			},
 		},
 		{
-			name: "jitter randomizes the interval by 10%", cfg: s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
+			name: "jitter randomizes the interval by 10%",
+			cfg:  s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
 			check: func(t *testing.T, p []time.Duration) {
 				require.Greater(t, len(p), 50)
 				distinct := map[time.Duration]struct{}{}

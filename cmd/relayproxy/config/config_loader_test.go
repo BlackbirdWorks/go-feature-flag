@@ -152,14 +152,31 @@ loglevel: error`,
 						mu.Lock()
 						defer mu.Unlock()
 
-						assert.Len(t, *receivedConfigs, tt.wantCallbacks, "Expected %d callbacks, got %d", tt.wantCallbacks, callbackCount)
+						assert.Len(
+							t,
+							*receivedConfigs,
+							tt.wantCallbacks,
+							"Expected %d callbacks, got %d",
+							tt.wantCallbacks,
+							callbackCount,
+						)
 
 						// Verify the last received config has updated values
 						lastConfig := (*receivedConfigs)[len(*receivedConfigs)-1]
 						// Verify that the config changed from initial values
 						assert.NotEqual(t, 1031, lastConfig.Server.Port, "Port should have changed from initial value")
-						assert.NotEqual(t, 1000, lastConfig.PollingInterval, "PollingInterval should have changed from initial value")
-						assert.NotEqual(t, "info", lastConfig.LogLevel, "LogLevel should have changed from initial value")
+						assert.NotEqual(
+							t,
+							1000,
+							lastConfig.PollingInterval,
+							"PollingInterval should have changed from initial value",
+						)
+						assert.NotEqual(
+							t,
+							"info",
+							lastConfig.LogLevel,
+							"LogLevel should have changed from initial value",
+						)
 
 						// Clean up
 						err = loader.StopWatchChanges()

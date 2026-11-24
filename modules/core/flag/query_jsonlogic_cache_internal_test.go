@@ -26,9 +26,26 @@ func TestGetCompiledQuery(t *testing.T) {
 		wantDecoded bool
 	}{
 		{name: "nikunjy", raw: `key eq "abc"`, wantTrimmed: `key eq "abc"`, wantFormat: NikunjyQueryFormat},
-		{name: "jsonlogic", raw: `{"==": [{"var": "key"}, "abc"]}`, wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true},
-		{name: "multi-line jsonlogic", raw: "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}", wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true},
-		{name: "invalid json", raw: `{"==": [{"var": "key"}, "abc"]`, wantTrimmed: `{"==": [{"var": "key"}, "abc"]`, wantFormat: NikunjyQueryFormat},
+		{
+			name:        "jsonlogic",
+			raw:         `{"==": [{"var": "key"}, "abc"]}`,
+			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`,
+			wantFormat:  JSONLogicQueryFormat,
+			wantDecoded: true,
+		},
+		{
+			name:        "multi-line jsonlogic",
+			raw:         "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}",
+			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`,
+			wantFormat:  JSONLogicQueryFormat,
+			wantDecoded: true,
+		},
+		{
+			name:        "invalid json",
+			raw:         `{"==": [{"var": "key"}, "abc"]`,
+			wantTrimmed: `{"==": [{"var": "key"}, "abc"]`,
+			wantFormat:  NikunjyQueryFormat,
+		},
 		{name: "empty", raw: "", wantTrimmed: "", wantFormat: NikunjyQueryFormat},
 	}
 	for _, tt := range tests {
@@ -115,7 +132,11 @@ func TestAsJSONData(t *testing.T) {
 		value  any
 		wantOK bool
 	}{
-		{name: "flat context", value: map[string]any{"key": "user-1", "anonymous": false, "dsp": "42", "score": 1.5}, wantOK: true},
+		{
+			name:   "flat context",
+			value:  map[string]any{"key": "user-1", "anonymous": false, "dsp": "42", "score": 1.5},
+			wantOK: true,
+		},
 		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
 		{name: "nested", value: map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}}, wantOK: true},
 		{name: "empty", value: map[string]any{}, wantOK: true},
@@ -239,13 +260,20 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 			return
 		}
 		evalCtx := utils.ConvertEvaluationCtxFromRequest("key", attributes)
-		assert.Equal(t, applyReference(t, compiled.trimmed, evalCtx), evaluateRule(compiled, &queryContext{ctx: evalCtx}))
+		assert.Equal(
+			t,
+			applyReference(t, compiled.trimmed, evalCtx),
+			evaluateRule(compiled, &queryContext{ctx: evalCtx}),
+		)
 	})
 }
 
 func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 	query := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"==": [{"var": "inventory"}, "web"]}]}`
-	ctx := ffcontext.NewEvaluationContextBuilder("request-1").AddCustom("dsp", "ttd").AddCustom("inventory", "web").Build()
+	ctx := ffcontext.NewEvaluationContextBuilder("request-1").
+		AddCustom("dsp", "ttd").
+		AddCustom("inventory", "web").
+		Build()
 	b.Run("jsonlogic.Apply", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
@@ -269,7 +297,10 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 	for i := range 32 {
 		wg.Go(func() {
 			dsp := []string{"ttd", "xandr"}[i%2]
-			ctx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("dsp", dsp).AddCustom("tags", []any{"a", "b"}).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder("k").
+				AddCustom("dsp", dsp).
+				AddCustom("tags", []any{"a", "b"}).
+				Build()
 			for range 200 {
 				assert.Equal(t, dsp == "ttd", evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 			}

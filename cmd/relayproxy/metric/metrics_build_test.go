@@ -28,5 +28,8 @@ func TestMetrics_BuildInfo(t *testing.T) {
 		semaphore_build_info{branch="",goarch="%s",goos="%s",goversion="%s",revision="unknown",tags="docker",version="%s"} 1
 	`, runtime.GOARCH, runtime.GOOS, runtime.Version(), version)
 
-	require.NoError(t, testutil.GatherAndCompare(metricSrv.Registry, bytes.NewReader([]byte(expected)), "semaphore_build_info"))
+	require.NoError(
+		t,
+		testutil.GatherAndCompare(metricSrv.Registry, bytes.NewReader([]byte(expected)), "semaphore_build_info"),
+	)
 }

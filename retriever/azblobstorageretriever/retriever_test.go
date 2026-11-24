@@ -125,7 +125,16 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	azuriteContainer, err := azurite.Run(
 		ctx,
 		"mcr.microsoft.com/azure-storage/azurite:3.35.0",
-		testcontainers.WithCmd("azurite", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck"),
+		testcontainers.WithCmd(
+			"azurite",
+			"--blobHost",
+			"0.0.0.0",
+			"--queueHost",
+			"0.0.0.0",
+			"--tableHost",
+			"0.0.0.0",
+			"--skipApiVersionCheck",
+		),
 	)
 	require.NoError(t, err)
 

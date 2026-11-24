@@ -428,7 +428,11 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 		bad.Key = "bad-flag"
 		bad.UserKey = "secret-user"
 
-		return []exporter.ExportableEvent{exporter.TrackingEvent{Key: "checkout"}, bad, exporter.TrackingEvent{Key: "checkout"}}
+		return []exporter.ExportableEvent{
+			exporter.TrackingEvent{Key: "checkout"},
+			bad,
+			exporter.TrackingEvent{Key: "checkout"},
+		}
 	}
 	tests := []struct {
 		name    string
@@ -491,7 +495,11 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", AutoMigrate: true, client: client}
 
-	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}})
+	err := e.Export(
+		context.TODO(),
+		nil,
+		[]exporter.ExportableEvent{exporter.FeatureEvent{Key: "flag", Value: math.NaN()}},
+	)
 
 	require.NoError(t, err)
 	assert.Empty(t, client.executed)

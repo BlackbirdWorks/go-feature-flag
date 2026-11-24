@@ -318,17 +318,19 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := &responseSender{respond: func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
-				if call == 0 {
-					return tt.first(in), nil
-				}
-				out := &kinesis.PutRecordsOutput{FailedRecordCount: aws.Int32(0)}
-				for range in.Records {
-					out.Records = append(out.Records, ok)
-				}
+			s := &responseSender{
+				respond: func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
+					if call == 0 {
+						return tt.first(in), nil
+					}
+					out := &kinesis.PutRecordsOutput{FailedRecordCount: aws.Int32(0)}
+					for range in.Records {
+						out.Records = append(out.Records, ok)
+					}
 
-				return out, nil
-			}}
+					return out, nil
+				},
+			}
 			err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))
 			require.NoError(t, err)
 			want := make([][]string, 0, len(tt.wantCalls))

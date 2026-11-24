@@ -295,7 +295,11 @@ func BenchmarkFloat64Var_RolloutScheduled(b *testing.B) {
 func BenchmarkJSONVar_NoRule100(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-no-rule-100", user, map[string]any{"sdkDefault": "default"}); err != nil {
+		if _, err := client.JSONVariation(
+			"json-no-rule-100",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -313,7 +317,11 @@ func BenchmarkJSONVar_NoRule0(b *testing.B) {
 func BenchmarkJSONVar_NoRule50(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-no-rule-50", user, map[string]any{"sdkDefault": "default"}); err != nil {
+		if _, err := client.JSONVariation(
+			"json-no-rule-50",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -331,7 +339,11 @@ func BenchmarkJSONVar_Rule(b *testing.B) {
 func BenchmarkJSONVar_RuleComplex(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rule-complex", user, map[string]any{"sdkDefault": "default"}); err != nil {
+		if _, err := client.JSONVariation(
+			"json-rule-complex",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -340,7 +352,11 @@ func BenchmarkJSONVar_RuleComplex(b *testing.B) {
 func BenchmarkJSONVar_RolloutProgressive(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rollout-progressive", user, map[string]any{"sdkDefault": "default"}); err != nil {
+		if _, err := client.JSONVariation(
+			"json-rollout-progressive",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -349,7 +365,11 @@ func BenchmarkJSONVar_RolloutProgressive(b *testing.B) {
 func BenchmarkJSONVar_RolloutScheduled(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rollout-scheduled", user, map[string]any{"sdkDefault": "default"}); err != nil {
+		if _, err := client.JSONVariation(
+			"json-rollout-scheduled",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -358,7 +378,11 @@ func BenchmarkJSONVar_RolloutScheduled(b *testing.B) {
 func BenchmarkJSONArrayVar_NoRule100(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-no-rule-100", user, []any{"sdkDefault", "default"}); err != nil {
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-no-rule-100",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -394,7 +418,11 @@ func BenchmarkJSONArrayVar_Rule(b *testing.B) {
 func BenchmarkJSONArrayVar_RuleComplex(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rule-complex", user, []any{"sdkDefault", "default"}); err != nil {
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rule-complex",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -403,7 +431,11 @@ func BenchmarkJSONArrayVar_RuleComplex(b *testing.B) {
 func BenchmarkJSONArrayVar_RolloutProgressive(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rollout-progressive", user, []any{"sdkDefault", "default"}); err != nil {
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rollout-progressive",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}
@@ -412,7 +444,11 @@ func BenchmarkJSONArrayVar_RolloutProgressive(b *testing.B) {
 func BenchmarkJSONArrayVar_RolloutScheduled(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rollout-scheduled", user, []any{"sdkDefault", "default"}); err != nil {
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rollout-scheduled",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
 			require.NoError(b, err)
 		}
 	}

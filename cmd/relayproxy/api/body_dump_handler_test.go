@@ -24,7 +24,12 @@ func Test_bodyDumpSkipper(t *testing.T) {
 		{name: "debug on regular endpoint", level: zapcore.DebugLevel, path: "/v1/allflags", want: false},
 		{name: "debug on swagger", level: zapcore.DebugLevel, path: "/swagger/index.html", want: true},
 		{name: "debug on validate endpoint", level: zapcore.DebugLevel, path: "/admin/v1/flags/validate", want: true},
-		{name: "debug on other admin endpoint", level: zapcore.DebugLevel, path: "/admin/v1/retriever/refresh", want: false},
+		{
+			name:  "debug on other admin endpoint",
+			level: zapcore.DebugLevel,
+			path:  "/admin/v1/retriever/refresh",
+			want:  false,
+		},
 		{name: "info level", level: zapcore.InfoLevel, path: "/v1/allflags", want: true},
 	}
 	for _, tt := range tests {

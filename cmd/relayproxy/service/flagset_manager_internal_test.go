@@ -38,9 +38,12 @@ func testSharedPollerManager(t *testing.T) {
 	var created atomic.Int32
 	reg := newFakeRegistry(t, f, &created)
 	nonShared := config.FlagSet{
-		Name:      "isolated",
-		APIKeys:   []string{"isolated-key"},
-		Retriever: &retrieverconf.RetrieverConf{Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml"},
+		Name:    "isolated",
+		APIKeys: []string{"isolated-key"},
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind: retrieverconf.FileRetriever,
+			Path: "../testdata/semaphore/configuration_flags.yaml",
+		},
 	}
 	cfg := &config.Config{FlagSets: []config.FlagSet{
 		s3FlagSet("u1", "flags", "p/a.yaml"),
@@ -227,8 +230,19 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 		addedOverride time.Duration
 		want          time.Duration
 	}{
-		{name: "added flagset follows the reloaded top-level value", startupTop: time.Minute, reloadTop: 7 * time.Second, want: 7 * time.Second},
-		{name: "explicit flagset value wins", startupTop: time.Minute, reloadTop: 7 * time.Second, addedOverride: 3 * time.Second, want: 3 * time.Second},
+		{
+			name:       "added flagset follows the reloaded top-level value",
+			startupTop: time.Minute,
+			reloadTop:  7 * time.Second,
+			want:       7 * time.Second,
+		},
+		{
+			name:          "explicit flagset value wins",
+			startupTop:    time.Minute,
+			reloadTop:     7 * time.Second,
+			addedOverride: 3 * time.Second,
+			want:          3 * time.Second,
+		},
 		{name: "reload clears the top-level value", startupTop: time.Minute, want: 0},
 	}
 	for _, tt := range tests {
@@ -245,12 +259,14 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 
 			var got, calls atomic.Int64
 			impl := m.(*flagsetManagerImpl)
-			impl.clientOptions = []clientOption{withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
-				calls.Add(1)
-				got.Store(int64(c.ExporterCleanQueueInterval))
+			impl.clientOptions = []clientOption{
+				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+					calls.Add(1)
+					got.Store(int64(c.ExporterCleanQueueInterval))
 
-				return ffclient.New(c)
-			})}
+					return ffclient.New(c)
+				}),
+			}
 
 			added := config.FlagSet{
 				Name: "added", APIKeys: []string{"k2"},

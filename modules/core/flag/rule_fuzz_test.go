@@ -105,7 +105,11 @@ func FuzzProgressiveRollout(f *testing.F) {
 		missingEnd := Rule{ProgressiveRollout: &ProgressiveRollout{Initial: r.ProgressiveRollout.Initial}}
 		require.Error(t, missingEnd.IsValid(true, fuzzVariations("A", "B")), "missing end step must be rejected")
 		missingInitial := Rule{ProgressiveRollout: &ProgressiveRollout{End: r.ProgressiveRollout.End}}
-		require.Error(t, missingInitial.IsValid(true, fuzzVariations("A", "B")), "missing initial step must be rejected")
+		require.Error(
+			t,
+			missingInitial.IsValid(true, fuzzVariations("A", "B")),
+			"missing initial step must be rejected",
+		)
 		if hasKnownValidationGap(r) || r.IsValid(true, fuzzVariations("A", "B")) != nil {
 			return
 		}

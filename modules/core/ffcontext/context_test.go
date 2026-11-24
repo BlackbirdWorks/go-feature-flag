@@ -388,22 +388,30 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 		wantMeta   map[string]any
 	}{
 		{
-			name:       "semaphore key",
-			attributes: map[string]any{ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate}},
-			wantFlags:  []string{"a"},
-			wantDate:   newDate,
+			name: "semaphore key",
+			attributes: map[string]any{
+				ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate},
+			},
+			wantFlags: []string{"a"},
+			wantDate:  newDate,
 		},
 		{
-			name:       "legacy key only",
-			attributes: map[string]any{ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate}},
-			wantFlags:  []string{"b"},
-			wantDate:   legacyDate,
+			name: "legacy key only",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate},
+			},
+			wantFlags: []string{"b"},
+			wantDate:  legacyDate,
 		},
 		{
 			name: "both keys, semaphore wins field by field",
 			attributes: map[string]any{
 				ffcontext.LegacyReservedKey: map[string]any{
-					"flagList": []any{"old"}, "currentDateTime": legacyDate, "exporterMetadata": map[string]any{"k": "legacy"},
+					"flagList": []any{
+						"old",
+					},
+					"currentDateTime":  legacyDate,
+					"exporterMetadata": map[string]any{"k": "legacy"},
 				},
 				ffcontext.ReservedKey: map[string]any{"flagList": []any{"new"}, "currentDateTime": newDate},
 			},

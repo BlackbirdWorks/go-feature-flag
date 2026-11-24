@@ -4,7 +4,9 @@ package config
 func (c *Config) AttachConfigChangeCallback(callback func(newConfig *Config)) {
 	if c.configLoader == nil {
 		if c.logger != nil {
-			c.logger.Error("configLoader is not initialized, impossible to attach a callback to the configuration changes")
+			c.logger.Error(
+				"configLoader is not initialized, impossible to attach a callback to the configuration changes",
+			)
 		}
 
 		return

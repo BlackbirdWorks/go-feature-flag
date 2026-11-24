@@ -1091,7 +1091,10 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	// Scrape /metrics with protobuf Accept header
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/metrics", nil)
 	require.NoError(t, err)
-	req.Header.Set("Accept", "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited")
+	req.Header.Set(
+		"Accept",
+		"application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+	)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)

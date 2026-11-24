@@ -24,7 +24,10 @@ import (
 
 func createQueue(t *testing.T, client *sqs.Client) string {
 	t.Helper()
-	out, err := client.CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))})
+	out, err := client.CreateQueue(
+		t.Context(),
+		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
+	)
 	require.NoError(t, err)
 
 	return aws.ToString(out.QueueUrl)
@@ -54,7 +57,10 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 			got = append(got, r)
-			_, err := client.DeleteMessage(t.Context(), &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
+			_, err := client.DeleteMessage(
+				t.Context(),
+				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
+			)
 			require.NoError(t, err)
 		}
 
@@ -68,8 +74,14 @@ func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "user", UserKey: fmt.Sprintf("user-%04d", i), CreationDate: int64(1617970547 + i),
-			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Source: "SERVER",
+			Kind:         "feature",
+			ContextKind:  "user",
+			UserKey:      fmt.Sprintf("user-%04d", i),
+			CreationDate: int64(1617970547 + i),
+			Key:          "my-flag",
+			Variation:    "enabled",
+			Value:        fmt.Sprintf("value-%d", i),
+			Source:       "SERVER",
 		})
 	}
 

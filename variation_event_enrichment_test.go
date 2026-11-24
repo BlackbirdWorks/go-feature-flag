@@ -47,8 +47,18 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 		wantMetadata map[string]any
 		wantKind     string
 	}{
-		{name: "no enrichment", callerCustom: meta("us"), wantMetadata: map[string]any{"region": "us"}, wantKind: "user"},
-		{name: "enriched metadata, caller has none", enrichment: meta("eu"), wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
+		{
+			name:         "no enrichment",
+			callerCustom: meta("us"),
+			wantMetadata: map[string]any{"region": "us"},
+			wantKind:     "user",
+		},
+		{
+			name:         "enriched metadata, caller has none",
+			enrichment:   meta("eu"),
+			wantMetadata: map[string]any{"region": "eu"},
+			wantKind:     "user",
+		},
 		{name: "enriched metadata wins over the caller's", enrichment: meta("eu"), callerCustom: meta("us"),
 			wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
 		{name: "enriched anonymous", enrichment: map[string]any{"anonymous": true}, wantKind: "anonymousUser"},

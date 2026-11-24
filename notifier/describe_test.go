@@ -378,7 +378,9 @@ func TestDescribeChanges(t *testing.T) {
 					Experimentation: &flag.ExperimentationRollout{End: &end},
 				}}
 			},
-			want: []string{"Scheduled step on 2026-10-05 09:00 UTC added: Experimentation end set to 2026-10-12 09:00 UTC"},
+			want: []string{
+				"Scheduled step on 2026-10-05 09:00 UTC added: Experimentation end set to 2026-10-12 09:00 UTC",
+			},
 		},
 		{
 			name:   "should describe a removed version and bucketing key",
@@ -398,7 +400,10 @@ func TestDescribeChanges(t *testing.T) {
 				(*f.Rules)[0].Query = nil
 				(*f.Rules)[1].Query = new(`plan eq "pro"`)
 			},
-			want: []string{"Targeting rule `internal` now matches everyone (was `email ew \"@example.com\"`)", "Targeting rule `beta` now matches `plan eq \"pro\"` (was matching everyone)"},
+			want: []string{
+				"Targeting rule `internal` now matches everyone (was `email ew \"@example.com\"`)",
+				"Targeting rule `beta` now matches `plan eq \"pro\"` (was matching everyone)",
+			},
 		},
 		{
 			name: "should describe a disabled rule added with no variation",
@@ -430,12 +435,16 @@ func TestDescribeChanges(t *testing.T) {
 			name: "should describe a variation that a progressive rollout overrides",
 			setup: func(f *flag.InternalFlag) {
 				f.DefaultRule = &flag.Rule{
-					VariationResult:    new("on"),
-					ProgressiveRollout: &flag.ProgressiveRollout{End: &flag.ProgressiveRolloutStep{Variation: new("on")}},
+					VariationResult: new("on"),
+					ProgressiveRollout: &flag.ProgressiveRollout{
+						End: &flag.ProgressiveRolloutStep{Variation: new("on")},
+					},
 				}
 			},
 			update: func(f *flag.InternalFlag) { f.DefaultRule.VariationResult = new("off") },
-			want:   []string{"Default rule variation changed from `\"on\"` to `\"off\"` (not used: the rule serves a progressive rollout)"},
+			want: []string{
+				"Default rule variation changed from `\"on\"` to `\"off\"` (not used: the rule serves a progressive rollout)",
+			},
 		},
 		{
 			name: "should describe experimentation windows with one date or none",
@@ -468,7 +477,15 @@ func TestDescribeChanges(t *testing.T) {
 				step.DefaultRule = nil
 				step.Experimentation = &flag.ExperimentationRollout{End: new(end.Add(time.Hour))}
 			},
-			want: []string{"Scheduled step on 2026-10-05 09:00 UTC: Version no longer set", "Scheduled step on 2026-10-05 09:00 UTC: Variation `legacy` no longer set", "Scheduled step on 2026-10-05 09:00 UTC: Variation `next` set to `\"y\"`", "Scheduled step on 2026-10-05 09:00 UTC: Targeting rule `beta` now updated with variation `off`, `disable: false` (was variation `on`)", "Scheduled step on 2026-10-05 09:00 UTC: Default rule no longer changed", "Scheduled step on 2026-10-05 09:00 UTC: Experimentation start no longer set", "Scheduled step on 2026-10-05 09:00 UTC: Experimentation end changed from 2026-10-12 09:00 UTC to 2026-10-12 10:00 UTC"},
+			want: []string{
+				"Scheduled step on 2026-10-05 09:00 UTC: Version no longer set",
+				"Scheduled step on 2026-10-05 09:00 UTC: Variation `legacy` no longer set",
+				"Scheduled step on 2026-10-05 09:00 UTC: Variation `next` set to `\"y\"`",
+				"Scheduled step on 2026-10-05 09:00 UTC: Targeting rule `beta` now updated with variation `off`, `disable: false` (was variation `on`)",
+				"Scheduled step on 2026-10-05 09:00 UTC: Default rule no longer changed",
+				"Scheduled step on 2026-10-05 09:00 UTC: Experimentation start no longer set",
+				"Scheduled step on 2026-10-05 09:00 UTC: Experimentation end changed from 2026-10-12 09:00 UTC to 2026-10-12 10:00 UTC",
+			},
 		},
 		{
 			name: "should describe a step that starts updating the default rule",
@@ -483,7 +500,9 @@ func TestDescribeChanges(t *testing.T) {
 					},
 				}
 			},
-			want: []string{"Scheduled step on 2026-10-05 09:00 UTC: Default rule now updated with a progressive rollout from 10% to an unset step (was nothing)"},
+			want: []string{
+				"Scheduled step on 2026-10-05 09:00 UTC: Default rule now updated with a progressive rollout from 10% to an unset step (was nothing)",
+			},
 		},
 		{
 			name: "should describe a step without a date and a nested schedule",
@@ -493,7 +512,9 @@ func TestDescribeChanges(t *testing.T) {
 					Scheduled:   &[]flag.ScheduledStep{{Date: &end}},
 				}}
 			},
-			want: []string{"Scheduled step #1 added: Default rule updated with nothing; Scheduled rollout changed (not applied by scheduled steps)"},
+			want: []string{
+				"Scheduled step #1 added: Default rule updated with nothing; Scheduled rollout changed (not applied by scheduled steps)",
+			},
 		},
 		{
 			name:   "should describe a variation with no value",
@@ -622,7 +643,11 @@ func TestChangeList(t *testing.T) {
 		want      string
 	}{
 		{name: "should list changes with the bullet", changes: changes(2), want: "• change 1\n• change 2"},
-		{name: "should list every change at the limit", changes: changes(50), want: notifier.ChangeList(changes(50)[:50], "• ", 0)},
+		{
+			name:    "should list every change at the limit",
+			changes: changes(50),
+			want:    notifier.ChangeList(changes(50)[:50], "• ", 0),
+		},
 		{
 			name:    "should count changes over the limit",
 			changes: changes(51),
@@ -685,17 +710,33 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 				"Rules", "Scheduled", "TrackEvents", "Variations", "Version"},
 		},
 		{
-			name:    "rule",
-			typ:     reflect.TypeFor[flag.Rule](),
-			handled: []string{"Disable", "Name", "Percentages", "ProgressiveRollout", "Query", "QueryHash", "VariationResult"},
+			name: "rule",
+			typ:  reflect.TypeFor[flag.Rule](),
+			handled: []string{
+				"Disable",
+				"Name",
+				"Percentages",
+				"ProgressiveRollout",
+				"Query",
+				"QueryHash",
+				"VariationResult",
+			},
 		},
-		{name: "progressive rollout", typ: reflect.TypeFor[flag.ProgressiveRollout](), handled: []string{"End", "Initial"}},
+		{
+			name:    "progressive rollout",
+			typ:     reflect.TypeFor[flag.ProgressiveRollout](),
+			handled: []string{"End", "Initial"},
+		},
 		{
 			name:    "progressive rollout step",
 			typ:     reflect.TypeFor[flag.ProgressiveRolloutStep](),
 			handled: []string{"Date", "Percentage", "Variation"},
 		},
-		{name: "experimentation", typ: reflect.TypeFor[flag.ExperimentationRollout](), handled: []string{"End", "Start"}},
+		{
+			name:    "experimentation",
+			typ:     reflect.TypeFor[flag.ExperimentationRollout](),
+			handled: []string{"End", "Start"},
+		},
 		{name: "scheduled step", typ: reflect.TypeFor[flag.ScheduledStep](), handled: []string{"Date", "InternalFlag"}},
 	}
 	for _, tt := range tests {
@@ -764,11 +805,23 @@ func TestUpdatedBy(t *testing.T) {
 			want:       "jane",
 			wantSuffix: " by jane",
 		},
-		{name: "should return nothing when updatedBy is absent", flag: withMetadata(map[string]any{"owner": "payments"})},
+		{
+			name: "should return nothing when updatedBy is absent",
+			flag: withMetadata(map[string]any{"owner": "payments"}),
+		},
 		{name: "should return nothing without metadata", flag: &flag.InternalFlag{}},
-		{name: "should return nothing when updatedBy is empty", flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: ""})},
-		{name: "should return nothing when updatedBy is blank", flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: "  "})},
-		{name: "should return nothing when updatedBy is not a string", flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: 42})},
+		{
+			name: "should return nothing when updatedBy is empty",
+			flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: ""}),
+		},
+		{
+			name: "should return nothing when updatedBy is blank",
+			flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: "  "}),
+		},
+		{
+			name: "should return nothing when updatedBy is not a string",
+			flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: 42}),
+		},
 		{name: "should return nothing for a nil flag", flag: (*flag.InternalFlag)(nil)},
 		{name: "should return nothing for another flag type", flag: otherFlag{}},
 	}

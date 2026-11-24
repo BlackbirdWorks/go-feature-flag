@@ -56,7 +56,8 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			},
 			wantErr:  true,
 			errValue: "invalid retriever: no \"path\" property found for kind \"gitlab\"",
-		}, {
+		},
+		{
 			name: "kind BitbucketRetriever without repo slug",
 			fields: retrieverconf.RetrieverConf{
 				Kind: "bitbucket",

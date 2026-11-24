@@ -62,7 +62,9 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	}
 	sort.Strings(addedKeys)
 	for _, key := range addedKeys {
-		msgText.WriteString(fmt.Sprintf("\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key])))
+		msgText.WriteString(
+			fmt.Sprintf("\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key])),
+		)
 	}
 
 	// Updated

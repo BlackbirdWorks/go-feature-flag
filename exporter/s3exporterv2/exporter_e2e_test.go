@@ -28,8 +28,15 @@ func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "user", UserKey: fmt.Sprintf("user-%d", i), CreationDate: int64(1617970547 + i),
-			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Default: false, Source: "SERVER",
+			Kind:         "feature",
+			ContextKind:  "user",
+			UserKey:      fmt.Sprintf("user-%d", i),
+			CreationDate: int64(1617970547 + i),
+			Key:          "my-flag",
+			Variation:    "enabled",
+			Value:        fmt.Sprintf("value-%d", i),
+			Default:      false,
+			Source:       "SERVER",
 		})
 	}
 
@@ -74,7 +81,16 @@ func TestE2E_Export(t *testing.T) {
 				lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 				require.Len(t, lines, n)
 				for i, l := range lines {
-					assert.Equal(t, fmt.Sprintf("feature;user;user-%d;%d;my-flag;enabled;value-%d;false;SERVER", i, 1617970547+i, i), l)
+					assert.Equal(
+						t,
+						fmt.Sprintf(
+							"feature;user;user-%d;%d;my-flag;enabled;value-%d;false;SERVER",
+							i,
+							1617970547+i,
+							i,
+						),
+						l,
+					)
 				}
 			},
 		},

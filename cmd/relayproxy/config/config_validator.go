@@ -226,7 +226,9 @@ func validateSharedPollerPerBucket(flagset *FlagSet) error {
 		return errors.New("enableSharedPollerPerBucket is only supported with a retriever of kind s3")
 	}
 	if r.Item == "" {
-		return errors.New("enableSharedPollerPerBucket requires the s3 retriever to set item (folder mode is not supported)")
+		return errors.New(
+			"enableSharedPollerPerBucket requires the s3 retriever to set item (folder mode is not supported)",
+		)
 	}
 
 	return nil

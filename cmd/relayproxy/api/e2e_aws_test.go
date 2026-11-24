@@ -92,7 +92,10 @@ func goffCtx(key string, kv ...any) map[string]any {
 		custom[kv[i].(string)] = kv[i+1]
 	}
 
-	return map[string]any{"evaluationContext": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
+	return map[string]any{
+		"evaluationContext": map[string]any{"key": key, "custom": custom},
+		"defaultValue":      "sdk-default",
+	}
 }
 
 const flagSetsYAML = `
@@ -152,27 +155,193 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 					wantErrCode string
 				}{
 					// OFREP
-					{name: "ofrep targeting rule match", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "key-a", body: ofrepCtx("u1", "group", "admin"), wantStatus: 200, wantValue: "A-on", wantVariant: "on", wantReason: "TARGETING_MATCH"},
-					{name: "ofrep targeting rule no match falls to default rule", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "key-a", body: ofrepCtx("u1", "group", "user"), wantStatus: 200, wantValue: "A-off", wantVariant: "off", wantReason: "DEFAULT"},
-					{name: "ofrep other flag set serves its own value", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "key-b1", body: ofrepCtx("u1", "group", "admin"), wantStatus: 200, wantValue: "B-on", wantVariant: "on", wantReason: "TARGETING_MATCH"},
-					{name: "ofrep second api key of the flag set", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "key-b2", body: ofrepCtx("u1", "group", "admin"), wantStatus: 200, wantValue: "B-on", wantVariant: "on", wantReason: "TARGETING_MATCH"},
-					{name: "ofrep static percentage", path: "/ofrep/v1/evaluate/flags/pct-flag", apiKey: "key-a", body: ofrepCtx("u1"), wantStatus: 200, wantValue: "A-A", wantVariant: "a", wantReason: "STATIC"},
-					{name: "ofrep split user-1", path: "/ofrep/v1/evaluate/flags/split-flag", apiKey: "key-a", body: ofrepCtx("user-1"), wantStatus: 200, wantValue: "A-A", wantVariant: "a", wantReason: "SPLIT"},
-					{name: "ofrep split user-0", path: "/ofrep/v1/evaluate/flags/split-flag", apiKey: "key-a", body: ofrepCtx("user-0"), wantStatus: 200, wantValue: "A-B", wantVariant: "b", wantReason: "SPLIT"},
-					{name: "ofrep static boolean", path: "/ofrep/v1/evaluate/flags/static-flag", apiKey: "key-b1", body: ofrepCtx("u1"), wantStatus: 200, wantValue: false, wantVariant: "f", wantReason: "STATIC"},
-					{name: "ofrep flag of the other flag set is not found", path: "/ofrep/v1/evaluate/flags/only-in-B", apiKey: "key-a", body: ofrepCtx("u1"), wantStatus: 404, wantErrCode: "FLAG_NOT_FOUND"},
-					{name: "ofrep flag only in own flag set", path: "/ofrep/v1/evaluate/flags/only-in-B", apiKey: "key-b1", body: ofrepCtx("u1"), wantStatus: 200, wantValue: "B-only", wantVariant: "v", wantReason: "STATIC"},
-					{name: "ofrep unknown flag", path: "/ofrep/v1/evaluate/flags/nope", apiKey: "key-a", body: ofrepCtx("u1"), wantStatus: 404, wantErrCode: "FLAG_NOT_FOUND"},
-					{name: "ofrep missing context", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "key-a", body: map[string]any{}, wantStatus: 400, wantErrCode: "INVALID_CONTEXT"},
-					{name: "ofrep wrong api key", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "wrong", body: ofrepCtx("u1"), wantStatus: 401},
-					{name: "ofrep no api key", path: "/ofrep/v1/evaluate/flags/rule-flag", apiKey: "", body: ofrepCtx("u1"), wantStatus: 401},
+					{
+						name:        "ofrep targeting rule match",
+						path:        "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:      "key-a",
+						body:        ofrepCtx("u1", "group", "admin"),
+						wantStatus:  200,
+						wantValue:   "A-on",
+						wantVariant: "on",
+						wantReason:  "TARGETING_MATCH",
+					},
+					{
+						name:        "ofrep targeting rule no match falls to default rule",
+						path:        "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:      "key-a",
+						body:        ofrepCtx("u1", "group", "user"),
+						wantStatus:  200,
+						wantValue:   "A-off",
+						wantVariant: "off",
+						wantReason:  "DEFAULT",
+					},
+					{
+						name:        "ofrep other flag set serves its own value",
+						path:        "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:      "key-b1",
+						body:        ofrepCtx("u1", "group", "admin"),
+						wantStatus:  200,
+						wantValue:   "B-on",
+						wantVariant: "on",
+						wantReason:  "TARGETING_MATCH",
+					},
+					{
+						name:        "ofrep second api key of the flag set",
+						path:        "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:      "key-b2",
+						body:        ofrepCtx("u1", "group", "admin"),
+						wantStatus:  200,
+						wantValue:   "B-on",
+						wantVariant: "on",
+						wantReason:  "TARGETING_MATCH",
+					},
+					{
+						name:        "ofrep static percentage",
+						path:        "/ofrep/v1/evaluate/flags/pct-flag",
+						apiKey:      "key-a",
+						body:        ofrepCtx("u1"),
+						wantStatus:  200,
+						wantValue:   "A-A",
+						wantVariant: "a",
+						wantReason:  "STATIC",
+					},
+					{
+						name:        "ofrep split user-1",
+						path:        "/ofrep/v1/evaluate/flags/split-flag",
+						apiKey:      "key-a",
+						body:        ofrepCtx("user-1"),
+						wantStatus:  200,
+						wantValue:   "A-A",
+						wantVariant: "a",
+						wantReason:  "SPLIT",
+					},
+					{
+						name:        "ofrep split user-0",
+						path:        "/ofrep/v1/evaluate/flags/split-flag",
+						apiKey:      "key-a",
+						body:        ofrepCtx("user-0"),
+						wantStatus:  200,
+						wantValue:   "A-B",
+						wantVariant: "b",
+						wantReason:  "SPLIT",
+					},
+					{
+						name:        "ofrep static boolean",
+						path:        "/ofrep/v1/evaluate/flags/static-flag",
+						apiKey:      "key-b1",
+						body:        ofrepCtx("u1"),
+						wantStatus:  200,
+						wantValue:   false,
+						wantVariant: "f",
+						wantReason:  "STATIC",
+					},
+					{
+						name:        "ofrep flag of the other flag set is not found",
+						path:        "/ofrep/v1/evaluate/flags/only-in-B",
+						apiKey:      "key-a",
+						body:        ofrepCtx("u1"),
+						wantStatus:  404,
+						wantErrCode: "FLAG_NOT_FOUND",
+					},
+					{
+						name:        "ofrep flag only in own flag set",
+						path:        "/ofrep/v1/evaluate/flags/only-in-B",
+						apiKey:      "key-b1",
+						body:        ofrepCtx("u1"),
+						wantStatus:  200,
+						wantValue:   "B-only",
+						wantVariant: "v",
+						wantReason:  "STATIC",
+					},
+					{
+						name:        "ofrep unknown flag",
+						path:        "/ofrep/v1/evaluate/flags/nope",
+						apiKey:      "key-a",
+						body:        ofrepCtx("u1"),
+						wantStatus:  404,
+						wantErrCode: "FLAG_NOT_FOUND",
+					},
+					{
+						name:        "ofrep missing context",
+						path:        "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:      "key-a",
+						body:        map[string]any{},
+						wantStatus:  400,
+						wantErrCode: "INVALID_CONTEXT",
+					},
+					{
+						name:       "ofrep wrong api key",
+						path:       "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:     "wrong",
+						body:       ofrepCtx("u1"),
+						wantStatus: 401,
+					},
+					{
+						name:       "ofrep no api key",
+						path:       "/ofrep/v1/evaluate/flags/rule-flag",
+						apiKey:     "",
+						body:       ofrepCtx("u1"),
+						wantStatus: 401,
+					},
 					// GOFF
-					{name: "goff targeting rule match", path: "/v1/feature/rule-flag/eval", apiKey: "key-a", body: goffCtx("u1", "group", "admin"), wantStatus: 200, wantValue: "A-on", wantVariant: "on", wantReason: "TARGETING_MATCH"},
-					{name: "goff default rule", path: "/v1/feature/rule-flag/eval", apiKey: "key-b1", body: goffCtx("u1", "group", "user"), wantStatus: 200, wantValue: "B-off", wantVariant: "off", wantReason: "DEFAULT"},
-					{name: "goff split user-0", path: "/v1/feature/split-flag/eval", apiKey: "key-b2", body: goffCtx("user-0"), wantStatus: 200, wantValue: "B-B", wantVariant: "b", wantReason: "SPLIT"},
-					{name: "goff static percentage", path: "/v1/feature/pct-flag/eval", apiKey: "key-a", body: goffCtx("u1"), wantStatus: 200, wantValue: "A-A", wantVariant: "a", wantReason: "STATIC"},
-					{name: "goff unknown flag returns the default value", path: "/v1/feature/nope/eval", apiKey: "key-a", body: goffCtx("u1"), wantStatus: 200, wantValue: "sdk-default", wantVariant: "SdkDefault", wantReason: "ERROR", wantErrCode: "FLAG_NOT_FOUND"},
-					{name: "goff wrong api key", path: "/v1/feature/rule-flag/eval", apiKey: "wrong", body: goffCtx("u1"), wantStatus: 401},
+					{
+						name:        "goff targeting rule match",
+						path:        "/v1/feature/rule-flag/eval",
+						apiKey:      "key-a",
+						body:        goffCtx("u1", "group", "admin"),
+						wantStatus:  200,
+						wantValue:   "A-on",
+						wantVariant: "on",
+						wantReason:  "TARGETING_MATCH",
+					},
+					{
+						name:        "goff default rule",
+						path:        "/v1/feature/rule-flag/eval",
+						apiKey:      "key-b1",
+						body:        goffCtx("u1", "group", "user"),
+						wantStatus:  200,
+						wantValue:   "B-off",
+						wantVariant: "off",
+						wantReason:  "DEFAULT",
+					},
+					{
+						name:        "goff split user-0",
+						path:        "/v1/feature/split-flag/eval",
+						apiKey:      "key-b2",
+						body:        goffCtx("user-0"),
+						wantStatus:  200,
+						wantValue:   "B-B",
+						wantVariant: "b",
+						wantReason:  "SPLIT",
+					},
+					{
+						name:        "goff static percentage",
+						path:        "/v1/feature/pct-flag/eval",
+						apiKey:      "key-a",
+						body:        goffCtx("u1"),
+						wantStatus:  200,
+						wantValue:   "A-A",
+						wantVariant: "a",
+						wantReason:  "STATIC",
+					},
+					{
+						name:        "goff unknown flag returns the default value",
+						path:        "/v1/feature/nope/eval",
+						apiKey:      "key-a",
+						body:        goffCtx("u1"),
+						wantStatus:  200,
+						wantValue:   "sdk-default",
+						wantVariant: "SdkDefault",
+						wantReason:  "ERROR",
+						wantErrCode: "FLAG_NOT_FOUND",
+					},
+					{
+						name:       "goff wrong api key",
+						path:       "/v1/feature/rule-flag/eval",
+						apiKey:     "wrong",
+						body:       goffCtx("u1"),
+						wantStatus: 401,
+					},
 				}
 				for _, tt := range tests {
 					t.Run(tt.name, func(t *testing.T) {
@@ -210,23 +379,75 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 					wantFlags  map[string]any // flag key -> value
 				}{
 					{
-						name: "ofrep bulk flag set a", path: "/ofrep/v1/evaluate/flags", apiKey: "key-a", body: ofrepCtx("user-1", "group", "admin"), wantStatus: 200,
-						wantFlags: map[string]any{"rule-flag": "A-on", "pct-flag": "A-A", "split-flag": "A-A", "static-flag": false, "only-in-A": "A-only"},
+						name:       "ofrep bulk flag set a",
+						path:       "/ofrep/v1/evaluate/flags",
+						apiKey:     "key-a",
+						body:       ofrepCtx("user-1", "group", "admin"),
+						wantStatus: 200,
+						wantFlags: map[string]any{
+							"rule-flag":   "A-on",
+							"pct-flag":    "A-A",
+							"split-flag":  "A-A",
+							"static-flag": false,
+							"only-in-A":   "A-only",
+						},
 					},
 					{
-						name: "ofrep bulk flag set b", path: "/ofrep/v1/evaluate/flags", apiKey: "key-b2", body: ofrepCtx("user-0", "group", "user"), wantStatus: 200,
-						wantFlags: map[string]any{"rule-flag": "B-off", "pct-flag": "B-A", "split-flag": "B-B", "static-flag": false, "only-in-B": "B-only"},
+						name:       "ofrep bulk flag set b",
+						path:       "/ofrep/v1/evaluate/flags",
+						apiKey:     "key-b2",
+						body:       ofrepCtx("user-0", "group", "user"),
+						wantStatus: 200,
+						wantFlags: map[string]any{
+							"rule-flag":   "B-off",
+							"pct-flag":    "B-A",
+							"split-flag":  "B-B",
+							"static-flag": false,
+							"only-in-B":   "B-only",
+						},
 					},
-					{name: "ofrep bulk wrong api key", path: "/ofrep/v1/evaluate/flags", apiKey: "wrong", body: ofrepCtx("u"), wantStatus: 401},
 					{
-						name: "goff allflags flag set a", path: "/v1/allflags", apiKey: "key-a", body: goffCtx("user-1", "group", "admin"), wantStatus: 200,
-						wantFlags: map[string]any{"rule-flag": "A-on", "pct-flag": "A-A", "split-flag": "A-A", "static-flag": false, "only-in-A": "A-only"},
+						name:       "ofrep bulk wrong api key",
+						path:       "/ofrep/v1/evaluate/flags",
+						apiKey:     "wrong",
+						body:       ofrepCtx("u"),
+						wantStatus: 401,
 					},
 					{
-						name: "goff allflags flag set b", path: "/v1/allflags", apiKey: "key-b1", body: goffCtx("user-0", "group", "user"), wantStatus: 200,
-						wantFlags: map[string]any{"rule-flag": "B-off", "pct-flag": "B-A", "split-flag": "B-B", "static-flag": false, "only-in-B": "B-only"},
+						name:       "goff allflags flag set a",
+						path:       "/v1/allflags",
+						apiKey:     "key-a",
+						body:       goffCtx("user-1", "group", "admin"),
+						wantStatus: 200,
+						wantFlags: map[string]any{
+							"rule-flag":   "A-on",
+							"pct-flag":    "A-A",
+							"split-flag":  "A-A",
+							"static-flag": false,
+							"only-in-A":   "A-only",
+						},
 					},
-					{name: "goff allflags wrong api key", path: "/v1/allflags", apiKey: "wrong", body: goffCtx("u"), wantStatus: 401},
+					{
+						name:       "goff allflags flag set b",
+						path:       "/v1/allflags",
+						apiKey:     "key-b1",
+						body:       goffCtx("user-0", "group", "user"),
+						wantStatus: 200,
+						wantFlags: map[string]any{
+							"rule-flag":   "B-off",
+							"pct-flag":    "B-A",
+							"split-flag":  "B-B",
+							"static-flag": false,
+							"only-in-B":   "B-only",
+						},
+					},
+					{
+						name:       "goff allflags wrong api key",
+						path:       "/v1/allflags",
+						apiKey:     "wrong",
+						body:       goffCtx("u"),
+						wantStatus: 401,
+					},
 				}
 				for _, tt := range tests {
 					t.Run(tt.name, func(t *testing.T) {
@@ -256,7 +477,12 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 			t.Run("update in S3 is served after the polling interval", func(t *testing.T) {
 				srv.PutObject(t, bucket, "flags/a.yaml", e2eFlags("A", "A-on-v2"))
 				require.Eventually(t, func() bool {
-					res := postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "key-a", ofrepCtx("u1", "group", "admin"))
+					res := postJSON(
+						t,
+						url+"/ofrep/v1/evaluate/flags/rule-flag",
+						"key-a",
+						ofrepCtx("u1", "group", "admin"),
+					)
 
 					return res.Status == 200 && res.Body["value"] == "A-on-v2"
 				}, 30*time.Second, 200*time.Millisecond, "new value of flag set a never served")
@@ -314,7 +540,11 @@ retriever:
   prefix: flags/
   pattern: "*.yaml"
   recursive: true`,
-			objects:   map[string]string{"flags/one.yaml": "A", "flags/sub/two.yaml": "B", "flags/ignored.txt": "garbage: ["},
+			objects: map[string]string{
+				"flags/one.yaml":     "A",
+				"flags/sub/two.yaml": "B",
+				"flags/ignored.txt":  "garbage: [",
+			},
 			wantValue: "A-on",
 		},
 	}
@@ -326,7 +556,12 @@ retriever:
 				case "A":
 					srv.PutObject(t, bucket, k, e2eFlags("A", "A-on"))
 				case "B":
-					srv.PutObject(t, bucket, k, []byte("only-in-B:\n  variations:\n    v: B-only\n  defaultRule:\n    variation: v\n"))
+					srv.PutObject(
+						t,
+						bucket,
+						k,
+						[]byte("only-in-B:\n  variations:\n    v: B-only\n  defaultRule:\n    variation: v\n"),
+					)
 				default:
 					srv.PutObject(t, bucket, k, []byte(tag))
 				}
@@ -420,7 +655,10 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	cfg := srv.MustAwsConfig(t)
 	kc := kinesis.NewFromConfig(cfg)
 	stream := gopherstack.UniqueName(t, "stream")
-	_, err := kc.CreateStream(t.Context(), &kinesis.CreateStreamInput{StreamName: aws.String(stream), ShardCount: aws.Int32(1)})
+	_, err := kc.CreateStream(
+		t.Context(),
+		&kinesis.CreateStreamInput{StreamName: aws.String(stream), ShardCount: aws.Int32(1)},
+	)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		out, err := kc.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
@@ -428,7 +666,10 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		return err == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond)
 	sc := sqs.NewFromConfig(cfg)
-	q, err := sc.CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))})
+	q, err := sc.CreateQueue(
+		t.Context(),
+		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
+	)
 	require.NoError(t, err)
 
 	url := startRelayProxyFromYAML(t, exportersYAML, map[string]any{
@@ -440,12 +681,20 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	for i := range 4 {
 		u := fmt.Sprintf("ofrep-%d", i)
 		wantUsers[u] = "A-on"
-		require.Equal(t, 200, postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "key-a", ofrepCtx(u, "group", "admin")).Status)
+		require.Equal(
+			t,
+			200,
+			postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "key-a", ofrepCtx(u, "group", "admin")).Status,
+		)
 	}
 	for i := range 3 {
 		u := fmt.Sprintf("goff-%d", i)
 		wantUsers[u] = "A-off"
-		require.Equal(t, 200, postJSON(t, url+"/v1/feature/rule-flag/eval", "key-a", goffCtx(u, "group", "user")).Status)
+		require.Equal(
+			t,
+			200,
+			postJSON(t, url+"/v1/feature/rule-flag/eval", "key-a", goffCtx(u, "group", "user")).Status,
+		)
 	}
 
 	// assertSink checks that the events read from a sink contain every evaluation made above.
@@ -499,15 +748,25 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "kinesis exporter",
 			read: func(t *testing.T) []sinkEvent {
-				desc, err := kc.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+				desc, err := kc.DescribeStream(
+					t.Context(),
+					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
+				)
 				require.NoError(t, err)
 				var res []sinkEvent
 				for _, s := range desc.StreamDescription.Shards {
 					it, err := kc.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
-						StreamName: aws.String(stream), ShardId: s.ShardId, ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
+						StreamName: aws.String(
+							stream,
+						),
+						ShardId:           s.ShardId,
+						ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
 					})
 					require.NoError(t, err)
-					out, err := kc.GetRecords(t.Context(), &kinesis.GetRecordsInput{ShardIterator: it.ShardIterator, Limit: aws.Int32(1000)})
+					out, err := kc.GetRecords(
+						t.Context(),
+						&kinesis.GetRecordsInput{ShardIterator: it.ShardIterator, Limit: aws.Int32(1000)},
+					)
 					require.NoError(t, err)
 					for _, r := range out.Records {
 						res = append(res, decodeFeatureEvent(t, r.Data))
@@ -543,7 +802,10 @@ func receiveSQS(t *testing.T, sc *sqs.Client, queueURL string, acc map[string]si
 	for _, m := range out.Messages {
 		e := decodeFeatureEvent(t, []byte(aws.ToString(m.Body)))
 		acc[aws.ToString(m.MessageId)] = e
-		_, err := sc.DeleteMessage(t.Context(), &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
+		_, err := sc.DeleteMessage(
+			t.Context(),
+			&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
+		)
 		require.NoError(t, err)
 	}
 	res := make([]sinkEvent, 0, len(acc))

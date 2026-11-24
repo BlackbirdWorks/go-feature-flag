@@ -57,7 +57,10 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 			B *normalizeStruct
 			C []normalizeStruct
 		}{C: []normalizeStruct{{Name: "x"}}}}},
-		{name: "json.Number", custom: map[string]any{"n": json.Number("12.50"), "l": json.Number("123456789012345678901")}},
+		{
+			name:   "json.Number",
+			custom: map[string]any{"n": json.Number("12.50"), "l": json.Number("123456789012345678901")},
+		},
 		{name: "time.Time", custom: map[string]any{"t": time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)}},
 		{name: "[]byte", custom: map[string]any{"b": []byte("hello")}},
 		{name: "custom MarshalJSON", custom: map[string]any{"m": marshalerValue{n: 3}}},
@@ -66,7 +69,10 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		{name: "+Inf", custom: map[string]any{"f": math.Inf(1)}},
 		{name: "-Inf nested", custom: map[string]any{"f": []any{math.Inf(-1)}}},
 		{name: "float32", custom: map[string]any{"f": float32(0.1), "g": float32(16777217)}},
-		{name: "int64 above 2^53", custom: map[string]any{"i": int64(1<<53 + 1), "j": int64(math.MaxInt64), "k": int64(math.MinInt64)}},
+		{
+			name:   "int64 above 2^53",
+			custom: map[string]any{"i": int64(1<<53 + 1), "j": int64(math.MaxInt64), "k": int64(math.MinInt64)},
+		},
 		{name: "uint64", custom: map[string]any{"u": uint64(math.MaxUint64), "v": uint64(1<<53 + 1)}},
 		{name: "negative zero and extremes", custom: map[string]any{
 			"z": math.Copysign(0, -1), "max": math.MaxFloat64, "min": math.SmallestNonzeroFloat64}},

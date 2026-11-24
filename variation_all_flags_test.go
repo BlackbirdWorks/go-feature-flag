@@ -58,7 +58,14 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 			require.NotEqual(t, 0, actualTimestamp, "timestamp should not be zero for flag %s", flagName)
 
 			// Timestamp should be recent (within a small delta of the current time)
-			assert.InDelta(t, float64(time.Now().Unix()), actualTimestamp, 5.0, "timestamp should be recent for flag %s", flagName)
+			assert.InDelta(
+				t,
+				float64(time.Now().Unix()),
+				actualTimestamp,
+				5.0,
+				"timestamp should be recent for flag %s",
+				flagName,
+			)
 
 			// Normalize timestamps to compare structure
 			expectedFlagObj["timestamp"] = actualFlagObj["timestamp"]
@@ -68,7 +75,12 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 	// Now compare the full JSON structures
 	expectedJSON, err := json.Marshal(expectedFlags)
 	require.NoError(t, err, "Failed to marshal normalized expected JSON")
-	assert.JSONEq(t, string(expectedJSON), string(actualJSON), "JSON structures should match after timestamp normalization")
+	assert.JSONEq(
+		t,
+		string(expectedJSON),
+		string(actualJSON),
+		"JSON structures should match after timestamp normalization",
+	)
 }
 
 func TestAllFlagsState(t *testing.T) {

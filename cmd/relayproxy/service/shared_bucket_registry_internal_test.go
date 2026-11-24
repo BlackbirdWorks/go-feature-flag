@@ -128,9 +128,13 @@ func newFakeRegistryWithPolling(
 
 func s3FlagSet(name, bucket, item string) config.FlagSet {
 	return config.FlagSet{
-		Name:                        name,
-		APIKeys:                     []string{name + "-key"},
-		Retriever:                   &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: bucket, Item: item},
+		Name:    name,
+		APIKeys: []string{name + "-key"},
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind:   retrieverconf.S3Retriever,
+			Bucket: bucket,
+			Item:   item,
+		},
 		EnableSharedPollerPerBucket: true,
 		PollingInterval:             60000,
 	}
@@ -205,15 +209,20 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			const callers = 4
 			var building sync.WaitGroup
 			building.Add(callers)
-			reg := newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
-				// every caller is building its own group at the same time: only one is kept
-				building.Done()
-				building.Wait()
+			reg := newSharedBucketRegistry(
+				func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
+					// every caller is building its own group at the same time: only one is kept
+					building.Done()
+					building.Wait()
 
-				return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
-					Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
-				})
-			}, 0, false, nil)
+					return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+						Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
+					})
+				},
+				0,
+				false,
+				nil,
+			)
 			var wg sync.WaitGroup
 			retrievers := make(chan *releasingRetriever, callers)
 			for i := range callers {
@@ -370,7 +379,11 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			name: "different interval", parent: 10 * time.Second, polling: 5000,
 			wantMessage: []string{"the pollingInterval of the flagset is ignored"},
 		},
-		{name: "jitter only on the flagset", jitter: true, wantMessage: []string{"the enablePollingJitter of the flagset is ignored"}},
+		{
+			name:        "jitter only on the flagset",
+			jitter:      true,
+			wantMessage: []string{"the enablePollingJitter of the flagset is ignored"},
+		},
 		{name: "jitter on the parent", parentJit: true, jitter: true},
 		{
 			name: "both differ", parent: 10 * time.Second, polling: 1000, jitter: true,

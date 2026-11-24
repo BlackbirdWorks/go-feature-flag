@@ -101,13 +101,16 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 		store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 	}
 	var got []string
-	require.NoError(t, store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
-		for _, e := range ev {
-			got = append(got, e.GetKey())
-		}
+	require.NoError(
+		t,
+		store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
+			for _, e := range ev {
+				got = append(got, e.GetKey())
+			}
 
-		return nil
-	}))
+			return nil
+		}),
+	)
 	assert.Equal(t, []string{"e0", "e1", "e2"}, got)
 }
 

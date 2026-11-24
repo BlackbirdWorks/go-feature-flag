@@ -91,7 +91,11 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			requestBody, err := os.ReadFile(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			c := e.NewContext(req, rec)
 			c.SetPath("/v1/flag/configuration")
@@ -210,7 +214,11 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			requestBody, err := os.ReadFile(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 
 			// Add API key to header if provided
@@ -313,7 +321,11 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			require.NoError(t, err)
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			req.Header.Set(echo.HeaderAuthorization, "Bearer "+tt.apiKey)
 			rec := httptest.NewRecorder()

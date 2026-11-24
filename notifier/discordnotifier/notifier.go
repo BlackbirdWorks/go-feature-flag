@@ -185,7 +185,11 @@ func fitTotalLength(embeds []embed) {
 		lists = append(lists, i)
 	}
 	sort.SliceStable(lists, func(a, b int) bool {
-		return utf8.RuneCountInString(embeds[lists[a]].Description) < utf8.RuneCountInString(embeds[lists[b]].Description)
+		return utf8.RuneCountInString(
+			embeds[lists[a]].Description,
+		) < utf8.RuneCountInString(
+			embeds[lists[b]].Description,
+		)
 	})
 	for n, i := range lists {
 		share := max(budget/(len(lists)-n), 1)

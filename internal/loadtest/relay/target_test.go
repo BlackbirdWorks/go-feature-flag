@@ -100,7 +100,13 @@ func TestTarget_Eval(t *testing.T) {
 		{"semaphore unknown flag is an error", relay.SemaphoreEval, loadtest.ExporterDiscard, "does-not-exist", true},
 		{"ofrep known flag", relay.OFREPEval, loadtest.ExporterDiscard, "rule-bool-track", false},
 		{"ofrep unknown flag is an error", relay.OFREPEval, loadtest.ExporterDiscard, "does-not-exist", true},
-		{"semaphore bulk with discard exporter", relay.SemaphoreAllFlags, loadtest.ExporterDiscard, "rule-bool-track", false},
+		{
+			"semaphore bulk with discard exporter",
+			relay.SemaphoreAllFlags,
+			loadtest.ExporterDiscard,
+			"rule-bool-track",
+			false,
+		},
 		{"ofrep bulk without exporter", relay.OFREPBulk, "", "rule-bool-track", false},
 	}
 	for _, tt := range tests {

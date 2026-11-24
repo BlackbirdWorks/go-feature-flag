@@ -45,8 +45,12 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 		wantErr      bool
 	}{
 		{name: "semaphore-proxy.yaml", files: []string{"0/semaphore-proxy.yaml"}, wantFile: "0/semaphore-proxy.yaml"},
-		{name: "legacy goff-proxy.yaml still found", files: []string{"0/goff-proxy.yaml"}, wantFile: "0/goff-proxy.yaml",
-			wantWarnings: []string{legacy.KindConfigFile}},
+		{
+			name:         "legacy goff-proxy.yaml still found",
+			files:        []string{"0/goff-proxy.yaml"},
+			wantFile:     "0/goff-proxy.yaml",
+			wantWarnings: []string{legacy.KindConfigFile},
+		},
 		{name: "new name wins over the legacy one in the same folder",
 			files:    []string{"0/goff-proxy.yaml", "0/semaphore-proxy.yaml"},
 			wantFile: "0/semaphore-proxy.yaml"},
@@ -283,7 +287,11 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			core, logs := observer.New(zap.DebugLevel)
-			c := &ConfigLoader{log: zap.New(core), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &ConfigLoader{
+				log:         zap.New(core),
+				k:           koanf.New("."),
+				environFunc: func() []string { return tt.environ },
+			}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)

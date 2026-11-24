@@ -80,7 +80,11 @@ func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
 
 	err := retriever.Init(context.Background(), nil)
 	require.Error(t, err)
-	assert.Equal(t, "http default transport is httpretriever.unsupportedTransport, expected *http.Transport", err.Error())
+	assert.Equal(
+		t,
+		"http default transport is httpretriever.unsupportedTransport, expected *http.Transport",
+		err.Error(),
+	)
 	assert.Equal(t, retrieverpkg.RetrieverError, retriever.Status())
 }
 

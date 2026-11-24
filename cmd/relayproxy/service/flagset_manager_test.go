@@ -571,7 +571,8 @@ func TestFlagsetManager_Close(t *testing.T) {
 		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 
-		_, _ = manager.Default().BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
+		_, _ = manager.Default().
+			BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
 		assertFlushedOnClose(t, manager, outputDir)
 	})
 
@@ -676,7 +677,11 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
 		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
-		assert.Contains(t, logEntry.Message, "switching from default to flagsets mode (or the opposite) is not supported during runtime")
+		assert.Contains(
+			t,
+			logEntry.Message,
+			"switching from default to flagsets mode (or the opposite) is not supported during runtime",
+		)
 	})
 
 	t.Run("should reject switching from flagsets to default mode", func(t *testing.T) {
@@ -712,7 +717,11 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
 		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
-		assert.Contains(t, logEntry.Message, "switching from default to flagsets mode (or the opposite) is not supported during runtime")
+		assert.Contains(
+			t,
+			logEntry.Message,
+			"switching from default to flagsets mode (or the opposite) is not supported during runtime",
+		)
 	})
 
 	t.Run("should update AuthorizedKeys in default mode", func(t *testing.T) {

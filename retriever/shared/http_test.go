@@ -27,7 +27,11 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 		client failingClient
 		method string
 	}{
-		{name: "transport error", url: "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER", method: http.MethodGet},
+		{
+			name:   "transport error",
+			url:    "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER",
+			method: http.MethodGet,
+		},
 		{name: "unparsable url (invalid port)", url: "https://user:SECRETMARKER", method: http.MethodGet},
 		{name: "unparsable url (invalid escape)", url: "https://u:p@h/%zzSECRETMARKER", method: http.MethodGet},
 		{name: "unparsable url (control character)", url: "https://h/\x7fSECRETMARKER", method: http.MethodGet},

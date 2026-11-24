@@ -50,7 +50,11 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 		async  bool
 	}{
 		{name: "failing exporter, AddEvent", broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
-		{name: "failing exporter, QueueEvents", async: true, broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
+		{
+			name:   "failing exporter, QueueEvents",
+			async:  true,
+			broken: func() *gatedExporter { return &gatedExporter{fail: true} },
+		},
 		{name: "blocked exporter, QueueEvents", async: true, broken: func() *gatedExporter {
 			return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
 		}},
@@ -147,6 +151,11 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	require.Eventually(t, func() bool { return exp.events.Load() == 2*threshold }, 10*time.Second, time.Millisecond)
 	// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
 	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	assert.Eventually(t, func() bool { return exp.events.Load() == 3*threshold }, 500*time.Millisecond, time.Millisecond)
+	assert.Eventually(
+		t,
+		func() bool { return exp.events.Load() == 3*threshold },
+		500*time.Millisecond,
+		time.Millisecond,
+	)
 	m.Stop()
 }

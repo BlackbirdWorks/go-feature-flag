@@ -217,10 +217,12 @@ func TestFlagSet(t *testing.T) {
 			wantMsg:        "error while getting flagset: flagset not found for API key",
 		},
 		{
-			name:           "successful flagset retrieval should return flagset",
-			flagsetManager: &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}}},
-			apiKey:         "valid-api-key",
-			wantError:      false,
+			name: "successful flagset retrieval should return flagset",
+			flagsetManager: &mock.MockFlagsetManager{
+				FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}},
+			},
+			apiKey:    "valid-api-key",
+			wantError: false,
 		},
 		{
 			name:           "empty api key with error should return bad request error",
@@ -261,7 +263,9 @@ func TestFlagSetIntegration(t *testing.T) {
 	})
 
 	t.Run("should return flagset when manager returns valid flagset", func(t *testing.T) {
-		mockManager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}}}
+		mockManager := &mock.MockFlagsetManager{
+			FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}},
+		}
 		flagset, err := helper.FlagSet(mockManager, "valid-key")
 		if err != nil || flagset == nil {
 			t.Logf("DEBUG: err=%v, flagset=%v", err, flagset)

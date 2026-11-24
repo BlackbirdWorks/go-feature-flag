@@ -96,7 +96,8 @@ func TestExporterConf_IsValid(t *testing.T) {
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"container\" property found for kind \"azureBlobStorage\"",
-		}, {
+		},
+		{
 			name: "kind azureBlobStorage without accountName",
 			fields: fields{
 				Kind:        "azureBlobStorage",

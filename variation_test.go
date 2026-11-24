@@ -819,7 +819,12 @@ func TestBoolVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1138,7 +1143,12 @@ func TestFloat64Variation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(config, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						config,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1460,7 +1470,12 @@ func TestFloat64VariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1758,7 +1773,12 @@ func TestJSONArrayVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2069,7 +2089,12 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2351,7 +2376,12 @@ func TestJSONVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2585,7 +2615,12 @@ func TestJSONVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2897,7 +2932,12 @@ func TestStringVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3131,7 +3171,12 @@ func TestStringVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3442,7 +3487,12 @@ func TestIntVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3717,7 +3767,12 @@ func TestIntVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -4089,7 +4144,12 @@ func TestRawVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,

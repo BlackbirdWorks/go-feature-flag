@@ -22,12 +22,32 @@ func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 		percentages map[string]float64
 		want        []string
 	}{
-		{"0.2/0.7 (modulus 899)", map[string]float64{"A": 0.2, "B": 0.7}, []string{"B", "B", "B", "B", "B", "A", "B", "A"}},
-		{"33.3x3", map[string]float64{"A": 33.3, "B": 33.3, "C": 33.3}, []string{"A", "A", "A", "A", "A", "C", "C", "C"}},
-		{"0.1/0.2/0.3", map[string]float64{"A": 0.1, "B": 0.2, "C": 0.3}, []string{"C", "C", "B", "B", "C", "C", "A", "A"}},
+		{
+			"0.2/0.7 (modulus 899)",
+			map[string]float64{"A": 0.2, "B": 0.7},
+			[]string{"B", "B", "B", "B", "B", "A", "B", "A"},
+		},
+		{
+			"33.3x3",
+			map[string]float64{"A": 33.3, "B": 33.3, "C": 33.3},
+			[]string{"A", "A", "A", "A", "A", "C", "C", "C"},
+		},
+		{
+			"0.1/0.2/0.3",
+			map[string]float64{"A": 0.1, "B": 0.2, "C": 0.3},
+			[]string{"C", "C", "B", "B", "C", "C", "A", "A"},
+		},
 		{"10/80/10", map[string]float64{"A": 10, "B": 80, "C": 10}, []string{"B", "C", "B", "B", "B", "A", "B", "B"}},
-		{"33.3/33.3/33.4", map[string]float64{"A": 33.3, "B": 33.3, "C": 33.4}, []string{"B", "C", "A", "B", "C", "A", "A", "B"}},
-		{"0.5/0.25/0.25", map[string]float64{"A": 0.5, "B": 0.25, "C": 0.25}, []string{"A", "A", "B", "B", "C", "C", "A", "A"}},
+		{
+			"33.3/33.3/33.4",
+			map[string]float64{"A": 33.3, "B": 33.3, "C": 33.4},
+			[]string{"B", "C", "A", "B", "C", "A", "A", "B"},
+		},
+		{
+			"0.5/0.25/0.25",
+			map[string]float64{"A": 0.5, "B": 0.25, "C": 0.25},
+			[]string{"A", "A", "B", "B", "C", "C", "A", "A"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,7 +71,10 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 		name        string
 		percentages map[string]float64
 	}{
-		{"fuzz failure, sum above 100", map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5}},
+		{
+			"fuzz failure, sum above 100",
+			map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5},
+		},
 		{"thirds", map[string]float64{"A": 100.0 / 3, "B": 100.0 / 3, "C": 100.0 / 3}},
 		{"tenths", map[string]float64{"A": 0.1, "B": 0.2, "C": 0.3}},
 	}

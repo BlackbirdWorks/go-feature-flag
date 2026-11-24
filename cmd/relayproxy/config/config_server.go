@@ -96,7 +96,9 @@ func (c *Config) ServerPort(logger *zap.Logger) int {
 
 	if c.ListenPort != 0 {
 		if logger != nil {
-			logger.Warn("The server port is set using `port`, this option is deprecated, please migrate to `server.port`")
+			logger.Warn(
+				"The server port is set using `port`, this option is deprecated, please migrate to `server.port`",
+			)
 		}
 
 		return c.ListenPort
