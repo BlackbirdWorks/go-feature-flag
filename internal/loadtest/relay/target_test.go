@@ -28,9 +28,9 @@ func TestParseEndpoint(t *testing.T) {
 func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		ep     relay.Endpoint
-		path   string
-		events bool
+		ep         relay.Endpoint
+		wantPath   string
+		wantEvents bool
 	}{
 		{relay.SemaphoreEval, "/v1/feature/k/eval", true},
 		{relay.SemaphoreAllFlags, "/v1/allflags", false},
@@ -41,16 +41,16 @@ func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.ep), func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.path, tt.ep.Path("k"))
-			assert.Equal(t, tt.events, tt.ep.EmitsEvents())
+			assert.Equal(t, tt.wantPath, tt.ep.Path("k"))
+			assert.Equal(t, tt.wantEvents, tt.ep.EmitsEvents())
 			req, err := tt.ep.NewRequest("http://x", "k", 1)
-			if tt.path == "" {
+			if tt.wantPath == "" {
 				require.Error(t, err)
 
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "http://x"+tt.path, req.URL.String())
+			assert.Equal(t, "http://x"+tt.wantPath, req.URL.String())
 			assert.NotEmpty(t, tt.ep.Body(1))
 		})
 	}

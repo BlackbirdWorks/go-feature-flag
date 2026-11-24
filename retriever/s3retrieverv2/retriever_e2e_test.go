@@ -315,12 +315,32 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name    string
-		prefixA string
-		prefixB string
+		name           string
+		prefixA        string
+		prefixB        string
+		wantA          string
+		wantB          string
+		wantBUpdated   string
+		wantRefreshedA int32
 	}{
-		{name: "same folder", prefixA: "flags/", prefixB: "flags/"},
-		{name: "different folders", prefixA: "team-a/", prefixB: "team-b/"},
+		{
+			name:           "same folder",
+			prefixA:        "flags/",
+			prefixB:        "flags/",
+			wantA:          string(flagJSON("flag-a", "a1")),
+			wantB:          string(flagJSON("flag-b", "b1")),
+			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			wantRefreshedA: 0,
+		},
+		{
+			name:           "different folders",
+			prefixA:        "team-a/",
+			prefixB:        "team-b/",
+			wantA:          string(flagJSON("flag-a", "a1")),
+			wantB:          string(flagJSON("flag-b", "b1")),
+			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			wantRefreshedA: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -349,8 +369,8 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			require.NoError(t, err)
 			gotB, err := rb.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-a", "a1")), string(gotA))
-			assert.Equal(t, string(flagJSON("flag-b", "b1")), string(gotB))
+			assert.Equal(t, tt.wantA, string(gotA))
+			assert.Equal(t, tt.wantB, string(gotB))
 
 			// the poller refreshes only the item whose object changed
 			var refreshedA, refreshedB atomic.Int32
@@ -372,14 +392,14 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 
 			srv.PutObject(t, bucket, keyB, flagJSON("flag-b", "b2"))
 			require.Eventually(t, func() bool { return refreshedB.Load() >= 1 }, 15*time.Second, 100*time.Millisecond)
-			assert.Zero(t, refreshedA.Load(), "unchanged item must not be refreshed")
+			assert.Equal(t, tt.wantRefreshedA, refreshedA.Load(), "unchanged item must not be refreshed")
 
 			gotB, err = rb.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-b", "b2")), string(gotB))
+			assert.Equal(t, tt.wantBUpdated, string(gotB))
 			gotA, err = ra.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-a", "a1")), string(gotA))
+			assert.Equal(t, tt.wantA, string(gotA))
 		})
 	}
 }

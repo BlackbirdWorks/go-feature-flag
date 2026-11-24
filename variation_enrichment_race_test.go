@@ -21,11 +21,21 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 		name        string
 		environment string
 		enrichment  map[string]any
+		// wantCustom is the custom attributes of the evaluation context of the callers afterwards and
+		// wantEnrichment the configured enrichment afterwards: neither is modified
+		wantCustom     map[string]any
+		wantEnrichment map[string]any
 	}{
-		{name: "enrichment and environment", environment: "prod", enrichment: map[string]any{"team": "a"}},
-		{name: "environment only", environment: "prod"},
-		{name: "enrichment only", enrichment: map[string]any{"team": "a"}},
-		{name: "nothing"},
+		{
+			name: "enrichment and environment", environment: "prod", enrichment: map[string]any{"team": "a"},
+			wantCustom: map[string]any{"plan": "free"}, wantEnrichment: map[string]any{"team": "a"},
+		},
+		{name: "environment only", environment: "prod", wantCustom: map[string]any{"plan": "free"}},
+		{
+			name: "enrichment only", enrichment: map[string]any{"team": "a"},
+			wantCustom: map[string]any{"plan": "free"}, wantEnrichment: map[string]any{"team": "a"},
+		},
+		{name: "nothing", wantCustom: map[string]any{"plan": "free"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,9 +60,9 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 				})
 			}
 			wg.Wait()
-			assert.Equal(t, map[string]any{"plan": "free"}, shared.GetCustom(),
+			assert.Equal(t, tt.wantCustom, shared.GetCustom(),
 				"the evaluation context of the caller must not be modified")
-			assert.Len(t, c.GetEvaluationContextEnrichment(), len(tt.enrichment),
+			assert.Len(t, c.GetEvaluationContextEnrichment(), len(tt.wantEnrichment),
 				"the configured enrichment must not be modified")
 		})
 	}

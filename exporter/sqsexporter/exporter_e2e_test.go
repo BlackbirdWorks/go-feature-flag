@@ -93,13 +93,14 @@ func TestE2E_Export(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name     string
-		nbEvents int
-		nbCalls  int
+		name         string
+		nbEvents     int
+		nbCalls      int
+		wantReceived int
 	}{
-		{name: "one event", nbEvents: 1, nbCalls: 1},
-		{name: "25 events in one call (more than one receive)", nbEvents: 25, nbCalls: 1},
-		{name: "25 events in five calls", nbEvents: 25, nbCalls: 5},
+		{name: "one event", nbEvents: 1, nbCalls: 1, wantReceived: 1},
+		{name: "25 events in one call (more than one receive)", nbEvents: 25, nbCalls: 1, wantReceived: 25},
+		{name: "25 events in five calls", nbEvents: 25, nbCalls: 5, wantReceived: 25},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestE2E_Export(t *testing.T) {
 			}
 
 			got := receiveAll(t, client, queueURL, tt.nbEvents)
-			require.Len(t, got, tt.nbEvents)
+			require.Len(t, got, tt.wantReceived)
 			sort.Slice(got, func(i, j int) bool { return got[i].event.UserKey < got[j].event.UserKey })
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.event.UserKey)

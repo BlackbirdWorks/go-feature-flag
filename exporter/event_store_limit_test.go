@@ -127,13 +127,15 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		limit   int64
-		workers int
-		perW    int
+		name        string
+		limit       int64
+		workers     int
+		perW        int
+		wantStored  int64
+		wantDropped int64
 	}{
-		{name: "small limit", limit: 100, workers: 8, perW: 2000},
-		{name: "limit above the volume", limit: 100000, workers: 4, perW: 1000},
+		{name: "small limit", limit: 100, workers: 8, perW: 2000, wantStored: 100, wantDropped: 15900},
+		{name: "limit above the volume", limit: 100000, workers: 4, perW: 1000, wantStored: 4000, wantDropped: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -151,8 +153,8 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 				})
 			}
 			wg.Wait()
-			total := int64(tt.workers * tt.perW)
-			assert.Equal(t, total, store.GetTotalEventCount()+store.(droppedCounter).DroppedEvents())
+			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
+			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
 		})
 	}
 }

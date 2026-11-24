@@ -2,7 +2,9 @@ package cache_test
 
 import (
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -556,6 +558,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 		name         string
 		initialFlags map[string]dto.DTO
 		updatedFlags map[string]dto.DTO
+		wantFlags    []string
 	}{
 		{
 			name: "Update existing flags",
@@ -585,6 +588,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1", "flag2"},
 		},
 		{
 			name:         "Empty initial flags",
@@ -599,6 +603,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1"},
 		},
 		{
 			name: "Remove a flag",
@@ -630,6 +635,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					},
 				},
 			},
+			wantFlags: []string{"flag1"},
 		},
 	}
 
@@ -659,12 +665,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			flags, err := cm.AllFlags()
 			require.NoError(t, err)
-			assert.Len(
-				t,
-				flags,
-				len(tt.updatedFlags),
-				"Cache should be updated with correct number of flags",
-			)
+			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
+				"Cache should hold the updated flags")
 
 			// Test UpdateCacache with notification
 			mockNotificationService = &mock.NotificationService{}
@@ -688,12 +690,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			flags, err = cm.AllFlags()
 			require.NoError(t, err)
-			assert.Len(
-				t,
-				flags,
-				len(tt.updatedFlags),
-				"Cache should be updated with correct number of flags",
-			)
+			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
+				"Cache should hold the updated flags")
 		})
 	}
 }

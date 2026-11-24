@@ -22,9 +22,12 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 	tests := []struct {
 		name string
 		flag func(base time.Time) *InternalFlag
+		// wantRuleName is the name of the rule reported by the second evaluation, empty when none matched
+		wantRuleName string
 	}{
 		{
-			name: "rule matched",
+			name:         "rule matched",
+			wantRuleName: "rule",
 			flag: func(base time.Time) *InternalFlag {
 				return &InternalFlag{
 					Metadata:   metadata(),
@@ -42,7 +45,8 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			},
 		},
 		{
-			name: "rule selection error",
+			name:         "rule selection error",
+			wantRuleName: "",
 			flag: func(base time.Time) *InternalFlag {
 				return &InternalFlag{
 					Metadata:   metadata(),
@@ -71,9 +75,11 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			}
 			_, second := f.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
+			gotRuleName := ""
 			if second.RuleName != nil {
-				assert.Equal(t, "rule", *second.RuleName)
+				gotRuleName = *second.RuleName
 			}
+			assert.Equal(t, tt.wantRuleName, gotRuleName)
 		})
 	}
 }

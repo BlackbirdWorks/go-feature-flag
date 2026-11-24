@@ -27,9 +27,15 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 	tests := []struct {
 		name    string
 		headers map[string][]string
+		// wantAuthorization is the Authorization header of both requests
+		wantAuthorization string
 	}{
-		{name: "nil headers"},
-		{name: "custom headers", headers: map[string][]string{"Authorization": {"Bearer test-token"}}},
+		{name: "nil headers", wantAuthorization: ""},
+		{
+			name:              "custom headers",
+			headers:           map[string][]string{"Authorization": {"Bearer test-token"}},
+			wantAuthorization: "Bearer test-token",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,7 +82,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, signer.Sign(body, []byte(n.Secret)), req.Header.Get("X-Hub-Signature-256"))
 				assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
-				assert.Equal(t, http.Header(tt.headers).Get("Authorization"), req.Header.Get("Authorization"))
+				assert.Equal(t, tt.wantAuthorization, req.Header.Get("Authorization"))
 			}
 			close(release)
 			for range captured {
@@ -98,18 +104,25 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 		name    string
 		headers map[string][]string
 		secret  string
+		// wantHeaders is the configuration of the headers after the notification: it is left untouched
+		wantHeaders http.Header
 	}{
-		{name: "nil headers", secret: "test-secret"},
+		{name: "nil headers", secret: "test-secret", wantHeaders: nil},
 		{
 			name: "signed request", secret: "test-secret",
 			headers: map[string][]string{
 				"X-Custom": {"first", "second"}, "Content-Type": {"text/plain"},
 				"X-Hub-Signature-256": {"configured-signature"},
 			},
+			wantHeaders: http.Header{
+				"X-Custom": {"first", "second"}, "Content-Type": {"text/plain"},
+				"X-Hub-Signature-256": {"configured-signature"},
+			},
 		},
 		{
-			name:    "unsigned request",
-			headers: map[string][]string{"X-Custom": {"first", "second"}},
+			name:        "unsigned request",
+			headers:     map[string][]string{"X-Custom": {"first", "second"}},
+			wantHeaders: http.Header{"X-Custom": {"first", "second"}},
 		},
 	}
 	for _, tt := range tests {
@@ -140,8 +153,8 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 				}),
 			}
 			require.NoError(t, n.Notify(notifier.DiffCache{}))
-			assert.Equal(t, original, http.Header(n.Headers))
-			assert.Equal(t, original, http.Header(tt.headers))
+			assert.Equal(t, tt.wantHeaders, http.Header(n.Headers))
+			assert.Equal(t, tt.wantHeaders, http.Header(tt.headers))
 		})
 	}
 }

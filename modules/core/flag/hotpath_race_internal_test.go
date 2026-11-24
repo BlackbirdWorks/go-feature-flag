@@ -55,11 +55,13 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	tests := []struct {
 		name          string
 		endPercentage *float64
+		// wantEndPercentage is the end percentage the flag still has after the evaluations
+		wantEndPercentage *float64
 	}{
-		{name: "end percentage not set", endPercentage: nil},
-		{name: "end percentage 0", endPercentage: new(float64(0))},
-		{name: "end percentage above 100", endPercentage: new(float64(250))},
-		{name: "end percentage 100", endPercentage: new(float64(100))},
+		{name: "end percentage not set", endPercentage: nil, wantEndPercentage: nil},
+		{name: "end percentage 0", endPercentage: new(float64(0)), wantEndPercentage: new(float64(0))},
+		{name: "end percentage above 100", endPercentage: new(float64(250)), wantEndPercentage: new(float64(250))},
+		{name: "end percentage 100", endPercentage: new(float64(100)), wantEndPercentage: new(float64(100))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -70,7 +72,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 				_, d := f.Value("flag", ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
-			assert.Equal(t, tt.endPercentage, f.DefaultRule.ProgressiveRollout.End.Percentage,
+			assert.Equal(t, tt.wantEndPercentage, f.DefaultRule.ProgressiveRollout.End.Percentage,
 				"the end percentage of the flag must not be modified by the evaluations")
 		})
 	}

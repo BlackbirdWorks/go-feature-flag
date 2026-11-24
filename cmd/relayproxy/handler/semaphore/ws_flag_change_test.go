@@ -222,6 +222,7 @@ func broadcastUntilRegistered(
 // connection. Without synchronization gorilla/websocket panics with
 // "concurrent write to websocket connection" and crashes the relay proxy.
 // Run with -race to surface the data race if the writes are not serialized.
+// Observable outcome: no panic and no data race (race detector) while the ping loop and the broadcasts write the same connection.
 func Test_websocket_concurrent_writes(t *testing.T) {
 	t.Parallel()
 
@@ -369,16 +370,22 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		handler func(*controller.WSFlagChange) echo.HandlerFunc
+		name           string
+		handler        func(*controller.WSFlagChange) echo.HandlerFunc
+		wantFlag       string
+		wantAbsentFlag string
 	}{
 		{
-			name:    "handler",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			name:           "handler",
+			handler:        func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			wantFlag:       "right-flag",
+			wantAbsentFlag: "wrong-flag",
 		},
 		{
-			name:    "legacy handler",
-			handler: func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			name:           "legacy handler",
+			handler:        func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			wantFlag:       "right-flag",
+			wantAbsentFlag: "wrong-flag",
 		},
 	}
 	for _, tt := range tests {
@@ -436,14 +443,14 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 
 			// The connection is registered and the writes are ordered: if the flagsetB
 			// broadcast reached the client, it would be read before the flagsetA one.
-			websocketService.BroadcastFlagChanges("flagsetB", diff("wrong-flag"))
-			websocketService.BroadcastFlagChanges("flagsetA", diff("right-flag"))
+			websocketService.BroadcastFlagChanges("flagsetB", diff(tt.wantAbsentFlag))
+			websocketService.BroadcastFlagChanges("flagsetA", diff(tt.wantFlag))
 			for {
 				select {
 				case msg, ok := <-msgs:
 					require.True(t, ok, "websocket connection closed before receiving the flag change")
-					require.NotContains(t, msg, "wrong-flag")
-					if strings.Contains(msg, "right-flag") {
+					require.NotContains(t, msg, tt.wantAbsentFlag)
+					if strings.Contains(msg, tt.wantFlag) {
 						return
 					}
 				case <-deadline:

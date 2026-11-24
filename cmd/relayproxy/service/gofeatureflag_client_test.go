@@ -915,8 +915,10 @@ func TestSetKafkaConfig(t *testing.T) {
 				got: func(c *sarama.Config) any { return c.Producer.MaxMessageBytes }, want: 2048,
 			},
 			{
-				name: "Producer.RequiredAcks", user: func(c *sarama.Config) { c.Producer.RequiredAcks = sarama.WaitForLocal },
-				got: func(c *sarama.Config) any { return c.Producer.RequiredAcks }, want: sarama.WaitForLocal,
+				name: "Producer.RequiredAcks",
+				user: func(c *sarama.Config) { c.Producer.RequiredAcks = sarama.WaitForLocal },
+				got:  func(c *sarama.Config) any { return c.Producer.RequiredAcks },
+				want: sarama.WaitForLocal,
 			},
 			{
 				name: "ClientID", user: func(c *sarama.Config) { c.ClientID = "mine" },
@@ -1072,29 +1074,29 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 
 		// Test the logic directly by checking the conditions
 		tests := []struct {
-			name          string
-			flagsetName   string
-			shouldAddAttr bool
+			name        string
+			flagsetName string
+			wantLog     string
 		}{
 			{
-				name:          "default flagset name should not add attribute",
-				flagsetName:   utils.DefaultFlagSetName,
-				shouldAddAttr: false,
+				name:        "default flagset name should not add attribute",
+				flagsetName: utils.DefaultFlagSetName,
+				wantLog:     "{\"msg\":\"test message\"}\n",
 			},
 			{
-				name:          "empty flagset name should not add attribute",
-				flagsetName:   "",
-				shouldAddAttr: false,
+				name:        "empty flagset name should not add attribute",
+				flagsetName: "",
+				wantLog:     "{\"msg\":\"test message\"}\n",
 			},
 			{
-				name:          "custom flagset name should add attribute",
-				flagsetName:   "my-custom-flagset",
-				shouldAddAttr: true,
+				name:        "custom flagset name should add attribute",
+				flagsetName: "my-custom-flagset",
+				wantLog:     "{\"msg\":\"test message\",\"flagset\":\"my-custom-flagset\"}\n",
 			},
 			{
-				name:          "another custom flagset name should add attribute",
-				flagsetName:   "production-flags",
-				shouldAddAttr: true,
+				name:        "another custom flagset name should add attribute",
+				flagsetName: "production-flags",
+				wantLog:     "{\"msg\":\"test message\",\"flagset\":\"production-flags\"}\n",
 			},
 		}
 
@@ -1127,17 +1129,7 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 				_ = zapLogger.Sync()
 				logOutput := logBuffer.String()
 
-				if tt.shouldAddAttr {
-					assert.Contains(t, logOutput, `"flagset"`, "log output should contain flagset attribute")
-					assert.Contains(t, logOutput, tt.flagsetName, "log output should contain the flagset name")
-				} else {
-					assert.NotContains(
-						t,
-						logOutput,
-						`"flagset"`,
-						"log output should not contain flagset attribute for default flagset",
-					)
-				}
+				assert.Equal(t, tt.wantLog, logOutput)
 			})
 		}
 	})

@@ -87,11 +87,11 @@ func TestAllFlagsState(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		config     ffclient.Config
-		valid      bool
-		jsonOutput string
-		initModule bool
+		name         string
+		config       ffclient.Config
+		wantValid    bool
+		wantJSONFile string
+		initModule   bool
 	}{
 		{
 			name: "Valid multiple types",
@@ -101,9 +101,9 @@ func TestAllFlagsState(t *testing.T) {
 				},
 				LeveledLogger: slog.Default(),
 			},
-			valid:      true,
-			jsonOutput: "./testdata/ffclient/all_flags/marshal_json/valid_multiple_types.json",
-			initModule: true,
+			wantValid:    true,
+			wantJSONFile: "./testdata/ffclient/all_flags/marshal_json/valid_multiple_types.json",
+			initModule:   true,
 		},
 		{
 			name: "module not init",
@@ -112,9 +112,9 @@ func TestAllFlagsState(t *testing.T) {
 					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:      false,
-			jsonOutput: "./testdata/ffclient/all_flags/marshal_json/module_not_init.json",
-			initModule: false,
+			wantValid:    false,
+			wantJSONFile: "./testdata/ffclient/all_flags/marshal_json/module_not_init.json",
+			initModule:   false,
 		},
 		{
 			name: "offline",
@@ -124,9 +124,9 @@ func TestAllFlagsState(t *testing.T) {
 					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:      true,
-			jsonOutput: "./testdata/ffclient/all_flags/marshal_json/offline.json",
-			initModule: false,
+			wantValid:    true,
+			wantJSONFile: "./testdata/ffclient/all_flags/marshal_json/offline.json",
+			initModule:   false,
 		},
 	}
 	for _, tt := range tests {
@@ -154,12 +154,12 @@ func TestAllFlagsState(t *testing.T) {
 
 			user := ffcontext.NewEvaluationContext("random-key")
 			allFlagsState := goff.AllFlagsState(user)
-			assert.Equal(t, tt.valid, allFlagsState.IsValid())
+			assert.Equal(t, tt.wantValid, allFlagsState.IsValid())
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
 			require.NoError(t, err)
-			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
+			compareJSONWithTimestampHandling(t, tt.wantJSONFile, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
@@ -174,8 +174,8 @@ func TestGetFlagStates(t *testing.T) {
 	tests := []struct {
 		name              string
 		config            ffclient.Config
-		valid             bool
-		jsonOutput        string
+		wantValid         bool
+		wantJSONFile      string
 		initModule        bool
 		evaluationContext ffcontext.EvaluationContext
 	}{
@@ -186,9 +186,9 @@ func TestGetFlagStates(t *testing.T) {
 					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:      true,
-			jsonOutput: "./testdata/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json",
-			initModule: true,
+			wantValid:    true,
+			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/valid_flag1_flag4.json",
+			initModule:   true,
 			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").
 				AddCustom("gofeatureflag", map[string]any{
 					"flagList": []string{"test-flag1", "test-flag4"},
@@ -202,9 +202,9 @@ func TestGetFlagStates(t *testing.T) {
 					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:      true,
-			jsonOutput: "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
-			initModule: true,
+			wantValid:    true,
+			wantJSONFile: "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
+			initModule:   true,
 			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").
 				AddCustom("gofeatureflag", map[string]any{
 					"flagList": []string{},
@@ -218,8 +218,8 @@ func TestGetFlagStates(t *testing.T) {
 					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:             true,
-			jsonOutput:        "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
+			wantValid:         true,
+			wantJSONFile:      "./testdata/ffclient/get_flagstates/marshal_json/all_flags.json",
 			initModule:        true,
 			evaluationContext: ffcontext.NewEvaluationContextBuilder("123").Build(),
 		},
@@ -231,9 +231,9 @@ func TestGetFlagStates(t *testing.T) {
 					Path: "./testdata/ffclient/all_flags/config_flag/flag-config-all-flags.yaml",
 				},
 			},
-			valid:      true,
-			jsonOutput: "./testdata/ffclient/all_flags/marshal_json/offline.json",
-			initModule: false,
+			wantValid:    true,
+			wantJSONFile: "./testdata/ffclient/all_flags/marshal_json/offline.json",
+			initModule:   false,
 		},
 	}
 	for _, tt := range tests {
@@ -264,12 +264,12 @@ func TestGetFlagStates(t *testing.T) {
 				tt.evaluationContext,
 				tt.evaluationContext.ExtractGOFFProtectedFields().FlagList,
 			)
-			assert.Equal(t, tt.valid, allFlagsState.IsValid())
+			assert.Equal(t, tt.wantValid, allFlagsState.IsValid())
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
 			require.NoError(t, err)
-			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
+			compareJSONWithTimestampHandling(t, tt.wantJSONFile, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
@@ -285,8 +285,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 		name       string
 		config     ffclient.Config
 		initModule bool
-		numberFlag int
-		err        assert.ErrorAssertionFunc
+		wantFlags  int
+		wantErr    assert.ErrorAssertionFunc
 	}{
 		{
 			name: "Valid multiple types",
@@ -296,8 +296,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 				},
 			},
 			initModule: true,
-			numberFlag: 7,
-			err:        assert.NoError,
+			wantFlags:  7,
+			wantErr:    assert.NoError,
 		},
 		{
 			name: "module not init",
@@ -307,7 +307,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				},
 			},
 			initModule: false,
-			err:        assert.NoError,
+			wantErr:    assert.NoError,
 		},
 		{
 			name: "offline",
@@ -318,7 +318,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				},
 			},
 			initModule: true,
-			err:        assert.Error,
+			wantErr:    assert.Error,
 		},
 	}
 	for _, tt := range tests {
@@ -333,10 +333,10 @@ func TestAllFlagsFromCache(t *testing.T) {
 				defer goff.Close()
 
 				flags, err := goff.GetFlagsFromCache()
-				tt.err(t, err)
+				tt.wantErr(t, err)
 
 				if err != nil {
-					assert.Len(t, flags, tt.numberFlag)
+					assert.Len(t, flags, tt.wantFlags)
 				}
 			} else {
 				// we close directly so we can test with module not init

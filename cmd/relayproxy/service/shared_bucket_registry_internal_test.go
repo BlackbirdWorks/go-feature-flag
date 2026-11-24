@@ -152,9 +152,12 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		run  func(t *testing.T)
+		// run executes the scenario and returns what it observed: the groups created and the groups alive at each
+		// checkpoint, compared with want.
+		run  func(t *testing.T) []int
+		want []int
 	}{
-		{name: "same bucket shares a group, other bucket has its own", run: func(t *testing.T) {
+		{name: "same bucket shares a group, other bucket has its own", run: func(t *testing.T) []int {
 			var created atomic.Int32
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
 			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
@@ -165,15 +168,16 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			require.NoError(t, err)
 			_, err = reg.retrieverFor(&fs3)
 			require.NoError(t, err)
-			assert.EqualValues(t, 2, created.Load())
-			assert.Equal(t, 2, reg.groupCount())
+			got := make([]int, 0, 3)
+			got = append(got, int(created.Load()), reg.groupCount())
 
 			// Shutdown twice is harmless
 			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
 			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
-			assert.Equal(t, 2, reg.groupCount())
-		}},
-		{name: "group is dropped after the last shutdown", run: func(t *testing.T) {
+
+			return append(got, reg.groupCount())
+		}, want: []int{2, 2, 2}},
+		{name: "group is dropped after the last shutdown", run: func(t *testing.T) []int {
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml")
 			r1, err := reg.retrieverFor(&fs1)
@@ -181,11 +185,13 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			r2, err := reg.retrieverFor(&fs2)
 			require.NoError(t, err)
 			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
-			assert.Equal(t, 1, reg.groupCount())
+			got := make([]int, 0, 2)
+			got = append(got, reg.groupCount())
 			require.NoError(t, r2.(*releasingRetriever).Shutdown(t.Context()))
-			assert.Equal(t, 0, reg.groupCount())
-		}},
-		{name: "unsupported configurations", run: func(t *testing.T) {
+
+			return append(got, reg.groupCount())
+		}, want: []int{1, 0}},
+		{name: "unsupported configurations", run: func(t *testing.T) []int {
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			folder := s3FlagSet("a", "b1", "")
 			other := s3FlagSet("a", "b1", "x")
@@ -196,16 +202,18 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 				_, err := reg.retrieverFor(&fs)
 				require.Error(t, err)
 			}
-			assert.Equal(t, 0, reg.groupCount())
-		}},
-		{name: "factory error", run: func(t *testing.T) {
+
+			return []int{reg.groupCount()}
+		}, want: []int{0}},
+		{name: "factory error", run: func(t *testing.T) []int {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
 			require.ErrorContains(t, err, "no AWS")
-			assert.Equal(t, 0, reg.groupCount())
-		}},
-		{name: "concurrent callers build the group once", run: func(t *testing.T) {
+
+			return []int{reg.groupCount()}
+		}, want: []int{0}},
+		{name: "concurrent callers build the group once", run: func(t *testing.T) []int {
 			const callers = 4
 			var building sync.WaitGroup
 			building.Add(callers)
@@ -235,17 +243,20 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			}
 			wg.Wait()
 			close(retrievers)
-			assert.Equal(t, 1, reg.groupCount())
+			got := make([]int, 0, 2)
+			got = append(got, reg.groupCount())
 			for r := range retrievers {
 				require.NoError(t, r.Shutdown(t.Context()))
 			}
-			assert.Equal(t, 0, reg.groupCount(), "all the references were taken on the same group")
-		}},
+
+			// all the references were taken on the same group: it is dropped by the last shutdown
+			return append(got, reg.groupCount())
+		}, want: []int{1, 0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.run(t)
+			assert.Equal(t, tt.want, tt.run(t))
 		})
 	}
 }
@@ -254,43 +265,49 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		run  func(t *testing.T)
+		// run executes the scenario and returns the groups created and alive at each checkpoint
+		run  func(t *testing.T) []int
+		want []int
 	}{
 		{name: "claimed retrievers are the pre-registered ones, the unclaimed ones are released",
-			run: func(t *testing.T) {
+			run: func(t *testing.T) []int {
 				var created atomic.Int32
 				reg := newFakeRegistry(t, &fakeS3{}, &created)
 				fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "q/b.yaml")
 				require.NoError(t, reg.preRegister(&fs1))
 				require.NoError(t, reg.preRegister(&fs2))
-				assert.EqualValues(t, 1, created.Load())
+				got := make([]int, 0, 3)
+				got = append(got, int(created.Load()))
 
 				// no additional reference is taken when a pre-registered retriever is claimed
 				r1, err := reg.retrieverFor(&fs1)
 				require.NoError(t, err)
 				require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
-				assert.Equal(t, 1, reg.groupCount(), "fs2 is still pending")
+				got = append(got, reg.groupCount()) // fs2 is still pending
 
 				reg.releasePending()
-				assert.Equal(t, 0, reg.groupCount())
-			}},
-		{name: "invalid configuration", run: func(t *testing.T) {
+
+				return append(got, reg.groupCount())
+			}, want: []int{1, 1, 0}},
+		{name: "invalid configuration", run: func(t *testing.T) []int {
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			bad := s3FlagSet("c", "b1", "")
 			require.Error(t, reg.preRegister(&bad))
-			assert.Equal(t, 0, reg.groupCount())
-		}},
-		{name: "factory error", run: func(t *testing.T) {
+
+			return []int{reg.groupCount()}
+		}, want: []int{0}},
+		{name: "factory error", run: func(t *testing.T) []int {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
-			assert.Equal(t, 0, reg.groupCount())
-		}},
+
+			return []int{reg.groupCount()}
+		}, want: []int{0}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			tt.run(t)
+			assert.Equal(t, tt.want, tt.run(t))
 		})
 	}
 }

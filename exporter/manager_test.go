@@ -32,18 +32,22 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "flushTime: classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 1,
 		},
 		{
 			name:         "flushTime: deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 1,
 		},
 		{
 			name:         "flushTime: deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 1,
 		},
 	}
 	for _, tt := range tests {
@@ -91,6 +95,7 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 			require.Eventually(t, func() bool {
 				return len(tt.mockExporter.GetExportedEvents()) >= len(want)
 			}, 30*time.Second, 5*time.Millisecond, "the events were never exported")
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
 			assert.Equal(t, want, tt.mockExporter.GetExportedEvents())
 		})
 	}
@@ -102,18 +107,22 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "flushWithNumberOfEvents: classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 100,
 		},
 		{
 			name:         "flushWithNumberOfEvents: deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 100,
 		},
 		{
 			name:         "flushWithNumberOfEvents: deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 100,
 		},
 	}
 	for _, tt := range tests {
@@ -156,7 +165,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 				dc.AddEvent(event)
 				want[i] = event
 			}
-			assert.Equal(t, want[:100], tt.mockExporter.GetExportedEvents())
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
+			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
 	}
 }
@@ -167,18 +177,22 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
+		wantExported int
 	}{
 		{
 			name:         "classic exporter",
 			mockExporter: &mock.Exporter{Bulk: true},
+			wantExported: 100000,
 		},
 		{
 			name:         "deprecated exporter",
 			mockExporter: &mock.ExporterDeprecated{Bulk: true},
+			wantExported: 100000,
 		},
 		{
 			name:         "deprecated exporter v2",
 			mockExporter: &mock.ExporterDeprecatedV2{Bulk: true},
+			wantExported: 100000,
 		},
 	}
 
@@ -219,7 +233,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 				dc.AddEvent(event)
 				want[i] = event
 			}
-			assert.Equal(t, want[:100000], tt.mockExporter.GetExportedEvents())
+			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
+			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
 	}
 }

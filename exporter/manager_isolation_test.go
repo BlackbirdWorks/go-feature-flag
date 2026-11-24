@@ -48,16 +48,29 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 		name   string
 		broken func() *gatedExporter
 		async  bool
+		// wantHealthy is the number of events the healthy exporter receives, wantDropping tells that the broken
+		// one loses events once its backlog is full
+		wantHealthy  int64
+		wantDropping bool
 	}{
-		{name: "failing exporter, AddEvent", broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
 		{
-			name:   "failing exporter, QueueEvents",
-			async:  true,
-			broken: func() *gatedExporter { return &gatedExporter{fail: true} },
+			name:        "failing exporter, AddEvent",
+			broken:      func() *gatedExporter { return &gatedExporter{fail: true} },
+			wantHealthy: 500, wantDropping: true,
 		},
-		{name: "blocked exporter, QueueEvents", async: true, broken: func() *gatedExporter {
-			return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
-		}},
+		{
+			name:        "failing exporter, QueueEvents",
+			async:       true,
+			broken:      func() *gatedExporter { return &gatedExporter{fail: true} },
+			wantHealthy: 500, wantDropping: true,
+		},
+		{
+			name: "blocked exporter, QueueEvents", async: true,
+			broken: func() *gatedExporter {
+				return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
+			},
+			wantHealthy: 500, wantDropping: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,8 +109,8 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 			}
 			release()
 			m.Stop()
-			assert.Equal(t, int64(batches*perBatch), healthy.events.Load(), "the healthy exporter receives everything")
-			assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents(),
+			assert.Equal(t, tt.wantHealthy, healthy.events.Load(), "the healthy exporter receives everything")
+			assert.Equal(t, tt.wantDropping, m.(exporter.DroppedEventsCounter).DroppedEvents() > 0,
 				"the broken exporter loses events once its backlog is full, and they are counted")
 		})
 	}

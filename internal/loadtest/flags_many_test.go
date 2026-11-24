@@ -12,12 +12,13 @@ import (
 func TestManyFlagsYAML(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		n    int
+		name      string
+		n         int
+		wantFlags int
 	}{
-		{name: "no flag", n: 0},
-		{name: "one static flag", n: 1},
-		{name: "every kind of flag", n: 30},
+		{name: "no flag", n: 0, wantFlags: 0},
+		{name: "one static flag", n: 1, wantFlags: 1},
+		{name: "every kind of flag", n: 30, wantFlags: 30},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,7 +36,7 @@ func TestManyFlagsYAML(t *testing.T) {
 			}
 			var flags map[string]flagYAML
 			require.NoError(t, yaml.Unmarshal([]byte(ManyFlagsYAML(tt.n)), &flags))
-			require.Len(t, flags, tt.n)
+			require.Len(t, flags, tt.wantFlags)
 			var static, targeted, percentage int
 			for i := range tt.n {
 				f, ok := flags[fmt.Sprintf("flag-%d", i)]

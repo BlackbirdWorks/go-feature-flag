@@ -518,29 +518,29 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		fields     fields
-		hasRefresh bool
-		offline    bool
+		name          string
+		fields        fields
+		wantRefreshed bool
+		offline       bool
 	}{
 		{
-			name:       "Should be refreshed",
-			fields:     fields{waitingDuration: 5 * time.Second, pollingInterval: 1 * time.Second},
-			hasRefresh: true,
+			name:          "Should be refreshed",
+			fields:        fields{waitingDuration: 5 * time.Second, pollingInterval: 1 * time.Second},
+			wantRefreshed: true,
 		},
 		{
 			// The polling interval is far longer than the waiting duration, so a single tick
 			// can never happen during the wait, even if time.Sleep overshoots (which it does
 			// more on Windows, where the timer granularity is ~15ms).
-			name:       "Should not be refreshed",
-			fields:     fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
-			hasRefresh: false,
+			name:          "Should not be refreshed",
+			fields:        fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
+			wantRefreshed: false,
 		},
 		{
-			name:       "Should not crash in offline mode",
-			fields:     fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
-			hasRefresh: false,
-			offline:    true,
+			name:          "Should not crash in offline mode",
+			fields:        fields{waitingDuration: 500 * time.Millisecond, pollingInterval: 30 * time.Second},
+			wantRefreshed: false,
+			offline:       true,
 		},
 	}
 	for _, tt := range tests {
@@ -557,7 +557,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 
 			date1 := gff.GetCacheRefreshDate()
 
-			if tt.hasRefresh {
+			if tt.wantRefreshed {
 				// Waiting exactly one polling interval leaves no margin for the scheduler,
 				// so we poll for the refresh instead of sleeping for a fixed duration.
 				require.Eventually(t, func() bool { return date1.Before(gff.GetCacheRefreshDate()) },
@@ -574,7 +574,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 				assert.NotEqual(t, time.Time{}, date1)
 				assert.NotEqual(t, time.Time{}, date2)
 			}
-			assert.Equal(t, tt.hasRefresh, date1.Before(date2))
+			assert.Equal(t, tt.wantRefreshed, date1.Before(date2))
 		})
 	}
 }
@@ -998,20 +998,25 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		enrichment map[string]any
+		name           string
+		enrichment     map[string]any
+		wantEnrichment map[string]any
 	}{
 		{
 			name:       "nil enrichment",
-			enrichment: nil,
+			enrichment: nil, wantEnrichment: nil,
 		},
 		{
 			name:       "empty enrichment",
-			enrichment: map[string]any{},
+			enrichment: map[string]any{}, wantEnrichment: map[string]any{},
 		},
 		{
-			name:       "non-empty enrichment",
-			enrichment: map[string]any{"foo": "bar", "num": 42},
+			name: "non-empty enrichment",
+			enrichment: map[string]any{
+				"foo": "bar",
+				"num": 42,
+			},
+			wantEnrichment: map[string]any{"foo": "bar", "num": 42},
 		},
 	}
 
@@ -1025,7 +1030,7 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 			})
 			require.NoError(t, err)
 			got := gff.GetEvaluationContextEnrichment()
-			assert.Equal(t, tt.enrichment, got)
+			assert.Equal(t, tt.wantEnrichment, got)
 		})
 	}
 }
@@ -1067,9 +1072,11 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 	tests := []struct {
 		name    string
 		offline bool
+		// wantShared is whether the two clients share their Service
+		wantShared bool
 	}{
-		{name: "online client", offline: false},
-		{name: "offline client", offline: true},
+		{name: "online client", offline: false, wantShared: false},
+		{name: "offline client", offline: true, wantShared: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1088,13 +1095,9 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 			require.NoError(t, err)
 			defer second.Close()
 
-			assert.NotNil(t, first.EvaluationService())
-			assert.NotSame(
-				t,
-				first.EvaluationService(),
-				second.EvaluationService(),
-				"two clients never share their Service",
-			)
+			require.NotNil(t, first.EvaluationService())
+			assert.Equal(t, tt.wantShared, first.EvaluationService() == second.EvaluationService(),
+				"two clients never share their Service")
 		})
 	}
 }

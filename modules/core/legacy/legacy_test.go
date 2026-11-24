@@ -62,14 +62,16 @@ func TestWarnerWithoutDestination(t *testing.T) {
 	tests := []struct {
 		name   string
 		warner *legacy.Warner
+		// wantPanics is whether warning through this warner panics: neither of them does, the warning is dropped
+		wantPanics bool
 	}{
-		{name: "nil log function", warner: legacy.NewWarner(nil)},
-		{name: "nil warner", warner: nil},
+		{name: "nil log function", warner: legacy.NewWarner(nil), wantPanics: false},
+		{name: "nil warner", warner: nil, wantPanics: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.NotPanics(t, func() { tt.warner.Warn("k", "dropped") })
+			assert.Equal(t, tt.wantPanics, panics(func() { tt.warner.Warn("k", "dropped") }))
 		})
 	}
 }
@@ -84,4 +86,12 @@ func TestWarnersDoNotShareState(t *testing.T) {
 	w1.Warn("k", "m")
 	assert.Equal(t, []string{"k"}, first)
 	assert.Equal(t, []string{"k"}, second)
+}
+
+// panics reports whether f panics.
+func panics(f func()) (panicked bool) {
+	defer func() { panicked = recover() != nil }()
+	f()
+
+	return false
 }

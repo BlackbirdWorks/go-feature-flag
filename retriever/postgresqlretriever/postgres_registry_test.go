@@ -46,13 +46,24 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 	t.Parallel()
 
+	const wantParseErr = "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)"
+
 	pools := rr.NewPoolRegistry()
 	tests := []struct {
 		name string
 		r    *rr.Retriever
+		// wantShared is whether the retriever has the registry of the caller after Init, or a registry of its own
+		wantShared bool
+		wantErr    string
 	}{
-		{name: "with the registry of the caller", r: &rr.Retriever{URI: "not a postgres uri", Pools: pools}},
-		{name: "with its own registry", r: &rr.Retriever{URI: "not a postgres uri"}},
+		{
+			name: "with the registry of the caller", r: &rr.Retriever{URI: "not a postgres uri", Pools: pools},
+			wantShared: true, wantErr: wantParseErr,
+		},
+		{
+			name: "with its own registry", r: &rr.Retriever{URI: "not a postgres uri"},
+			wantShared: false, wantErr: wantParseErr,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,12 +71,9 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 
 			err := tt.r.Init(t.Context(), nil, nil)
 
-			require.EqualError(
-				t,
-				err,
-				"cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)",
-			)
-			assert.NotNil(t, tt.r.Pools, "the retriever always has a registry after Init")
+			require.EqualError(t, err, tt.wantErr)
+			require.NotNil(t, tt.r.Pools, "the retriever always has a registry after Init")
+			assert.Equal(t, tt.wantShared, tt.r.Pools == pools)
 		})
 	}
 }

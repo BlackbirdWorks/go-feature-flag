@@ -400,6 +400,7 @@ func TestManagerShutdownStopsThePolling(t *testing.T) {
 
 // TestManagerStopPollingIsIdempotent guards against a "close of closed channel" panic:
 // SetOffline() calls StopPolling, and Shutdown() calls it again.
+// Observable outcome: stopping the polling twice then shutting down neither panics nor returns an error.
 func TestManagerStopPollingIsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -418,6 +419,7 @@ func TestManagerStopPollingIsIdempotent(t *testing.T) {
 
 // TestManagerStopPollingWithPollingDisabled makes sure that stopping a manager that never
 // started a background updater is a no-op instead of a nil-pointer dereference.
+// Observable outcome: starting and stopping a manager without background updater neither panics nor returns an error.
 func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	t.Parallel()
 

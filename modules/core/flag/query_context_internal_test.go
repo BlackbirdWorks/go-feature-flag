@@ -106,9 +106,16 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 	tests := []struct {
 		name  string
 		value any
+		// wantErr is the error of dataOnce, wantMatch whether a rule evaluates to true on that context
+		wantErr   string
+		wantMatch bool
 	}{
-		{name: "context that does not encode", value: make(chan int)},
-		{name: "context that encodes but does not decode", value: json.Number("1e1000")},
+		{name: "context that does not encode", value: make(chan int), wantErr: "json: unsupported type: chan int"},
+		{
+			name:    "context that encodes but does not decode",
+			value:   json.Number("1e1000"),
+			wantErr: "json: cannot unmarshal number 1e1000 into Go struct field .bad of type float64",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -122,11 +129,12 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			_, err := queryCtx.dataOnce()
 
-			require.Error(t, err)
+			require.EqualError(t, err, tt.wantErr)
 			assert.Nil(t, queryCtx.parsedEvalCtxAsData)
-			assert.False(t, evaluateRule(queryCtx.svc.compiledQuery(query), queryCtx), "first rule")
-			assert.False(
+			assert.Equal(t, tt.wantMatch, evaluateRule(queryCtx.svc.compiledQuery(query), queryCtx), "first rule")
+			assert.Equal(
 				t,
+				tt.wantMatch,
 				evaluateRule(queryCtx.svc.compiledQuery(query), queryCtx),
 				"later rules must not see partial data",
 			)

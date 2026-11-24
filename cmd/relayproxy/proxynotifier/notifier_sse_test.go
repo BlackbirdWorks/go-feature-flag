@@ -29,11 +29,16 @@ func TestNotifierSSE_Notify(t *testing.T) {
 		name        string
 		flagsetName string
 		diff        notifier.DiffCache
+		wantEvent   model.OFREPSSEEvent
 	}{
 		{
 			name:        "empty diff refetches the evaluations",
 			flagsetName: "my-flagset",
 			diff:        notifier.DiffCache{},
+			wantEvent: model.OFREPSSEEvent{
+				Type:         model.OFREPSSEEventTypeRefetchEvaluation,
+				LastModified: clocktest.Instant().Unix(),
+			},
 		},
 		{
 			name:        "diff with added flag refetches the evaluations, the diff is not sent",
@@ -47,6 +52,10 @@ func TestNotifierSSE_Notify(t *testing.T) {
 						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
+			},
+			wantEvent: model.OFREPSSEEvent{
+				Type:         model.OFREPSSEEventTypeRefetchEvaluation,
+				LastModified: clocktest.Instant().Unix(),
 			},
 		},
 	}
@@ -101,10 +110,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 
 			assert.Equal(t, "message", fields["event"])
 			assert.Equal(t, strconv.FormatInt(clocktest.Instant().UnixNano(), 10), fields["id"])
-			assert.Equal(t, model.OFREPSSEEvent{
-				Type:         model.OFREPSSEEventTypeRefetchEvaluation,
-				LastModified: clocktest.Instant().Unix(),
-			}, got)
+			assert.Equal(t, tt.wantEvent, got)
 		})
 	}
 }

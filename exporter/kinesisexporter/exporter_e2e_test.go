@@ -104,17 +104,19 @@ func TestE2E_Export(t *testing.T) {
 		nbCalls      int // the events are split in this number of Export calls
 		byArn        bool
 		partitionKey kinesisexporter.PartitionKeyFunc
+		wantReceived int
 	}{
-		{name: "one event", shards: 1, nbEvents: 1, nbCalls: 1},
-		{name: "ten events in one call", shards: 1, nbEvents: 10, nbCalls: 1},
-		{name: "ten events in two calls", shards: 1, nbEvents: 10, nbCalls: 2},
-		{name: "max PutRecords size (500 records)", shards: 1, nbEvents: 500, nbCalls: 1},
-		{name: "stream addressed by ARN", shards: 1, nbEvents: 3, nbCalls: 1, byArn: true},
+		{name: "one event", shards: 1, nbEvents: 1, nbCalls: 1, wantReceived: 1},
+		{name: "ten events in one call", shards: 1, nbEvents: 10, nbCalls: 1, wantReceived: 10},
+		{name: "ten events in two calls", shards: 1, nbEvents: 10, nbCalls: 2, wantReceived: 10},
+		{name: "max PutRecords size (500 records)", shards: 1, nbEvents: 500, nbCalls: 1, wantReceived: 500},
+		{name: "stream addressed by ARN", shards: 1, nbEvents: 3, nbCalls: 1, byArn: true, wantReceived: 3},
 		{
 			name: "custom partition key spreads on two shards", shards: 2, nbEvents: 20, nbCalls: 1,
 			partitionKey: func(_ context.Context, e exporter.ExportableEvent) string {
 				return e.(exporter.FeatureEvent).UserKey
 			},
+			wantReceived: 20,
 		},
 	}
 	for _, tt := range tests {
@@ -147,7 +149,7 @@ func TestE2E_Export(t *testing.T) {
 			}
 
 			got := readAll(t, client, stream, tt.nbEvents)
-			require.Len(t, got, tt.nbEvents)
+			require.Len(t, got, tt.wantReceived)
 			sort.Slice(got, func(i, j int) bool { return got[i].UserKey < got[j].UserKey })
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.UserKey)

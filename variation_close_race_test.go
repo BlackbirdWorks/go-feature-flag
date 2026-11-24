@@ -59,10 +59,12 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 	tests := []struct {
 		name string
 		// bulk is the type of the exporter that flushes after the hook of the first one.
-		bulk bool
+		bulk         bool
+		wantExported int64
+		wantDropped  int64
 	}{
-		{name: "bulk exporter", bulk: true},
-		{name: "live exporter", bulk: false},
+		{name: "bulk exporter", bulk: true, wantExported: 2, wantDropped: 0},
+		{name: "live exporter", bulk: false, wantExported: 2, wantDropped: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,8 +118,13 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 
 			// 3. the client closes; its final flush releases the evaluation.
 			c.Close()
-			assert.Equal(t, int64(2), second.events.Load(), "the event of the evaluation that was running is exported")
-			assert.Zero(t, c.DroppedEvents())
+			assert.Equal(
+				t,
+				tt.wantExported,
+				second.events.Load(),
+				"the event of the evaluation that was running is exported",
+			)
+			assert.Equal(t, tt.wantDropped, c.DroppedEvents())
 		})
 	}
 }
