@@ -79,7 +79,7 @@ func copyScheduled(steps *[]ScheduledStep) *[]ScheduledStep {
 	out := make([]ScheduledStep, len(*steps))
 	for i := range *steps {
 		out[i] = ScheduledStep{
-			InternalFlag: *(*steps)[i].InternalFlag.DeepCopy(),
+			InternalFlag: *(*steps)[i].DeepCopy(),
 			Date:         copyPtr((*steps)[i].Date),
 		}
 	}
