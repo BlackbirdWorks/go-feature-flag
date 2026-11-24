@@ -70,6 +70,7 @@ func (e *Exporter) Export(
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -96,5 +97,6 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	publisher.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = publisher
+
 	return nil
 }

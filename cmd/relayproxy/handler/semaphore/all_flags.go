@@ -88,5 +88,6 @@ func (h *allFlags) Handler(c *echo.Context) error {
 		attribute.Bool("AllFlagsState.valid", allFlags.IsValid()),
 		attribute.Int("AllFlagsState.numberEvaluation", len(allFlags.GetFlags())),
 	)
+
 	return c.JSON(http.StatusOK, allFlags)
 }

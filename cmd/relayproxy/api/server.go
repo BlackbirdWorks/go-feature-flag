@@ -47,6 +47,7 @@ func New(config *config.Config,
 	}
 	s.apiEcho = echo.New()
 	s.initRoutes()
+
 	return s
 }
 
@@ -86,6 +87,7 @@ func (s *Server) initRoutes() {
 				// classic histogram buckets for backward compatibility.
 				opts.NativeHistogramBucketFactor = 1.1
 				opts.NativeHistogramMaxBucketNumber = 160
+
 				return opts
 			},
 		}))

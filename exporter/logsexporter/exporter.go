@@ -51,6 +51,7 @@ func (f *Exporter) Export(
 		}
 		logger.Info(string(log))
 	}
+
 	return nil
 }
 

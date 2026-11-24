@@ -43,6 +43,7 @@ func (p *environProvider) Read() (map[string]any, error) {
 		}
 		if p.skip != nil && p.skip(strings.TrimPrefix(name, p.prefix), value) {
 			skipped = append(skipped, name)
+
 			continue
 		}
 		key, mapped := p.cb(name, value)
@@ -55,6 +56,7 @@ func (p *environProvider) Read() (map[string]any, error) {
 		slices.Sort(skipped)
 		p.skipped(skipped)
 	}
+
 	return maps.Unflatten(mp, "."), nil
 }
 
@@ -76,6 +78,7 @@ func isServiceLink(name, value string) bool {
 	switch {
 	case name == "SERVICE_HOST":
 		_, err := netip.ParseAddr(value)
+
 		return err == nil
 	case name == "SERVICE_PORT", serviceLinkNamedPortRegexp.MatchString(name):
 		return isPortNumber(value)
@@ -85,6 +88,7 @@ func isServiceLink(name, value string) bool {
 		switch {
 		case strings.HasSuffix(name, "_ADDR"):
 			_, err := netip.ParseAddr(value)
+
 			return err == nil
 		case strings.HasSuffix(name, "_PORT"):
 			return isPortNumber(value)
@@ -94,11 +98,13 @@ func isServiceLink(name, value string) bool {
 			return isServiceLinkURL(value)
 		}
 	}
+
 	return false
 }
 
 func isPortNumber(value string) bool {
 	port, err := strconv.Atoi(value)
+
 	return err == nil && port > 0 && port < 65536
 }
 
@@ -108,6 +114,7 @@ func isServiceLinkURL(value string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -136,21 +143,25 @@ func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) k
 						zap.Int("valueLength", len(v)),
 						zap.Error(err),
 					)
+
 					return key, v
 				}
 				// Update the global config with the modified configMap
 				for configKey, configValue := range modifiedConfigMap {
 					_ = c.k.Set(configKey, configValue)
 				}
+
 				return key, v
 			case strings.HasSuffix(key, "KAFKA_ADDRESSES"),
 				strings.HasSuffix(key, "APIKEYS"),
 				strings.HasPrefix(key, "AUTHORIZEDKEYS_EVALUATION"),
 				strings.HasPrefix(key, "AUTHORIZEDKEYS_ADMIN"):
 				transformedKey := strings.ReplaceAll(strings.ToLower(key), "_", ".")
+
 				return transformedKey, strings.Split(v, ",")
 			case key == "OTEL_RESOURCE_ATTRIBUTES":
 				c.parseOtelResourceAttributes(v, log)
+
 				return key, v
 			default:
 				return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
@@ -163,6 +174,7 @@ func (c *ConfigLoader) environ() func() []string {
 	if c.environFunc != nil {
 		return c.environFunc
 	}
+
 	return os.Environ
 }
 
@@ -199,6 +211,7 @@ func normalizePaths(s string) []string {
 	for i, str := range paths {
 		paths[i] = strings.ToLower(str)
 	}
+
 	return paths
 }
 
@@ -208,6 +221,7 @@ func fetchOrInitConfigItemAtIndex(configArray []any, index int) map[string]any {
 	if outRange {
 		return make(map[string]any)
 	}
+
 	return configArray[index].(map[string]any)
 }
 
@@ -218,6 +232,7 @@ func shouldHandleRecursively(prefixKey string, keys []string) bool {
 	}
 
 	recursiveKeys := []string{"retrievers", "notifier", "notifiers", "exporters"}
+
 	return slices.Contains(recursiveKeys, keys[0])
 }
 
@@ -279,6 +294,7 @@ func ensureMapExists(
 	if currentIndex != lastIndex {
 		newMap := make(map[string]any)
 		currentMap[key] = newMap
+
 		return newMap
 	}
 
@@ -290,6 +306,7 @@ func parseValue(lastKey string, keys []string, v string) any {
 	if isArrayValue(lastKey, keys) {
 		return parseArrayValue(v)
 	}
+
 	return v
 }
 
@@ -305,6 +322,7 @@ func parseArrayValue(v string) []string {
 	for i, item := range split {
 		split[i] = strings.TrimSpace(item)
 	}
+
 	return split
 }
 
@@ -329,6 +347,7 @@ func expandArray(configArray []any, index int) []any {
 	for range blank {
 		configArray = append(configArray, make(map[string]any))
 	}
+
 	return configArray
 }
 
@@ -360,6 +379,7 @@ func (c *ConfigLoader) parseOtelResourceAttributes(attributes string, log *zap.L
 		if !found {
 			log.Error("config: error loading OTEL_RESOURCE_ATTRIBUTES - incorrect format",
 				zap.Int("position", i))
+
 			continue
 		}
 

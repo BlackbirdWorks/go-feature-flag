@@ -91,6 +91,7 @@ func Test_info_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
+
 				return
 			}
 

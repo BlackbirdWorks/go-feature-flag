@@ -61,6 +61,7 @@ func Test_ParseTemplate(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Equal(t, defaultT, got, "If template invalid we should use default template")
+
 				return
 			}
 			assert.NotEqual(t, defaultT, got, "We should not have the same template")

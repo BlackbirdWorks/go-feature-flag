@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // the details handed to the caller belong to the evaluation: editing the metadata or the rule name
@@ -28,7 +27,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			flag: func(base time.Time) *InternalFlag {
 				return &InternalFlag{
 					Metadata:   metadata(),
-					Variations: &map[string]*any{"A": testconvert.Interface("a")},
+					Variations: &map[string]*any{"A": new(any("a"))},
 					Rules: &[]Rule{{
 						Name: new("rule"), Query: new(`key eq "user"`),
 						VariationResult: new("A"),
@@ -46,7 +45,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			flag: func(base time.Time) *InternalFlag {
 				return &InternalFlag{
 					Metadata:   metadata(),
-					Variations: &map[string]*any{"A": testconvert.Interface("a")},
+					Variations: &map[string]*any{"A": new(any("a"))},
 					// no default rule: the selection of the variation fails
 					Scheduled: &[]ScheduledStep{{
 						Date:    new(base.Add(-time.Hour)),
@@ -85,5 +84,6 @@ func withoutRuleName(m map[string]any) map[string]any {
 			out[k] = v
 		}
 	}
+
 	return out
 }

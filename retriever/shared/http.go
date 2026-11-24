@@ -54,5 +54,6 @@ func CallHTTPAPI(
 		// CheckRedirect fails: keep it so the callers still see the status and the headers.
 		return resp, internal.RedactURLError(err)
 	}
+
 	return resp, nil
 }

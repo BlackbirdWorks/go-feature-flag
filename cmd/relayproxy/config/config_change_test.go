@@ -486,6 +486,7 @@ func newAPIServerWithLogger(
 
 	s := api.New(c, services, logger)
 	go func() { s.StartWithContext(context.Background()) }()
+
 	return s, c
 }
 

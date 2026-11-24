@@ -62,12 +62,14 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 	flags, err := flagset.GetFlagsFromCacheWithContext(c.Request().Context())
 	if err != nil {
 		m.logger.Error("error while getting flags from cache", zap.Error(err))
+
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
 	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags)
 	if err != nil {
 		m.logger.Error("error while generating manifest", zap.Error(err))
+
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}
 	manifestSuccessResponse := model.ManifestSuccessResponse{
@@ -84,10 +86,12 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 			sort.Slice(responses, func(i, j int) bool {
 				return responses[i].Key < responses[j].Key
 			})
+
 			return responses
 		}(),
 	}
 	c.Response().Header().Set(manifestCapabilitiesHeader, manifestCapabilitiesValue)
 	m.metrics.IncGetManifestCall()
+
 	return c.JSON(http.StatusOK, manifestSuccessResponse)
 }

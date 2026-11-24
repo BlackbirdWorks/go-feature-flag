@@ -31,6 +31,7 @@ type WebsocketService interface {
 // NewWebsocketService is a constructor to create a new WebsocketService.
 func NewWebsocketService(opts ...Option) WebsocketService {
 	options := newOptions(opts...)
+
 	return &websocketServiceImpl{
 		clients:            map[WebsocketConnector]string{},
 		mutex:              &sync.RWMutex{},

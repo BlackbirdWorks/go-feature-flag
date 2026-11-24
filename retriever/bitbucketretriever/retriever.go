@@ -80,6 +80,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 				bitbucketHeaders[name] = resp.Header.Get(name)
 			}
 		}
+
 		return nil, fmt.Errorf("request to %s failed with code %d."+
 			" Bitbucket Headers: %v", URL, resp.StatusCode, bitbucketHeaders)
 	}
@@ -88,6 +89,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 

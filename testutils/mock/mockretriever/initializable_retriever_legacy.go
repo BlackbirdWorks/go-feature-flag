@@ -26,6 +26,7 @@ func NewInitializableRetrieverLegacy(name string) *InitializableRetrieverLegacy 
 
 func (m *InitializableRetrieverLegacy) Retrieve(_ context.Context) ([]byte, error) {
 	m.RetrieveCalled = true
+
 	return []byte(defaultFlagConfig), nil
 }
 
@@ -35,11 +36,13 @@ func (m *InitializableRetrieverLegacy) Init(_ context.Context, logger *log.Logge
 	if m.InitShouldFail {
 		return errors.New("initialization failed")
 	}
+
 	return nil
 }
 
 func (m *InitializableRetrieverLegacy) Shutdown(_ context.Context) error {
 	m.ShutdownCalled = true
+
 	return nil
 }
 
@@ -48,6 +51,7 @@ func (m *InitializableRetrieverLegacy) Status() retriever.Status {
 	if m.InitShouldFail {
 		return retriever.RetrieverError
 	}
+
 	return retriever.RetrieverReady
 }
 

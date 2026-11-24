@@ -24,5 +24,6 @@ func initRootCmd() *cobra.Command {
 	rootCmd.AddCommand(evaluate.NewEvaluateCmd())
 	rootCmd.AddCommand(linter.NewLintCmd())
 	rootCmd.AddCommand(generate.NewGenerateCmd())
+
 	return rootCmd
 }

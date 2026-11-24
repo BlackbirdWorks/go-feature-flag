@@ -25,5 +25,6 @@ func ContextToMapInto(dst map[string]any, ctx ffcontext.Context) map[string]any 
 	k := any(ctx.GetKey())
 	userCopy["key"] = k
 	userCopy["targetingKey"] = k
+
 	return userCopy
 }

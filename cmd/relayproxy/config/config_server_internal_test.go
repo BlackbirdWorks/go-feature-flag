@@ -27,6 +27,7 @@ func TestValidateServerConfig(t *testing.T) {
 			err := (&Config{Server: tt.server}).validateServerConfig()
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)
@@ -57,6 +58,7 @@ func TestValidateExporters(t *testing.T) {
 			err := validateExporters(tt.exporter, tt.exporters)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)

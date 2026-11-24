@@ -53,6 +53,7 @@ func NewOFREPEvaluate(
 	for _, opt := range opts {
 		opt(&h)
 	}
+
 	return h
 }
 
@@ -125,6 +126,7 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 		if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
 			httpStatus = http.StatusNotFound
 		}
+
 		return c.JSON(
 			httpStatus,
 			NewEvaluateError(flagKey, flagValue.ErrorCode,
@@ -253,6 +255,7 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 	}
 
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
 	return c.JSON(http.StatusOK, response)
 }
 
@@ -282,6 +285,7 @@ func (h *EvaluateCtrl) buildEventStreams(c *echo.Context) []model.OFREPEventStre
 	if apiKey := helper.APIKey(c); apiKey != "" {
 		u.RawQuery = url.Values{"apiKey": []string{apiKey}}.Encode()
 	}
+
 	return []model.OFREPEventStream{{
 		Type:               "sse",
 		URL:                u.String(),
@@ -323,5 +327,6 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 
 	// Create evaluation context (empty targeting key is allowed)
 	evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctx)
+
 	return evalCtx, nil
 }

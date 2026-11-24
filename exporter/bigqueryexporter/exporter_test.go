@@ -261,6 +261,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 					...option.ClientOption,
 				) (bigQueryClient, error) {
 					initCalled = true
+
 					return newMockBigQueryClient(), nil
 				},
 			}
@@ -410,6 +411,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 					if tt.newClientErr != nil {
 						return nil, tt.newClientErr
 					}
+
 					return client, nil
 				},
 			}
@@ -462,6 +464,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 			...option.ClientOption,
 		) (bigQueryClient, error) {
 			callCount.Add(1)
+
 			return client, nil
 		},
 	}
@@ -518,6 +521,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 				) (bigQueryClient, error) {
 					gotProjectID = projectID
 					gotClientOptions = len(opts)
+
 					return client, nil
 				},
 			}
@@ -672,6 +676,7 @@ type mockBigQueryClient struct {
 func newMockBigQueryClient() *mockBigQueryClient {
 	client := &mockBigQueryClient{}
 	client.ensureInitialized()
+
 	return client
 }
 
@@ -690,6 +695,7 @@ func (m *mockBigQueryClient) Inserter(dataset, table string) inserter {
 			m.inserters[key].err = m.putErrByTable[key]
 		}
 	}
+
 	return m.inserters[key]
 }
 
@@ -707,6 +713,7 @@ func (m *mockBigQueryClient) EnsureTable(
 		table:   table,
 		schema:  schema,
 	})
+
 	return nil
 }
 
@@ -724,6 +731,7 @@ func (m *mockInserter) Put(_ context.Context, src any) error {
 		return m.err
 	}
 	m.puts = append(m.puts, src)
+
 	return nil
 }
 

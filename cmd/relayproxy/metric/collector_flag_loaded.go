@@ -75,6 +75,7 @@ func isEffectivelyDisabled(flagName string, f flag.Flag) bool {
 	if details.Reason == flag.ReasonError {
 		return f.IsDisable()
 	}
+
 	return details.Reason == flag.ReasonDisabled
 }
 
@@ -98,5 +99,6 @@ func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 	if m.Registry == nil || source == nil {
 		return nil
 	}
+
 	return m.Registry.Register(newFlagLoadedCollector(source))
 }

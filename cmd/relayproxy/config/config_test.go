@@ -1900,6 +1900,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	s3Item := &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: "flags", Item: "a/flags.yaml"}
 	flagset := func(common config.CommonFlagSet) *config.Config {
 		common.EnableSharedPollerPerBucket = true
+
 		return &config.Config{
 			Server:   config.Server{Port: 8080},
 			FlagSets: []config.FlagSet{{Name: "fs", APIKeys: []string{"k"}, CommonFlagSet: common}},
@@ -1955,6 +1956,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
+
 				return
 			}
 			assert.ErrorContains(t, err, tt.wantErr)
@@ -1971,6 +1973,7 @@ func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
 	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
 	got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
 	require.NoError(t, err)
+
 	return got
 }
 
@@ -2048,6 +2051,7 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
+
 				return
 			}
 			assert.EqualError(t, err, tt.wantErr)

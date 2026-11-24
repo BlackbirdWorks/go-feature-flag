@@ -13,6 +13,7 @@ import (
 // IsValid is checking if the rule is valid.
 func (r *Rule) IsValid(defaultRule bool, variations map[string]*any) error {
 	_, err := r.validate(defaultRule, variations, nil)
+
 	return err
 }
 
@@ -99,6 +100,7 @@ func (r *Rule) validateSinglePercentage(p float64, errCtx string) error {
 		return fmt.Errorf(
 			"invalid percentage: %s has a negative or non-finite percentage (%v)", errCtx, p)
 	}
+
 	return nil
 }
 
@@ -174,6 +176,7 @@ func (r *Rule) validateVariationResult(variations map[string]*any) error {
 // The query format can be either JSONLogic or Nikunjy.
 func (r *Rule) isQueryValid(defaultRule bool) error {
 	_, err := r.validateQuery(defaultRule)
+
 	return err
 }
 
@@ -193,6 +196,7 @@ func (r *Rule) validateQuery(defaultRule bool) (*parser.Evaluator, error) {
 		if !jsonlogic.IsValid(strings.NewReader(r.GetQuery())) {
 			return nil, errors.New("invalid jsonlogic query")
 		}
+
 		return nil, nil
 	default:
 		return nikunjyEvaluators.validateEvaluator(r.GetTrimmedQuery())

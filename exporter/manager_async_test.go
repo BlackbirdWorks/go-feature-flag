@@ -67,6 +67,7 @@ func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exp
 		return assert.AnError
 	}
 	c.events.Add(int64(len(ev)))
+
 	return nil
 }
 

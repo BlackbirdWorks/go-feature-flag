@@ -46,6 +46,7 @@ func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 			req, err := tt.ep.NewRequest("http://x", "k", 1)
 			if tt.path == "" {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)

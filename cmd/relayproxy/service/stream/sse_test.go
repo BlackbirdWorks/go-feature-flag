@@ -18,7 +18,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -38,7 +37,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
 						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
@@ -238,5 +237,6 @@ func countLine(lines []string, want string) int {
 			count++
 		}
 	}
+
 	return count
 }

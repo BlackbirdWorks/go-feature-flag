@@ -116,6 +116,7 @@ func main() {
 			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
 			zap.Error(err),
 		)
+
 		return
 	}
 	if err := metricsV2.RegisterFlagLoaded(flagsetManager); err != nil {

@@ -106,6 +106,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			logger.Error("[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
+
 			continue
 		}
 		if err := f.uploadFile(ctx, client, of, file.Name()); err != nil {
@@ -149,5 +150,6 @@ func (f *Exporter) uploadFile(
 			err,
 		)
 	}
+
 	return nil
 }

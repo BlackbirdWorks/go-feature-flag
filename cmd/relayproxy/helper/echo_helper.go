@@ -27,6 +27,7 @@ func APIKey(c *echo.Context) string {
 	if len(apiKey) >= len(BearerPrefix) && strings.EqualFold(apiKey[:len(BearerPrefix)], BearerPrefix) {
 		return strings.TrimSpace(apiKey[len(BearerPrefix):])
 	}
+
 	return apiKey
 }
 
@@ -40,6 +41,7 @@ func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.Go
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "error while getting flagset: "+err.Error())
 	}
+
 	return flagset, nil
 }
 
@@ -54,5 +56,6 @@ func FlagKey(c *echo.Context) string {
 	if decoded, err := url.PathUnescape(key); err == nil {
 		return decoded
 	}
+
 	return key
 }

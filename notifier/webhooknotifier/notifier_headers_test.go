@@ -127,6 +127,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 					if values := req.Header.Values("X-Custom"); len(values) > 0 {
 						values[0] = "changed by client"
 					}
+
 					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 				}),
 			}

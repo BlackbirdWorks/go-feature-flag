@@ -8,7 +8,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestAll(t *testing.T) {
@@ -22,9 +21,9 @@ func TestAll(t *testing.T) {
 			param: map[string]dto.DTO{
 				"test": {
 					Variations: &map[string]*any{
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
-						"Default": testconvert.Interface("default"),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
+						"Default": new(any("default")),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
@@ -37,9 +36,9 @@ func TestAll(t *testing.T) {
 			want: map[string]flag.Flag{
 				"test": &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"False":   testconvert.Interface("false"),
-						"True":    testconvert.Interface("true"),
+						"Default": new(any("default")),
+						"False":   new(any("false")),
+						"True":    new(any("true")),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
@@ -55,9 +54,9 @@ func TestAll(t *testing.T) {
 			param: map[string]dto.DTO{
 				"test": {
 					Variations: &map[string]*any{
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
-						"Default": testconvert.Interface("default"),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
+						"Default": new(any("default")),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -69,9 +68,9 @@ func TestAll(t *testing.T) {
 				},
 				"test1": {
 					Variations: &map[string]*any{
-						"True":    testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
-						"Default": testconvert.Interface(false),
+						"True":    new(any(true)),
+						"False":   new(any(false)),
+						"Default": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -85,9 +84,9 @@ func TestAll(t *testing.T) {
 			want: map[string]flag.Flag{
 				"test": &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"False":   testconvert.Interface("false"),
-						"True":    testconvert.Interface("true"),
+						"Default": new(any("default")),
+						"False":   new(any("false")),
+						"True":    new(any("true")),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -99,9 +98,9 @@ func TestAll(t *testing.T) {
 				},
 				"test1": &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -138,9 +137,9 @@ func TestCopy(t *testing.T) {
 			param: map[string]dto.DTO{
 				"test": {
 					Variations: &map[string]*any{
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
-						"Default": testconvert.Interface("default"),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
+						"Default": new(any("default")),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),

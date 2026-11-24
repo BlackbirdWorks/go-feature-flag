@@ -25,6 +25,7 @@ func EnrichContext(ctx ffcontext.Context, enrichment map[string]any) ffcontext.C
 	if len(enrichment) == 0 {
 		return ctx
 	}
+
 	return newEnrichedContext(ctx, enrichment)
 }
 
@@ -35,6 +36,7 @@ func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enric
 	maps.Copy(custom, enrichment)
 	hasProtectedd := ffcontext.HasReservedKey(enrichment)
 	_, hasAnonymous := enrichment["anonymous"]
+
 	return &enrichedContext{
 		Context: ctx, merged: merged, hasProtected: hasProtectedd, hasAnonymous: hasAnonymous,
 	}
@@ -53,6 +55,7 @@ func (e *enrichedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpec
 	if e.hasProtected {
 		return e.merged.ExtractGOFFProtectedFields()
 	}
+
 	return e.Context.ExtractGOFFProtectedFields()
 }
 
@@ -62,5 +65,6 @@ func (e *enrichedContext) IsAnonymous() bool {
 	if e.hasAnonymous {
 		return e.merged.IsAnonymous()
 	}
+
 	return e.Context.IsAnonymous()
 }

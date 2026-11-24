@@ -57,12 +57,14 @@ func (f *fakeS3) etagOf(key string) string {
 	if e, ok := f.etags[key]; ok {
 		return e
 	}
+
 	return "x"
 }
 
 func (f *fakeS3) getCount(key string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.getsByKey[key]
 }
 
@@ -83,6 +85,7 @@ func (f *fakeS3) ListObjectsV2(
 			out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(f.etagOf(k))})
 		}
 	}
+
 	return out, nil
 }
 
@@ -99,11 +102,13 @@ func (f *fakeS3) DownloadObject(
 	if _, err := in.WriterAt.WriteAt(f.content, 0); err != nil {
 		return nil, err
 	}
+
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(f.etagOf(aws.ToString(in.Key)))}, nil
 }
 
 func newFakeRegistry(t *testing.T, f *fakeS3, created *atomic.Int32) *sharedBucketRegistry {
 	t.Helper()
+
 	return newFakeRegistryWithPolling(t, f, created, 0, false, nil)
 }
 
@@ -111,8 +116,10 @@ func newFakeRegistryWithPolling(
 	t *testing.T, f *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *zap.Logger,
 ) *sharedBucketRegistry {
 	t.Helper()
+
 	return newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 		created.Add(1)
+
 		return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
 			Bucket: bucket, Lister: f, Downloader: f,
 		})
@@ -133,6 +140,7 @@ func s3FlagSet(name, bucket, item string) config.FlagSet {
 func (r *sharedBucketRegistry) groupCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return len(r.groups)
 }
 
@@ -201,6 +209,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 				// every caller is building its own group at the same time: only one is kept
 				building.Done()
 				building.Wait()
+
 				return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
 					Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
 				})

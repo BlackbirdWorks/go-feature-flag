@@ -122,6 +122,7 @@ func bucket(ns int64) int {
 	if l >= 2 {
 		sub = int((uint64(ns) >> (l - 2)) & 3)
 	}
+
 	return l*4 + sub
 }
 
@@ -130,6 +131,7 @@ func bucketUpper(b int) time.Duration {
 	if l < 2 {
 		return time.Duration(1 << (l + 1))
 	}
+
 	return time.Duration(int64(4+sub+1) << (l - 2))
 }
 
@@ -145,6 +147,7 @@ func quantile(h []int64, total int64, q float64) time.Duration {
 			return bucketUpper(i)
 		}
 	}
+
 	return bucketUpper(len(h) - 1)
 }
 
@@ -229,6 +232,7 @@ loop:
 			"aborted after %s: live heap exceeded the %d MiB safety cap (unbounded growth)",
 			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>20))
 	}
+
 	return rep
 }
 
@@ -237,6 +241,7 @@ func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64
 	runtime.GC()
 	var ms runtime.MemStats
 	runtime.ReadMemStats(&ms)
+
 	return Sample{
 		Elapsed:     elapsed.Round(time.Second),
 		EvalsPerSec: float64(calls) / interval.Seconds(),
@@ -266,6 +271,7 @@ func watchdog(ctx context.Context, cancel context.CancelFunc, maxHeap uint64, ab
 			if sample[0].Value.Kind() == metrics.KindUint64 && sample[0].Value.Uint64() > maxHeap {
 				abortedAt.Store(int64(time.Since(start)) + 1)
 				cancel()
+
 				return
 			}
 		}
@@ -303,6 +309,7 @@ func drain(stats []*workerStats, hist []int64) (count, errs, nLat int64) {
 			nLat += c
 		}
 	}
+
 	return count, errs, nLat
 }
 
@@ -320,6 +327,7 @@ func warmupCount(n int, o Options) int {
 	if o.WarmupIntervals > 0 {
 		return o.WarmupIntervals
 	}
+
 	return max(2, n/5)
 }
 
@@ -328,6 +336,7 @@ func flagsPerCall(t Target) int {
 	if w, ok := t.(Weighted); ok {
 		return max(1, w.FlagsPerCall())
 	}
+
 	return 1
 }
 
@@ -350,6 +359,7 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 	w.CallsPerSec /= float64(w.Samples)
 	w.FlagsPerSec = w.CallsPerSec * float64(perCall)
 	w.P50, w.P95, w.P99 = quantile(merged, total, 0.50), quantile(merged, total, 0.95), quantile(merged, total, 0.99)
+
 	return w
 }
 
@@ -371,6 +381,7 @@ func judge(r *Report, o Options) {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
 			"insufficient samples: %d samples, %d warm-up, need at least 3 measured (increase -duration)", n, warm))
+
 		return
 	}
 	m := r.Samples[warm:]
@@ -384,6 +395,7 @@ func judge(r *Report, o Options) {
 		for _, s := range ss {
 			p = max(p, s.HeapInuse)
 		}
+
 		return float64(p)
 	}
 	first, last := peak(m[:third]), peak(m[len(m)-third:])

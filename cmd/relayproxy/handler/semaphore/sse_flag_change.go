@@ -68,5 +68,6 @@ func (h *sseFlagChange) Handler(c *echo.Context) error {
 	c.Request().URL.RawQuery = q.Encode()
 
 	h.sseService.ServeHTTP(c.Response(), c.Request())
+
 	return nil
 }

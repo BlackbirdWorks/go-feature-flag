@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -20,8 +19,8 @@ func TestDescribeChanges(t *testing.T) {
 	baseFlag := func() *flag.InternalFlag {
 		return &flag.InternalFlag{
 			Variations: &map[string]*any{
-				"on":  testconvert.Interface(true),
-				"off": testconvert.Interface(false),
+				"on":  new(any(true)),
+				"off": new(any(false)),
 			},
 			Rules: &[]flag.Rule{
 				{
@@ -123,8 +122,8 @@ func TestDescribeChanges(t *testing.T) {
 		{
 			name: "should describe variation changes",
 			update: func(f *flag.InternalFlag) {
-				(*f.Variations)["on"] = testconvert.Interface("enabled")
-				(*f.Variations)["legacy"] = testconvert.Interface(map[string]any{"color": "blue"})
+				(*f.Variations)["on"] = new(any("enabled"))
+				(*f.Variations)["legacy"] = new(any(map[string]any{"color": "blue"}))
 				delete(*f.Variations, "off")
 			},
 			want: []string{
@@ -139,12 +138,12 @@ func TestDescribeChanges(t *testing.T) {
 				f.DefaultRule = &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("off"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       &start,
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("on"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       &end,
 					},
 				}}
@@ -452,7 +451,7 @@ func TestDescribeChanges(t *testing.T) {
 				f.Scheduled = &[]flag.ScheduledStep{{
 					Date:        &start,
 					Version:     new("2.0"),
-					Variations:  &map[string]*any{"legacy": testconvert.Interface("x")},
+					Variations:  &map[string]*any{"legacy": new(any("x"))},
 					Rules:       &[]flag.Rule{{Name: new("beta"), VariationResult: new("on")}},
 					DefaultRule: &flag.Rule{VariationResult: new("on")},
 					Experimentation: &flag.ExperimentationRollout{
@@ -464,7 +463,7 @@ func TestDescribeChanges(t *testing.T) {
 			update: func(f *flag.InternalFlag) {
 				step := &(*f.Scheduled)[0]
 				step.Version = nil
-				step.Variations = &map[string]*any{"next": testconvert.Interface("y")}
+				step.Variations = &map[string]*any{"next": new(any("y"))}
 				step.Rules = &[]flag.Rule{{Name: new("beta"), VariationResult: new("off"), Disable: new(false)}}
 				step.DefaultRule = nil
 				step.Experimentation = &flag.ExperimentationRollout{End: new(end.Add(time.Hour))}
@@ -479,7 +478,7 @@ func TestDescribeChanges(t *testing.T) {
 			update: func(f *flag.InternalFlag) {
 				(*f.Scheduled)[0].DefaultRule = &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
-						Initial: &flag.ProgressiveRolloutStep{Percentage: testconvert.Float64(10)},
+						Initial: &flag.ProgressiveRolloutStep{Percentage: new(float64(10))},
 						End:     &flag.ProgressiveRolloutStep{},
 					},
 				}
@@ -613,6 +612,7 @@ func TestChangeList(t *testing.T) {
 		for i := range list {
 			list[i] = fmt.Sprintf("change %d", i+1)
 		}
+
 		return list
 	}
 	tests := []struct {

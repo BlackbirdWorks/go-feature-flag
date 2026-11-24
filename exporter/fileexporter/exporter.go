@@ -104,6 +104,7 @@ func (f *Exporter) Export(
 	if f.Format == "parquet" {
 		return f.writeParquet(filePath, events)
 	}
+
 	return f.writeFile(filePath, events)
 }
 
@@ -143,6 +144,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 			return fmt.Errorf("error while writing the export file: %w", errWrite)
 		}
 	}
+
 	return nil
 }
 
@@ -162,6 +164,7 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 	if len(parquetTrackingEvents) > 0 {
 		return f.writeParquetTrackingEvent(filePath, parquetTrackingEvents)
 	}
+
 	return f.writeParquetFeatureEvent(filePath, parquetFeatureEvents)
 }
 

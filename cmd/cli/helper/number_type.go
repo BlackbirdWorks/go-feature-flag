@@ -59,8 +59,10 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 				return model.FlagTypeFloat, nil
 			}
 		}
+
 		return model.FlagTypeInteger, nil
 	}
+
 	return "", errors.New("impossible to find type")
 }
 
@@ -76,6 +78,7 @@ func numberType(value any) (string, error) {
 		if floatVal == float64(int64(floatVal)) {
 			return "integer", nil
 		}
+
 		return "float", nil
 	default:
 		return "", fmt.Errorf("unknown type %v", val.Kind())

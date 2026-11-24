@@ -58,9 +58,11 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
 	if _, err := r.getHTTPClient(); err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -68,6 +70,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.httpClient = nil
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -76,6 +79,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -98,6 +102,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 
@@ -124,6 +129,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	}
 
 	r.httpClient = internal.NewHTTPClient(r.Timeout, transport)
+
 	return r.httpClient, nil
 }
 
@@ -159,6 +165,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return []tls.Certificate{cert}, nil
 }
 
@@ -182,5 +189,6 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 	if !rootCAs.AppendCertsFromPEM(caCert) {
 		return nil, errors.New("failed to parse CA certificate")
 	}
+
 	return rootCAs, nil
 }

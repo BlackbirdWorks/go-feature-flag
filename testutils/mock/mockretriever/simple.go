@@ -21,6 +21,7 @@ func (m *SimpleRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	if m.ShouldFail {
 		return nil, errors.New("retrieve failed")
 	}
+
 	return []byte(defaultFlagConfig), nil
 }
 

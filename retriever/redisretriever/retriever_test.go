@@ -110,6 +110,7 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 		_, errAdd := rdb.Set(ctx, prefix+flagName, string(content), 0).Result()
 		require.NoError(t, errAdd)
 	}
+
 	return options
 }
 
@@ -248,5 +249,6 @@ func readFile(t *testing.T, file string) (string, []byte) {
 	}
 	assert.NoError(t, err)
 	flagName := file[:len(file)-5]
+
 	return flagName, content
 }

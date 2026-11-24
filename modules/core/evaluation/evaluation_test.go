@@ -9,7 +9,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func Test_evaluate(t *testing.T) {
@@ -32,8 +31,8 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
@@ -88,8 +87,8 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3)),
-						"off": testconvert.Interface(float64(0)),
+						"on":  new(any(float64(3))),
+						"off": new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
@@ -116,8 +115,8 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3)),
-						"off": testconvert.Interface(float64(0)),
+						"on":  new(any(float64(3))),
+						"off": new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
@@ -144,8 +143,8 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3.5)),
-						"off": testconvert.Interface(float64(0.3)),
+						"on":  new(any(float64(3.5))),
+						"off": new(any(float64(0.3))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
@@ -183,8 +182,8 @@ func Test_evaluate(t *testing.T) {
 func Test_evaluate_typeMisMatch(t *testing.T) {
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on":  testconvert.Interface(true),
-			"off": testconvert.Interface(false),
+			"on":  new(any(true)),
+			"off": new(any(false)),
 		},
 		DefaultRule: &flag.Rule{
 			VariationResult: new("on"),

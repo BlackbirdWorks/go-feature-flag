@@ -164,6 +164,7 @@ loglevel: error`,
 						// Clean up
 						err = loader.StopWatchChanges()
 						assert.NoError(t, err)
+
 						return
 					}
 				}

@@ -6,6 +6,7 @@ func (c *Config) AttachConfigChangeCallback(callback func(newConfig *Config)) {
 		if c.logger != nil {
 			c.logger.Error("configLoader is not initialized, impossible to attach a callback to the configuration changes")
 		}
+
 		return
 	}
 	c.configLoader.AddConfigChangeCallback(callback)
@@ -17,5 +18,6 @@ func (c *Config) StopConfigChangeWatcher() error {
 	if c.configLoader == nil {
 		return nil
 	}
+
 	return c.configLoader.StopWatchChanges()
 }

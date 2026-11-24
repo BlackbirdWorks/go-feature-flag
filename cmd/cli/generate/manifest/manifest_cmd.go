@@ -25,9 +25,11 @@ func NewManifestCmd() *cobra.Command {
 			output, err := m.Generate()
 			if err != nil {
 				cmd.SilenceUsage = true
+
 				return err
 			}
 			output.PrintLines(cmd)
+
 			return nil
 		},
 		SilenceUsage:  true,
@@ -41,5 +43,6 @@ func NewManifestCmd() *cobra.Command {
 		"flag_manifest_destination", "", "Destination of your flag manifest file. "+
 			"If not provided, the manifest will be printed to the console.")
 	_ = manifestCmd.MarkFlagRequired("flag_manifest_destination")
+
 	return manifestCmd
 }

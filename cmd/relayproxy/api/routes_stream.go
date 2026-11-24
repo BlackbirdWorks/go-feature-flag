@@ -40,6 +40,7 @@ func deprecatedAlias(replacement string) echo.MiddlewareFunc {
 				"Link",
 				`<`+replacement+`>; rel="successor-version"`,
 			)
+
 			return next(c)
 		}
 	}

@@ -21,6 +21,7 @@ import (
 // testConfig returns a minimal HTTP relay proxy configuration listening on a free port.
 func testConfig(t *testing.T) *config.Config {
 	t.Helper()
+
 	return &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -63,6 +64,7 @@ func startTestServer(t *testing.T, conf *config.Config) string {
 		waitForServer(t, fmt.Sprintf("http://localhost:%d", monitoringPort))
 	}
 	waitForServer(t, baseURL)
+
 	return baseURL
 }
 
@@ -78,6 +80,7 @@ func doRequest(t *testing.T, method, url string, headers map[string]string) *htt
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = resp.Body.Close() })
+
 	return resp
 }
 

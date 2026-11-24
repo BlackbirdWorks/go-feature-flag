@@ -15,6 +15,7 @@ func StreamAuthorizer(config *config.Config) echo.MiddlewareFunc {
 			if config.IsAuthenticationEnabled() && !config.APIKeyExists(apiKey) {
 				return echo.ErrUnauthorized
 			}
+
 			return next(c)
 		}
 	}

@@ -62,6 +62,7 @@ func TestRedactURLError(t *testing.T) {
 			got := internal.RedactURLError(tt.err)
 			if tt.err == nil {
 				assert.NoError(t, got)
+
 				return
 			}
 			assert.NotContains(t, got.Error(), "SECRETMARKER")

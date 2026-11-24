@@ -107,6 +107,7 @@ func (h *FlagConfigurationAPICtrl) Handler(c *echo.Context) error {
 	c.Response().Header().
 		Set(echo.HeaderLastModified, flagset.GetCacheRefreshDate().
 			Format(time.RFC1123))
+
 	return c.JSON(
 		http.StatusOK,
 		FlagConfigurationResponse{

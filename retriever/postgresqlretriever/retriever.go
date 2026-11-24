@@ -51,6 +51,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 		pool, err := GetPool(ctx, r.URI)
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 
@@ -58,6 +59,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 	}
 
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -66,6 +68,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -75,6 +78,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 		ReleasePool(ctx, r.URI)
 		r.pool = nil
 	}
+
 	return nil
 }
 
@@ -110,6 +114,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		if err := rows.Scan(&flagName, &configData); err != nil {
 			r.logger.Error("Failed to scan row", "error", err)
+
 			continue
 		}
 
@@ -117,6 +122,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		var config map[string]any
 		if err := json.Unmarshal(configData, &config); err != nil {
 			r.logger.Error("Failed to unmarshal config data", "error", err, "flagName", flagName)
+
 			continue
 		}
 		flagConfigs[flagName] = config
@@ -139,6 +145,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	r.logger.Debug("Retrieved flags from PostgreSQL", "count", len(flagConfigs))
+
 	return result, nil
 }
 
@@ -189,5 +196,6 @@ func (r *Retriever) getFlagset() string {
 	if r.flagset != nil && *r.flagset != "" && *r.flagset != utils.DefaultFlagSetName {
 		return *r.flagset
 	}
+
 	return ""
 }

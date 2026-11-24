@@ -91,6 +91,7 @@ func readWSFrames(ws *websocket.Conn) <-chan string {
 			frames <- string(msg)
 		}
 	}()
+
 	return frames
 }
 
@@ -105,6 +106,7 @@ func changeFlagUntilFrame(t *testing.T, path, flagName string, frames <-chan str
 		select {
 		case frame, ok := <-frames:
 			require.True(t, ok, "websocket connection closed before receiving a frame")
+
 			return frame
 		case <-deadline:
 			t.Fatalf("no websocket frame received after changing %s", flagName)
@@ -174,6 +176,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 				require.NoError(t, err)
 				_ = resp.Body.Close()
 				t.Cleanup(func() { _ = ws.Close() })
+
 				return readWSFrames(ws)
 			}
 			tenantAFrames := dial("tenant-A-api-key")

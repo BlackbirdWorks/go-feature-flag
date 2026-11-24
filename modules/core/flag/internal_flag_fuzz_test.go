@@ -79,6 +79,7 @@ func hasKnownFlagGap(f *InternalFlag) bool {
 	if f.Scheduled == nil {
 		return false
 	}
+
 	return slices.ContainsFunc(*f.Scheduled, func(step ScheduledStep) bool {
 		return (f.DefaultRule == nil && step.DefaultRule != nil) || hasKnownFlagGap(&step.InternalFlag)
 	})

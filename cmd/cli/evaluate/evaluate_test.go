@@ -48,6 +48,7 @@ func buildEvaluate(
 	if customize != nil {
 		customize(r)
 	}
+
 	return evaluate{
 		retriever:     r,
 		fileFormat:    "yaml",
@@ -61,6 +62,7 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	e, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)
+
 		return
 	}
 	m, err := e.Evaluate()
@@ -342,6 +344,7 @@ func Test_Evaluate(t *testing.T) {
 				downloader := &testutils.S3ManagerV2Mock{
 					TestDataLocation: "./testdata",
 				}
+
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:   "s3",
 					Bucket: "Bucket",
@@ -406,6 +409,7 @@ func Test_Evaluate(t *testing.T) {
 			initEvaluate: func() (evaluate, error) {
 				mockedStorage := testutils.NewMockedGCS(t)
 				mockedStorage.WithFiles(t, "flags", map[string]string{"testdata/flag-config.yaml": "flag-config.yaml"})
+
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:   "googleStorage",
 					Bucket: "flags",

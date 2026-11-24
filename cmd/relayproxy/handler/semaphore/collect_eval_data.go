@@ -110,6 +110,7 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 					"impossible to convert the event to a tracking event",
 					zap.Error(err),
 				)
+
 				continue
 			}
 			flagset.CollectTrackingEventData(e)
@@ -118,6 +119,7 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 			e, err := convertFeatureEvent(event, reqBody.Meta, h.logger)
 			if err != nil {
 				h.logger.Error("impossible to convert the event to a feature event", zap.Error(err))
+
 				continue
 			}
 			flagset.CollectEventData(e)
@@ -150,6 +152,7 @@ func convertTrackingEvent(
 		return exporter.TrackingEvent{}, err
 	}
 	e.CreationDate = formatCreationDate(e.CreationDate, logger)
+
 	return e, nil
 }
 
@@ -168,6 +171,7 @@ func convertFeatureEvent(event map[string]any,
 		e.Metadata = metadata
 	}
 	e.CreationDate = formatCreationDate(e.CreationDate, logger)
+
 	return e, nil
 }
 
@@ -181,7 +185,9 @@ func formatCreationDate(input int64, logger *zap.Logger) int64 {
 		// we will accept timestamp up to 9999999999 (2286-11-20 18:46:39 +0100 CET)
 		converted, _ := strconv.ParseInt(
 			strconv.FormatInt(input, 10)[:10], 10, 64)
+
 		return converted
 	}
+
 	return input
 }

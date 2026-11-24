@@ -68,6 +68,7 @@ func Test_SingleConsumer(t *testing.T) {
 	err := eventStore.ProcessPendingEvents(consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 100, len(events))
+
 			return nil
 		})
 	assert.Nil(t, err)
@@ -83,6 +84,7 @@ func Test_SingleConsumer(t *testing.T) {
 	err = eventStore.ProcessPendingEvents(consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 91, len(events))
+
 			return nil
 		})
 	assert.Nil(t, err)
@@ -113,6 +115,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 1000, len(events))
+
 			return nil
 		})
 	assert.Nil(t, err)
@@ -136,6 +139,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 1000, len(events))
+
 			return nil
 		})
 	assert.Nil(t, err)
@@ -143,6 +147,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	err = eventStore.ProcessPendingEvents(consumerNames[1],
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 2000, len(events))
+
 			return nil
 		})
 	assert.Nil(t, err)
@@ -173,6 +178,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 		err := eventStore.ProcessPendingEvents(consumerName,
 			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 				assert.True(t, len(events) > 0)
+
 				return nil
 			})
 		assert.Nil(t, err)
@@ -187,6 +193,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 					(*eventCounters)[consumerName] = len(events)
 					countersMu.Unlock()
 				}
+
 				return nil
 			})
 		assert.Nil(t, err)
@@ -222,6 +229,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 		consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 1000, len(events))
+
 			return errors.New("error")
 		},
 	)
@@ -237,6 +245,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 		consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 1000, len(events))
+
 			return nil
 		},
 	)
@@ -265,6 +274,7 @@ func Test_WaitForEmptyClean(t *testing.T) {
 		consumerNames[0],
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Equal(t, 100, len(events))
+
 			return nil
 		},
 	)
@@ -292,6 +302,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 				close(processingStarted)
 				time.Sleep(200 * time.Millisecond)
+
 				return nil
 			})
 		close(processingDone)
@@ -342,6 +353,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 					close(processingStarted)
 				}
 				<-releaseFirst
+
 				return nil
 			},
 		))
@@ -359,6 +371,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 					close(processingStarted)
 				}
 				<-releaseFirst
+
 				return nil
 			},
 		))
@@ -414,6 +427,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+
 		return nil
 	}
 
@@ -453,6 +467,7 @@ func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 		consumerName,
 		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
 			callbackCalled = true
+
 			return nil
 		},
 	)
@@ -473,6 +488,7 @@ func requireEventuallyPendingCount(
 	t.Helper()
 	require.Eventually(t, func() bool {
 		got, err := eventStore.GetPendingEventCount(consumerName)
+
 		return err == nil && got == want
 	}, 10*time.Second, 10*time.Millisecond,
 		"consumer %q never reached %d pending events", consumerName, want)

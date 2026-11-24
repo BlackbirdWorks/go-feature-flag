@@ -41,6 +41,7 @@ func (c *NotifierConf) IsValid() error {
 			c.Kind,
 		)
 	}
+
 	return nil
 }
 
@@ -59,5 +60,6 @@ func (r NotifierKind) IsValid() error {
 	case SlackNotifier, WebhookNotifier, DiscordNotifier, MicrosoftTeamsNotifier:
 		return nil
 	}
+
 	return fmt.Errorf("invalid notifier: kind \"%s\" is not supported", r)
 }

@@ -33,6 +33,7 @@ func (r *GCStorageReaderMock) Read(p []byte) (n int, err error) {
 	// Return io.EOF if read all bytes.
 	if r.readIndex >= int64(len(r.data)) {
 		err = io.EOF
+
 		return n, err
 	}
 

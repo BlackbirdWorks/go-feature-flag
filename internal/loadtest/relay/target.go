@@ -53,9 +53,11 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 	if !endpoint.EmitsEvents() {
 		if t.perCall, err = t.countFlagsPerCall(); err != nil {
 			t.Close()
+
 			return nil, err
 		}
 	}
+
 	return t, nil
 }
 
@@ -68,6 +70,7 @@ func clientProtocols(h2c bool) *http.Protocols {
 	} else {
 		p.SetHTTP1(true)
 	}
+
 	return &p
 }
 
@@ -89,6 +92,7 @@ func (t *Target) countFlagsPerCall() (int, error) {
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
+
 	return countFlags(body)
 }
 
@@ -109,6 +113,7 @@ func countFlags(body []byte) (int, error) {
 	if err := json.Unmarshal(v.Flags, &asMap); err != nil {
 		return 0, fmt.Errorf("bulk response without flags: %w", err)
 	}
+
 	return max(1, len(asMap)), nil
 }
 
@@ -120,6 +125,7 @@ func (t *Target) Protocol() string {
 	if t.h2c {
 		return "h2c"
 	}
+
 	return "HTTP/1.1"
 }
 
@@ -143,6 +149,7 @@ func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
 		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: "+
 			"choose a flag with tracking on", flagKey, o.ExporterMode)
 	}
+
 	return nil
 }
 
@@ -157,6 +164,7 @@ func tracksEvents(flagsYAML, flagKey string) bool {
 		return true
 	}
 	f, ok := flags[flagKey]
+
 	return !ok || f.TrackEvents == nil || *f.TrackEvents
 }
 
@@ -176,6 +184,7 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 	if v.Failed {
 		return fmt.Errorf("evaluation failed: %s", v.ErrorCode)
 	}
+
 	return nil
 }
 
@@ -192,19 +201,23 @@ func (t *Target) Eval(worker, i int) error {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		return fmt.Errorf("unexpected status %d", resp.StatusCode)
 	}
 	if want := 1 + btoi(t.h2c); resp.ProtoMajor != want {
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		return fmt.Errorf("response protocol is HTTP/%d, expected HTTP/%d", resp.ProtoMajor, want)
 	}
 	if t.endpoint != SemaphoreEval {
 		// the body is never inspected: drain it (to reuse the connection) without buffering it,
 		// a bulk response is large and would distort the memory measurements of the soak
 		_, _ = io.Copy(io.Discard, resp.Body)
+
 		return nil
 	}
 	body, _ := io.ReadAll(resp.Body)
+
 	return checkResponse(t.endpoint, body)
 }
 
@@ -226,5 +239,6 @@ func btoi(b bool) int {
 	if b {
 		return 1
 	}
+
 	return 0
 }

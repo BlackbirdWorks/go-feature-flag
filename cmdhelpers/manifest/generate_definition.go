@@ -17,10 +17,12 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (
 		v, ok := v.(*flag.InternalFlag)
 		if !ok || v == nil {
 			slog.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", k))
+
 			continue
 		}
 		if v.Variations == nil {
 			slog.Error(fmt.Sprintf("flag %s ignored: no variations provided", k))
+
 			continue
 		}
 		flagType, err := helper.FlagTypeFromVariations(*v.Variations)
@@ -37,6 +39,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (
 		defaultValue, ok := (*metadata)["defaultValue"]
 		if !ok {
 			slog.Warn(fmt.Sprintf("flag %s ignored: no default value provided", k))
+
 			continue
 		}
 
@@ -63,5 +66,6 @@ func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag) (
 		f := flags[name]
 		asFlag[name] = &f
 	}
+
 	return GenerateDefinitionFromFlags(asFlag)
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // the currentDateTime set by the evaluation context enrichment is the date of the evaluation for
@@ -20,7 +19,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	}
 	scheduled := func() *InternalFlag {
 		return &InternalFlag{
-			Variations:  &map[string]*any{"A": testconvert.Interface("a"), "B": testconvert.Interface("b")},
+			Variations:  &map[string]*any{"A": new(any("a")), "B": new(any("b"))},
 			DefaultRule: &Rule{VariationResult: new("A")},
 			Scheduled: &[]ScheduledStep{{
 				Date:        new(now.Add(24 * time.Hour)),
@@ -30,7 +29,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	}
 	experimentation := func() *InternalFlag {
 		return &InternalFlag{
-			Variations:      &map[string]*any{"A": testconvert.Interface("a")},
+			Variations:      &map[string]*any{"A": new(any("a"))},
 			DefaultRule:     &Rule{VariationResult: new("A")},
 			Experimentation: &ExperimentationRollout{End: new(now.Add(24 * time.Hour))},
 		}

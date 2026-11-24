@@ -6,14 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // stagedRolloutFlag: step 1 adds the rule "r", step 2 then step 3 change it.
 func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 	rule := func(update Rule) Rule {
 		update.Name = new("r")
+
 		return update
 	}
 	step := func(h int, rules ...Rule) ScheduledStep {
@@ -37,9 +36,10 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 		}
 		steps = []ScheduledStep{step(1, pc(50, 50)), step(2, pc(100, 0)), step(3, pc(0, 100))}
 	}
+
 	return &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"), "B": testconvert.Interface("b"),
+			"A": new(any("a")), "B": new(any("b")),
 		},
 		DefaultRule: &Rule{VariationResult: new("A")},
 		Scheduled:   &steps,

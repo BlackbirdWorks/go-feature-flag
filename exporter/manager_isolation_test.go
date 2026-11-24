@@ -36,6 +36,7 @@ func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []export
 		return assert.AnError
 	}
 	g.events.Add(int64(len(ev)))
+
 	return nil
 }
 

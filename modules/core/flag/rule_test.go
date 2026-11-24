@@ -10,7 +10,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func ExpectError(target error) func(assert.TestingT, error, ...any) bool {
@@ -282,7 +281,7 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						// Far-future dates so evaluation always lands before the
 						// ramp and deterministically serves the initial variation
 						// (avoids a timing race on loaded CI runners).
@@ -290,7 +289,7 @@ func TestRuleEvaluate(t *testing.T) {
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(2 * time.Hour)),
 					},
 				},
@@ -308,12 +307,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 				},
@@ -331,12 +330,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(-6 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(-3 * time.Second)),
 					},
 				},
@@ -354,12 +353,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(-1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 				},
@@ -377,12 +376,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(-3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -421,12 +420,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -441,7 +440,7 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -456,7 +455,7 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 				},
@@ -470,12 +469,12 @@ func TestRuleEvaluate(t *testing.T) {
 				Name: new("rule1"),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -490,11 +489,11 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -509,11 +508,11 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 				},
@@ -528,12 +527,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 					},
 				},
 			},
@@ -849,7 +848,7 @@ func TestRule_MergeRules(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_D"),
-						Percentage: testconvert.Float64(40),
+						Percentage: new(float64(40)),
 						Date: new(
 							time.Date(2021, time.February, 1, 10, 10, 10, 10, time.UTC),
 						),
@@ -862,7 +861,7 @@ func TestRule_MergeRules(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_D"),
-						Percentage: testconvert.Float64(40),
+						Percentage: new(float64(40)),
 						Date: new(
 							time.Date(2021, time.February, 1, 10, 10, 10, 10, time.UTC),
 						),
@@ -902,7 +901,7 @@ func TestRule_MergeRules(t *testing.T) {
 						Date: new(
 							time.Date(2021, time.February, 12, 10, 10, 10, 10, time.UTC),
 						),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 					},
 				},
 			},
@@ -921,7 +920,7 @@ func TestRule_MergeRules(t *testing.T) {
 						Date: new(
 							time.Date(2021, time.February, 12, 10, 10, 10, 10, time.UTC),
 						),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 					},
 				},
 			},

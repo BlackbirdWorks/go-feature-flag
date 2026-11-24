@@ -632,6 +632,7 @@ func readPersistedFlags(path string) (content []byte, flags map[string]any, ok b
 	if err := yaml.Unmarshal(content, &flags); err != nil || len(flags) == 0 {
 		return nil, nil, false
 	}
+
 	return content, flags, true
 }
 
@@ -684,6 +685,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 			return false
 		}
 		contentP = c
+
 		return true
 	}, eventuallyTimeout, eventuallyTick,
 		"the initial flag configuration was never persisted on disk")
@@ -706,6 +708,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 			return false
 		}
 		contentP2 = c
+
 		return true
 	}, eventuallyTimeout, eventuallyTick,
 		"the updated flag configuration was never persisted on disk")
@@ -747,6 +750,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// because we assert that something does NOT happen.
 	require.Never(t, func() bool {
 		flags, errCache := gffClient2.GetFlagsFromCache()
+
 		return errCache != nil || len(flags) != 2
 	}, 2*pollingInterval, eventuallyTick,
 		"the flags loaded from the persistent file were lost on a failing poll")
@@ -760,6 +764,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// 3rd file are now served (testdata/flag-config-3rd-file.yaml contains 7 flags).
 	require.Eventually(t, func() bool {
 		flags2, errCache := gffClient2.GetFlagsFromCache()
+
 		return errCache == nil && len(flags2) == 7
 	}, eventuallyTimeout, eventuallyTick,
 		"the retriever did not recover after the configuration file was restored")
@@ -768,6 +773,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// previous one.
 	require.Eventually(t, func() bool {
 		c, flags3, ok := readPersistedFlags(persistFile.Name())
+
 		return ok && len(flags3) == 7 && !bytes.Equal(contentP2, c)
 	}, eventuallyTimeout, eventuallyTick,
 		"the new flag configuration was never persisted on disk")

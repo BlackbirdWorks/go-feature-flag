@@ -61,6 +61,7 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	build := func() *flag.InternalFlag {
 		step := &flag.ProgressiveRolloutStep{Variation: str("A"), Percentage: flt(1), Date: &date}
 		d := date
+
 		return &flag.InternalFlag{
 			BucketingKey: str("k"), TrackEvents: boolean(true), Disable: boolean(false), Version: str("1"),
 			Rules: &[]flag.Rule{{

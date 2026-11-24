@@ -27,6 +27,7 @@ type slowExporter struct {
 func (s *slowExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	s.exportCall.Add(1)
 	time.Sleep(s.delay)
+
 	return nil
 }
 

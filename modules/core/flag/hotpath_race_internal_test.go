@@ -10,20 +10,19 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func progressiveFlag(endPercentage *float64) *InternalFlag {
 	return &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface(true),
-			"B": testconvert.Interface(false),
+			"A": new(any(true)),
+			"B": new(any(false)),
 		},
 		DefaultRule: &Rule{
 			ProgressiveRollout: &ProgressiveRollout{
 				Initial: &ProgressiveRolloutStep{
 					Variation:  new("B"),
-					Percentage: testconvert.Float64(0),
+					Percentage: new(float64(0)),
 					Date:       new(time.Now().Add(-time.Hour)),
 				},
 				End: &ProgressiveRolloutStep{
@@ -57,9 +56,9 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 		endPercentage *float64
 	}{
 		{name: "end percentage not set", endPercentage: nil},
-		{name: "end percentage 0", endPercentage: testconvert.Float64(0)},
-		{name: "end percentage above 100", endPercentage: testconvert.Float64(250)},
-		{name: "end percentage 100", endPercentage: testconvert.Float64(100)},
+		{name: "end percentage 0", endPercentage: new(float64(0))},
+		{name: "end percentage above 100", endPercentage: new(float64(250))},
+		{name: "end percentage 100", endPercentage: new(float64(100))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,8 +120,8 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 			t.Parallel()
 			f := &InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface(true),
-					"B": testconvert.Interface(false),
+					"A": new(any(true)),
+					"B": new(any(false)),
 				},
 				Rules:       &[]Rule{{Query: new(tt.query), VariationResult: new("A")}},
 				DefaultRule: &Rule{VariationResult: new("B")},

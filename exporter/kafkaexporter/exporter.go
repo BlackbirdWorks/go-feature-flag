@@ -78,6 +78,7 @@ func (e *Exporter) Export(
 	if err != nil {
 		return fmt.Errorf("send: %w", err)
 	}
+
 	return nil
 }
 
@@ -109,6 +110,7 @@ func (e *Exporter) initializeProducer() error {
 	e.sender, err = e.dialer(e.Settings.Addresses, e.Settings.Config)
 	if err != nil {
 		err = fmt.Errorf("producer: %w", err)
+
 		return err
 	}
 

@@ -66,6 +66,7 @@ func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 	default:
 		defaultVariationName := flag.VariationSDKDefault
 		defaultVariationValue := currentFlag.GetVariationValue(defaultVariationName)
+
 		return FlagState{
 			Value:         defaultVariationValue,
 			Timestamp:     time.Now().Unix(),

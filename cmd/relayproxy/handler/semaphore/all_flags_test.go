@@ -159,6 +159,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 
@@ -294,6 +295,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 

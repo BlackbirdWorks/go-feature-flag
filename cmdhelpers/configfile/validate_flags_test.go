@@ -9,20 +9,19 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestValidateFlags(t *testing.T) {
 	t.Parallel()
 	panicking := dto.DTO{
-		Variations:  &map[string]*any{"a": testconvert.Interface(true)},
+		Variations:  &map[string]*any{"a": new(any(true))},
 		DefaultRule: &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{}},
 	}
 	valid := dto.DTO{
-		Variations:  &map[string]*any{"a": testconvert.Interface(true)},
+		Variations:  &map[string]*any{"a": new(any(true))},
 		DefaultRule: &flag.Rule{VariationResult: new("a")},
 	}
-	invalid := dto.DTO{Variations: &map[string]*any{"a": testconvert.Interface(true)}}
+	invalid := dto.DTO{Variations: &map[string]*any{"a": new(any(true))}}
 
 	tests := []struct {
 		name  string

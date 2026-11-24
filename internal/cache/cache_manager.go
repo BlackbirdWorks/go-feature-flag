@@ -61,6 +61,7 @@ func New(
 	}
 	var initial Cache = NewInMemoryCache(logger)
 	m.inMemoryCache.Store(&initial)
+
 	return m
 }
 
@@ -79,6 +80,7 @@ func ConvertToFlagStruct(
 		// default unmarshaller is YAML
 		err = yaml.Unmarshal(loadedFlags, &newFlags)
 	}
+
 	return newFlags, err
 }
 
@@ -110,6 +112,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	if c.persistentFlagConfigurationFile != "" {
 		c.PersistCache(oldCacheFlags, newCacheFlags)
 	}
+
 	return nil
 }
 
@@ -132,6 +135,7 @@ func (c *cacheManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	if current == nil {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
+
 	return (*current).getFlag(key)
 }
 
@@ -140,6 +144,7 @@ func (c *cacheManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 	if current == nil {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
+
 	return (*current).All(), nil
 }
 
@@ -148,12 +153,14 @@ func (c *cacheManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
 	if current == nil {
 		return nil, errors.New("impossible to read the flag before the initialisation")
 	}
+
 	return (*current).shared(), nil
 }
 
 func (c *cacheManagerImpl) GetLatestUpdateDate() time.Time {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	return c.latestUpdate
 }
 
@@ -166,17 +173,20 @@ func (c *cacheManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag)
 		if _, err := os.Stat(c.persistentFlagConfigurationFile); !os.IsNotExist(err) &&
 			cmp.Equal(oldCache, newCache) {
 			c.logger.Debug("No change in the cache, skipping the persist")
+
 			return
 		}
 		data, err := yaml.Marshal(newCache)
 		if err != nil {
 			c.logger.Error("Error while marshalling flags to persist", slog.Any("error", err.Error()))
+
 			return
 		}
 
 		err = os.WriteFile(c.persistentFlagConfigurationFile, data, 0600)
 		if err != nil {
 			c.logger.Error("Error while writing flags to file", slog.Any("error", err.Error()))
+
 			return
 		}
 		c.logger.Info(

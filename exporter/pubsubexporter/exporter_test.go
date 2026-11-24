@@ -104,6 +104,7 @@ func TestExporter_Export(t *testing.T) {
 					} else if opts[0] != option.WithAPIKey("some-api-key") {
 						return nil, errors.New("unexpected option provided")
 					}
+
 					return client, nil
 				},
 			},
@@ -183,6 +184,7 @@ func TestExporter_Export(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 

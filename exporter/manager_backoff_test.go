@@ -36,8 +36,10 @@ func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []ex
 		e.mu.Lock()
 		e.firstEnd = time.Now()
 		e.mu.Unlock()
+
 		return assert.AnError
 	}
+
 	return nil
 }
 
@@ -80,8 +82,10 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 				defer exp.mu.Unlock()
 				if len(exp.starts) >= 2 {
 					second = exp.starts[1]
+
 					return true
 				}
+
 				return false
 			}, time.Minute, 10*time.Millisecond)
 

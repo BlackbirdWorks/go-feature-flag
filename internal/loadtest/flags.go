@@ -22,6 +22,7 @@ func FlagKey(scenario, typ string, track bool) string {
 	if track {
 		return fmt.Sprintf("%s-%s-track", scenario, typ)
 	}
+
 	return fmt.Sprintf("%s-%s-notrack", scenario, typ)
 }
 
@@ -41,6 +42,7 @@ func largeList(n int) string {
 	for i := range items {
 		items[i] = fmt.Sprintf("%q", fmt.Sprintf("user-%d", i))
 	}
+
 	return "[" + strings.Join(items, ",") + "]"
 }
 
@@ -89,6 +91,7 @@ func FlagsYAML() string {
 			}
 		}
 	}
+
 	return sb.String()
 }
 
@@ -108,5 +111,6 @@ func ManyFlagsYAML(n int) string {
 			sb.WriteString("  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n")
 		}
 	}
+
 	return sb.String()
 }

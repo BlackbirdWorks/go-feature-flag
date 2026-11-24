@@ -126,12 +126,14 @@ func (f *fakeSSEService) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.streams = append(f.streams, flagsetName)
+
 	return nil
 }
 
 func (f *fakeSSEService) Streams() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return append([]string(nil), f.streams...)
 }
 
@@ -154,6 +156,7 @@ func newStreamManager(
 	manager, err := service.NewFlagsetManager(cfg, zap.NewNop(), nil, sse, ws)
 	require.NoError(t, err)
 	t.Cleanup(func() { manager.Close() })
+
 	return manager, sse, ws
 }
 
@@ -660,6 +663,7 @@ func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *ob
 	manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { manager.Close() })
+
 	return manager, logs
 }
 func TestFlagsetManager_OnConfigChange(t *testing.T) {
@@ -2026,5 +2030,6 @@ type countingWSConn struct{ writes atomic.Int32 }
 
 func (c *countingWSConn) WriteJSON(_ any) error {
 	c.writes.Add(1)
+
 	return nil
 }

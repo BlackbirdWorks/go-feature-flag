@@ -42,6 +42,7 @@ func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
 		// callers expect a usable (empty) flag next to the error
 		return &flag.InternalFlag{}, fmt.Errorf("flag [%v] does not exists", key)
 	}
+
 	return f, nil
 }
 
@@ -50,6 +51,7 @@ func (fc *InMemoryCache) Copy() Cache {
 	for k, v := range fc.Flags {
 		inMemoryCache.addFlag(k, *v)
 	}
+
 	return inMemoryCache
 }
 
@@ -61,6 +63,7 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 	for key, val := range fc.Flags {
 		c[key] = val.DeepCopy()
 	}
+
 	return c
 }
 
@@ -71,6 +74,7 @@ func (fc *InMemoryCache) shared() map[string]flag.Flag {
 	for key, val := range fc.Flags {
 		c[key] = val
 	}
+
 	return c
 }
 

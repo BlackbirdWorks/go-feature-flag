@@ -74,9 +74,11 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
 	if err := r.validateAppAuth(); err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -84,6 +86,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.invalidateCachedToken()
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -92,6 +95,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -108,6 +112,7 @@ func (r *Retriever) validateAppAuth() error {
 		return errors.New("github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required")
 	}
 	_, err := r.loadPrivateKey()
+
 	return err
 }
 
@@ -169,6 +174,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 
@@ -179,6 +185,7 @@ func (r *Retriever) fetch(ctx context.Context, contentsURL, token string) (*http
 		return nil, err
 	}
 	r.updateRateLimit(resp.Header)
+
 	return resp, nil
 }
 
@@ -209,6 +216,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 	}
 	r.cachedToken = token
 	r.tokenExpiresAt = expiresAt
+
 	return token, nil
 }
 
@@ -252,6 +260,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	if resp.StatusCode != http.StatusCreated {
 		// GitHub explains the failure in the body (bad app id, suspended installation, clock skew...).
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
 		return "", time.Time{}, fmt.Errorf(
 			"github app: access_tokens endpoint returned %d for installation %d: %s",
 			resp.StatusCode, r.InstallationID, strings.TrimSpace(string(msg)),
@@ -273,6 +282,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	if result.ExpiresAt.IsZero() {
 		return "", time.Time{}, errors.New("github app: token response contained no expires_at")
 	}
+
 	return result.Token, result.ExpiresAt, nil
 }
 
@@ -299,6 +309,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("github app: failed to parse RSA private key: %w", err)
 	}
+
 	return key, nil
 }
 
@@ -310,6 +321,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 	if token != "" {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
+
 	return header
 }
 
@@ -320,6 +332,7 @@ func (r *Retriever) checkRateLimit() error {
 	if r.rateLimitRemaining <= 0 && time.Now().Before(r.rateLimitReset) {
 		return fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
 	}
+
 	return nil
 }
 
@@ -357,6 +370,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
 	u.Path = path.Join(append([]string{u.Path}, elem...)...)
+
 	return u, nil
 }
 
@@ -374,6 +388,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 		return fmt.Errorf("request to %s failed with code %d."+
 			" GitHub Headers: %v", url, resp.StatusCode, ghHeaders)
 	}
+
 	return nil
 }
 

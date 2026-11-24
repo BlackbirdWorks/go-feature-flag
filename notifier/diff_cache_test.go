@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -41,9 +40,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("defaultRule"),
@@ -65,9 +64,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("defaultRule"),
@@ -92,9 +91,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 					"flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(true),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(true)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -106,9 +105,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(false)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -129,9 +128,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("defaultRule"),
@@ -145,9 +144,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("defaultRule"),
@@ -162,9 +161,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 					"flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(true),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(true)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -176,9 +175,9 @@ func TestDiffCache_HasDiff(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(false)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),

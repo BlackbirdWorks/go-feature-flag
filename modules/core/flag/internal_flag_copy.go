@@ -12,6 +12,7 @@ func (f *InternalFlag) DeepCopy() *InternalFlag {
 	if f == nil {
 		return nil
 	}
+
 	return &InternalFlag{
 		Variations:      copyVariations(f.Variations),
 		Rules:           copyRules(f.Rules),
@@ -31,6 +32,7 @@ func copyPtr[T any](p *T) *T {
 		return nil
 	}
 	v := *p
+
 	return &v
 }
 
@@ -42,11 +44,13 @@ func copyVariations(v *map[string]*any) *map[string]*any {
 	for name, value := range *v {
 		if value == nil {
 			out[name] = nil
+
 			continue
 		}
 		c := deepCopyValue(*value)
 		out[name] = &c
 	}
+
 	return &out
 }
 
@@ -58,6 +62,7 @@ func copyMetadata(m *map[string]any) *map[string]any {
 	for k, v := range *m {
 		out[k] = deepCopyValue(v)
 	}
+
 	return &out
 }
 
@@ -69,6 +74,7 @@ func copyRules(rules *[]Rule) *[]Rule {
 	for i := range *rules {
 		out[i] = *(*rules)[i].deepCopy()
 	}
+
 	return &out
 }
 
@@ -83,6 +89,7 @@ func copyScheduled(steps *[]ScheduledStep) *[]ScheduledStep {
 			Date:         copyPtr((*steps)[i].Date),
 		}
 	}
+
 	return &out
 }
 
@@ -105,6 +112,7 @@ func (r *Rule) deepCopy() *Rule {
 			End:     r.ProgressiveRollout.End.deepCopy(),
 		}
 	}
+
 	return &c
 }
 
@@ -112,6 +120,7 @@ func (p *ProgressiveRolloutStep) deepCopy() *ProgressiveRolloutStep {
 	if p == nil {
 		return nil
 	}
+
 	return &ProgressiveRolloutStep{
 		Variation:  copyPtr(p.Variation),
 		Percentage: copyPtr(p.Percentage),
@@ -123,6 +132,7 @@ func (e *ExperimentationRollout) deepCopy() *ExperimentationRollout {
 	if e == nil {
 		return nil
 	}
+
 	return &ExperimentationRollout{Start: copyPtr(e.Start), End: copyPtr(e.End)}
 }
 
@@ -137,12 +147,14 @@ func deepCopyValue(v any) any {
 		for k, e := range x {
 			out[k] = deepCopyValue(e)
 		}
+
 		return out
 	case []any:
 		out := make([]any, len(x))
 		for i, e := range x {
 			out[i] = deepCopyValue(e)
 		}
+
 		return out
 	}
 	rv := reflect.ValueOf(v)
@@ -155,6 +167,7 @@ func deepCopyValue(v any) any {
 		for it := rv.MapRange(); it.Next(); {
 			out.SetMapIndex(it.Key(), copyReflected(it.Value()))
 		}
+
 		return out.Interface()
 	case reflect.Slice:
 		if rv.IsNil() {
@@ -164,6 +177,7 @@ func deepCopyValue(v any) any {
 		for i := range rv.Len() {
 			out.Index(i).Set(copyReflected(rv.Index(i)))
 		}
+
 		return out.Interface()
 	default:
 		return v
@@ -178,5 +192,6 @@ func copyReflected(v reflect.Value) reflect.Value {
 	if c == nil {
 		return reflect.Zero(v.Type())
 	}
+
 	return reflect.ValueOf(c)
 }

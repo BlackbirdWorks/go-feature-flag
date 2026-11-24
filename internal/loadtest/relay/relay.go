@@ -136,6 +136,7 @@ func Start(opts Options) (_ *Relay, err error) {
 			return nil, err
 		}
 	}
+
 	return r, nil
 }
 
@@ -194,6 +195,7 @@ func waitHealthy(baseURL string) error {
 		}
 		if err == nil {
 			_ = resp.Body.Close()
+
 			return nil
 		}
 		if time.Now().After(deadline) {

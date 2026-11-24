@@ -50,6 +50,7 @@ func validateOutcomeCounts(t *testing.T, m metric.Metrics) map[string]float64 {
 			counts[mm.GetLabel()[0].GetValue()] = mm.GetCounter().GetValue()
 		}
 	}
+
 	return counts
 }
 
@@ -83,6 +84,7 @@ func assertValidateResult(
 		if wantStatus == http.StatusRequestEntityTooLarge {
 			assert.Contains(t, httpErr.Message, "request body too large (max ")
 		}
+
 		return
 	}
 	require.NoError(t, err)

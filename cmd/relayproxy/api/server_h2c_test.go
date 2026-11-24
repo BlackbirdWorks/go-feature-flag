@@ -75,6 +75,7 @@ func TestServerEnableH2C(t *testing.T) {
 					_ = resp.Body.Close()
 				}
 				assert.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)

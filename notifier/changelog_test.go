@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -18,8 +17,8 @@ func TestFlagChanges(t *testing.T) {
 	baseFlag := func() *flag.InternalFlag {
 		return &flag.InternalFlag{
 			Variations: &map[string]*any{
-				"on":  testconvert.Interface(true),
-				"off": testconvert.Interface(false),
+				"on":  new(any(true)),
+				"off": new(any(false)),
 			},
 			DefaultRule: &flag.Rule{VariationResult: new("off")},
 			Metadata:    &map[string]any{"team": "payments"},
@@ -87,7 +86,7 @@ func TestFlagChanges(t *testing.T) {
 		{
 			name: "should report a variation that was added",
 			update: func(f *flag.InternalFlag) {
-				(*f.Variations)["beta"] = testconvert.Interface("blue")
+				(*f.Variations)["beta"] = new(any("blue"))
 			},
 			want: []notifier.FieldChange{{Path: "Variations.beta", From: "null", To: `"blue"`}},
 		},

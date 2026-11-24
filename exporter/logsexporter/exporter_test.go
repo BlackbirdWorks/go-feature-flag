@@ -94,6 +94,7 @@ func TestLog_Export(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "It should return an error")
+
 				return
 			}
 

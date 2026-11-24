@@ -16,5 +16,6 @@ func (r *Retriever) Retrieve(_ context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return content, nil
 }

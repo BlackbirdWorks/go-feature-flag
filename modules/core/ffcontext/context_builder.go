@@ -33,6 +33,7 @@ type evaluationContextBuilderImpl struct {
 // instead of using this function.
 func (u *evaluationContextBuilderImpl) Anonymous(anonymous bool) EvaluationContextBuilder {
 	u.custom[anonymousAttribute] = anonymous
+
 	return u
 }
 
@@ -42,6 +43,7 @@ func (u *evaluationContextBuilderImpl) AddCustom(
 	value any,
 ) EvaluationContextBuilder {
 	u.custom[key] = value
+
 	return u
 }
 

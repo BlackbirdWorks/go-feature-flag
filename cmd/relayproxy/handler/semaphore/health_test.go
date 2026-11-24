@@ -61,6 +61,7 @@ func Test_health_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
+
 				return
 			}
 

@@ -101,6 +101,7 @@ func (d *dataExporterImpl[T]) Stop() {
 	// we don't start the daemon if we are not in bulk mode
 	if !d.IsBulk() {
 		d.Flush()
+
 		return
 	}
 	d.stopOnce.Do(func() {
@@ -123,12 +124,14 @@ func (d *dataExporterImpl[T]) flush() error {
 		if d != nil && d.logger != nil {
 			d.logger.Error(err.Error())
 		}
+
 		return err
 	}
 	// release the events everybody has consumed instead of waiting for the periodic cleaning
 	if c, ok := store.(interface{ CleanQueue() }); ok {
 		c.CleanQueue()
 	}
+
 	return nil
 }
 
@@ -192,5 +195,6 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 	default:
 		return errors.New("this is not a valid exporter")
 	}
+
 	return nil
 }

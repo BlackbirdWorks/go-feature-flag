@@ -29,6 +29,7 @@ func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.msgs = append(h.msgs, r.Message)
 	h.levels = append(h.levels, r.Level)
+
 	return nil
 }
 func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
@@ -43,6 +44,7 @@ func installCaptureLogger(t *testing.T) *captureHandler {
 	previous := slog.Default()
 	slog.SetDefault(slog.New(h))
 	t.Cleanup(func() { slog.SetDefault(previous) })
+
 	return h
 }
 
@@ -56,6 +58,7 @@ func variationsPtr(values map[string]any) *map[string]*any {
 	for k, v := range values {
 		out[k] = &v
 	}
+
 	return &out
 }
 
@@ -63,6 +66,7 @@ func metadataPtr(m map[string]any) *map[string]any {
 	if m == nil {
 		return nil
 	}
+
 	return &m
 }
 
@@ -95,6 +99,7 @@ func boolFlagWithExperimentation(
 		Start: &s,
 		End:   &e,
 	}
+
 	return f
 }
 
@@ -102,6 +107,7 @@ func readGolden(t *testing.T, name string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", "generate_definition", name))
 	require.NoError(t, err)
+
 	return string(data)
 }
 
@@ -355,6 +361,7 @@ func TestGenerateDefinition(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)

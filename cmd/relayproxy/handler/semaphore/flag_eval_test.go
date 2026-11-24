@@ -205,6 +205,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 

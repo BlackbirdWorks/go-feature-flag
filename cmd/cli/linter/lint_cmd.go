@@ -23,6 +23,7 @@ func NewLintCmd() *cobra.Command {
 	}
 	lintCmd.Flags().
 		StringVarP(&lintFlagFormat, "format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
+
 	return lintCmd
 }
 
@@ -37,11 +38,13 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
 		output.PrintLines(cmd)
+
 		return errors.New("invalid Semaphore configuration")
 	}
 
 	output.Add("Valid Semaphore configuration", helper.InfoLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
@@ -49,5 +52,6 @@ func extractFilePathFromArgs(args []string) string {
 	if len(args) == 0 {
 		return ""
 	}
+
 	return args[0]
 }

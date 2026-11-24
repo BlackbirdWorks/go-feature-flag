@@ -36,6 +36,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.teamsClient == nil {
 		c.teamsClient = goteamsnotify.NewTeamsClient()
 	}
+
 	return c.teamsClient.Send(c.MicrosoftTeamsWebhookURL, msg)
 }
 
@@ -77,11 +78,13 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 		changes, err := notifier.DescribeChangesPlain(value.Before, value.After)
 		if err != nil {
 			msgText.WriteString(fmt.Sprintf("\n   * %s: %s", notifier.ChangesUnavailable, err))
+
 			continue
 		}
 		if len(changes) > 0 {
 			msgText.WriteString("\n" + notifier.ChangeList(changes, "   * ", 0))
 		}
 	}
+
 	return msgText.String()
 }

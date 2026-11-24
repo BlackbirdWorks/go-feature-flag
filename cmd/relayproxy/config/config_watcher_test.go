@@ -30,6 +30,7 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 
 	cfg, err := config.New(f, zap.NewNop(), "1.0.0")
 	require.NoError(t, err)
+
 	return cfg, configFile
 }
 
@@ -82,6 +83,7 @@ loglevel: debug`
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
+
 				return
 			}
 			mu.Unlock()
@@ -102,6 +104,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
   port: 1031
 pollingInterval: 1000
 loglevel: info`)
+
 				return cfg
 			},
 			wantErr: false,
@@ -179,6 +182,7 @@ loglevel: error`
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
+
 				return
 			}
 			mu.Unlock()

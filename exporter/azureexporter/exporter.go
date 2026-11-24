@@ -47,12 +47,14 @@ func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return azblob.NewClient(url, cred, nil)
 	}
 	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
 	if err != nil {
 		return nil, err
 	}
+
 	return azblob.NewClientWithSharedKeyCredential(url, cred, nil)
 }
 
@@ -105,12 +107,14 @@ func (f *Exporter) Export(
 				"[Azure Exporter] impossible to open file",
 				slog.String("path", outputDir+"/"+fileName),
 			)
+
 			continue
 		}
 		if err := f.uploadFile(ctx, client, logger, of, outputDir, fileName); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -138,6 +142,7 @@ func (f *Exporter) uploadFile(
 			"[Azure Exporter] failed to upload file",
 			slog.String("path", outputDir+"/"+fileName),
 		)
+
 		return err
 	}
 
@@ -145,6 +150,7 @@ func (f *Exporter) uploadFile(
 		"[Azure Exporter] file uploaded.",
 		slog.String("location", f.Container+"/"+fileName),
 	)
+
 	return nil
 }
 

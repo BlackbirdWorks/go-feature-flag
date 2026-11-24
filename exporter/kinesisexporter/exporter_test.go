@@ -286,6 +286,7 @@ func (k *MockKinesisSender) SendMessages(
 		EncryptionType:    types.EncryptionTypeNone,
 		ResultMetadata:    middleware.Metadata{},
 	}
+
 	return &output, nil
 }
 

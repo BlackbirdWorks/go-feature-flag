@@ -60,5 +60,6 @@ type notifierMock struct {
 
 func (n *notifierMock) Notify(notifier.DiffCache) error {
 	n.calls.Add(1)
+
 	return n.err
 }

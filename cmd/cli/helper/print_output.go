@@ -29,6 +29,7 @@ var exitFunc = os.Exit
 
 func (o *Output) Add(line string, level Level) Output {
 	o.Lines = append(o.Lines, OutputLine{Text: line, Level: level})
+
 	return *o
 }
 

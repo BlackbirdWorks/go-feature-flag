@@ -36,9 +36,11 @@ func (m *Exporter) Export(
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {
 			m.CurrentNumberErr++
+
 			return m.Err
 		}
 	}
+
 	return nil
 }
 
@@ -46,6 +48,7 @@ func (m *Exporter) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
 	return m.ExportedEvents
 }
 
@@ -81,9 +84,11 @@ func (m *ExporterDeprecated) Export(
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {
 			m.CurrentNumberErr++
+
 			return m.Err
 		}
 	}
+
 	return nil
 }
 
@@ -96,6 +101,7 @@ func (m *ExporterDeprecated) GetExportedEvents() []exporter.ExportableEvent {
 	for index, event := range m.ExportedEvents {
 		exportableEvents[index] = event
 	}
+
 	return exportableEvents
 }
 
@@ -131,9 +137,11 @@ func (m *ExporterDeprecatedV2) Export(
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {
 			m.CurrentNumberErr++
+
 			return m.Err
 		}
 	}
+
 	return nil
 }
 
@@ -146,6 +154,7 @@ func (m *ExporterDeprecatedV2) GetExportedEvents() []exporter.ExportableEvent {
 	for index, event := range m.ExportedEvents {
 		exportableEvents[index] = event
 	}
+
 	return exportableEvents
 }
 

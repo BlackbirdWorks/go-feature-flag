@@ -71,6 +71,7 @@ func (m *Manager) Init(ctx context.Context) error {
 		m.bgUpdater = newBackgroundUpdater(m.config.PollingInterval, m.config.EnablePollingJitter)
 		m.pollingWg.Go(func() { m.StartPolling(ctx) })
 	}
+
 	return nil
 }
 
@@ -116,6 +117,7 @@ func (m *Manager) initRetrievers(ctx context.Context, retrieversToInit []Retriev
 		m.tryInitializeStandard(ctx, retriever)
 		m.tryInitializeWithFlagset(ctx, retriever)
 	}
+
 	return m.checkInitializationErrors()
 }
 
@@ -160,6 +162,7 @@ func (m *Manager) checkInitializationErrors() error {
 	if len(m.onErrorRetriever) > 0 {
 		return fmt.Errorf("error while initializing the retrievers: %v", m.onErrorRetriever)
 	}
+
 	return nil
 }
 
@@ -185,6 +188,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 	}
 
 	m.cacheManager.Close()
+
 	return nil
 }
 
@@ -197,6 +201,7 @@ func (m *Manager) retrieveFlagsAndUpdateCache(ctx context.Context, isInit bool) 
 	if err != nil {
 		return err
 	}
+
 	return m.updateCacheWithRetriever(newFlags, isInit)
 }
 
@@ -209,8 +214,10 @@ func (m *Manager) updateCacheWithRetriever(newFlags map[string]dto.DTO, isInit b
 	)
 	if err != nil {
 		m.logger.Error("error: impossible to update the cache of the flags: %v", err)
+
 		return err
 	}
+
 	return nil
 }
 
@@ -234,6 +241,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 		m.logger.Error("Impossible to retrieve the flags, starting with the "+
 			"retriever error", slog.Any("error", err.Error()))
 	}
+
 	return nil
 }
 
@@ -254,11 +262,13 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+
 			return m.updateCacheWithRetriever(newFlags, true)
 		}
 		m.logger.Warn("No persistent flag configuration found",
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
+
 	return errors.New("no persistent flag available")
 }
 
@@ -279,6 +289,7 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 	if m == nil || m.cacheManager == nil {
 		return nil, errors.New("cache is not initialized")
 	}
+
 	return m.cacheManager.AllFlags()
 }
 
@@ -288,6 +299,7 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 	if m == nil || m.cacheManager == nil {
 		return nil, errors.New("cache is not initialized")
 	}
+
 	return m.cacheManager.AllFlagsReadOnly()
 }
 
@@ -298,8 +310,10 @@ func (m *Manager) ForceRefresh(ctx context.Context) bool {
 			"Error while force updating the cache.",
 			slog.Any("error", err.Error()),
 		)
+
 		return false
 	}
+
 	return true
 }
 
@@ -334,12 +348,14 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 			if rr, ok := r.(CommonInitializableRetriever); ok &&
 				rr.Status() != RetrieverReady {
 				resultsChan <- Results{Error: nil, Value: map[string]dto.DTO{}, Index: index}
+
 				return
 			}
 
 			rawValue, err := r.Retrieve(ctx)
 			if err != nil {
 				resultsChan <- Results{Error: err, Value: nil, Index: index}
+
 				return
 			}
 			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, format))
@@ -360,6 +376,7 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	for _, flags := range retrieversResults {
 		maps.Copy(newFlags, flags)
 	}
+
 	return newFlags, nil
 }
 
@@ -372,5 +389,6 @@ func getOutputFormat(r Retriever, fileFormat string) string {
 			return hint
 		}
 	}
+
 	return fileFormat
 }

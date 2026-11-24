@@ -39,6 +39,7 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 func allConfigFields() map[string]reflect.StructField {
 	out := map[string]reflect.StructField{}
 	ownStructFields(reflect.TypeFor[Config](), map[reflect.Type]bool{}, out)
+
 	return out
 }
 
@@ -107,6 +108,7 @@ func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
 	if v.Kind() == reflect.Slice {
 		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
 		fillSecretFields(v.Index(0), n, filled)
+
 		return
 	}
 	if v.Kind() != reflect.Struct || !isOwnType(v.Type()) {
@@ -120,6 +122,7 @@ func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
 		if IsSecretField(v.Type().String(), f.Name) {
 			fillLeaves(v.Field(i), n)
 			filled[v.Type().String()+"."+f.Name] = true
+
 			continue
 		}
 		fillSecretFields(v.Field(i), n, filled)
@@ -145,6 +148,7 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	conf.OtelConfig.Resource.Attributes = map[string]string{"service.token": secretMarker + "-otel"}
 	conf.Version = "visible-version"
 	conf.LogLevel = "debug"
+
 	return conf
 }
 

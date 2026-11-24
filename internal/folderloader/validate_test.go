@@ -55,6 +55,7 @@ func TestValidate(t *testing.T) {
 			err := folderloader.Validate(tt.itemName, tt.item, tt.prefix, tt.pattern, tt.recursive)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)

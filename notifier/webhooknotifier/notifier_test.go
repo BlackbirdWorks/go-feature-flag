@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
 )
@@ -55,9 +54,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -81,9 +80,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -105,9 +104,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									},
 								},
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface(false),
-									"False":   testconvert.Interface(false),
-									"True":    testconvert.Interface(true),
+									"Default": new(any(false)),
+									"False":   new(any(false)),
+									"True":    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new("defaultRule"),
@@ -126,9 +125,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									},
 								},
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface(false),
-									"False":   testconvert.Interface(false),
-									"True":    testconvert.Interface(true),
+									"Default": new(any(false)),
+									"False":   new(any(false)),
+									"True":    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name:            new("defaultRule"),
@@ -154,9 +153,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -230,9 +229,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -288,9 +287,9 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 		Added: map[string]flag.Flag{
 			"test-flag3": &flag.InternalFlag{
 				Variations: &map[string]*any{
-					"Default": testconvert.Interface("default"),
-					"False":   testconvert.Interface("false"),
-					"True":    testconvert.Interface("test"),
+					"Default": new(any("default")),
+					"False":   new(any("false")),
+					"True":    new(any("test")),
 				},
 				DefaultRule: &flag.Rule{
 					Name: new("defaultRule"),

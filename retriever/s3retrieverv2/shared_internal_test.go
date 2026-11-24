@@ -98,6 +98,7 @@ func (u unrelatedBucket) ListObjectsV2(
 	for i := range u.n {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(fmt.Sprintf("d/other-%d", i))})
 	}
+
 	return out, nil
 }
 
@@ -125,6 +126,7 @@ func (l *tokenLister) ListObjectsV2(
 	context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
 	n := l.calls.Add(1)
+
 	return &s3.ListObjectsV2Output{
 		IsTruncated:           aws.Bool(true),
 		NextContinuationToken: aws.String(l.next(n)),

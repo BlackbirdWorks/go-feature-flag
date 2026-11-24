@@ -31,6 +31,7 @@ func (g *dropGatedSink) Handle(ctx context.Context, r slog.Record) error {
 		g.once.Do(func() { close(g.entered) })
 		<-g.gate
 	}
+
 	return g.inner.Handle(ctx, r)
 }
 func (g *dropGatedSink) WithAttrs([]slog.Attr) slog.Handler { return g }
@@ -109,6 +110,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						return false
 					}
 				}
+
 				return true
 			}, time.Minute, time.Millisecond, "an evaluation is blocked by the log sink")
 			// and the warning is written by someone else.

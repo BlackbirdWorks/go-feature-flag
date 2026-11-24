@@ -46,6 +46,7 @@ func NewSSEService(opts ...Option) SSEService {
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
 		go s.sendHeartbeats(interval)
 	}
+
 	return s
 }
 
@@ -74,6 +75,7 @@ func (s *sseServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 		Event: []byte("message"),
 		Data:  data,
 	})
+
 	return nil
 }
 

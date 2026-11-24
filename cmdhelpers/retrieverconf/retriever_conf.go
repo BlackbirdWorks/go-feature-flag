@@ -123,6 +123,7 @@ func (c *RetrieverConf) IsValid() error {
 	if c.Kind == AzBlobStorageRetriever {
 		return c.validateAzBlobStorageRetriever()
 	}
+
 	return nil
 }
 
@@ -136,6 +137,7 @@ func (c *RetrieverConf) validateHTTPRetriever() error {
 	if c.HTTPClientCertPath == "" && c.HTTPClientKeyPath != "" {
 		return err.NewRetrieverConfError("clientCertPath", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -147,6 +149,7 @@ func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.Table == "" {
 		return err.NewRetrieverConfError("table", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -160,6 +163,7 @@ func (c *RetrieverConf) validateGitRetriever() error {
 	if c.Kind == GitHubRetriever {
 		return c.validateGitHubAuth()
 	}
+
 	return nil
 }
 
@@ -205,6 +209,7 @@ func (c *RetrieverConf) validateKubernetesRetriever() error {
 	if c.Key == "" {
 		return err.NewRetrieverConfError("key", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -218,6 +223,7 @@ func (c *RetrieverConf) validateMongoDBRetriever() error {
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -228,6 +234,7 @@ func (c *RetrieverConf) validateRedisRetriever() error {
 	if c.RedisOptions.Addr == "" {
 		return err.NewRetrieverConfError("redisOptions.addr", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -241,6 +248,7 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 	if c.Object == "" {
 		return err.NewRetrieverConfError("object", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -270,6 +278,7 @@ func (r RetrieverKind) IsValid() error {
 		BitbucketRetriever, AzBlobStorageRetriever, PostgreSQLRetriever:
 		return nil
 	}
+
 	return fmt.Errorf("invalid retriever: kind \"%s\" is not supported", r)
 }
 
@@ -278,5 +287,6 @@ func (c *RetrieverConf) validateS3Retriever() error {
 	if err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive); err != nil {
 		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
 	}
+
 	return nil
 }

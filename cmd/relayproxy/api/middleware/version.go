@@ -38,6 +38,7 @@ func VersionHeader(cfg VersionHeaderConfig) echo.MiddlewareFunc {
 
 			c.Response().Header().Set(VersionHeaderName, cfg.RelayProxyConfig.Version)
 			c.Response().Header().Set(LegacyVersionHeaderName, cfg.RelayProxyConfig.Version)
+
 			return next(c)
 		}
 	}

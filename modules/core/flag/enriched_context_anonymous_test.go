@@ -7,7 +7,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // the enrichment is merged in the attributes of the context and wins over them, so a targeting
@@ -31,7 +30,7 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := &flag.InternalFlag{
-				Variations: &map[string]*any{"A": testconvert.Interface("a"), "B": testconvert.Interface("b")},
+				Variations: &map[string]*any{"A": new(any("a")), "B": new(any("b"))},
 				Rules: &[]flag.Rule{{
 					Query: new(tt.query), VariationResult: new("B"),
 				}},

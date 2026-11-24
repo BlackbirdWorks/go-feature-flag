@@ -271,6 +271,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
+
 				return
 			}
 			flagsetManager.Close()
@@ -303,6 +304,7 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 	}
 	if len(cfg.FlagSets) == 0 {
 		cfg.Exporters = &[]config.ExporterConf{exporter}
+
 		return
 	}
 	out := make([]config.FlagSet, len(cfg.FlagSets))
@@ -322,6 +324,7 @@ func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode
 	ok := errors.As(handlerErr, &he)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
+
 		return
 	}
 	assert.Equal(t, errorCode, he.Code)

@@ -61,5 +61,6 @@ func (h *forceFlagsRefresh) Handler(c *echo.Context) error {
 		Refreshed: forceRefreshStatus,
 	}
 	span.SetAttributes(attribute.Bool("retrieverRefresh.refreshed", forceRefreshStatus))
+
 	return c.JSON(http.StatusOK, resp)
 }

@@ -70,11 +70,13 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				func() *mockretriever.InitializableRetriever {
 					r := mockretriever.NewInitializableRetriever("standard")
 					r.InitShouldFail = true
+
 					return r
 				}(),
 				func() *mockretriever.InitializableRetrieverWithFlagset {
 					r := mockretriever.NewInitializableRetrieverWithFlagset("flagset")
 					r.InitShouldFail = true
+
 					return r
 				}(),
 			},
@@ -104,6 +106,7 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				func() *mockretriever.InitializableRetriever {
 					r := mockretriever.NewInitializableRetriever("standard")
 					r.InitShouldFail = true
+
 					return r
 				}(),
 				mockretriever.NewInitializableRetrieverWithFlagset("flagset"),
@@ -156,6 +159,7 @@ func findRetrieverByName(retrievers []retriever.Retriever, name string) retrieve
 			return r
 		}
 	}
+
 	return nil
 }
 
@@ -276,6 +280,7 @@ func (r *countingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
+
 	return []byte(`{"test-flag":{"variations":{"A":true,"B":false},` +
 		`"defaultRule":{"variation":"A"}}}`), nil
 }
@@ -283,6 +288,7 @@ func (r *countingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 func (r *countingRetriever) Calls() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return r.calls
 }
 

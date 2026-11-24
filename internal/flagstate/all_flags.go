@@ -44,6 +44,7 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 		Flags: a.flags,
 		Valid: a.IsValid(),
 	}
+
 	return json.Marshal(res)
 }
 

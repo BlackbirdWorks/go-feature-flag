@@ -42,6 +42,7 @@ func (*shutdownFailingRetriever) Status() retriever.Status                    { 
 func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retriever.Manager {
 	logger := fflog.FFLogger{}
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
+
 	return retriever.NewManager(conf, []retriever.Retriever{r}, cacheManager, &logger)
 }
 
@@ -77,6 +78,7 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 			err := m.Init(context.Background())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)

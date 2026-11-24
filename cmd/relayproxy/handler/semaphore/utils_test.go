@@ -107,6 +107,7 @@ func Test_evaluationContextFromRequest(t *testing.T) {
 			got, err := evaluationContextFromRequest(tt.req)
 			if tt.wantErr != nil {
 				assert.Equal(t, tt.wantErr, err)
+
 				return
 			}
 			assert.NoError(t, err)

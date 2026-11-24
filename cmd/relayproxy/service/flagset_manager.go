@@ -124,6 +124,7 @@ func NewFlagsetManager(
 		return nil, err
 	}
 	config.AttachConfigChangeCallback(flagsetMngr.OnConfigChange)
+
 	return flagsetMngr, nil
 }
 
@@ -152,6 +153,7 @@ func newFlagsetManagerWithDefaultConfig(
 	if err != nil {
 		return nil, err
 	}
+
 	return &flagsetManagerImpl{
 		DefaultFlagSet: client,
 		notifiers:      notifiers,
@@ -209,6 +211,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 				zap.String("flagset", flagset.Name),
 				zap.Error(err),
 			)
+
 			continue
 		}
 
@@ -253,11 +256,13 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		if !flagsetExists {
 			return nil, fmt.Errorf("impossible to find the flagset with the name %s", flagsetName)
 		}
+
 		return flagset, nil
 	default:
 		if m.DefaultFlagSet == nil {
 			return nil, errors.New("no configured flagset")
 		}
+
 		return m.DefaultFlagSet, nil
 	}
 }
@@ -275,6 +280,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 		if ok {
 			return name, nil
 		}
+
 		return "", errors.New("no flag set associated to the API key")
 	default:
 		return utils.DefaultFlagSetName, nil
@@ -294,11 +300,13 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		// added or removed concurrently.
 		out := make(map[string]*ffclient.GoFeatureFlag, len(m.FlagSets))
 		maps.Copy(out, m.FlagSets)
+
 		return out, nil
 	default:
 		if m.DefaultFlagSet == nil {
 			return nil, errors.New("no default flagset configured")
 		}
+
 		return map[string]*ffclient.GoFeatureFlag{
 			utils.DefaultFlagSetName: m.DefaultFlagSet,
 		}, nil
@@ -340,6 +348,7 @@ func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 	if err := newConfig.IsValid(); err != nil {
 		m.logger.Error("the new configuration is invalid, it will not be applied", zap.Error(err))
 		m.logger.Debug("invalid configuration:", zap.Error(err), zap.Stringer("newConfig", newConfig))
+
 		return
 	}
 
@@ -347,6 +356,7 @@ func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 	if (newConfig.IsUsingFlagsets() && m.mode == flagsetManagerModeDefault) ||
 		(!newConfig.IsUsingFlagsets() && m.mode == flagsetManagerModeFlagsets) {
 		m.logger.Error("switching from default to flagsets mode (or the opposite) is not supported during runtime")
+
 		return
 	}
 
@@ -447,6 +457,7 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 		}
 		out[flagset.Name] = flagset
 	}
+
 	return out
 }
 
@@ -467,6 +478,7 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 			zap.String("flagset", flagset.Name),
 			zap.Error(err),
 		)
+
 		return
 	}
 
@@ -478,6 +490,7 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 		m.logger.Error("failed to register the new flagset in the configuration; it will not be started",
 			zap.String("flagset", flagset.Name), zap.Error(err))
 		client.Close()
+
 		return
 	}
 
@@ -542,6 +555,7 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 				zap.String("flagset", newFlagset.Name),
 			)
 		}
+
 		return
 	}
 
@@ -552,6 +566,7 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 		// by rebuildNamedAPIKeysMapping once all flagsets have been reconciled.
 		if err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys); err != nil {
 			m.logger.Error("failed to update the APIKeys for flagset", zap.Error(err))
+
 			return
 		}
 	}
@@ -578,6 +593,7 @@ func countUnnamedFlagsets(flagsets []config.FlagSet) int {
 			count++
 		}
 	}
+
 	return count
 }
 
@@ -642,6 +658,7 @@ func resolveNamedAPIKeyRouting(
 		for _, apiKey := range flagset.APIKeys {
 			if prev, ok := assigned[apiKey]; ok && prev != name {
 				collisions[apiKey] = [2]string{prev, name}
+
 				continue
 			}
 			assigned[apiKey] = name
@@ -650,6 +667,7 @@ func resolveNamedAPIKeyRouting(
 	for apiKey := range collisions {
 		delete(assigned, apiKey)
 	}
+
 	return assigned, collisions
 }
 
@@ -717,5 +735,6 @@ func appendStreamNotifiers(
 	if wsService != nil {
 		out = append(out, proxynotifier.NewNotifierWebsocket(wsService, flagsetName))
 	}
+
 	return out
 }

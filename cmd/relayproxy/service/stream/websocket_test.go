@@ -11,7 +11,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -27,6 +26,7 @@ func (m *mockConn) WriteJSON(v any) error {
 	if m.writeJSONFunc != nil {
 		return m.writeJSONFunc(v)
 	}
+
 	return nil
 }
 
@@ -34,10 +34,11 @@ func sensitiveDiffCache() notifier.DiffCache {
 	beforeQuery := `user.email eq "before@example.com"`
 	afterQuery := `user.email eq "after@example.com"`
 	enabled := "enabled"
+
 	return notifier.DiffCache{
 		Deleted: map[string]flag.Flag{
 			"deleted-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": testconvert.Interface(true)},
+				Variations: &map[string]*any{"enabled": new(any(true))},
 				Rules: &[]flag.Rule{
 					{Query: &beforeQuery, VariationResult: &enabled},
 				},
@@ -45,7 +46,7 @@ func sensitiveDiffCache() notifier.DiffCache {
 		},
 		Added: map[string]flag.Flag{
 			"added-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": testconvert.Interface(true)},
+				Variations: &map[string]*any{"enabled": new(any(true))},
 				Rules: &[]flag.Rule{
 					{Query: &afterQuery, VariationResult: &enabled},
 				},
@@ -89,6 +90,7 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 			var received any
 			conn.writeJSONFunc = func(v any) error {
 				received = v
+
 				return nil
 			}
 			websocketService.Register(conn, "default")
@@ -126,11 +128,13 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	// Set the function to be executed when WriteJSON is called on the connections
 	conn1.writeJSONFunc = func(v any) error {
 		conn1WriteJSONCalled = true
+
 		return nil
 	}
 
 	conn2.writeJSONFunc = func(v any) error {
 		conn2WriteJSONCalled = true
+
 		return nil
 	}
 
@@ -177,6 +181,7 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 				got[name] = false
 				websocketService.Register(&mockConn{writeJSONFunc: func(_ any) error {
 					got[name] = true
+
 					return nil
 				}}, flagsetName)
 			}
@@ -199,6 +204,7 @@ func TestDeregister(t *testing.T) {
 	conn1WriteJSONCalled := false
 	conn.writeJSONFunc = func(v any) error {
 		conn1WriteJSONCalled = true
+
 		return nil
 	}
 
@@ -234,11 +240,13 @@ func TestClose(t *testing.T) {
 	// Set the function to be executed when WriteJSON is called on the connections
 	conn1.writeJSONFunc = func(v any) error {
 		conn1WriteJSONCalled = true
+
 		return nil
 	}
 
 	conn2.writeJSONFunc = func(v any) error {
 		conn2WriteJSONCalled = true
+
 		return nil
 	}
 
@@ -276,6 +284,7 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 	conn1WriteJSONCalled := false
 	conn1.writeJSONFunc = func(v any) error {
 		conn1WriteJSONCalled = true
+
 		return nil
 	}
 	websocketService.BroadcastFlagChanges("default", diff)

@@ -39,6 +39,7 @@ func flagKeys(t *testing.T, content []byte) []string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
 	return keys
 }
 
@@ -87,6 +88,7 @@ func TestE2E_SingleItem(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)
@@ -185,6 +187,7 @@ func TestE2E_FolderMode(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)
@@ -196,6 +199,7 @@ func TestE2E_FolderMode(t *testing.T) {
 			if len(tt.wantKeys) == 0 {
 				assert.Equal(t, "json", r.OutputFormat())
 				assert.Equal(t, []string{}, flagKeys(t, got))
+
 				return
 			}
 			assert.Equal(t, "yaml", r.OutputFormat())
@@ -299,6 +303,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 						return false
 					}
 					n.Add(1)
+
 					return true
 				}
 			}

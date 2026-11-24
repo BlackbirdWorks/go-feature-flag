@@ -16,6 +16,7 @@ func ConvertEvaluationCtxFromRequest(
 		case float64:
 			if IsIntegral(val) {
 				ctx.AddCustom(k, int(val))
+
 				continue
 			}
 			ctx.AddCustom(k, val)
@@ -23,5 +24,6 @@ func ConvertEvaluationCtxFromRequest(
 			ctx.AddCustom(k, val)
 		}
 	}
+
 	return ctx.Build()
 }

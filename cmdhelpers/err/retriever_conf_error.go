@@ -26,5 +26,6 @@ func (e *RetrieverConfError) Error() string {
 
 func (e *RetrieverConfError) CliErrorMessage() string {
 	kebab := camelToKebabRegex.ReplaceAllString(e.property, "${1}-${2}")
+
 	return fmt.Sprintf("invalid retriever: no \"%s\" property found for kind \"%s\"", strings.ToLower(kebab), e.kind)
 }

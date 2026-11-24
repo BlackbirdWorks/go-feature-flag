@@ -98,8 +98,10 @@ func compiledQueryCacheLen() int {
 	n := 0
 	compiledQueryCache.Range(func(_, _ any) bool {
 		n++
+
 		return true
 	})
+
 	return n
 }
 

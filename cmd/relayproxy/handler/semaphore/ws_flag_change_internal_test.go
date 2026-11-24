@@ -40,6 +40,7 @@ func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
 		_ = client.Close()
 		_ = server.Close()
 	})
+
 	return server, client
 }
 
@@ -52,6 +53,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 		case pinged <- struct{}{}:
 		default:
 		}
+
 		return nil
 	})
 	// A reader is required for the client to process incoming control frames.
@@ -87,6 +89,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 		case pinged <- struct{}{}:
 		default:
 		}
+
 		return nil
 	})
 	go func() {

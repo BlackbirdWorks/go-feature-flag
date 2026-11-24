@@ -28,6 +28,7 @@ type threadSafeConn struct {
 func (c *threadSafeConn) WriteJSON(v any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.conn.WriteJSON(v)
 }
 
@@ -35,6 +36,7 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 func (c *threadSafeConn) ping() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.conn.WriteMessage(websocket.PingMessage, nil)
 }
 
@@ -139,6 +141,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 
 	conn.SetPongHandler(func(string) error {
 		_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
+
 		return nil
 	})
 
@@ -151,6 +154,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 				zap.Error(err),
 				zap.Any("connection", conn),
 			)
+
 			return nil
 		}
 	}
@@ -181,10 +185,12 @@ func (f *WSFlagChange) pingPongLoop(ctx context.Context, conn *threadSafeConn) {
 					zap.Error(err),
 					zap.Any("connection", conn),
 				)
+
 				return
 			}
 		case <-ctx.Done():
 			f.logger.Debug("stopping ping pong loop")
+
 			return
 		}
 	}

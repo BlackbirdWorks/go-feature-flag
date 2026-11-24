@@ -14,7 +14,6 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
@@ -37,6 +36,7 @@ func newFileClient(t *testing.T, content string) (*ffclient.GoFeatureFlag, strin
 	})
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
+
 	return client, path
 }
 
@@ -237,7 +237,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T) {
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
 	f := &flag.InternalFlag{
-		Variations: &map[string]*any{"enabled": testconvert.Interface(true)},
+		Variations: &map[string]*any{"enabled": new(any(true))},
 		Disable:    new(true),
 		Scheduled: &[]flag.ScheduledStep{{
 			Disable: new(false),

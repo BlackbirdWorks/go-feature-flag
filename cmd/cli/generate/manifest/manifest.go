@@ -28,6 +28,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 	if err != nil {
 		return Manifest{}, err
 	}
+
 	return Manifest{
 		dtos:                    flagDTOs,
 		flagManifestDestination: flagManifestDestination,
@@ -71,6 +72,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	if err != nil {
 		return output, err
 	}
+
 	return output.Add("🎉 Manifest has been created", helper.InfoLevel), nil
 }
 
@@ -80,6 +82,7 @@ func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(definitionsJSON), nil
 }
 
@@ -101,6 +104,7 @@ func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true
 
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	*h.records = append(*h.records, capturedRecord{level: r.Level, message: r.Message})
+
 	return nil
 }
 

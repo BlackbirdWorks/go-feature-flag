@@ -44,6 +44,7 @@ func newTestLogger(t *testing.T) *log.Logger {
 	l := log.InitLogger()
 	l.ZapLogger = l.ZapLogger.WithOptions(zap.WithFatalHook(zapcore.WriteThenGoexit))
 	t.Cleanup(func() { _ = l.ZapLogger.Sync() })
+
 	return l
 }
 
@@ -58,6 +59,7 @@ func waitForServer(t *testing.T, baseURL string) {
 			return false
 		}
 		_ = resp.Body.Close()
+
 		return true
 	}, 10*time.Second, 20*time.Millisecond, "server never became reachable on %s", baseURL)
 }
@@ -435,6 +437,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
 					request.Header.Add("Authorization", "Bearer "+tt.configAPIKeys.Admin[0])
 				}
+
 				return http.DefaultClient.Do(request)
 			})
 	})
@@ -578,6 +581,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -658,6 +662,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -740,6 +745,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -908,6 +914,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				_, err := os.Stat(socketPath)
+
 				return err == nil
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -1004,6 +1011,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				_, err := os.Stat(socketPath)
+
 				return err == nil
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -1181,6 +1189,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 			return false
 		}
 		_ = resp.Body.Close()
+
 		return resp.StatusCode == http.StatusOK
 	}, 5*time.Second, 50*time.Millisecond)
 

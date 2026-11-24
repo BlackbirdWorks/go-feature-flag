@@ -20,7 +20,6 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -41,8 +40,8 @@ func Test_websocket_flag_change(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
 								VariationResult: new("A"),
@@ -50,8 +49,8 @@ func Test_websocket_flag_change(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
 								VariationResult: new("B"),
@@ -67,8 +66,8 @@ func Test_websocket_flag_change(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
-							"B": testconvert.Interface(false),
+							"A": new(any(true)),
+							"B": new(any(false)),
 						},
 						DefaultRule: &flag.Rule{
 							VariationResult: new("A"),
@@ -78,8 +77,8 @@ func Test_websocket_flag_change(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
-							"B": testconvert.Interface(false),
+							"A": new(any(true)),
+							"B": new(any(false)),
 						},
 						DefaultRule: &flag.Rule{
 							VariationResult: new("A"),
@@ -90,8 +89,8 @@ func Test_websocket_flag_change(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
 								VariationResult: new("A"),
@@ -99,8 +98,8 @@ func Test_websocket_flag_change(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
 								VariationResult: new("B"),

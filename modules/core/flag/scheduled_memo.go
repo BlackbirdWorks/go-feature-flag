@@ -51,5 +51,6 @@ func (m *scheduledMemo) get(
 		return built, err
 	}
 	entry.byCount[due].Store(built)
+
 	return built, nil
 }

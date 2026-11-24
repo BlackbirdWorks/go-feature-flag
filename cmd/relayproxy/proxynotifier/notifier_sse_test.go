@@ -8,7 +8,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -30,7 +29,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
 						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},

@@ -36,12 +36,14 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		client, err := mongo.Connect(ctx, options.Client().ApplyURI(r.URI))
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 		r.dbClient = client
 		r.dbConnection = client.Database(r.Database)
 		r.status = retriever.RetrieverReady
 	}
+
 	return nil
 }
 
@@ -50,6 +52,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 

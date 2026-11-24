@@ -118,6 +118,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 					if path != "" {
 						return path
 					}
+
 					return evalConfigFile
 				}(),
 				GithubToken: githubToken, //nolint:staticcheck // we keep the deprecated flag for backward compatibility
@@ -150,12 +151,14 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 				if errors.As(err, &rcErr) {
 					return errors.New(rcErr.CliErrorMessage())
 				}
+
 				return err
 			}
 
 			if checkMode {
 				return runCheck(cmd, retrieverConf)
 			}
+
 			return runEvaluate(cmd, args, evalFlagFormat, retrieverConf, evalFlag, evalCtx)
 		},
 		SilenceUsage:  true,
@@ -231,6 +234,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 		"Postgres column mapping of your configuration file on Postgres (may be repeated)")
 	_ = evaluateCmd.Flags().MarkDeprecated("github-token", "Use auth-token instead")
 	_ = evaluateCmd.Flags().MarkDeprecated("config", "Use path instead")
+
 	return evaluateCmd
 }
 
@@ -276,6 +280,7 @@ func runEvaluate(
 
 	output.Add(string(detailed), helper.DefaultLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
@@ -292,6 +297,7 @@ func runCheck(
 
 	output.Add(string(detailed), helper.DefaultLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
@@ -330,6 +336,7 @@ func parseHTTPHeaders() map[string][]string {
 		val := strings.TrimSpace(parts[1])
 		result[key] = append(result[key], val)
 	}
+
 	return result
 }
 
@@ -344,5 +351,6 @@ func parsePostgresColumns() map[string]string {
 		val := strings.TrimSpace(parts[1])
 		result[key] = val
 	}
+
 	return result
 }

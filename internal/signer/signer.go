@@ -12,5 +12,6 @@ func Sign(payloadBody, secretToken []byte) string {
 	mac := hmac.New(sha256.New, secretToken)
 	_, _ = mac.Write(payloadBody)
 	expectedMAC := mac.Sum(nil)
+
 	return "sha256=" + hex.EncodeToString(expectedMAC)
 }

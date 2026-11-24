@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
@@ -150,10 +149,10 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) {
 	f := InternalFlag{
 		Variations: &map[string]*any{
-			"nikunjy":     testconvert.Interface("nikunjy"),
-			"jsonlogic":   testconvert.Interface("jsonlogic"),
-			"jsonlogic-2": testconvert.Interface("jsonlogic-2"),
-			"default":     testconvert.Interface("default"),
+			"nikunjy":     new(any("nikunjy")),
+			"jsonlogic":   new(any("jsonlogic")),
+			"jsonlogic-2": new(any("jsonlogic-2")),
+			"default":     new(any("default")),
 		},
 		Rules: &[]Rule{
 			{Query: new(`plan eq "free"`), VariationResult: new("nikunjy")},

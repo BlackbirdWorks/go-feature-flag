@@ -23,7 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -37,6 +36,7 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
+
 	return m.flagsetName, nil
 }
 
@@ -62,15 +62,15 @@ func Test_SSE_FlagChange(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{VariationResult: new("A")},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{VariationResult: new("B")},
 						},
@@ -84,7 +84,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
 						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
@@ -92,7 +92,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"B": testconvert.Interface(false),
+							"B": new(any(false)),
 						},
 						DefaultRule: &flag.Rule{VariationResult: new("B")},
 					},
@@ -239,6 +239,7 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 		}
 	}
 	require.NotEmpty(t, fields["data"], "should have received an SSE data line")
+
 	return fields
 }
 

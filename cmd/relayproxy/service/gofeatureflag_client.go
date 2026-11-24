@@ -66,6 +66,7 @@ func exporterCleanQueueInterval(cFlagSet *config.FlagSet, o *clientOptions) time
 	if cFlagSet.ExporterCleanQueueInterval != 0 {
 		return cFlagSet.ExporterCleanQueueInterval
 	}
+
 	return o.defaultExporterCleanQueueInterval
 }
 
@@ -163,6 +164,7 @@ func newGoFeatureFlagClient(
 	if rr, ok := firstSharedRetriever(retrievers); ok {
 		rr.SetRefresh(client.ForceRefresh)
 	}
+
 	return client, nil
 }
 
@@ -173,6 +175,7 @@ func standaloneSharedRegistry(cFlagSet *config.FlagSet, logger *zap.Logger) *sha
 	if !cFlagSet.EnableSharedPollerPerBucket {
 		return nil
 	}
+
 	return newSharedBucketRegistry(
 		nil, time.Duration(cFlagSet.PollingInterval)*time.Millisecond, cFlagSet.EnablePollingJitter, logger)
 }
@@ -183,6 +186,7 @@ func clientPollingInterval(cFlagSet *config.FlagSet) time.Duration {
 	if cFlagSet.EnableSharedPollerPerBucket {
 		return disabledPollingInterval
 	}
+
 	return time.Duration(cFlagSet.PollingInterval) * time.Millisecond
 }
 
@@ -196,6 +200,7 @@ func firstSharedRetriever(retrievers []retriever.Retriever) (*releasingRetriever
 		return nil, false
 	}
 	rr, ok := retrievers[0].(*releasingRetriever)
+
 	return rr, ok
 }
 
@@ -220,6 +225,7 @@ func initLeveledLogger(c *config.FlagSet, logger *zap.Logger) *slog.Logger {
 		attrs := []slog.Attr{slog.String("flagset", c.Name)}
 		baseHandler = baseHandler.WithAttrs(attrs)
 	}
+
 	return slog.New(baseHandler)
 }
 
@@ -238,6 +244,7 @@ func initRetrieversWithRegistry(
 		if err != nil {
 			return nil, err
 		}
+
 		return append(retrievers, r), nil
 	}
 	// if the retriever is set, we add it to the retrievers
@@ -258,6 +265,7 @@ func initRetrieversWithRegistry(
 			retrievers = append(retrievers, currentRetriever)
 		}
 	}
+
 	return retrievers, nil
 }
 
@@ -295,12 +303,14 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 			if c.FlushInterval != 0 {
 				return time.Duration(c.FlushInterval) * time.Millisecond
 			}
+
 			return config.DefaultExporter.FlushInterval
 		}(),
 		MaxEventInMemory: func() int64 {
 			if c.MaxEventInMemory != 0 {
 				return c.MaxEventInMemory
 			}
+
 			return config.DefaultExporter.MaxEventInMemory
 		}(),
 		ExporterEventType: exporterEventType,
@@ -359,6 +369,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 				if c.LogFormat != "" {
 					return c.LogFormat
 				}
+
 				return config.DefaultExporter.LogFormat
 			}(),
 		}, nil
@@ -382,6 +393,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &kinesisexporter.Exporter{
 			Format:    format,
 			AwsConfig: &awsConfig,
@@ -404,6 +416,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &sqsexporter.Exporter{
 			QueueURL:  c.QueueURL,
 			AwsConfig: &awsConfig,
@@ -413,6 +426,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &kafkaexporter.Exporter{
 			Format:   format,
 			Settings: settings,
@@ -439,6 +453,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &redshiftexporter.Exporter{
 			ClusterIdentifier: c.ClusterIdentifier,
 			WorkgroupName:     c.WorkgroupName,
@@ -500,6 +515,7 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 		}
 	}
 	c.Config = saramaConfig
+
 	return c, nil
 }
 
@@ -545,5 +561,6 @@ func initNotifier(c []config.NotifierConf) ([]notifier.Notifier, error) {
 			return nil, fmt.Errorf("invalid notifier: kind \"%s\" is not supported", cNotif.Kind)
 		}
 	}
+
 	return notifiers, nil
 }

@@ -29,6 +29,7 @@ func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []e
 	for _, e := range ev {
 		c.events = append(c.events, e.(exporter.FeatureEvent))
 	}
+
 	return nil
 }
 

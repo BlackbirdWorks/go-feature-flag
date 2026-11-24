@@ -20,6 +20,7 @@ func samples(heap []uint64, gor []int) []Sample {
 	for i := range heap {
 		out[i] = Sample{HeapInuse: heap[i], Goroutines: gor[i]}
 	}
+
 	return out
 }
 
@@ -131,6 +132,7 @@ func TestParseExporterMode(t *testing.T) {
 			got, err := ParseExporterMode(tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -190,6 +192,7 @@ func (f *fakeTarget) Eval(_, _ int) error {
 		return errors.New("boom")
 	}
 	time.Sleep(50 * time.Microsecond)
+
 	return nil
 }
 func (f *fakeTarget) Extra() map[string]int64 { return map[string]int64{"evals": f.evals.Load()} }
@@ -334,6 +337,7 @@ func TestSummarize(t *testing.T) {
 		for _, d := range durations {
 			h[bucket(d.Nanoseconds())]++
 		}
+
 		return h
 	}
 	us := time.Microsecond

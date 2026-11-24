@@ -328,6 +328,7 @@ func roundTripCases(t *testing.T) []retrieveCase {
 			steps: []step{{wantSameAs: []string{local}}},
 		})
 	}
+
 	return cases
 }
 
@@ -380,12 +381,14 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, st step) ([][]byte, []e
 		wg.Go(func() {
 			if st.nilCtx {
 				results[c], errs[c] = r.Retrieve(nil) //nolint:staticcheck // nil ctx is supported
+
 				return
 			}
 			results[c], errs[c] = r.Retrieve(t.Context())
 		})
 	}
 	wg.Wait()
+
 	return results, errs
 }
 
@@ -393,6 +396,7 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, st step, got [
 	t.Helper()
 	if st.wantErr != "" {
 		require.ErrorContains(t, err, st.wantErr, "step %d", i)
+
 		return
 	}
 	require.NoError(t, err, "step %d", i)
@@ -485,6 +489,7 @@ func TestRetriever_Init(t *testing.T) {
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)
@@ -621,6 +626,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 			got, err := r.Retrieve(t.Context())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)

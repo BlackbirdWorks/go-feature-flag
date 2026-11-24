@@ -231,6 +231,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 				if ok {
 					assert.Equal(t, tt.want.statusCode, he.Code)
 				}
+
 				return
 			}
 

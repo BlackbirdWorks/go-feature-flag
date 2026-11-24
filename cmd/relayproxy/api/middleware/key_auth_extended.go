@@ -46,6 +46,7 @@ func setDefaults(config *KeyAuthExtendedConfig) error {
 	if config.KeyLookup == "" {
 		config.KeyLookup = middleware.DefaultKeyAuthConfig.KeyLookup
 	}
+
 	return nil
 }
 

@@ -116,6 +116,7 @@ func legacyEvaluate(p map[string]float64, sumOrder []string, key, flagName strin
 		}
 		start = end
 	}
+
 	return ""
 }
 
@@ -130,6 +131,7 @@ func permutations(names []string) [][]string {
 			out = append(out, append([]string{names[i]}, p...))
 		}
 	}
+
 	return out
 }
 
@@ -150,6 +152,7 @@ func percentageConfigs() []map[string]float64 {
 		}
 		out = append(out, m)
 	}
+
 	return out
 }
 

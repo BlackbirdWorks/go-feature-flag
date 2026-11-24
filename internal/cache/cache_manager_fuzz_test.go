@@ -69,5 +69,6 @@ func hasProgressiveRolloutWithoutStep(flags map[string]dto.DTO) bool {
 			}
 		}
 	}
+
 	return false
 }

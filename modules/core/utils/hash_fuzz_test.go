@@ -22,6 +22,7 @@ func FuzzBuildHash(f *testing.F) {
 		got := utils.BuildHash(flagKey, bucketingKey, maxPercentage)
 		if maxPercentage == 0 {
 			assert.Equal(t, uint32(0), got)
+
 			return
 		}
 		assert.Equal(t, utils.Hash(flagKey+bucketingKey)%maxPercentage, got)

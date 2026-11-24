@@ -33,6 +33,7 @@ func (c gatedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecific
 		close(c.reached)
 		<-c.gate
 	}
+
 	return c.Context.ExtractGOFFProtectedFields()
 }
 
@@ -46,6 +47,7 @@ type finalFlushHookExporter struct {
 func (e *finalFlushHookExporter) IsBulk() bool { return true }
 func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
+
 	return nil
 }
 

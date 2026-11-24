@@ -56,6 +56,7 @@ func tokenResponse(token string, expiresAt time.Time) []byte {
 		"token":      token,
 		"expires_at": expiresAt.Format(time.RFC3339),
 	})
+
 	return b
 }
 
@@ -94,6 +95,7 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 				time.Now().Add(cmp.Or(m.tokenTTL, time.Hour)),
 			)
 		}
+
 		return newResponse(cmp.Or(m.tokenStatus, http.StatusCreated), body), nil
 	}
 
@@ -107,6 +109,7 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 	resp := newResponse(http.StatusOK, []byte(flagBody))
 	resp.Header.Set("X-Ratelimit-Remaining", "4999")
 	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+
 	return resp, nil
 }
 
@@ -127,6 +130,7 @@ func generateTestKey(t *testing.T) (*rsa.PrivateKey, string) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
+
 	return key, string(pemBytes)
 }
 
@@ -140,6 +144,7 @@ func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retrieve
 		PrivateKey:     pemStr,
 	}
 	r.SetHTTPClient(mock)
+
 	return r
 }
 
@@ -456,6 +461,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)

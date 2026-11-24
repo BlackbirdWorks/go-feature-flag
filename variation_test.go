@@ -19,7 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -103,8 +102,8 @@ func TestBoolVariation(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -181,9 +180,9 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(true)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -213,9 +212,9 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -245,9 +244,9 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -277,9 +276,9 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -309,9 +308,9 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -384,6 +383,7 @@ func TestBoolVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "BoolVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariation() got = %v, want %v", got, tt.want)
@@ -418,8 +418,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -500,9 +500,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(true)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -539,9 +539,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -581,9 +581,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -622,9 +622,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -661,9 +661,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -703,9 +703,9 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -753,8 +753,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
@@ -780,8 +780,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
@@ -852,6 +852,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					err,
 					tt.wantErr,
 				)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariationDetails() got = %v, want %v", got, tt.want)
@@ -886,8 +887,8 @@ func TestFloat64Variation(t *testing.T) {
 				defaultValue:  123.3,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -964,9 +965,9 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -996,9 +997,9 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1028,9 +1029,9 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1060,9 +1061,9 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1092,9 +1093,9 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1163,6 +1164,7 @@ func TestFloat64Variation(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
 				assert.Error(t, err, "Float64Variation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
@@ -1197,8 +1199,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 				defaultValue:  123.3,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -1279,9 +1281,9 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1318,9 +1320,9 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1360,9 +1362,9 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1402,9 +1404,9 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1484,6 +1486,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
 				assert.Error(t, err, "Float64Variation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
@@ -1518,8 +1521,8 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -1596,9 +1599,9 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1628,9 +1631,9 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1650,9 +1653,9 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -1685,9 +1688,9 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1707,9 +1710,9 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -1780,6 +1783,7 @@ func TestJSONArrayVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONArrayVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
@@ -1814,8 +1818,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -1896,9 +1900,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1935,9 +1939,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -1967,9 +1971,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new("defaultRule"),
@@ -2009,9 +2013,9 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2094,6 +2098,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONArrayVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
@@ -2128,8 +2133,8 @@ func TestJSONVariation(t *testing.T) {
 				defaultValue:  map[string]any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -2206,9 +2211,9 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2238,9 +2243,9 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2270,9 +2275,9 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2302,9 +2307,9 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2373,6 +2378,7 @@ func TestJSONVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
@@ -2438,9 +2444,9 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2477,9 +2483,9 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2519,9 +2525,9 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2607,6 +2613,7 @@ func TestJSONVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
@@ -2641,8 +2648,8 @@ func TestStringVariation(t *testing.T) {
 				defaultValue:  "",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -2720,9 +2727,9 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2752,9 +2759,9 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2784,9 +2791,9 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2816,9 +2823,9 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(1),
-						"False":   testconvert.Interface(2),
-						"True":    testconvert.Interface(3),
+						"Default": new(any(1)),
+						"False":   new(any(2)),
+						"True":    new(any(3)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2862,8 +2869,8 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"prerelease": testconvert.Interface("newer-prerelease"),
-						"default":    testconvert.Interface("default-value"),
+						"prerelease": new(any("newer-prerelease")),
+						"default":    new(any("default-value")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -2917,6 +2924,7 @@ func TestStringVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "StringVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
@@ -2982,9 +2990,9 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3021,9 +3029,9 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3063,9 +3071,9 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3149,6 +3157,7 @@ func TestStringVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "StringVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
@@ -3183,8 +3192,8 @@ func TestIntVariation(t *testing.T) {
 				defaultValue:  1,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -3261,9 +3270,9 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3293,9 +3302,9 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3325,9 +3334,9 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3357,9 +3366,9 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3389,9 +3398,9 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.1),
-						"True":    testconvert.Interface(120.1),
-						"False":   testconvert.Interface(121.1),
+						"Default": new(any(119.1)),
+						"True":    new(any(120.1)),
+						"False":   new(any(121.1)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3459,6 +3468,7 @@ func TestIntVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "IntVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
@@ -3524,9 +3534,9 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3563,9 +3573,9 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3605,9 +3615,9 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3647,9 +3657,9 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.1),
-						"True":    testconvert.Interface(120.1),
-						"False":   testconvert.Interface(121.1),
+						"Default": new(any(119.1)),
+						"True":    new(any(120.1)),
+						"False":   new(any(121.1)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3733,6 +3743,7 @@ func TestIntVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "IntVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
@@ -3767,8 +3778,8 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  "",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
 						Query:       new("key eq \"key\""),
@@ -3873,9 +3884,9 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3912,9 +3923,9 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3954,9 +3965,9 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new("defaultRule"),
@@ -3986,9 +3997,9 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
+						"Default": new(any(false)),
+						"True":    new(any(true)),
+						"False":   new(any(false)),
 					},
 					Rules: &[]flag.Rule{
 						{

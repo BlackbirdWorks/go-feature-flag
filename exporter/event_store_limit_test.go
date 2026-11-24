@@ -27,6 +27,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				return err
 			}
 			*out = append(*out, events...)
+
 			return nil
 		}
 	}
@@ -104,6 +105,7 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 		for _, e := range ev {
 			got = append(got, e.GetKey())
 		}
+
 		return nil
 	}))
 	assert.Equal(t, []string{"e0", "e1", "e2"}, got)
@@ -179,6 +181,7 @@ type failingExporter struct{ calls atomic.Int32 }
 func (f *failingExporter) IsBulk() bool { return true }
 func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
+
 	return errors.New("always failing")
 }
 

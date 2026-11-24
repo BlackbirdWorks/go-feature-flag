@@ -135,6 +135,7 @@ func newPollingManager(
 	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
 		&config.Config{FlagSets: []config.FlagSet{a, b}}, logger, nil, nil, nil, reg)
 	require.NoError(t, err)
+
 	return mgr.(*flagsetManagerImpl), reg
 }
 
@@ -247,6 +248,7 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 			impl.clientOptions = []clientOption{withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 				calls.Add(1)
 				got.Store(int64(c.ExporterCleanQueueInterval))
+
 				return ffclient.New(c)
 			})}
 

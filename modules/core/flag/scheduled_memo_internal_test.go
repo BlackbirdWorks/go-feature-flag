@@ -10,14 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func scheduledFlag(base time.Time) *InternalFlag {
 	f := &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"),
-			"B": testconvert.Interface("b"),
+			"A": new(any("a")),
+			"B": new(any("b")),
 		},
 		DefaultRule: &Rule{VariationResult: new("A")},
 		Scheduled: &[]ScheduledStep{
@@ -27,6 +26,7 @@ func scheduledFlag(base time.Time) *InternalFlag {
 				Version: new("v2")},
 		},
 	}
+
 	return f
 }
 
@@ -80,6 +80,7 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		runtime.GC()
 		_, ok := scheduledFlags.entries.Load(key)
+
 		return !ok
 	}, 5*time.Second, 20*time.Millisecond)
 }

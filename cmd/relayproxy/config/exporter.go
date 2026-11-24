@@ -163,6 +163,7 @@ func (c *ExporterConf) isValidRedshift() error {
 			c.Kind,
 		)
 	}
+
 	return nil
 }
 
@@ -202,5 +203,6 @@ func (r ExporterKind) IsValid() error {
 		OpenTelemetryExporter:
 		return nil
 	}
+
 	return fmt.Errorf("invalid exporter: kind \"%s\" is not supported", r)
 }

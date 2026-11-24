@@ -64,11 +64,13 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 	if err != nil {
 		return nil, err
 	}
+
 	return buf.Bytes(), nil
 }
 
 func (f TrackingEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	b = append(b, []byte("\n")...)
+
 	return b, err
 }

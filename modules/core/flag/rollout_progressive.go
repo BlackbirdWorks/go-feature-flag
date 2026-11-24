@@ -29,6 +29,7 @@ func (p *ProgressiveRolloutStep) getVariation() string {
 	if p == nil || p.Variation == nil {
 		return ""
 	}
+
 	return *p.Variation
 }
 
@@ -36,6 +37,7 @@ func (p *ProgressiveRolloutStep) getPercentage() float64 {
 	if p == nil || p.Percentage == nil {
 		return 0
 	}
+
 	return *p.Percentage
 }
 

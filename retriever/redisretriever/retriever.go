@@ -35,10 +35,12 @@ func (r *Retriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
 	_, err := client.Ping(ctx).Result()
 	if err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.client = client
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -47,6 +49,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -58,6 +61,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 
 	if r.client == nil {
 		r.status = retriever.RetrieverNotReady
+
 		return nil
 	}
 
@@ -66,9 +70,11 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 
 	if err != nil && !errors.Is(err, redis.ErrClosed) {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -103,6 +109,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling flags data: %w", err)
 	}
+
 	return content, nil
 }
 

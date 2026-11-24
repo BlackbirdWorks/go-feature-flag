@@ -43,6 +43,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 			err := got.UnmarshalText([]byte(tt.text))
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -100,6 +101,7 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 			err := tt.in.IsValid()
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)
@@ -126,6 +128,7 @@ func TestEndpoints_IsValid(t *testing.T) {
 			err := tt.in.IsValid()
 			if tt.wantErr {
 				assert.ErrorContains(t, err, "must not be negative")
+
 				return
 			}
 			assert.NoError(t, err)

@@ -23,6 +23,7 @@ type Warner struct {
 func NewWarner(logf LogFunc) *Warner {
 	w := &Warner{}
 	w.SetLogFunc(logf)
+
 	return w
 }
 

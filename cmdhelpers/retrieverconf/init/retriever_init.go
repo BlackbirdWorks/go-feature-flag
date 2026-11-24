@@ -55,6 +55,7 @@ func InitRetriever(
 	if !exists {
 		return nil, fmt.Errorf("invalid retriever: kind \"%s\" is not supported", c.Kind)
 	}
+
 	return retrieverFactory(c, retrieverTimeout)
 }
 
@@ -65,12 +66,14 @@ func createGitHubRetriever(
 	if token == "" && c.GithubToken != "" { //nolint: staticcheck
 		token = c.GithubToken //nolint: staticcheck
 	}
+
 	return &githubretriever.Retriever{
 		RepositorySlug: c.RepositorySlug,
 		Branch: func() string {
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -92,6 +95,7 @@ func createGitlabRetriever(
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -109,6 +113,7 @@ func createBitbucketRetriever(
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -124,6 +129,7 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retri
 
 func createS3Retriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retriever.Retriever, error) {
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
+
 	return &s3retrieverv2.Retriever{
 		Bucket:    c.Bucket,
 		Item:      c.Item,
@@ -142,6 +148,7 @@ func createHTTPRetriever(
 			if c.HTTPMethod == "" {
 				return retrieverconf.DefaultRetrieverConfig.HTTPMethod
 			}
+
 			return c.HTTPMethod
 		}(),
 		Body:           c.HTTPBody,
@@ -164,6 +171,7 @@ func createKubernetesRetriever(
 	if err != nil {
 		return nil, err
 	}
+
 	return &k8sretriever.Retriever{
 		Namespace:     c.Namespace,
 		ConfigMapName: c.ConfigMap,
@@ -181,6 +189,7 @@ func createRedisRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retr
 	if c.RedisOptions != nil {
 		options = c.RedisOptions.ToRedisOptions()
 	}
+
 	return &redisretriever.Retriever{Options: options, Prefix: c.RedisPrefix}, nil
 }
 

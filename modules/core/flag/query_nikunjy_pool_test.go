@@ -55,6 +55,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
+
 				return assert.ErrorAs(t, err, &target)
 			},
 		},
@@ -93,6 +94,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
+
 				return assert.ErrorAs(t, err, &target)
 			},
 		},
@@ -125,6 +127,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
+
 				return assert.ErrorAs(t, err, &target)
 			},
 		},
@@ -171,6 +174,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
+
 				return assert.ErrorAs(t, err, &target)
 			},
 		},
@@ -189,6 +193,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			want: "",
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
+
 				return assert.ErrorAs(t, err, &target)
 			},
 		},

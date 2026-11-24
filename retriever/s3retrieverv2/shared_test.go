@@ -74,6 +74,7 @@ func (b *fakeBucket) put(key, etag, data string) {
 func (b *fakeBucket) getCount(key string) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	return b.gets[key]
 }
 
@@ -84,6 +85,7 @@ func (b *fakeBucket) totalGets() int {
 	for _, n := range b.gets {
 		total += n
 	}
+
 	return total
 }
 
@@ -106,6 +108,7 @@ func (b *fakeBucket) ListObjectsV2(
 	}
 	if hang {
 		<-ctx.Done()
+
 		return nil, ctx.Err()
 	}
 	b.mu.Lock()
@@ -132,6 +135,7 @@ func (b *fakeBucket) ListObjectsV2(
 	for _, k := range keys {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(b.objects[k].etag)})
 	}
+
 	return out, nil
 }
 
@@ -167,6 +171,7 @@ func (b *fakeBucket) DownloadObject(
 	if b.downloadETag != "" {
 		return &transfermanager.DownloadObjectOutput{ETag: aws.String(b.downloadETag)}, nil
 	}
+
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(obj.etag)}, nil
 }
 
@@ -176,6 +181,7 @@ func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {
 		Bucket: "flags", Lister: b, Downloader: b,
 	})
 	require.NoError(t, err)
+
 	return g
 }
 
@@ -183,6 +189,7 @@ func initRetriever(t *testing.T, g *s3retrieverv2.SharedItems, item string) *s3r
 	t.Helper()
 	r := g.Retriever(item)
 	require.NoError(t, r.Init(t.Context(), nil))
+
 	return r
 }
 
@@ -210,6 +217,7 @@ func TestNewSharedItems(t *testing.T) {
 			g, err := s3retrieverv2.NewSharedItems(t.Context(), tt.opts)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)
@@ -237,6 +245,7 @@ func TestSharedItems_Retriever(t *testing.T) {
 			if tt.wantErrMsg != "" {
 				assert.ErrorContains(t, err, tt.wantErrMsg)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			assert.NoError(t, err)
@@ -803,6 +812,7 @@ func distinctItems(t *testing.T, b *fakeBucket, n int) []*s3retrieverv2.SharedIt
 		b.put(key, `"e"`, "x")
 		rs[i] = initRetriever(t, g, key)
 	}
+
 	return rs
 }
 
@@ -918,12 +928,14 @@ type lockedBuffer struct {
 func (l *lockedBuffer) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	return l.buf.Write(p)
 }
 
 func (l *lockedBuffer) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	return l.buf.String()
 }
 
@@ -943,6 +955,7 @@ func newPollCase(t *testing.T, cfg s3retrieverv2.PollerConfig, items ...string) 
 		pc.r[item] = r
 		pc.calls[item], pc.failing[item] = &atomic.Int32{}, &atomic.Bool{}
 	}
+
 	return pc
 }
 
@@ -953,6 +966,7 @@ func (pc *pollCase) start(t *testing.T) {
 		pc.g.SetRefresh(r, func() bool {
 			pc.calls[item].Add(1)
 			_, err := r.Retrieve(t.Context())
+
 			return err == nil && !pc.failing[item].Load()
 		})
 	}
@@ -962,6 +976,7 @@ func (pc *pollCase) start(t *testing.T) {
 func (pc *pollCase) start2(item string) {
 	pc.g.SetRefresh(pc.r[item], func() bool {
 		pc.calls[item].Add(1)
+
 		return true
 	})
 }
@@ -1002,6 +1017,7 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 			defer running.Add(-1)
 			storeMax(&maxRunning, cur)
 			<-gate
+
 			return true
 		})
 		pc.b.put(key, `"b"`, "b")
@@ -1182,6 +1198,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 					started[key] = true
 					mu.Unlock()
 					<-gate
+
 					return true
 				})
 				pc.b.put(key, `"b"`, "b")
@@ -1225,6 +1242,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pc.g.SetRefresh(pc.r[dev], func() bool {
 				<-gate
 				returned.Store(true)
+
 				return true
 			})
 			pc.start2(prod)
@@ -1249,6 +1267,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			gate := make(chan struct{})
 			pc.g.SetRefresh(pc.r[dev], func() bool {
 				<-gate
+
 				return true
 			})
 			pc.b.put(dev, `"e1b"`, "dev2")
@@ -1279,7 +1298,10 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 				_, err := other.Retrieve(t.Context())
 				require.NoError(t, err)
 				var otherCalls atomic.Int32
-				pc.g.SetRefresh(other, func() bool { otherCalls.Add(1); return true })
+				pc.g.SetRefresh(other, func() bool {
+					otherCalls.Add(1)
+					return true
+				})
 
 				pc.b.put(dev, `"e1b"`, "dev2")
 				time.Sleep(6 * time.Second) // the listing of the load below is fresh
@@ -1319,6 +1341,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			res = append(res, time.Since(start))
+
 			return false
 		})
 		if change != nil {
@@ -1329,6 +1352,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 		pc.shutdown(t)
 		mu.Lock()
 		defer mu.Unlock()
+
 		return slices.Clone(res)
 	}
 	tests := []struct {

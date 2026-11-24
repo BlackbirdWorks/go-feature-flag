@@ -21,6 +21,7 @@ type messageSenderMock struct {
 
 func (s *messageSenderMock) SendMessages(msgs []*sarama.ProducerMessage) error {
 	s.messages = append(s.messages, msgs...)
+
 	return s.error
 }
 
@@ -147,6 +148,7 @@ func TestExporter_Export(t *testing.T) {
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 

@@ -46,12 +46,14 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	return c
 }
 
 func getScenarioClient(b *testing.B) *ffclient.GoFeatureFlag {
 	b.Helper()
 	scenarioOnce.Do(func() { scenarioClient = newBenchClient(b, loadtest.FlagsYAML(), true) })
+
 	return scenarioClient
 }
 
@@ -80,6 +82,7 @@ func evalOne(c *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Context) 
 	default:
 		_, err = c.BoolVariation(key, ctx, false)
 	}
+
 	return err
 }
 
@@ -123,6 +126,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 						i++
 						if err := evalOne(c, key, "bool", benchContext(i)); err != nil {
 							b.Error(err)
+
 							return
 						}
 					}
@@ -182,6 +186,7 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 					for pb.Next() {
 						if err := evalOne(c, key, "bool", ctx); err != nil {
 							b.Error(err)
+
 							return
 						}
 					}

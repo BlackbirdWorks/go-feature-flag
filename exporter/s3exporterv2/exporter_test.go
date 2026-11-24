@@ -246,6 +246,7 @@ func TestS3_Export(t *testing.T) {
 			)
 			if tt.wantErr {
 				assert.Error(t, err, "Export should error")
+
 				return
 			}
 

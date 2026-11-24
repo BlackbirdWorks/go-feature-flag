@@ -49,6 +49,7 @@ func (s *scriptedSender) SendMessages(
 	}
 	out.FailedRecordCount = &failed
 	s.calls = append(s.calls, datas)
+
 	return out, nil
 }
 
@@ -57,6 +58,7 @@ func testEvents(n int) []exporter.ExportableEvent {
 	for i := range evs {
 		evs[i] = &exporter.FeatureEvent{Kind: "feature", Key: fmt.Sprintf("flag-%d", i)}
 	}
+
 	return evs
 }
 
@@ -68,6 +70,7 @@ func encoded(t *testing.T, idx ...int) []string {
 		require.NoError(t, err)
 		out = append(out, string(b))
 	}
+
 	return out
 }
 
@@ -107,10 +110,14 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 			if call == 0 && failing[data] {
 				return "ProvisionedThroughputExceededException"
 			}
+
 			return ""
 		}}
 		var sleeps []time.Duration
-		sleep := func(_ context.Context, d time.Duration) error { sleeps = append(sleeps, d); return nil }
+		sleep := func(_ context.Context, d time.Duration) error {
+			sleeps = append(sleeps, d)
+			return nil
+		}
 		err := newTestExporter(s, sleep).Export(context.Background(), logger, testEvents(4))
 		require.NoError(t, err)
 		assert.Equal(t, [][]string{encoded(t, 0, 1, 2, 3), encoded(t, 1, 3)}, s.calls)
@@ -126,6 +133,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 			case 1:
 				return "ProvisionedThroughputExceededException"
 			}
+
 			return ""
 		}}
 		err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(3))
@@ -144,6 +152,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		sleep := func(ctx context.Context, _ time.Duration) error {
 			cancel()
+
 			return ctx.Err()
 		}
 		err := newTestExporter(s, sleep).Export(ctx, logger, testEvents(2))
@@ -219,6 +228,7 @@ func (s *responseSender) SendMessages(
 		datas = append(datas, string(r.Data))
 	}
 	s.calls = append(s.calls, datas)
+
 	return s.respond(call, in)
 }
 
@@ -316,6 +326,7 @@ func TestExporter_InconsistentPutRecordsResponses(t *testing.T) {
 				for range in.Records {
 					out.Records = append(out.Records, ok)
 				}
+
 				return out, nil
 			}}
 			err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))

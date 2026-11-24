@@ -73,6 +73,7 @@ only-in-%[1]s:
   defaultRule:
     variation: v
 `, tag, ruleOnValue)
+
 	return []byte(s + strings.Join(extraFlags, "\n"))
 }
 
@@ -81,6 +82,7 @@ func ofrepCtx(key string, kv ...any) map[string]any {
 	for i := 0; i+1 < len(kv); i += 2 {
 		c[kv[i].(string)] = kv[i+1]
 	}
+
 	return map[string]any{"context": c}
 }
 
@@ -89,6 +91,7 @@ func goffCtx(key string, kv ...any) map[string]any {
 	for i := 0; i+1 < len(kv); i += 2 {
 		custom[kv[i].(string)] = kv[i+1]
 	}
+
 	return map[string]any{"evaluationContext": map[string]any{"key": key, "custom": custom}, "defaultValue": "sdk-default"}
 }
 
@@ -254,6 +257,7 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 				srv.PutObject(t, bucket, "flags/a.yaml", e2eFlags("A", "A-on-v2"))
 				require.Eventually(t, func() bool {
 					res := postJSON(t, url+"/ofrep/v1/evaluate/flags/rule-flag", "key-a", ofrepCtx("u1", "group", "admin"))
+
 					return res.Status == 200 && res.Body["value"] == "A-on-v2"
 				}, 30*time.Second, 200*time.Millisecond, "new value of flag set a never served")
 				// GOFF sees it too, and the other flag set is untouched.
@@ -272,6 +276,7 @@ brand-new:
 `))
 				require.Eventually(t, func() bool {
 					res := postJSON(t, url+"/ofrep/v1/evaluate/flags/brand-new", "key-b1", ofrepCtx("u1"))
+
 					return res.Status == 200 && res.Body["value"] == "new"
 				}, 30*time.Second, 200*time.Millisecond, "new flag of flag set b never served")
 			})
@@ -358,6 +363,7 @@ authorizedKeys:
 			srv.PutObject(t, bucket, first, e2eFlags("A", "A-on-v2"))
 			require.Eventually(t, func() bool {
 				r := postJSON(t, url+"/v1/feature/rule-flag/eval", "top-key", goffCtx("u1", "group", "admin"))
+
 				return r.Status == 200 && r.Body["value"] == "A-on-v2"
 			}, 30*time.Second, 200*time.Millisecond)
 		})
@@ -418,6 +424,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		out, err := kc.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+
 		return err == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond)
 	sc := sqs.NewFromConfig(cfg)
@@ -452,6 +459,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 					users[e.UserKey] = true
 				}
 			}
+
 			return len(users) >= len(wantUsers)
 		}, 30*time.Second, 300*time.Millisecond, "events received: %d", len(got))
 		seen := map[string]sinkEvent{}
@@ -484,6 +492,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 						res = append(res, decodeFeatureEvent(t, []byte(line)))
 					}
 				}
+
 				return res
 			},
 		},
@@ -504,6 +513,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 						res = append(res, decodeFeatureEvent(t, r.Data))
 					}
 				}
+
 				return res
 			},
 		},
@@ -541,6 +551,7 @@ func receiveSQS(t *testing.T, sc *sqs.Client, queueURL string, acc map[string]si
 		res = append(res, e)
 	}
 	sort.Slice(res, func(i, j int) bool { return res[i].UserKey < res[j].UserKey })
+
 	return res
 }
 
@@ -548,5 +559,6 @@ func decodeFeatureEvent(t *testing.T, b []byte) sinkEvent {
 	t.Helper()
 	var e exporter.FeatureEvent
 	require.NoError(t, json.Unmarshal(b, &e), string(b))
+
 	return sinkEvent{Key: e.Key, UserKey: e.UserKey, Variation: e.Variation, Value: e.Value}
 }

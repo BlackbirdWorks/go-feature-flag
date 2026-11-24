@@ -8,7 +8,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestConvertV1DtoToInternalFlag(t *testing.T) {
@@ -22,8 +21,8 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 			input: dto.DTO{
 				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface("var1"),
-					"var2": testconvert.Interface("var2"),
+					"var1": new(any("var1")),
+					"var2": new(any("var2")),
 				},
 				Rules: &[]flag.Rule{{
 					Name:        new("rule1"),
@@ -35,14 +34,14 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("var1"),
-								Percentage: testconvert.Float64(30),
+								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("var2"),
-								Percentage: testconvert.Float64(70),
+								Percentage: new(float64(70)),
 								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
@@ -78,8 +77,8 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 			expected: flag.InternalFlag{
 				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface("var1"),
-					"var2": testconvert.Interface("var2"),
+					"var1": new(any("var1")),
+					"var2": new(any("var2")),
 				},
 				Rules: &[]flag.Rule{{
 					Name:        new("rule1"),
@@ -91,14 +90,14 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("var1"),
-								Percentage: testconvert.Float64(30),
+								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("var2"),
-								Percentage: testconvert.Float64(70),
+								Percentage: new(float64(70)),
 								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
@@ -157,8 +156,8 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 			input: flag.InternalFlag{
 				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface("var1"),
-					"var2": testconvert.Interface("var2"),
+					"var1": new(any("var1")),
+					"var2": new(any("var2")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -172,12 +171,12 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("var1"),
-								Percentage: testconvert.Float64(30),
+								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("var2"),
-								Percentage: testconvert.Float64(70),
+								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},
@@ -211,8 +210,8 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 			expected: dto.DTO{
 				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface("var1"),
-					"var2": testconvert.Interface("var2"),
+					"var1": new(any("var1")),
+					"var2": new(any("var2")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -226,12 +225,12 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("var1"),
-								Percentage: testconvert.Float64(30),
+								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("var2"),
-								Percentage: testconvert.Float64(70),
+								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},

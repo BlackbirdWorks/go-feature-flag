@@ -346,6 +346,7 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
 		f, ok := flags["scheduled"].(*flag.InternalFlag)
 		require.True(t, ok)
 		require.NotNil(t, f.Scheduled)
+
 		return f.Scheduled
 	}
 	readOnly1, err := goff.GetFlagsFromCacheReadOnly()

@@ -36,6 +36,7 @@ func (g *GoFeatureFlag) BoolVariation(
 	defaultValue bool,
 ) (bool, error) {
 	res, err := g.BoolVariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -58,6 +59,7 @@ func (g *GoFeatureFlag) BoolVariationDetails(
 ) (model.VariationResult[bool], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "bool")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -78,6 +80,7 @@ func (g *GoFeatureFlag) IntVariation(
 	defaultValue int,
 ) (int, error) {
 	res, err := g.IntVariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -100,6 +103,7 @@ func (g *GoFeatureFlag) IntVariationDetails(flagKey string, ctx ffcontext.Contex
 ) (model.VariationResult[int], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "int")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -124,6 +128,7 @@ func (g *GoFeatureFlag) Float64Variation(
 	defaultValue float64,
 ) (float64, error) {
 	res, err := g.Float64VariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -146,6 +151,7 @@ func (g *GoFeatureFlag) Float64VariationDetails(
 ) (model.VariationResult[float64], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "float64")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -166,6 +172,7 @@ func (g *GoFeatureFlag) StringVariation(
 	defaultValue string,
 ) (string, error) {
 	res, err := g.StringVariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -188,6 +195,7 @@ func (g *GoFeatureFlag) StringVariationDetails(
 ) (model.VariationResult[string], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "string")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -210,6 +218,7 @@ func (g *GoFeatureFlag) JSONArrayVariation(
 	flagKey string, ctx ffcontext.Context, defaultValue []any,
 ) ([]any, error) {
 	res, err := g.JSONArrayVariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -232,6 +241,7 @@ func (g *GoFeatureFlag) JSONArrayVariationDetails(
 ) (model.VariationResult[[]any], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "[]interface{}")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -252,6 +262,7 @@ func (g *GoFeatureFlag) JSONVariation(
 	flagKey string, ctx ffcontext.Context, defaultValue map[string]any,
 ) (map[string]any, error) {
 	res, err := g.JSONVariationDetails(flagKey, ctx, defaultValue)
+
 	return res.Value, err
 }
 
@@ -277,6 +288,7 @@ func (g *GoFeatureFlag) JSONVariationDetails(
 ) (model.VariationResult[map[string]any], error) {
 	res, err := getVariation(g, flagKey, ctx, defaultValue, "bool")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return res, err
 }
 
@@ -292,6 +304,7 @@ func (g *GoFeatureFlag) RawVariation(
 ) (model.RawVarResult, error) {
 	res, err := getVariation(g, flagKey, ctx, sdkDefaultValue, "interface{}")
 	notifyVariation(g, flagKey, ctx, res)
+
 	return model.RawVarResult(res), err
 }
 
@@ -302,6 +315,7 @@ func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (flag.Flag, error) {
 	if err != nil {
 		return f, fmt.Errorf(errorFlagNotAvailable, flagKey)
 	}
+
 	return f, nil
 }
 
@@ -320,6 +334,7 @@ func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
 	}
 	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
 		m.QueueEvents(events)
+
 		return
 	}
 	for _, event := range events {
@@ -409,6 +424,7 @@ func getVariation[T model.JSONType](
 			varResult.Version = f.GetVersion()
 			varResult.Metadata = f.GetMetadata()
 		}
+
 		return varResult, err
 	}
 
@@ -416,6 +432,7 @@ func getVariation[T model.JSONType](
 		DefaultSdkValue:             sdkDefaultValue,
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 	}
+
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
 }
 
@@ -486,6 +503,7 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 	if g.eventQueue == nil {
 		// no worker (struct not built by New): add the event directly.
 		g.CollectEventData(event)
+
 		return
 	}
 	g.eventAdmission.RLock()
@@ -495,6 +513,7 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 		// that their final flush exports it.
 		g.eventAdmission.RUnlock()
 		g.CollectEventData(event)
+
 		return
 	}
 	select {
@@ -532,6 +551,7 @@ func (g *GoFeatureFlag) reportDrops() {
 		case <-timer.C:
 		case <-g.eventWorkerStop:
 			timer.Stop()
+
 			return
 		}
 	}
@@ -551,6 +571,7 @@ func (g *GoFeatureFlag) DroppedEvents() int64 {
 	if c, ok := g.trackingEventDataExporter.(exporter.DroppedEventsCounter); ok {
 		total += c.DroppedEvents()
 	}
+
 	return total
 }
 
@@ -568,6 +589,7 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 		}
 		g.enrichment = enrichment
 	})
+
 	return g.enrichment
 }
 
@@ -575,5 +597,6 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 func changesEventFields(enrichment map[string]any) bool {
 	protected := ffcontext.HasReservedKey(enrichment)
 	_, anonymous := enrichment["anonymous"]
+
 	return protected || anonymous
 }

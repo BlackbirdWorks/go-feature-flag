@@ -7,7 +7,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestFlagTypeFromVariations(t *testing.T) {
@@ -20,7 +19,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single boolean type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(true); return &v }(),
+				"var1": func() *any {
+					v := any(true)
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeBoolean,
 			expectErr: false,
@@ -28,7 +30,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single string type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any("test"); return &v }(),
+				"var1": func() *any {
+					v := any("test")
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeString,
 			expectErr: false,
@@ -36,7 +41,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single integer type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(42); return &v }(),
+				"var1": func() *any {
+					v := any(42)
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeInteger,
 			expectErr: false,
@@ -44,7 +52,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single float type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(42.0); return &v }(),
+				"var1": func() *any {
+					v := any(42.0)
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeFloat,
 			expectErr: false,
@@ -52,7 +63,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single object type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(map[string]any{"key": "value"}); return &v }(),
+				"var1": func() *any {
+					v := any(map[string]any{"key": "value"})
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeObject,
 			expectErr: false,
@@ -61,7 +75,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			name: "ignore nil values type",
 			variations: map[string]*any{
 				"var1": nil,
-				"var2": testconvert.Interface(map[string]any{"toto": "titi"}),
+				"var2": new(any(map[string]any{"toto": "titi"})),
 			},
 			expected:  model.FlagTypeObject,
 			expectErr: false,
@@ -69,8 +83,14 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "mixed integer and float (with .0) types",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(42); return &v }(),
-				"var2": func() *any { v := any(42.0); return &v }(),
+				"var1": func() *any {
+					v := any(42)
+					return &v
+				}(),
+				"var2": func() *any {
+					v := any(42.0)
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeInteger,
 			expectErr: false,
@@ -78,8 +98,14 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "mixed integer and float types",
 			variations: map[string]*any{
-				"var1": func() *any { v := any(42); return &v }(),
-				"var2": func() *any { v := any(42.2); return &v }(),
+				"var1": func() *any {
+					v := any(42)
+					return &v
+				}(),
+				"var2": func() *any {
+					v := any(42.2)
+					return &v
+				}(),
 			},
 			expected:  model.FlagTypeFloat,
 			expectErr: false,
@@ -87,7 +113,10 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "unknown type",
 			variations: map[string]*any{
-				"var1": func() *any { v := any([]int{1, 2, 3}); return &v }(),
+				"var1": func() *any {
+					v := any([]int{1, 2, 3})
+					return &v
+				}(),
 			},
 			expected:  "",
 			expectErr: true,

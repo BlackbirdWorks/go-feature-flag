@@ -10,7 +10,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // largeInQuery returns `key in ["user-0000000", ...]` with 300000 ids, a ~4.5 MB query.
@@ -30,6 +29,7 @@ func largeInQueryVariant(n int, prefix string) string {
 		fmt.Fprintf(&sb, `"%suser-%07d"`, prefix, i)
 	}
 	sb.WriteString(`]`)
+
 	return sb.String()
 }
 
@@ -38,7 +38,7 @@ func largeInQueryVariant(n int, prefix string) string {
 func newValidatedFlag(b *testing.B, query string) *flag.InternalFlag {
 	b.Helper()
 	f := &flag.InternalFlag{
-		Variations: &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
+		Variations: &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 		Rules: &[]flag.Rule{{
 			Name:            new("targeting"),
 			Query:           new(query),
@@ -49,6 +49,7 @@ func newValidatedFlag(b *testing.B, query string) *flag.InternalFlag {
 	if err := f.IsValid(); err != nil {
 		b.Fatal(err)
 	}
+
 	return f
 }
 
@@ -69,6 +70,7 @@ func sharedBy100Flags(b *testing.B) []*flag.InternalFlag {
 			shared100Flags[i] = newValidatedFlag(b, strings.Clone(query))
 		}
 	})
+
 	return shared100Flags
 }
 
@@ -134,6 +136,7 @@ func benchReload(b *testing.B, ids int) {
 		for i := range flags {
 			flags[i] = newValidatedFlag(b, strings.Clone(query))
 		}
+
 		return flags
 	}
 	previous := load()
@@ -145,7 +148,7 @@ func benchReload(b *testing.B, ids int) {
 		next := make([]*flag.InternalFlag, 100)
 		for j := range next {
 			next[j] = &flag.InternalFlag{
-				Variations: &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
+				Variations: &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 				Rules: &[]flag.Rule{{
 					Name:            new("targeting"),
 					Query:           new(strings.Clone(query)),
@@ -201,7 +204,7 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 
 func newSmallFlag(i int, query string) *flag.InternalFlag {
 	f := &flag.InternalFlag{
-		Variations:  &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
+		Variations:  &map[string]*any{"on": new(any(true)), "off": new(any(false))},
 		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	if query != "" {
@@ -211,6 +214,7 @@ func newSmallFlag(i int, query string) *flag.InternalFlag {
 			VariationResult: new("on"),
 		}}
 	}
+
 	return f
 }
 
@@ -219,6 +223,7 @@ func smallQueries(n int) []string {
 	for i := range queries {
 		queries[i] = fmt.Sprintf(`key eq "user-%d" and plan eq "pro"`, i)
 	}
+
 	return queries
 }
 
@@ -351,6 +356,7 @@ func heapInUse() float64 {
 	runtime.GC()
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
+
 	return float64(m.HeapAlloc)
 }
 
@@ -370,6 +376,7 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 				}
 				flags[j].Value("flag", ctx, flag.Context{})
 			}
+
 			return flags
 		}
 		current := load(0)

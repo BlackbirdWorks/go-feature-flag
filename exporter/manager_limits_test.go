@@ -24,6 +24,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 		return assert.AnError
 	}
 	e.events.Add(int64(len(ev)))
+
 	return nil
 }
 

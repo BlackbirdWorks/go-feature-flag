@@ -289,6 +289,7 @@ func TestFlagKey(t *testing.T) {
 			e := echo.New()
 			e.POST("/flags/:flagKey", func(c *echo.Context) error {
 				got = helper.FlagKey(c)
+
 				return c.NoContent(http.StatusOK)
 			})
 			rec := httptest.NewRecorder()

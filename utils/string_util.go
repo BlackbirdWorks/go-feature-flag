@@ -7,5 +7,6 @@ func StringToArray(item []string) []string {
 	if len(item) > 0 {
 		return strings.Split(item[0], ",")
 	}
+
 	return item
 }

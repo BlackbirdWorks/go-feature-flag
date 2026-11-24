@@ -91,6 +91,7 @@ func NewConfigLoader(
 	if watchChanges {
 		configLoader.startWatchChanges()
 	}
+
 	return &configLoader
 }
 
@@ -137,6 +138,7 @@ func (c *ConfigLoader) startWatchChanges() {
 	onChange := func(event any, err error) {
 		if err != nil {
 			c.log.Error("error watching for configuration changes", zap.Error(err))
+
 			return
 		}
 
@@ -219,6 +221,7 @@ func (c *ConfigLoader) reloadConfigAndNotify() {
 	modifiedConfig, err := newConfig.ToConfig()
 	if err != nil {
 		c.log.Error("error loading new config", zap.Error(err))
+
 		return
 	}
 
@@ -247,6 +250,7 @@ func (c *ConfigLoader) ToConfig() (*Config, error) {
 		proxyConf.flagSetMode = flagSetModeNone
 	}
 	processExporters(proxyConf)
+
 	return proxyConf, nil
 }
 
@@ -270,6 +274,7 @@ func (c *ConfigLoader) StopWatchChanges() error {
 	if c.studioProvider != nil {
 		errs = append(errs, c.studioProvider.Unwatch())
 	}
+
 	return errors.Join(errs...)
 }
 
@@ -291,6 +296,7 @@ func (c *ConfigLoader) loadConfigFile() {
 		c.configFilePath, errFileLocation = locateConfigFile(c.k.String("config"))
 		if errFileLocation != nil {
 			c.log.Error("not using any configuration file", zap.Error(errFileLocation))
+
 			return
 		}
 	}
@@ -325,6 +331,7 @@ func (c *ConfigLoader) legacyWarner() *legacy.Warner {
 	if c.warner != nil {
 		return c.warner
 	}
+
 	return legacy.Default
 }
 
@@ -357,6 +364,7 @@ func (c *ConfigLoader) loadStudioFlagSets() {
 		c.studioProvider.Invalidate()
 		c.studioLoadErr = err
 		c.log.Error("error loading the flagSets from studio", zap.Error(err))
+
 		return
 	}
 	c.studioFlagSets = studioConf.FlagSets
@@ -389,6 +397,7 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 		if _, err := os.Stat(inputFilePath); err != nil {
 			return "", fmt.Errorf("impossible to find config file %s", inputFilePath)
 		}
+
 		return inputFilePath, nil
 	}
 	for _, location := range locations {
@@ -403,10 +412,12 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 						"the configuration file %s uses the legacy name %s, it is still accepted, "+
 							"rename it to %s.%s", configFile, legacyConfigFileName, configFileName, ext))
 				}
+
 				return configFile, nil
 			}
 		}
 	}
+
 	return "", fmt.Errorf(
 		"impossible to find config file in the default locations [%s]",
 		strings.Join(locations, ","),

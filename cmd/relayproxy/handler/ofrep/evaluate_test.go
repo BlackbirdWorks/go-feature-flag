@@ -162,6 +162,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 

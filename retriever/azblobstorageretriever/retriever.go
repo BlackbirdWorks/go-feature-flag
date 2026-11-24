@@ -56,6 +56,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 		client, err = azblob.NewClient(url, cred, nil)
@@ -64,6 +65,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		cred, err = azblob.NewSharedKeyCredential(r.AccountName, r.AccountKey)
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, nil)
@@ -71,11 +73,13 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 
 	if err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 
 	r.client = client
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -83,6 +87,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.client = nil
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -95,6 +100,7 @@ func (r *Retriever) Status() retriever.Status {
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
 		r.status = retriever.RetrieverError
+
 		return nil, errors.New("client is not initialized")
 	}
 

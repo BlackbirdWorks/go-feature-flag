@@ -16,6 +16,7 @@ import (
 
 func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 	b.Helper()
+
 	return benchFlagsMap(b, n)
 }
 
@@ -36,6 +37,7 @@ func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
 	if err := yaml.Unmarshal(sb, &flags); err != nil {
 		tb.Fatal(err)
 	}
+
 	return flags
 }
 
@@ -63,6 +65,7 @@ func BenchmarkGetFlag(b *testing.B) {
 				for pb.Next() {
 					if _, err := m.GetFlag("flag-5"); err != nil {
 						b.Error(err)
+
 						return
 					}
 				}
@@ -86,6 +89,7 @@ func BenchmarkGetFlag(b *testing.B) {
 					var err error
 					if f, err = m.GetFlag("flag-5"); err != nil {
 						b.Error(err)
+
 						return
 					}
 				}

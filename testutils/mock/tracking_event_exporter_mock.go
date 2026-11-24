@@ -34,17 +34,21 @@ func (m *TrackingEventExporter) Export(
 			t[i] = v.(exporter.TrackingEvent)
 		}
 		m.ExportedEvents = append(m.ExportedEvents, t...)
+
 		break
 	case []exporter.TrackingEvent:
 		m.ExportedEvents = append(m.ExportedEvents, events...)
+
 		break
 	}
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {
 			m.CurrentNumberErr++
+
 			return m.Err
 		}
 	}
+
 	return nil
 }
 
@@ -56,6 +60,7 @@ func (m *TrackingEventExporter) GetExportedEvents() []exporter.ExportableEvent {
 	for _, event := range m.ExportedEvents {
 		trackingEvents = append(trackingEvents, event)
 	}
+
 	return trackingEvents
 }
 

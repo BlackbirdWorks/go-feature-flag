@@ -22,6 +22,7 @@ func ParseTemplate(name, templateToParse, defaultTemplate string) *template.Temp
 	if err != nil {
 		t, _ = template.New(name).Parse(defaultTemplate)
 	}
+
 	return t
 }
 
@@ -41,5 +42,6 @@ func ComputeFilename(template *template.Template, format string) (string, error)
 		Timestamp: timestamp,
 		Format:    format,
 	})
+
 	return buf.String(), err
 }

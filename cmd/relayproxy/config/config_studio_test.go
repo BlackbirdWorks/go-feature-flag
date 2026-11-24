@@ -35,6 +35,7 @@ func flagSetNames(c *config.Config) []string {
 	for _, flagSet := range c.FlagSets {
 		names = append(names, flagSet.Name)
 	}
+
 	return names
 }
 
@@ -43,6 +44,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeader {
 			w.WriteHeader(http.StatusUnauthorized)
+
 			return
 		}
 		_, _ = w.Write([]byte(body))
@@ -51,6 +53,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 	if body == "" {
 		srv.Close()
 	}
+
 	return srv
 }
 
@@ -59,10 +62,12 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 	w.Header().Set("ETag", etag)
 	if status != http.StatusOK {
 		w.WriteHeader(status)
+
 		return
 	}
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
+
 		return
 	}
 	_, _ = w.Write([]byte(body))
@@ -77,6 +82,7 @@ func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	case <-time.After(5 * time.Second):
 		t.Fatal(msg)
 		var zero T
+
 		return zero
 	}
 }
@@ -326,6 +332,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 					w.Header().Set("ETag", etag)
 					if etag != "" && r.Header.Get("If-None-Match") == etag {
 						w.WriteHeader(http.StatusNotModified)
+
 						return
 					}
 					_, _ = w.Write([]byte(updated))
@@ -428,5 +435,6 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.ConfigLoad
 	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 	loader := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", true)
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
+
 	return loader
 }

@@ -171,6 +171,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 				assert.True(t, ok, "handler error should be an echo.HTTPError")
 				assert.Equal(t, tt.want.errorCode, he.Code)
 				assert.Contains(t, he.Message, tt.want.errorMsgContains)
+
 				return
 			}
 

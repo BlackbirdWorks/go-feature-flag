@@ -59,6 +59,7 @@ func (s *S3ManagerV2Mock) DownloadObject(
 	if input.Key != nil && *input.Key == "valid" {
 		res, _ := os.ReadFile(s.TestDataLocation + "/flag-config.yaml")
 		_, _ = input.WriterAt.WriteAt(res, 0)
+
 		return &transfermanager.DownloadObjectOutput{}, nil
 	}
 	if input.Key != nil && *input.Key == "no-file" {

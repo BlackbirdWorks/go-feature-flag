@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
 )
@@ -31,9 +30,9 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 			},
 		},
 		Variations: &map[string]*any{
-			"Default": testconvert.Interface("default"),
-			"False":   testconvert.Interface("false"),
-			"True":    testconvert.Interface("test"),
+			"Default": new(any("default")),
+			"False":   new(any("false")),
+			"True":    new(any("test")),
 		},
 		DefaultRule: &flag.Rule{
 			Name:            new("defaultRule"),
@@ -83,9 +82,9 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -110,9 +109,9 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
 							DefaultRule: &flag.Rule{
@@ -125,9 +124,9 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 						"test-flag2": {
 							Before: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface(false),
-									"False":   testconvert.Interface(false),
-									"True":    testconvert.Interface(true),
+									"Default": new(any(false)),
+									"False":   new(any(false)),
+									"True":    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
 									Name: new("defaultRule"),
@@ -144,9 +143,9 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 							},
 							After: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface("strDefault"),
-									"False":   testconvert.Interface("strFalse"),
-									"True":    testconvert.Interface("strTrue"),
+									"Default": new(any("strDefault")),
+									"False":   new(any("strFalse")),
+									"True":    new(any("strTrue")),
 								},
 								Rules: &[]flag.Rule{
 									{
@@ -330,6 +329,7 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 		for i := range changes {
 			after[fmt.Sprintf("key%02d", i)] = strings.Repeat("x", valueLength)
 		}
+
 		return notifier.DiffUpdated{
 			Before: &flag.InternalFlag{Metadata: &map[string]any{}},
 			After:  &flag.InternalFlag{Metadata: &after},
@@ -380,6 +380,7 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			description := func(key string) string {
 				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag \"%s\" updated", key), maxDiscordTitle)]
 				require.True(t, ok, "no embed for %s", key)
+
 				return d
 			}
 			for _, key := range tt.wantWhole {

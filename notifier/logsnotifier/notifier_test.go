@@ -7,7 +7,6 @@ import (
 	"github.com/thejerf/slogassert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -27,9 +26,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("defaultRule"),
@@ -70,9 +69,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -81,9 +80,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("defaultRule"),
@@ -124,9 +123,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -145,9 +144,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -186,9 +185,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new("defaultRule"),
@@ -224,9 +223,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),
@@ -245,9 +244,9 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name:            new("defaultRule"),

@@ -35,6 +35,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 		return errors.New("failing")
 	}
 	e.events.Add(int64(len(ev)))
+
 	return nil
 }
 

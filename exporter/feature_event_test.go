@@ -142,6 +142,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 			val, err := tt.featureEvent.ConvertValueForParquet()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FeatureEvent.MarshalInterface() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			if tt.want != nil {

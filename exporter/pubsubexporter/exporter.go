@@ -95,5 +95,6 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	topic.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = topic
+
 	return nil
 }

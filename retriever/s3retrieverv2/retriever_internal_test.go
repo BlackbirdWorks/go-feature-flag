@@ -80,6 +80,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)
@@ -104,6 +105,7 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 	if nilCtx {
 		ctx = nil
 	}
+
 	return r.Init(ctx, nil)
 }
 

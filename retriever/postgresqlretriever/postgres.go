@@ -25,6 +25,7 @@ func GetPool(ctx context.Context, uri string) (*pgxpool.Pool, error) {
 	// If already exists, bump refCount
 	if entry, ok := poolMap[uri]; ok {
 		entry.refCount++
+
 		return entry.pool, nil
 	}
 
@@ -35,6 +36,7 @@ func GetPool(ctx context.Context, uri string) (*pgxpool.Pool, error) {
 	}
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
+
 		return nil, err
 	}
 

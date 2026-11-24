@@ -26,6 +26,7 @@ func createQueue(t *testing.T, client *sqs.Client) string {
 	t.Helper()
 	out, err := client.CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))})
 	require.NoError(t, err)
+
 	return aws.ToString(out.QueueUrl)
 }
 
@@ -56,8 +57,10 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 			_, err := client.DeleteMessage(t.Context(), &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
 			require.NoError(t, err)
 		}
+
 		return len(got) >= want
 	}, 30*time.Second, 100*time.Millisecond, "got %d/%d messages", len(got), want)
+
 	return got
 }
 
@@ -69,6 +72,7 @@ func events(n int) []exporter.ExportableEvent {
 			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Source: "SERVER",
 		})
 	}
+
 	return res
 }
 

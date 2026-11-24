@@ -25,9 +25,11 @@ func recordingWarner() (*legacy.Warner, func() []string) {
 		defer mu.Unlock()
 		kinds = append(kinds, kind)
 	})
+
 	return w, func() []string {
 		mu.Lock()
 		defer mu.Unlock()
+
 		return append([]string(nil), kinds...)
 	}
 }
@@ -75,6 +77,7 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Empty(t, warnings())
+
 				return
 			}
 			require.NoError(t, err)

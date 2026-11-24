@@ -68,6 +68,7 @@ func (c *notificationService) getDifferences(
 		oldFlag := oldCache[key]
 		if !inNewCache {
 			diff.Deleted[key] = oldFlag
+
 			continue
 		}
 
@@ -85,5 +86,6 @@ func (c *notificationService) getDifferences(
 			diff.Added[key] = f
 		}
 	}
+
 	return diff
 }

@@ -67,6 +67,7 @@ func NewEventStoreWithLimit[T ExportableEvent](
 		consumers:            make(map[string]*consumer),
 	}
 	go store.periodicCleanQueue()
+
 	return store
 }
 
@@ -167,6 +168,7 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
+
 	return e.updateConsumerOffset(currentConsumer, eventList.NewOffset)
 }
 
@@ -174,6 +176,7 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 func (e *eventStoreImpl[T]) GetTotalEventCount() int64 {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
+
 	return int64(len(e.events))
 }
 
@@ -185,6 +188,7 @@ func (e *eventStoreImpl[T]) GetPendingEventCount(consumerID string) (int64, erro
 	if err != nil {
 		return 0, err
 	}
+
 	return e.lastOffset - consumer.Offset, nil
 }
 
@@ -209,6 +213,7 @@ func (e *eventStoreImpl[T]) AddAll(data []T) {
 			dropped += e.evictLaggardsLocked()
 			if int64(len(e.events)) >= e.maxEvents {
 				dropped++
+
 				continue
 			}
 		}
@@ -239,6 +244,7 @@ func (e *eventStoreImpl[T]) enforceConsumerLimitsLocked() int64 {
 			dropped += excess
 		}
 	}
+
 	return dropped
 }
 
@@ -268,6 +274,7 @@ func (e *eventStoreImpl[T]) AddWhileRoom(data []T) int {
 		e.lastOffset++
 		e.events = append(e.events, EventStoreItem[T]{Offset: e.lastOffset, Data: d})
 	}
+
 	return int(room)
 }
 
@@ -301,6 +308,7 @@ func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
 		return 0
 	}
 	e.cleanQueueLocked()
+
 	return evicted
 }
 
@@ -320,6 +328,7 @@ func (e *eventStoreImpl[T]) fetchPendingEvents(currentConsumer *consumer) *Event
 	for _, event := range e.events[start:] {
 		events = append(events, event.Data)
 	}
+
 	return &EventList[T]{
 		Events:        events,
 		InitialOffset: currentConsumer.Offset,
@@ -333,6 +342,7 @@ func (e *eventStoreImpl[T]) getConsumer(consumerID string) (*consumer, error) {
 	if !ok {
 		return nil, fmt.Errorf("consumer with name %s not found", consumerID)
 	}
+
 	return currentConsumer, nil
 }
 
@@ -348,6 +358,7 @@ func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offs
 	}
 	// the offset may have been moved forward while the events were exported (see evictLaggardsLocked)
 	currentConsumer.Offset = max(currentConsumer.Offset, offset)
+
 	return nil
 }
 
@@ -399,6 +410,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 		kept := make([]EventStoreItem[T], remaining, max(remaining*2, 256))
 		copy(kept, e.events[removed:])
 		e.events = kept
+
 		return
 	}
 	var zero EventStoreItem[T]

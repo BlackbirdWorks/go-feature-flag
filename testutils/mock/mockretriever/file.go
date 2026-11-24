@@ -28,6 +28,7 @@ func (r *FileInitializableRetriever) Retrieve(_ context.Context) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
+
 	return content, nil
 }
 
@@ -40,6 +41,7 @@ func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) 
     variation: A`
 
 	yamlBytes := []byte(yamlString)
+
 	return os.WriteFile(r.Path, yamlBytes, 0600)
 }
 

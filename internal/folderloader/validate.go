@@ -17,6 +17,7 @@ func Validate(itemName, single, prefix, pattern string, recursive bool) error {
 	case single != "" && (pattern != "" || recursive):
 		return fmt.Errorf("pattern and recursive can only be used without %s", itemName)
 	}
+
 	return validatePattern(pattern)
 }
 
@@ -33,5 +34,6 @@ func validatePattern(pattern string) error {
 			"invalid pattern %q: it is matched against the file name only and can't contain \"/\"",
 			pattern)
 	}
+
 	return nil
 }

@@ -15,6 +15,7 @@ type implMockEventStore[T exporter.ExportableEvent] struct {
 
 func NewEventStore[T exporter.ExportableEvent]() exporter.EventStore[T] {
 	store := &implMockEventStore[T]{}
+
 	return store
 }
 
@@ -34,6 +35,7 @@ func (e *implMockEventStore[T]) ProcessPendingEvents(consumerID string,
 	if err := processFunc(context.TODO(), e.store); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -41,6 +43,7 @@ func (e *implMockEventStore[T]) GetPendingEventCount(consumerName string) (int64
 	if consumerName == consumerNameError {
 		return 0, errors.New("error")
 	}
+
 	return int64(len(e.store)), nil
 }
 

@@ -32,6 +32,7 @@ func getCompiledQuery(raw string) *compiledQuery {
 		}
 	}
 	actual, _ := compiledQueryCache.LoadOrStore(raw, c)
+
 	return actual.(*compiledQuery)
 }
 
@@ -54,6 +55,7 @@ func isJSONLogicTruthy(v any) bool {
 	case "false", "null", `""`, "0", "[]":
 		return false
 	}
+
 	return true
 }
 
@@ -92,6 +94,7 @@ func asJSONData(v any, depth int) (any, bool) {
 			}
 			out[k] = d
 		}
+
 		return out, true
 	case []any:
 		if val == nil {
@@ -105,7 +108,9 @@ func asJSONData(v any, depth int) (any, bool) {
 			}
 			out[i] = d
 		}
+
 		return out, true
 	}
+
 	return nil, false
 }

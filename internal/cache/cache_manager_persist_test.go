@@ -28,6 +28,7 @@ func persistFlags(t *testing.T) map[string]dto.DTO {
   defaultRule:
     variation: A
 `), &flags))
+
 	return flags
 }
 

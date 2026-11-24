@@ -34,6 +34,7 @@ func Init(config Config) error {
 			ff = tmpFF
 		}
 	})
+
 	return err
 }
 
@@ -88,6 +89,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 	if config.Offline {
 		// in case we are in offline mode, we don't need to initialize the cache since we will not use it.
 		goFF.config.internalLogger.Info("Semaphore is in offline mode")
+
 		return goFF, nil
 	}
 
@@ -103,6 +105,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 		config, goFF.config.internalLogger)
 	goFF.startEventWorker()
 	config.internalLogger.Debug("Semaphore is initialized")
+
 	return goFF, nil
 }
 
@@ -110,6 +113,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 func initializeNotificationService(config Config) notification.Service {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
+
 	return notification.NewService(notifiers)
 }
 
@@ -139,6 +143,7 @@ func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
 	err = manager.Init(config.Context)
+
 	return manager, err
 }
 
@@ -158,6 +163,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
 				trackingEventExporterConfigs = append(trackingEventExporterConfigs, c)
+
 				continue
 			}
 			featureEventExporterConfigs = append(featureEventExporterConfigs, c)
@@ -177,6 +183,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 			featureEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		featureEventManager.Start()
 	}
+
 	return featureEventManager, trackingEventManager
 }
 
@@ -214,6 +221,7 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	if g.IsOffline() {
 		return time.Time{}
 	}
+
 	return g.retrieverManager.GetCacheRefreshDate()
 }
 
@@ -282,6 +290,7 @@ func GetCacheRefreshDate() time.Time {
 	if ff.IsOffline() {
 		return time.Time{}
 	}
+
 	return ff.GetCacheRefreshDate()
 }
 
@@ -292,6 +301,7 @@ func ForceRefresh() bool {
 	if ff.IsOffline() {
 		return false
 	}
+
 	return ff.ForceRefresh()
 }
 

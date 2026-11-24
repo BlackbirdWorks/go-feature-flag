@@ -28,6 +28,7 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 		return nil, errors.New("random error")
 	}
 	s.messages = append(s.messages, *params)
+
 	return nil, nil
 }
 
@@ -111,6 +112,7 @@ func TestExporterExport(t *testing.T) {
 			err := f.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 

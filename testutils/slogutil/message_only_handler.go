@@ -13,6 +13,7 @@ type MessageOnlyHandler struct {
 // Handle implements the slog.Handler interface.
 func (h *MessageOnlyHandler) Handle(_ context.Context, r slog.Record) error {
 	_, err := h.Writer.WriteString(r.Message + "\n")
+
 	return err
 }
 

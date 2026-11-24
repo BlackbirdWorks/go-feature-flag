@@ -82,6 +82,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 			response.StatusCode,
 		)
 	}
+
 	return nil
 }
 
@@ -121,6 +122,7 @@ func convertDeletedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 			Color: colorDeleted,
 		})
 	}
+
 	return embeds
 }
 
@@ -138,6 +140,7 @@ func convertUpdatedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 		}
 		embeds = append(embeds, e)
 	}
+
 	return embeds
 }
 
@@ -149,6 +152,7 @@ func convertAddedFlagsToDiscordEmbed(diff notifier.DiffCache) []embed {
 			Color: colorAdded,
 		})
 	}
+
 	return embeds
 }
 
@@ -175,6 +179,7 @@ func fitTotalLength(embeds []embed) {
 		budget -= utf8.RuneCountInString(e.Title)
 		if len(e.changes) == 0 {
 			budget -= utf8.RuneCountInString(e.Description)
+
 			continue
 		}
 		lists = append(lists, i)
@@ -196,5 +201,6 @@ func truncate(text string, maxLength int) string {
 	if len(runes) <= maxLength {
 		return text
 	}
+
 	return string(runes[:maxLength-1]) + "…"
 }

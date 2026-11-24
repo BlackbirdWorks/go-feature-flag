@@ -100,6 +100,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 			}
 			if wantErr != nil {
 				assert.Error(t, gotErr, "the round trip fails, so must the fast path")
+
 				return
 			}
 			require.NoError(t, gotErr)

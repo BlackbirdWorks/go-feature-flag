@@ -57,11 +57,13 @@ func (m *StatusChangingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 
 func (m *StatusChangingRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	m.CurrentStatus = retriever.RetrieverReady
+
 	return nil
 }
 
 func (m *StatusChangingRetriever) Shutdown(_ context.Context) error {
 	m.CurrentStatus = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -70,6 +72,7 @@ func (m *StatusChangingRetriever) Status() retriever.Status {
 	if m.CurrentStatus == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return m.CurrentStatus
 }
 
@@ -96,6 +99,7 @@ func (m *RecoverableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error 
 	if m.FailFirstInit && m.InitCallCount == 1 {
 		return errors.New("first init failed")
 	}
+
 	return nil
 }
 
@@ -107,6 +111,7 @@ func (m *RecoverableRetriever) Status() retriever.Status {
 	if m.FailFirstInit && m.InitCallCount == 1 {
 		return retriever.RetrieverError
 	}
+
 	return retriever.RetrieverReady
 }
 

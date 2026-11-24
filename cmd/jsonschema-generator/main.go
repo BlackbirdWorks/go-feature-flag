@@ -52,5 +52,6 @@ func PrettyString(str string) ([]byte, error) {
 	if err := json.Indent(&prettyJSON, []byte(str), "", "    "); err != nil {
 		return []byte(""), err
 	}
+
 	return prettyJSON.Bytes(), nil
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -31,9 +30,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				oldCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -45,9 +44,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 					},
 					"test-flag2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -61,9 +60,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				newCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -79,9 +78,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"test-flag2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -102,9 +101,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				oldCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -118,9 +117,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				newCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -132,9 +131,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 					},
 					"test-flag2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -150,9 +149,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"test-flag2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -173,9 +172,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				oldCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -189,9 +188,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				newCache: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(true)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new("rule1"),
@@ -210,9 +209,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 					"test-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("rule1"),
@@ -224,9 +223,9 @@ func Test_notificationService_getDifferences(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(true),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(true)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new("rule1"),

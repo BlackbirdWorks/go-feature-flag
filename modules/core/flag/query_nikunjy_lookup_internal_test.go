@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // useIndexingNikunjyEvaluators is useFreshNikunjyEvaluators with keys for the short queries of
@@ -25,6 +24,7 @@ func useIndexingNikunjyEvaluators(tb testing.TB) *nikunjyEvaluatorCache {
 	previous := nikunjyKeysMinQueryLen
 	nikunjyKeysMinQueryLen = 0
 	tb.Cleanup(func() { nikunjyKeysMinQueryLen = previous })
+
 	return c
 }
 
@@ -40,17 +40,20 @@ func idList(n, replaced int, replacement string) string {
 		}
 		if i == replaced {
 			fmt.Fprintf(&sb, `"%s"`, replacement)
+
 			continue
 		}
 		fmt.Fprintf(&sb, `"user-%07d"`, i)
 	}
 	sb.WriteString(`]`)
+
 	return sb.String()
 }
 
 // applies reports whether the rule applies to the evaluation context of key.
 func applies(r *Rule, key string) bool {
 	_, err := r.Evaluate(key, ffcontext.NewEvaluationContext(key), "test-flag", false)
+
 	return err == nil
 }
 
@@ -58,6 +61,7 @@ func validatedFlag(t testing.TB, queries ...string) *InternalFlag {
 	t.Helper()
 	f := newFlagWithQueries(queries...)
 	require.NoError(t, f.IsValid())
+
 	return f
 }
 
@@ -67,7 +71,11 @@ func indexedEvaluator(c *nikunjyEvaluatorCache, r *Rule) *parser.Evaluator {
 
 func indexSize(c *nikunjyEvaluatorCache) int {
 	n := 0
-	c.byKey.Range(func(_, _ any) bool { n++; return true })
+	c.byKey.Range(func(_, _ any) bool {
+		n++
+		return true
+	})
+
 	return n
 }
 
@@ -159,6 +167,7 @@ func splitRulesByQuery(flags []*InternalFlag, listA string) (rulesA, rulesB []*R
 			}
 		}
 	}
+
 	return rulesA, rulesB
 }
 
@@ -286,8 +295,11 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			matches:     "a", doesNotMatch: "b",
 		},
 		{
-			name:        "copy of the rule keeps the hash",
-			mutate:      func(r *Rule) *Rule { c := *r; return &c },
+			name: "copy of the rule keeps the hash",
+			mutate: func(r *Rule) *Rule {
+				c := *r
+				return &c
+			},
 			wantIndexed: true,
 			matches:     "a", doesNotMatch: "b",
 		},
@@ -295,6 +307,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			name: "query rewritten through its pointer is never evaluated with the old evaluator",
 			mutate: func(r *Rule) *Rule {
 				*r.Query = `key eq "b"`
+
 				return r
 			},
 			wantIndexed: false,
@@ -306,6 +319,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				q := `key eq "b"`
 				c := *r
 				c.Query = &q
+
 				return &c
 			},
 			wantIndexed: false,
@@ -317,6 +331,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				c := *r
 				q := strings.Clone(*r.Query)
 				c.Query = &q
+
 				return &c
 			},
 			wantIndexed: true,
@@ -327,6 +342,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			mutate: func(r *Rule) *Rule {
 				q := `key eq "b"`
 				r.MergeRules(Rule{Query: &q})
+
 				return r
 			},
 			wantIndexed: false,
@@ -337,6 +353,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			mutate: func(r *Rule) *Rule {
 				c := *r
 				c.QueryHash = 12345
+
 				return &c
 			},
 			wantIndexed: false,
@@ -447,6 +464,7 @@ func (c *nikunjyEvaluatorCache) keyRefsTotal() int {
 	for _, refs := range c.keyRefs {
 		n += refs
 	}
+
 	return n
 }
 
@@ -509,6 +527,7 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			if !tt.valid {
 				require.Error(t, err)
 				assert.Zero(t, indexSize(c), "an invalid flag must not index its queries")
+
 				return
 			}
 			require.NoError(t, err)
@@ -537,6 +556,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 		for f := range set {
 			set[f] = validatedFlag(t, query(f))
 		}
+
 		return set
 	}
 	current := load(func(f int) string { return fmt.Sprintf(`key eq "gen-0-%d"`, f%3) })
@@ -557,6 +577,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 			if changed {
 				return fmt.Sprintf(`key eq "gen-%d-%d"`, gen, f%3)
 			}
+
 			return fmt.Sprintf(`key eq "gen-%d-%d"`, gen-1, f%3)
 		})
 		if changed {
@@ -575,7 +596,10 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	clear(current) // drop the last references to the flags
 	gcUntil(t, func() bool { return indexSize(c) == 0 }, "no rule left to index")
 	cached := 0
-	c.entries.Range(func(_, _ any) bool { cached++; return true })
+	c.entries.Range(func(_, _ any) bool {
+		cached++
+		return true
+	})
 	assert.Zero(t, cached)
 	runtime.KeepAlive(current)
 }
@@ -592,6 +616,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 		if i%2 == 1 {
 			a, b = listB, listA
 		}
+
 		return []*InternalFlag{validatedFlag(t, strings.Clone(a)), validatedFlag(t, strings.Clone(b))}
 	}
 	current.flags = newSet(0)
@@ -717,7 +742,7 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": testconvert.Interface(true)}, nil)
+			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
 			} else {

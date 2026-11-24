@@ -32,6 +32,7 @@ func events(n int) []exporter.ExportableEvent {
 			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Default: false, Source: "SERVER",
 		})
 	}
+
 	return res
 }
 

@@ -20,6 +20,7 @@ const (
 func (c *Config) APIKeysAdminExists(apiKey string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	return c.apiKeysSet[apiKey] == AdminKeyType
 }
 
@@ -28,6 +29,7 @@ func (c *Config) APIKeyExists(apiKey string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	_, ok := c.apiKeysSet[apiKey]
+
 	return ok
 }
 
@@ -35,6 +37,7 @@ func (c *Config) APIKeyExists(apiKey string) bool {
 func (c *Config) IsAuthenticationEnabled() bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	return c.forceAuthenticatedRequests
 }
 

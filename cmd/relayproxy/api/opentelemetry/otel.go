@@ -36,6 +36,7 @@ func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *conf
 	if (config.OpenTelemetryOtlpEndpoint == "" && config.OtelConfig.Exporter.Otlp.Endpoint == "") ||
 		config.OtelConfig.SDK.Disabled {
 		otel.SetTracerProvider(noop.NewTracerProvider())
+
 		return nil
 	}
 
@@ -187,6 +188,7 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	if v := conf.JaegerConfig.Sampler.Max.Operations; v != 0 {
 		maxOperations = v
 	}
+
 	return samplerURL, samplerRefreshInterval, maxOperations, nil
 }
 
@@ -205,5 +207,6 @@ func (s *OtelService) Stop(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }

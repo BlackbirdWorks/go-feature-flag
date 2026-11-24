@@ -83,6 +83,7 @@ func TestGetNestedFieldValue(t *testing.T) {
 			got, err := utils.GetNestedFieldValue(tt.ctx, tt.key)
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)

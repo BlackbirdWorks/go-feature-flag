@@ -220,6 +220,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 					event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
 					events = append(events, event)
 				}
+
 				return events
 			}(),
 			// 4 statements, but their ~250KB of parameters need 2 BatchExecuteStatement calls
@@ -420,11 +421,13 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	featureEvents := func(bad exporter.FeatureEvent) []exporter.ExportableEvent {
 		bad.Key = "bad-flag"
 		bad.UserKey = "secret-user"
+
 		return []exporter.ExportableEvent{newFeatureEvent(0), bad, newFeatureEvent(2)}
 	}
 	trackingEvents := func(bad exporter.TrackingEvent) []exporter.ExportableEvent {
 		bad.Key = "bad-flag"
 		bad.UserKey = "secret-user"
+
 		return []exporter.ExportableEvent{exporter.TrackingEvent{Key: "checkout"}, bad, exporter.TrackingEvent{Key: "checkout"}}
 	}
 	tests := []struct {
@@ -546,6 +549,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			}
 			if tt.wantCreate == "" {
 				assert.Empty(t, creates)
+
 				return
 			}
 			// the table is created only once per exporter instance
@@ -967,6 +971,7 @@ func TestExporter_InitClient(t *testing.T) {
 					(&Exporter{AwsConfig: tt.awsConfig, ClusterIdentifier: "c", Database: "d"}).
 						Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)}),
 					tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)
@@ -1021,6 +1026,7 @@ func (m *mockRedshiftDataClient) BatchExecuteStatement(
 			return nil, err
 		}
 	}
+
 	return &redshiftdata.BatchExecuteStatementOutput{Id: m.statementID(len(m.executed))}, nil
 }
 
@@ -1037,11 +1043,13 @@ func (m *mockRedshiftDataClient) DescribeStatement(
 		m.mu.Unlock()
 		<-ctx.Done()
 		m.mu.Lock()
+
 		return nil, fmt.Errorf("operation error Redshift Data: DescribeStatement, %w", ctx.Err())
 	}
 	if len(m.describeErrs) > 0 {
 		err := m.describeErrs[0]
 		m.describeErrs = m.describeErrs[1:]
+
 		return nil, err
 	}
 	if m.describeErr != nil {
@@ -1070,6 +1078,7 @@ func (m *mockRedshiftDataClient) DescribeStatement(
 	if m.subStatementError != "" {
 		out.SubStatements = []types.SubStatementData{{}, {Error: aws.String(m.subStatementError)}}
 	}
+
 	return out, nil
 }
 
@@ -1084,6 +1093,7 @@ func (m *mockRedshiftDataClient) CancelStatement(
 	if m.cancelErr != nil {
 		return nil, m.cancelErr
 	}
+
 	return &redshiftdata.CancelStatementOutput{Status: aws.Bool(true)}, nil
 }
 
@@ -1102,6 +1112,7 @@ func paramsMap(params []types.SqlParameter) map[string]string {
 	for _, p := range params {
 		res[aws.ToString(p.Name)] = aws.ToString(p.Value)
 	}
+
 	return res
 }
 
@@ -1125,6 +1136,7 @@ func newSmallEvents(n int) []exporter.ExportableEvent {
 	for range n {
 		events = append(events, exporter.TrackingEvent{Key: "k"})
 	}
+
 	return events
 }
 

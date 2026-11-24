@@ -464,6 +464,7 @@ func TestFile_Export(t *testing.T) {
 			err := f.Export(context.Background(), tt.args.logger, tt.args.events)
 			if tt.wantErr {
 				assert.Error(t, err, "export method should error")
+
 				return
 			}
 
@@ -503,6 +504,7 @@ func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureE
 	gotFeatureEvents := make([]exporter.FeatureEvent, pr.GetNumRows())
 	err = pr.Read(&gotFeatureEvents)
 	assert.NoError(t, err)
+
 	return gotFeatureEvents
 }
 
@@ -519,6 +521,7 @@ func readParquetTrackingEvents(t *testing.T, filePath string) []exporter.Trackin
 	gotTrackingEvents := make([]exporter.TrackingEvent, pr.GetNumRows())
 	err = pr.Read(&gotTrackingEvents)
 	assert.NoError(t, err)
+
 	return gotTrackingEvents
 }
 
@@ -536,9 +539,11 @@ func assertExportOutput(
 	if format == "parquet" {
 		if eventType == "tracking" {
 			assert.ElementsMatch(t, expectedTrackingEvents, readParquetTrackingEvents(t, filePath))
+
 			return
 		}
 		assert.ElementsMatch(t, expectedFeatureEvents, readParquetFeatureEvents(t, filePath))
+
 		return
 	}
 

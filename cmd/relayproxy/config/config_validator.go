@@ -43,6 +43,7 @@ func (c *Config) IsValid() error {
 	if len(c.FlagSets) > 0 {
 		return c.validateFlagSets()
 	}
+
 	return c.validateDefaultMode()
 }
 
@@ -51,6 +52,7 @@ func validateExporterCleanQueueInterval(interval time.Duration) error {
 	if interval < 0 {
 		return errors.New("exporterCleanQueueInterval must not be negative")
 	}
+
 	return nil
 }
 
@@ -62,6 +64,7 @@ func (c *Config) validateServerConfig() error {
 			return errors.New("unixSocketPath must be set when server mode is unixsocket")
 		}
 	}
+
 	return nil
 }
 
@@ -83,6 +86,7 @@ func validateLogLevel(logLevel string) error {
 	if _, err := zapcore.ParseLevel(logLevel); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -94,6 +98,7 @@ func (c *Config) validateDefaultMode() error {
 	if err := validateExporters(c.Exporter, c.Exporters); err != nil {
 		return err
 	}
+
 	return validateNotifiers(c.Notifiers)
 }
 
@@ -150,6 +155,7 @@ func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	if err := validateNotifiers(flagset.Notifiers); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -171,6 +177,7 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -188,6 +195,7 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -200,6 +208,7 @@ func validateNotifiers(notifiers []NotifierConf) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -219,5 +228,6 @@ func validateSharedPollerPerBucket(flagset *FlagSet) error {
 	if r.Item == "" {
 		return errors.New("enableSharedPollerPerBucket requires the s3 retriever to set item (folder mode is not supported)")
 	}
+
 	return nil
 }

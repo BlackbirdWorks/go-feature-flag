@@ -93,5 +93,6 @@ func hasManifestSubcommand(cmd *cobra.Command) bool {
 			return true
 		}
 	}
+
 	return false
 }

@@ -25,6 +25,7 @@ func NewFeatureEvent(
 	if ctx.IsAnonymous() {
 		contextKind = "anonymousUser"
 	}
+
 	return FeatureEvent{
 		Kind:         "feature",
 		ContextKind:  contextKind,
@@ -113,12 +114,14 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
+
 	return buf.Bytes(), nil
 }
 
 func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	b = append(b, []byte("\n")...)
+
 	return b, err
 }
 
@@ -131,5 +134,6 @@ func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(b), nil
 }

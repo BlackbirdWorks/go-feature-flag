@@ -15,5 +15,6 @@ func IsJSONObject(s string) bool {
 		return false
 	}
 	var js map[string]any
+
 	return json.Unmarshal([]byte(s), &js) == nil
 }

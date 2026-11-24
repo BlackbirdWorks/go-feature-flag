@@ -25,6 +25,7 @@ func assertRequest(u *model.AllFlagRequest) *echo.HTTPError {
 			"assertRequest: impossible to find evaluationContext in request",
 		)
 	}
+
 	return nil
 }
 
@@ -37,5 +38,6 @@ func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.Context,
 			)
 	}
 	u := req.EvaluationContext
+
 	return utils.ConvertEvaluationCtxFromRequest(u.Key, u.Custom), nil
 }

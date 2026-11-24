@@ -25,6 +25,7 @@ func invoke(b *testing.B, e *echo.Echo, h func(*echo.Context) error, ep relay.En
 	c.SetPathValues(echo.PathValues{{Name: "flagKey", Value: key}})
 	if err := h(c); err != nil {
 		b.Error(err)
+
 		return
 	}
 	if rec.Code != http.StatusOK {

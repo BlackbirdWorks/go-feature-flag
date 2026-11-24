@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // The map given to the query engines is recycled between evaluations: an attribute of an
@@ -16,8 +15,8 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 	t.Parallel()
 	f := &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"),
-			"B": testconvert.Interface("b"),
+			"A": new(any("a")),
+			"B": new(any("b")),
 		},
 		Rules:       &[]Rule{{Query: new(`secret eq "x"`), VariationResult: new("A")}},
 		DefaultRule: &Rule{VariationResult: new("B")},

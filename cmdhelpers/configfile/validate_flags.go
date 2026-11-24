@@ -38,6 +38,7 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 			errs = append(errs, FlagError{Flag: key, Err: err})
 		}
 	}
+
 	return errs
 }
 
@@ -51,5 +52,6 @@ func validateFlag(flagDto dto.DTO) (err error) {
 		}
 	}()
 	flag := flagDto.Convert()
+
 	return flag.IsValid()
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestInternalFlag_Value(t *testing.T) {
@@ -30,8 +29,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should use default value if no targeting",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -63,8 +62,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should use default value if percentages are empty",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -218,8 +217,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the variation specified in the rule if rule match",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -261,8 +260,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the variation specified in the rule if rule match (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -304,9 +303,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match the 2nd rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -353,9 +352,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match the 2nd rule (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -404,9 +403,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match a rule with no name",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -449,9 +448,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match a rule with no name (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -496,10 +495,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match only the first rule that apply (even if more than one can apply)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -548,10 +547,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should match only the first rule that apply (even if more than one can apply) (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -604,10 +603,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should ignore a rule that is disabled",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -657,10 +656,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return an error if rule is invalid",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -699,10 +698,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return an error if rule is invalid (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -741,10 +740,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return an error if no targeting match and we have no default rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -783,10 +782,10 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return an error if default rule is invalid",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
-					"variation_D": testconvert.Interface("value_D"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
+					"variation_D": new(any("value_D")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{},
@@ -819,8 +818,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should not have any change if all scheduled steps are in the future",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -838,7 +837,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_A": testconvert.Interface("value_QWERTY"),
+							"variation_A": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(2 * time.Second)),
 					},
@@ -865,8 +864,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should change if all scheduled steps are in the future BUT context override is in the future too",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -884,7 +883,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_A": testconvert.Interface("value_QWERTY"),
+							"variation_A": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(2 * time.Second)),
 					},
@@ -915,8 +914,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should only apply 1 scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -934,7 +933,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_B": testconvert.Interface("value_QWERTY"),
+							"variation_B": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(2 * time.Second)),
 					},
@@ -961,8 +960,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should only apply 1 scheduled step if step at the exact same time",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -980,7 +979,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_B": testconvert.Interface("value_QWERTY"),
+							"variation_B": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(2 * time.Second)),
 					},
@@ -1013,8 +1012,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should apply all scheduled steps in the past",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1032,7 +1031,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_B": testconvert.Interface("value_QWERTY"),
+							"variation_B": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(-1 * time.Second)),
 					},
@@ -1059,8 +1058,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should apply the most recent scheduled step when two steps edit the same rule name (newest date wins)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variationTrue":  testconvert.Interface(true),
-					"variationFalse": testconvert.Interface(false),
+					"variationTrue":  new(any(true)),
+					"variationFalse": new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1133,9 +1132,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should keep rules added by an earlier scheduled step when a later step adds another rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1199,8 +1198,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should ignore scheduled steps with no dates",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1212,7 +1211,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Variations: &map[string]*any{
-							"variation_A": testconvert.Interface("value_QWERTY"),
+							"variation_A": new(any("value_QWERTY")),
 						},
 					},
 				},
@@ -1238,8 +1237,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should update a rule that exists with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1259,7 +1258,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					{
 						Date: new(time.Now().Add(-1 * time.Second)),
 						Variations: &map[string]*any{
-							"variation_C": testconvert.Interface("value_C"),
+							"variation_C": new(any("value_C")),
 						},
 						Rules: &[]flag.Rule{
 							{
@@ -1294,9 +1293,9 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should update default rule with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_C"),
@@ -1338,8 +1337,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should add a new rule with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1359,7 +1358,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					{
 						Date: new(time.Now().Add(-1 * time.Second)),
 						Variations: &map[string]*any{
-							"variation_C": testconvert.Interface("value_C"),
+							"variation_C": new(any("value_C")),
 						},
 						Rules: &[]flag.Rule{
 							{
@@ -1395,8 +1394,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should apply all the changes if all scheduled steps are in the past",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1414,7 +1413,7 @@ func TestInternalFlag_Value(t *testing.T) {
 					},
 					{
 						Variations: &map[string]*any{
-							"variation_B": testconvert.Interface("value_QWERTY"),
+							"variation_B": new(any("value_QWERTY")),
 						},
 						Date: new(time.Now().Add(-1 * time.Second)),
 					},
@@ -1441,8 +1440,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should disable the flag with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1481,8 +1480,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should create an experimentation for a dedicated time",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1522,8 +1521,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should not apply a scheduled step inside another scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1535,13 +1534,13 @@ func TestInternalFlag_Value(t *testing.T) {
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Variations: &map[string]*any{
-							"variation_A": testconvert.Interface("value_AB"),
-							"variation_B": testconvert.Interface("value_B"),
+							"variation_A": new(any("value_AB")),
+							"variation_B": new(any("value_B")),
 						},
 						Scheduled: &[]flag.ScheduledStep{
 							{
 								Variations: &map[string]*any{
-									"variation_A": testconvert.Interface("value_ABC"),
+									"variation_A": new(any("value_ABC")),
 								},
 								Date: new(time.Now().Add(-3 * time.Second)),
 							},
@@ -1571,19 +1570,19 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the false value if not in between initial and end percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("variation_A"),
-							Percentage: testconvert.Float64(0),
+							Percentage: new(float64(0)),
 							Date:       new(time.Now().Add(-10 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("variation_B"),
-							Percentage: testconvert.Float64(5),
+							Percentage: new(float64(5)),
 							Date:       new(time.Now().Add(-1 * time.Second)),
 						},
 					},
@@ -1615,8 +1614,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH if rule apply and return a simple variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1658,8 +1657,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH_SPLIT if rule apply and has percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1704,8 +1703,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH_SPLIT if rule apply and has progressive rollout",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1714,12 +1713,12 @@ func TestInternalFlag_Value(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("variation_A"),
-								Percentage: testconvert.Float64(0),
+								Percentage: new(float64(0)),
 								Date:       new(time.Now()),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("variation_B"),
-								Percentage: testconvert.Float64(100),
+								Percentage: new(float64(100)),
 								Date:       new(time.Now().Add(1 * time.Minute)),
 							},
 						},
@@ -1758,8 +1757,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason SPLIT if rule not apply and has percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1801,8 +1800,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason DEFAULT if rule not apply and has default variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1841,8 +1840,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason STATIC if no rule and has default variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -1874,8 +1873,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return the reason STATIC if no rule and has default percentage to 100%",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -1910,8 +1909,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should use the environment as a rule criteria",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface(false),
-					"B": testconvert.Interface(true),
+					"A": new(any(false)),
+					"B": new(any(true)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1958,8 +1957,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should have a targeting match if common evaluation context match",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1993,8 +1992,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "EvaluationContextEnrichment should override request evaluation context",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -2066,8 +2065,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Empty targeting key for static flag should succeed",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -2099,8 +2098,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Empty bucketing key for static flag should succeed",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_A"),
@@ -2135,8 +2134,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Empty targeting key for percentage flag should fail",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface(true),
-					"variation_B": testconvert.Interface(false),
+					"variation_A": new(any(true)),
+					"variation_B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2196,9 +2195,9 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			name: "Should use custom bucketing key when set",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				BucketingKey: new("teamId"),
 				DefaultRule: &flag.Rule{
@@ -2224,9 +2223,9 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			name: "Should use nested bucketing key when set",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				BucketingKey: new("company.id"),
 				DefaultRule: &flag.Rule{
@@ -2292,9 +2291,9 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when bucketing key not found",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				BucketingKey: new("teamId"),
 				DefaultRule: &flag.Rule{
@@ -2320,9 +2319,9 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when nested bucketing key not found",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				BucketingKey: new("company.id"),
 				DefaultRule: &flag.Rule{
@@ -2352,9 +2351,9 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when nested bucketing key is not a string",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"variation_A": testconvert.Interface("value_A"),
-					"variation_B": testconvert.Interface("value_B"),
-					"variation_C": testconvert.Interface("value_C"),
+					"variation_A": new(any("value_A")),
+					"variation_B": new(any("value_B")),
+					"variation_C": new(any("value_C")),
 				},
 				BucketingKey: new("company.id"),
 				DefaultRule: &flag.Rule{
@@ -2392,19 +2391,19 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 func TestFlag_ProgressiveRollout(t *testing.T) {
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{
-			"variation_A": testconvert.Interface("value_A"),
-			"variation_B": testconvert.Interface("value_B"),
+			"variation_A": new(any("value_A")),
+			"variation_B": new(any("value_B")),
 		},
 		DefaultRule: &flag.Rule{
 			ProgressiveRollout: &flag.ProgressiveRollout{
 				Initial: &flag.ProgressiveRolloutStep{
 					Variation:  new("variation_A"),
-					Percentage: testconvert.Float64(0),
+					Percentage: new(float64(0)),
 					Date:       new(time.Now().Add(1 * time.Second)),
 				},
 				End: &flag.ProgressiveRolloutStep{
 					Variation:  new("variation_B"),
-					Percentage: testconvert.Float64(100),
+					Percentage: new(float64(100)),
 					Date:       new(time.Now().Add(2 * time.Second)),
 				},
 			},
@@ -2449,13 +2448,13 @@ func TestInternalFlag_GetVariations(t *testing.T) {
 			name: "Should return variations if map is not empty",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"varA": testconvert.Interface("valueA"),
-					"varB": testconvert.Interface("valueB"),
+					"varA": new(any("valueA")),
+					"varB": new(any("valueB")),
 				},
 			},
 			want: map[string]*any{
-				"varA": testconvert.Interface("valueA"),
-				"varB": testconvert.Interface("valueB"),
+				"varA": new(any("valueA")),
+				"varB": new(any("valueB")),
 			},
 		},
 	}
@@ -2529,8 +2528,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 			name: "Should return nil if variation does not exist",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"varA": testconvert.Interface("valueA"),
-					"varB": testconvert.Interface("valueB"),
+					"varA": new(any("valueA")),
+					"varB": new(any("valueB")),
 				},
 			},
 			variation: "varC",
@@ -2540,8 +2539,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 			name: "Should return variation value if exists",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"varA": testconvert.Interface("valueA"),
-					"varB": testconvert.Interface("valueB"),
+					"varA": new(any("valueA")),
+					"varB": new(any("valueB")),
 				},
 			},
 			variation: "varA",
@@ -2551,8 +2550,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 			name: "Should return nil if variation value is nil",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"varA": testconvert.Interface(nil),
-					"varB": testconvert.Interface("valueB"),
+					"varA": new(any(nil)),
+					"varB": new(any("valueB")),
 				},
 			},
 			variation: "varA",
@@ -2603,9 +2602,9 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "different types in variation",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"C": testconvert.Interface("C"),
-					"B": testconvert.Interface(120.1),
+					"A": new(any("A")),
+					"C": new(any("C")),
+					"B": new(any(120.1)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("A"),
@@ -2622,8 +2621,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "different types in variation int/float should be ok",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface(120),
-					"B": testconvert.Interface(120.1),
+					"A": new(any(120)),
+					"B": new(any(120.1)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("A"),
@@ -2639,7 +2638,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "no default rule",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
+					"A": new(any("A")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -2660,7 +2659,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "multiple rule with same name",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
+					"A": new(any("A")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("A"),
@@ -2709,8 +2708,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "wrong percentages for default rule",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2730,8 +2729,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "empty percentages for default rule",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{},
@@ -2748,8 +2747,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "wrong percentages for targeting",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2779,7 +2778,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "empty percentages for targeting",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
+					"A": new(any("A")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{},
@@ -2803,8 +2802,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "targeting without query",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2833,8 +2832,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "Nothing to return in rule",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -2851,8 +2850,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "progressive rollout percentage initial > end",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -2863,12 +2862,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
-							Percentage: testconvert.Float64(30),
+							Percentage: new(float64(30)),
 							Date:       new(time.Now().Add(-2 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
-							Percentage: testconvert.Float64(20),
+							Percentage: new(float64(20)),
 							Date:       new(time.Now().Add(2 * time.Second)),
 						},
 					},
@@ -2881,8 +2880,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "ignore invalid rule if disabled",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -2911,8 +2910,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if default rule referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("C"),
@@ -2925,8 +2924,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if default percentage rule referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2943,19 +2942,19 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if default progressive rule end rollout step referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
-							Percentage: testconvert.Float64(0),
+							Percentage: new(float64(0)),
 							Date:       new(time.Now().Add(1 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("C"),
-							Percentage: testconvert.Float64(100),
+							Percentage: new(float64(100)),
 							Date:       new(time.Now().Add(2 * time.Second)),
 						},
 					},
@@ -2968,19 +2967,19 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if default progressive rule initial rollout step referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("C"),
-							Percentage: testconvert.Float64(0),
+							Percentage: new(float64(0)),
 							Date:       new(time.Now().Add(1 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
-							Percentage: testconvert.Float64(100),
+							Percentage: new(float64(100)),
 							Date:       new(time.Now().Add(2 * time.Second)),
 						},
 					},
@@ -2993,8 +2992,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if targeting rule referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3013,8 +3012,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if percentage in targeting rule referencing a variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3037,8 +3036,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if progressive rollout in targeting rule referencing an initial variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3046,12 +3045,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("C"),
-								Percentage: testconvert.Float64(0),
+								Percentage: new(float64(0)),
 								Date:       new(time.Now().Add(1 * time.Second)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("A"),
-								Percentage: testconvert.Float64(100),
+								Percentage: new(float64(100)),
 								Date:       new(time.Now().Add(2 * time.Second)),
 							},
 						},
@@ -3068,8 +3067,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if progressive rollout in targeting rule referencing an end variation that does not exist",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3077,12 +3076,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("A"),
-								Percentage: testconvert.Float64(0),
+								Percentage: new(float64(0)),
 								Date:       new(time.Now().Add(1 * time.Second)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("C"),
-								Percentage: testconvert.Float64(100),
+								Percentage: new(float64(100)),
 								Date:       new(time.Now().Add(2 * time.Second)),
 							},
 						},
@@ -3099,8 +3098,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 			name: "should error if rule query is not valid for the parser",
 			fields: fields{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface("A"),
-					"B": testconvert.Interface("B"),
+					"A": new(any("A")),
+					"B": new(any("B")),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3143,8 +3142,8 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 	cases := 1000
 	internalFlag := flag.InternalFlag{
 		Variations: &map[string]*any{
-			"variation_A": testconvert.Interface("value_A"),
-			"variation_B": testconvert.Interface("value_B"),
+			"variation_A": new(any("value_A")),
+			"variation_B": new(any("value_B")),
 		},
 		DefaultRule: &flag.Rule{
 			VariationResult: new("variation_A"),
@@ -3162,7 +3161,7 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 			},
 			{
 				Variations: &map[string]*any{
-					"variation_B": testconvert.Interface("value_QWERTY"),
+					"variation_B": new(any("value_QWERTY")),
 				},
 				Date: new(time.Now().Add(-1 * time.Second)),
 			},
@@ -3241,21 +3240,21 @@ func TestInternalFlag_IsValid_DeterministicError(t *testing.T) {
 		{
 			name: "type mismatch reported before later nil value",
 			variations: map[string]*any{
-				"a": testconvert.Interface(true),
-				"b": testconvert.Interface("str"),
+				"a": new(any(true)),
+				"b": new(any("str")),
 				"c": nil,
-				"d": testconvert.Interface(12),
+				"d": new(any(12)),
 			},
 			wantErr: "all variations should have the same type",
 		},
 		{
 			name: "first nil variation in sorted order is reported",
 			variations: map[string]*any{
-				"a": testconvert.Interface(true),
+				"a": new(any(true)),
 				"b": nil,
 				"c": nil,
 				"d": nil,
-				"e": testconvert.Interface("str"),
+				"e": new(any("str")),
 			},
 			wantErr: "nil value for variation: b",
 		},

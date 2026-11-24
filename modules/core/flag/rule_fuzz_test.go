@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
@@ -144,6 +143,7 @@ func hasInvalidPercentages(percentages map[string]float64) bool {
 	for _, p := range percentages {
 		sum += p
 	}
+
 	return sum*PercentageMultiplier < 1
 }
 
@@ -156,7 +156,8 @@ func hasInvalidProgressiveRollout(p ProgressiveRollout) bool {
 func fuzzVariations(names ...string) map[string]*any {
 	variations := make(map[string]*any, len(names))
 	for _, name := range names {
-		variations[name] = testconvert.Interface(name)
+		variations[name] = new(any(name))
 	}
+
 	return variations
 }

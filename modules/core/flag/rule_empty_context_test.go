@@ -8,7 +8,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestRule_RequiresBucketing(t *testing.T) {
@@ -47,12 +46,12 @@ func TestRule_RequiresBucketing(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("disabled"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now()),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("enabled"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(time.Hour)),
 					},
 				},
@@ -122,12 +121,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("disabled"),
-						Percentage: testconvert.Float64(0),
+						Percentage: new(float64(0)),
 						Date:       new(time.Now().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("enabled"),
-						Percentage: testconvert.Float64(100),
+						Percentage: new(float64(100)),
 						Date:       new(time.Now().Add(time.Hour)),
 					},
 				},
@@ -147,6 +146,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			ctx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
 				ctx.AddCustomAttribute("anonymous", true)
+
 				return ctx
 			}(),
 			expectedError: false,

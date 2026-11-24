@@ -77,6 +77,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 	})
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitForServer(t, baseURL)
+
 	return baseURL
 }
 
@@ -106,5 +107,6 @@ func postJSON(t testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(t, err)
 	res := apiResponse{Status: resp.StatusCode, Raw: string(raw)}
 	_ = json.Unmarshal(raw, &res.Body) // not JSON for some errors, Body stays nil
+
 	return res
 }

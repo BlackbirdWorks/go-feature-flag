@@ -25,6 +25,7 @@ func CopyFileToNewTempFile(t *testing.T, src string) *os.File {
 	err = os.WriteFile(file.Name(), srcContent, 0600) //nolint:gosec // G703 - path from CreateTemp is safe
 	require.NoError(t, err)
 	syncFile(t, file.Name())
+
 	return file
 }
 
@@ -39,6 +40,7 @@ func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 	err = os.WriteFile(file.Name(), []byte(content), 0600) //nolint:gosec // G703 - path from CreateTemp is safe
 	require.NoError(t, err)
 	syncFile(t, file.Name())
+
 	return file
 }
 
@@ -46,6 +48,7 @@ func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) 
 	err := os.WriteFile(file.Name(), []byte(content), 0600) //nolint:gosec // G703 - path from caller's temp file is safe
 	require.NoError(t, err)
 	syncFile(t, file.Name())
+
 	return file
 }
 
@@ -55,6 +58,7 @@ func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.Fil
 	}
 	srcContent, err := os.ReadFile(src)
 	require.NoError(t, err)
+
 	return CopyContentToExistingTempFile(t, string(srcContent), file)
 }
 
@@ -71,6 +75,7 @@ func ReplaceAndCopyFileToExistingFile(t *testing.T, src string, dstFile *os.File
 	srcContent, err := os.ReadFile(src)
 	require.NoError(t, err)
 	updatedContent := strings.Replace(string(srcContent), old, newStr, 1)
+
 	return CopyContentToExistingTempFile(t, updatedContent, dstFile)
 }
 

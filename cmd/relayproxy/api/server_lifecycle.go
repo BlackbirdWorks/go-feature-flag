@@ -149,6 +149,7 @@ func (s *Server) httpServerProtocols(srv *http.Server) error {
 	p.SetHTTP1(true)
 	p.SetUnencryptedHTTP2(true)
 	srv.Protocols = &p
+
 	return nil
 }
 
@@ -181,6 +182,7 @@ func (s *Server) startAwsLambda() {
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
 	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsApiGatewayBasePath(s.zapLog))
+
 	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.zapLog))
 }
 

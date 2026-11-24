@@ -36,6 +36,7 @@ func ParseEndpoint(s string) (Endpoint, error) {
 			return e, nil
 		}
 	}
+
 	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints)
 }
 
@@ -81,5 +82,6 @@ func (e Endpoint) NewRequest(baseURL, flagKey string, i int) (*http.Request, err
 	if e.Path(flagKey) == "" {
 		return nil, fmt.Errorf("unknown endpoint %q", string(e))
 	}
+
 	return newJSONRequest(baseURL+e.Path(flagKey), e.Body(i))
 }

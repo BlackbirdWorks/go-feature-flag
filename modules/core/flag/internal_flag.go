@@ -142,6 +142,7 @@ func (f *InternalFlag) Value(
 		// caller owns the value it receives, as it did when the flag was copied at each evaluation.
 		value = cloneVariationValue(value)
 	}
+
 	return value, ResolutionDetails{
 		Variant:   variationSelection.name,
 		Reason:    variationSelection.reason,
@@ -160,6 +161,7 @@ func selectEvaluationReason(
 		if isDynamic {
 			return ReasonTargetingMatchSplit
 		}
+
 		return ReasonTargetingMatch
 	}
 
@@ -170,13 +172,16 @@ func selectEvaluationReason(
 		if hasRule {
 			return ReasonDefault
 		}
+
 		return ReasonStatic
 	}
+
 	return ReasonUnknown
 }
 
 func (f *InternalFlag) isCacheable() bool {
 	isDynamic := (f.Scheduled != nil && len(*f.Scheduled) > 0) || f.Experimentation != nil
+
 	return !isDynamic
 }
 
@@ -197,10 +202,12 @@ func (f *InternalFlag) selectVariation(
 				if errors.Is(err, errRuleNotApply) {
 					continue
 				}
+
 				return variationSelection{}, err
 			}
 			matchedIndex := ruleIndex
 			reason := selectEvaluationReason(hasRule, true, target.IsDynamic(), false)
+
 			return variationSelection{
 				name:      variationName,
 				reason:    reason,
@@ -221,6 +228,7 @@ func (f *InternalFlag) selectVariation(
 	}
 
 	reason := selectEvaluationReason(hasRule, false, f.GetDefaultRule().IsDynamic(), true)
+
 	return variationSelection{
 		name:      variationName,
 		reason:    reason,
@@ -245,6 +253,7 @@ func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*In
 			due++
 		}
 	}
+
 	return scheduledFlags.get(f, due, func() (*InternalFlag, error) {
 		return f.buildScheduledFlag(evaluationDate)
 	})
@@ -327,6 +336,7 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 			}
 		}
 	}
+
 	return flagCopy, nil
 }
 
@@ -411,6 +421,7 @@ func (f *InternalFlag) IsValid() error {
 
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
 	nikunjyEvaluators.index(f.Rules, ruleQueries, evaluators)
+
 	return nil
 }
 
@@ -419,6 +430,7 @@ func (f *InternalFlag) GetVariations() map[string]*any {
 	if f.Variations == nil {
 		return map[string]*any{}
 	}
+
 	return *f.Variations
 }
 
@@ -426,6 +438,7 @@ func (f *InternalFlag) GetRules() []Rule {
 	if f.Rules == nil {
 		return []Rule{}
 	}
+
 	return *f.Rules
 }
 
@@ -435,6 +448,7 @@ func (f *InternalFlag) GetRuleIndexByName(name string) *int {
 			return &index
 		}
 	}
+
 	return nil
 }
 
@@ -448,6 +462,7 @@ func (f *InternalFlag) IsTrackEvents() bool {
 	if f.TrackEvents == nil {
 		return true
 	}
+
 	return *f.TrackEvents
 }
 
@@ -456,6 +471,7 @@ func (f *InternalFlag) IsDisable() bool {
 	if f.Disable == nil {
 		return false
 	}
+
 	return *f.Disable
 }
 
@@ -464,6 +480,7 @@ func (f *InternalFlag) GetVersion() string {
 	if f.Version == nil {
 		return ""
 	}
+
 	return *f.Version
 }
 
@@ -472,6 +489,7 @@ func (f *InternalFlag) GetVariationValue(name string) any {
 	if v, exists := f.GetVariations()[name]; exists && v != nil {
 		return *v
 	}
+
 	return nil
 }
 
@@ -480,6 +498,7 @@ func (f *InternalFlag) GetBucketingKey() string {
 	if f.BucketingKey == nil {
 		return ""
 	}
+
 	return *f.BucketingKey
 }
 
@@ -500,6 +519,7 @@ func (f *InternalFlag) RequiresBucketing() bool {
 			}
 		}
 	}
+
 	return false
 }
 
@@ -510,6 +530,7 @@ func (f *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -541,6 +562,7 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 			if v == "" {
 				return f.requiresBucketingCheck(requiresBucketing, "bucketing")
 			}
+
 			return v, nil
 		default:
 			return "", errors.New("invalid bucketing key")
@@ -560,6 +582,7 @@ func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string
 	if requiresBucketing {
 		return "", &internalerror.EmptyBucketingKeyError{Message: fmt.Sprintf("Empty %s key", key)}
 	}
+
 	return "", nil
 }
 
@@ -568,6 +591,7 @@ func (f *InternalFlag) GetMetadata() map[string]any {
 	if f.Metadata == nil {
 		return nil
 	}
+
 	return *f.Metadata
 }
 
@@ -575,6 +599,7 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 	if ctx == nil || ctx.ExtractGOFFProtectedFields().CurrentDateTime == nil {
 		return defaultDate
 	}
+
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
 }
 
@@ -584,6 +609,7 @@ func (f *InternalFlag) detachedMetadata(original *InternalFlag) map[string]any {
 	if f == original {
 		return f.GetMetadata()
 	}
+
 	return cloneMetadata(f.GetMetadata())
 }
 
@@ -591,6 +617,7 @@ func cloneMetadata(m map[string]any) map[string]any {
 	if m == nil {
 		return nil
 	}
+
 	return cloneVariationValue(m).(map[string]any)
 }
 
@@ -603,18 +630,21 @@ func cloneVariationValue(v any) any {
 		for k, e := range x {
 			out[k] = cloneVariationValue(e)
 		}
+
 		return out
 	case map[any]any:
 		out := make(map[any]any, len(x))
 		for k, e := range x {
 			out[k] = cloneVariationValue(e)
 		}
+
 		return out
 	case []any:
 		out := make([]any, len(x))
 		for i, e := range x {
 			out[i] = cloneVariationValue(e)
 		}
+
 		return out
 	default:
 		return v

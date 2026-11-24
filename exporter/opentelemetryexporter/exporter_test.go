@@ -156,6 +156,7 @@ func assertAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expec
 					attr.Value.AsInterface(),
 				)
 			}
+
 			return
 		}
 	}

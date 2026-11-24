@@ -472,6 +472,7 @@ func mustParse(t *testing.T, s string) time.Time {
 	t.Helper()
 	d, err := time.Parse(time.RFC3339, s)
 	assert.NoError(t, err)
+
 	return d
 }
 

@@ -336,6 +336,7 @@ func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
 	if !exposeLegacy {
 		return m.Registry
 	}
+
 	return legacyGatherer{source: m.Registry}
 }
 
@@ -364,5 +365,6 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	}
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
+
 	return out, err
 }

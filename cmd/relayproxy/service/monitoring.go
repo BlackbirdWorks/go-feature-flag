@@ -47,6 +47,7 @@ func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 			return model.InfoResponse{}, errors.New("no default flagset configured")
 		}
 		cacheRefreshDate := m.flagsetManager.Default().GetCacheRefreshDate()
+
 		return model.InfoResponse{
 			LatestCacheRefresh: &cacheRefreshDate,
 		}, nil
@@ -60,6 +61,7 @@ func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 			latestRefreshDate = refreshDates[flagsetName]
 		}
 	}
+
 	return model.InfoResponse{
 		Flagsets:           refreshDates,
 		LatestCacheRefresh: &latestRefreshDate,

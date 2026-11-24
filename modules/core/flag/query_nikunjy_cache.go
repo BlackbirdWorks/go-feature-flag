@@ -98,6 +98,7 @@ func hashNikunjyQuery(query string) uint64 {
 	h ^= h >> 32
 	h *= prime2
 	h ^= h >> 29
+
 	return h
 }
 
@@ -131,6 +132,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 		return nil, err
 	}
 	actual, _ := c.entries.LoadOrStore(query, ev)
+
 	return actual.(*parser.Evaluator), nil
 }
 
@@ -138,6 +140,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 // first Process also compiles the rule, so its first evaluation does not pay for it.
 func (c *nikunjyEvaluatorCache) validate(query string) error {
 	_, err := c.validateEvaluator(query)
+
 	return err
 }
 
@@ -150,6 +153,7 @@ func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluat
 	if _, err := ev.Process(map[string]any{}); err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
+
 	return ev, nil
 }
 
@@ -192,6 +196,7 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 	}
 	c.refsMu.Unlock()
 	runtime.AddCleanup(rules, c.release, queries)
+
 	return ruleQueries
 }
 
@@ -199,6 +204,7 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 // the other format. It reads the start of the query only.
 func mayBeNikunjyQuery(query string) bool {
 	trimmed := strings.TrimLeft(query, " \t\n\r")
+
 	return !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "null")
 }
 
@@ -225,6 +231,7 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 		key, entry, hash := c.knownEntry(r)
 		if entry == nil {
 			found[i].hash = hash
+
 			continue
 		}
 		found[i].evaluator = entry.evaluator
@@ -237,6 +244,7 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 	if len(keys) > 0 {
 		runtime.AddCleanup(rules, c.unindex, keys)
 	}
+
 	return found
 }
 
@@ -261,6 +269,7 @@ func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (key uint64, entry *nikunjyK
 	if key, entry = c.find(hash, raw); entry != nil {
 		r.QueryHash = key
 	}
+
 	return key, entry, hash
 }
 
@@ -314,6 +323,7 @@ func (c *nikunjyEvaluatorCache) referenceEntry(key uint64, raw string) *nikunjyK
 		return nil
 	}
 	c.keyRefs[key]++
+
 	return v.(*nikunjyKeyedEvaluator)
 }
 
@@ -332,6 +342,7 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 		}
 		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
+
 			return key, entry
 		}
 	}
@@ -354,10 +365,12 @@ func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evalu
 			entry := &nikunjyKeyedEvaluator{query: raw, evaluator: ev}
 			c.byKey.Store(key, entry)
 			c.keyRefs[key]++
+
 			return key, entry
 		}
 		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
+
 			return key, entry
 		}
 	}
@@ -396,6 +409,7 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 	if e.query != raw {
 		return nil
 	}
+
 	return e.evaluator
 }
 

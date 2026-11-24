@@ -31,8 +31,10 @@ func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
 		out, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(name)})
+
 		return err == nil && out.StreamDescription.StreamStatus == types.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond, "stream not ACTIVE")
+
 	return name
 }
 
@@ -63,8 +65,10 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 				got = append(got, e)
 			}
 		}
+
 		return len(got) >= want
 	}, 30*time.Second, 200*time.Millisecond, "got %d/%d records", len(got), want)
+
 	return got
 }
 
@@ -76,6 +80,7 @@ func events(n int) []exporter.ExportableEvent {
 			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Source: "SERVER",
 		})
 	}
+
 	return res
 }
 

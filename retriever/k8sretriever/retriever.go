@@ -54,5 +54,6 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			s.Namespace,
 		)
 	}
+
 	return []byte(content), nil
 }

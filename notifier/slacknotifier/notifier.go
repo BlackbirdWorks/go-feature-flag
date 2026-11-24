@@ -91,6 +91,7 @@ func convertToSlackMessage(diffCache notifier.DiffCache) slackMessage {
 		Text:        fmt.Sprintf("Changes detected in your feature flag file on: *%s*", hostname),
 		Attachments: attachments,
 	}
+
 	return res
 }
 
@@ -104,6 +105,7 @@ func convertDeletedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 
@@ -125,6 +127,7 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 
@@ -138,6 +141,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 

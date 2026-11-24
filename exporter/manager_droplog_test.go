@@ -35,6 +35,7 @@ func (g *gatedSink) Handle(ctx context.Context, r slog.Record) error {
 		g.once.Do(func() { close(g.entered) })
 		<-g.gate
 	}
+
 	return g.inner.Handle(ctx, r)
 }
 func (g *gatedSink) WithAttrs(a []slog.Attr) slog.Handler { return g }

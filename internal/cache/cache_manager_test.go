@@ -14,7 +14,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -116,8 +115,8 @@ trackEvents = false
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("false_var"),
@@ -163,8 +162,8 @@ test-flag:
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("false_var"),
@@ -217,8 +216,8 @@ test-flag:
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("false_var"),
@@ -264,11 +263,13 @@ variation = "false_var"
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			err = fCache.UpdateCache(newFlags, nil, true)
 			if tt.wantErr {
 				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
@@ -316,8 +317,8 @@ test-flag:
 			expected: map[string]flag.InternalFlag{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
@@ -371,8 +372,8 @@ test-flag2:
 			expected: map[string]flag.InternalFlag{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
@@ -390,8 +391,8 @@ test-flag2:
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface("false"),
-						"true_var":  testconvert.Interface("true"),
+						"false_var": new(any("false")),
+						"true_var":  new(any("true")),
 					},
 					Rules: &[]flag.Rule{
 						{
@@ -427,6 +428,7 @@ test-flag2:
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			err = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
@@ -435,6 +437,7 @@ test-flag2:
 			allFlags, err := fCache.AllFlags()
 			if tt.wantErr {
 				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)
@@ -539,7 +542,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("true"),
@@ -547,7 +550,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				},
 				"flag2": {
 					Variations: &map[string]*any{
-						"false": testconvert.Interface(false),
+						"false": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("false"),
@@ -561,7 +564,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("true"),
@@ -574,7 +577,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			initialFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("true"),
@@ -582,7 +585,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				},
 				"flag2": {
 					Variations: &map[string]*any{
-						"false": testconvert.Interface(false),
+						"false": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("false"),
@@ -592,7 +595,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("true"),

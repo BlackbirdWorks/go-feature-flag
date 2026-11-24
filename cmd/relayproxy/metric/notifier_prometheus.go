@@ -30,5 +30,6 @@ func (n *notifierPrometheus) Notify(diff notifier.DiffCache) error {
 	for flagName := range diff.Updated {
 		n.metricsService.IncFlagUpdated(flagName)
 	}
+
 	return nil
 }

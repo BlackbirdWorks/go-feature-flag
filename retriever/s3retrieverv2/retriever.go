@@ -92,6 +92,7 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	s.status = retriever.RetrieverNotReady
 	if err := folderloader.Validate("item", s.Item, s.Prefix, s.Pattern, s.Recursive); err != nil {
 		s.status = retriever.RetrieverError
+
 		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
 	}
 
@@ -108,9 +109,11 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	// Single file mode only needs a downloader, folder mode needs a lister too.
 	if err := s.initClients(ctx, s.mode == folderMode); err != nil {
 		s.status = retriever.RetrieverError
+
 		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
 	}
 	s.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -143,6 +146,7 @@ func (s *Retriever) initClients(ctx context.Context, needLister bool) error {
 	if needLister && s.lister == nil {
 		s.lister = client
 	}
+
 	return nil
 }
 
@@ -156,6 +160,7 @@ func (s *Retriever) Shutdown(_ context.Context) error {
 	if l := s.loader.Load(); l != nil {
 		l.Reset()
 	}
+
 	return nil
 }
 
@@ -173,14 +178,17 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	defer s.mu.Unlock()
 	if s.downloader == nil {
 		s.status = retriever.RetrieverError
+
 		return nil, errors.New("downloader is not initialized")
 	}
 
 	if s.mode == folderMode {
 		if s.lister == nil {
 			s.status = retriever.RetrieverError
+
 			return nil, errors.New("lister is not initialized")
 		}
+
 		return s.loader.Load().Load(ctx)
 	}
 
@@ -192,6 +200,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to download item from S3 %q, %w", s.Item, err)
 	}
+
 	return content, nil
 }
 
@@ -211,6 +220,7 @@ func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([
 	if err != nil {
 		return nil, "", err
 	}
+
 	return writerAt.Bytes(), aws.ToString(out.ETag), nil
 }
 
@@ -223,6 +233,7 @@ func (s *Retriever) OutputFormat() string {
 	if l := s.loader.Load(); l != nil {
 		return l.OutputFormat()
 	}
+
 	return ""
 }
 

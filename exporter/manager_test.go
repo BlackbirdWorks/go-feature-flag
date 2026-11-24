@@ -331,6 +331,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			switch val := mockExporter.GetExportedEvents()[0].(type) {
 			case exporter.FeatureEvent:
 				assert.Equal(t, tt.want, val.Metadata)
+
 				break
 			default:
 				assert.Fail(t, "The exported event is not a FeatureEvent")

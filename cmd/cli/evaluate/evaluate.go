@@ -48,6 +48,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 		Retriever:             e.retriever,
 		FileFormat:            e.fileFormat,
 	}
+
 	return ffclient.New(c)
 }
 
@@ -69,6 +70,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
 	}
 
 	convertedEvaluationCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctxAsMap)
+
 	return convertedEvaluationCtx, nil
 }
 
@@ -87,6 +89,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 	for key := range flags {
 		listFlags = append(listFlags, key)
 	}
+
 	return listFlags, nil
 }
 
@@ -103,5 +106,6 @@ func (e evaluate) evaluateFlags(
 		}
 		result[flag] = res
 	}
+
 	return result, nil
 }

@@ -8,7 +8,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // BenchmarkRuleEvaluate_NikunjyComplex measures the per-call cost of evaluating a
@@ -119,8 +118,8 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 	}
 	f := flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on":  testconvert.Interface(true),
-			"off": testconvert.Interface(false),
+			"on":  new(any(true)),
+			"off": new(any(false)),
 		},
 		Rules:       &rules,
 		DefaultRule: &flag.Rule{VariationResult: new("off")},
@@ -153,8 +152,8 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 	}
 	f := flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on":  testconvert.Interface(true),
-			"off": testconvert.Interface(false),
+			"on":  new(any(true)),
+			"off": new(any(false)),
 		},
 		Rules:       &rules,
 		DefaultRule: &flag.Rule{VariationResult: new("off")},

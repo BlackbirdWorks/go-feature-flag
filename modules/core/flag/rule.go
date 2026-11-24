@@ -82,6 +82,7 @@ func (r *Rule) Evaluate(key string, ctx ffcontext.Context, flagName string, isDe
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
+
 	return v, err
 }
 
@@ -117,17 +118,20 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		if key == "" {
 			return "", errors.New("progressive rollout requires a bucketing key")
 		}
+
 		return r.EvaluateProgressiveRollout(key, flagName, evaluationDate)
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
 			return "", errors.New("percentage rollout requires a bucketing key")
 		}
+
 		return r.EvaluatePercentageRollout(key, flagName)
 	}
 	if r.VariationResult != nil {
 		return r.GetVariationResult(), nil
 	}
+
 	return "", errors.New("error in the configuration, no variation available for this rule")
 }
 
@@ -154,6 +158,7 @@ func (q *queryContext) mapOnce() map[string]any {
 		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
 		q.pooled = true
 	}
+
 	return q.parsedEvalCtxAsMap
 }
 
@@ -174,6 +179,7 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 			return nil, err
 		}
 	}
+
 	return q.parsedEvalCtxAsBytes, nil
 }
 
@@ -184,6 +190,7 @@ func (q *queryContext) dataOnce() (any, error) {
 		// produce is built directly (the result is the same, without marshalling and parsing).
 		if data, ok := asJSONData(q.mapOnce(), 0); ok {
 			q.parsedEvalCtxAsData = data
+
 			return data, nil
 		}
 		raw, err := q.jsonOnce()
@@ -196,6 +203,7 @@ func (q *queryContext) dataOnce() (any, error) {
 		}
 		q.parsedEvalCtxAsData = data
 	}
+
 	return q.parsedEvalCtxAsData, nil
 }
 
@@ -209,6 +217,7 @@ func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 			return evaluateNikunjy(ev, raw, queryCtx)
 		}
 	}
+
 	return evaluateRule(getCompiledQuery(r.GetQuery()), queryCtx)
 }
 
@@ -224,6 +233,7 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 			success = false
 		}
 	}()
+
 	return processNikunjy(ev, query, queryCtx.mapOnce())
 }
 
@@ -232,8 +242,10 @@ func processNikunjy(ev *parser.Evaluator, query string, mapCtx map[string]any) b
 	if err != nil {
 		slog.Error("error while evaluating the nikunjy query",
 			slog.String("query", query), slog.Any("error", err))
+
 		return false
 	}
+
 	return ok
 }
 
@@ -262,22 +274,27 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		if err != nil {
 			slog.ErrorContext(context.Background(), "error while marshalling the context for the jsonlogic query",
 				slog.Any("mapCtx", mapCtx), slog.Any("error", err.Error()))
+
 			return false
 		}
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
 			slog.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
 				slog.String("query", query), slog.Any("error", err.Error()))
+
 			return false
 		}
+
 		return isJSONLogicTruthy(result)
 	default:
 		ev, err := nikunjyEvaluators.get(query)
 		if err != nil {
 			slog.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))
+
 			return false
 		}
+
 		return processNikunjy(ev, query, mapCtx)
 	}
 }
@@ -293,6 +310,7 @@ func (r *Rule) EvaluateProgressiveRollout(
 	if err != nil {
 		return variation, err
 	}
+
 	return variation, nil
 }
 
@@ -323,6 +341,7 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 		sum += percentage[name]
 	}
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
+
 	return variationFromBuckets(percentage, names, hash)
 }
 
@@ -332,9 +351,11 @@ func (r *Rule) IsDynamic() bool {
 	for _, percentage := range r.GetPercentages() {
 		if percentage == 100 {
 			hasPercentage100 = true
+
 			break
 		}
 	}
+
 	return r.ProgressiveRollout != nil ||
 		(r.Percentages != nil && len(r.GetPercentages()) > 0 && !hasPercentage100)
 }
@@ -385,8 +406,10 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		if hash < uint32(currentPercentage) {
 			return r.ProgressiveRollout.End.getVariation(), nil
 		}
+
 		return r.ProgressiveRollout.Initial.getVariation(), nil
 	}
+
 	return "", errors.New("error in the progressive rollout, missing params")
 }
 
@@ -408,6 +431,7 @@ func variationFromBuckets(percentage map[string]float64, names []string, hash ui
 		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
 		return last, nil
 	}
+
 	return "", errors.New("impossible to find the variation")
 }
 
@@ -446,6 +470,7 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 			// When you set a negative percentage we are not taking it in consideration.
 			if percentage < 0 {
 				delete(mergedPercentages, key)
+
 				continue
 			}
 			mergedPercentages[key] = percentage
@@ -469,6 +494,7 @@ func queryFormatOf(trimmedQuery string) QueryFormat {
 	if utils.IsJSONObject(trimmedQuery) {
 		return JSONLogicQueryFormat
 	}
+
 	return NikunjyQueryFormat
 }
 
@@ -484,6 +510,7 @@ func (r *Rule) GetVariationResult() string {
 	if r.VariationResult == nil {
 		return ""
 	}
+
 	return *r.VariationResult
 }
 
@@ -491,6 +518,7 @@ func (r *Rule) GetName() string {
 	if r.Name == nil {
 		return ""
 	}
+
 	return *r.Name
 }
 
@@ -498,6 +526,7 @@ func (r *Rule) GetPercentages() map[string]float64 {
 	if r.Percentages == nil {
 		return map[string]float64{}
 	}
+
 	return *r.Percentages
 }
 
@@ -505,6 +534,7 @@ func (r *Rule) IsDisable() bool {
 	if r.Disable == nil {
 		return false
 	}
+
 	return *r.Disable
 }
 
@@ -515,6 +545,7 @@ func (r *Rule) GetProgressiveRollout() ProgressiveRollout {
 			End:     &ProgressiveRolloutStep{},
 		}
 	}
+
 	return *r.ProgressiveRollout
 }
 
@@ -571,5 +602,6 @@ func cloneRuleForMerge(r Rule) Rule {
 		}
 		r.ProgressiveRollout = &pr
 	}
+
 	return r
 }

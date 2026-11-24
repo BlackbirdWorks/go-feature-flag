@@ -192,6 +192,7 @@ func TestWebhook_Export(t *testing.T) {
 			err := f.Export(context.Background(), tt.args.logger, tt.args.featureEvents)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 
