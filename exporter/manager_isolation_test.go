@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -148,29 +149,28 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 	}
 }
 
-// a successful flush (held open while other events arrive) must not be taken for a failure.
+// a successful flush (held open while other events arrive) must not be taken for a failure. The test runs on the
+// fake time of a synctest bubble: once the workers are idle, no time has passed, so a backoff scheduled by the
+// successful flush (one second) would still be running and the third batch would not have been exported.
 func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	t.Parallel()
 	const threshold = 10
-	exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
-	m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
-		Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
-	}}, time.Hour, nil)
-	am := m.(exporter.AsyncManager[exporter.FeatureEvent])
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	<-exp.started
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs
-	close(exp.gate)
-	require.Eventually(t, func() bool { return exp.events.Load() == 2*threshold }, 10*time.Second, time.Millisecond)
-	// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	assert.Eventually(
-		t,
-		func() bool { return exp.events.Load() == 3*threshold },
-		// the flush is triggered by the number of events: the window stays below the backoff of a failed export
-		// (one second), a successful flush that scheduled a backoff would miss it
-		900*time.Millisecond,
-		time.Millisecond,
-	)
-	m.Stop()
+	synctest.Test(t, func(t *testing.T) {
+		exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
+		m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
+		}}, time.Hour, nil)
+		am := m.(exporter.AsyncManager[exporter.FeatureEvent])
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		<-exp.started
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs
+		close(exp.gate)
+		synctest.Wait()
+		require.Equal(t, int64(2*threshold), exp.events.Load())
+		// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		synctest.Wait()
+		assert.Equal(t, int64(3*threshold), exp.events.Load())
+		m.Stop()
+	})
 }
