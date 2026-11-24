@@ -129,17 +129,22 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				if ep.keyInQuery {
 					target += "?apiKey=" + url.QueryEscape(k.key)
 				}
-				req, err := http.NewRequestWithContext(t.Context(), ep.method, target, strings.NewReader(ep.body))
-				require.NoError(t, err)
+				req, requestWithContextErr := http.NewRequestWithContext(
+					t.Context(),
+					ep.method,
+					target,
+					strings.NewReader(ep.body),
+				)
+				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
 				if !ep.keyInQuery {
 					req.Header.Set("X-Api-Key", k.key)
 				}
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
+				resp, requestWithContextErr := http.DefaultClient.Do(req)
+				require.NoError(t, requestWithContextErr)
 				defer func() { _ = resp.Body.Close() }()
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				body, requestWithContextErr := io.ReadAll(resp.Body)
+				require.NoError(t, requestWithContextErr)
 
 				assert.Equal(t, k.want, resp.StatusCode, string(body))
 			})
@@ -219,17 +224,17 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 					return
 				default:
 				}
-				req, err := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
+				req, requestErr := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
 					strings.NewReader(`{"context":{"targetingKey":"user-1"}}`))
-				if err != nil {
+				if requestErr != nil {
 					unexpected.Add(1)
 
 					return
 				}
 				req.Header.Set("X-Api-Key", key)
 				req.Header.Set("Content-Type", "application/json")
-				resp, err := client.Do(req)
-				if err != nil {
+				resp, requestErr := client.Do(req)
+				if requestErr != nil {
 					unexpected.Add(1)
 
 					return

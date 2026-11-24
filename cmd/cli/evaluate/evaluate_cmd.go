@@ -254,12 +254,21 @@ func runEvaluate(
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 
-	if err := tryInitializeStandard(context.Background(), r, logger); err != nil {
-		return err
+	if tryInitializeStandardErr := tryInitializeStandard(
+		context.Background(),
+		r,
+		logger,
+	); tryInitializeStandardErr != nil {
+		return tryInitializeStandardErr
 	}
 
-	if err := tryInitializeWithFlagset(context.Background(), r, logger, utils.DefaultFlagSetName); err != nil {
-		return err
+	if tryInitializeWithFlagsetErr := tryInitializeWithFlagset(
+		context.Background(),
+		r,
+		logger,
+		utils.DefaultFlagSetName,
+	); tryInitializeWithFlagsetErr != nil {
+		return tryInitializeWithFlagsetErr
 	}
 
 	e := evaluate{

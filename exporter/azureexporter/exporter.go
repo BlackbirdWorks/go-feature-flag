@@ -101,8 +101,8 @@ func (f *Exporter) Export(
 
 	for _, file := range files {
 		fileName := file.Name()
-		of, err := os.Open(path.Clean(outputDir + "/" + fileName))
-		if err != nil {
+		of, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
+		if openErr != nil {
 			logger.Error(
 				"[Azure Exporter] impossible to open file",
 				slog.String("path", outputDir+"/"+fileName),
@@ -110,8 +110,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if err := f.uploadFile(ctx, client, logger, of, outputDir, fileName); err != nil {
-			return err
+		if uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName); uploadFileErr != nil {
+			return uploadFileErr
 		}
 	}
 

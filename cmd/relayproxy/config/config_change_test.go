@@ -521,8 +521,8 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 
 	// Check body content if needed
 	if len(check.bodyContains) > 0 || len(check.bodyNotContains) > 0 {
-		responseBody, err := io.ReadAll(response.Body)
-		require.NoError(t, err)
+		responseBody, readAllErr := io.ReadAll(response.Body)
+		require.NoError(t, readAllErr)
 		bodyStr := string(responseBody)
 
 		for _, expected := range check.bodyContains {

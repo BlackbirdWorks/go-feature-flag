@@ -161,13 +161,13 @@ func TestInSet(t *testing.T) {
 			// compiles away. The second pass reuses the compiled rule.
 			wantRet, wantErr, wantDebug := visitorProcess(ev.tree, tc.input)
 			for pass := range 2 {
-				got, err := ev.Process(tc.input)
+				got, processErr := ev.Process(tc.input)
 				if tc.want {
-					require.NoError(t, err, "pass %d", pass)
+					require.NoError(t, processErr, "pass %d", pass)
 				}
-				require.Equal(t, tc.want, got, "pass %d (err %v)", pass, err)
+				require.Equal(t, tc.want, got, "pass %d (err %v)", pass, processErr)
 				require.Equal(t, wantRet, got, "pass %d: visitor result", pass)
-				require.Equal(t, errString(wantErr), errString(err), "pass %d: visitor err", pass)
+				require.Equal(t, errString(wantErr), errString(processErr), "pass %d: visitor err", pass)
 				require.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "pass %d: visitor debug err", pass)
 			}
 			require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")
@@ -214,8 +214,8 @@ func TestInSetThreshold(t *testing.T) {
 					v    any
 					want bool
 				}{{first, true}, {last, true}, {miss, false}} {
-					got, err := ev.Process(kv{"x": c.v})
-					require.NoError(t, err, "x=%v", c.v)
+					got, processErr := ev.Process(kv{"x": c.v})
+					require.NoError(t, processErr, "x=%v", c.v)
 					require.Equal(t, c.want, got, "x=%v", c.v)
 				}
 				require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")

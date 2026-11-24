@@ -447,10 +447,10 @@ func TestCmdEvaluate(t *testing.T) {
 			err = cmd.Execute()
 			tt.wantErr(t, err)
 			if tt.expectedResult != "" {
-				expectedContent, err := os.ReadFile(tt.expectedResult)
-				require.NoError(t, err)
-				gotContent, err := os.ReadFile(stdOut.Name())
-				require.NoError(t, err)
+				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
+				require.NoError(t, readFileErr)
+				gotContent, readFileErr := os.ReadFile(stdOut.Name())
+				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(expectedContent), string(gotContent))
 			}
 

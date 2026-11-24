@@ -62,8 +62,8 @@ func (m *Manager) Init(ctx context.Context) error {
 		return err
 	}
 	if err := m.retrieveFlagsAndUpdateCache(ctx, true); err != nil {
-		if err := m.handleFirstRetrieverError(ctx, err); err != nil {
-			return err
+		if handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err); handleFirstRetrieverErrorErr != nil {
+			return handleFirstRetrieverErrorErr
 		}
 	}
 
@@ -258,9 +258,9 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 		if _, err := os.Stat(m.config.PersistentFlagConfigurationFile); err == nil {
 			// we found the configuration file on the disk
 			r := &fileretriever.Retriever{Path: m.config.PersistentFlagConfigurationFile}
-			newFlags, err := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
-			if err != nil {
-				return err
+			newFlags, retrieveErr := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
+			if retrieveErr != nil {
+				return retrieveErr
 			}
 
 			return m.updateCacheWithRetriever(newFlags, true)

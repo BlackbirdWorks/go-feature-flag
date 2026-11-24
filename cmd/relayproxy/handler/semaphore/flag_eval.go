@@ -101,7 +101,7 @@ func (h *flagEval) Handler(c *echo.Context) error {
 		attribute.String("flagEvaluation.value", fmt.Sprintf("%v", flagValue.Value)),
 	)
 
-	if flagsetName, err := h.flagsetMngr.FlagSetName(helper.APIKey(c)); err == nil {
+	if flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(c)); flagSetNameErr == nil {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 

@@ -102,15 +102,15 @@ func (f *Exporter) Export(
 	}
 
 	for _, file := range files {
-		of, err := os.Open(path.Clean(outputDir + "/" + file.Name()))
-		if err != nil {
+		of, openErr := os.Open(path.Clean(outputDir + "/" + file.Name()))
+		if openErr != nil {
 			logger.Error("[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
 
 			continue
 		}
-		if err := f.uploadFile(ctx, client, of, file.Name()); err != nil {
-			return err
+		if uploadFileErr := f.uploadFile(ctx, client, of, file.Name()); uploadFileErr != nil {
+			return uploadFileErr
 		}
 	}
 

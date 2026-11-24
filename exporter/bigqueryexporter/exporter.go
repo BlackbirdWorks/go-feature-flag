@@ -111,8 +111,8 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.initClient(ctx); err != nil {
-		return err
+	if initClientErr := e.initClient(ctx); initClientErr != nil {
+		return initClientErr
 	}
 
 	return e.exportRows(ctx, e.tableName(), schema, rows)

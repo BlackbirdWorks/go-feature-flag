@@ -30,9 +30,12 @@ func createStream(t *testing.T, client *kinesis.Client, shards int32) string {
 	})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		out, err := client.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(name)})
+		out, describeStreamErr := client.DescribeStream(
+			t.Context(),
+			&kinesis.DescribeStreamInput{StreamName: aws.String(name)},
+		)
 
-		return err == nil && out.StreamDescription.StreamStatus == types.StreamStatusActive
+		return describeStreamErr == nil && out.StreamDescription.StreamStatus == types.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond, "stream not ACTIVE")
 
 	return name
@@ -45,20 +48,20 @@ func readAll(t *testing.T, client *kinesis.Client, stream string, want int) []ex
 	require.NoError(t, err)
 	iterators := map[string]*string{}
 	for _, s := range desc.StreamDescription.Shards {
-		it, err := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
+		it, getShardIteratorErr := client.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
 			StreamName: aws.String(stream), ShardId: s.ShardId, ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 		})
-		require.NoError(t, err)
+		require.NoError(t, getShardIteratorErr)
 		iterators[aws.ToString(s.ShardId)] = it.ShardIterator
 	}
 	var got []exporter.FeatureEvent
 	require.Eventually(t, func() bool {
 		for id, it := range iterators {
-			out, err := client.GetRecords(
+			out, getRecordsErr := client.GetRecords(
 				t.Context(),
 				&kinesis.GetRecordsInput{ShardIterator: it, Limit: aws.Int32(10000)},
 			)
-			if err != nil {
+			if getRecordsErr != nil {
 				return false
 			}
 			iterators[id] = out.NextShardIterator

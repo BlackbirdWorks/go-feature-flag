@@ -693,7 +693,7 @@ func readPersistedFlags(path string) ([]byte, map[string]any, bool) {
 	if err != nil || len(content) == 0 {
 		return nil, nil, false
 	}
-	if err := yaml.Unmarshal(content, &flags); err != nil || len(flags) == 0 {
+	if unmarshalErr := yaml.Unmarshal(content, &flags); unmarshalErr != nil || len(flags) == 0 {
 		return nil, nil, false
 	}
 
@@ -861,12 +861,12 @@ func TestUseCustomBucketingKey(t *testing.T) {
 	t.Run("should return the default value if the bucketing key is not found", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := gffClient.StringVariationDetails(
+		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
 			"my-flag",
 			ffcontext.NewEvaluationContext("random-key"),
 			"default",
 		)
-		require.NoError(t, err)
+		require.NoError(t, stringVariationDetailsErr)
 		want := model.VariationResult[string]{
 			Value:         "default",
 			TrackEvents:   true,
@@ -882,14 +882,14 @@ func TestUseCustomBucketingKey(t *testing.T) {
 	t.Run("should return the variation value if the bucketing key is found", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := gffClient.StringVariationDetails(
+		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
 			"my-flag",
 			ffcontext.NewEvaluationContextBuilder("random-key").
 				AddCustom("teamId", "team-123").
 				Build(),
 			"default",
 		)
-		require.NoError(t, err)
+		require.NoError(t, stringVariationDetailsErr)
 		want := model.VariationResult[string]{
 			Value:         "value_A",
 			TrackEvents:   true,

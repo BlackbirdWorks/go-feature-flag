@@ -407,9 +407,9 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 				tt.configure(r)
 			}
 
-			_, err := r.Retrieve(context.Background())
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			_, retrieveErr := r.Retrieve(context.Background())
+			require.Error(t, retrieveErr)
+			assert.Contains(t, retrieveErr.Error(), tt.wantErr)
 		})
 	}
 }

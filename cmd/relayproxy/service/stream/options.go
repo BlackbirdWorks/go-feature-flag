@@ -19,26 +19,26 @@ type Option func(*options)
 
 // WithFlagDetails controls whether stream payloads include flag definitions.
 func WithFlagDetails(include bool) Option {
-	return func(options *options) {
-		options.includeFlagDetails = include
+	return func(o *options) {
+		o.includeFlagDetails = include
 	}
 }
 
 // WithSSEHeartbeatInterval sets the interval between two SSE heartbeat comments,
 // sent to keep idle connections open through proxies. A value <= 0 disables the heartbeat.
 func WithSSEHeartbeatInterval(interval time.Duration) Option {
-	return func(options *options) {
-		options.sseHeartbeatInterval = interval
+	return func(o *options) {
+		o.sseHeartbeatInterval = interval
 	}
 }
 
 func newOptions(opts ...Option) options {
-	options := options{includeFlagDetails: true, sseHeartbeatInterval: defaultSSEHeartbeatInterval}
+	o := options{includeFlagDetails: true, sseHeartbeatInterval: defaultSSEHeartbeatInterval}
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
 
-	return options
+	return o
 }
 
 type flagChangeNames struct {

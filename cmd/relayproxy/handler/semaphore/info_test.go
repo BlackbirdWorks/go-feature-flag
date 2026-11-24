@@ -117,16 +117,16 @@ func Test_info_Handler(t *testing.T) {
 			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
 
 			if tt.config.FlagSets != nil {
-				flagsets, exists := response["flagsets"]
-				assert.True(t, exists, "Response should contain flagsets field")
+				flagsets, hasFlagsets := response["flagsets"]
+				assert.True(t, hasFlagsets, "Response should contain flagsets field")
 				assert.Len(t, flagsets.(map[string]any), len(tt.config.FlagSets), "Number of flagsets should match")
 				for _, flagset := range tt.config.FlagSets {
 					flagsetName := flagset.Name
-					flagsetRefreshDateStr, exists := flagsets.(map[string]any)[flagsetName]
-					assert.True(t, exists, "Response should contain flagset %s field", flagsetName)
+					flagsetRefreshDateStr, hasFlagset := flagsets.(map[string]any)[flagsetName]
+					assert.True(t, hasFlagset, "Response should contain flagset %s field", flagsetName)
 
-					flagsetRefreshDate, err := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
-					require.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
+					flagsetRefreshDate, parseErr := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
+					require.NoError(t, parseErr, "flagsetRefreshDate should be a valid RFC3339 timestamp")
 					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
 				}
 			}

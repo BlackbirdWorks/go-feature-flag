@@ -111,13 +111,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	for cursor.Next(ctx) {
 		var doc bson.M
 
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, err
+		if decodeErr := cursor.Decode(&doc); decodeErr != nil {
+			return nil, decodeErr
 		}
 
 		if val, ok := doc["flag"]; ok {
 			delete(doc, "flag")
-			if str, ok := val.(string); ok {
+			if str, isString := val.(string); isString {
 				ffDocs[str] = doc
 			} else {
 				r.logger.Error("flag key does not have a string as value")

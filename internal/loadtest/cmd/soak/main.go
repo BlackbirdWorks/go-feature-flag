@@ -82,9 +82,9 @@ func newTarget(o options) (loadtest.Target, error) {
 			FlushInterval: time.Duration(o.flushMs) * time.Millisecond, MaxEventInMemory: o.maxEvents,
 		})
 	case "relay":
-		ep, err := relay.ParseEndpoint(o.endpoint)
-		if err != nil {
-			return nil, err
+		ep, parseEndpointErr := relay.ParseEndpoint(o.endpoint)
+		if parseEndpointErr != nil {
+			return nil, parseEndpointErr
 		}
 		if o.protocol != "http1" && o.protocol != "h2c" {
 			return nil, fmt.Errorf("unknown protocol %q (want http1 or h2c)", o.protocol)
@@ -105,10 +105,10 @@ func startCPUProfile(path string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := pprof.StartCPUProfile(f); err != nil {
+	if startCPUProfileErr := pprof.StartCPUProfile(f); startCPUProfileErr != nil {
 		_ = f.Close()
 
-		return nil, err
+		return nil, startCPUProfileErr
 	}
 
 	return func() {
@@ -130,9 +130,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	slog.SetLogLoggerLevel(slog.LevelError)
 
 	if o.cpuProfile != "" {
-		stop, err := startCPUProfile(o.cpuProfile)
-		if err != nil {
-			_, _ = fmt.Fprintln(stderr, "error:", err)
+		stop, startCPUProfileErr := startCPUProfile(o.cpuProfile)
+		if startCPUProfileErr != nil {
+			_, _ = fmt.Fprintln(stderr, "error:", startCPUProfileErr)
 
 			return 2
 		}

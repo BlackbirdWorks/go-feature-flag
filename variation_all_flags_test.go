@@ -332,8 +332,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 				require.NoError(t, err)
 				defer goff.Close()
 
-				flags, err := goff.GetFlagsFromCache()
-				tt.wantErr(t, err)
+				flags, getFlagsFromCacheErr := goff.GetFlagsFromCache()
+				tt.wantErr(t, getFlagsFromCacheErr)
 
 				assert.Len(t, flags, tt.wantFlags)
 			} else {
@@ -341,8 +341,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 				goff, _ = ffclient.New(tt.config)
 				goff.Close()
 
-				_, err := goff.GetFlagsFromCache()
-				assert.Error(t, err)
+				_, getFlagsFromCacheErr := goff.GetFlagsFromCache()
+				assert.Error(t, getFlagsFromCacheErr)
 			}
 		})
 	}

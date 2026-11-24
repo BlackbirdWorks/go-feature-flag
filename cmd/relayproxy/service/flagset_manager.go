@@ -510,9 +510,9 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	// by rebuildNamedAPIKeysMapping, so a client that is not in the config would run without any
 	// routing (unreachable). If the config update fails, close the client and skip rather than
 	// leaving an orphan running flagset.
-	if err := m.config.AddFlagSet(flagset); err != nil {
+	if addFlagSetErr := m.config.AddFlagSet(flagset); addFlagSetErr != nil {
 		m.logger.Error("failed to register the new flagset in the configuration; it will not be started",
-			zap.String("flagset", flagset.Name), zap.Error(err))
+			zap.String("flagset", flagset.Name), zap.Error(addFlagSetErr))
 		client.Close()
 
 		return

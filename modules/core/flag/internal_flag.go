@@ -295,8 +295,8 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 		return &InternalFlag{}, err
 	}
 	var flagCopy *InternalFlag
-	if err := json.Unmarshal(data, &flagCopy); err != nil {
-		return &InternalFlag{}, err
+	if unmarshalErr := json.Unmarshal(data, &flagCopy); unmarshalErr != nil {
+		return &InternalFlag{}, unmarshalErr
 	}
 
 	// the json copy loses the hash of the queries (see Rule.QueryHash): the rules have the

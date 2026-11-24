@@ -200,8 +200,8 @@ func (q *queryContext) dataOnce() (any, error) {
 			return nil, err
 		}
 		var data any
-		if err := json.Unmarshal(raw, &data); err != nil {
-			return nil, err
+		if unmarshalErr := json.Unmarshal(raw, &data); unmarshalErr != nil {
+			return nil, unmarshalErr
 		}
 		q.parsedEvalCtxAsData = data
 	}

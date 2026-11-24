@@ -331,25 +331,25 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("test-api-key")
-			require.NoError(t, err)
+			name, flagSetNameErr := manager.FlagSetName("test-api-key")
+			require.NoError(t, flagSetNameErr)
 			assert.Equal(t, "test-flagset", name)
 		})
 		t.Run("non-existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("invalid-key")
-			require.Error(t, err)
+			name, flagSetNameErr := manager.FlagSetName("invalid-key")
+			require.Error(t, flagSetNameErr)
 			assert.Empty(t, name)
-			assert.Equal(t, "no flag set associated to the API key", err.Error())
+			assert.Equal(t, "no flag set associated to the API key", flagSetNameErr.Error())
 		})
 		t.Run("empty api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("")
-			require.Error(t, err)
+			name, flagSetNameErr := manager.FlagSetName("")
+			require.Error(t, flagSetNameErr)
 			assert.Empty(t, name)
-			assert.Equal(t, "apiKey is required when using flagsets", err.Error())
+			assert.Equal(t, "apiKey is required when using flagsets", flagSetNameErr.Error())
 		})
 	})
 
@@ -374,8 +374,8 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("empty api key should return default", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("")
-			require.NoError(t, err)
+			name, flagSetNameErr := manager.FlagSetName("")
+			require.NoError(t, flagSetNameErr)
 			assert.Equal(t, "default", name)
 		})
 	})

@@ -624,10 +624,10 @@ func testProcessConcurrent(t *testing.T) {
 			for range 8 {
 				wg.Go(func() {
 					for range 500 {
-						got, err := ev.Process(tt.items)
+						got, processErr := ev.Process(tt.items)
 						assert.Equal(t, tt.want, got)
 						_ = ev.LastDebugErr()
-						assert.NoError(t, err)
+						assert.NoError(t, processErr)
 					}
 				})
 			}
@@ -727,9 +727,9 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 				for range 16 {
 					wg.Go(func() {
 						<-start
-						got, err := ev.Process(tt.items)
+						got, processErr := ev.Process(tt.items)
 						assert.Equal(t, tt.want, got)
-						assert.NoError(t, err)
+						assert.NoError(t, processErr)
 					})
 				}
 				close(start)
@@ -980,8 +980,9 @@ func testProcessConcurrentStaleList(t *testing.T) {
 			for range 8 {
 				wg.Go(func() {
 					for range 200 {
-						got, err := ev.Process(tt.items)
-						if !assert.Equal(t, wantRet, got) || !assert.Equal(t, errString(wantErr), errString(err)) {
+						got, processErr := ev.Process(tt.items)
+						if !assert.Equal(t, wantRet, got) ||
+							!assert.Equal(t, errString(wantErr), errString(processErr)) {
 							return
 						}
 					}

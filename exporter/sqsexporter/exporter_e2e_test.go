@@ -57,11 +57,11 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 			got = append(got, r)
-			_, err := client.DeleteMessage(
+			_, deleteMessageErr := client.DeleteMessage(
 				t.Context(),
 				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
 			)
-			require.NoError(t, err)
+			require.NoError(t, deleteMessageErr)
 		}
 
 		return len(got) >= want

@@ -123,16 +123,16 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		var flagName string
 		var configData []byte
 
-		if err := rows.Scan(&flagName, &configData); err != nil {
-			r.logger.Error("Failed to scan row", "error", err)
+		if scanErr := rows.Scan(&flagName, &configData); scanErr != nil {
+			r.logger.Error("Failed to scan row", "error", scanErr)
 
 			continue
 		}
 
 		// Parse the JSON config data into a map
 		var config map[string]any
-		if err := json.Unmarshal(configData, &config); err != nil {
-			r.logger.Error("Failed to unmarshal config data", "error", err, "flagName", flagName)
+		if unmarshalErr := json.Unmarshal(configData, &config); unmarshalErr != nil {
+			r.logger.Error("Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
 
 			continue
 		}
@@ -140,8 +140,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	// Check for any errors that occurred during row iteration
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+	if errErr := rows.Err(); errErr != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", errErr)
 	}
 
 	// If no flags found, return empty JSON object

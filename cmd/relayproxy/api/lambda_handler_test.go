@@ -223,19 +223,19 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 				Body: "",
 			}
 
-			reqJSON, err := json.Marshal(request)
-			require.NoError(t, err)
+			reqJSON, marshalErr := json.Marshal(request)
+			require.NoError(t, marshalErr)
 
 			// Create a Lambda handler
 			handler := lambda.NewHandler(apiServer.lambdaHandler())
 
 			// Invoke the handler with the mock event
-			response, err := handler.Invoke(context.Background(), reqJSON)
-			require.NoError(t, err)
+			response, marshalErr := handler.Invoke(context.Background(), reqJSON)
+			require.NoError(t, marshalErr)
 
 			var res events.APIGatewayV2HTTPResponse
-			err = json.Unmarshal(response, &res)
-			require.NoError(t, err)
+			marshalErr = json.Unmarshal(response, &res)
+			require.NoError(t, marshalErr)
 			require.Equal(t, tt.expectedCode, res.StatusCode)
 		})
 	}

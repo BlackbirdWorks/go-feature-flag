@@ -111,18 +111,18 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 				if ep.keyInQuery {
 					target += "?apiKey=" + url.QueryEscape(k.key)
 				}
-				req, err := http.NewRequestWithContext(
+				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(), ep.method, target, strings.NewReader(ep.body))
-				require.NoError(t, err)
+				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
 				if !ep.keyInQuery {
 					req.Header.Set("X-Api-Key", k.key)
 				}
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
+				resp, requestWithContextErr := http.DefaultClient.Do(req)
+				require.NoError(t, requestWithContextErr)
 				defer func() { _ = resp.Body.Close() }()
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				body, requestWithContextErr := io.ReadAll(resp.Body)
+				require.NoError(t, requestWithContextErr)
 
 				assert.Equal(t, k.want, resp.StatusCode, string(body))
 			})

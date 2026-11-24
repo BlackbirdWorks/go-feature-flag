@@ -141,8 +141,8 @@ func Start(opts Options) (_ *Relay, err error) {
 		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
 		listener = nil
 		r.BaseURL = baseURL
-		if err := waitHealthy(baseURL); err != nil {
-			return nil, err
+		if waitHealthyErr := waitHealthy(baseURL); waitHealthyErr != nil {
+			return nil, waitHealthyErr
 		}
 	}
 

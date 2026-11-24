@@ -144,8 +144,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -437,8 +437,8 @@ func Test_Evaluate(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)

@@ -233,8 +233,8 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.validate(); err != nil {
-		return err
+	if validateErr := e.validate(); validateErr != nil {
+		return validateErr
 	}
 	table, columns := e.tableName(eventType), columnsForEventType(eventType)
 	if !IsValidTableName(table) {
@@ -250,15 +250,15 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.initClient(ctx); err != nil {
-		return err
+	if initClientErr := e.initClient(ctx); initClientErr != nil {
+		return initClientErr
 	}
-	if err := e.migrate(ctx, table, columns); err != nil {
-		return err
+	if migrateErr := e.migrate(ctx, table, columns); migrateErr != nil {
+		return migrateErr
 	}
 	for _, b := range buildBatches(table, columns, rows) {
-		if err := e.run(ctx, b.sqls, b.params); err != nil {
-			return err
+		if runErr := e.run(ctx, b.sqls, b.params); runErr != nil {
+			return runErr
 		}
 	}
 
@@ -396,8 +396,8 @@ func (e *Exporter) waitForStatement(ctx context.Context, id *string) error {
 				return fmt.Errorf("redshift exporter: describe statement %s: %w", aws.ToString(id), err)
 			}
 			lastErr = err
-		} else if done, err := statementResult(id, output); done {
-			return err
+		} else if done, statementResultErr := statementResult(id, output); done {
+			return statementResultErr
 		}
 
 		select {

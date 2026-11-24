@@ -129,8 +129,8 @@ func (f *Exporter) Export(
 	}
 	for _, file := range files {
 		// read file
-		of, err := os.Open(outputDir + "/" + file.Name())
-		if err != nil {
+		of, openErr := os.Open(outputDir + "/" + file.Name())
+		if openErr != nil {
 			logger.Error(
 				"[S3Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()),
@@ -138,8 +138,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if err := f.uploadFile(ctx, logger, of, file.Name()); err != nil {
-			return err
+		if uploadFileErr := f.uploadFile(ctx, logger, of, file.Name()); uploadFileErr != nil {
+			return uploadFileErr
 		}
 	}
 

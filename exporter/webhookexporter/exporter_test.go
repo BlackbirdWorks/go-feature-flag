@@ -278,8 +278,8 @@ func TestWebhook_Export(t *testing.T) {
 
 			require.NoError(t, err)
 			if tt.expected.bodyFilePath != "" {
-				c, err := os.ReadFile(tt.expected.bodyFilePath)
-				require.NoError(t, err)
+				c, readFileErr := os.ReadFile(tt.expected.bodyFilePath)
+				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(c), tt.fields.httpClient.Body)
 			}
 

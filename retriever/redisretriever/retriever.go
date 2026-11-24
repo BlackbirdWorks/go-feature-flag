@@ -95,8 +95,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		}
 
 		var flagData any
-		if err := json.Unmarshal([]byte(value), &flagData); err != nil {
-			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, err)
+		if unmarshalErr := json.Unmarshal([]byte(value), &flagData); unmarshalErr != nil {
+			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, unmarshalErr)
 		}
 
 		flagsData[keyWithoutPrefix] = flagData

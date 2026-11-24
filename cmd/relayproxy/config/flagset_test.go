@@ -90,8 +90,8 @@ func TestConfigSetFlagSetAPIKeys(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				// Verify the API keys were actually set
-				gotKeys, err := tt.config.GetFlagSetAPIKeys(tt.flagsetName)
-				require.NoError(t, err)
+				gotKeys, getFlagSetAPIKeysErr := tt.config.GetFlagSetAPIKeys(tt.flagsetName)
+				require.NoError(t, getFlagSetAPIKeysErr)
 				assert.Equal(t, tt.apiKeys, gotKeys)
 			}
 		})

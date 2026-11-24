@@ -34,8 +34,8 @@ func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 		return nil, err
 	}
 	path := filepath.Join(dir, "flags.yaml")
-	if err := os.WriteFile(path, []byte(FlagsYAML()), 0o600); err != nil {
-		return nil, err
+	if writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600); writeFileErr != nil {
+		return nil, writeFileErr
 	}
 	if o.FlushInterval == 0 {
 		o.FlushInterval = time.Second

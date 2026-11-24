@@ -91,10 +91,10 @@ func TestManifestCmd(t *testing.T) {
 			assert.Equal(t, tt.expectedOutput, string(output), "output is not expected")
 
 			if tt.expectedManifest != "" {
-				wantManifest, err := os.ReadFile(tt.expectedManifest)
-				require.NoError(t, err)
-				gotManifest, err := os.ReadFile(tmpManifest.Name())
-				require.NoError(t, err)
+				wantManifest, readFileErr := os.ReadFile(tt.expectedManifest)
+				require.NoError(t, readFileErr)
+				gotManifest, readFileErr := os.ReadFile(tmpManifest.Name())
+				require.NoError(t, readFileErr)
 				assert.Equal(t, string(wantManifest), string(gotManifest), "manifest is not expected")
 			}
 		})

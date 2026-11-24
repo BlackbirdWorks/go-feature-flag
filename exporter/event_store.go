@@ -162,8 +162,8 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 		return nil
 	}
 
-	if err := processEventsFunc(context.Background(), eventList.Events); err != nil {
-		return err
+	if processEventsFuncErr := processEventsFunc(context.Background(), eventList.Events); processEventsFuncErr != nil {
+		return processEventsFuncErr
 	}
 
 	e.mutex.Lock()

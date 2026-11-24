@@ -27,8 +27,8 @@ func run() error {
 	}
 	rulesString := string(rulesBytes)
 	var info map[string]any
-	if err := json.Unmarshal(jsonFile, &info); err != nil {
-		return fmt.Errorf("error decoding obj from file: %w", err)
+	if unmarshalErr := json.Unmarshal(jsonFile, &info); unmarshalErr != nil {
+		return fmt.Errorf("error decoding obj from file: %w", unmarshalErr)
 	}
 	ev, err := parser.NewEvaluator(rulesString)
 	if err != nil {
@@ -43,8 +43,8 @@ func run() error {
 		Object: %v
 		Answer: %v
 	`+"\n", rulesString, info, ans)
-	if err := ev.LastDebugErr(); err != nil {
-		fmt.Fprintln(os.Stdout, "Last debug error", err)
+	if debugErr := ev.LastDebugErr(); debugErr != nil {
+		fmt.Fprintln(os.Stdout, "Last debug error", debugErr)
 	}
 
 	return nil

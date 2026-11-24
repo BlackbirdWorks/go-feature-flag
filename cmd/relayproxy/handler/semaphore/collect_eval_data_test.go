@@ -259,8 +259,8 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 

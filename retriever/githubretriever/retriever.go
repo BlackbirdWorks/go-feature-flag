@@ -138,8 +138,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := r.checkRateLimit(); err != nil {
-		return nil, err
+	if checkRateLimitErr := r.checkRateLimit(); checkRateLimitErr != nil {
+		return nil, checkRateLimitErr
 	}
 
 	requestURL, err := r.buildURL(branch)
@@ -167,8 +167,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := r.checkResponseError(resp, requestURL); err != nil {
-		return nil, err
+	if checkResponseErrorErr := r.checkResponseError(resp, requestURL); checkResponseErrorErr != nil {
+		return nil, checkResponseErrorErr
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -282,8 +282,8 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	}
 
 	var result installationTokenResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", err)
+	if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
+		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
 	if result.Token == "" {
 		return "", time.Time{}, errors.New("github app: token response contained no token")

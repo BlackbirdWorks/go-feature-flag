@@ -28,8 +28,8 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	requests, err := filepath.Glob(testdataDir + "/ofrep/*.json")
 	require.NoError(f, err)
 	for _, file := range requests {
-		content, err := os.ReadFile(file)
-		require.NoError(f, err)
+		content, readFileErr := os.ReadFile(file)
+		require.NoError(f, readFileErr)
 		f.Add("number-flag", string(content), false)
 		f.Add("", string(content), true)
 	}

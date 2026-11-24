@@ -188,10 +188,10 @@ func (e *Exporter) Export(
 	records := make([]types.PutRecordsRequestEntry, 0, len(featureEvents))
 
 	for _, event := range featureEvents {
-		formattedEvent, err := e.formatMessage(event)
+		formattedEvent, formatMessageErr := e.formatMessage(event)
 
-		if err != nil {
-			return fmt.Errorf("format: %w", err)
+		if formatMessageErr != nil {
+			return fmt.Errorf("format: %w", formatMessageErr)
 		}
 
 		if len(formattedEvent) >= Mb {
@@ -229,11 +229,11 @@ func (e *Exporter) Export(
 	for _, chunk := range chunkRecords(records) {
 		chunkInput := *input
 		chunkInput.Records = chunk
-		if err := e.sendChunk(ctx, logger, &chunkInput); err != nil {
+		if sendChunkErr := e.sendChunk(ctx, logger, &chunkInput); sendChunkErr != nil {
 			if ctx.Err() != nil {
-				return err
+				return sendChunkErr
 			}
-			errs = append(errs, err)
+			errs = append(errs, sendChunkErr)
 		}
 	}
 
@@ -305,9 +305,9 @@ func (e *Exporter) sendChunk(
 				len(retry), total, attempt, distinctCodes(failures))
 		}
 		pending = retry
-		if err := e.wait(ctx, backoff(attempt)); err != nil {
+		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
 			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
-				len(retry), total, err)
+				len(retry), total, waitErr)
 		}
 	}
 }

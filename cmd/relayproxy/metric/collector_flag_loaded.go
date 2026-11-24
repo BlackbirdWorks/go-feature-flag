@@ -49,13 +49,13 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 			continue
 		}
 		// the flags are only evaluated: not copying them keeps the memoized state of the scheduled rollouts.
-		flags, err := flagset.GetFlagsFromCacheReadOnly()
-		if err != nil {
+		flags, getFlagsFromCacheReadOnlyErr := flagset.GetFlagsFromCacheReadOnly()
+		if getFlagsFromCacheReadOnlyErr != nil {
 			continue
 		}
 		svc := flagset.EvaluationService()
 		for flagName, f := range flags {
-			metric, err := prom.NewConstMetric(
+			metric, constMetricErr := prom.NewConstMetric(
 				c.desc,
 				prom.GaugeValue,
 				1,
@@ -63,7 +63,7 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 				flagName,
 				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, f)),
 			)
-			if err != nil {
+			if constMetricErr != nil {
 				continue
 			}
 			ch <- metric

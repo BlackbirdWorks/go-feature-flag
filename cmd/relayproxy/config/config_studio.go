@@ -60,14 +60,14 @@ func validateStudioFlagSets(content []byte, parser koanf.Parser) error {
 		return err
 	}
 	k := koanf.New(".")
-	if err := k.Load(confmap.Provider(values, "."), nil); err != nil {
-		return err
+	if loadErr := k.Load(confmap.Provider(values, "."), nil); loadErr != nil {
+		return loadErr
 	}
 	var studioConf struct {
 		FlagSets []FlagSet `koanf:"flagsets"`
 	}
-	if err := k.Unmarshal("", &studioConf); err != nil {
-		return err
+	if unmarshalErr := k.Unmarshal("", &studioConf); unmarshalErr != nil {
+		return unmarshalErr
 	}
 
 	return (&Config{FlagSets: studioConf.FlagSets}).validateFlagSets()

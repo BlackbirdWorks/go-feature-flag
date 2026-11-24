@@ -270,8 +270,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				hostname, _ := os.Hostname()
-				content, err := os.ReadFile(tt.expected.bodyPath)
-				require.NoError(t, err)
+				content, readFileErr := os.ReadFile(tt.expected.bodyPath)
+				require.NoError(t, readFileErr)
 				expectedContent := strings.ReplaceAll(string(content), "{{hostname}}", hostname)
 				assert.JSONEq(t, expectedContent, mockHTTPClient.Body)
 				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)

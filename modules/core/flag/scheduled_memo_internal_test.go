@@ -84,9 +84,9 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	// f is not used past this point, so the flag (and its Scheduled) is unreachable and collectable.
 	assert.Eventually(t, func() bool {
 		runtime.GC()
-		_, ok := svc.scheduled.entries.Load(key)
+		_, stillThere := svc.scheduled.entries.Load(key)
 
-		return !ok
+		return !stillThere
 	}, 5*time.Second, 20*time.Millisecond)
 }
 

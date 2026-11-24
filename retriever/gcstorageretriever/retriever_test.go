@@ -126,8 +126,8 @@ func TestRetriever_Retrieve(t *testing.T) {
 				)
 
 				if err == nil {
-					wantContent, err := os.ReadFile(want)
-					require.NoError(t, err)
+					wantContent, readFileErr := os.ReadFile(want)
+					require.NoError(t, readFileErr)
 
 					assert.Equal(
 						t,

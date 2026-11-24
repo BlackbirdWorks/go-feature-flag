@@ -63,8 +63,8 @@ func Test_Redis_Retrieve(t *testing.T) {
 			err := retriever.Init(context.TODO(), nil)
 			require.NoError(t, err)
 			defer func() {
-				err := retriever.Shutdown(context.TODO())
-				assert.NoError(t, err)
+				shutdownErr := retriever.Shutdown(context.TODO())
+				assert.NoError(t, shutdownErr)
 			}()
 			got, err := retriever.Retrieve(context.Background())
 			tt.wantErr(t, err)

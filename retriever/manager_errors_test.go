@@ -95,8 +95,8 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 			if tt.wantFlag {
 				require.NoError(t, err)
 				assert.Contains(t, flags, "test-flag")
-				f, err := m.GetFlag("test-flag")
-				require.NoError(t, err)
+				f, getFlagErr := m.GetFlag("test-flag")
+				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
 				assert.False(t, m.GetCacheRefreshDate().IsZero())
 			} else {

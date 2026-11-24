@@ -262,7 +262,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		defer close(clientDone)
 		first := true
 		for {
-			if _, _, err := ws.ReadMessage(); err != nil {
+			if _, _, readMessageErr := ws.ReadMessage(); readMessageErr != nil {
 				return
 			}
 			if first {
@@ -415,8 +415,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			go func() {
 				defer close(msgs)
 				for {
-					_, msg, err := ws.ReadMessage()
-					if err != nil {
+					_, msg, readMessageErr := ws.ReadMessage()
+					if readMessageErr != nil {
 						return
 					}
 					msgs <- string(msg)

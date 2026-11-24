@@ -768,8 +768,8 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), filePrefix) {
 			countFileWithPrefix++
-			err := os.Remove(path.Clean(file.Name()))
-			require.NoError(t, err)
+			removeErr := os.Remove(path.Clean(file.Name()))
+			require.NoError(t, removeErr)
 		}
 	}
 	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")

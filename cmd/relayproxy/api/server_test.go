@@ -597,8 +597,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -684,8 +684,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -773,8 +773,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -952,8 +952,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, err := net.Dial("unix", socketPath)
-				if err != nil {
+				conn, dialErr := net.Dial("unix", socketPath)
+				if dialErr != nil {
 					return false
 				}
 
@@ -1059,8 +1059,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, err := net.Dial("unix", socketPath)
-				if err != nil {
+				conn, dialErr := net.Dial("unix", socketPath)
+				if dialErr != nil {
 					return false
 				}
 
@@ -1163,11 +1163,11 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	reader := bufio.NewReader(resp.Body)
 	for {
 		var mf promdto.MetricFamily
-		err := protodelim.UnmarshalFrom(reader, &mf)
-		if errors.Is(err, io.EOF) {
+		unmarshalFromErr := protodelim.UnmarshalFrom(reader, &mf)
+		if errors.Is(unmarshalFromErr, io.EOF) {
 			break
 		}
-		require.NoError(t, err)
+		require.NoError(t, unmarshalFromErr)
 
 		// Only check histogram metric families from our subsystem
 		if mf.GetType() == promdto.MetricType_HISTOGRAM {
@@ -1242,8 +1242,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
-		if err != nil {
+		resp, getErr := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
+		if getErr != nil {
 			return false
 		}
 		_ = resp.Body.Close()

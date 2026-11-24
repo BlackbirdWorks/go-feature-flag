@@ -63,16 +63,16 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 
 			if tt.data != "" {
 				// insert data
-				client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
-				require.NoError(t, err)
+				client, connectErr := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
+				require.NoError(t, connectErr)
 				coll := client.Database("database").Collection("collection")
 				var documents []bson.M
-				err = json.Unmarshal([]byte(tt.data), &documents)
-				require.NoError(t, err)
+				connectErr = json.Unmarshal([]byte(tt.data), &documents)
+				require.NoError(t, connectErr)
 
 				for _, doc := range documents {
-					_, err := coll.InsertOne(context.TODO(), doc)
-					require.NoError(t, err)
+					_, insertOneErr := coll.InsertOne(context.TODO(), doc)
+					require.NoError(t, insertOneErr)
 				}
 			}
 
@@ -96,8 +96,8 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			if tt.want == nil {
 				assert.Nil(t, got)
 			} else {
-				modifiedGot, err := removeIDFromJSON(string(got))
-				require.NoError(t, err)
+				modifiedGot, removeIDFromJSONErr := removeIDFromJSON(string(got))
+				require.NoError(t, removeIDFromJSONErr)
 				assert.JSONEq(t, string(tt.want), modifiedGot)
 			}
 		})

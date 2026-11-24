@@ -111,9 +111,9 @@ func KeyAuthExtended(config KeyAuthExtendedConfig) echo.MiddlewareFunc {
 			}
 
 			// First, check X-API-Key header
-			handled, err := validateXAPIKey(c, config, next)
+			handled, validateXAPIKeyErr := validateXAPIKey(c, config, next)
 			if handled {
-				return err
+				return validateXAPIKeyErr
 			}
 
 			// If X-API-Key is not present, fall back to standard KeyAuth behavior

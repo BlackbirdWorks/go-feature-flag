@@ -265,8 +265,8 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 				files := make([]string, 0)
 				pager := client.NewListBlobsFlatPager(containerName, nil)
 				for pager.More() {
-					page, err := pager.NextPage(context.Background())
-					require.NoError(t, err)
+					page, nextPageErr := pager.NextPage(context.Background())
+					require.NoError(t, nextPageErr)
 					for _, blob := range page.Segment.BlobItems {
 						files = append(files, *blob.Name)
 					}

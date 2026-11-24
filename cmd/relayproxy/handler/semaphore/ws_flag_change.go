@@ -150,10 +150,10 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 	_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
 	for {
 		// ReadMessage is needed to process control messages like pongs and close messages.
-		if _, _, err := conn.ReadMessage(); err != nil {
+		if _, _, readMessageErr := conn.ReadMessage(); readMessageErr != nil {
 			f.logger.Debug(
 				"closing websocket connection",
-				zap.Error(err),
+				zap.Error(readMessageErr),
 				zap.Any("connection", conn),
 			)
 

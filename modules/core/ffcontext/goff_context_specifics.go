@@ -43,7 +43,7 @@ func (g *GoffContextSpecifics) addListFlags(flagList any) {
 		// an explicit empty list is kept as an empty (not nil) list: it is set, an empty list means all the flags.
 		g.FlagList = make([]string, 0, len(value))
 		for _, val := range value {
-			if valAsString, ok := val.(string); ok {
+			if valAsString, isString := val.(string); isString {
 				g.FlagList = append(g.FlagList, valAsString)
 			}
 		}

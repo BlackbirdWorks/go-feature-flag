@@ -197,8 +197,8 @@ func Main(m *testing.M) int {
 			return 1
 		}
 		defer func() { _ = srv.Terminate() }()
-		if err := os.Setenv(EnvEndpoint, srv.Endpoint); err != nil {
-			fmt.Fprintln(os.Stderr, "gopherstack:", err)
+		if setenvErr := os.Setenv(EnvEndpoint, srv.Endpoint); setenvErr != nil {
+			fmt.Fprintln(os.Stderr, "gopherstack:", setenvErr)
 
 			return 1
 		}

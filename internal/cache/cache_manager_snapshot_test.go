@@ -90,7 +90,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 					d := true
 					f.(*flag.InternalFlag).Disable = &d
 				}
-				if live, err := m.GetFlag("flag-1"); err == nil {
+				if live, getFlagErr := m.GetFlag("flag-1"); getFlagErr == nil {
 					_ = live.IsDisable()
 				}
 			}

@@ -177,15 +177,15 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
 	keys := sortedKeys(files)
-	if err := checkFormats(keys); err != nil {
-		return nil, err
+	if checkFormatsErr := checkFormats(keys); checkFormatsErr != nil {
+		return nil, checkFormatsErr
 	}
 	if len(keys) == 0 {
 		l.opts.Logger.Warn(l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
-	if err := l.refreshCache(ctx, keys, files); err != nil {
-		return nil, err
+	if refreshCacheErr := l.refreshCache(ctx, keys, files); refreshCacheErr != nil {
+		return nil, refreshCacheErr
 	}
 
 	merged, err := l.mergeFlags(keys)

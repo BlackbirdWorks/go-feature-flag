@@ -64,13 +64,16 @@ func main() {
 		logger.ZapLogger.Fatal("error while reading configuration", zap.Error(err))
 	}
 	defer func() {
-		if err := proxyConf.StopConfigChangeWatcher(); err != nil {
-			logger.ZapLogger.Error("error while stopping the configuration watcher", zap.Error(err))
+		if stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher(); stopConfigChangeWatcherErr != nil {
+			logger.ZapLogger.Error(
+				"error while stopping the configuration watcher",
+				zap.Error(stopConfigChangeWatcherErr),
+			)
 		}
 	}()
 
-	if err := proxyConf.IsValid(); err != nil {
-		logger.ZapLogger.Fatal("configuration error", zap.Error(err))
+	if isValidErr := proxyConf.IsValid(); isValidErr != nil {
+		logger.ZapLogger.Fatal("configuration error", zap.Error(isValidErr))
 	}
 
 	if !proxyConf.HideBanner {
@@ -113,8 +116,8 @@ func main() {
 
 		return
 	}
-	if err := metricsV2.RegisterFlagLoaded(flagsetManager); err != nil {
-		logger.ZapLogger.Error("impossible to register the flag_loaded metric", zap.Error(err))
+	if registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager); registerFlagLoadedErr != nil {
+		logger.ZapLogger.Error("impossible to register the flag_loaded metric", zap.Error(registerFlagLoadedErr))
 	}
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
