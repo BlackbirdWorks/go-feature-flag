@@ -75,9 +75,13 @@ func (r *Rule) RequiresBucketing() bool {
 }
 
 // Evaluate is checking if the rule applies to for the user.
-// If yes, it returns the variation you should use for this rule.
+// If yes, it returns the variation you should use for this rule. The queries are parsed and cached
+// by svc (a throwaway Service when it is nil).
 func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagName string, isDefault bool,
 ) (string, error) {
+	if svc == nil {
+		svc = NewService()
+	}
 	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
