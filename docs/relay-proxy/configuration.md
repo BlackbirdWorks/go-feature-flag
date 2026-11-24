@@ -376,6 +376,8 @@ List of authorized API keys.
 > **Runtime updates**: API keys can be updated at runtime without restarting the relay proxy.  
 > When the configuration file changes, the relay proxy automatically detects and applies the new API key configuration.  
 > This works in both default mode and flagset mode.
+> In flagset mode, `authorizedKeys.admin` and the [`apiKeys` of each flag set](#flagsetapikeys) are reloaded.
+> The new keys replace the old ones in a single step: a request is always checked against either the previous or the new keys.
 
 ### `evaluationContextEnrichment`
 

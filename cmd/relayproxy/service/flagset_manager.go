@@ -378,7 +378,8 @@ func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 // In flagsets mode we support, without a restart:
 //   - adding a new flagset (a new GoFeatureFlag client is created),
 //   - removing a flagset (its GoFeatureFlag client is closed),
-//   - changing the API keys of an existing flagset.
+//   - changing the API keys of an existing flagset,
+//   - changing the authorizedKeys (admin keys).
 //
 // Any other modification of an existing flagset (retriever, exporter, notifier, polling
 // interval, ...) is NOT supported and is rejected with an error: the change is ignored at
@@ -442,7 +443,13 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	m.rebuildNamedAPIKeysMapping(currentByName, newByName)
 
 	m.warnIfUnnamedFlagsetsChanged(currentFlagsets, newConfig.FlagSets)
-	m.config.ForceReloadAPIKeys()
+
+	// The authorized keys (admin keys) and the top-level API keys are reloadable too. They are replaced
+	// together with the accepted key set, in one step, so that no request sees a partial update.
+	if !cmp.Equal(m.config.GetAuthorizedKeys(), newConfig.GetAuthorizedKeys(), cmpopts.IgnoreUnexported(config.APIKeys{})) {
+		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
+	}
+	m.config.ReplaceAPIKeys(newConfig.GetAuthorizedKeys(), newConfig.GetAPIKeys())
 }
 
 // isNamedFlagset returns true if the flagset has an explicit, stable name that allows it to be

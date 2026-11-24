@@ -88,3 +88,14 @@ func (c *Config) ForceReloadAPIKeys() {
 	c.apiKeysSet = nil
 	c.preloadAPIKeysLocked()
 }
+
+// ReplaceAPIKeys replaces the authorized keys and the (deprecated) top-level API keys and rebuilds the
+// accepted key set in a single critical section: a concurrent request is authenticated against either the
+// previous or the new keys, never against a partially updated set.
+func (c *Config) ReplaceAPIKeys(authorizedKeys APIKeys, apiKeys []string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.AuthorizedKeys = authorizedKeys
+	c.APIKeys = apiKeys
+	c.preloadAPIKeysLocked()
+}
