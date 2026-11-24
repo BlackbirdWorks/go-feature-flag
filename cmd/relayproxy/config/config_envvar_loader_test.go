@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,7 +9,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -110,7 +110,8 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			var got *config.Config
 			var err error
 			require.NotPanics(t, func() {
-				got, err = config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false, withEnviron(tt.env...)).ToConfig()
+				got, err = config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
+					ToConfig()
 			})
 			if tt.wantUnmarshalError {
 				require.Error(t, err)

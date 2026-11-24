@@ -3,6 +3,7 @@ package opentelemetry
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"strconv"
 	"testing"
@@ -15,11 +16,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace/noop"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 var (
@@ -32,7 +31,7 @@ var (
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -43,7 +42,7 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -54,7 +53,7 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		sampler, err := initSampler("test", c)
@@ -72,7 +71,7 @@ func TestInitSampler(t *testing.T) {
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		url, refreshInterval, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -87,7 +86,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MANAGER_HOST_PORT", expected)
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		url, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -100,7 +99,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", expected.String())
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		_, refreshInterval, _, err := jaegerRemoteSamplerOpts(c)
@@ -113,7 +112,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", strconv.Itoa(expected))
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		_, _, maxOperations, err := jaegerRemoteSamplerOpts(c)
@@ -125,7 +124,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", "bogus")
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 
 		_, _, _, err := jaegerRemoteSamplerOpts(c)
@@ -136,7 +135,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", "bogus")
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		_, errC := config.New(f, zap.NewNop(), "1.X.X")
+		_, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.ErrorContains(t, errC,
 			"'jaeger.sampler.max.operations' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
 	})
@@ -199,7 +198,7 @@ func TestInit(t *testing.T) {
 		t.Setenv("OTEL_SDK_DISABLED", "true")
 		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
+		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
 		svc := NewOtelService()
 		err := svc.Init(context.Background(), c)
@@ -227,31 +226,31 @@ func TestNewErrorHandler(t *testing.T) {
 
 	tests := []struct {
 		err         error
+		wantContext map[string]any
 		name        string
 		wantMessage string
-		wantContext []zapcore.Field
-		wantLevel   zapcore.Level
+		wantLevel   slog.Level
 	}{
 		{
-			name:        "the error is logged to zap",
+			name:        "the error is logged",
 			err:         errTestError,
-			wantLevel:   zap.ErrorLevel,
+			wantLevel:   slog.LevelError,
 			wantMessage: "OTel error",
-			wantContext: []zapcore.Field{zap.Error(errTestError)},
+			wantContext: map[string]any{"error": errTestError.Error()},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			obs, logs := observer.New(zap.InfoLevel)
-			newErrorHandler(zap.New(obs)).Handle(tt.err)
+			obs, logs := slogutil.NewObserver(slog.LevelInfo)
+			newErrorHandler(obs).Handle(tt.err)
 
-			got := logs.AllUntimed()
+			got := logs.All()
 			require.Len(t, got, 1)
 			assert.Equal(t, tt.wantLevel, got[0].Level)
 			assert.Equal(t, tt.wantMessage, got[0].Message)
-			assert.Equal(t, tt.wantContext, got[0].Context)
+			assert.Equal(t, tt.wantContext, got[0].ContextMap())
 		})
 	}
 }
@@ -276,13 +275,13 @@ func TestInstall(t *testing.T) {
 	)
 	defer func() { _ = svc.Stop(context.Background()) }()
 
-	svc.Install(zap.NewNop())
+	svc.Install(slog.New(slog.DiscardHandler))
 
 	assert.Same(t, svc.otelTraceProvider, otel.GetTracerProvider())
 
 	// a service that found OpenTelemetry disabled installs a no-op provider
 	disabled := NewOtelService()
-	disabled.Install(zap.NewNop())
+	disabled.Install(slog.New(slog.DiscardHandler))
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
@@ -324,7 +323,7 @@ func TestExportEnvironment(t *testing.T) {
 func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	c, errC := config.New(f, zap.NewNop(), "1.X.X")
+	c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 	require.NoError(t, errC)
 	c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
 

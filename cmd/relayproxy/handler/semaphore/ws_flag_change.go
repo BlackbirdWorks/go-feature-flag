@@ -2,17 +2,18 @@ package controller
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 // threadSafeConn serializes all writes to a single websocket connection.
@@ -46,7 +47,7 @@ func (c *threadSafeConn) ping() error {
 func NewWsFlagChange(
 	websocketService stream.WebsocketService,
 	flagsetManager service.FlagsetManager,
-	logger *zap.Logger,
+	logger *slog.Logger,
 ) *WSFlagChange {
 	return &WSFlagChange{
 		websocketService: websocketService,
@@ -68,7 +69,7 @@ const defaultPingInterval = 1 * time.Second
 type WSFlagChange struct {
 	websocketService stream.WebsocketService
 	flagsetManager   service.FlagsetManager
-	logger           *zap.Logger
+	logger           *slog.Logger
 	upgrader         websocket.Upgrader
 	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
 	pingInterval time.Duration
@@ -129,7 +130,12 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 
 	f.websocketService.Register(safeConn, flagsetName)
 	defer f.websocketService.Deregister(safeConn)
-	f.logger.Debug("registering new websocket connection", zap.Any("connection", conn))
+	f.logger.LogAttrs(
+		context.Background(),
+		slog.LevelDebug,
+		"registering new websocket connection",
+		slog.Any("connection", conn),
+	)
 
 	// Create context for cancellation
 	ctx, cancel := context.WithCancel(c.Request().Context())
@@ -151,10 +157,10 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 	for {
 		// ReadMessage is needed to process control messages like pongs and close messages.
 		if _, _, readMessageErr := conn.ReadMessage(); readMessageErr != nil {
-			f.logger.Debug(
+			f.logger.LogAttrs(context.Background(), slog.LevelDebug,
 				"closing websocket connection",
-				zap.Error(readMessageErr),
-				zap.Any("connection", conn),
+				cmdlog.Err(readMessageErr),
+				slog.Any("connection", conn),
 			)
 
 			return nil
@@ -182,16 +188,16 @@ func (f *WSFlagChange) pingPongLoop(ctx context.Context, conn *threadSafeConn) {
 			// Send a ping message to the client
 			err := conn.ping()
 			if err != nil {
-				f.logger.Debug(
+				f.logger.LogAttrs(context.Background(), slog.LevelDebug,
 					"closing websocket connection",
-					zap.Error(err),
-					zap.Any("connection", conn),
+					cmdlog.Err(err),
+					slog.Any("connection", conn),
 				)
 
 				return
 			}
 		case <-ctx.Done():
-			f.logger.Debug("stopping ping pong loop")
+			f.logger.DebugContext(ctx, "stopping ping pong loop")
 
 			return
 		}

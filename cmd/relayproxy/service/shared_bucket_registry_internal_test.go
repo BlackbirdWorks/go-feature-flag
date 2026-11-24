@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,12 +22,11 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 var (
@@ -116,7 +116,7 @@ func newFakeRegistry(t *testing.T, f *fakeS3, created *atomic.Int32) *sharedBuck
 }
 
 func newFakeRegistryWithPolling(
-	t *testing.T, f *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *zap.Logger,
+	t *testing.T, f *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *slog.Logger,
 ) *sharedBucketRegistry {
 	t.Helper()
 
@@ -323,7 +323,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 	}
 }
 
-func failingRegistry(logger *zap.Logger) *sharedBucketRegistry {
+func failingRegistry(logger *slog.Logger) *sharedBucketRegistry {
 	return newSharedBucketRegistry(func(context.Context, string) (*s3retrieverv2.SharedItems, error) {
 		return nil, errNoAWS
 	}, 0, false, logger)
@@ -335,14 +335,14 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	plain := s3FlagSet("plain", "b1", "p/b.yaml")
 	plain.EnableSharedPollerPerBucket = false
 	tests := []struct {
-		reg        func(logger *zap.Logger) *sharedBucketRegistry
+		reg        func(logger *slog.Logger) *sharedBucketRegistry
 		name       string
 		wantGroups int
 		wantWarn   int
 	}{
 		{
 			name: "valid flagsets are registered, others skipped",
-			reg: func(l *zap.Logger) *sharedBucketRegistry {
+			reg: func(l *slog.Logger) *sharedBucketRegistry {
 				return newFakeRegistryWithPolling(t, &fakeS3{}, &atomic.Int32{}, 0, false, l)
 			},
 			wantGroups: 1,
@@ -352,8 +352,8 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			core, logs := observer.New(zap.WarnLevel)
-			reg := tt.reg(zap.New(core))
+			core, logs := slogutil.NewObserver(slog.LevelWarn)
+			reg := tt.reg(core)
 			reg.preRegisterAll([]config.FlagSet{valid, plain})
 			assert.Equal(t, tt.wantGroups, reg.groupCount())
 			assert.Equal(t, tt.wantWarn, logs.Len())
@@ -423,8 +423,8 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			core, logs := observer.New(zap.WarnLevel)
-			reg := newFakeRegistryWithPolling(t, &fakeS3{}, &atomic.Int32{}, tt.parent, tt.parentJit, zap.New(core))
+			core, logs := slogutil.NewObserver(slog.LevelWarn)
+			reg := newFakeRegistryWithPolling(t, &fakeS3{}, &atomic.Int32{}, tt.parent, tt.parentJit, core)
 			fs := s3FlagSet("fs", "b1", "p/a.yaml")
 			fs.PollingInterval, fs.EnablePollingJitter = tt.polling, tt.jitter
 			r, err := reg.retrieverFor(&fs)

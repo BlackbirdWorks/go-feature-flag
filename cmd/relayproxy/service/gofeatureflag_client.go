@@ -10,8 +10,6 @@ import (
 	"dario.cat/mergo"
 	"github.com/IBM/sarama"
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -116,7 +114,7 @@ func withSharedBucketRegistry(r *sharedBucketRegistry) clientOption {
 
 func NewGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
-	logger *zap.Logger,
+	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 ) (*ffclient.GoFeatureFlag, error) {
 	return newGoFeatureFlagClient(cFlagSet, logger, notifiers)
@@ -124,7 +122,7 @@ func NewGoFeatureFlagClient(
 
 func newGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
-	logger *zap.Logger,
+	logger *slog.Logger,
 	notifiers []notifier.Notifier,
 	opts ...clientOption,
 ) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
@@ -209,7 +207,7 @@ func newGoFeatureFlagClient(
 // standaloneSharedRegistry returns, for a flagset that opted in to the shared poller but has nothing to share
 // with (exported constructor), a registry of its own: the flagset gets a group of its own, which polls with the
 // interval and the jitter of the flagset. It returns nil when the flagset did not opt in.
-func standaloneSharedRegistry(cFlagSet *config.FlagSet, logger *zap.Logger) *sharedBucketRegistry {
+func standaloneSharedRegistry(cFlagSet *config.FlagSet, logger *slog.Logger) *sharedBucketRegistry {
 	if !cFlagSet.EnableSharedPollerPerBucket {
 		return nil
 	}
@@ -257,14 +255,12 @@ func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *err
 
 // initLeveledLogger initializes the leveled logger
 // it will add the flagset name as a contextual attribute if it is not the default flagset.
-func initLeveledLogger(c *config.FlagSet, logger *zap.Logger) *slog.Logger {
-	baseHandler := slogzap.Option{Level: slog.LevelDebug, Logger: logger}.NewZapHandler()
+func initLeveledLogger(c *config.FlagSet, logger *slog.Logger) *slog.Logger {
 	if c.Name != "" && c.Name != utils.DefaultFlagSetName {
-		attrs := []slog.Attr{slog.String("flagset", c.Name)}
-		baseHandler = baseHandler.WithAttrs(attrs)
+		return logger.With(slog.String("flagset", c.Name))
 	}
 
-	return slog.New(baseHandler)
+	return logger
 }
 
 // initRetrieversWithRegistry initialize the retrievers based on the configuration, it handles both
@@ -556,7 +552,7 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 	return c, nil
 }
 
-func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notifier, error) {
+func initNotifier(c []config.NotifierConf, logger *slog.Logger) ([]notifier.Notifier, error) {
 	if c == nil {
 		return nil, nil
 	}

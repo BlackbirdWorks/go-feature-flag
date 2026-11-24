@@ -1,20 +1,20 @@
 package manifest
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"sort"
 
 	"github.com/labstack/echo/v5"
-	slogzap "github.com/samber/slog-zap/v2"
 	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	manifestHelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 )
 
@@ -24,7 +24,7 @@ const (
 )
 
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *zap.Logger) Ctrl {
+	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *slog.Logger) Ctrl {
 	return Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
@@ -34,7 +34,7 @@ func NewManifest(
 
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	logger         *zap.Logger
+	logger         *slog.Logger
 	metrics        metric.Metrics
 }
 
@@ -63,15 +63,19 @@ func (m *Ctrl) GetManifest(c *echo.Context) error {
 
 	flags, err := flagset.GetFlagsFromCacheWithContext(c.Request().Context())
 	if err != nil {
-		m.logger.Error("error while getting flags from cache", zap.Error(err))
+		m.logger.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"error while getting flags from cache",
+			cmdlog.Err(err),
+		)
 
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
-	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(
-		slog.New(slogzap.Option{Level: slog.LevelDebug, Logger: m.logger}.NewZapHandler())))
+	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(m.logger))
 	if err != nil {
-		m.logger.Error("error while generating manifest", zap.Error(err))
+		m.logger.LogAttrs(context.Background(), slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}

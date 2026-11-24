@@ -2,11 +2,11 @@ package service_test
 
 import (
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -32,7 +32,7 @@ func TestWithDefaultMode(t *testing.T) {
 			Retrievers: &[]retrieverconf.RetrieverConf{
 				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -50,7 +50,7 @@ func TestWithDefaultMode(t *testing.T) {
 			Retrievers: &[]retrieverconf.RetrieverConf{
 				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -74,7 +74,7 @@ func TestWithDefaultMode(t *testing.T) {
 			Retrievers: &[]retrieverconf.RetrieverConf{
 				{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to invalid file path")
 		assert.Nil(t, manager)
 	})
@@ -82,7 +82,7 @@ func TestWithDefaultMode(t *testing.T) {
 	t.Run("with nil config", func(t *testing.T) {
 		t.Parallel()
 
-		manager, err := service.NewFlagsetManager(nil, zap.NewNop(), nil, nil, nil)
+		manager, err := service.NewFlagsetManager(nil, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error when config is nil")
 		assert.Nil(t, manager, "Expected manager to be nil")
 	})
@@ -96,7 +96,7 @@ func TestWithDefaultMode(t *testing.T) {
 			Retrievers: &[]retrieverconf.RetrieverConf{
 				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		assert.True(t, managerDefault.IsDefaultFlagSet())
 	})
@@ -120,7 +120,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					APIKeys: []string{"test-api-key"},
 				},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -155,7 +155,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					APIKeys: []string{"api-key-2"},
 				},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -182,7 +182,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					APIKeys: []string{"test-api-key"},
 				},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		assert.False(t, managerFlagsets.IsDefaultFlagSet())
 	})
@@ -192,7 +192,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{}, // Empty flagsets
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to no retrievers configured")
 		assert.Nil(t, manager)
 	})
@@ -212,7 +212,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					APIKeys: []string{"api-key-1"},
 				},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to invalid file path")
 		assert.Nil(t, manager)
 	})
@@ -275,7 +275,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 			Retrievers: &[]retrieverconf.RetrieverConf{
 				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 
@@ -311,7 +311,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 					APIKeys: []string{"api-key-2"},
 				},
 			},
-		}, zap.NewNop(), nil, nil, nil)
+		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, manager)
 

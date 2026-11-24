@@ -47,17 +47,17 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Cleanup(wsService.Close)
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, sseService, wsService)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, sseService, wsService)
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, log.ZapLogger, api.WithListener(ln))
+	}, log.Slog, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)

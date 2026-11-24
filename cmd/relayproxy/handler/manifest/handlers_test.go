@@ -3,6 +3,7 @@ package manifest_test
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
@@ -48,11 +48,17 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 		},
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(
+		conf,
+		slog.New(slog.DiscardHandler),
+		[]notifier.Notifier{},
+		nil,
+		nil,
+	)
 	require.NoError(t, err, "failed to create flagset manager")
 	defer flagsetManager.Close()
 
-	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, zap.NewNop())
+	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)
@@ -151,7 +157,13 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		},
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(
+		conf,
+		slog.New(slog.DiscardHandler),
+		[]notifier.Notifier{},
+		nil,
+		nil,
+	)
 	require.NoError(t, err, "failed to create flagset manager")
 	t.Cleanup(func() { flagsetManager.Close() })
 
@@ -159,7 +171,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, zap.NewNop())
+			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
 			e := echo.New()
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)
@@ -201,7 +213,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	t.Parallel()
 
-	ctrl := manifest.NewManifest(nil, metric.Metrics{}, zap.NewNop())
+	ctrl := manifest.NewManifest(nil, metric.Metrics{}, slog.New(slog.DiscardHandler))
 	e := echo.New()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, manifestEndpoint, nil)

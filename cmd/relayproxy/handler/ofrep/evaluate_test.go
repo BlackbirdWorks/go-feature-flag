@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
@@ -133,7 +133,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 				},
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
@@ -254,7 +254,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
-			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err)
 			defer flagsetManager.Close()
 
@@ -423,7 +423,7 @@ func Test_Evaluate(t *testing.T) {
 				},
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
@@ -502,7 +502,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 				},
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
@@ -552,7 +552,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
-			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(conf, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err)
 			defer flagsetManager.Close()
 

@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,7 +9,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -48,7 +48,13 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 		},
 	}
 
-	flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(
+		&conf,
+		slog.New(slog.DiscardHandler),
+		[]notifier.Notifier{},
+		nil,
+		nil,
+	)
 	require.NoError(t, err, "impossible to create flagset manager")
 
 	// Get the default flagset to check refresh date

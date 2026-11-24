@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"os"
 	"sync"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -29,7 +29,7 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
 	require.NoError(t, err)
 
-	cfg, err := config.New(f, zap.NewNop(), "1.0.0")
+	cfg, err := config.New(f, slog.New(slog.DiscardHandler), "1.0.0")
 	require.NoError(t, err)
 
 	return cfg, configFile

@@ -81,11 +81,11 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	t.Cleanup(wsService.Close)
 	sseService := stream.NewSSEService()
 	t.Cleanup(sseService.Close)
-	realManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, sseService, wsService)
+	realManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, sseService, wsService)
 	require.NoError(t, err)
 	t.Cleanup(realManager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(realManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
@@ -93,7 +93,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 			FlagsetManager: realManager, lostKeys: map[string]bool{"moved-key": true},
 		},
 		Metrics: metric.Metrics{},
-	}, log.ZapLogger, api.WithListener(ln))
+	}, log.Slog, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -192,15 +192,15 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
 	log := newTestLogger(t)
-	manager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
-	}, log.ZapLogger, api.WithListener(ln))
+	}, log.Slog, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)

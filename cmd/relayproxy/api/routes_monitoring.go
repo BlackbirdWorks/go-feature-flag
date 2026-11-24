@@ -13,10 +13,11 @@ import (
 )
 
 func (s *Server) addMonitoringRoutes() {
-	if s.config.EffectiveMonitoringPort(s.zapLog) != 0 {
+	if s.config.EffectiveMonitoringPort(s.logger) != 0 {
 		s.monitoringEcho = echo.New()
+		s.monitoringEcho.Logger = s.logger
 		s.monitoringEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
-		s.monitoringEcho.Use(helpermiddleware.ZapLogger(s.zapLog, s.config.IsDebugEnabled()))
+		s.monitoringEcho.Use(helpermiddleware.RequestLogger(s.logger, s.config.IsDebugEnabled()))
 		s.monitoringEcho.Use(corsMiddleware())
 		s.monitoringEcho.Use(custommiddleware.VersionHeader(custommiddleware.VersionHeaderConfig{
 			Skipper: func(_ *echo.Context) bool {

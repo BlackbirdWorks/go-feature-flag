@@ -1,11 +1,11 @@
 package config
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestValidateServerConfig(t *testing.T) {
@@ -76,10 +76,10 @@ func TestAttachConfigChangeCallback(t *testing.T) {
 		name   string
 		wantN  int
 	}{
-		{name: "without a loader nothing is attached", config: &Config{logger: zap.NewNop()}},
+		{name: "without a loader nothing is attached", config: &Config{logger: slog.New(slog.DiscardHandler)}},
 		{name: "without a loader and a logger it does not panic", config: &Config{}},
 		{name: "with a loader the callback is registered",
-			config: &Config{logger: zap.NewNop(), configLoader: &Loader{}}, wantN: 1},
+			config: &Config{logger: slog.New(slog.DiscardHandler), configLoader: &Loader{}}, wantN: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

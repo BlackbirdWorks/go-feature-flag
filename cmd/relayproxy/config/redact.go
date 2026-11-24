@@ -8,10 +8,12 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 // RedactedValue replaces every value that may be a secret when the configuration is logged.
-const RedactedValue = "[REDACTED]"
+const RedactedValue = cmdlog.RedactedValue
 
 // opaqueValue replaces values coming from third-party types we can not safely inspect
 // (for example the sarama configuration embedded in the Kafka exporter settings).
@@ -122,8 +124,7 @@ func (c *Config) LogValue() slog.Value {
 	return slog.AnyValue(c.Redacted())
 }
 
-// String implements [fmt.Stringer], so "%v" of a *Config never leaks secrets, and so do zap.Any("config", conf)
-// and zap.Stringer("config", conf) with every zap encoder (the logfmt encoder can not encode nested objects).
+// String implements [fmt.Stringer], so "%v" of a *Config never leaks secrets.
 func (c *Config) String() string {
 	b, err := json.Marshal(c.Redacted())
 	if err != nil {

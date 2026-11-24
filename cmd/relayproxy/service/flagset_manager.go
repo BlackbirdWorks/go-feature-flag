@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"reflect"
 	"slices"
@@ -12,12 +14,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"go.uber.org/zap"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
@@ -78,7 +80,7 @@ type flagsetManagerImpl struct {
 	// runtime. It can be nil.
 	wsService stream.WebsocketService
 	// Logger is the logger for the flagset manager.
-	logger *zap.Logger
+	logger *slog.Logger
 	// FlagSetRouting routes a request credential to the NAME of the flagset it selects (the values are
 	// public flagset names, the keys are secrets and must never be logged).
 	// It is used to retrieve the flagset linked to the API Key.
@@ -116,7 +118,7 @@ type flagsetManagerImpl struct {
 // sseService and wsService are optional: when non-nil a per-flagset SSE / websocket
 // notifier is created so that flag-change events are scoped to the correct flagset.
 func NewFlagsetManager(
-	config *config.Config, logger *zap.Logger, notifiers []notifier.Notifier,
+	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	if config == nil {
@@ -139,7 +141,7 @@ func NewFlagsetManager(
 }
 
 func newFlagsetManagerWithDefaultConfig(
-	c *config.Config, logger *zap.Logger, notifiers []notifier.Notifier,
+	c *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	defaultFlagSet := config.FlagSet{
@@ -176,7 +178,7 @@ func newFlagsetManagerWithDefaultConfig(
 }
 
 func newFlagsetManagerWithFlagsets(
-	config *config.Config, logger *zap.Logger, notifiers []notifier.Notifier,
+	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	return newFlagsetManagerWithFlagsetsAndRegistry(
@@ -188,7 +190,7 @@ const unroutableKeysWarning = "authorizedKeys.evaluation and apiKeys are ignored
 	"an evaluation key must be listed in the apiKeys of a flag set"
 
 func newFlagsetManagerWithFlagsetsAndRegistry(
-	config *config.Config, logger *zap.Logger, notifiers []notifier.Notifier,
+	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 	registry *sharedBucketRegistry,
 ) (FlagsetManager, error) {
@@ -214,7 +216,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 			}
 			logMessage := startLog + ", generating a default flagset name. This is not recommended. " +
 				"Not having a flagset name will not allow you to change API Keys associated to the flagset during runtime."
-			logger.Warn(logMessage, zap.String("flagset", flagSetName))
+			logger.LogAttrs(context.Background(), slog.LevelWarn, logMessage, slog.String("flagset", flagSetName))
 		}
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
@@ -222,11 +224,11 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
 			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
-			logger.Error(
+			logger.LogAttrs(context.Background(), slog.LevelError,
 				"failed to create the Semaphore client for the flagset",
-				zap.Int("flagset_index", index),
-				zap.String("flagset", flagset.Name),
-				zap.Error(err),
+				slog.Int("flagset_index", index),
+				slog.String("flagset", flagset.Name),
+				cmdlog.Err(err),
 			)
 
 			continue
@@ -364,8 +366,19 @@ func (m *flagsetManagerImpl) Close() {
 // OnConfigChange is called when the configuration changes.
 func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 	if err := newConfig.IsValid(); err != nil {
-		m.logger.Error("the new configuration is invalid, it will not be applied", zap.Error(err))
-		m.logger.Debug("invalid configuration:", zap.Error(err), zap.Stringer("newConfig", newConfig))
+		m.logger.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"the new configuration is invalid, it will not be applied",
+			cmdlog.Err(err),
+		)
+		m.logger.LogAttrs(
+			context.Background(),
+			slog.LevelDebug,
+			"invalid configuration:",
+			cmdlog.Err(err),
+			slog.Any("newConfig", newConfig),
+		)
 
 		return
 	}
@@ -502,11 +515,11 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	}, m.clientOptions...)
 	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
-		m.logger.Error(
+		m.logger.LogAttrs(context.Background(), slog.LevelError,
 			"failed to create the flagset added at runtime, it will not be available until the "+
 				"error is fixed",
-			zap.String("flagset", flagset.Name),
-			zap.Error(err),
+			slog.String("flagset", flagset.Name),
+			cmdlog.Err(err),
 		)
 
 		return
@@ -517,8 +530,13 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	// routing (unreachable). If the config update fails, close the client and skip rather than
 	// leaving an orphan running flagset.
 	if addFlagSetErr := m.config.AddFlagSet(flagset); addFlagSetErr != nil {
-		m.logger.Error("failed to register the new flagset in the configuration; it will not be started",
-			zap.String("flagset", flagset.Name), zap.Error(addFlagSetErr))
+		m.logger.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"failed to register the new flagset in the configuration; it will not be started",
+			slog.String("flagset", flagset.Name),
+			cmdlog.Err(addFlagSetErr),
+		)
 		client.Close()
 
 		return
@@ -530,8 +548,8 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	m.FlagSets[flagset.Name] = client
 	m.flagsetsMutex.Unlock()
 
-	m.logger.Info("Configuration changed: flagset added at runtime",
-		zap.String("flagset", flagset.Name))
+	m.logger.LogAttrs(context.Background(), slog.LevelInfo, "Configuration changed: flagset added at runtime",
+		slog.String("flagset", flagset.Name))
 }
 
 // removeFlagset closes the GoFeatureFlag client of the given flagset and unregisters it.
@@ -552,11 +570,11 @@ func (m *flagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 		client.Close()
 	}
 	if err := m.config.RemoveFlagSet(flagset.Name); err != nil {
-		m.logger.Error("failed to remove the flagset from the configuration",
-			zap.String("flagset", flagset.Name), zap.Error(err))
+		m.logger.LogAttrs(context.Background(), slog.LevelError, "failed to remove the flagset from the configuration",
+			slog.String("flagset", flagset.Name), cmdlog.Err(err))
 	}
-	m.logger.Info("Configuration changed: flagset removed at runtime",
-		zap.String("flagset", flagset.Name))
+	m.logger.LogAttrs(context.Background(), slog.LevelInfo, "Configuration changed: flagset removed at runtime",
+		slog.String("flagset", flagset.Name))
 }
 
 // reconcileExistingFlagset reconciles a flagset that is present in both the current and the new
@@ -571,18 +589,18 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 	// exporter's *sarama.Config). Both values come from the same koanf parsing so their
 	// representation is consistent.
 	if !reflect.DeepEqual(current.CommonFlagSet, newFlagset.CommonFlagSet) {
-		m.logger.Error(
+		m.logger.LogAttrs(context.Background(), slog.LevelError,
 			"modifying a flagset is not supported at runtime: the change is ignored and will "+
 				"only be applied the next time the relay proxy is restarted. Only the API keys of a "+
 				"flagset can be changed without a restart.",
-			zap.String("flagset", newFlagset.Name),
+			slog.String("flagset", newFlagset.Name),
 		)
 		if apiKeysChanged {
-			m.logger.Error(
+			m.logger.LogAttrs(context.Background(), slog.LevelError,
 				"the API keys change for this flagset is also ignored because it is bundled with an "+
 					"unsupported flagset modification: revert the other changes to apply the API keys "+
 					"change at runtime, otherwise it will be applied on the next restart.",
-				zap.String("flagset", newFlagset.Name),
+				slog.String("flagset", newFlagset.Name),
 			)
 		}
 
@@ -590,12 +608,21 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 	}
 
 	if apiKeysChanged {
-		m.logger.Info("Configuration changed: updating the APIKeys for flagset",
-			zap.String("flagset", newFlagset.Name))
+		m.logger.LogAttrs(
+			context.Background(),
+			slog.LevelInfo,
+			"Configuration changed: updating the APIKeys for flagset",
+			slog.String("flagset", newFlagset.Name),
+		)
 		// Update only the authoritative configuration here; the routing map is rebuilt from it
 		// by rebuildNamedAPIKeysMapping once all flagsets have been reconciled.
 		if err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys); err != nil {
-			m.logger.Error("failed to update the APIKeys for flagset", zap.Error(err))
+			m.logger.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"failed to update the APIKeys for flagset",
+				cmdlog.Err(err),
+			)
 
 			return
 		}
@@ -703,13 +730,13 @@ func resolveNamedAPIKeyRouting(
 
 // logAPIKeyCollisions reports keys configured on multiple flagsets. It does not log the API key
 // itself (it is a secret); it logs the flagsets the key collides between.
-func logAPIKeyCollisions(logger *zap.Logger, collisions map[string][2]string) {
+func logAPIKeyCollisions(logger *slog.Logger, collisions map[string][2]string) {
 	for _, pair := range collisions {
-		logger.Error(
+		logger.LogAttrs(context.Background(), slog.LevelError,
 			"an API key is configured on multiple flagsets after reconciliation; its routing is "+
 				"disabled until the configuration is fixed. This can happen when an API-key move is "+
 				"bundled with a rejected flagset modification.",
-			zap.String("flagset", pair[0]), zap.String("otherFlagset", pair[1]),
+			slog.String("flagset", pair[0]), slog.String("otherFlagset", pair[1]),
 		)
 	}
 }

@@ -12,7 +12,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 ## Where things are
 
 - Root `.go` files: the engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: relay proxy (Echo, Zap, Prometheus, OpenTelemetry); `docs/` is generated swagger.
+- `cmd/relayproxy/`: relay proxy (Echo, `log/slog`, Prometheus, OpenTelemetry); `docs/` is generated swagger.
 - `cmd/cli/`, `cmd/jsonschema-generator/`: command line (`evaluate`, `lint`, `generate`) and the schema generator.
 - `modules/core/`: flag, context, evaluation, `clock` (directories of the root module, not separate modules).
 - `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
@@ -43,8 +43,11 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 
 - No mutable package-level state and no singletons (`gochecknoglobals`, `gochecknoinits`, `reassign` enforce it): state is
   owned by an object created at startup and passed in (`flag.Service`, the client, the registries).
-- The only global is `clock.Now`; loggers and clients are injected. Go module logging uses `slog` (`utils/fflog`); the
-  relay proxy uses Zap.
+- The only global is `clock.Now`; loggers and clients are injected. Everything logs through `log/slog`: the engine through
+  `utils/fflog`, the relay proxy through the `*slog.Logger` built by `cmdhelpers/log` (`json` or `logfmt` handler). Zap is
+  forbidden (`depguard`). Log with `logger.LogAttrs(ctx, level, msg, slog.String(...), ...)` and typed attributes on hot
+  paths (the `any` variadic form allocates even when the level is disabled), guard expensive values with `logger.Enabled`,
+  and wrap secrets in `log.Secret`.
 - Use concrete types on the evaluation path.
 - Return errors, do not panic. Sentinel or typed errors, never ad-hoc `errors.New` at the call site (`err113`).
 - Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.

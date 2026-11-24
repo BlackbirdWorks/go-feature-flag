@@ -6,8 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/zap/zapcore"
-
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
@@ -111,7 +110,7 @@ func validateLogLevel(logLevel string) error {
 	if logLevel == "" {
 		return nil
 	}
-	if _, err := zapcore.ParseLevel(logLevel); err != nil {
+	if _, err := cmdlog.ParseLevel(logLevel); err != nil {
 		return err
 	}
 

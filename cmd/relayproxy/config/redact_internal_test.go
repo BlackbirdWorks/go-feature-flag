@@ -2,16 +2,16 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"reflect"
 	"testing"
 
-	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 const secretMarker = "SECRETMARKER"
@@ -152,54 +152,26 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	return conf
 }
 
-func newEncoder(encoding string, cfg zapcore.EncoderConfig) zapcore.Encoder {
-	if encoding == "json" {
-		return zapcore.NewJSONEncoder(cfg)
-	}
-	// the logfmt encoder used by cmdhelpers/log when logFormat is "logfmt".
-	return zaplogfmt.NewEncoder(cfg)
-}
-
 func TestRedactedNeverContainsSecrets(t *testing.T) {
 	t.Parallel()
 	conf := newConfigWithSecrets(t)
 	require.Contains(t, fmt.Sprintf("%#v", *conf.FlagSets[0].Retriever), secretMarker, "the fixture must hold secrets")
 
-	loggers := map[string]string{"json": "json", "logfmt": "logfmt"}
-	for name, encoding := range loggers {
-		t.Run("zap "+name, func(t *testing.T) {
+	for _, format := range []string{"json", "logfmt"} {
+		t.Run("logger "+format, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			cfg := zap.NewProductionConfig()
-			cfg.Encoding = encoding
-			cfg.Level = zap.NewAtomicLevelAt(zap.DebugLevel)
-			cfg.Encoding = "json" // the core is replaced below, it only needs a valid base config.
-			logger, err := cfg.Build(zap.WrapCore(func(zapcore.Core) zapcore.Core {
-				return zapcore.NewCore(newEncoder(encoding, cfg.EncoderConfig), zapcore.AddSync(&buf), zap.DebugLevel)
-			}))
+			logger, err := cmdlog.New(format, conf.LogLevel, cmdlog.WithWriter(&buf))
 			require.NoError(t, err)
 			// same call as the flagset manager does when a new configuration is invalid.
-			logger.Debug("invalid configuration:", zap.Stringer("newConfig", conf))
-			require.NoError(t, logger.Sync())
+			logger.Slog.LogAttrs(context.Background(), slog.LevelDebug, "invalid configuration:",
+				slog.Any("newConfig", conf))
 
 			assert.NotContains(t, buf.String(), secretMarker)
 			assert.Contains(t, buf.String(), "visible-version", "the non-secret part of the config must be logged")
 			assert.Contains(t, buf.String(), RedactedValue)
 		})
 	}
-
-	t.Run("zap.Any", func(t *testing.T) {
-		t.Parallel()
-		var buf bytes.Buffer
-		core := zapcore.NewCore(
-			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
-			zapcore.AddSync(&buf),
-			zap.DebugLevel,
-		)
-		zap.New(core).Debug("config", zap.Any("config", conf))
-		assert.NotContains(t, buf.String(), secretMarker)
-		assert.Contains(t, buf.String(), "visible-version")
-	})
 
 	t.Run("fmt verbs", func(t *testing.T) {
 		t.Parallel()

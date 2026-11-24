@@ -3,6 +3,7 @@ package controller_test
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,7 +12,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -86,7 +86,13 @@ func Test_info_Handler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(
+				&tt.config,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			srv := service.NewMonitoring(flagsetManager)

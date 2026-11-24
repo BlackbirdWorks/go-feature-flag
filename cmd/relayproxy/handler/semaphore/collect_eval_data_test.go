@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,7 +16,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -246,11 +246,16 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 
 			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
 
-			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(
+				&tt.config,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err)
 
-			logger, err := zap.NewDevelopment()
-			require.NoError(t, err)
+			logger := slog.New(slog.DiscardHandler)
 			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, logger)
 
 			e := echo.New()
@@ -341,12 +346,12 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10,
 		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: configFlagsLocation}},
-	}, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+	}, slog.New(slog.DiscardHandler), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err)
 
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, zap.NewNop())
+	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
 
 	// large payload with 20,000 events to ensure processing takes time
 	event := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"f","variation":"` +
@@ -490,9 +495,15 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				}
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(
+				&tt.config,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err)
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, zap.NewNop())
+			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)

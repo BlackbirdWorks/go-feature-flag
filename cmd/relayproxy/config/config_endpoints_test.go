@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,7 +9,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
@@ -237,7 +237,7 @@ func TestEndpoints_Loading(t *testing.T) {
 			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			fs.String("config", "", "Location of your config file")
 			require.NoError(t, fs.Parse([]string{"--config=" + path}))
-			loader := config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false, withEnviron(environ...))
+			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)
