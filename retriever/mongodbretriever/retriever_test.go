@@ -85,7 +85,10 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 			err = mdb.Init(context.TODO(), &fflog.FFLogger{})
 			require.NoError(t, err)
-			defer func() { _ = mdb.Shutdown(context.TODO()) }()
+			defer func() {
+				assert.NoError(t, mdb.Shutdown(context.TODO()))
+				assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
+			}()
 			assert.Equal(t, retriever.RetrieverReady, mdb.Status())
 
 			got, err := mdb.Retrieve(context.Background())

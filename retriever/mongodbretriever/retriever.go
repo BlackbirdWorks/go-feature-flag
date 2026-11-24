@@ -58,7 +58,22 @@ func (r *Retriever) Status() retriever.Status {
 
 // Shutdown disconnects the retriever from Mongodb instance.
 func (r *Retriever) Shutdown(ctx context.Context) error {
-	return r.dbClient.Disconnect(ctx)
+	if r.dbClient == nil {
+		r.status = retriever.RetrieverNotReady
+
+		return nil
+	}
+	err := r.dbClient.Disconnect(ctx)
+	r.dbClient = nil
+	r.dbConnection = nil
+	if err != nil {
+		r.status = retriever.RetrieverError
+
+		return err
+	}
+	r.status = retriever.RetrieverNotReady
+
+	return nil
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
