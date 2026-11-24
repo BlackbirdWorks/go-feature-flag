@@ -391,7 +391,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 
 		// A context whose deadline has already passed: the query fails deterministically,
 		// whatever the speed of the database (no race against a tiny timeout).
-		expiredCtx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+		expiredCtx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
 		defer cancel()
 
 		_, retrieveErr := r.Retrieve(expiredCtx)
