@@ -109,10 +109,6 @@ swagger: ## Build swagger documentation
 	$(GOWORK_ENV) $(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
 	cd cmd/relayproxy && swag init --parseDependency --parseDepth=1 --parseInternal --markdownFiles docs
 
-generate-helm-docs: ## Generates helm documentation for the project
-	$(GOWORK_ENV) $(GOCMD) install github.com/norwoodj/helm-docs/cmd/helm-docs@latest
-	helm-docs
-
 ## Test:
 # Test types run as separate targets (and separate CI jobs):
 #   test-unit         unit tests, no docker tag (the single root module, including modules/core and rules)

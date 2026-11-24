@@ -1,4 +1,0 @@
-{{- range .Values.extraManifests }}
----
-{{ include "relay-proxy.render" (dict "value" . "context" $) }}
-{{- end }}

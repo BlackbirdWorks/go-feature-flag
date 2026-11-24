@@ -29,7 +29,7 @@ warning per process and per kind of name, never one per request. When both names
 | Prometheus series `gofeatureflag_*` | `semaphore_*` | Opt in: `exposeLegacyMetrics: true` exposes both |
 | OpenTelemetry service name and tracer `go-feature-flag` | `semaphore` | Overridable (`otel.service.name`, `tracerName` of the OpenTelemetry exporter); the old default is gone |
 | Slack notifier footer and Teams message title `GO Feature Flag` | `Semaphore` | No (text shown to people) |
-| Helm chart config key `goff-proxy.yml` mounted in `/goff` | `semaphore-proxy.yml` in `/semaphore` | The relay proxy reads both folders |
+| Config file mounted in `/goff` | `semaphore-proxy.yml` in `/semaphore` | The relay proxy reads both folders |
 
 ## What did not change
 
@@ -48,7 +48,6 @@ warning per process and per kind of name, never one per request. When both names
 3. If you set `envVariablePrefix: GOFF_`, switch your variables to `SEMAPHORE_` or to the unprefixed form.
    A Kubernetes Service named `semaphore` makes Kubernetes inject `SEMAPHORE_SERVICE_HOST`, `SEMAPHORE_PORT=tcp://...` and
    similar variables into the pods of its namespace. The relay proxy ignores the variables that have the name and the
-   value of such a service link (their names are logged at the debug level), and the Helm chart sets
-   `enableServiceLinks: false`. Your own settings, such as `SEMAPHORE_SERVER_PORT=1031`, are read as usual.
+   value of such a service link (their names are logged at the debug level). Set `enableServiceLinks: false` on your pods to avoid them. Your own settings, such as `SEMAPHORE_SERVER_PORT=1031`, are read as usual.
 4. Move your dashboards and alerts to the `semaphore_` series; set `exposeLegacyMetrics: true` until it is done.
 5. Update the Go imports with `sed -i 's#github.com/thomaspoignant/go-feature-flag#github.com/blackbirdworks/semaphore#g'`.

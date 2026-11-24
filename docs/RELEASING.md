@@ -17,32 +17,29 @@ Nothing has been released yet. Everything below is "available after the first re
 | AWS Lambda bundle | `semaphore-aws-lambda_<version>.zip` (linux arm64, binary `bootstrap`) | GitHub Release |
 | Checksums | `checksums.txt` | GitHub Release |
 | SBOMs | one SPDX JSON per archive (`*.sbom.json`, made with syft) | GitHub Release |
-| Helm chart | `relay-proxy-<chart version>.tgz` | GitHub Release, and as an OCI artifact at `oci://ghcr.io/blackbirdworks/charts/relay-proxy` (`helm install semaphore oci://ghcr.io/blackbirdworks/charts/relay-proxy --version 0.1.0`) |
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |
 | Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>` and, for stable releases only, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
 | CLI image | `ghcr.io/blackbirdworks/semaphore-cli:v<version>` (+ `v<major>.<minor>`, `v<major>`, `latest` for stable releases only) | GitHub Container Registry |
 
 All images run as uid 65532 and have `/usr/local/bin/semaphore` as `ENTRYPOINT` (the CLI image has
-`/semaphore-cli`): arguments are passed directly (`docker run IMAGE --config /path`), and `--entrypoint` overrides it, and carry the `org.opencontainers.image.*` labels (source =
+`/semaphore-cli`): arguments are passed directly (`docker run IMAGE --config /path`), and `--entrypoint` overrides it. They carry the `org.opencontainers.image.*` labels (source =
 this repository, license, version, revision). Images carry a BuildKit SBOM.
 
 Not published, on purpose, because the project owns no destination for them: Homebrew tap,
-Scoop bucket, Docker Hub, AWS public ECR, npm, PyPI, Maven, NuGet, WebAssembly packages, a classic Helm
-repository (the chart is published as an OCI artifact instead). No GPG signature either (the project has no signing key); use the attestations.
+Scoop bucket, Docker Hub, AWS public ECR, npm, PyPI, Maven, NuGet, WebAssembly packages, a Helm
+chart (the Helm chart of the original project was not carried over: the owner does not need one). No GPG signature either (the project has no signing key); use the attestations.
 
 ## Cut a release
 
 1. Decide the version (see "First version" below) and make sure `main` is green.
-2. Set `version` and `appVersion` in `cmd/relayproxy/helm-charts/relay-proxy/Chart.yaml`
-   (`appVersion` must be exactly the tag, with the `v`: it is the chart's default image tag), then
-   run `make generate-helm-docs` and merge that change by a pull request. The workflow fails on a
-   mismatch.
+2. Nothing else carries the version: it is taken from the tag (the binaries get it through the
+   `-X main.version` linker flag). The workflow rejects a tag that is not `vMAJOR.MINOR.PATCH`.
 3. Run the dry run first (next section) on the commit you are about to tag.
 4. Tag that commit and push the tag: `git tag -s v0.1.0 -m "v0.1.0" && git push origin v0.1.0`.
-5. Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags. The chart `appVersion` must then carry the same suffix.
+5. Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
 6. The first push to `ghcr.io` creates the packages as private: in the organization package
-   settings, link them to this repository and make them public. There are three: `semaphore`,
-   `semaphore-cli` and the chart `charts/relay-proxy`.
+   settings, link them to this repository and make them public. There are two: `semaphore`
+   and `semaphore-cli`.
 7. Verify the artifacts (below).
 
 The first release has no previous tag, so the workflow writes a short fixed release note instead
@@ -52,10 +49,9 @@ Later releases get the generated changelog between tags.
 ## Dry run
 
 Actions, "Release", Run workflow, keep `dry_run` checked (the default). It builds the snapshot
-archives for every platform, the SBOMs, all image variants for all platforms (QEMU) and the Helm
-chart (packaged and linted, not pushed), and publishes nothing; the archives are kept three days as the `dry-run-release` workflow
+archives for every platform, the SBOMs, all image variants for all platforms (QEMU), and publishes nothing; the archives are kept three days as the `dry-run-release` workflow
 artifact. Every pull request also runs `goreleaser check` and a snapshot build of the current
-platform, and the Helm chart install test, as part of `ci-ok`.
+platform as part of `ci-ok`.
 
 Locally (needs Docker with buildx, Go, goreleaser v2, syft):
 
@@ -107,8 +103,7 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
 
 ## First version
 
-Decided by the owner: the first release is `v0.1.0`. `Chart.yaml` already says `version: 0.1.0` and
-`appVersion: v0.1.0`, so the "appVersion equals the tag" check of the workflow passes for that tag.
+Decided by the owner: the first release is `v0.1.0`.
 
 Reasons: Semaphore is a different project with a different surface (renamed binary, image, metrics,
 config files), so reusing upstream's `1.x` numbers would suggest a drop-in successor; `0.x` states
