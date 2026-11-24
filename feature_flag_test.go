@@ -231,7 +231,7 @@ test-flag:
   defaultRule:
     variation: false_var`
 
-	flagFile, _ := os.CreateTemp("", "")
+	flagFile, _ := os.CreateTemp(t.TempDir(), "")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
 	gffClient1, _ := ffclient.New(ffclient.Config{
@@ -294,7 +294,7 @@ test-flag:
   defaultRule:
     variation: false_var`
 
-	flagFile, _ := os.CreateTemp("", "impossible")
+	flagFile, _ := os.CreateTemp(t.TempDir(), "impossible")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
 	gffClient1, _ := ffclient.New(ffclient.Config{
@@ -423,7 +423,7 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 }
 
 func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	// close the handle before removing: Windows cannot delete a file that is still open
 	assert.NoError(t, f.Close())
@@ -446,7 +446,7 @@ func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
 	assert.True(t, errors.Is(err, os.ErrNotExist))
 }
 func TestInitializableRetrieverWithRetrieverNotReady(t *testing.T) {
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	// close the handle before removing: Windows cannot delete a file that is still open
 	assert.NoError(t, f.Close())
@@ -579,7 +579,7 @@ func Test_GetPollingInterval(t *testing.T) {
 }
 
 func Test_ForceRefreshCache(t *testing.T) {
-	tempFile, err := os.CreateTemp("", "")
+	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	// close the handle before reusing/removing it: Windows cannot write to or
 	// delete a file that is still open by another handle
@@ -647,13 +647,13 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 		eventuallyTick    = 20 * time.Millisecond
 	)
 
-	configFile1, err := os.CreateTemp("", "")
+	configFile1, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	// close the handles before reusing/removing them: Windows cannot write to or
 	// delete a file that is still open by another handle
 	require.NoError(t, configFile1.Close())
 
-	persistFile, err := os.CreateTemp("", "")
+	persistFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	require.NoError(t, persistFile.Close())
 	// t.Cleanup runs after the deferred Close() calls below, so no handle is still open on
@@ -716,7 +716,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	// rewriting persistFile behind the back of gffClient2.
 	gffClient.Close()
 
-	configFile2, err := os.CreateTemp("", "")
+	configFile2, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	// close the handle before removing: Windows cannot delete a file that is still open
 	require.NoError(t, configFile2.Close())
@@ -879,7 +879,7 @@ func TestStartWithNegativeIntervalToDisablePolling(t *testing.T) {
 	assert.NoError(t, err)
 
 	// copy of the file
-	tempFile, err := os.CreateTemp("", "")
+	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	assert.NoError(t, err)
 	defer func() { _ = os.Remove(tempFile.Name()) }()
 	err = os.WriteFile(tempFile.Name(), content, os.ModePerm)

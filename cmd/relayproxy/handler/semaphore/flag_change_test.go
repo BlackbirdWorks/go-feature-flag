@@ -62,7 +62,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = file.Close()
@@ -172,7 +172,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = file.Close()

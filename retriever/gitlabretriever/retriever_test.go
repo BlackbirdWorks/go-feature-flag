@@ -167,7 +167,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 					assert.Equal(
 						t,
 						tt.fields.gitlabToken,
-						tt.fields.httpClient.Req.Header.Get("PRIVATE-TOKEN"),
+						tt.fields.httpClient.Req.Header.Get("Private-Token"),
 					)
 				}
 			}

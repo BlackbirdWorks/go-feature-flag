@@ -427,9 +427,9 @@ func TestCmdEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdOut, err := os.CreateTemp("", "temp")
+			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
-			stdErr, err := os.CreateTemp("", "temp")
+			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(stdOut.Name())

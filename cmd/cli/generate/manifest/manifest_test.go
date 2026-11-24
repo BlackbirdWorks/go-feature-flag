@@ -50,7 +50,7 @@ func TestNewManifestCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			destination := ""
 			if tt.args.setDestination {
-				f, err := os.CreateTemp("", "temp")
+				f, err := os.CreateTemp(t.TempDir(), "temp")
 				assert.NoError(t, err)
 				destination = f.Name()
 				defer func() { _ = os.Remove(destination) }()

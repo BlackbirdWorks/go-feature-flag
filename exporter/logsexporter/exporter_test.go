@@ -87,7 +87,7 @@ func TestLog_Export(t *testing.T) {
 				LogFormat: tt.fields.LogFormat,
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			err := f.Export(context.Background(), logger, tt.args.featureEvents)

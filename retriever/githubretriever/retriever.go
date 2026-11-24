@@ -306,7 +306,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 func (r *Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
-	header.Add("X-GitHub-Api-Version", "2022-11-28")
+	header.Add("X-Github-Api-Version", "2022-11-28")
 	if token != "" {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
@@ -386,13 +386,13 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if remaining := headers.Get("X-RateLimit-Remaining"); remaining != "" {
+	if remaining := headers.Get("X-Ratelimit-Remaining"); remaining != "" {
 		if remainingInt, err := strconv.Atoi(remaining); err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
-	if reset := headers.Get("X-RateLimit-Reset"); reset != "" {
+	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
 		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}

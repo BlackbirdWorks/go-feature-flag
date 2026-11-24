@@ -214,7 +214,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 			Exporter:         &mockExporter,
 		},
 	}
-	file, _ := os.CreateTemp("", "log")
+	file, _ := os.CreateTemp(t.TempDir(), "log")
 	defer func() { _ = file.Close() }()
 	defer func() { _ = os.Remove(file.Name()) }()
 	handler := slogassert.New(t, slog.LevelInfo, nil)

@@ -60,11 +60,11 @@ func TestManifestCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpManifest, err := os.CreateTemp("", "temp")
+			tmpManifest, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			os.Remove(tmpManifest.Name()) // delete, we only want the path
 
-			redirectionStd, err := os.CreateTemp("", "temp")
+			redirectionStd, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			defer func() { _ = os.Remove(redirectionStd.Name()) }()
 

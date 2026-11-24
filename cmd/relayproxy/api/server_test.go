@@ -318,7 +318,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, proxyConf.Version, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Equal(t, proxyConf.Version, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
 func Test_VersionHeader_Disabled(t *testing.T) {
@@ -363,7 +363,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Empty(t, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
 func Test_AuthenticationMiddleware(t *testing.T) {
@@ -1016,9 +1016,9 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 
 			if tt.wantVersionHeader {
-				assert.Equal(t, "test-version-1.0.0", response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+				assert.Equal(t, "test-version-1.0.0", response.Header.Get("X-Gofeatureflag-Version"))
 			} else {
-				assert.Empty(t, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+				assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 			}
 		})
 	}

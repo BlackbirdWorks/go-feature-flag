@@ -105,8 +105,8 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 		return nil, m.retryErr
 	}
 	resp := newResponse(http.StatusOK, []byte(flagBody))
-	resp.Header.Set("X-RateLimit-Remaining", "4999")
-	resp.Header.Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+	resp.Header.Set("X-Ratelimit-Remaining", "4999")
+	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
 	return resp, nil
 }
 

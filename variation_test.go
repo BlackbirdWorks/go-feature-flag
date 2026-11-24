@@ -4115,7 +4115,7 @@ func TestRawVariation(t *testing.T) {
 }
 
 func Test_OverrideContextEnrichmentWithEnvironment(t *testing.T) {
-	tempFile, err := os.CreateTemp("", "")
+	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	defer tempFile.Close()
 

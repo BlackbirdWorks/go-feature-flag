@@ -42,7 +42,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 		})
 	}
 
-	logFile, _ := os.CreateTemp("", "")
+	logFile, _ := os.CreateTemp(t.TempDir(), "")
 	textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 	defer func() { _ = os.Remove(logFile.Name()) }()
@@ -81,7 +81,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 				evStore.Add(testutils.NewExportableMockEvent("feature"))
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			defer func() { _ = os.Remove(logFile.Name()) }()
@@ -132,7 +132,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 				evStore.Add(exporter.FeatureEvent{Kind: "feature"})
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			defer func() { _ = os.Remove(logFile.Name()) }()

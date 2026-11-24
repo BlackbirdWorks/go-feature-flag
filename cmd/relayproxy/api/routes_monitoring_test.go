@@ -119,14 +119,14 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				monitoringResp.Header.Get("X-GOFEATUREFLAG-VERSION"),
+				monitoringResp.Header.Get("X-Gofeatureflag-Version"),
 				"monitoring server")
 
 			apiResp := doRequest(t, http.MethodGet, baseURL+"/v1/flag/change", nil)
 			assert.Equal(t, http.StatusOK, apiResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				apiResp.Header.Get("X-GOFEATUREFLAG-VERSION"),
+				apiResp.Header.Get("X-Gofeatureflag-Version"),
 				"api server")
 		})
 	}

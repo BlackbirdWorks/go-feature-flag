@@ -95,7 +95,7 @@ func TestFFLogger_Error(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
@@ -208,7 +208,7 @@ func TestFFLogger_Warn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
@@ -321,7 +321,7 @@ func TestFFLogger_Info(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
@@ -435,7 +435,7 @@ func TestFFLogger_Debug(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			slog.SetLogLoggerLevel(slog.LevelDebug)
-			file, err := os.CreateTemp("", "")
+			file, err := os.CreateTemp(t.TempDir(), "")
 			assert.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
