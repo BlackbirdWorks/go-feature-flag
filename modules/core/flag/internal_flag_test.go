@@ -12,8 +12,9 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_Value(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagName    string
 		user        ffcontext.Context
@@ -124,8 +125,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return sdk default value when experimentation rollout not started",
 			flag: flag.InternalFlag{
 				Experimentation: &flag.ExperimentationRollout{
-					Start: new(time.Now().Add(1 * time.Second)),
-					End:   new(time.Now().Add(5 * time.Second)),
+					Start: new(fixedNow().Add(1 * time.Second)),
+					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -154,8 +155,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return sdk default value when experimentation rollout is now, but context date override",
 			flag: flag.InternalFlag{
 				Experimentation: &flag.ExperimentationRollout{
-					Start: new(time.Now().Add(-5 * time.Second)),
-					End:   new(time.Now().Add(5 * time.Second)),
+					Start: new(fixedNow().Add(-5 * time.Second)),
+					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -166,7 +167,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("gofeatureflag", map[string]any{
-						"currentDateTime": time.Now().Add(6 * time.Second).Format(time.RFC3339),
+						"currentDateTime": fixedNow().Add(6 * time.Second).Format(time.RFC3339),
 					}).
 					Build(),
 				flagContext: flag.Context{
@@ -188,8 +189,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return sdk default value when experimentation rollout ended",
 			flag: flag.InternalFlag{
 				Experimentation: &flag.ExperimentationRollout{
-					Start: new(time.Now().Add(-15 * time.Second)),
-					End:   new(time.Now().Add(-5 * time.Second)),
+					Start: new(fixedNow().Add(-15 * time.Second)),
+					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
 					"description": "this is a flag",
@@ -834,13 +835,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(1 * time.Hour)),
+						Date: new(fixedNow().Add(1 * time.Hour)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_A": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(2 * time.Hour)),
+						Date: new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -880,13 +881,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(1 * time.Second)),
+						Date: new(fixedNow().Add(1 * time.Second)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_A": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(2 * time.Second)),
+						Date: new(fixedNow().Add(2 * time.Second)),
 					},
 				},
 			},
@@ -894,7 +895,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				flagName: "my-flag",
 				user: ffcontext.NewEvaluationContextBuilder("user-key").
 					AddCustom("gofeatureflag", map[string]string{
-						"currentDateTime": time.Now().Add(1 * time.Minute).Format(time.RFC3339),
+						"currentDateTime": fixedNow().Add(1 * time.Minute).Format(time.RFC3339),
 					}).
 					Build(),
 				flagContext: flag.Context{
@@ -930,13 +931,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_B": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(2 * time.Second)),
+						Date: new(fixedNow().Add(2 * time.Second)),
 					},
 				},
 			},
@@ -982,7 +983,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						Variations: &map[string]*any{
 							"variation_B": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(2 * time.Second)),
+						Date: new(fixedNow().Add(2 * time.Second)),
 					},
 				},
 			},
@@ -1028,13 +1029,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(-2 * time.Second)),
+						Date: new(fixedNow().Add(-2 * time.Second)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_B": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 					},
 				},
 			},
@@ -1263,7 +1264,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 						Variations: &map[string]*any{
 							"variation_C": new(any("value_C")),
 						},
@@ -1313,7 +1314,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: new(time.Now().Add(-2 * time.Second)),
+						Date: new(fixedNow().Add(-2 * time.Second)),
 						DefaultRule: &flag.Rule{
 							Percentages: &map[string]float64{
 								"variation_B": 30,
@@ -1363,7 +1364,7 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 						Variations: &map[string]*any{
 							"variation_C": new(any("value_C")),
 						},
@@ -1416,13 +1417,13 @@ func TestInternalFlag_Value(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("variation_B"),
 						},
-						Date: new(time.Now().Add(-2 * time.Second)),
+						Date: new(fixedNow().Add(-2 * time.Second)),
 					},
 					{
 						Variations: &map[string]*any{
 							"variation_B": new(any("value_QWERTY")),
 						},
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 					},
 				},
 			},
@@ -1462,7 +1463,7 @@ func TestInternalFlag_Value(t *testing.T) {
 						Disable:     new(true),
 						TrackEvents: new(false),
 						Version:     new("1.0.0"),
-						Date:        new(time.Now().Add(-2 * time.Second)),
+						Date:        new(fixedNow().Add(-2 * time.Second)),
 					},
 				},
 			},
@@ -1500,10 +1501,10 @@ func TestInternalFlag_Value(t *testing.T) {
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Experimentation: &flag.ExperimentationRollout{
-							Start: new(time.Now().Add(-2 * time.Second)),
-							End:   new(time.Now().Add(2 * time.Second)),
+							Start: new(fixedNow().Add(-2 * time.Second)),
+							End:   new(fixedNow().Add(2 * time.Second)),
 						},
-						Date: new(time.Now().Add(-1 * time.Second)),
+						Date: new(fixedNow().Add(-1 * time.Second)),
 					},
 				},
 			},
@@ -1549,10 +1550,10 @@ func TestInternalFlag_Value(t *testing.T) {
 								Variations: &map[string]*any{
 									"variation_A": new(any("value_ABC")),
 								},
-								Date: new(time.Now().Add(-3 * time.Second)),
+								Date: new(fixedNow().Add(-3 * time.Second)),
 							},
 						},
-						Date: new(time.Now().Add(-2 * time.Second)),
+						Date: new(fixedNow().Add(-2 * time.Second)),
 					},
 				},
 			},
@@ -1585,12 +1586,12 @@ func TestInternalFlag_Value(t *testing.T) {
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("variation_A"),
 							Percentage: new(float64(0)),
-							Date:       new(time.Now().Add(-10 * time.Second)),
+							Date:       new(fixedNow().Add(-10 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("variation_B"),
 							Percentage: new(float64(5)),
-							Date:       new(time.Now().Add(-1 * time.Second)),
+							Date:       new(fixedNow().Add(-1 * time.Second)),
 						},
 					},
 				},
@@ -1721,12 +1722,12 @@ func TestInternalFlag_Value(t *testing.T) {
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("variation_A"),
 								Percentage: new(float64(0)),
-								Date:       new(time.Now()),
+								Date:       new(fixedNow()),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("variation_B"),
 								Percentage: new(float64(100)),
-								Date:       new(time.Now().Add(1 * time.Minute)),
+								Date:       new(fixedNow().Add(1 * time.Minute)),
 							},
 						},
 					},
@@ -2036,8 +2037,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			name: "Should return sdk default value when we have an error in the deep copy",
 			flag: flag.InternalFlag{
 				Experimentation: &flag.ExperimentationRollout{
-					Start: new(time.Now().Add(-15 * time.Second)),
-					End:   new(time.Now().Add(-5 * time.Second)),
+					Start: new(fixedNow().Add(-15 * time.Second)),
+					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
 					"description": make(chan int),
@@ -2045,10 +2046,10 @@ func TestInternalFlag_Value(t *testing.T) {
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: new(time.Now().Add(-10 * time.Second)),
+						Date: new(fixedNow().Add(-10 * time.Second)),
 						Experimentation: &flag.ExperimentationRollout{
-							Start: new(time.Now().Add(-5 * time.Second)),
-							End:   new(time.Now().Add(5 * time.Second)),
+							Start: new(fixedNow().Add(-5 * time.Second)),
+							End:   new(fixedNow().Add(5 * time.Second)),
 						},
 					},
 				},
@@ -2178,7 +2179,9 @@ func TestInternalFlag_Value(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1 := tt.flag.Value(tt.args.flagName, tt.args.user, tt.args.flagContext)
+			t.Parallel()
+
+			got, got1 := tt.flag.Value(tt.args.flagName, atFixedNow(tt.args.user), tt.args.flagContext)
 			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
 			assert.Equalf(t, tt.want1, got1, "not expected value: %s", cmp.Diff(tt.want1, got1))
 		})
@@ -2600,8 +2603,9 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Variations      *map[string]*any
 		Rules           *[]flag.Rule
@@ -2893,12 +2897,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
 							Percentage: new(float64(30)),
-							Date:       new(time.Now().Add(-2 * time.Second)),
+							Date:       new(fixedNow().Add(-2 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
 							Percentage: new(float64(20)),
-							Date:       new(time.Now().Add(2 * time.Second)),
+							Date:       new(fixedNow().Add(2 * time.Second)),
 						},
 					},
 				},
@@ -2980,12 +2984,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
 							Percentage: new(float64(0)),
-							Date:       new(time.Now().Add(1 * time.Second)),
+							Date:       new(fixedNow().Add(1 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("C"),
 							Percentage: new(float64(100)),
-							Date:       new(time.Now().Add(2 * time.Second)),
+							Date:       new(fixedNow().Add(2 * time.Second)),
 						},
 					},
 				},
@@ -3005,12 +3009,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						Initial: &flag.ProgressiveRolloutStep{
 							Variation:  new("C"),
 							Percentage: new(float64(0)),
-							Date:       new(time.Now().Add(1 * time.Second)),
+							Date:       new(fixedNow().Add(1 * time.Second)),
 						},
 						End: &flag.ProgressiveRolloutStep{
 							Variation:  new("A"),
 							Percentage: new(float64(100)),
-							Date:       new(time.Now().Add(2 * time.Second)),
+							Date:       new(fixedNow().Add(2 * time.Second)),
 						},
 					},
 				},
@@ -3076,12 +3080,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("C"),
 								Percentage: new(float64(0)),
-								Date:       new(time.Now().Add(1 * time.Second)),
+								Date:       new(fixedNow().Add(1 * time.Second)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("A"),
 								Percentage: new(float64(100)),
-								Date:       new(time.Now().Add(2 * time.Second)),
+								Date:       new(fixedNow().Add(2 * time.Second)),
 							},
 						},
 					},
@@ -3107,12 +3111,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("A"),
 								Percentage: new(float64(0)),
-								Date:       new(time.Now().Add(1 * time.Second)),
+								Date:       new(fixedNow().Add(1 * time.Second)),
 							},
 							End: &flag.ProgressiveRolloutStep{
 								Variation:  new("C"),
 								Percentage: new(float64(100)),
-								Date:       new(time.Now().Add(2 * time.Second)),
+								Date:       new(fixedNow().Add(2 * time.Second)),
 							},
 						},
 					},
@@ -3148,6 +3152,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &flag.InternalFlag{
 				Variations:      tt.fields.Variations,
 				Rules:           tt.fields.Rules,

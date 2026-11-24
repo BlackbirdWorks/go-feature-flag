@@ -161,8 +161,9 @@ func TestFloat64(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestTime(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	zeroTime := time.Time{}
 	fixedTime := time.Date(2023, 1, 15, 10, 30, 0, 0, time.UTC)
@@ -191,6 +192,8 @@ func TestTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")

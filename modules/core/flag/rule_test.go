@@ -19,8 +19,9 @@ func ExpectRuleNotApplyError(t assert.TestingT, err error, msgAndArgs ...any) bo
 	return assert.ErrorAs(t, err, &target, msgAndArgs...)
 }
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRuleEvaluate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		user      ffcontext.Context
 		isDefault bool
@@ -287,12 +288,12 @@ func TestRuleEvaluate(t *testing.T) {
 						// Far-future dates so evaluation always lands before the
 						// ramp and deterministically serves the initial variation
 						// (avoids a timing race on loaded CI runners).
-						Date: new(time.Now().Add(1 * time.Hour)),
+						Date: new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(2 * time.Hour)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -310,12 +311,12 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 				},
 			},
@@ -333,12 +334,12 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(-6 * time.Second)),
+						Date:       new(fixedNow().Add(-6 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(-3 * time.Second)),
+						Date:       new(fixedNow().Add(-3 * time.Second)),
 					},
 				},
 			},
@@ -356,12 +357,12 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(-1 * time.Second)),
+						Date:       new(fixedNow().Add(-1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 				},
 			},
@@ -379,12 +380,12 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(-3 * time.Second)),
+						Date:       new(fixedNow().Add(-3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -401,11 +402,11 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation: new("variation_B"),
-						Date:      new(time.Now().Add(-3 * time.Second)),
+						Date:      new(fixedNow().Add(-3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation: new("variation_C"),
-						Date:      new(time.Now().Add(1 * time.Second)),
+						Date:      new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -423,12 +424,12 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -443,7 +444,7 @@ func TestRuleEvaluate(t *testing.T) {
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -458,7 +459,7 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 				},
 			},
@@ -472,12 +473,12 @@ func TestRuleEvaluate(t *testing.T) {
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -492,11 +493,11 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(3 * time.Second)),
+						Date:       new(fixedNow().Add(3 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -515,7 +516,7 @@ func TestRuleEvaluate(t *testing.T) {
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 				},
 			},
@@ -530,7 +531,7 @@ func TestRuleEvaluate(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_B"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(1 * time.Second)),
+						Date:       new(fixedNow().Add(1 * time.Second)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("variation_C"),
@@ -653,11 +654,13 @@ func TestRuleEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			key := ""
 			if tt.args.user != nil {
 				key = tt.args.user.GetKey()
 			}
-			got, err := tt.rule.Evaluate(key, tt.args.user, "flagname+", tt.args.isDefault)
+			got, err := tt.rule.Evaluate(key, atFixedNow(tt.args.user), "flagname+", tt.args.isDefault)
 
 			if !tt.wantErr(
 				t,

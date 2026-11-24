@@ -11,8 +11,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestFromFlagEvaluation(t *testing.T) {
+	t.Parallel()
+
+	evaluatedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+
 	tests := []struct {
 		name          string
 		key           string
@@ -30,7 +33,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 				Disable: new(true),
 			},
 			expected: flagstate.FlagState{
-				Timestamp:    time.Now().Unix(),
+				Timestamp:    evaluatedAt.Unix(),
 				TrackEvents:  true,
 				Failed:       false,
 				ErrorCode:    "",
@@ -58,7 +61,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 				},
 			},
 			expected: flagstate.FlagState{
-				Timestamp:    time.Now().Unix(),
+				Timestamp:    evaluatedAt.Unix(),
 				TrackEvents:  true,
 				Failed:       true,
 				ErrorCode:    flag.ErrorCodeTargetingKeyMissing,
@@ -85,7 +88,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			expected: flagstate.FlagState{
 				Value:         1,
 				VariationType: "var1",
-				Timestamp:     time.Now().Unix(),
+				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        false,
 				Reason:        flag.ReasonStatic,
@@ -113,7 +116,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			},
 			expected: flagstate.FlagState{
 				VariationType: "SdkDefault",
-				Timestamp:     time.Now().Unix(),
+				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        true,
 				Reason:        flag.ReasonError,
@@ -125,7 +128,10 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := flagstate.FromFlagEvaluation(
+			t.Parallel()
+
+			got := flagstate.FromFlagEvaluationAt(
+				evaluatedAt,
 				tt.key,
 				tt.evaluationCtx,
 				tt.flagCtx,

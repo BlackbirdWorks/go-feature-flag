@@ -11,8 +11,9 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_RequiresBucketing(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		flag     flag.InternalFlag
@@ -134,7 +135,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 								"disabled": 50,
 							},
 						},
-						Date: new(time.Now().Add(-5 * time.Second)),
+						Date: new(fixedNow().Add(-5 * time.Second)),
 					},
 				},
 			},
@@ -157,16 +158,16 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 								Initial: &flag.ProgressiveRolloutStep{
 									Variation:  new("disabled"),
 									Percentage: new(float64(0)),
-									Date:       new(time.Now()),
+									Date:       new(fixedNow()),
 								},
 								End: &flag.ProgressiveRolloutStep{
 									Variation:  new("enabled"),
 									Percentage: new(float64(100)),
-									Date:       new(time.Now().Add(time.Hour)),
+									Date:       new(fixedNow().Add(time.Hour)),
 								},
 							},
 						},
-						Date: new(time.Now()),
+						Date: new(fixedNow()),
 					},
 				},
 			},
@@ -193,7 +194,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 								},
 							},
 						},
-						Date: new(time.Now()),
+						Date: new(fixedNow()),
 					},
 				},
 			},
@@ -214,7 +215,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 						DefaultRule: &flag.Rule{
 							VariationResult: new("enabled"),
 						},
-						Date: new(time.Now()),
+						Date: new(fixedNow()),
 					},
 				},
 			},
@@ -224,6 +225,8 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.flag.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -334,7 +337,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
+			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
@@ -430,7 +433,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value("test-flag", tt.evaluationCtx, flagContext)
+			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)

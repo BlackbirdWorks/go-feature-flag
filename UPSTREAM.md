@@ -41,6 +41,8 @@ changes or closes one, reconcile it (see the skill, class ALREADY-HAVE) instead 
 | [#6571](https://github.com/thomaspoignant/go-feature-flag/pull/6571) | perf: hash a rule's query once at load | `fee78898f42947f131e4c75c3cf41df29811a891` | open upstream |
 | [#6578](https://github.com/thomaspoignant/go-feature-flag/pull/6578) | perf(core): skip the JSON round trip for JsonLogic contexts that are already JSON-shaped (`asJSONData` in `modules/core/flag/query_jsonlogic_cache.go`, its test file, one call in `rule.go`). Ported by hand from head `b43464fe36b2b5e2b47b495141c884b23c9c6379`; replaces the earlier local `json_normalize.go`. Local additions on top: none (upstream's code passes the local differential test `TestQueryContext_DataOnce_MatchesTheJSONRoundTrip`, kept in `query_context_data_internal_test.go`). When upstream merges it, drop this carry and re-sync those files from upstream main. | this PR | open upstream |
 
+Local deviation on the carried #6578 test file: `TestGetCompiledQuery_OnlyEvaluationStores` runs serially (it asserts the size of the process-wide cache that the other, parallel, tests fill); re-apply when re-syncing from upstream.
+
 Status checked 2026-11-23 with `gh pr view <n> -R thomaspoignant/go-feature-flag --json state,mergedAt`.
 PR #6565 was merged upstream before the baseline and is part of it, not carried.
 

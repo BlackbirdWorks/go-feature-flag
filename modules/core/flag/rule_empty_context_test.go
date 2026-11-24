@@ -10,8 +10,9 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_RequiresBucketing(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rule     flag.Rule
@@ -48,12 +49,12 @@ func TestRule_RequiresBucketing(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("disabled"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now()),
+						Date:       new(fixedNow()),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("enabled"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(time.Hour)),
+						Date:       new(fixedNow().Add(time.Hour)),
 					},
 				},
 			},
@@ -63,14 +64,17 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.rule.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_Evaluate_EmptyKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		rule          flag.Rule
@@ -124,12 +128,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new("disabled"),
 						Percentage: new(float64(0)),
-						Date:       new(time.Now().Add(-time.Hour)),
+						Date:       new(fixedNow().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new("enabled"),
 						Percentage: new(float64(100)),
-						Date:       new(time.Now().Add(time.Hour)),
+						Date:       new(fixedNow().Add(time.Hour)),
 					},
 				},
 			},
@@ -159,7 +163,9 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.rule.Evaluate(tt.key, tt.ctx, "test-flag", false)
+			t.Parallel()
+
+			result, err := tt.rule.Evaluate(tt.key, atFixedNow(tt.ctx), "test-flag", false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

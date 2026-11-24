@@ -327,8 +327,9 @@ func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
 	assert.Equal(t, workers, mock.contentsCalls)
 }
 
-//nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestGitHubAppAuth_Errors(t *testing.T) {
+	t.Parallel()
+
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	ecDER, err := x509.MarshalECPrivateKey(ecKey)
@@ -398,6 +399,8 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 	_, pemStr := generateTestKey(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := newAppRetriever(pemStr, cmp.Or(tt.mock, &appMockHTTP{}))
 			if tt.configure != nil {
 				tt.configure(r)

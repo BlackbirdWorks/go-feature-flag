@@ -87,8 +87,8 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 }
 
 func TestGetCompiledQuery_OnlyEvaluationStores(t *testing.T) {
-	t.Parallel()
-
+	// Local deviation from upstream (see UPSTREAM.md): not parallel. It asserts the exact size of the
+	// process-wide compiledQueryCache, which the parallel evaluations of the other tests fill.
 	t.Cleanup(compiledQueryCache.Clear)
 	compiledQueryCache.Clear()
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
