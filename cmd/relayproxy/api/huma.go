@@ -67,15 +67,21 @@ func errorTransformer(exposeError bool) huma.Transformer {
 	}
 }
 
+// detailError is a detail that huma reports about an error: the text it gave.
+type detailError string
+
+// Error returns the text of the detail.
+func (e detailError) Error() string { return string(e) }
+
 // modelError is the error of the relay proxy for an error of the RFC 9457 model of huma: the text of the status as
 // message, what huma reports as the wrapped error.
 func modelError(model *huma.ErrorModel) *helper.HTTPError {
 	details := make([]error, 0, len(model.Errors)+1)
 	if model.Detail != "" {
-		details = append(details, errors.New(model.Detail)) //nolint:err113 // the text huma gives
+		details = append(details, detailError(model.Detail))
 	}
 	for _, d := range model.Errors {
-		details = append(details, errors.New(d.Message)) //nolint:err113 // the text huma gives
+		details = append(details, detailError(d.Message))
 	}
 	if len(details) == 0 {
 		return helper.NewHTTPError(model.Status, "")

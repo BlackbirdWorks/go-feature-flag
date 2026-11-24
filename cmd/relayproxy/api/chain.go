@@ -7,11 +7,14 @@ import (
 
 	"github.com/blackbirdworks/huma-middleware/middleware/cleanpath"
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
+	"github.com/blackbirdworks/huma-middleware/middleware/recovery"
 	"github.com/blackbirdworks/huma-middleware/middleware/tracing"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	reqlog "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
@@ -39,7 +42,13 @@ import (
 // before. The authentication and the ETag are per route: they are middleware of the operations.
 
 func (s *Server) tracingOptions() []tracing.Option {
-	var opts []tracing.Option
+	// the meter provider is the one of the service (or the global one, which the service installs): the HTTP server
+	// metrics of the requests go where the runtime metrics go.
+	meter := s.meterProvider
+	if meter == nil {
+		meter = otel.GetMeterProvider()
+	}
+	opts := []tracing.Option{tracing.WithMeterProvider(meter)}
 	if s.tracerProvider != nil {
 		opts = append(opts, tracing.WithTracerProvider(s.tracerProvider))
 	}
@@ -110,7 +119,7 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 
 	return middleware.Chain(
 		mux,
-		append(chain, middleware.CORS(), middleware.Recover(s.logger, s.config.IsDebugEnabled()))...)
+		append(chain, middleware.CORS(), s.recovery())...)
 }
 
 // monitoringChain wraps the mux of the dedicated monitoring listener.
@@ -120,6 +129,21 @@ func (s *Server) monitoringChain(mux http.Handler) http.Handler {
 		middleware.VersionHeader(s.config),
 		s.accessLog(),
 		middleware.CORS(),
-		middleware.Recover(s.logger, s.config.IsDebugEnabled()),
+		s.recovery(),
+	)
+}
+
+// recovery turns a panic of a handler into a 500 with the error body of the relay proxy; the library logs it with
+// the error level through the logger of the server and marks the span.
+func (s *Server) recovery() middleware.Func {
+	debug := s.config.IsDebugEnabled()
+
+	return recovery.Handler(
+		recovery.WithLogger(s.logger),
+		recovery.WithRequestHandler(func(w http.ResponseWriter, r *http.Request, recovered any) {
+			err := &recovery.PanicError{Value: recovered}
+			reqlog.RecordError(r.Context(), err)
+			helper.WriteError(w, r, err, debug)
+		}),
 	)
 }

@@ -73,6 +73,20 @@ All your requests will be traced and sent to the collector with the service name
 > If you want to try the OpenTelemetry integration locally, follow this [example](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/testdata/opentelemetry)
 > to set up Jaeger and see your traces.
 
+### OpenTelemetry metrics
+
+When OpenTelemetry is configured (an OTLP endpoint is set, and `otel.sdk.disabled` is not), the relay proxy also exports
+OpenTelemetry **metrics**, to the same endpoint and with the same service name as the traces:
+
+- the **Go runtime** metrics (`go.memory.used`, `go.memory.allocated`, `go.goroutine.count`, `go.processor.limit`,
+  `go.schedule.duration`, `go.config.gogc`, ...);
+- the **HTTP server** metrics of the requests (`http.server.request.duration`, ...), with the `http.route` attribute.
+
+The protocol, the endpoint and the headers follow the standard `OTEL_EXPORTER_OTLP_*` environment variables, the export
+interval is the default of the SDK, and `OTEL_METRICS_EXPORTER=none` stops the export. Without OpenTelemetry
+configuration nothing is created and the requests pay nothing. This does not change the Prometheus
+[`/metrics`](#metrics) endpoint, which keeps its metrics and labels.
+
 ---
 
 ## Monitoring

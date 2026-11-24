@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 // newOK returns a handler that answers a JSON document.
@@ -231,63 +229,6 @@ func TestETag(t *testing.T) {
 		assert.Equal(t, http.StatusTeapot, rec.Code)
 		assert.Equal(t, "tea", rec.Body.String())
 		assert.Empty(t, rec.Header().Get("ETag"))
-	})
-}
-
-func TestRecover(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		panicValue  any
-		name        string
-		wantBody    string
-		exposeError bool
-	}{
-		{name: "error", panicValue: io.ErrUnexpectedEOF, wantBody: `{"message":"Internal Server Error"}` + "\n"},
-		{name: "string", panicValue: "boom", wantBody: `{"message":"Internal Server Error"}` + "\n"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			logger, logs := slogutil.NewObserver(slog.LevelDebug)
-			h := middleware.Recover(logger, tt.exposeError)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-				panic(tt.panicValue)
-			}))
-			rec := serve(h, httptest.NewRequest(http.MethodGet, "/x", nil))
-			assert.Equal(t, http.StatusInternalServerError, rec.Code)
-			assert.Equal(t, tt.wantBody, rec.Body.String())
-			got := logs.All()
-			require.Len(t, got, 1)
-			assert.Equal(t, slog.LevelError, got[0].Level)
-			assert.Equal(t, "panic recovered", got[0].Message)
-		})
-	}
-
-	t.Run("exposes the panic at the debug level", func(t *testing.T) {
-		t.Parallel()
-
-		logger, _ := slogutil.NewObserver(slog.LevelDebug)
-		h := middleware.Recover(
-			logger,
-			true,
-		)(
-			http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") }),
-		)
-		rec := serve(h, httptest.NewRequest(http.MethodGet, "/x", nil))
-		assert.Contains(t, rec.Body.String(), "[PANIC RECOVER] boom")
-	})
-
-	t.Run("an aborted handler goes on", func(t *testing.T) {
-		t.Parallel()
-
-		logger, _ := slogutil.NewObserver(slog.LevelDebug)
-		h := middleware.Recover(logger, false)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			panic(http.ErrAbortHandler)
-		}))
-		assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
-			serve(h, httptest.NewRequest(http.MethodGet, "/x", nil))
-		})
 	})
 }
 

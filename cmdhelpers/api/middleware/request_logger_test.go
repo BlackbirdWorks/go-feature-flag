@@ -267,6 +267,44 @@ func TestLogRequestDisabledLevel(t *testing.T) {
 	assert.Zero(t, logs.Len())
 }
 
+func TestRequestLoggerRequestID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		requestHeader  string
+		responseHeader string
+		wantRequestID  string
+	}{
+		{name: "from the request", requestHeader: "from-request", wantRequestID: "from-request"},
+		{name: "from the response", responseHeader: "from-response", wantRequestID: "from-response"},
+		{name: "the request wins", requestHeader: "from-request", responseHeader: "from-response",
+			wantRequestID: "from-request"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, "/something", nil)
+			if tt.requestHeader != "" {
+				req.Header.Set("X-Request-ID", tt.requestHeader)
+			}
+			obs, logs := slogutil.NewObserver(slog.LevelDebug)
+			h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tt.responseHeader != "" {
+					w.Header().Set("X-Request-ID", tt.responseHeader)
+				}
+				w.WriteHeader(http.StatusOK)
+			})
+
+			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
+			require.Equal(t, 1, logs.Len())
+			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()["request_id"])
+		})
+	}
+}
+
 // TestRequestLoggerReturnedErrors drives requests through the logger to handlers that fail or panic. The record
 // carries the status that was sent to the client, at the level of its class (issue 63): a handler that returned
 // an error is logged with its error status, and a recovered panic is a 500 whose error is in the record.

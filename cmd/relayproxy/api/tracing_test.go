@@ -43,23 +43,39 @@ func Test_Tracing(t *testing.T) {
 		path       string
 		body       string
 		wantName   string
+		wantRoute  string
 		wantStatus int
 		wantError  bool
 	}{
-		{name: "huma operation", method: http.MethodGet, path: "/health", wantName: "GET /health",
+		{name: "huma operation", method: http.MethodGet, path: "/health", wantName: "GET /health", wantRoute: "/health",
 			wantStatus: http.StatusOK},
-		{name: "huma operation failing", method: http.MethodGet, path: "/info", wantName: "GET /info",
-			wantStatus: http.StatusInternalServerError, wantError: true},
+		{
+			name:       "huma operation failing",
+			method:     http.MethodGet,
+			path:       "/info",
+			wantName:   "GET /info",
+			wantRoute:  "/info",
+			wantStatus: http.StatusInternalServerError,
+			wantError:  true,
+		},
 		{
 			name:       "raw handler",
 			method:     http.MethodPost,
 			path:       "/v1/feature/some-flag/eval",
 			body:       `{"evaluationContext":{"key":"u"}}`,
 			wantName:   "POST /v1/feature/{flagKey}/eval",
+			wantRoute:  "/v1/feature/{flagKey}/eval",
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
-		{name: "no route", method: http.MethodGet, path: "/nope", wantName: "GET /", wantStatus: http.StatusNotFound},
+		{
+			name:       "no route",
+			method:     http.MethodGet,
+			path:       "/nope",
+			wantName:   "GET /",
+			wantRoute:  "/",
+			wantStatus: http.StatusNotFound,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -101,6 +117,7 @@ func Test_Tracing(t *testing.T) {
 			}
 			assert.Equal(t, int64(tt.wantStatus), attrs["http.response.status_code"].AsInt64())
 			assert.Equal(t, tt.method, attrs["http.request.method"].AsString())
+			assert.Equal(t, tt.wantRoute, attrs["http.route"].AsString())
 			if tt.wantError {
 				assert.Equal(t, codes.Error, span.Status().Code)
 			} else {

@@ -3,18 +3,23 @@ package api_test
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
@@ -76,6 +81,9 @@ func Test_Swagger_Document(t *testing.T) {
 			}
 			assert.Contains(t, doc.Components.Schemas, "HealthResponse")
 			assert.Contains(t, doc.Components.Schemas, "AllFlagRequest")
+			// the schemas of the error model of huma are not used by any operation
+			assert.NotContains(t, doc.Components.Schemas, "ErrorModel")
+			assert.NotContains(t, doc.Components.Schemas, "ErrorDetail")
 		})
 	}
 }
@@ -102,8 +110,10 @@ func Test_Swagger_ConcurrentFirstRequests(t *testing.T) {
 	wg.Wait()
 }
 
-// Test_Upload_ReadIsBound checks that an upload that stalls is ended by the read timeout, for the two endpoints that
-// read their own body: the read of a body is never unbounded.
+// Test_Upload_ReadIsBound checks that an upload that stalls is ended by the server, for the two endpoints that read
+// their own body: the server closes the connection (or answers 408) when the read timeout is over, it does not
+// wait for the rest of the body. The pass condition is the outcome, not a duration: the only failure that is
+// excluded is the client giving up itself (its own read deadline, generous, only keeps a hang from blocking).
 func Test_Upload_ReadIsBound(t *testing.T) {
 	t.Parallel()
 
@@ -119,22 +129,62 @@ func Test_Upload_ReadIsBound(t *testing.T) {
 			t.Parallel()
 
 			conf := testConfig(t)
-			baseURL := startGoldenServer(t, conf, api.WithReadTimeout(300*time.Millisecond))
-			addr := baseURL[len("http://"):]
-			conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(t.Context(), "tcp", addr)
+			baseURL := startGoldenServer(t, conf, api.WithReadTimeout(100*time.Millisecond))
+			conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(
+				t.Context(),
+				"tcp",
+				baseURL[len("http://"):],
+			)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = conn.Close() })
 
 			// the headers announce a body that never arrives in full
 			_, err = fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"+
 				"Content-Length: 100000\r\n\r\n{\"events\":[", tt.path)
-			require.NoError(t, err)
+			require.NoError(t, err, "the request was sent in full")
 
-			start := time.Now()
-			require.NoError(t, conn.SetReadDeadline(start.Add(10*time.Second)))
-			// the server ends the exchange: it answers, or closes the connection, but it does not wait for ever.
-			_, _ = bufio.NewReader(conn).ReadString('\n')
-			assert.Less(t, time.Since(start), 5*time.Second, "a stalled upload is not ended")
+			require.NoError(t, conn.SetReadDeadline(time.Now().Add(30*time.Second)))
+			line, err := bufio.NewReader(conn).ReadString('\n')
+			if err == nil {
+				// the server answered: the body could not be read in time
+				assert.Contains(t, line, "408", "the answer to a stalled upload is a 408")
+
+				return
+			}
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				assert.Fail(t, "the server never ended the stalled upload", "the client gave up: %v", err)
+
+				return
+			}
+			// the server closed the connection (EOF, or a reset when it closes with data unread)
+			assert.True(t, errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET), "unexpected error: %v", err)
+		})
+	}
+}
+
+// Test_BodyOpts checks the options of the operations that read their own body: no size limit (as on main), the read
+// bound by the timeout it is given, and no validation by huma (the handler decodes the body).
+func Test_BodyOpts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout time.Duration
+	}{
+		{name: "the default read timeout", timeout: 30 * time.Second},
+		{name: "a short read timeout", timeout: time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			op := &huma.Operation{}
+			controller.BodyOpts(op, tt.timeout)
+			assert.Equal(t, tt.timeout, op.BodyReadTimeout)
+			assert.Positive(t, op.BodyReadTimeout, "the read of a body is never unbounded")
+			assert.Equal(t, int64(-1), op.MaxBodyBytes)
+			assert.True(t, op.SkipValidateBody)
 		})
 	}
 }
