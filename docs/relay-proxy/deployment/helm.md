@@ -6,9 +6,13 @@ Helm is an invaluable tool for configuring and deploying applications to a Kuber
 
 The Helm chart lives in this repository under
 [`cmd/relayproxy/helm-charts/relay-proxy`](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/helm-charts/relay-proxy).
-This repository does not publish the chart to a Helm repository, so install it from a local checkout.
-The default image is `ghcr.io/blackbirdworks/semaphore`; override `image.repository` and `image.tag` to
-use an image you built and pushed.
+The chart is not published to a Helm repository: install it from a local checkout, or from the
+`relay-proxy-<version>.tgz` attached to a GitHub Release (available after the first release).
+The default image is `ghcr.io/blackbirdworks/semaphore:<chart appVersion>`, published by the release
+workflow (available after the first release); until then override `image.repository` and `image.tag`
+to use an image you built. The chart is installed in CI with an image built from the same commit.
+`relayproxy.extraFiles` ships additional files (for example a flag file for a `file` retriever)
+next to the configuration, see `cmd/relayproxy/helm-charts/relay-proxy/ci/smoke-values.yaml`.
 
 ## Install Semaphore relay proxy in Kubernetes using Helm
 ### Prerequisites

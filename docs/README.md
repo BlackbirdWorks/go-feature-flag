@@ -8,7 +8,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 
 ## Relay proxy
 - [Overview](relay-proxy/README.md)
-- [Installation](relay-proxy/install.md)
+- [Installation](relay-proxy/install.md) and [Releasing](RELEASING.md)
 - [Getting started](relay-proxy/getting-started.md)
 - [Configuration reference](relay-proxy/configuration.md) (including flag sets and API keys)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
