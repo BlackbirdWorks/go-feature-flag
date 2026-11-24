@@ -286,8 +286,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func Test_webhookNotifier_no_meta_data(t *testing.T) {
+	t.Parallel()
+
 	mockHTTPClient := &testutils.HTTPClientMock{StatusCode: 200, ForceError: false}
 	diff := notifier.DiffCache{
 		Added: map[string]flag.Flag{

@@ -87,8 +87,9 @@ func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	}
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestStudio(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		fileConfig   string            // {{URL}} is the URL of the server, {{CACHE}} the cache file
@@ -206,13 +207,16 @@ flagSets:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			srv := newStudioServer(t, tt.body, tt.authHeader)
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			if tt.cache != "" {
 				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0600))
 			}
+			environ := make([]string, 0, len(tt.env))
 			for name, value := range tt.env {
-				t.Setenv(name, value)
+				environ = append(environ, name+"="+value)
 			}
 			fileConfig := strings.NewReplacer("{{URL}}", srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
@@ -220,7 +224,7 @@ flagSets:
 			f.String("config", "", "Location of your config file")
 			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", false).ToConfig()
+			got, err := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", false, withEnviron(environ...)).ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(got))

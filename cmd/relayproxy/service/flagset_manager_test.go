@@ -611,12 +611,15 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func TestFlagsetManager_Close(t *testing.T) {
+	t.Parallel()
+
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 
 	// Test default mode
 	t.Run("default mode", func(t *testing.T) {
+		t.Parallel()
+
 		outputDir := t.TempDir()
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
@@ -639,6 +642,8 @@ func TestFlagsetManager_Close(t *testing.T) {
 
 	// Test flagset mode
 	t.Run("flagset mode", func(t *testing.T) {
+		t.Parallel()
+
 		outputDir := t.TempDir()
 		config := &config.Config{
 			FlagSets: []config.FlagSet{

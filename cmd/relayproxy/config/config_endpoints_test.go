@@ -169,10 +169,9 @@ func TestEndpoints_IsValid(t *testing.T) {
 }
 
 // TestEndpoints_Loading checks the loading of the endpoints block from the file and the environment.
-// It cannot be parallel because of t.Setenv.
-//
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestEndpoints_Loading(t *testing.T) {
+	t.Parallel()
+
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
 	tests := []struct {
 		name        string
@@ -225,15 +224,18 @@ func TestEndpoints_Loading(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			path := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
+			environ := make([]string, 0, len(tt.env))
 			for k, v := range tt.env {
-				t.Setenv(k, v)
+				environ = append(environ, k+"="+v)
 			}
 			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			fs.String("config", "", "Location of your config file")
 			require.NoError(t, fs.Parse([]string{"--config=" + path}))
-			loader := config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false)
+			loader := config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false, withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)

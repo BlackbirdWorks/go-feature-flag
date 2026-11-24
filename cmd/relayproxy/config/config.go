@@ -190,9 +190,9 @@ type Config struct {
 }
 
 // New is reading the configuration file.
-func New(cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string) (*Config, error) {
+func New(cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, opts ...LoaderOption) (*Config, error) {
 	// Map environment variables
-	configLoader := NewConfigLoader(cmdLineFlagSet, log, version, true)
+	configLoader := NewConfigLoader(cmdLineFlagSet, log, version, true, opts...)
 	proxyConf, errUnmarshal := configLoader.ToConfig()
 	if errUnmarshal != nil {
 		return nil, errUnmarshal

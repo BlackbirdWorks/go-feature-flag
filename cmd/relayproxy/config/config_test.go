@@ -2,7 +2,6 @@ package config_test
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,8 +21,9 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 )
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		content     string
@@ -35,25 +35,29 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(configPath, []byte(tt.content), 0o600))
+			var environ []string
 			if tt.environment != "" {
-				t.Setenv("DISABLEFLAGDETAILSINSTREAM", tt.environment)
+				environ = append(environ, "DISABLEFLAGDETAILSINSTREAM="+tt.environment)
 			}
 
 			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			flagSet.String("config", "", "Location of your config file")
 			require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
 
-			got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+			got, err := config.New(flagSet, zap.NewNop(), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.True(t, got.DisableFlagDetailsInStream)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfig_fileFromPflag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		want         *config.Config
@@ -359,12 +363,13 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("version", "1.X.X")
+			t.Parallel()
+
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
 
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron("version=1.X.X"))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -377,11 +382,10 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                       string
-		want                       *config.Config
-		fileLocation               string
-		wantErr                    assert.ErrorAssertionFunc
-		disableDefaultFileCreation bool
+		name         string
+		want         *config.Config
+		fileLocation string
+		wantErr      assert.ErrorAssertionFunc
 	}{
 		{
 			name:         "Valid file",
@@ -468,22 +472,12 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				Version:                 "1.X.X",
 				LogLevel:                config.DefaultLogLevel,
 			},
-			disableDefaultFileCreation: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_ = os.Remove("./goff-proxy.yaml")
-			if !tt.disableDefaultFileCreation {
-				source, _ := os.Open(tt.fileLocation)
-				destination, _ := os.Create("./goff-proxy.yaml")
-				defer destination.Close()
-				defer source.Close()
-				defer os.Remove("./goff-proxy.yaml")
-				_, _ = io.Copy(destination, source)
-			}
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
@@ -1263,15 +1257,15 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // binds a fixed TCP port "localhost:19092"
 func TestMergeConfig_FromOSEnv(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name                       string
-		want                       *config.Config
-		fileLocation               string
-		wantErr                    assert.ErrorAssertionFunc
-		disableDefaultFileCreation bool
-		envVars                    map[string]string
+		name         string
+		want         *config.Config
+		fileLocation string
+		wantErr      assert.ErrorAssertionFunc
+		envVars      map[string]string
 	}{
 		{
 			name:         "Valid file",
@@ -1612,9 +1606,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			},
 		},
 		{
-			name:                       "Valid YAML with OTel config",
-			fileLocation:               "../testdata/config/valid-otel.yaml",
-			disableDefaultFileCreation: true,
+			name:         "Valid YAML with OTel config",
+			fileLocation: "../testdata/config/valid-otel.yaml",
 			want: &config.Config{
 				PollingInterval: 60000,
 				FileFormat:      "yaml",
@@ -1652,9 +1645,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			},
 		},
 		{
-			name:                       "Configure flagset with basic environment variables",
-			fileLocation:               "../testdata/config/validate-array-env-file-flagset.yaml",
-			disableDefaultFileCreation: true,
+			name:         "Configure flagset with basic environment variables",
+			fileLocation: "../testdata/config/validate-array-env-file-flagset.yaml",
 			want: &config.Config{
 				FileFormat:      "yaml",
 				PollingInterval: 60000,
@@ -1712,24 +1704,17 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for k, v := range tt.envVars {
-				t.Setenv(k, v)
-			}
+			t.Parallel()
 
-			_ = os.Remove("./goff-proxy.yaml")
-			if !tt.disableDefaultFileCreation {
-				source, _ := os.Open(tt.fileLocation)
-				destination, _ := os.Create("./goff-proxy.yaml")
-				defer destination.Close()
-				defer source.Close()
-				defer os.Remove("./goff-proxy.yaml")
-				_, _ = io.Copy(destination, source)
+			environ := make([]string, 0, len(tt.envVars))
+			for k, v := range tt.envVars {
+				environ = append(environ, k+"="+v)
 			}
 
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1738,12 +1723,10 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	}
 }
 
-// This test cannot be parallel: t.Setenv changes the process environment, and restores it when
-// the test ends (os.Setenv leaked the keys into every test that ran after it, which broke
-// -count>1 and any test reading the authorized keys).
-//
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+// The variables are given to the loader (withEnviron), the process environment is not modified.
 func TestSetAPIKeysFromEnv(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		envVars        map[string]string
@@ -1762,14 +1745,17 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			environ := make([]string, 0, len(tt.envVars))
 			for k, v := range tt.envVars {
-				t.Setenv(k, v)
+				environ = append(environ, k+"="+v)
 			}
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
 			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
@@ -1897,15 +1883,18 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestConfigOnlyEnvVars(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Retrievers", func(t *testing.T) {
-		t.Setenv("RETRIEVERS_0_KIND", string(retrieverconf.FileRetriever))
-		t.Setenv("RETRIEVERS_0_PATH", "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml")
+		t.Parallel()
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 
-		got, err := config.New(f, zap.L(), "1.X.X")
+		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
+			"RETRIEVERS_0_PATH=cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+		))
 		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.FileRetriever, (*got.Retrievers)[0].Kind)
@@ -1913,11 +1902,13 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 	})
 
 	t.Run("Flagset retriever", func(t *testing.T) {
-		t.Setenv("FLAGSETS_0_RETRIEVERS_0_KIND", string(retrieverconf.HTTPRetriever))
-		t.Setenv("FLAGSETS_0_RETRIEVERS_0_URL", "https://example.com/flags.goff.yaml")
+		t.Parallel()
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		got, err := config.New(f, zap.L(), "1.X.X")
+		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
+			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
+		))
 		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.HTTPRetriever, (*got.FlagSets[0].Retrievers)[0].Kind)
@@ -1994,14 +1985,20 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	}
 }
 
-func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
+// withEnviron makes the loader read the given "KEY=value" variables instead of the process
+// environment, so the tests that load the configuration from the environment can run in parallel.
+func withEnviron(environ ...string) config.LoaderOption {
+	return config.WithEnviron(func() []string { return environ })
+}
+
+func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOption) *config.Config {
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	flagSet.String("config", "", "Location of your config file")
 	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
-	got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+	got, err := config.New(flagSet, zap.NewNop(), "1.X.X", opts...)
 	require.NoError(t, err)
 
 	return got
@@ -2038,12 +2035,10 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 	}
 }
 
-// Not parallel: t.Setenv changes the process environment.
-//
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
-	t.Setenv("EXPORTERCLEANQUEUEINTERVAL", "2m")
-	got := parseCleanQueueConfig(t, "logLevel: info\n")
+	t.Parallel()
+
+	got := parseCleanQueueConfig(t, "logLevel: info\n", withEnviron("EXPORTERCLEANQUEUEINTERVAL=2m"))
 	assert.Equal(t, 2*time.Minute, got.ExporterCleanQueueInterval)
 }
 
@@ -2091,8 +2086,9 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
+	t.Parallel()
+
 	const marker = "SECRETMARKER-7f3a"
 	tests := []struct {
 		name         string
@@ -2104,10 +2100,12 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.attributes)
+			t.Parallel()
+
 			core, logs := observer.New(zapcore.DebugLevel)
 
-			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X")
+			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X",
+				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes))
 			require.NoError(t, err)
 
 			entries := logs.FilterMessageSnippet("OTEL_RESOURCE_ATTRIBUTES").All()

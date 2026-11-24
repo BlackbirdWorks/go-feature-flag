@@ -175,7 +175,7 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable _
+//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
 func TestInit(t *testing.T) {
 	logger := log.InitLogger().ZapLogger
 

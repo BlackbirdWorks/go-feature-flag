@@ -357,9 +357,12 @@ func TestEvaluationContextToMap(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
+	t.Parallel()
+
 	t.Run("targetingKey is not leaked into the context attributes", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 
@@ -370,6 +373,8 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	})
 
 	t.Run("mutating the returned map does not leak back into the context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 
@@ -382,6 +387,8 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	})
 
 	t.Run("multiple calls are stable and leave the context untouched", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 

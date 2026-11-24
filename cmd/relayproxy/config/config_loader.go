@@ -67,15 +67,29 @@ type ConfigLoader struct {
 	stopOnce  sync.Once     // ensures stopChan is only closed once
 }
 
+// LoaderOption configures a ConfigLoader.
+type LoaderOption func(*ConfigLoader)
+
+// WithEnviron sets the source of the environment variables (os.Environ by default). The values
+// are "KEY=value" strings, as returned by os.Environ.
+func WithEnviron(environ func() []string) LoaderOption {
+	return func(c *ConfigLoader) { c.environFunc = environ }
+}
+
 // NewConfigLoader creates a new ConfigLoader.
 func NewConfigLoader(
-	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool) *ConfigLoader {
+	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool, opts ...LoaderOption,
+) *ConfigLoader {
 	configLoader := ConfigLoader{
 		cmdLineFlagSet: cmdLineFlagSet,
 		log:            log,
 		version:        version,
 		watchChanges:   watchChanges,
 		k:              koanf.New("."),
+	}
+
+	for _, opt := range opts {
+		opt(&configLoader)
 	}
 
 	// Initialize channels only if we're watching for changes

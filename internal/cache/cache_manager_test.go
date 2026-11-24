@@ -491,8 +491,9 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 	assert.True(t, timeBefore.Before(timeAfter))
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable _
 func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
+	t.Parallel()
+
 	file, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
