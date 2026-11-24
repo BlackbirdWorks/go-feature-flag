@@ -12,7 +12,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 ## Where things are
 
 - Root `.go` files: the engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: relay proxy (Echo, Zap, Prometheus, OpenTelemetry); `docs/` is generated swagger, `helm-charts/` the chart.
+- `cmd/relayproxy/`: relay proxy (Echo, Zap, Prometheus, OpenTelemetry); `docs/` is generated swagger.
 - `cmd/cli/`, `cmd/jsonschema-generator/`: command line (`evaluate`, `lint`, `generate`) and the schema generator.
 - `modules/core/`: flag, context, evaluation, `clock` (directories of the root module, not separate modules).
 - `rules/`: the rules engine (query parser and evaluator, own `LICENSE`); `rules/parser` holds antlr generated files.
@@ -121,4 +121,4 @@ make provider-tests
 
 ## Releases
 
-Tags, releases and images are published only by the release workflow on a deliberate tag; never publish by hand.
+Tags, releases and images are published only by the release workflow on a deliberate tag; never publish by hand. See [docs/RELEASING.md](docs/RELEASING.md).

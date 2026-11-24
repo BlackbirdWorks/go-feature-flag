@@ -17,21 +17,8 @@ builds:
       - linux
       - windows
     goarch:
-      - 386
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: linux
-        goarch: arm
-        goarm: 6
-      - goos: windows
-        goarch: arm
 
   # FIPS 140-3 build of the relay proxy.
   # Built with GOFIPS140 (Go Cryptographic Module, CMVP validated), which bakes a default
@@ -41,10 +28,10 @@ builds:
     binary: semaphore-fips
     env:
       - CGO_ENABLED=0
-      # Version is read from the .fips-version file at the repo root and injected via the
-      # GOFIPS140 environment variable (see the Makefile, GOFIPS140_VERSION). This repository
-      # has no release workflow: export GOFIPS140 yourself before running goreleaser.
-      - GOFIPS140={{ .Env.GOFIPS140 }}
+      # Version is read from the .fips-version file at the repo root (single source of truth,
+      # shared with the Makefile). It is set per build here, never exported for the whole
+      # goreleaser run, so the other builds stay regular (non-FIPS) builds.
+      - GOFIPS140={{ readFile ".fips-version" | trim }}
     goos:
       - linux
     goarch:
@@ -61,21 +48,8 @@ builds:
       - linux
       - windows
     goarch:
-      - 386
       - amd64
       - arm64
-      - arm
-    goarm:
-      - 6
-      - 7
-    ignore:
-      - goos: darwin
-        goarch: 386
-      - goos: linux
-        goarch: arm
-        goarm: 6
-      - goos: windows
-        goarch: arm
 
   # Build an AWS lambda compatible binary
   - id: semaphore-lambda
@@ -87,20 +61,18 @@ builds:
       - linux
     goarch:
       - arm64
-    goarm:
-      - "7"
 
 archives:
   - id: semaphore
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "semaphore_\
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore
     files:
@@ -114,11 +86,7 @@ archives:
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore-fips
     files:
@@ -128,15 +96,15 @@ archives:
       - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-cli
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "semaphore-cli_\
       {{ .Version }}_\
       {{- title .Os }}_\
       {{- if eq .Arch \"amd64\" }}x86_64\
-      {{- else if eq .Arch \"386\" }}i386\
-      {{- else }}{{ .Arch }}{{ end }}\
-      {{- with .Arm }}v{{ . }}{{ end }}\
-      {{- with .Mips }}_{{ . }}{{ end }}\
-      {{- if not (eq .Amd64 \"v1\") }}{{ .Amd64 }}{{ end }}"
+      {{- else }}{{ .Arch }}{{ end }}"
     ids:
       - semaphore-cli
     files:
@@ -178,14 +146,13 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -211,10 +178,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "fips"
-      - "v{{ .RawVersion }}-fips"
-      - "v{{ .Major }}-fips"
-      - "v{{ .Major }}.{{ .Minor }}-fips"
+      - "{{ if not .Prerelease }}fips{{ end }}"
+      - "v{{ .Version }}-fips"
+      - "{{ if not .Prerelease }}v{{ .Major }}-fips{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-fips{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -241,14 +208,13 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "bookworm"
-      - "v{{ .RawVersion }}-bookworm"
-      - "v{{ .Major }}-bookworm"
-      - "v{{ .Major }}.{{ .Minor }}-bookworm"
+      - "{{ if not .Prerelease }}bookworm{{ end }}"
+      - "v{{ .Version }}-bookworm"
+      - "{{ if not .Prerelease }}v{{ .Major }}-bookworm{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-bookworm{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -272,14 +238,13 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "trixie"
-      - "v{{ .RawVersion }}-trixie"
-      - "v{{ .Major }}-trixie"
-      - "v{{ .Major }}.{{ .Minor }}-trixie"
+      - "{{ if not .Prerelease }}trixie{{ end }}"
+      - "v{{ .Version }}-trixie"
+      - "{{ if not .Prerelease }}v{{ .Major }}-trixie{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-trixie{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A stand alone server to run Semaphore"
@@ -303,17 +268,17 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore-cli
     tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
-      - linux/arm/v7
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A command line tool to manage Semaphore from your terminal"
+      "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "semaphore-cli"
@@ -322,21 +287,18 @@ dockers_v2:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
-signs:
-  - artifacts: checksum
-    cmd: gpg
-    args:
-      [
-        "--batch",
-        "--yes",
-        "--armor",
-        "--pinentry-mode",
-        "loopback",
-        "--local-user",
-        "{{ .Env.GPG_FINGERPRINT }}",
-        "--output",
-        "${signature}",
-        "--detach-sign",
-        "${artifact}",
-      ]
-    signature: "${artifact}.sig"
+# SBOM of every archive (SPDX, generated with syft, which the release workflow installs).
+sboms:
+  - artifacts: archive
+
+# Archives and checksums are attested with GitHub build provenance by the release workflow
+# (actions/attest-build-provenance, keyless, verified with `gh attestation verify`). There is
+# no detached GPG signature: the project has no signing key.
+
+release:
+  github:
+    owner: BlackbirdWorks
+    name: semaphore
+  # A tag with a pre-release suffix (v0.1.0-rc.1) is published as a GitHub pre-release.
+  prerelease: auto
+  draft: false

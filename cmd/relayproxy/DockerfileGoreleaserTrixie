@@ -1,7 +1,13 @@
-FROM debian:trixie-slim
+# Release image, built by GoReleaser: it only COPYs the binary it has already cross-compiled.
+# For a Dockerfile that compiles from source see Dockerfile.local.
+FROM debian:trixie-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
 COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
-CMD ["/usr/local/bin/semaphore"]
+# uid 65532 needs no /etc/passwd entry; not creating one avoids a RUN (and QEMU emulation) for
+# the foreign architectures.
+EXPOSE 1031
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/semaphore"]

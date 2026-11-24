@@ -59,6 +59,7 @@ Do not port upstream changes in these areas; classify them N/A-BY-DESIGN.
 
 Done in this tree:
 
+- Helm chart (`cmd/relayproxy/helm-charts`) removed: not needed by this project; changes to it upstream are N/A-BY-DESIGN.
 - WASM/WASI build of the evaluation engine removed (`cmd/wasm`, TinyGo-specific code paths, wasm release workflows/scripts).
 - Go toolchain pinned to the latest release (`go 1.27.4`).
 - `rules/` is a plain directory of the root module (import path `github.com/blackbirdworks/semaphore/rules`; upstream and the original: a separate module `github.com/nikunjy/rules` wired by a `replace`). `modules/core` is a plain directory of the root module here (upstream: a separate module).

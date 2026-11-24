@@ -591,8 +591,7 @@ Kubernetes injects, in every pod, the variables of the Services of the namespace
 `<SERVICE>_SERVICE_PORT`, `<SERVICE>_PORT=tcp://...`, `<SERVICE>_PORT_<port>_TCP_ADDR`, ...). A Service named
 `semaphore` therefore adds variables that start with `SEMAPHORE_`. The relay proxy ignores the variables that start
 with the prefix and have both the name and the value of a service link, and logs their names (never their values) at the
-debug level. A setting such as `SEMAPHORE_SERVER_PORT=1031` is not affected. The Helm chart also sets
-`enableServiceLinks: false` on the pods.
+debug level. A setting such as `SEMAPHORE_SERVER_PORT=1031` is not affected. Set `enableServiceLinks: false` on your pods to avoid them.
 
 - option name: `envVariablePrefix`
 - type: **string**

@@ -134,23 +134,11 @@ fail if any non-FIPS-approved cryptographic algorithm is used:
 GODEBUG=fips140=only ./out/bin/semaphore-fips --config=/semaphore/config.yaml
 ```
 
-### Recommended hardening for FedRAMP deployments (Helm)
+### Recommended hardening for FedRAMP deployments
 
-If you deploy the relay proxy with our [Helm chart](deployment/helm.md), the FIPS build
-covers cryptography but a hardened deployment should also tighten the container's runtime
-security context. Set `nonRoot.enabled` to run the proxy as the distroless `nonroot` user
-(uid/gid 65532) with privilege escalation disabled, all capabilities dropped and the
-`RuntimeDefault` seccomp profile. For FedRAMP-style boundaries we recommend also making the
-root filesystem read-only:
-
-```yaml
-# values.yaml (Helm)
-nonRoot:
-  enabled: true
-securityContext:
-  readOnlyRootFilesystem: true
-```
-
-Leave `readOnlyRootFilesystem` off if you use the file exporter or
-`persistentFlagConfigurationFile`: both write to the container filesystem.
-Combine this with your platform's pod security standards as appropriate.
+The FIPS build covers cryptography only. The released images already run as the non-root user 65532; in addition
+run the container with all capabilities dropped, no privilege escalation, the `RuntimeDefault` seccomp profile and,
+where your setup allows it, a read-only root filesystem. If you use the file exporter or
+`persistentFlagConfigurationFile` (both write files), keep the root filesystem read-only and mount a writable
+volume for those paths, owned by or writable for uid 65532. Combine this with your
+platform's pod security standards as appropriate.

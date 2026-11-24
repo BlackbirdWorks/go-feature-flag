@@ -8,14 +8,14 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 
 ## Relay proxy
 - [Overview](relay-proxy/README.md)
-- [Installation](relay-proxy/install.md)
+- [Installation](relay-proxy/install.md) and [Releasing](RELEASING.md)
 - [Getting started](relay-proxy/getting-started.md)
 - [Configuration reference](relay-proxy/configuration.md) (including flag sets and API keys)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
 - [Performance](performance.md) (throughput and latency, single and bulk evaluation, HTTP/1.1 and HTTP/2)
 - [Advanced usage](relay-proxy/advanced-usage.md) (manual refresh, flag validation, FIPS)
-- Deployment: [Helm](relay-proxy/deployment/helm.md), [AWS Lambda](relay-proxy/deployment/aws-lambda.md)
+- Deployment: [AWS Lambda](relay-proxy/deployment/aws-lambda.md)
 
 ## Concepts
 - [Architecture](concepts/architecture.md)

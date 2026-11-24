@@ -26,5 +26,5 @@ Documentation:
 - [API endpoints](../../docs/relay-proxy/endpoints.md)
 
 ## Container image
-`make build-relayproxy-docker` builds a local image from source. Published images use the name
-`ghcr.io/blackbirdworks/semaphore`.
+`make build-relayproxy-docker` builds a local image from source. Released images are published as
+`ghcr.io/blackbirdworks/semaphore` (after the first release, see [Releasing](../../docs/RELEASING.md)).
