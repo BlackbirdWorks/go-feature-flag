@@ -104,7 +104,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		if err != nil {
 			return nil, err
 		}
-		port := l.Addr().(*net.TCPAddr).Port
+		port := l.Addr().(*net.TCPAddr).Port //nolint:errcheck // a tcp listener always has a *net.TCPAddr
 		_ = l.Close()
 		conf.Server.Port = port
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)

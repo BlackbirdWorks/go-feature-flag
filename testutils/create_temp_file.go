@@ -45,11 +45,8 @@ func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 }
 
 func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) *os.File {
-	err := os.WriteFile(
-		file.Name(),
-		[]byte(content),
-		0600,
-	) //nolint:gosec // G703 - path from caller's temp file is safe
+	err := os.WriteFile(file.Name(), []byte(content), 0600) //nolint:gosec // G703 - path from caller's temp file
+
 	require.NoError(t, err)
 	syncFile(t, file.Name())
 

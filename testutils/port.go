@@ -15,7 +15,7 @@ func GetFreePort(t *testing.T) int {
 	require.NoError(t, err)
 	defer func() { _ = listener.Close() }()
 
-	return listener.Addr().(*net.TCPAddr).Port
+	return listener.Addr().(*net.TCPAddr).Port //nolint:errcheck // a tcp listener always has a *net.TCPAddr
 }
 
 // GetFreePortAsString returns a free port on the local machine as a string.

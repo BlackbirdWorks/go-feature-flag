@@ -31,15 +31,11 @@ func (m *TrackingEventExporter) Export(
 	case []exporter.ExportableEvent:
 		t := make([]exporter.TrackingEvent, len(events))
 		for i, v := range events {
-			t[i] = v.(exporter.TrackingEvent)
+			t[i] = v.(exporter.TrackingEvent) //nolint:errcheck // test mock: the events are TrackingEvent by contract
 		}
 		m.ExportedEvents = append(m.ExportedEvents, t...)
-
-		break
 	case []exporter.TrackingEvent:
 		m.ExportedEvents = append(m.ExportedEvents, events...)
-
-		break
 	}
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {

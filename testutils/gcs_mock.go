@@ -6,9 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/fsouza/fake-gcs-server/fakestorage"
+	"github.com/stretchr/testify/require"
 )
 
 type MockedStorage struct {

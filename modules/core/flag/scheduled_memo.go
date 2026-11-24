@@ -38,7 +38,7 @@ func (m *scheduledMemo) get(
 			runtime.AddCleanup(steps, func(k weak.Pointer[[]ScheduledStep]) { m.entries.Delete(k) }, key)
 		}
 	}
-	entry := v.(*scheduledEntry)
+	entry := v.(*scheduledEntry)   //nolint:errcheck // the map only ever stores *scheduledEntry
 	if due >= len(entry.byCount) { // the steps changed after the entry was created
 		return build()
 	}

@@ -2,7 +2,7 @@ package model
 
 import "github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 
-// FlagManifest is the machine-readable manifest envelope for CLI and tooling.
+// ManifestSuccessResponse is the machine-readable manifest envelope for CLI and tooling.
 type ManifestSuccessResponse struct {
 	Flags []ManifestDefinitionSuccessResponse `json:"flags"`
 }

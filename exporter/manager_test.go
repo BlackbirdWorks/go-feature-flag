@@ -115,7 +115,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 
 			dataExporterMock := []exporter.Config{
 				{
-					FlushInterval:    10 * time.Millisecond,
+					FlushInterval:    time.Hour, // only the number of events triggers the flush, never the ticker
 					MaxEventInMemory: 100,
 					Exporter:         tt.mockExporter,
 				},
@@ -129,7 +129,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 			defer dc.Stop()
 
 			// Initialize inputEvents slice
-			var inputEvents []exporter.FeatureEvent
+			inputEvents := make([]exporter.FeatureEvent, 0, 101)
 			for range 101 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
@@ -192,7 +192,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 			defer dc.Stop()
 
 			// Initialize inputEvents slice
-			var inputEvents []exporter.FeatureEvent
+			inputEvents := make([]exporter.FeatureEvent, 0, 100001)
 			for range 100001 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
@@ -239,7 +239,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	defer dc.Stop()
 
 	// Initialize inputEvents slice
-	var inputEvents []exporter.FeatureEvent
+	inputEvents := make([]exporter.FeatureEvent, 0, 201)
 	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
@@ -271,7 +271,7 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 	defer dc.Stop()
 
 	// Initialize inputEvents slice
-	var inputEvents []exporter.FeatureEvent
+	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
@@ -387,7 +387,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	defer dc.Stop()
 
 	// Initialize inputEvents slice
-	var inputEvents []exporter.FeatureEvent
+	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
@@ -434,7 +434,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	defer dc.Stop()
 
 	// Initialize inputEvents slice
-	var inputEvents []exporter.FeatureEvent
+	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
