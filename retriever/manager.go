@@ -328,7 +328,9 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	}
 
 	// resultsChan is the channel that will receive all the results.
-	resultsChan := make(chan Results)
+	// It has room for one result per retriever: we return on the first error without waiting for the
+	// other retrievers, which must still be able to send their result and return.
+	resultsChan := make(chan Results, len(retrievers))
 	var wg sync.WaitGroup
 	wg.Add(len(retrievers))
 
