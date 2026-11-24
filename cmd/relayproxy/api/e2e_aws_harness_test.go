@@ -83,9 +83,9 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 
 // apiResponse is a decoded HTTP response.
 type apiResponse struct {
-	Status int
 	Body   map[string]any
 	Raw    string
+	Status int
 }
 
 // postJSON sends a JSON body and decodes the JSON object of the response.

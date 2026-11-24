@@ -29,8 +29,8 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 
 	tests := []struct {
 		name string
-		want []byte
 		data string
+		want []byte
 	}{
 		{
 			name: "Returns well formed flag definition document",

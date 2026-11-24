@@ -23,11 +23,10 @@ func Test_Redis_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr     assert.ErrorAssertionFunc
 		name        string
 		prefix      string
 		flagsToLoad []string
-
-		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name:        "flags with prefix",

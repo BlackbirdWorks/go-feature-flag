@@ -50,11 +50,11 @@ func TestE2E_SingleItem(t *testing.T) {
 	tests := []struct {
 		name        string
 		key         string
-		content     []byte
 		itemToRead  string // defaults to key
-		useMissing  bool   // read from a bucket that does not exist
-		wantContent []byte
 		wantErr     string
+		content     []byte
+		wantContent []byte
+		useMissing  bool // read from a bucket that does not exist
 	}{
 		{
 			name: "small json item", key: "flags.json",
@@ -189,9 +189,9 @@ func TestE2E_FolderMode(t *testing.T) {
 		name      string
 		prefix    string
 		pattern   string
-		recursive bool
-		wantKeys  []string
 		wantErr   string
+		wantKeys  []string
+		recursive bool
 	}{
 		{name: "prefix direct children only", prefix: "flags/", wantKeys: []string{"flag-a", "flag-b"}},
 		{name: "prefix without trailing slash", prefix: "flags", wantKeys: []string{"flag-a", "flag-b"}},

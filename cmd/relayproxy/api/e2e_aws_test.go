@@ -146,15 +146,15 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 
 			t.Run("single evaluation", func(t *testing.T) {
 				tests := []struct {
+					wantValue   any
+					body        map[string]any
 					name        string
 					path        string
 					apiKey      string
-					body        map[string]any
-					wantStatus  int
-					wantValue   any
 					wantVariant string
 					wantReason  string
 					wantErrCode string
+					wantStatus  int
 				}{
 					// OFREP
 					{
@@ -372,12 +372,12 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 
 			t.Run("bulk evaluation", func(t *testing.T) {
 				tests := []struct {
+					body       map[string]any
+					wantFlags  map[string]any // flag key -> value
 					name       string
 					path       string
 					apiKey     string
-					body       map[string]any
 					wantStatus int
-					wantFlags  map[string]any // flag key -> value
 				}{
 					{
 						name:       "ofrep bulk flag set a",
@@ -644,8 +644,8 @@ flagsets:
 `
 
 type sinkEvent struct {
-	Key, UserKey, Variation string
 	Value                   any
+	Key, UserKey, Variation string
 }
 
 // Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
@@ -740,9 +740,9 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	sqsReceived := map[string]sinkEvent{} // only used by the sqs subtest
 	sinks := []struct {
-		name      string
 		read      func(t *testing.T) []sinkEvent
 		wantUsers map[string]string
+		name      string
 	}{
 		{
 			name: "s3 exporter",

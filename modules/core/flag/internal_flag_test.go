@@ -22,11 +22,11 @@ func TestInternalFlag_Value(t *testing.T) {
 		flagName    string
 	}
 	tests := []struct {
-		want1 flag.ResolutionDetails
 		flag  flag.InternalFlag
-		args  args
 		want  any
+		args  args
 		name  string
+		want1 flag.ResolutionDetails
 	}{
 		{
 			name: "Should use default value if no targeting",
@@ -2299,10 +2299,10 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 		flagName    string
 	}
 	tests := []struct {
-		want flag.ResolutionDetails
 		flag flag.InternalFlag
 		args args
 		name string
+		want flag.ResolutionDetails
 	}{
 		{
 			name: "Should return error when bucketing key not found",

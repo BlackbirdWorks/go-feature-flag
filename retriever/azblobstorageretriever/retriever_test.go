@@ -26,10 +26,10 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		retriever azblobretriever.Retriever
 		name      string
 		want      string
 		wantErr   bool
-		retriever azblobretriever.Retriever
 	}{
 		{
 			name:    "File on Container",

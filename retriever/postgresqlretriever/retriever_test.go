@@ -22,13 +22,13 @@ func TestPostgreSQLRetriever(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		files     []string
-		tableName string
 		columns   map[string]string
-		flagset   string
 		assertErr assert.ErrorAssertionFunc
+		name      string
+		tableName string
+		flagset   string
 		want      string
+		files     []string
 	}{
 		{
 			name: "valid set of flag",
@@ -625,13 +625,13 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name            string
 		shutdown        *postgresqlretriever.Retriever
-		release         bool // the test releases its own reference after the shutdown
 		other           *postgresqlretriever.Retriever
+		name            string
 		wantStatus      retriever.Status
 		wantOtherStatus retriever.Status
 		wantOtherErr    string
+		release         bool // the test releases its own reference after the shutdown
 		wantPoolOpen    bool
 	}{
 		{

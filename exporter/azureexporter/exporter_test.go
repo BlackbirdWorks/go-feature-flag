@@ -27,11 +27,11 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 
 	hostname, _ := os.Hostname()
 	tests := []struct {
-		name         string
-		exporter     azureexporter.Exporter
-		events       []exporter.ExportableEvent
 		wantErr      assert.ErrorAssertionFunc
+		exporter     azureexporter.Exporter
+		name         string
 		wantBlobName string
+		events       []exporter.ExportableEvent
 	}{
 		{
 			name: "Should insert 1 file in the root of the container",

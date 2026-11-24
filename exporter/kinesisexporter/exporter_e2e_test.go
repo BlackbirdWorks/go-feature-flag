@@ -101,13 +101,13 @@ func TestE2E_Export(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
+		partitionKey kinesisexporter.PartitionKeyFunc
 		name         string
-		shards       int32
 		nbEvents     int
 		nbCalls      int // the events are split in this number of Export calls
-		byArn        bool
-		partitionKey kinesisexporter.PartitionKeyFunc
 		wantReceived int
+		shards       int32
+		byArn        bool
 	}{
 		{name: "one event", shards: 1, nbEvents: 1, nbCalls: 1, wantReceived: 1},
 		{name: "ten events in one call", shards: 1, nbEvents: 10, nbCalls: 1, wantReceived: 10},
@@ -169,10 +169,10 @@ func TestE2E_Export_Errors(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name     string
 		settings func(t *testing.T) *kinesisexporter.Settings
-		nbEvents int
+		name     string
 		wantErr  string
+		nbEvents int
 	}{
 		{
 			name: "unknown stream",

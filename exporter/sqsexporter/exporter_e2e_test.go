@@ -34,8 +34,8 @@ func createQueue(t *testing.T, client *sqs.Client) string {
 }
 
 type received struct {
-	event   exporter.FeatureEvent
 	emitter string
+	event   exporter.FeatureEvent
 }
 
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {

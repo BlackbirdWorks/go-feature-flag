@@ -49,14 +49,14 @@ func TestE2E_Export(t *testing.T) {
 	hostname, _ := os.Hostname()
 
 	tests := []struct {
+		check        func(t *testing.T, content []byte, nbEvents int)
 		name         string
 		format       string
 		s3Path       string
 		filename     string
 		csvTemplate  string
-		nbEvents     int
 		wantKeyRegex string
-		check        func(t *testing.T, content []byte, nbEvents int)
+		nbEvents     int
 	}{
 		{
 			name: "json default format", format: "", s3Path: "exports/json", nbEvents: 3,

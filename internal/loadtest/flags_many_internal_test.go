@@ -25,8 +25,8 @@ func TestManyFlagsYAML(t *testing.T) {
 			t.Parallel()
 			type flagYAML struct {
 				DefaultRule struct {
-					Variation  string             `yaml:"variation"`
 					Percentage map[string]float64 `yaml:"percentage"`
+					Variation  string             `yaml:"variation"`
 				} `yaml:"defaultRule"`
 				TrackEvents *bool           `yaml:"trackEvents"`
 				Variations  map[string]bool `yaml:"variations"`
