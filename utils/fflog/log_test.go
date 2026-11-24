@@ -6,8 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestFFLogger_Error(t *testing.T) {

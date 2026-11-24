@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	maps0 "maps"
 	"net/netip"
 	"os"
 	"regexp"
@@ -236,9 +237,7 @@ func handleRecursiveConfig(
 		return configMap, err
 	}
 
-	for k, val := range modifiedNestedConfig {
-		configItem[k] = val
-	}
+	maps0.Copy(configItem, modifiedNestedConfig)
 
 	return updateConfigArray(configArray, index, configItem, configMap, prefixKey)
 }
@@ -327,7 +326,7 @@ func updateConfigArray(configArray []any, index int, configItem, configMap map[s
 // expandArray expands the array to accommodate the new index
 func expandArray(configArray []any, index int) []any {
 	blank := index - len(configArray) + 1
-	for i := 0; i < blank; i++ {
+	for range blank {
 		configArray = append(configArray, make(map[string]any))
 	}
 	return configArray

@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestRuleEvaluateProgressiveRollout(t *testing.T) {
@@ -14,14 +15,14 @@ func TestRuleEvaluateProgressiveRollout(t *testing.T) {
 	r := &Rule{
 		ProgressiveRollout: &ProgressiveRollout{
 			Initial: &ProgressiveRolloutStep{
-				Variation:  testconvert.String("A"),
+				Variation:  new("A"),
 				Percentage: testconvert.Float64(0),
-				Date:       testconvert.Time(now.Add(-1 * time.Second)),
+				Date:       new(now.Add(-1 * time.Second)),
 			},
 			End: &ProgressiveRolloutStep{
-				Variation:  testconvert.String("B"),
+				Variation:  new("B"),
 				Percentage: testconvert.Float64(25),
-				Date:       testconvert.Time(now.Add(1 * time.Second)),
+				Date:       new(now.Add(1 * time.Second)),
 			},
 		},
 	}

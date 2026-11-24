@@ -15,10 +15,11 @@ import (
 	"testing"
 	"time"
 
-	retrieverpkg "github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	retrieverpkg "github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
 func TestRetriever_getHTTPClient_WithClientCertificate(t *testing.T) {

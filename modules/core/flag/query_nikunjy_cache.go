@@ -9,8 +9,9 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/nikunjy/rules/parser"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // nikunjyEvaluatorCache keeps one parsed *parser.Evaluator per query string. Parsing the
@@ -146,7 +147,7 @@ func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluat
 	if err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
-	if _, err := ev.Process(map[string]interface{}{}); err != nil {
+	if _, err := ev.Process(map[string]any{}); err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
 	return ev, nil

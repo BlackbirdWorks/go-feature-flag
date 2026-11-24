@@ -11,12 +11,13 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/azure/azurite"
+
+	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var containerName = "testcontainer"

@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // FuzzInternalFlagValue checks that a flag which is valid at the evaluation date

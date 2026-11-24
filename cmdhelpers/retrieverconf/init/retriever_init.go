@@ -6,6 +6,9 @@ import (
 	"time"
 
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/redis/go-redis/v9"
+	"k8s.io/client-go/rest"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
@@ -20,8 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/redis/go-redis/v9"
-	"k8s.io/client-go/rest"
 )
 
 // retrieverFactory defines the signature for retriever factory functions

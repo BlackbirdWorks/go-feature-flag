@@ -5,13 +5,14 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
@@ -104,7 +105,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 		Version:      "v1",
 		Source:       "SERVER",
 		//  the for-loop branch
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"team": "platform",
 		},
 	}

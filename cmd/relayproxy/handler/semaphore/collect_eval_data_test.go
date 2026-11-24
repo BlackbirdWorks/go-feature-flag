@@ -11,6 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -18,10 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func Test_collect_eval_data_Handler(t *testing.T) {
@@ -71,14 +72,12 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{"test"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval: 10,
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: configFlagsLocation,
-								},
+						APIKeys:         []string{"test"},
+						PollingInterval: 10,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: configFlagsLocation,
 							},
 						},
 					},
@@ -121,14 +120,12 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{"test"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval: 10,
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: configFlagsLocation,
-								},
+						APIKeys:         []string{"test"},
+						PollingInterval: 10,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: configFlagsLocation,
 							},
 						},
 					},
@@ -331,10 +328,8 @@ func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode
 
 func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			PollingInterval: 10,
-			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: configFlagsLocation}},
-		},
+		PollingInterval: 10,
+		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: configFlagsLocation}},
 	}, zap.NewNop(), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err)
 
@@ -396,14 +391,12 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{"test"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval: 10,
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: configFlagsLocation,
-								},
+						APIKeys:         []string{"test"},
+						PollingInterval: 10,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: configFlagsLocation,
 							},
 						},
 					},

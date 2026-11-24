@@ -14,11 +14,12 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
 )
 
 // Entry is an object found by Store.List.

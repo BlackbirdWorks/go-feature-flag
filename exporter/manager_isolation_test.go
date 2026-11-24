@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // gatedExporter counts what it exports; while gate is not nil its Export waits for it to be
@@ -83,7 +84,7 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 					require.Eventually(t, func() bool { return healthy.events.Load() == int64(b*perBatch) },
 						10*time.Second, time.Millisecond, "batch %d", b)
 				} else {
-					for i := 0; i < perBatch; i++ {
+					for range perBatch {
 						m.AddEvent(exporter.FeatureEvent{})
 					}
 				}

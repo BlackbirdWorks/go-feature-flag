@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	api "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -72,8 +71,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "ConfigMap existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{Name: "ConfigMap1", Namespace: "Namespace"},
-					Data:       map[string]string{"valid": expectedContent},
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
 				},
 				namespace:     "Namespace",
 				configMapName: "ConfigMap1",
@@ -86,8 +85,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Key not existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{Name: "ConfigMap1", Namespace: "Namespace"},
-					Data:       map[string]string{"valid": expectedContent},
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
 				},
 				namespace:     "Namespace",
 				configMapName: "ConfigMap1",
@@ -99,8 +98,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Config Map not existing",
 			fields: fields{
 				object: &api.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{Name: "ConfigMap1", Namespace: "Namespace"},
-					Data:       map[string]string{"valid": expectedContent},
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
 				},
 				namespace:     "WrongNamespace",
 				configMapName: "NotExisting",
@@ -113,8 +112,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "Client already there",
 			fields: fields{
 				object: &api.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{Name: "ConfigMap1", Namespace: "Namespace"},
-					Data:       map[string]string{"valid": expectedContent},
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
 				},
 				namespace:     "Namespace",
 				configMapName: "ConfigMap1",
@@ -129,8 +128,8 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			name: "k8s client is nil",
 			fields: fields{
 				object: &api.ConfigMap{
-					ObjectMeta: v1.ObjectMeta{Name: "ConfigMap1", Namespace: "Namespace"},
-					Data:       map[string]string{"valid": expectedContent},
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
 				},
 				namespace:     "Namespace",
 				configMapName: "ConfigMap1",

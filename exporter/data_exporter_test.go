@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 type slowExporter struct {
@@ -35,7 +36,7 @@ func (s *slowExporter) IsBulk() bool {
 
 func TestDataExporterFlush_TriggerError(t *testing.T) {
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
 			Kind: "feature",
 		})
@@ -76,7 +77,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			evStore := mock.NewEventStore[testutils.ExportableMockEvent]()
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				evStore.Add(testutils.NewExportableMockEvent("feature"))
 			}
 
@@ -127,7 +128,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				evStore.Add(exporter.FeatureEvent{Kind: "feature"})
 			}
 
@@ -158,7 +159,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	evStore.AddConsumer("slow-consumer")
 	defer evStore.Stop()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		evStore.Add(exporter.FeatureEvent{Kind: "feature"})
 	}
 

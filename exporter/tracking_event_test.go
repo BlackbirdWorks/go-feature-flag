@@ -4,8 +4,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func TestTrackingEvent_FormatInCSV(t *testing.T) {

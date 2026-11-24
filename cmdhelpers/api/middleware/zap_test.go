@@ -5,11 +5,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 )
 
 func TestZapLogger200(t *testing.T) {

@@ -9,10 +9,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nikunjy/rules/parser"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/nikunjy/rules/parser"
 )
 
 const (

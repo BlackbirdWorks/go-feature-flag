@@ -6,18 +6,19 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 type collectEvalData struct {

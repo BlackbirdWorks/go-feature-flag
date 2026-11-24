@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	testcontainerPostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 )
 
 var postgreSQLContainerList = make(map[string]*testcontainerPostgres.PostgresContainer)
@@ -127,7 +128,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 	// Retry connection with backoff
 	var conn *pgx.Conn
 	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		conn, err = pgx.Connect(ctx, connectionString)
 		if err == nil {
 			break

@@ -7,9 +7,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/invopop/jsonschema"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/blackbirdworks/semaphore/model/dto"
 )
 
 func main() {

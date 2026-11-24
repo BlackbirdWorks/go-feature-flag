@@ -1,8 +1,9 @@
 package middleware
 
 import (
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // StreamAuthorizer is a middleware that checks the apiKey query param to authorize

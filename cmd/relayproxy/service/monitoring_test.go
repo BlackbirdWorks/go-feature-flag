@@ -4,26 +4,25 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestWithDefaultMode(t *testing.T) {
 	t.Run("health", func(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
-			CommonFlagSet: config.CommonFlagSet{
-				PollingInterval: 60000, // 1 minute in milliseconds
-				FileFormat:      "yaml",
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-				},
+			PollingInterval: 60000, // 1 minute in milliseconds
+			FileFormat:      "yaml",
+			Retrievers: &[]retrieverconf.RetrieverConf{
+				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
 		}, zap.NewNop(), nil, nil, nil)
 		require.NoError(t, err)
@@ -36,12 +35,10 @@ func TestWithDefaultMode(t *testing.T) {
 
 	t.Run("info", func(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
-			CommonFlagSet: config.CommonFlagSet{
-				PollingInterval: 60000, // 1 minute in milliseconds
-				FileFormat:      "yaml",
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-				},
+			PollingInterval: 60000, // 1 minute in milliseconds
+			FileFormat:      "yaml",
+			Retrievers: &[]retrieverconf.RetrieverConf{
+				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
 		}, zap.NewNop(), nil, nil, nil)
 		require.NoError(t, err)
@@ -60,12 +57,10 @@ func TestWithDefaultMode(t *testing.T) {
 
 	t.Run("info with error", func(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
-			CommonFlagSet: config.CommonFlagSet{
-				PollingInterval: 60000, // 1 minute in milliseconds
-				FileFormat:      "yaml",
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
-				},
+			PollingInterval: 60000, // 1 minute in milliseconds
+			FileFormat:      "yaml",
+			Retrievers: &[]retrieverconf.RetrieverConf{
+				{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
 			},
 		}, zap.NewNop(), nil, nil, nil)
 		assert.Error(t, err, "Expected error due to invalid file path")
@@ -80,12 +75,10 @@ func TestWithDefaultMode(t *testing.T) {
 
 	t.Run("is default flagset", func(t *testing.T) {
 		managerDefault, err := service.NewFlagsetManager(&config.Config{
-			CommonFlagSet: config.CommonFlagSet{
-				PollingInterval: 60000, // 1 minute in milliseconds
-				FileFormat:      "yaml",
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-				},
+			PollingInterval: 60000, // 1 minute in milliseconds
+			FileFormat:      "yaml",
+			Retrievers: &[]retrieverconf.RetrieverConf{
+				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
 		}, zap.NewNop(), nil, nil, nil)
 		require.NoError(t, err)
@@ -98,13 +91,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000, // 1 minute in milliseconds
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-						},
+					Name:            "test-flagset",
+					PollingInterval: 60000, // 1 minute in milliseconds
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -124,24 +115,20 @@ func TestWithFlagsetsMode(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset1",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000, // 1 minute in milliseconds
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-						},
+					Name:            "flagset1",
+					PollingInterval: 60000, // 1 minute in milliseconds
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
-					Name: "flagset2",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000, // 1 minute in milliseconds
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
-						},
+					Name:            "flagset2",
+					PollingInterval: 60000, // 1 minute in milliseconds
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
 					APIKeys: []string{"api-key-2"},
 				},
@@ -162,13 +149,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 		managerFlagsets, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000, // 1 minute in milliseconds
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-						},
+					Name:            "test-flagset",
+					PollingInterval: 60000, // 1 minute in milliseconds
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -190,13 +175,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "invalid-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000, // 1 minute in milliseconds
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
-						},
+					Name:            "invalid-flagset",
+					PollingInterval: 60000, // 1 minute in milliseconds
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
 					},
 					APIKeys: []string{"api-key-1"},
 				},
@@ -249,12 +232,10 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		// we'll test the happy path with a real manager instead
 
 		manager, err := service.NewFlagsetManager(&config.Config{
-			CommonFlagSet: config.CommonFlagSet{
-				PollingInterval: 60000,
-				FileFormat:      "yaml",
-				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-				},
+			PollingInterval: 60000,
+			FileFormat:      "yaml",
+			Retrievers: &[]retrieverconf.RetrieverConf{
+				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 			},
 		}, zap.NewNop(), nil, nil, nil)
 		require.NoError(t, err)
@@ -272,24 +253,20 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000,
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-						},
+					Name:            "test-flagset-1",
+					PollingInterval: 60000,
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
-					Name: "test-flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						PollingInterval: 60000,
-						FileFormat:      "yaml",
-						Retrievers: &[]retrieverconf.RetrieverConf{
-							{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
-						},
+					Name:            "test-flagset-2",
+					PollingInterval: 60000,
+					FileFormat:      "yaml",
+					Retrievers: &[]retrieverconf.RetrieverConf{
+						{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
 					APIKeys: []string{"api-key-2"},
 				},

@@ -9,12 +9,13 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nikunjy/rules/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // useIndexingNikunjyEvaluators is useFreshNikunjyEvaluators with keys for the short queries of
@@ -33,7 +34,7 @@ func idList(n, replaced int, replacement string) string {
 	var sb strings.Builder
 	sb.Grow(n*16 + 16)
 	sb.WriteString(`key in [`)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
@@ -197,14 +198,12 @@ func assertListsApply(t assert.TestingT, rulesA, rulesB []*Rule, idA, idB string
 func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 	t.Helper()
 	var wg sync.WaitGroup
-	for g := 0; g < 8; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 3; i++ {
+	for range 8 {
+		wg.Go(func() {
+			for range 3 {
 				check(t)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -391,7 +390,7 @@ func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
-			for j := 0; j < n; j++ {
+			for j := range n {
 				want := fmt.Sprintf("collide-%d", j)
 				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(r, want))
 			}
@@ -416,7 +415,7 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			c := useIndexingNikunjyEvaluators(t)
 			c.hash = tt.hash
 			queries := make([]string, 0, 10)
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				queries = append(queries, fmt.Sprintf(`key eq "collide-%d"`, i))
 			}
 			// A second flag with the same texts, in another order and in other strings.
@@ -599,10 +598,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	for g := 0; g < 6; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 6 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -620,7 +617,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 					assert.Equal(t, !isA, applies(r, "usex-0001000"))
 				}
 			}
-		}()
+		})
 	}
 	for i := 1; i <= 20; i++ {
 		next := newSet(i)
@@ -709,14 +706,14 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 		wantEval    bool
 		wantInvalid bool
 	}{
-		{name: "nikunjy query", rule: Rule{Query: testconvert.String(`key eq "a"`), VariationResult: testconvert.String("on")}, wantEval: true},
-		{name: "jsonlogic query", rule: Rule{Query: testconvert.String(`{"==": [1, 1]}`), VariationResult: testconvert.String("on")}},
-		{name: "default rule", rule: Rule{VariationResult: testconvert.String("on")}, isDefault: true},
+		{name: "nikunjy query", rule: Rule{Query: new(`key eq "a"`), VariationResult: new("on")}, wantEval: true},
+		{name: "jsonlogic query", rule: Rule{Query: new(`{"==": [1, 1]}`), VariationResult: new("on")}},
+		{name: "default rule", rule: Rule{VariationResult: new("on")}, isDefault: true},
 		{
 			name: "disabled rule",
-			rule: Rule{Query: testconvert.String(`key eq `), Disable: testconvert.Bool(true), VariationResult: testconvert.String("on")},
+			rule: Rule{Query: new(`key eq `), Disable: new(true), VariationResult: new("on")},
 		},
-		{name: "invalid query", rule: Rule{Query: testconvert.String(`key eq `), VariationResult: testconvert.String("on")}, wantInvalid: true},
+		{name: "invalid query", rule: Rule{Query: new(`key eq `), VariationResult: new("on")}, wantInvalid: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -836,7 +833,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	}{
 		{
 			name:    "a rule of the flag without variation",
-			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: testconvert.String(`key eq "x"`)}) },
+			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: new(`key eq "x"`)}) },
 		},
 		{
 			name:    "a rule of the flag with a query that does not parse",

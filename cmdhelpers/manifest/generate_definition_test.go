@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // captureHandler stores every slog record so tests can assert message content
@@ -45,14 +46,14 @@ func installCaptureLogger(t *testing.T) *captureHandler {
 	return h
 }
 
-func ptrString(v string) *string { return &v }
+//go:fix inline
+func ptrString(v string) *string { return new(v) }
 
 // variationsPtr builds the *map[string]*any value expected by InternalFlag.Variations
 // from a plain map[string]any literal.
 func variationsPtr(values map[string]any) *map[string]*any {
 	out := make(map[string]*any, len(values))
 	for k, v := range values {
-		v := v
 		out[k] = &v
 	}
 	return &out
@@ -67,8 +68,8 @@ func metadataPtr(m map[string]any) *map[string]any {
 
 func defaultRule(variation string) *flag.Rule {
 	return &flag.Rule{
-		Name:            ptrString("defaultRule"),
-		VariationResult: ptrString(variation),
+		Name:            new("defaultRule"),
+		VariationResult: new(variation),
 	}
 }
 

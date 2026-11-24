@@ -3,9 +3,10 @@ package middleware
 import (
 	"errors"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
 // KeyAuthExtendedConfig defines the configuration for the extended key auth middleware.

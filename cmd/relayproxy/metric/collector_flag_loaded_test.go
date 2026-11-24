@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type fakeFlagsetSource struct {
@@ -237,10 +238,10 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{"enabled": testconvert.Interface(true)},
-		Disable:    testconvert.Bool(true),
+		Disable:    new(true),
 		Scheduled: &[]flag.ScheduledStep{{
-			InternalFlag: flag.InternalFlag{Disable: testconvert.Bool(false)},
-			Date:         testconvert.Time(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
+			Disable: new(false),
+			Date:    new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 	}
 	assert.True(t, isEffectivelyDisabled("no-default-rule", f))

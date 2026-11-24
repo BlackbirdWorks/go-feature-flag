@@ -9,16 +9,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
 )
 
 type flagsetManagerMode string
@@ -131,22 +132,20 @@ func newFlagsetManagerWithDefaultConfig(
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	defaultFlagSet := config.FlagSet{
-		Name: utils.DefaultFlagSetName,
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever:                       c.Retriever,
-			Retrievers:                      c.Retrievers,
-			Notifiers:                       c.Notifiers,
-			Exporter:                        c.Exporter,
-			Exporters:                       c.Exporters,
-			FileFormat:                      c.FileFormat,
-			PollingInterval:                 c.PollingInterval,
-			ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
-			StartWithRetrieverError:         c.StartWithRetrieverError,
-			EnablePollingJitter:             c.EnablePollingJitter,
-			DisableNotifierOnInit:           c.DisableNotifierOnInit,
-			EvaluationContextEnrichment:     c.EvaluationContextEnrichment,
-			PersistentFlagConfigurationFile: c.PersistentFlagConfigurationFile,
-		},
+		Name:                            utils.DefaultFlagSetName,
+		Retriever:                       c.Retriever,
+		Retrievers:                      c.Retrievers,
+		Notifiers:                       c.Notifiers,
+		Exporter:                        c.Exporter,
+		Exporters:                       c.Exporters,
+		FileFormat:                      c.FileFormat,
+		PollingInterval:                 c.PollingInterval,
+		ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
+		StartWithRetrieverError:         c.StartWithRetrieverError,
+		EnablePollingJitter:             c.EnablePollingJitter,
+		DisableNotifierOnInit:           c.DisableNotifierOnInit,
+		EvaluationContextEnrichment:     c.EvaluationContextEnrichment,
+		PersistentFlagConfigurationFile: c.PersistentFlagConfigurationFile,
 	}
 	allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, utils.DefaultFlagSetName)
 	client, err := NewGoFeatureFlagClient(&defaultFlagSet, logger, allNotifiers)

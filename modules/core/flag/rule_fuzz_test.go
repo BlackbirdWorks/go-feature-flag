@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // FuzzEvaluateRule checks that a query accepted by the rule validation never
@@ -42,7 +43,7 @@ func FuzzEvaluateRule(f *testing.F) {
 		if json.Unmarshal([]byte(ctxJSON), &attributes) != nil {
 			return
 		}
-		r := Rule{Query: &query, VariationResult: testconvert.String("A")}
+		r := Rule{Query: &query, VariationResult: new("A")}
 		if r.isQueryValid(false) != nil {
 			return
 		}
@@ -96,10 +97,10 @@ func FuzzProgressiveRollout(f *testing.F) {
 		endDate := time.Unix(startUnix+duration, 0)
 		r := Rule{ProgressiveRollout: &ProgressiveRollout{
 			Initial: &ProgressiveRolloutStep{
-				Variation: testconvert.String("A"), Percentage: &initialPct, Date: &initialDate,
+				Variation: new("A"), Percentage: &initialPct, Date: &initialDate,
 			},
 			End: &ProgressiveRolloutStep{
-				Variation: testconvert.String("B"), Percentage: &endPct, Date: &endDate,
+				Variation: new("B"), Percentage: &endPct, Date: &endDate,
 			},
 		}}
 		missingEnd := Rule{ProgressiveRollout: &ProgressiveRollout{Initial: r.ProgressiveRollout.Initial}}

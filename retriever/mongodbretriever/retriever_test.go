@@ -7,10 +7,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -19,6 +15,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/integration/mtest"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
+	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func Test_MongoDBRetriever_Retrieve(t *testing.T) {

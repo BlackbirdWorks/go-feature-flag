@@ -6,6 +6,10 @@ import (
 	"net/url"
 	"sort"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -16,9 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type EvaluateCtrl struct {
@@ -228,13 +229,11 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 			value = nil
 		}
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
-			OFREPEvaluateSuccessResponse: model.OFREPEvaluateSuccessResponse{
-				Key:      key,
-				Value:    value,
-				Reason:   val.Reason,
-				Variant:  val.VariationType,
-				Metadata: val.Metadata,
-			},
+			Key:          key,
+			Value:        value,
+			Reason:       val.Reason,
+			Variant:      val.VariationType,
+			Metadata:     val.Metadata,
 			ErrorCode:    val.ErrorCode,
 			ErrorDetails: val.ErrorDetails,
 		})

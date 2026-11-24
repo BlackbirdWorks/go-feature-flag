@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
 )
 
 func Test_MongoDBRetriever_Retrieve_NotInitialized(t *testing.T) {

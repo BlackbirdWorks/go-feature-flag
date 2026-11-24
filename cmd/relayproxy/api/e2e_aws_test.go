@@ -22,10 +22,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	kinesistypes "github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 )
 
 const e2ePollingMs = 1000
@@ -479,7 +480,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 				var res []sinkEvent
 				for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
 					require.True(t, strings.HasSuffix(k, ".json"), k)
-					for _, line := range strings.Split(strings.TrimSpace(string(srv.GetObject(t, bucket, k))), "\n") {
+					for line := range strings.SplitSeq(strings.TrimSpace(string(srv.GetObject(t, bucket, k))), "\n") {
 						res = append(res, decodeFeatureEvent(t, []byte(line)))
 					}
 				}

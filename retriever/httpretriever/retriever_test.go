@@ -7,10 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {

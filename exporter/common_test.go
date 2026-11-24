@@ -6,8 +6,9 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func Test_ParseTemplate(t *testing.T) {

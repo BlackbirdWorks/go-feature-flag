@@ -8,10 +8,11 @@ import (
 	"sync"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -219,10 +220,7 @@ func (e *Exporter) exportRows(
 	ins := e.client.Inserter(e.DatasetID, table)
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
-		end := start + maxRowsPerInsert
-		if end > len(rows) {
-			end = len(rows)
-		}
+		end := min(start+maxRowsPerInsert, len(rows))
 		if err := ins.Put(ctx, rows[start:end]); err != nil {
 			return err
 		}
@@ -389,8 +387,7 @@ func (c *realBigQueryClient) Close() error {
 }
 
 func isAlreadyExists(err error) bool {
-	var googleErr *googleapi.Error
-	if errors.As(err, &googleErr) {
+	if googleErr, ok := errors.AsType[*googleapi.Error](err); ok {
 		return googleErr.Code == 409
 	}
 	return false

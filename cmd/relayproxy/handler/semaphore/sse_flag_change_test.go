@@ -12,6 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -20,10 +25,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type mockFlagsetManagerSSE struct {
@@ -64,14 +65,14 @@ func Test_SSE_FlagChange(t *testing.T) {
 								"A": testconvert.Interface(true),
 								"B": testconvert.Interface(false),
 							},
-							DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+							DefaultRule: &flag.Rule{VariationResult: new("A")},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								"A": testconvert.Interface(true),
 								"B": testconvert.Interface(false),
 							},
-							DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+							DefaultRule: &flag.Rule{VariationResult: new("B")},
 						},
 					},
 				},
@@ -85,7 +86,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 						Variations: &map[string]*any{
 							"A": testconvert.Interface(true),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
 				Added: map[string]flag.Flag{
@@ -93,7 +94,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 						Variations: &map[string]*any{
 							"B": testconvert.Interface(false),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+						DefaultRule: &flag.Rule{VariationResult: new("B")},
 					},
 				},
 			},

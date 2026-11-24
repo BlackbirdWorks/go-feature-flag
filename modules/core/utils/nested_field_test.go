@@ -3,8 +3,9 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func TestGetNestedFieldValue(t *testing.T) {

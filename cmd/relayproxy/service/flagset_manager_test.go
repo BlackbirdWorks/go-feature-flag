@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -16,10 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestNewFlagsetManager(t *testing.T) {
@@ -44,11 +45,9 @@ func TestNewFlagsetManager(t *testing.T) {
 			name: "empty flagsets should create default manager",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{},
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
-						Path: flagConfig,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: flagConfig,
 				},
 			},
 			logger:    zap.NewNop(),
@@ -61,11 +60,9 @@ func TestNewFlagsetManager(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name: "test-flagset",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: flagConfig,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: flagConfig,
 						},
 						APIKeys: []string{"test-api-key"},
 					},
@@ -81,20 +78,16 @@ func TestNewFlagsetManager(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name: "invalid-flagset",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "invalid",
-								Path: flagConfig,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "invalid",
+							Path: flagConfig,
 						},
 						APIKeys: []string{"test-api-key"},
 					},
 				},
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
-						Path: flagConfig,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: flagConfig,
 				},
 			},
 			logger:    zap.NewNop(),
@@ -178,11 +171,9 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	flagset := func(name string) config.FlagSet {
 		return config.FlagSet{
-			Name: name,
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-			},
-			APIKeys: []string{name + "-key"},
+			Name:      name,
+			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+			APIKeys:   []string{name + "-key"},
 		}
 	}
 
@@ -194,9 +185,7 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 		{
 			name: "default mode",
 			config: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-				},
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
 			},
 			flagsets: []string{utils.DefaultFlagSetName},
 		},
@@ -237,11 +226,9 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -283,11 +270,9 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 	t.Run("default mode", func(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		logger := zap.NewNop()
@@ -316,11 +301,9 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -358,11 +341,9 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 	t.Run("default mode", func(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		logger := zap.NewNop()
@@ -391,21 +372,17 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
 					Name: "test-flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-2"},
 				},
@@ -432,21 +409,17 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "default",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
 					Name: "test-flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-2"},
 				},
@@ -472,11 +445,9 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	t.Run("default mode", func(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		logger := zap.NewNop()
@@ -502,11 +473,9 @@ func TestFlagsetManager_Default(t *testing.T) {
 	t.Run("default mode", func(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		logger := zap.NewNop()
@@ -528,11 +497,9 @@ func TestFlagsetManager_Default(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -559,11 +526,9 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	t.Run("default mode", func(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		logger := zap.NewNop()
@@ -584,11 +549,9 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -615,13 +578,11 @@ func TestFlagsetManager_Close(t *testing.T) {
 		outputDir := t.TempDir()
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
-				Exporter: bufferedFileExporter(outputDir),
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
+			Exporter: bufferedFileExporter(outputDir),
 		}
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
@@ -642,14 +603,12 @@ func TestFlagsetManager_Close(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
-						Exporter: bufferedFileExporter(outputDir),
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					Exporter: bufferedFileExporter(outputDir),
+					APIKeys:  []string{"test-api-key"},
 				},
 			},
 		}
@@ -710,11 +669,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 		manager, logs := setupManager(t, cfg)
@@ -724,11 +681,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "new-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key"},
 				},
@@ -752,11 +707,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -767,11 +720,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Try to switch to default mode
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 		}
 
@@ -790,11 +741,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-key"},
@@ -805,11 +754,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Update AuthorizedKeys
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-key"},
@@ -827,11 +774,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			APIKeys: []string{"old-api-key"},
 		}
@@ -840,11 +785,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Update APIKeys
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			APIKeys: []string{"new-api-key"},
 		}
@@ -860,11 +803,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-authorized-key"},
@@ -876,11 +817,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Update both
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-authorized-key"},
@@ -901,11 +840,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Create manager in default mode
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
-					Path: flagConfig,
-				},
+			Retriever: &retrieverconf.RetrieverConf{
+				Kind: "file",
+				Path: flagConfig,
 			},
 			APIKeys: []string{"old-api-key"},
 		}
@@ -915,11 +852,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Try to update with invalid config (no retriever)
 		newConfig := &config.Config{
-			FlagSets: []config.FlagSet{},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: nil,
-			},
-			APIKeys: []string{"new-api-key"},
+			FlagSets:  []config.FlagSet{},
+			Retriever: nil,
+			APIKeys:   []string{"new-api-key"},
 		}
 
 		assert.NotPanics(t, func() {
@@ -943,11 +878,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -960,11 +893,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{}, // Invalid: no API keys
 				},
@@ -993,21 +924,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
 					Name: "test-flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-2"},
 				},
@@ -1020,21 +947,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"duplicate-key"},
 				},
 				{
 					Name: "test-flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"duplicate-key"}, // Invalid: duplicate API key
 				},
@@ -1066,11 +989,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"old-api-key"},
 				},
@@ -1088,11 +1009,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-api-key"},
 				},
@@ -1116,11 +1035,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
@@ -1139,11 +1056,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1", "api-key-2"},
 				},
@@ -1173,11 +1088,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1", "api-key-2"},
 				},
@@ -1196,11 +1109,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
@@ -1225,21 +1136,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1", "api-key-move"},
 				},
 				{
 					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-2"},
 				},
@@ -1257,21 +1164,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-1"},
 				},
 				{
 					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"api-key-2", "api-key-move"},
 				},
@@ -1298,11 +1201,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// regression of the routing rebuild.
 		newFlagset := func(name, key string) config.FlagSet {
 			return config.FlagSet{
-				Name: name,
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-				},
-				APIKeys: []string{key},
+				Name:      name,
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				APIKeys:   []string{key},
 			}
 		}
 		cfg := &config.Config{
@@ -1340,11 +1241,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -1361,11 +1260,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "test-flagset",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"test-api-key"},
 				},
@@ -1390,11 +1287,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "", // Empty name - will be auto-generated
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"original-key"},
 				},
@@ -1420,11 +1315,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "", // Still empty
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key"}, // Try to change key
 				},
@@ -1445,11 +1338,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "default", // Reserved name - will be auto-generated
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"original-key"},
 				},
@@ -1475,11 +1366,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "default",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key"},
 				},
@@ -1500,21 +1389,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"old-key-1"},
 				},
 				{
 					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"old-key-2"},
 				},
@@ -1533,21 +1418,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key-1"},
 				},
 				{
 					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: flagConfig,
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key-2"},
 				},
@@ -1575,11 +1456,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	t.Run("should only notify the websocket clients of the flagset added at runtime", func(t *testing.T) {
 		flagset := func(name, apiKey string) config.FlagSet {
 			return config.FlagSet{
-				Name: name,
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-				},
-				APIKeys: []string{apiKey},
+				Name:      name,
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				APIKeys:   []string{apiKey},
 			}
 		}
 		existing := flagset("flagset-1", "key-1")
@@ -1612,11 +1491,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-1"},
+					Name:      "flagset-1",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-1"},
 				},
 			},
 		}
@@ -1629,18 +1506,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-1"},
+					Name:      "flagset-1",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-1"},
 				},
 				{
-					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-2"},
+					Name:      "flagset-2",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-2"},
 				},
 			},
 		}
@@ -1671,18 +1544,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-1"},
+					Name:      "flagset-1",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-1"},
 				},
 				{
-					Name: "flagset-2",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-2"},
+					Name:      "flagset-2",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-2"},
 				},
 			},
 		}
@@ -1697,11 +1566,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-1"},
+					Name:      "flagset-1",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-1"},
 				},
 			},
 		}
@@ -1727,12 +1594,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 0,
-					},
-					APIKeys: []string{"key-1"},
+					Name:            "flagset-1",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 0,
+					APIKeys:         []string{"key-1"},
 				},
 			},
 		}
@@ -1742,12 +1607,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 5000,
-					},
-					APIKeys: []string{"key-1"},
+					Name:            "flagset-1",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 5000,
+					APIKeys:         []string{"key-1"},
 				},
 			},
 		}
@@ -1771,12 +1634,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 0,
-					},
-					APIKeys: []string{"old-key"},
+					Name:            "flagset-1",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 0,
+					APIKeys:         []string{"old-key"},
 				},
 			},
 		}
@@ -1786,12 +1647,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 5000,
-					},
-					APIKeys: []string{"new-key"},
+					Name:            "flagset-1",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 5000,
+					APIKeys:         []string{"new-key"},
 				},
 			},
 		}
@@ -1814,26 +1673,20 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-a",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-a"},
+					Name:      "flagset-a",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-a"},
 				},
 				{
-					Name: "flagset-b",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-b"},
+					Name:      "flagset-b",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-b"},
 				},
 				{
-					Name: "flagset-c",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 0,
-					},
-					APIKeys: []string{"key-c"},
+					Name:            "flagset-c",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 0,
+					APIKeys:         []string{"key-c"},
 				},
 			},
 		}
@@ -1843,29 +1696,23 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				// flagset-a: unchanged
 				{
-					Name: "flagset-a",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-a"},
+					Name:      "flagset-a",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-a"},
 				},
 				// flagset-b: removed (absent)
 				// flagset-c: forbidden modification (polling interval changed)
 				{
-					Name: "flagset-c",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-						PollingInterval: 5000,
-					},
-					APIKeys: []string{"key-c"},
+					Name:            "flagset-c",
+					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					PollingInterval: 5000,
+					APIKeys:         []string{"key-c"},
 				},
 				// flagset-d: added
 				{
-					Name: "flagset-d",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"key-d"},
+					Name:      "flagset-d",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"key-d"},
 				},
 			},
 		}
@@ -1894,18 +1741,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-named",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"named-key"},
+					Name:      "flagset-named",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"named-key"},
 				},
 				{
-					Name: "", // unnamed -> gets a generated name at startup
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"unnamed-key"},
+					Name:      "", // unnamed -> gets a generated name at startup
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"unnamed-key"},
 				},
 			},
 		}
@@ -1919,11 +1762,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-named",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"named-key"},
+					Name:      "flagset-named",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"named-key"},
 				},
 			},
 		}
@@ -1948,18 +1789,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "fs-a",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"k-a"},
+					Name:      "fs-a",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"k-a"},
 				},
 				{
-					Name: "fs-b",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"k-b", "k-move"},
+					Name:      "fs-b",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"k-b", "k-move"},
 				},
 			},
 		}
@@ -1968,20 +1805,16 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "fs-a",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"k-a", "k-move"}, // gains k-move (accepted)
+					Name:      "fs-a",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"k-a", "k-move"}, // gains k-move (accepted)
 				},
 				{
 					Name: "fs-b",
-					CommonFlagSet: config.CommonFlagSet{
-						// Forbidden retriever change -> the whole fs-b change is rejected, so it
-						// keeps its old keys [k-b, k-move].
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: otherFlagConfig},
-					},
-					APIKeys: []string{"k-b"},
+					// Forbidden retriever change -> the whole fs-b change is rejected, so it
+					// keeps its old keys [k-b, k-move].
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: otherFlagConfig},
+					APIKeys:   []string{"k-b"},
 				},
 			},
 		}
@@ -2009,11 +1842,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "fs-keep",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"keep-key"},
+					Name:      "fs-keep",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"keep-key"},
 				},
 			},
 		}
@@ -2024,19 +1855,15 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "fs-keep",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					},
-					APIKeys: []string{"keep-key"},
+					Name:      "fs-keep",
+					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					APIKeys:   []string{"keep-key"},
 				},
 				{
 					Name: "fs-broken",
-					CommonFlagSet: config.CommonFlagSet{
-						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
-							Path: "/does/not/exist/flags.yaml",
-						},
+					Retriever: &retrieverconf.RetrieverConf{
+						Kind: "file",
+						Path: "/does/not/exist/flags.yaml",
 					},
 					APIKeys: []string{"broken-key"},
 				},
@@ -2068,18 +1895,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 	flagConfig := "../../../testdata/flag-config.yaml"
 	stable := config.FlagSet{
-		Name: "fs-stable",
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-		},
-		APIKeys: []string{"stable-key"},
+		Name:      "fs-stable",
+		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+		APIKeys:   []string{"stable-key"},
 	}
 	churn := config.FlagSet{
-		Name: "fs-churn",
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-		},
-		APIKeys: []string{"churn-key"},
+		Name:      "fs-churn",
+		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+		APIKeys:   []string{"churn-key"},
 	}
 	manager, _ := setupManager(t, &config.Config{FlagSets: []config.FlagSet{stable, churn}})
 
@@ -2090,10 +1913,8 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 	var stableErrors atomic.Int64
 	var wg sync.WaitGroup
 
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 8 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-done:
@@ -2106,13 +1927,11 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 					_, _ = manager.FlagSetName("churn-key")
 				}
 			}
-		}()
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < 100; i++ {
+	wg.Go(func() {
+		for i := range 100 {
 			if i%2 == 0 {
 				manager.OnConfigChange(withoutChurn)
 			} else {
@@ -2120,7 +1939,7 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 			}
 		}
 		close(done)
-	}()
+	})
 
 	wg.Wait()
 
@@ -2146,27 +1965,23 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 	cfg := &config.Config{
 		FlagSets: []config.FlagSet{
 			{
-				Name: "flagset-to-remove",
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					// Bulk webhook exporter with a huge flush interval/buffer so it only flushes
-					// when the flagset is closed (and not earlier during the test).
-					Exporter: &config.ExporterConf{
-						Kind:             config.WebhookExporter,
-						EndpointURL:      server.URL,
-						FlushInterval:    600000,
-						MaxEventInMemory: 1000000,
-					},
+				Name:      "flagset-to-remove",
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				// Bulk webhook exporter with a huge flush interval/buffer so it only flushes
+				// when the flagset is closed (and not earlier during the test).
+				Exporter: &config.ExporterConf{
+					Kind:             config.WebhookExporter,
+					EndpointURL:      server.URL,
+					FlushInterval:    600000,
+					MaxEventInMemory: 1000000,
 				},
 				APIKeys: []string{"key-remove"},
 			},
 			{
 				// Keeper flagset so that removing the other one is not a mode switch.
-				Name: "flagset-keep",
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-				},
-				APIKeys: []string{"key-keep"},
+				Name:      "flagset-keep",
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				APIKeys:   []string{"key-keep"},
 			},
 		},
 	}
@@ -2188,11 +2003,9 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 	newConfig := &config.Config{
 		FlagSets: []config.FlagSet{
 			{
-				Name: "flagset-keep",
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-				},
-				APIKeys: []string{"key-keep"},
+				Name:      "flagset-keep",
+				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				APIKeys:   []string{"key-keep"},
 			},
 		},
 	}

@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewFeatureEvent(t *testing.T) {

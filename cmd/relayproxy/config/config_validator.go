@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 // IsValid contains all the validation of the configuration.

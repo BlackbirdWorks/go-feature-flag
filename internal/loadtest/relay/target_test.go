@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/loadtest"
-	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
 
 func TestParseEndpoint(t *testing.T) {

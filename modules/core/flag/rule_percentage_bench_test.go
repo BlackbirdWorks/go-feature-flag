@@ -5,7 +5,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 var ruleEvaluateSink string
@@ -41,8 +40,8 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 
 func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 	rule := flag.Rule{
-		VariationResult: testconvert.String("on"),
-		Query: testconvert.String(
+		VariationResult: new("on"),
+		Query: new(
 			`{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		),
 	}

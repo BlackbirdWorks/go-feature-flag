@@ -9,15 +9,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 const testdataDir = "../../testdata/semaphore"
@@ -117,14 +118,12 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: tt.args.configFlagsLocation,
-					},
-					Exporter: &config.ExporterConf{
-						Kind: config.LogExporter,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: tt.args.configFlagsLocation,
+				},
+				Exporter: &config.ExporterConf{
+					Kind: config.LogExporter,
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
@@ -251,14 +250,12 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: tt.args.configFlagsLocation,
-							},
-							Exporter: &config.ExporterConf{
-								Kind: config.LogExporter,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: tt.args.configFlagsLocation,
+						},
+						Exporter: &config.ExporterConf{
+							Kind: config.LogExporter,
 						}},
 				},
 			}

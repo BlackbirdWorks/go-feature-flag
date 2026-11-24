@@ -9,11 +9,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/gcstorageexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/api/option"
 )
 
 func TestGoogleStorage_Export(t *testing.T) {

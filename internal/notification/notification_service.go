@@ -4,10 +4,11 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/google/go-cmp/cmp"
 )
 
 var _ Service = (*notificationService)(nil)

@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRule_RequiresBucketing(t *testing.T) {
@@ -19,7 +20,7 @@ func TestRule_RequiresBucketing(t *testing.T) {
 		{
 			name: "Should not require bucketing - static variation",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("enabled"),
+				VariationResult: new("enabled"),
 			},
 			expected: false,
 		},
@@ -45,14 +46,14 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("disabled"),
+						Variation:  new("disabled"),
 						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now()),
+						Date:       new(time.Now()),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("enabled"),
+						Variation:  new("enabled"),
 						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(time.Hour)),
+						Date:       new(time.Now().Add(time.Hour)),
 					},
 				},
 			},
@@ -81,7 +82,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for static variation",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("enabled"),
+				VariationResult: new("enabled"),
 			},
 			key:           "",
 			ctx:           ffcontext.NewEvaluationContext(""),
@@ -120,14 +121,14 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("disabled"),
+						Variation:  new("disabled"),
 						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(-time.Hour)),
+						Date:       new(time.Now().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("enabled"),
+						Variation:  new("enabled"),
 						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(time.Hour)),
+						Date:       new(time.Now().Add(time.Hour)),
 					},
 				},
 			},
@@ -139,8 +140,8 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for query-only rule",
 			rule: flag.Rule{
-				Query:           testconvert.String("anonymous eq true"),
-				VariationResult: testconvert.String("enabled"),
+				Query:           new("anonymous eq true"),
+				VariationResult: new("enabled"),
 			},
 			key: "",
 			ctx: func() ffcontext.Context {

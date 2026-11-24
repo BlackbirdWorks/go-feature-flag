@@ -5,11 +5,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNikunjyPool_Evaluate(t *testing.T) {
@@ -29,9 +29,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "simple match",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-simple-match"),
-				VariationResult: testconvert.String("on"),
-				Query:           testconvert.String(`key eq "abc"`),
+				Name:            new("pool-simple-match"),
+				VariationResult: new("on"),
+				Query:           new(`key eq "abc"`),
 			},
 			args: args{
 				key:      "abc",
@@ -44,16 +44,16 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "simple no-match",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-simple-nomatch"),
-				VariationResult: testconvert.String("on"),
-				Query:           testconvert.String(`key eq "abc"`),
+				Name:            new("pool-simple-nomatch"),
+				VariationResult: new("on"),
+				Query:           new(`key eq "abc"`),
 			},
 			args: args{
 				key:      "xyz",
 				ctx:      ffcontext.NewEvaluationContext("xyz"),
 				flagName: "test-pool",
 			},
-			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
 				return assert.ErrorAs(t, err, &target)
 			},
@@ -61,9 +61,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "multi-predicate match",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-multi-match"),
-				VariationResult: testconvert.String("variant-b"),
-				Query:           testconvert.String(`language eq "ar" and premium eq true`),
+				Name:            new("pool-multi-match"),
+				VariationResult: new("variant-b"),
+				Query:           new(`language eq "ar" and premium eq true`),
 			},
 			args: args{
 				key: "user-42",
@@ -79,9 +79,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "multi-predicate no-match (one attribute fails)",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-multi-nomatch"),
-				VariationResult: testconvert.String("variant-b"),
-				Query:           testconvert.String(`language eq "ar" and premium eq true`),
+				Name:            new("pool-multi-nomatch"),
+				VariationResult: new("variant-b"),
+				Query:           new(`language eq "ar" and premium eq true`),
 			},
 			args: args{
 				key: "user-42",
@@ -91,7 +91,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 					Build(),
 				flagName: "test-pool-multi",
 			},
-			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
 				return assert.ErrorAs(t, err, &target)
 			},
@@ -99,9 +99,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "repeated evaluation hits cache",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-cache-hit"),
-				VariationResult: testconvert.String("cached"),
-				Query:           testconvert.String(`key eq "repeat"`),
+				Name:            new("pool-cache-hit"),
+				VariationResult: new("cached"),
+				Query:           new(`key eq "repeat"`),
 			},
 			args: args{
 				key:      "repeat",
@@ -114,16 +114,16 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "invalid query syntax is treated as rule-not-apply",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-invalid-syntax"),
-				VariationResult: testconvert.String("on"),
-				Query:           testconvert.String(`??? not a valid query !!!`),
+				Name:            new("pool-invalid-syntax"),
+				VariationResult: new("on"),
+				Query:           new(`??? not a valid query !!!`),
 			},
 			args: args{
 				key:      "user-1",
 				ctx:      ffcontext.NewEvaluationContext("user-1"),
 				flagName: "test-pool-invalid",
 			},
-			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
 				return assert.ErrorAs(t, err, &target)
 			},
@@ -131,9 +131,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "empty query matches any context (rule applies)",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-empty-query"),
-				VariationResult: testconvert.String("default-var"),
-				Query:           testconvert.String(""),
+				Name:            new("pool-empty-query"),
+				VariationResult: new("default-var"),
+				Query:           new(""),
 			},
 			args: args{
 				key:      "anyone",
@@ -146,8 +146,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "nil query matches any context (rule applies)",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-nil-query"),
-				VariationResult: testconvert.String("nil-var"),
+				Name:            new("pool-nil-query"),
+				VariationResult: new("nil-var"),
 			},
 			args: args{
 				key:      "anyone",
@@ -160,16 +160,16 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "query referencing missing attribute does not match",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-missing-attr"),
-				VariationResult: testconvert.String("on"),
-				Query:           testconvert.String(`missingField eq "value"`),
+				Name:            new("pool-missing-attr"),
+				VariationResult: new("on"),
+				Query:           new(`missingField eq "value"`),
 			},
 			args: args{
 				key:      "user-1",
 				ctx:      ffcontext.NewEvaluationContext("user-1"),
 				flagName: "test-pool-missing-attr",
 			},
-			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
 				return assert.ErrorAs(t, err, &target)
 			},
@@ -177,9 +177,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		{
 			name: "invalid query returns empty variation",
 			rule: flag.Rule{
-				Name:            testconvert.String("pool-invalid-empty-var"),
-				VariationResult: testconvert.String("on"),
-				Query:           testconvert.String(`@@@ garbage`),
+				Name:            new("pool-invalid-empty-var"),
+				VariationResult: new("on"),
+				Query:           new(`@@@ garbage`),
 			},
 			args: args{
 				key:      "user-1",
@@ -187,7 +187,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				flagName: "test-pool-invalid-var",
 			},
 			want: "",
-			wantErr: func(t assert.TestingT, err error, _ ...interface{}) bool {
+			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
 				var target *internalerror.RuleNotApplyError
 				return assert.ErrorAs(t, err, &target)
 			},
@@ -214,9 +214,9 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 
 func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	rule := flag.Rule{
-		Name:            testconvert.String("pool-concurrent"),
-		VariationResult: testconvert.String("on"),
-		Query:           testconvert.String(`key eq "concurrent-user"`),
+		Name:            new("pool-concurrent"),
+		VariationResult: new("on"),
+		Query:           new(`key eq "concurrent-user"`),
 	}
 	ctx := ffcontext.NewEvaluationContext("concurrent-user")
 
@@ -256,9 +256,9 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 		attr := fmt.Sprintf("attr_%d", i)
 		cases[i] = queryCase{
 			rule: flag.Rule{
-				Name:            testconvert.String(fmt.Sprintf("pool-diffquery-%d", i)),
-				VariationResult: testconvert.String(fmt.Sprintf("var-%d", i)),
-				Query:           testconvert.String(fmt.Sprintf(`%s eq "val"`, attr)),
+				Name:            new(fmt.Sprintf("pool-diffquery-%d", i)),
+				VariationResult: new(fmt.Sprintf("var-%d", i)),
+				Query:           new(fmt.Sprintf(`%s eq "val"`, attr)),
 			},
 			ctx: ffcontext.NewEvaluationContextBuilder(fmt.Sprintf("user-%d", i)).
 				AddCustom(attr, "val").
@@ -302,9 +302,9 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 
 func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 	rule := flag.Rule{
-		Name:            testconvert.String("pool-concurrent-invalid"),
-		VariationResult: testconvert.String("on"),
-		Query:           testconvert.String(`!!! invalid syntax !!!`),
+		Name:            new("pool-concurrent-invalid"),
+		VariationResult: new("on"),
+		Query:           new(`!!! invalid syntax !!!`),
 	}
 	ctx := ffcontext.NewEvaluationContext("user-1")
 

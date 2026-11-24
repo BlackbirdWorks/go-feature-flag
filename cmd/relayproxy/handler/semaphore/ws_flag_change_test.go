@@ -11,16 +11,17 @@ import (
 	"testing"
 	"time"
 
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // defaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
@@ -44,7 +45,7 @@ func Test_websocket_flag_change(t *testing.T) {
 								"B": testconvert.Interface(false),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("A"),
+								VariationResult: new("A"),
 							},
 						},
 						After: &flag.InternalFlag{
@@ -53,7 +54,7 @@ func Test_websocket_flag_change(t *testing.T) {
 								"B": testconvert.Interface(false),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("B"),
+								VariationResult: new("B"),
 							},
 						},
 					},
@@ -70,7 +71,7 @@ func Test_websocket_flag_change(t *testing.T) {
 							"B": testconvert.Interface(false),
 						},
 						DefaultRule: &flag.Rule{
-							VariationResult: testconvert.String("A"),
+							VariationResult: new("A"),
 						},
 					},
 				},
@@ -81,7 +82,7 @@ func Test_websocket_flag_change(t *testing.T) {
 							"B": testconvert.Interface(false),
 						},
 						DefaultRule: &flag.Rule{
-							VariationResult: testconvert.String("A"),
+							VariationResult: new("A"),
 						},
 					},
 				},
@@ -93,7 +94,7 @@ func Test_websocket_flag_change(t *testing.T) {
 								"B": testconvert.Interface(false),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("A"),
+								VariationResult: new("A"),
 							},
 						},
 						After: &flag.InternalFlag{
@@ -102,7 +103,7 @@ func Test_websocket_flag_change(t *testing.T) {
 								"B": testconvert.Interface(false),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("B"),
+								VariationResult: new("B"),
 							},
 						},
 					},
@@ -254,10 +255,10 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
 				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
 				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+					DefaultRule: &flag.Rule{VariationResult: new("B")},
 				},
 			},
 		},
@@ -327,10 +328,10 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
 				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
 				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+					DefaultRule: &flag.Rule{VariationResult: new("B")},
 				},
 			},
 		},

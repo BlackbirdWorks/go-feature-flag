@@ -9,17 +9,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/labstack/echo/v5"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const testdataDir = "../../testdata"
@@ -117,14 +118,12 @@ func Test_Bulk_Evaluation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: tt.args.configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: tt.args.configFlagsLocation,
 					},
 				},
 			}
@@ -238,12 +237,10 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-					},
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
@@ -401,14 +398,12 @@ func Test_Evaluate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create flagset manager with configuration
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: tt.args.configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: tt.args.configFlagsLocation,
 					},
 				},
 			}
@@ -478,14 +473,12 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: configFlagsLocation,
 					},
 				},
 			}
@@ -530,12 +523,10 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-					},
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)

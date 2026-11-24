@@ -5,9 +5,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
@@ -117,12 +118,12 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 	}{
 		{
 			name:       "rule with a query",
-			rule:       Rule{Query: testconvert.String(`key eq "user-1"`), VariationResult: testconvert.String("A")},
+			rule:       Rule{Query: new(`key eq "user-1"`), VariationResult: new("A")},
 			wantMapped: true,
 		},
 		{
 			name: "rule without a query",
-			rule: Rule{VariationResult: testconvert.String("A")},
+			rule: Rule{VariationResult: new("A")},
 		},
 		{
 			name: "percentage rollout without a query",
@@ -130,7 +131,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 		},
 		{
 			name:      "default rule with a query",
-			rule:      Rule{Query: testconvert.String(`key eq "user-1"`), VariationResult: testconvert.String("A")},
+			rule:      Rule{Query: new(`key eq "user-1"`), VariationResult: new("A")},
 			isDefault: true,
 		},
 	}
@@ -155,11 +156,11 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 			"default":     testconvert.Interface("default"),
 		},
 		Rules: &[]Rule{
-			{Query: testconvert.String(`plan eq "free"`), VariationResult: testconvert.String("nikunjy")},
-			{Query: testconvert.String(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: testconvert.String("jsonlogic")},
-			{Query: testconvert.String(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: testconvert.String("jsonlogic-2")},
+			{Query: new(`plan eq "free"`), VariationResult: new("nikunjy")},
+			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new("jsonlogic")},
+			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new("jsonlogic-2")},
 		},
-		DefaultRule: &Rule{VariationResult: testconvert.String("default")},
+		DefaultRule: &Rule{VariationResult: new("default")},
 	}
 	tests := []struct {
 		name string

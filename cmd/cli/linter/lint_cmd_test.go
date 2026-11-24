@@ -4,10 +4,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 )
 
 func TestCmdLint(t *testing.T) {

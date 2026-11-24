@@ -4,10 +4,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
 func TestMetrics_Gatherer(t *testing.T) {

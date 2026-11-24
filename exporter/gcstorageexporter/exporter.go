@@ -9,10 +9,11 @@ import (
 	"path"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"google.golang.org/api/option"
 )
 
 var _ exporter.Exporter = &Exporter{}

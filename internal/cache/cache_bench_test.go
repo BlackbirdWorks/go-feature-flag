@@ -6,11 +6,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"gopkg.in/yaml.v3"
 )
 
 func benchFlags(b *testing.B, n int) map[string]dto.DTO {
@@ -21,7 +22,7 @@ func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
 	tb.Helper()
 	var sb []byte
-	for i := 0; i < n; i++ {
+	for i := range n {
 		sb = append(sb, fmt.Sprintf(`flag-%d:
   variations: {A: true, B: false}
   targeting:
@@ -72,13 +73,11 @@ func BenchmarkGetFlag(b *testing.B) {
 			_ = m.UpdateCache(flags, nil, false)
 			var stop atomic.Bool
 			var wg sync.WaitGroup
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for !stop.Load() {
 					_ = m.UpdateCache(flags, nil, false)
 				}
-			}()
+			})
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {

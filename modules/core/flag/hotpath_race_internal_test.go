@@ -1,14 +1,16 @@
 package flag
 
 import (
+	"maps"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func progressiveFlag(endPercentage *float64) *InternalFlag {
@@ -20,14 +22,14 @@ func progressiveFlag(endPercentage *float64) *InternalFlag {
 		DefaultRule: &Rule{
 			ProgressiveRollout: &ProgressiveRollout{
 				Initial: &ProgressiveRolloutStep{
-					Variation:  testconvert.String("B"),
+					Variation:  new("B"),
 					Percentage: testconvert.Float64(0),
-					Date:       testconvert.Time(time.Now().Add(-time.Hour)),
+					Date:       new(time.Now().Add(-time.Hour)),
 				},
 				End: &ProgressiveRolloutStep{
-					Variation:  testconvert.String("A"),
+					Variation:  new("A"),
 					Percentage: endPercentage,
-					Date:       testconvert.Time(time.Now().Add(time.Hour)),
+					Date:       new(time.Now().Add(time.Hour)),
 				},
 			},
 		},
@@ -37,14 +39,12 @@ func progressiveFlag(endPercentage *float64) *InternalFlag {
 // runParallel runs fn from 8 goroutines, to be used with -race.
 func runParallel(n int, fn func(i int)) {
 	var wg sync.WaitGroup
-	for w := 0; w < 8; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < n; i++ {
+	for range 8 {
+		wg.Go(func() {
+			for i := range n {
 				fn(i)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -124,17 +124,15 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 					"A": testconvert.Interface(true),
 					"B": testconvert.Interface(false),
 				},
-				Rules:       &[]Rule{{Query: testconvert.String(tt.query), VariationResult: testconvert.String("A")}},
-				DefaultRule: &Rule{VariationResult: testconvert.String("B")},
+				Rules:       &[]Rule{{Query: new(tt.query), VariationResult: new("A")}},
+				DefaultRule: &Rule{VariationResult: new("B")},
 			}
 			require.NoError(t, f.IsValid())
 			ctx := &customContext{key: "user", custom: tt.ctxCustom}
 			var before map[string]any
 			if tt.ctxCustom != nil {
 				before = map[string]any{}
-				for k, v := range tt.ctxCustom {
-					before[k] = v
-				}
+				maps.Copy(before, tt.ctxCustom)
 			}
 			runParallel(200, func(i int) {
 				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment})

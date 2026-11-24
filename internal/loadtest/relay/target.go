@@ -7,8 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"gopkg.in/yaml.v3"
+
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
 )
 
 // Target evaluates flags against a real relay proxy over loopback HTTP.

@@ -22,10 +22,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshiftdata/types"
 	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestExporter_IsBulk(t *testing.T) {
@@ -214,7 +215,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 			name: "statement size limit",
 			events: func() []exporter.ExportableEvent {
 				events := make([]exporter.ExportableEvent, 0, 10)
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					event := newFeatureEvent(i)
 					event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
 					events = append(events, event)
@@ -280,7 +281,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	e := &Exporter{ClusterIdentifier: "my-cluster", Database: "analytics", client: client}
 	events := make([]exporter.ExportableEvent, 0, 60)
-	for i := 0; i < 60; i++ {
+	for i := range 60 {
 		event := newFeatureEvent(i)
 		event.Metadata = map[string]any{"big": strings.Repeat("a", maxStatementBytes/4)}
 		events = append(events, event)
@@ -1121,7 +1122,7 @@ func newFeatureEvent(i int) exporter.FeatureEvent {
 // newSmallEvents returns events small enough to hit the rows limit before the size limit.
 func newSmallEvents(n int) []exporter.ExportableEvent {
 	events := make([]exporter.ExportableEvent, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		events = append(events, exporter.TrackingEvent{Key: "k"})
 	}
 	return events

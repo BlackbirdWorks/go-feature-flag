@@ -18,10 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
 // fakeBucket is a fake S3 bucket counting the requests it receives.
@@ -561,16 +562,14 @@ func runNoDownloadETag(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.
 func runConcurrent(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	var wg sync.WaitGroup
 	for i := range 20 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			key := "p1/dev/flags.yaml"
 			if i%2 == 0 {
 				key = "p1/prod/flags.yaml"
 			}
 			_, err := r[key].Retrieve(t.Context())
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	wg.Wait()
 	assert.EqualValues(t, 1, b.lists.Load(), "one shared listing")
@@ -590,11 +589,9 @@ func runClone(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedIte
 func runHung(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	var wg sync.WaitGroup
 	var otherErr error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_, otherErr = r["p2/flags.yaml"].Retrieve(t.Context())
-	}()
+	})
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	start := time.Now()
@@ -813,12 +810,10 @@ func runDownloadCap(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 	rs := distinctItems(t, b, 100)
 	var wg sync.WaitGroup
 	for _, r := range rs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, err := r.Retrieve(t.Context())
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	wg.Wait()
 	assert.EqualValues(t, s3retrieverv2.MaxConcurrentDownloads, b.maxGets.Load())

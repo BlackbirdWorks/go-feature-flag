@@ -7,12 +7,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/knadh/koanf/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.

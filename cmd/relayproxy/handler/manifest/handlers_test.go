@@ -7,6 +7,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -15,9 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 const (
@@ -33,14 +34,12 @@ const (
 
 func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	conf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			PollingInterval: 10000,
-			FileFormat:      "yaml",
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: retrieverconf.FileRetriever,
-					Path: manifestConfigFlags,
-				},
+		PollingInterval: 10000,
+		FileFormat:      "yaml",
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: retrieverconf.FileRetriever,
+				Path: manifestConfigFlags,
 			},
 		},
 	}
@@ -120,29 +119,25 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 	conf := &config.Config{
 		FlagSets: []config.FlagSet{
 			{
-				Name: "flagset1",
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: manifestConfigFlags,
-						},
+				Name:            "flagset1",
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: manifestConfigFlags,
 					},
 				},
 				APIKeys: []string{"flagset1-api-key"},
 			},
 			{
-				Name: "flagset2",
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: manifestConfigFlagsV2,
-						},
+				Name:            "flagset2",
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: manifestConfigFlagsV2,
 					},
 				},
 				APIKeys: []string{"flagset2-api-key"},

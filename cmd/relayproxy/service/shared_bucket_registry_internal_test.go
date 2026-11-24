@@ -19,13 +19,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
 // fakeS3 serves the same flag file for every key and counts the requests.
@@ -120,13 +121,11 @@ func newFakeRegistryWithPolling(
 
 func s3FlagSet(name, bucket, item string) config.FlagSet {
 	return config.FlagSet{
-		Name:    name,
-		APIKeys: []string{name + "-key"},
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever:                   &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: bucket, Item: item},
-			EnableSharedPollerPerBucket: true,
-			PollingInterval:             60000,
-		},
+		Name:                        name,
+		APIKeys:                     []string{name + "-key"},
+		Retriever:                   &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: bucket, Item: item},
+		EnableSharedPollerPerBucket: true,
+		PollingInterval:             60000,
 	}
 }
 
@@ -209,14 +208,12 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			var wg sync.WaitGroup
 			retrievers := make(chan *releasingRetriever, callers)
 			for i := range callers {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					fs := s3FlagSet(fmt.Sprintf("f%d", i), "b1", fmt.Sprintf("p/%d.yaml", i))
 					r, err := reg.retrieverFor(&fs)
 					assert.NoError(t, err)
 					retrievers <- r.(*releasingRetriever)
-				}()
+				})
 			}
 			wg.Wait()
 			close(retrievers)

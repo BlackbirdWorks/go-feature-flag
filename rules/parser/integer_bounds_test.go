@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func decimalPlusOne(n int) string { return new(big.Int).Add(big.NewInt(int64(n)), big.NewInt(1)).String() }
+func decimalPlusOne(n int) string {
+	return new(big.Int).Add(big.NewInt(int64(n)), big.NewInt(1)).String()
+}
 func decimalMinusOne(n int) string {
 	return new(big.Int).Sub(big.NewInt(int64(n)), big.NewInt(1)).String()
 }

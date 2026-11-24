@@ -16,6 +16,13 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/xitongsys/parquet-go/parquet"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/proxy"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -40,12 +47,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/xitongsys/parquet-go/parquet"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/proxy"
 )
 
 func Test_initRetrieversWithRegistry(t *testing.T) {
@@ -144,9 +145,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			proxyConf := config.FlagSet{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: tt.retrievers,
-				},
+				Retrievers: tt.retrievers,
 			}
 			if tt.shared != nil {
 				proxyConf = *tt.shared
@@ -249,9 +248,7 @@ func Test_initExporters(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			proxyConf := config.FlagSet{
-				CommonFlagSet: config.CommonFlagSet{
-					Exporters: tt.exporters,
-				},
+				Exporters: tt.exporters,
 			}
 			r, err := initDataExporters(&proxyConf)
 			tt.wantErr(t, err)
@@ -1092,7 +1089,7 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fs := &config.FlagSet{CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.flagset}}
+			fs := &config.FlagSet{ExporterCleanQueueInterval: tt.flagset}
 			var o clientOptions
 			withDefaultExporterCleanQueueInterval(tt.fallback)(&o)
 			assert.Equal(t, tt.want, exporterCleanQueueInterval(fs, &o))
@@ -1116,8 +1113,8 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fs := &config.FlagSet{Name: "fs", CommonFlagSet: config.CommonFlagSet{
-				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}}
+			fs := &config.FlagSet{Name: "fs",
+				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}
 			var got time.Duration
 			client, err := newGoFeatureFlagClient(fs, zap.NewNop(), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),

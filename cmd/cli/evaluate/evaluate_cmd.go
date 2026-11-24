@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -15,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/spf13/cobra"
 )
 
 var (

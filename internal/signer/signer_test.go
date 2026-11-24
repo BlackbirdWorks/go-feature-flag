@@ -3,8 +3,9 @@ package signer_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/internal/signer"
 )
 
 func TestSign(t *testing.T) {

@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestConvertV1DtoToInternalFlag(t *testing.T) {
@@ -19,118 +20,114 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 		{
 			name: "all fields set",
 			input: dto.DTO{
-				BucketingKey: testconvert.String("bucketKey"),
+				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface("var1"),
 					"var2": testconvert.Interface("var2"),
 				},
 				Rules: &[]flag.Rule{{
-					Name:        testconvert.String("rule1"),
-					Query:       testconvert.String("key eq \"key\""),
+					Name:        new("rule1"),
+					Query:       new("key eq \"key\""),
 					Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					{
-						Name:  testconvert.String("rule2"),
-						Query: testconvert.String("key eq \"key2\""),
+						Name:  new("rule2"),
+						Query: new("key eq \"key2\""),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var1"),
+								Variation:  new("var1"),
 								Percentage: testconvert.Float64(30),
-								Date: testconvert.Time(
+								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var2"),
+								Variation:  new("var2"),
 								Percentage: testconvert.Float64(70),
-								Date: testconvert.Time(
+								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 						},
 					},
 					{
-						Name:            testconvert.String("rule3"),
-						Query:           testconvert.String("key eq \"key3\""),
-						VariationResult: testconvert.String("var2"),
+						Name:            new("rule3"),
+						Query:           new("key eq \"key3\""),
+						VariationResult: new("var2"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("var2"),
-							},
+						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+						DefaultRule: &flag.Rule{
+							VariationResult: new("var2"),
 						},
 					},
 				},
 				Experimentation: &dto.ExperimentationDto{
-					Start: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-					End:   testconvert.Time(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
+					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
 				Metadata:    &map[string]any{"key": "value"},
-				TrackEvents: testconvert.Bool(true),
-				Disable:     testconvert.Bool(false),
-				Version:     testconvert.String("v1"),
+				TrackEvents: new(true),
+				Disable:     new(false),
+				Version:     new("v1"),
 			},
 			expected: flag.InternalFlag{
-				BucketingKey: testconvert.String("bucketKey"),
+				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface("var1"),
 					"var2": testconvert.Interface("var2"),
 				},
 				Rules: &[]flag.Rule{{
-					Name:        testconvert.String("rule1"),
-					Query:       testconvert.String("key eq \"key\""),
+					Name:        new("rule1"),
+					Query:       new("key eq \"key\""),
 					Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					{
-						Name:  testconvert.String("rule2"),
-						Query: testconvert.String("key eq \"key2\""),
+						Name:  new("rule2"),
+						Query: new("key eq \"key2\""),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var1"),
+								Variation:  new("var1"),
 								Percentage: testconvert.Float64(30),
-								Date: testconvert.Time(
+								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var2"),
+								Variation:  new("var2"),
 								Percentage: testconvert.Float64(70),
-								Date: testconvert.Time(
+								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 						},
 					},
 					{
-						Name:            testconvert.String("rule3"),
-						Query:           testconvert.String("key eq \"key3\""),
-						VariationResult: testconvert.String("var2"),
+						Name:            new("rule3"),
+						Query:           new("key eq \"key3\""),
+						VariationResult: new("var2"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
-				TrackEvents: testconvert.Bool(true),
-				Disable:     testconvert.Bool(false),
-				Version:     testconvert.String("v1"),
+				TrackEvents: new(true),
+				Disable:     new(false),
+				Version:     new("v1"),
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("var2"),
-							},
+						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+						DefaultRule: &flag.Rule{
+							VariationResult: new("var2"),
 						},
 					},
 				},
 				Experimentation: &flag.ExperimentationRollout{
-					Start: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-					End:   testconvert.Time(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
+					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
 				Metadata: &map[string]any{"key": "value"},
 			},
@@ -158,126 +155,122 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 		{
 			name: "all fields set",
 			input: flag.InternalFlag{
-				BucketingKey: testconvert.String("bucketKey"),
+				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface("var1"),
 					"var2": testconvert.Interface("var2"),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:        testconvert.String("rule1"),
-						Query:       testconvert.String("key eq \"key\""),
+						Name:        new("rule1"),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0},
 					},
 					{
-						Name:  testconvert.String("rule2"),
-						Query: testconvert.String("key eq \"key2\""),
+						Name:  new("rule2"),
+						Query: new("key eq \"key2\""),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var1"),
+								Variation:  new("var1"),
 								Percentage: testconvert.Float64(30),
-								Date:       testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var2"),
+								Variation:  new("var2"),
 								Percentage: testconvert.Float64(70),
-								Date:       testconvert.Time(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
+								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},
 					},
 					{
-						Name:            testconvert.String("rule3"),
-						Query:           testconvert.String("key eq \"key3\""),
-						VariationResult: testconvert.String("var2"),
+						Name:            new("rule3"),
+						Query:           new("key eq \"key3\""),
+						VariationResult: new("var2"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("var2"),
-							},
+						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+						DefaultRule: &flag.Rule{
+							VariationResult: new("var2"),
 						},
 					},
 				},
 				Experimentation: &flag.ExperimentationRollout{
-					Start: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-					End:   testconvert.Time(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
+					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
 				Metadata:    &map[string]any{"key": "value"},
-				TrackEvents: testconvert.Bool(true),
-				Disable:     testconvert.Bool(false),
-				Version:     testconvert.String("v1"),
+				TrackEvents: new(true),
+				Disable:     new(false),
+				Version:     new("v1"),
 			},
 			expected: dto.DTO{
-				BucketingKey: testconvert.String("bucketKey"),
+				BucketingKey: new("bucketKey"),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface("var1"),
 					"var2": testconvert.Interface("var2"),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:        testconvert.String("rule1"),
-						Query:       testconvert.String("key eq \"key\""),
+						Name:        new("rule1"),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0},
 					},
 					{
-						Name:  testconvert.String("rule2"),
-						Query: testconvert.String("key eq \"key2\""),
+						Name:  new("rule2"),
+						Query: new("key eq \"key2\""),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var1"),
+								Variation:  new("var1"),
 								Percentage: testconvert.Float64(30),
-								Date:       testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  testconvert.String("var2"),
+								Variation:  new("var2"),
 								Percentage: testconvert.Float64(70),
-								Date:       testconvert.Time(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
+								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},
 					},
 					{
-						Name:            testconvert.String("rule3"),
-						Query:           testconvert.String("key eq \"key3\""),
-						VariationResult: testconvert.String("var2"),
+						Name:            new("rule3"),
+						Query:           new("key eq \"key3\""),
+						VariationResult: new("var2"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						Date: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("var2"),
-							},
+						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+						DefaultRule: &flag.Rule{
+							VariationResult: new("var2"),
 						},
 					},
 				},
 				Experimentation: &dto.ExperimentationDto{
-					Start: testconvert.Time(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-					End:   testconvert.Time(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
+					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
+					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
 				Metadata:    &map[string]any{"key": "value"},
-				TrackEvents: testconvert.Bool(true),
-				Disable:     testconvert.Bool(false),
-				Version:     testconvert.String("v1"),
+				TrackEvents: new(true),
+				Disable:     new(false),
+				Version:     new("v1"),
 			},
 		},
 		{
 			name: "nil experimentation",
 			input: flag.InternalFlag{
 				Experimentation: nil,
-				Version:         testconvert.String("v1"),
+				Version:         new("v1"),
 			},
 			expected: dto.DTO{
-				Version: testconvert.String("v1"),
+				Version: new("v1"),
 			},
 		},
 		{

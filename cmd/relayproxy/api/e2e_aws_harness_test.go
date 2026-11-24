@@ -15,6 +15,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -22,8 +25,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/spf13/pflag"
-	"github.com/stretchr/testify/require"
 )
 
 // startRelayProxyFromYAML starts a relay proxy in the process from a YAML configuration, wired like

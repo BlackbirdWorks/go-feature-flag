@@ -9,20 +9,21 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDiscordNotifier_Notify(t *testing.T) {
 	genericFlag := &flag.InternalFlag{
 		Rules: &[]flag.Rule{
 			{
-				Name:  testconvert.String("rule1"),
-				Query: testconvert.String("key eq \"random-key\""),
+				Name:  new("rule1"),
+				Query: new("key eq \"random-key\""),
 				Percentages: &map[string]float64{
 					"False": 95,
 					"True":  5,
@@ -35,12 +36,12 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 			"True":    testconvert.Interface("test"),
 		},
 		DefaultRule: &flag.Rule{
-			Name:            testconvert.String("defaultRule"),
-			VariationResult: testconvert.String("Default"),
+			Name:            new("defaultRule"),
+			VariationResult: new("Default"),
 		},
-		TrackEvents: testconvert.Bool(true),
-		Disable:     testconvert.Bool(false),
-		Version:     testconvert.String("1.1"),
+		TrackEvents: new(true),
+		Disable:     new(false),
+		Version:     new("1.1"),
 	}
 
 	type args struct {
@@ -73,8 +74,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 						"test-flag3": &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 95,
 										"True":  5,
@@ -87,12 +88,12 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 								"True":    testconvert.Interface("test"),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
-							TrackEvents: testconvert.Bool(true),
-							Disable:     testconvert.Bool(false),
-							Version:     testconvert.String("1.1"),
+							TrackEvents: new(true),
+							Disable:     new(false),
+							Version:     new("1.1"),
 							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
 						},
 					},
@@ -100,8 +101,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 						"test-flag": &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -115,8 +116,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 					},
@@ -129,7 +130,7 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 									"True":    testconvert.Interface(true),
 								},
 								DefaultRule: &flag.Rule{
-									Name: testconvert.String("defaultRule"),
+									Name: new("defaultRule"),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -137,8 +138,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
 								Experimentation: &flag.ExperimentationRollout{
-									Start: testconvert.Time(time.Unix(1095379400, 0).UTC()),
-									End:   testconvert.Time(time.Unix(1095371000, 0).UTC()),
+									Start: new(time.Unix(1095379400, 0).UTC()),
+									End:   new(time.Unix(1095371000, 0).UTC()),
 								},
 							},
 							After: &flag.InternalFlag{
@@ -149,8 +150,8 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 								},
 								Rules: &[]flag.Rule{
 									{
-										Name:  testconvert.String("rule1"),
-										Query: testconvert.String("key eq \"not-a-ke\""),
+										Name:  new("rule1"),
+										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
 											"False": 20,
 											"True":  80,
@@ -158,12 +159,12 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 									},
 								},
 								DefaultRule: &flag.Rule{
-									Name:            testconvert.String("defaultRule"),
-									VariationResult: testconvert.String("Default"),
+									Name:            new("defaultRule"),
+									VariationResult: new("Default"),
 								},
-								Disable:     testconvert.Bool(true),
-								TrackEvents: testconvert.Bool(false),
-								Version:     testconvert.String("1.1"),
+								Disable:     new(true),
+								TrackEvents: new(false),
+								Version:     new("1.1"),
 								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
 							},
 						},
@@ -326,7 +327,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
 func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 	updated := func(changes, valueLength int) notifier.DiffUpdated {
 		after := map[string]any{}
-		for i := 0; i < changes; i++ {
+		for i := range changes {
 			after[fmt.Sprintf("key%02d", i)] = strings.Repeat("x", valueLength)
 		}
 		return notifier.DiffUpdated{

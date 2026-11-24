@@ -1,14 +1,15 @@
 package api
 
 import (
-	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/labstack/echo-contrib/v5/pprof"
 	echoprometheus "github.com/labstack/echo-prometheus"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+
+	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 )
 
 func (s *Server) addMonitoringRoutes() {

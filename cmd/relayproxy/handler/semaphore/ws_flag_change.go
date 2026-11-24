@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
 // threadSafeConn serializes all writes to a single websocket connection.

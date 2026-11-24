@@ -7,13 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const persistedFlags = `test-flag:
@@ -56,10 +57,10 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	}{
 		{name: "no persistent file and no tolerance fails", wantErr: "impossible to retrieve the flags"},
 		{name: "starts without flags when the retriever error is tolerated", startAnyway: true},
-		{name: "serves the persisted flags", withFile: true, persisted: ptr(persistedFlags), wantFlag: true},
+		{name: "serves the persisted flags", withFile: true, persisted: new(persistedFlags), wantFlag: true},
 		{name: "missing persistent file fails", withFile: true, wantErr: "impossible to use the persistent flag configuration file"},
 		{name: "missing persistent file is tolerated", withFile: true, startAnyway: true},
-		{name: "unreadable persistent content fails", withFile: true, persisted: ptr("{not: [yaml"),
+		{name: "unreadable persistent content fails", withFile: true, persisted: new("{not: [yaml"),
 			wantErr: "impossible to use the persistent flag configuration file"},
 	}
 	for _, tt := range tests {
@@ -100,7 +101,8 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	}
 }
 
-func ptr(s string) *string { return &s }
+//go:fix inline
+func ptr(s string) *string { return new(s) }
 
 func TestManagerForceRefresh(t *testing.T) {
 	t.Parallel()

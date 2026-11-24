@@ -3,10 +3,11 @@ package flag
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // The map given to the query engines is recycled between evaluations: an attribute of an
@@ -18,8 +19,8 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 			"A": testconvert.Interface("a"),
 			"B": testconvert.Interface("b"),
 		},
-		Rules:       &[]Rule{{Query: testconvert.String(`secret eq "x"`), VariationResult: testconvert.String("A")}},
-		DefaultRule: &Rule{VariationResult: testconvert.String("B")},
+		Rules:       &[]Rule{{Query: new(`secret eq "x"`), VariationResult: new("A")}},
+		DefaultRule: &Rule{VariationResult: new("B")},
 	}
 	require.NoError(t, f.IsValid())
 

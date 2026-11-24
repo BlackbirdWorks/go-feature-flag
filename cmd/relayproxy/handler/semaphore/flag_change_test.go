@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func TestPIFlagChange_WithConfigChange(t *testing.T) {
@@ -43,14 +44,12 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{"test"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval: 1000,
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: testdataDir + "/config_flags.yaml",
-								},
+						APIKeys:         []string{"test"},
+						PollingInterval: 1000,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: testdataDir + "/config_flags.yaml",
 							},
 						},
 					},
@@ -155,14 +154,12 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{"test"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval: 1000,
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: testdataDir + "/config_flags.yaml",
-								},
+						APIKeys:         []string{"test"},
+						PollingInterval: 1000,
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: testdataDir + "/config_flags.yaml",
 							},
 						},
 					},

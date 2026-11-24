@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -28,7 +27,7 @@ func TestBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.Bool(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})
@@ -60,7 +59,7 @@ func TestString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.String(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})
@@ -97,7 +96,7 @@ func TestInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.Int(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})
@@ -139,7 +138,7 @@ func TestFloat64(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.Float64(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})
@@ -175,7 +174,7 @@ func TestTime(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.Time(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})
@@ -242,7 +241,7 @@ func TestInterface(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := testconvert.Interface(tt.input)
+			result := new(tt.input)
 			assert.NotNil(t, result, "Result should not be nil")
 			assert.Equal(t, tt.want, *result, "Value should match input")
 		})

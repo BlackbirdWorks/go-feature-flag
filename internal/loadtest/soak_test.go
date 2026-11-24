@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func samples(heap []uint64, gor []int) []Sample {
@@ -286,7 +287,7 @@ func TestLibraryTarget(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer lt.Close()
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		require.NoError(t, lt.Eval(0, i))
 	}
 	assert.Eventually(t, func() bool { return lt.Extra()["exported_events"] > 0 }, 5*time.Second, 20*time.Millisecond)

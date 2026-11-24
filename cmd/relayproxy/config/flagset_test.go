@@ -5,9 +5,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 const (
@@ -304,10 +305,10 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 	wg.Add(numGoroutines * 2) // readers and writers
 
 	// Start writer goroutines
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < numIterations; j++ {
+			for j := range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				newKeys := []string{fmt.Sprintf("key-%d-%d", id, j)}
 				err := cfg.SetFlagSetAPIKeys(flagsetName, newKeys)
@@ -317,10 +318,10 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 	}
 
 	// Start reader goroutines
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < numIterations; j++ {
+			for range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				keys, err := cfg.GetFlagSetAPIKeys(flagsetName)
 				// We don't check the exact value since it may change between reads

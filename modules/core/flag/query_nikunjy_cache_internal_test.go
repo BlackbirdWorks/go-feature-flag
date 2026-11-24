@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
@@ -108,8 +109,8 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 			b.StartTimer()
 		}
 		r := Rule{
-			VariationResult: testconvert.String("on"),
-			Query:           testconvert.String(fmt.Sprintf(`key eq "user-%d"`, i)),
+			VariationResult: new("on"),
+			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
 		if err := r.IsValid(false, variations); err != nil {
 			b.Fatal(err)
@@ -122,15 +123,15 @@ func newFlagWithQueries(queries ...string) *InternalFlag {
 	rules := make([]Rule, len(queries))
 	for i, q := range queries {
 		rules[i] = Rule{
-			Name:            testconvert.String(fmt.Sprintf("rule-%d", i)),
-			Query:           testconvert.String(q),
-			VariationResult: testconvert.String("on"),
+			Name:            new(fmt.Sprintf("rule-%d", i)),
+			Query:           new(q),
+			VariationResult: new("on"),
 		}
 	}
 	return &InternalFlag{
 		Variations:  &map[string]*any{"on": testconvert.Interface(true)},
 		Rules:       &rules,
-		DefaultRule: &Rule{VariationResult: testconvert.String("on")},
+		DefaultRule: &Rule{VariationResult: new("on")},
 	}
 }
 

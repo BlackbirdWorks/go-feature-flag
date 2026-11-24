@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -17,10 +22,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestDeprecatedAliasHeaders(t *testing.T) {
@@ -28,10 +29,8 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	c := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-			},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
@@ -123,12 +122,10 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 
 	flagset := func(name, apiKey, path string) config.FlagSet {
 		return config.FlagSet{
-			Name:    name,
-			APIKeys: []string{apiKey},
-			CommonFlagSet: config.CommonFlagSet{
-				Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: path}},
-				PollingInterval: 200,
-			},
+			Name:            name,
+			APIKeys:         []string{apiKey},
+			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: path}},
+			PollingInterval: 200,
 		}
 	}
 	c := &config.Config{

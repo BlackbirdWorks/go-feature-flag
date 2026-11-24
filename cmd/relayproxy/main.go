@@ -7,6 +7,10 @@ import (
 	"os"
 	"time"
 
+	promversion "github.com/prometheus/common/version"
+	"github.com/spf13/pflag"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
@@ -16,9 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/notifier"
-	promversion "github.com/prometheus/common/version"
-	"github.com/spf13/pflag"
-	"go.uber.org/zap"
 )
 
 // version is overridden by GoReleaser during the build.

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 
 	"cloud.google.com/go/pubsub/v2"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"google.golang.org/api/option"
 )
 
 var _ exporter.Exporter = &Exporter{}

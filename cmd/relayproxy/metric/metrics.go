@@ -358,7 +358,7 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 		if !ok {
 			continue
 		}
-		clone.Name = proto.String(LegacySubSystem + "_" + strings.TrimPrefix(name, prefix))
+		clone.Name = new(LegacySubSystem + "_" + strings.TrimPrefix(name, prefix))
 		out = append(out, clone)
 	}
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.

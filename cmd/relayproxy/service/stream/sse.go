@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/r3labs/sse/v2"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/r3labs/sse/v2"
 )
 
 // SSEService is the service interface that handles SSE connections.

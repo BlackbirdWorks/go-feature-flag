@@ -8,12 +8,13 @@ import (
 	"time"
 
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	slogzap "github.com/samber/slog-zap/v2"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 )
 
 // sharedItemsFactory builds the shared group of a bucket.

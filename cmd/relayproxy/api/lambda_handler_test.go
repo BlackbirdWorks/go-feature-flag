@@ -8,14 +8,15 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
@@ -79,12 +80,10 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			c := &config.Config{
 				StartAsAwsLambda: true,
 				AwsLambdaAdapter: tt.mode,
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 			}
@@ -173,12 +172,10 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 	}, z, nil, nil, nil)

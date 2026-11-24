@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var defaultColumns = map[string]string{
@@ -172,15 +174,11 @@ func (r *Retriever) buildQuery() string {
 func (r *Retriever) getColumnNames() map[string]string {
 	// Start with a copy of defaultColumns
 	columns := make(map[string]string)
-	for k, v := range defaultColumns {
-		columns[k] = v
-	}
+	maps.Copy(columns, defaultColumns)
 
 	// Override with any provided custom columns
 	if r.Columns != nil {
-		for k, v := range r.Columns {
-			columns[k] = v
-		}
+		maps.Copy(columns, r.Columns)
 	}
 
 	return columns

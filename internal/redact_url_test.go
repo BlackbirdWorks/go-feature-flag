@@ -9,9 +9,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 func TestRedactURLError(t *testing.T) {
@@ -68,8 +69,7 @@ func TestRedactURLError(t *testing.T) {
 			if tt.wantSame {
 				assert.Equal(t, tt.err, got)
 			}
-			var urlErr *url.Error
-			if errors.As(tt.err, &urlErr) {
+			if urlErr, ok := errors.AsType[*url.Error](tt.err); ok {
 				assert.ErrorAs(t, got, &urlErr, "the error stays a *url.Error")
 			}
 		})

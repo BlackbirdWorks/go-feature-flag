@@ -3,9 +3,10 @@ package config
 import (
 	"fmt"
 
+	"github.com/xitongsys/parquet-go/parquet"
+
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 	"github.com/blackbirdworks/semaphore/exporter/redshiftexporter"
-	"github.com/xitongsys/parquet-go/parquet"
 )
 
 // ExporterConf contains all the field to configure an exporter

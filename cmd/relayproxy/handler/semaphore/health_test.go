@@ -6,14 +6,15 @@ import (
 	"os"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_health_Handler(t *testing.T) {
@@ -39,11 +40,9 @@ func Test_health_Handler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create config for default mode with offline flag
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/config_flags.yaml",
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/config_flags.yaml",
 				},
 			}
 

@@ -8,13 +8,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	ret "github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	testcontainerRedis "github.com/testcontainers/testcontainers-go/modules/redis"
+
+	ret "github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 )
 
 func Test_Redis_Retrieve(t *testing.T) {

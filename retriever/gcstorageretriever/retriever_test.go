@@ -5,9 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/option"
+
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 func TestRetriever_Retrieve(t *testing.T) {

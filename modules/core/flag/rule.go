@@ -11,11 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/diegoholiveira/jsonlogic/v3"
+	"github.com/nikunjy/rules/parser"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/diegoholiveira/jsonlogic/v3"
-	"github.com/nikunjy/rules/parser"
 )
 
 type QueryFormat = string
@@ -319,8 +320,8 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
 	// to always have "True" before "False"
 	sum := float64(0)
-	for i := len(names) - 1; i >= 0; i-- {
-		sum += percentage[names[i]]
+	for _, name := range slices.Backward(names) {
+		sum += percentage[name]
 	}
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
 	return variationFromBuckets(percentage, names, hash)
@@ -393,14 +394,14 @@ func (r *Rule) getVariationFromProgressiveRollout(
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
 	last := ""
-	for i := len(names) - 1; i >= 0; i-- {
-		p := percentage[names[i]]
+	for _, name := range slices.Backward(names) {
+		p := percentage[name]
 		end := start + (p * PercentageMultiplier)
 		if uint32(start) <= hash && uint32(end) > hash {
-			return names[i], nil
+			return name, nil
 		}
 		if p > 0 {
-			last = names[i]
+			last = name
 		}
 		start = end
 	}

@@ -10,10 +10,11 @@ import (
 	"text/template"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func TestExporter_IsBulk(t *testing.T) {
@@ -430,7 +431,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := make([]exporter.ExportableEvent, 0, maxRowsPerInsert+3)
-	for i := 0; i < maxRowsPerInsert+3; i++ {
+	for i := range maxRowsPerInsert + 3 {
 		events = append(events, exporter.FeatureEvent{
 			Kind:         "feature",
 			UserKey:      fmt.Sprintf("user-%d", i),
@@ -451,7 +452,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 
 func TestExporter_InitClientOnce(t *testing.T) {
 	client := newMockBigQueryClient()
-	var callCount int32
+	var callCount atomic.Int32
 	e := &Exporter{
 		ProjectID: "fake-project",
 		DatasetID: "fake-dataset",
@@ -460,7 +461,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 			string,
 			...option.ClientOption,
 		) (bigQueryClient, error) {
-			atomic.AddInt32(&callCount, 1)
+			callCount.Add(1)
 			return client, nil
 		},
 	}
@@ -468,12 +469,10 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	const goroutines = 50
 	errs := make(chan error, goroutines)
 	var wg sync.WaitGroup
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range goroutines {
+		wg.Go(func() {
 			errs <- e.initClient(context.TODO())
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -481,7 +480,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	for err := range errs {
 		assert.NoError(t, err)
 	}
-	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
+	assert.Equal(t, int32(1), callCount.Load())
 	assert.Equal(t, client, e.client)
 }
 

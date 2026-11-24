@@ -15,6 +15,13 @@ import (
 	"testing"
 	"time"
 
+	promdto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"google.golang.org/protobuf/encoding/protodelim"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -24,12 +31,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	promdto "github.com/prometheus/client_model/go"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"google.golang.org/protobuf/encoding/protodelim"
 )
 
 // newTestLogger returns a logger whose Fatal() terminates the calling goroutine instead of the
@@ -64,12 +65,10 @@ func waitForServer(t *testing.T, baseURL string) {
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -125,12 +124,10 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	monitoringPort := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -203,12 +200,10 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 func Test_CheckOFREPAPIExists(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -285,12 +280,10 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -331,12 +324,10 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 func Test_VersionHeader_Disabled(t *testing.T) {
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -468,12 +459,10 @@ func runAuthMiddlewareTests(
 		t.Run(tt.name, func(t *testing.T) {
 			port := testutils.GetFreePort(t)
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -550,12 +539,10 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -631,12 +618,10 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -712,12 +697,10 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -886,12 +869,10 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-%d.sock", index))
 
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -986,12 +967,10 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -1051,12 +1030,10 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -1163,12 +1140,10 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	ln.Close()
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -1234,12 +1209,10 @@ func Test_StopBeforeStart(t *testing.T) {
 	ln.Close()
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{

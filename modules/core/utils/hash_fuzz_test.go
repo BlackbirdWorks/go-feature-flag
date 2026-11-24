@@ -3,8 +3,9 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // FuzzBuildHash checks that the allocation-free hash matches Hash(flag+key)

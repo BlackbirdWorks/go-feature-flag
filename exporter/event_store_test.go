@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 const defaultTestCleanQueueDuration = 100 * time.Millisecond
@@ -280,7 +281,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	eventStore.AddConsumer(consumerName)
 	defer eventStore.Stop()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		eventStore.Add(testutils.NewExportableMockEvent("init"))
 	}
 
@@ -321,7 +322,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	eventStore.AddConsumer(consumerName)
 	defer eventStore.Stop()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		eventStore.Add(testutils.NewExportableMockEvent("init"))
 	}
 
@@ -391,7 +392,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 	eventStore.AddConsumer(consumerName)
 	defer eventStore.Stop()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		eventStore.Add(testutils.NewExportableMockEvent("init"))
 	}
 
@@ -497,7 +498,7 @@ func startEventProducer(
 	produceMax int,
 	randomizeProducingTime bool,
 ) {
-	for i := 0; i < produceMax; i++ {
+	for range produceMax {
 		select {
 		case <-ctx.Done():
 			return

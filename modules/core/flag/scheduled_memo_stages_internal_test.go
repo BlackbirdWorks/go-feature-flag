@@ -4,29 +4,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 // stagedRolloutFlag: step 1 adds the rule "r", step 2 then step 3 change it.
 func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 	rule := func(update Rule) Rule {
-		update.Name = testconvert.String("r")
+		update.Name = new("r")
 		return update
 	}
 	step := func(h int, rules ...Rule) ScheduledStep {
 		return ScheduledStep{
-			Date:         testconvert.Time(base.Add(time.Duration(h) * time.Hour)),
-			InternalFlag: InternalFlag{Rules: &rules},
+			Date:  new(base.Add(time.Duration(h) * time.Hour)),
+			Rules: &rules,
 		}
 	}
 	var steps []ScheduledStep
 	if progressive {
 		pr := func(initial, end float64) Rule {
 			return rule(Rule{ProgressiveRollout: &ProgressiveRollout{
-				Initial: &ProgressiveRolloutStep{Percentage: testconvert.Float64(initial)},
-				End:     &ProgressiveRolloutStep{Percentage: testconvert.Float64(end)},
+				Initial: &ProgressiveRolloutStep{Percentage: new(initial)},
+				End:     &ProgressiveRolloutStep{Percentage: new(end)},
 			}})
 		}
 		steps = []ScheduledStep{step(1, pr(1, 2)), step(2, pr(10, 20)), step(3, pr(30, 40))}
@@ -40,7 +41,7 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 		Variations: &map[string]*any{
 			"A": testconvert.Interface("a"), "B": testconvert.Interface("b"),
 		},
-		DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+		DefaultRule: &Rule{VariationResult: new("A")},
 		Scheduled:   &steps,
 	}
 }

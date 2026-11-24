@@ -1,8 +1,9 @@
 package api
 
 import (
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/labstack/echo/v5"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 )
 
 func (s *Server) addManifestRoutes(cManifest manifest.ManifestCtrl, authMiddleware echo.MiddlewareFunc) {

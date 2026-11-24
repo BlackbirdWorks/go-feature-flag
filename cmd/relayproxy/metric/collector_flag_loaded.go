@@ -4,10 +4,11 @@ import (
 	"strconv"
 	"strings"
 
+	prom "github.com/prometheus/client_golang/prometheus"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	prom "github.com/prometheus/client_golang/prometheus"
 )
 
 const flagLoadedEvaluationKey = "semaphore-flag-loaded-metric"

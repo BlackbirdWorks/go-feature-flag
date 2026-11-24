@@ -4,8 +4,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 )
 
 func TestNewManifestCmd(t *testing.T) {

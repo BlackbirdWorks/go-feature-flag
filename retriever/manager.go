@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -356,9 +357,7 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	// merge all the flags
 	newFlags := map[string]dto.DTO{}
 	for _, flags := range retrieversResults {
-		for flagName, value := range flags {
-			newFlags[flagName] = value
-		}
+		maps.Copy(newFlags, flags)
 	}
 	return newFlags, nil
 }

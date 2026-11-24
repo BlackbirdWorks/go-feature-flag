@@ -23,7 +23,7 @@ func largeInQueryVariant(n int, prefix string) string {
 	var sb strings.Builder
 	sb.Grow(n*16 + 16)
 	sb.WriteString(`key in [`)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
@@ -40,11 +40,11 @@ func newValidatedFlag(b *testing.B, query string) *flag.InternalFlag {
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
 		Rules: &[]flag.Rule{{
-			Name:            testconvert.String("targeting"),
-			Query:           testconvert.String(query),
-			VariationResult: testconvert.String("on"),
+			Name:            new("targeting"),
+			Query:           new(query),
+			VariationResult: new("on"),
 		}},
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	if err := f.IsValid(); err != nil {
 		b.Fatal(err)
@@ -147,11 +147,11 @@ func benchReload(b *testing.B, ids int) {
 			next[j] = &flag.InternalFlag{
 				Variations: &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
 				Rules: &[]flag.Rule{{
-					Name:            testconvert.String("targeting"),
-					Query:           testconvert.String(strings.Clone(query)),
-					VariationResult: testconvert.String("on"),
+					Name:            new("targeting"),
+					Query:           new(strings.Clone(query)),
+					VariationResult: new("on"),
 				}},
-				DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+				DefaultRule: &flag.Rule{VariationResult: new("off")},
 			}
 		}
 		b.StartTimer()
@@ -202,13 +202,13 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 func newSmallFlag(i int, query string) *flag.InternalFlag {
 	f := &flag.InternalFlag{
 		Variations:  &map[string]*any{"on": testconvert.Interface(true), "off": testconvert.Interface(false)},
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	if query != "" {
 		f.Rules = &[]flag.Rule{{
-			Name:            testconvert.String(fmt.Sprintf("rule-%d", i)),
-			Query:           testconvert.String(query),
-			VariationResult: testconvert.String("on"),
+			Name:            new(fmt.Sprintf("rule-%d", i)),
+			Query:           new(query),
+			VariationResult: new("on"),
 		}}
 	}
 	return f
@@ -312,8 +312,8 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 // in code is.
 func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 	r := flag.Rule{
-		Query:           testconvert.String(`key eq "user-1" and plan eq "pro"`),
-		VariationResult: testconvert.String("on"),
+		Query:           new(`key eq "user-1" and plan eq "pro"`),
+		VariationResult: new("on"),
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
@@ -329,10 +329,10 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	f := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
 	past := time.Now().Add(-time.Hour)
 	f.Scheduled = &[]flag.ScheduledStep{{
-		InternalFlag: flag.InternalFlag{Rules: &[]flag.Rule{{
-			Name:  testconvert.String("rule-0"),
-			Query: testconvert.String(`key eq "user-1" and plan eq "pro"`),
-		}}},
+		Rules: &[]flag.Rule{{
+			Name:  new("rule-0"),
+			Query: new(`key eq "user-1" and plan eq "pro"`),
+		}},
 		Date: &past,
 	}}
 	if err := f.IsValid(); err != nil {
@@ -391,7 +391,7 @@ func BenchmarkHeap_LargeListReloads(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		base := heapInUse()
 		var current []*flag.InternalFlag
-		for g := 0; g < 8; g++ {
+		for g := range 8 {
 			query := largeInQueryVariant(20000, fmt.Sprintf("gen%d-", g))
 			current = make([]*flag.InternalFlag, 5)
 			for j := range current {

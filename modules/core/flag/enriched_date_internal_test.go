@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 // the currentDateTime set by the evaluation context enrichment is the date of the evaluation for
@@ -20,19 +21,18 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	scheduled := func() *InternalFlag {
 		return &InternalFlag{
 			Variations:  &map[string]*any{"A": testconvert.Interface("a"), "B": testconvert.Interface("b")},
-			DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+			DefaultRule: &Rule{VariationResult: new("A")},
 			Scheduled: &[]ScheduledStep{{
-				Date: testconvert.Time(now.Add(24 * time.Hour)),
-				InternalFlag: InternalFlag{
-					DefaultRule: &Rule{VariationResult: testconvert.String("B")}},
+				Date:        new(now.Add(24 * time.Hour)),
+				DefaultRule: &Rule{VariationResult: new("B")},
 			}},
 		}
 	}
 	experimentation := func() *InternalFlag {
 		return &InternalFlag{
 			Variations:      &map[string]*any{"A": testconvert.Interface("a")},
-			DefaultRule:     &Rule{VariationResult: testconvert.String("A")},
-			Experimentation: &ExperimentationRollout{End: testconvert.Time(now.Add(24 * time.Hour))},
+			DefaultRule:     &Rule{VariationResult: new("A")},
+			Experimentation: &ExperimentationRollout{End: new(now.Add(24 * time.Hour))},
 		}
 	}
 	tests := []struct {
@@ -46,13 +46,13 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 			enrichment: enrichmentAt(now.Add(7 * 24 * time.Hour)), wantVariant: "B"},
 		{name: "scheduled step not due at the enriched date", flag: scheduled(),
 			enrichment:  enrichmentAt(now.Add(-time.Hour)),
-			callerDate:  testconvert.Time(now.Add(7 * 24 * time.Hour)),
+			callerDate:  new(now.Add(7 * 24 * time.Hour)),
 			wantVariant: "A"},
 		{name: "experimentation over at the enriched date", flag: experimentation(),
 			enrichment: enrichmentAt(now.Add(7 * 24 * time.Hour)), wantVariant: VariationSDKDefault},
 		{name: "experimentation running at the enriched date", flag: experimentation(),
 			enrichment:  enrichmentAt(now),
-			callerDate:  testconvert.Time(now.Add(7 * 24 * time.Hour)),
+			callerDate:  new(now.Add(7 * 24 * time.Hour)),
 			wantVariant: "A"},
 	}
 	for _, tt := range tests {

@@ -4,10 +4,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_notificationService_getDifferences(t *testing.T) {
@@ -35,7 +36,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -49,7 +50,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -65,7 +66,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -83,7 +84,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -106,7 +107,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -122,7 +123,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -136,7 +137,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -154,7 +155,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -177,7 +178,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -193,7 +194,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 							"True":    testconvert.Interface(true),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("rule1"),
+							Name: new("rule1"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -214,7 +215,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 								"True":    testconvert.Interface(true),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("rule1"),
+								Name: new("rule1"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -228,7 +229,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 								"True":    testconvert.Interface(true),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("rule1"),
+								Name: new("rule1"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,

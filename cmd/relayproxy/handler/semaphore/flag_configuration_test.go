@@ -7,17 +7,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const mockConfigFlagsLocation = testdataDir + "/configuration/"
@@ -69,14 +70,12 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create config for default mode (no flagsets)
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/configuration_flags.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: config.LogExporter,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/configuration_flags.yaml",
+				},
+				Exporter: &config.ExporterConf{
+					Kind: config.LogExporter,
 				},
 			}
 
@@ -176,27 +175,23 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name: "flagset1",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: configFlagsLocation,
-							},
-							Exporter: &config.ExporterConf{
-								Kind: config.LogExporter,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: configFlagsLocation,
+						},
+						Exporter: &config.ExporterConf{
+							Kind: config.LogExporter,
 						},
 						APIKeys: []string{"flagset1-api-key"},
 					},
 					{
 						Name: "flagset2",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: configFlagsLocation2,
-							},
-							Exporter: &config.ExporterConf{
-								Kind: config.LogExporter,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: configFlagsLocation2,
+						},
+						Exporter: &config.ExporterConf{
+							Kind: config.LogExporter,
 						},
 						APIKeys: []string{"flagset2-api-key"},
 					},
@@ -259,11 +254,9 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 		FlagSets: []config.FlagSet{
 			{
 				Name: "flagset1",
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/configuration_flags.yaml",
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/configuration_flags.yaml",
 				},
 				APIKeys: []string{"flagset1-api-key"},
 			},

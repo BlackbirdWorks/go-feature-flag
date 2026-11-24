@@ -3,8 +3,9 @@ package flag_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {

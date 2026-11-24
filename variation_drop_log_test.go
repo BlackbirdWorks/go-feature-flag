@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // dropGatedSink blocks the records about dropped events until gate is closed.
@@ -76,9 +77,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 			stop := make(chan struct{})
 			var wg sync.WaitGroup
 			for i := range counters {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					for {
 						select {
 						case <-stop:
@@ -88,7 +87,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						counters[i].Add(1)
 					}
-				}()
+				})
 			}
 			defer func() {
 				close(stop)

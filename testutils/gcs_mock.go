@@ -32,12 +32,10 @@ func (m MockedStorage) WithFiles(t *testing.T, bucketName string, files map[stri
 		}
 
 		object := fakestorage.Object{
-			Content: content,
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: bucketName,
-				Name:       name,
-				Md5Hash:    EncodedMd5Hash(content),
-			},
+			Content:    content,
+			BucketName: bucketName,
+			Name:       name,
+			Md5Hash:    EncodedMd5Hash(content),
 		}
 		m.Server.CreateObject(object)
 	}

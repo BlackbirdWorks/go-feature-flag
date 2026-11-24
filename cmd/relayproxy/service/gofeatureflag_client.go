@@ -9,6 +9,9 @@ import (
 	"dario.cat/mergo"
 	"github.com/IBM/sarama"
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	slogzap "github.com/samber/slog-zap/v2"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
@@ -34,8 +37,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 )
 
 // clientOptions are the internal options of NewGoFeatureFlagClient.

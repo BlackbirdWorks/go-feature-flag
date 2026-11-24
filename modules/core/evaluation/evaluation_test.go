@@ -3,12 +3,13 @@ package evaluation_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_evaluate(t *testing.T) {
@@ -35,7 +36,7 @@ func Test_evaluate(t *testing.T) {
 						"off": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -63,7 +64,7 @@ func Test_evaluate(t *testing.T) {
 						"off": nil,
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -91,7 +92,7 @@ func Test_evaluate(t *testing.T) {
 						"off": testconvert.Interface(float64(0)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -119,7 +120,7 @@ func Test_evaluate(t *testing.T) {
 						"off": testconvert.Interface(float64(0)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -147,7 +148,7 @@ func Test_evaluate(t *testing.T) {
 						"off": testconvert.Interface(float64(0.3)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -186,7 +187,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 			"off": testconvert.Interface(false),
 		},
 		DefaultRule: &flag.Rule{
-			VariationResult: testconvert.String("on"),
+			VariationResult: new("on"),
 		},
 	}
 	got, err := evaluation.Evaluate[int](f, "my-flag", ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"), flag.Context{}, "int", 42)

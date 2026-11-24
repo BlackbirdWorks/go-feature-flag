@@ -8,11 +8,12 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	promversion "github.com/prometheus/common/version"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
 func TestMetrics_BuildInfo(t *testing.T) {

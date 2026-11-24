@@ -3,9 +3,10 @@ package generate
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	"github.com/spf13/cobra"
 )
 
 func NewGenerateCmd() *cobra.Command {

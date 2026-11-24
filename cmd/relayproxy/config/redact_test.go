@@ -27,8 +27,8 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 		return
 	}
 	seen[t] = true
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
+		f := f
 		if !f.IsExported() {
 			continue
 		}
@@ -39,7 +39,7 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 
 func allConfigFields() map[string]reflect.StructField {
 	out := map[string]reflect.StructField{}
-	ownStructFields(reflect.TypeOf(Config{}), map[reflect.Type]bool{}, out)
+	ownStructFields(reflect.TypeFor[Config](), map[reflect.Type]bool{}, out)
 	return out
 }
 

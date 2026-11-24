@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 type normalizeStruct struct {
@@ -36,7 +37,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 	cyclicSlice[0] = cyclicSlice
 	var nilPtr *normalizeStruct
 	deep := any("leaf")
-	for i := 0; i < 5000; i++ { // deeper than the fast path goes, but not a cycle
+	for range 5000 { // deeper than the fast path goes, but not a cycle
 		deep = []any{deep}
 	}
 

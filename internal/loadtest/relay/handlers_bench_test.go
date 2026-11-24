@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
-	"github.com/labstack/echo/v5"
 )
 
 // invoke runs the handler once the way the router would, without any network.

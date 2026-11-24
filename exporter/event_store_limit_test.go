@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type droppedCounter interface{ DroppedEvents() int64 }
@@ -95,7 +96,7 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 	store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, 3, nil)
 	defer store.Stop()
 	store.AddConsumer("c")
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 	}
 	var got []string
@@ -127,14 +128,12 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 			store.AddConsumer("c")
 			var wg sync.WaitGroup
 			for w := 0; w < tt.workers; w++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					for i := 0; i < tt.perW; i++ {
 						store.Add(testutils.NewExportableMockEvent("e"))
 						assert.LessOrEqual(t, store.GetTotalEventCount(), tt.limit)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			total := int64(tt.workers * tt.perW)
@@ -165,7 +164,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 			}}, time.Hour, nil)
 			defer m.Stop()
 			const n = 100000
-			for i := 0; i < n; i++ {
+			for range n {
 				m.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
 			assert.Equal(t, int64(n)-tt.wantCap, m.(exporter.DroppedEventsCounter).DroppedEvents())
@@ -204,7 +203,7 @@ func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 			defer store.Stop()
 			store.AddConsumer("a")
 			store.AddConsumer("b")
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				store.Add(testutils.NewExportableMockEvent("e"))
 			}
 			noop := func(context.Context, []testutils.ExportableMockEvent) error { return nil }

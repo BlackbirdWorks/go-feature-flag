@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"maps"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
@@ -17,9 +19,7 @@ func ContextToMapInto(dst map[string]any, ctx ffcontext.Context) map[string]any 
 	userCopy := dst
 
 	// Duplicate the map to keep User un-mutable
-	for key, value := range custom {
-		userCopy[key] = value
-	}
+	maps.Copy(userCopy, custom)
 	userCopy["anonymous"] = ctx.IsAnonymous()
 	// box the key once for both entries
 	k := any(ctx.GetKey())

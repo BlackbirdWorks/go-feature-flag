@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
@@ -15,8 +18,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 )
 
 func Test_FlagCacheNotInit(t *testing.T) {
@@ -107,7 +108,7 @@ trackEvents = false
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -119,9 +120,9 @@ trackEvents = false
 						"true_var":  testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -154,7 +155,7 @@ test-flag:
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -166,9 +167,9 @@ test-flag:
 						"true_var":  testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -208,7 +209,7 @@ test-flag:
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -220,9 +221,9 @@ test-flag:
 						"true_var":  testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -320,7 +321,7 @@ test-flag:
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -328,9 +329,9 @@ test-flag:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -375,7 +376,7 @@ test-flag2:
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -383,9 +384,9 @@ test-flag2:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
@@ -394,7 +395,7 @@ test-flag2:
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 100,
 								"true_var":  0,
@@ -402,9 +403,9 @@ test-flag2:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -531,7 +532,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"flag1": {
 					Variations: &map[string]*any{},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},
@@ -541,7 +542,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"true": testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 				"flag2": {
@@ -549,7 +550,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"false": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false"),
+						VariationResult: new("false"),
 					},
 				},
 			},
@@ -563,7 +564,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"true": testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},
@@ -576,7 +577,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"true": testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 				"flag2": {
@@ -584,7 +585,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"false": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false"),
+						VariationResult: new("false"),
 					},
 				},
 			},
@@ -594,7 +595,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 						"true": testconvert.Interface(true),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},

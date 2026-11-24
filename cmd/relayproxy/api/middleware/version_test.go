@@ -5,10 +5,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+
+	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestVersion(t *testing.T) {

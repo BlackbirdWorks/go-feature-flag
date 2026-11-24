@@ -4,10 +4,11 @@ import (
 	"strings"
 	"time"
 
-	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/v2"
 	"go.uber.org/zap"
+
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 )
 
 // Studio holds the configuration to load the flagSets from Semaphore Studio.

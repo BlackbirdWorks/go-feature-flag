@@ -1,15 +1,17 @@
 package cache_test
 
 import (
+	"maps"
 	"sync"
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // GetFlag and AllFlags are lock free and must see a complete cache while UpdateCache replaces it.
@@ -28,18 +30,14 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			flags := map[string]dto.DTO{}
-			for k, v := range benchFlagsMap(t, tt.flags) {
-				flags[k] = v
-			}
+			maps.Copy(flags, benchFlagsMap(t, tt.flags))
 			m := cache.New(nil, "", &fflog.FFLogger{})
 			require.NoError(t, m.UpdateCache(flags, nil, false))
 
 			var stop atomic.Bool
 			var wg sync.WaitGroup
-			for r := 0; r < 4; r++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range 4 {
+				wg.Go(func() {
 					for !stop.Load() {
 						// Only a reader racing with Close may see the "not initialised" error.
 						f, err := m.GetFlag("flag-1")
@@ -55,9 +53,9 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 							assert.NoError(t, err)
 						}
 					}
-				}()
+				})
 			}
-			for i := 0; i < 50; i++ {
+			for range 50 {
 				require.NoError(t, m.UpdateCache(flags, nil, false))
 			}
 			if tt.close {

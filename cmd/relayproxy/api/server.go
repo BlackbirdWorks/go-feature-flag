@@ -4,6 +4,13 @@ import (
 	"net/http"
 	"sync"
 
+	echootel "github.com/labstack/echo-otel/v5"
+	echoprometheus "github.com/labstack/echo-prometheus"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -14,12 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	echootel "github.com/labstack/echo-otel/v5"
-	echoprometheus "github.com/labstack/echo-prometheus"
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 type AuthMiddlewareType = string

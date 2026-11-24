@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFlagChanges(t *testing.T) {
@@ -20,7 +21,7 @@ func TestFlagChanges(t *testing.T) {
 				"on":  testconvert.Interface(true),
 				"off": testconvert.Interface(false),
 			},
-			DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+			DefaultRule: &flag.Rule{VariationResult: new("off")},
 			Metadata:    &map[string]any{"team": "payments"},
 		}
 	}
@@ -32,16 +33,16 @@ func TestFlagChanges(t *testing.T) {
 	}{
 		{
 			name:   "should show a disabled flag without pointer syntax",
-			update: func(f *flag.InternalFlag) { f.Disable = testconvert.Bool(true) },
+			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
 			want:   []notifier.FieldChange{{Path: "Disable", From: "null", To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
 			update: func(f *flag.InternalFlag) {
 				f.Rules = &[]flag.Rule{{
-					Name:            testconvert.String("beta"),
-					Query:           testconvert.String(`country eq "FR"`),
-					VariationResult: testconvert.String("on"),
+					Name:            new("beta"),
+					Query:           new(`country eq "FR"`),
+					VariationResult: new("on"),
 				}}
 			},
 			want: []notifier.FieldChange{{
@@ -122,7 +123,7 @@ func TestReadableValue(t *testing.T) {
 		want  string
 	}{
 		{name: "nil", value: nil, want: "null"},
-		{name: "string pointer", value: testconvert.String("on"), want: `"on"`},
+		{name: "string pointer", value: new("on"), want: `"on"`},
 		{name: "map", value: map[string]float64{"on": 50, "off": 50}, want: `{"off":50,"on":50}`},
 		{name: "keeps HTML characters as typed", value: "a < b && c", want: `"a < b && c"`},
 		{name: "falls back to Go syntax when JSON cannot encode the value", value: make(chan int), want: "(chan int)"},

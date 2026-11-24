@@ -16,9 +16,9 @@ import (
 // via ANTLR; after the cache, parsing happens once per distinct query string.
 func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 	rule := flag.Rule{
-		Name:            testconvert.String("complex"),
-		VariationResult: testconvert.String("on"),
-		Query: testconvert.String(
+		Name:            new("complex"),
+		VariationResult: new("on"),
+		Query: new(
 			`language eq "ar" and isNewUser eq true and clubsTimeSpent gt 600 ` +
 				`and clubsTimeSpent le 3600 and concurrencyLocked eq true and segment eq 0`,
 		),
@@ -45,9 +45,9 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 	rules := make([]flag.Rule, queries)
 	for i := range rules {
 		rules[i] = flag.Rule{
-			Name:            testconvert.String(fmt.Sprintf("cold-%d", i)),
-			VariationResult: testconvert.String("on"),
-			Query:           testconvert.String(fmt.Sprintf(`group eq "group-%d"`, i)),
+			Name:            new(fmt.Sprintf("cold-%d", i)),
+			VariationResult: new("on"),
+			Query:           new(fmt.Sprintf(`group eq "group-%d"`, i)),
 		}
 		_, _ = rules[i].Evaluate("user-1", ffcontext.NewEvaluationContext("user-1"), "warm-up", false)
 	}
@@ -70,9 +70,9 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 // BenchmarkRuleEvaluate_NikunjySimple is a single-predicate variant for comparison.
 func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 	rule := flag.Rule{
-		Name:            testconvert.String("simple"),
-		VariationResult: testconvert.String("on"),
-		Query:           testconvert.String(`language eq "ar"`),
+		Name:            new("simple"),
+		VariationResult: new("on"),
+		Query:           new(`language eq "ar"`),
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("language", "ar").
@@ -93,9 +93,9 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 		users[i] = fmt.Sprintf(`"%08d-0000-4000-8000-000000000000"`, i)
 	}
 	rule := flag.Rule{
-		Name:            testconvert.String("large-in"),
-		VariationResult: testconvert.String("on"),
-		Query:           testconvert.String(`userId in [` + strings.Join(users, ", ") + `]`),
+		Name:            new("large-in"),
+		VariationResult: new("on"),
+		Query:           new(`userId in [` + strings.Join(users, ", ") + `]`),
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("userId", "ffffffff-0000-4000-8000-000000000000").
@@ -113,8 +113,8 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
-			Query:           testconvert.String(`group eq "` + group + `" and plan eq "pro"`),
-			VariationResult: testconvert.String("on"),
+			Query:           new(`group eq "` + group + `" and plan eq "pro"`),
+			VariationResult: new("on"),
 		})
 	}
 	f := flag.InternalFlag{
@@ -123,7 +123,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 			"off": testconvert.Interface(false),
 		},
 		Rules:       &rules,
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("group", "group-e").
@@ -145,10 +145,10 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
-			Query: testconvert.String(
+			Query: new(
 				`{"and": [{"==": [{"var": "group"}, "` + group + `"]}, {"==": [{"var": "plan"}, "pro"]}]}`,
 			),
-			VariationResult: testconvert.String("on"),
+			VariationResult: new("on"),
 		})
 	}
 	f := flag.InternalFlag{
@@ -157,7 +157,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 			"off": testconvert.Interface(false),
 		},
 		Rules:       &rules,
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("group", "group-e").
@@ -177,9 +177,9 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 // once, the case where concurrent evaluations compete for the cached evaluators.
 func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
 	rule := flag.Rule{
-		Name:            testconvert.String("simple-parallel"),
-		VariationResult: testconvert.String("on"),
-		Query:           testconvert.String(`language eq "ar"`),
+		Name:            new("simple-parallel"),
+		VariationResult: new("on"),
+		Query:           new(`language eq "ar"`),
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("language", "ar").

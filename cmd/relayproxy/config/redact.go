@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"reflect"
 	"regexp"
 	"strings"
@@ -160,9 +161,7 @@ func redactStruct(v reflect.Value, depth int) map[string]any {
 		// embedded (inline / squash) structs are flattened, like the configuration file is.
 		if f.Anonymous && !IsSecretField(typeName, f.Name) {
 			if inner, ok := redactValue(v.Field(i), depth+1).(map[string]any); ok {
-				for k, val := range inner {
-					out[k] = val
-				}
+				maps.Copy(out, inner)
 				continue
 			}
 		}

@@ -7,11 +7,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_webhookNotifier_Notify(t *testing.T) {
@@ -59,7 +60,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								"True":    testconvert.Interface("test"),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -71,8 +72,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 						"test-flag": &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -85,8 +86,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								"True":    testconvert.Interface(true),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 					},
@@ -95,8 +96,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 							Before: &flag.InternalFlag{
 								Rules: &[]flag.Rule{
 									{
-										Name:  testconvert.String("rule1"),
-										Query: testconvert.String("key eq \"not-a-key\""),
+										Name:  new("rule1"),
+										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
 											"False": 0,
 											"True":  100,
@@ -109,15 +110,15 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									"True":    testconvert.Interface(true),
 								},
 								DefaultRule: &flag.Rule{
-									Name:            testconvert.String("defaultRule"),
-									VariationResult: testconvert.String("Default"),
+									Name:            new("defaultRule"),
+									VariationResult: new("Default"),
 								},
 							},
 							After: &flag.InternalFlag{
 								Rules: &[]flag.Rule{
 									{
-										Name:  testconvert.String("rule1"),
-										Query: testconvert.String("key eq \"not-a-key\""),
+										Name:  new("rule1"),
+										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
 											"False": 0,
 											"True":  100,
@@ -130,10 +131,10 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									"True":    testconvert.Interface(true),
 								},
 								DefaultRule: &flag.Rule{
-									Name:            testconvert.String("defaultRule"),
-									VariationResult: testconvert.String("Default"),
+									Name:            new("defaultRule"),
+									VariationResult: new("Default"),
 								},
-								Disable: testconvert.Bool(true),
+								Disable: new(true),
 							},
 						},
 					},
@@ -158,7 +159,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								"True":    testconvert.Interface("test"),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -234,7 +235,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								"True":    testconvert.Interface("test"),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -292,7 +293,7 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 					"True":    testconvert.Interface("test"),
 				},
 				DefaultRule: &flag.Rule{
-					Name: testconvert.String("defaultRule"),
+					Name: new("defaultRule"),
 					Percentages: &map[string]float64{
 						"False": 95,
 						"True":  5,

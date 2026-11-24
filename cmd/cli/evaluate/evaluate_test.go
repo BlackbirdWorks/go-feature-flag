@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
@@ -17,8 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/api/option"
 )
 
 // evaluateTestCase describes a single Test_Evaluate scenario.

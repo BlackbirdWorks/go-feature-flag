@@ -77,9 +77,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		return nil, err
 	}
 	conf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
-		},
+		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
 		// the server (and its monitoring port) only listens on the loopback interface
 		Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", EnableH2C: opts.H2C},
 	}

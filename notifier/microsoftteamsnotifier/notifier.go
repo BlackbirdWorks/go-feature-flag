@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	goteamsnotify "github.com/atc0005/go-teams-notify/v2"
 	"github.com/atc0005/go-teams-notify/v2/adaptivecard"
+
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -38,7 +40,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	hostname, _ := os.Hostname()
-	msgText := fmt.Sprintf("Changes detected in your feature flag file on: **%s**", hostname)
+	var msgText strings.Builder
+	msgText.WriteString(fmt.Sprintf("Changes detected in your feature flag file on: **%s**", hostname))
 
 	// Deleted
 	deletedKeys := make([]string, 0, len(diffCache.Deleted))
@@ -47,7 +50,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	}
 	sort.Strings(deletedKeys)
 	for _, key := range deletedKeys {
-		msgText += fmt.Sprintf("\n * ❌ Flag **%s** deleted", key)
+		msgText.WriteString(fmt.Sprintf("\n * ❌ Flag **%s** deleted", key))
 	}
 
 	// Added
@@ -57,7 +60,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	}
 	sort.Strings(addedKeys)
 	for _, key := range addedKeys {
-		msgText += fmt.Sprintf("\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key]))
+		msgText.WriteString(fmt.Sprintf("\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key])))
 	}
 
 	// Updated
@@ -68,16 +71,16 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	sort.Strings(updatedKeys)
 	for _, key := range updatedKeys {
 		value := diffCache.Updated[key]
-		msgText += fmt.Sprintf("\n * ✏️ Flag **%s** updated%s", key, notifier.UpdatedBySuffix(value.After))
+		msgText.WriteString(fmt.Sprintf("\n * ✏️ Flag **%s** updated%s", key, notifier.UpdatedBySuffix(value.After)))
 		// Adaptive Card markdown has no inline code, so the changes are described without it.
 		changes, err := notifier.DescribeChangesPlain(value.Before, value.After)
 		if err != nil {
-			msgText += fmt.Sprintf("\n   * %s: %s", notifier.ChangesUnavailable, err)
+			msgText.WriteString(fmt.Sprintf("\n   * %s: %s", notifier.ChangesUnavailable, err))
 			continue
 		}
 		if len(changes) > 0 {
-			msgText += "\n" + notifier.ChangeList(changes, "   * ", 0)
+			msgText.WriteString("\n" + notifier.ChangeList(changes, "   * ", 0))
 		}
 	}
-	return msgText
+	return msgText.String()
 }

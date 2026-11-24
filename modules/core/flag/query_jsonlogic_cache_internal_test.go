@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func TestGetCompiledQuery(t *testing.T) {
@@ -81,7 +81,7 @@ func TestGetCompiledQuery_OnlyEvaluationStores(t *testing.T) {
 	t.Cleanup(compiledQueryCache.Clear)
 	compiledQueryCache.Clear()
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
-	r := Rule{Query: &query, VariationResult: testconvert.String("A")}
+	r := Rule{Query: &query, VariationResult: new("A")}
 
 	assert.NoError(t, r.isQueryValid(false))
 	assert.Equal(t, JSONLogicQueryFormat, r.GetQueryFormat())
@@ -265,15 +265,13 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 	q := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"some": [{"var": "tags"}, {"==": [{"var": ""}, "b"]}]}]}`
 	var wg sync.WaitGroup
 	for i := range 32 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			dsp := []string{"ttd", "xandr"}[i%2]
 			ctx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("dsp", dsp).AddCustom("tags", []any{"a", "b"}).Build()
 			for range 200 {
 				assert.Equal(t, dsp == "ttd", evaluateRule(getCompiledQuery(q), &queryContext{ctx: ctx}))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

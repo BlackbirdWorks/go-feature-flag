@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 const (

@@ -8,9 +8,10 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 type messageSenderMock struct {
@@ -133,7 +134,6 @@ func TestExporter_Export(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 func TestUserAddCustomAttribute(t *testing.T) {
@@ -61,7 +61,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -72,20 +72,20 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
 			name: "context goff specifics as map[string]interface and date as *time.Time",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": testconvert.Time(
+					"currentDateTime": new(
 						time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC),
 					),
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -97,7 +97,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -120,23 +120,23 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 			name: "context goff specifics as GoffContextSpecifics type",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
-					CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
 			name: "context goff specifics as GoffContextSpecifics type contains flagList",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
-					CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 					FlagList:        []string{"flag1", "flag2"},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
 		},
@@ -144,13 +144,13 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 			name: "context goff specifics as map[string]interface type contains flagList",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
+					"currentDateTime": new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
 						Format(time.RFC3339),
 					"flagList": []string{"flag1", "flag2"},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
 		},

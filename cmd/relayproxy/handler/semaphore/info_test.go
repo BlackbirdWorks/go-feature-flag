@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -15,9 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_info_Handler(t *testing.T) {
@@ -55,21 +56,17 @@ func Test_info_Handler(t *testing.T) {
 					{
 						Name:    "teamA",
 						APIKeys: []string{"teamA-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: testdataDir + "/config_flags.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: testdataDir + "/config_flags.yaml",
 						},
 					},
 					{
 						Name:    "teamB",
 						APIKeys: []string{"teamA-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: testdataDir + "/config_flags.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: testdataDir + "/config_flags.yaml",
 						},
 					},
 				},

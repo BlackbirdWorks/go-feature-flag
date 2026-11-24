@@ -96,7 +96,7 @@ func FlagsYAML() string {
 // percentage flags, used for the all-flags benchmarks.
 func ManyFlagsYAML(n int) string {
 	var sb strings.Builder
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&sb, "flag-%d:\n  trackEvents: false\n  variations:\n    A: true\n    B: false\n", i)
 		switch i % 3 {
 		case 0:

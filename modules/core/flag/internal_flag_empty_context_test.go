@@ -4,10 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestInternalFlag_RequiresBucketing(t *testing.T) {
@@ -24,7 +25,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			expected: false,
@@ -54,7 +55,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query: testconvert.String("key eq \"admin\""),
+						Query: new("key eq \"admin\""),
 						Percentages: &map[string]float64{
 							"enabled":  50,
 							"disabled": 50,
@@ -62,7 +63,7 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			expected: true,
@@ -77,11 +78,11 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
-							Variation:  testconvert.String("disabled"),
+							Variation:  new("disabled"),
 							Percentage: testconvert.Float64(0),
 						},
 						End: &flag.ProgressiveRolloutStep{
-							Variation:  testconvert.String("enabled"),
+							Variation:  new("enabled"),
 							Percentage: testconvert.Float64(100),
 						},
 					},
@@ -98,12 +99,12 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           testconvert.String("key eq \"admin\""),
-						VariationResult: testconvert.String("enabled"),
+						Query:           new("key eq \"admin\""),
+						VariationResult: new("enabled"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			expected: false,
@@ -117,24 +118,22 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           testconvert.String("key eq \"admin\""),
-						VariationResult: testconvert.String("enabled"),
+						Query:           new("key eq \"admin\""),
+						VariationResult: new("enabled"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								Percentages: &map[string]float64{
-									"enabled":  50,
-									"disabled": 50,
-								},
+						DefaultRule: &flag.Rule{
+							Percentages: &map[string]float64{
+								"enabled":  50,
+								"disabled": 50,
 							},
 						},
-						Date: testconvert.Time(time.Now().Add(-5 * time.Second)),
+						Date: new(time.Now().Add(-5 * time.Second)),
 					},
 				},
 			},
@@ -148,27 +147,25 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								ProgressiveRollout: &flag.ProgressiveRollout{
-									Initial: &flag.ProgressiveRolloutStep{
-										Variation:  testconvert.String("disabled"),
-										Percentage: testconvert.Float64(0),
-										Date:       testconvert.Time(time.Now()),
-									},
-									End: &flag.ProgressiveRolloutStep{
-										Variation:  testconvert.String("enabled"),
-										Percentage: testconvert.Float64(100),
-										Date:       testconvert.Time(time.Now().Add(time.Hour)),
-									},
+						DefaultRule: &flag.Rule{
+							ProgressiveRollout: &flag.ProgressiveRollout{
+								Initial: &flag.ProgressiveRolloutStep{
+									Variation:  new("disabled"),
+									Percentage: testconvert.Float64(0),
+									Date:       new(time.Now()),
+								},
+								End: &flag.ProgressiveRolloutStep{
+									Variation:  new("enabled"),
+									Percentage: testconvert.Float64(100),
+									Date:       new(time.Now().Add(time.Hour)),
 								},
 							},
 						},
-						Date: testconvert.Time(time.Now()),
+						Date: new(time.Now()),
 					},
 				},
 			},
@@ -182,22 +179,20 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						InternalFlag: flag.InternalFlag{
-							Rules: &[]flag.Rule{
-								{
-									Query: testconvert.String("beta eq true"),
-									Percentages: &map[string]float64{
-										"enabled":  25,
-										"disabled": 75,
-									},
+						Rules: &[]flag.Rule{
+							{
+								Query: new("beta eq true"),
+								Percentages: &map[string]float64{
+									"enabled":  25,
+									"disabled": 75,
 								},
 							},
 						},
-						Date: testconvert.Time(time.Now()),
+						Date: new(time.Now()),
 					},
 				},
 			},
@@ -211,16 +206,14 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
-						InternalFlag: flag.InternalFlag{
-							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("enabled"),
-							},
+						DefaultRule: &flag.Rule{
+							VariationResult: new("enabled"),
 						},
-						Date: testconvert.Time(time.Now()),
+						Date: new(time.Now()),
 					},
 				},
 			},
@@ -255,7 +248,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx:  ffcontext.NewEvaluationContext(""),
@@ -312,12 +305,12 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           testconvert.String("anonymous eq true"),
-						VariationResult: testconvert.String("enabled"),
+						Query:           new("anonymous eq true"),
+						VariationResult: new("enabled"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx: func() ffcontext.Context {
@@ -370,7 +363,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx:  nil,
@@ -408,12 +401,12 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           testconvert.String("key eq \"admin\""),
-						VariationResult: testconvert.String("enabled"),
+						Query:           new("key eq \"admin\""),
+						VariationResult: new("enabled"),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx:  nil,
@@ -460,7 +453,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
@@ -490,7 +483,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 		{
 			name: "Should use custom bucketing key when provided",
 			flag: flag.InternalFlag{
-				BucketingKey: testconvert.String("teamId"),
+				BucketingKey: new("teamId"),
 				Variations: &map[string]*any{
 					"enabled":  testconvert.Interface(true),
 					"disabled": testconvert.Interface(false),
@@ -514,13 +507,13 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 		{
 			name: "Should allow empty custom bucketing key for non-bucketing flag",
 			flag: flag.InternalFlag{
-				BucketingKey: testconvert.String("teamId"),
+				BucketingKey: new("teamId"),
 				Variations: &map[string]*any{
 					"enabled":  testconvert.Interface(true),
 					"disabled": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("disabled"),
+					VariationResult: new("disabled"),
 				},
 			},
 			evaluationCtx: func() ffcontext.Context {

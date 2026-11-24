@@ -74,13 +74,11 @@ func Start(ctx context.Context) (*Server, error) {
 		image = v
 	}
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        image,
-			ExposedPorts: []string{Port},
-			WaitingFor: wait.ForHTTP(HealthPath).
-				WithPort(Port).
-				WithStartupTimeout(60 * time.Second),
-		},
+		Image:        image,
+		ExposedPorts: []string{Port},
+		WaitingFor: wait.ForHTTP(HealthPath).
+			WithPort(Port).
+			WithStartupTimeout(60 * time.Second),
 		Started: true,
 	})
 	if err != nil {

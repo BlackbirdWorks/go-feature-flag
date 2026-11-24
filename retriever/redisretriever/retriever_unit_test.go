@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 )
 
 func Test_Redis_Retrieve_NotInitialized(t *testing.T) {

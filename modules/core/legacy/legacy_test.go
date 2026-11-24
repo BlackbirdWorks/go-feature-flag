@@ -4,8 +4,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 func TestWarnerLogsOncePerKind(t *testing.T) {
@@ -48,11 +49,9 @@ func TestWarnerConcurrentUse(t *testing.T) {
 	})
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			w.Warn("k", "m")
-		}()
+		})
 	}
 	wg.Wait()
 	assert.Equal(t, 1, count)

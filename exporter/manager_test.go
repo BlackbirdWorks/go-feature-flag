@@ -10,15 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thejerf/slogassert"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/thejerf/slogassert"
 )
 
 func TestDataExporterManager_flushWithTime(t *testing.T) {
@@ -255,7 +256,7 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -364,7 +365,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -409,7 +410,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))

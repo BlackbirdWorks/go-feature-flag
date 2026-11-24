@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadConfigFile(t *testing.T) {
@@ -33,7 +34,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -46,7 +47,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(2),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,
@@ -65,7 +66,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -78,7 +79,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(2),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,
@@ -98,7 +99,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -111,7 +112,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(2.0),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123.0,
@@ -131,7 +132,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -144,7 +145,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(int64(2)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": int64(123),
@@ -165,7 +166,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -178,7 +179,7 @@ func TestLoadConfigFile(t *testing.T) {
 						"var_b": testconvert.Interface(2),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,

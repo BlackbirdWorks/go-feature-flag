@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 // gatedSink is a log handler that blocks the records about dropped events until gate is closed.
@@ -71,7 +72,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				for i := 0; i < 100; i++ {
+				for range 100 {
 					if tt.async {
 						m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 2))
 					} else {

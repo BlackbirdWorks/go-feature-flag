@@ -3,8 +3,9 @@ package config_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestExporterConf_IsValid(t *testing.T) {

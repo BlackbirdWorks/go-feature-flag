@@ -1,8 +1,9 @@
 package api
 
 import (
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/labstack/echo/v5"
+
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 )
 
 func (s *Server) addAdminRoutes(

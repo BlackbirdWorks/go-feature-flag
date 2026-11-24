@@ -5,13 +5,14 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v3"
 )
 
 // Test_AllFlags_ReturnsDetachedFlags checks that the flags returned by the public snapshot
@@ -78,11 +79,9 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	require.NoError(t, m.UpdateCache(flags, nil, false))
 
 	var wg sync.WaitGroup
-	for w := 0; w < 4; w++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 200; i++ {
+	for range 4 {
+		wg.Go(func() {
+			for range 200 {
 				snap, err := m.AllFlags()
 				if err != nil {
 					return
@@ -95,9 +94,9 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 					_ = live.IsDisable()
 				}
 			}
-		}()
+		})
 	}
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		require.NoError(t, m.UpdateCache(flags, nil, false))
 	}
 	wg.Wait()

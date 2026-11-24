@@ -4,11 +4,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestValidateFlags(t *testing.T) {
@@ -19,7 +20,7 @@ func TestValidateFlags(t *testing.T) {
 	}
 	valid := dto.DTO{
 		Variations:  &map[string]*any{"a": testconvert.Interface(true)},
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("a")},
+		DefaultRule: &flag.Rule{VariationResult: new("a")},
 	}
 	invalid := dto.DTO{Variations: &map[string]*any{"a": testconvert.Interface(true)}}
 

@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
@@ -17,6 +16,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 type OtelService struct {

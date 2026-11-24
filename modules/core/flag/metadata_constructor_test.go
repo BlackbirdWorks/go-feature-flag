@@ -21,7 +21,7 @@ func Test_constructMetadataParallel(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// generate test cases
-	for i := 0; i < 10_000; i++ {
+	for i := range 10_000 {
 		ruleName := fmt.Sprintf("rule-%d", i)
 		tests = append(tests, struct {
 			name                  string
@@ -33,7 +33,6 @@ func Test_constructMetadataParallel(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -61,7 +60,7 @@ func Test_ConstructMetadata(t *testing.T) {
 		{
 			name:         "nil metadata, empty rule",
 			flagMetadata: nil,
-			ruleName:     stringToPointer(""),
+			ruleName:     new(""),
 			want:         nil,
 		},
 		{
@@ -79,7 +78,7 @@ func Test_ConstructMetadata(t *testing.T) {
 		{
 			name:         "non-nil metadata, empty rule",
 			flagMetadata: map[string]any{"foo": "bar"},
-			ruleName:     stringToPointer(""),
+			ruleName:     new(""),
 			want:         map[string]any{"foo": "bar"},
 		},
 		{
@@ -98,6 +97,7 @@ func Test_ConstructMetadata(t *testing.T) {
 	}
 }
 
+//go:fix inline
 func stringToPointer(s string) *string {
-	return &s
+	return new(s)
 }

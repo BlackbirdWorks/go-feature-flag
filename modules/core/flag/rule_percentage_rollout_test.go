@@ -5,9 +5,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 // TestEvaluatePercentageRollout_PinnedAssignments pins the bucketing of known keys. The expected values were
@@ -59,7 +60,7 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 			t.Parallel()
 			r := Rule{Percentages: &tt.percentages}
 			// Repeated: the map order used to be what made the evaluation fail.
-			for i := 0; i < 200000; i++ {
+			for i := range 200000 {
 				got, err := r.EvaluatePercentageRollout(fmt.Sprint("user-", i), "my-flag")
 				require.NoError(t, err, "key %d", i)
 				require.Contains(t, tt.percentages, got)
@@ -108,10 +109,10 @@ func legacyEvaluate(p map[string]float64, sumOrder []string, key, flagName strin
 	}
 	slices.Sort(names)
 	start := 0.0
-	for i := len(names) - 1; i >= 0; i-- {
-		end := start + p[names[i]]*PercentageMultiplier
+	for _, name := range slices.Backward(names) {
+		end := start + p[name]*PercentageMultiplier
 		if uint32(start) <= hash && uint32(end) > hash {
-			return names[i]
+			return name
 		}
 		start = end
 	}
@@ -169,7 +170,7 @@ func TestEvaluatePercentageRollout_LegacyCompatibility(t *testing.T) {
 			slices.Sort(names)
 			orders := permutations(names)
 			r := Rule{Percentages: &cfg}
-			for k := 0; k < 3000; k++ {
+			for k := range 3000 {
 				key := fmt.Sprint("user-", k)
 				legacy := map[string]bool{}
 				for _, o := range orders {

@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 func TestRetrieverConf_IsValid(t *testing.T) {

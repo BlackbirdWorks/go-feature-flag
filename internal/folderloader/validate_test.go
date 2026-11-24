@@ -3,9 +3,10 @@ package folderloader_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/folderloader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
 func TestValidate(t *testing.T) {

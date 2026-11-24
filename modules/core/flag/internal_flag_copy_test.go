@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func TestInternalFlag_DeepCopy(t *testing.T) {
@@ -70,8 +71,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 			DefaultRule:     &flag.Rule{Percentages: &map[string]float64{"A": 1}},
 			Experimentation: &flag.ExperimentationRollout{Start: &d, End: &d},
 			Scheduled: &[]flag.ScheduledStep{{
-				InternalFlag: flag.InternalFlag{Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}}},
-				Date:         &d,
+				Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}},
+				Date: &d,
 			}},
 		}
 	}

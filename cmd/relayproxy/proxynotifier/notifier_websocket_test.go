@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockWebsocketService struct {
@@ -56,7 +57,7 @@ func TestNotify(t *testing.T) {
 					"B": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("A"),
+					VariationResult: new("A"),
 				},
 			},
 		},
@@ -67,7 +68,7 @@ func TestNotify(t *testing.T) {
 					"B": testconvert.Interface(false),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("A"),
+					VariationResult: new("A"),
 				},
 			},
 		},
@@ -79,7 +80,7 @@ func TestNotify(t *testing.T) {
 						"B": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("A"),
+						VariationResult: new("A"),
 					},
 				},
 				After: &flag.InternalFlag{
@@ -88,7 +89,7 @@ func TestNotify(t *testing.T) {
 						"B": testconvert.Interface(false),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("B"),
+						VariationResult: new("B"),
 					},
 				},
 			},

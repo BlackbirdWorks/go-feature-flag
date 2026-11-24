@@ -84,7 +84,7 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				for j := 0; j < n; j++ {
+				for range n {
 					s.Add(ev)
 				}
 				if err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {

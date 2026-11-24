@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +18,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 func TestInitSampler(t *testing.T) {
@@ -230,7 +231,7 @@ func TestInit(t *testing.T) {
 		require.Len(t, logs.All(), 1)
 
 		want := []observer.LoggedEntry{{
-			Entry:   zapcore.Entry{Level: zap.ErrorLevel, Message: "OTel error"},
+			Level: zap.ErrorLevel, Message: "OTel error",
 			Context: []zapcore.Field{zap.Error(expectedErr)},
 		}}
 

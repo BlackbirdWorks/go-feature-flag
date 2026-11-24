@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
 type recordingAPIServer struct{ calls *[]string }

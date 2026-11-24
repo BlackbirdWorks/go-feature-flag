@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/google/uuid"
+
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const DefaultExporterCleanQueueInterval = 1 * time.Minute
@@ -338,9 +339,7 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 	if !m.flushRunning[i].CompareAndSwap(false, true) {
 		return // the running goroutine will see flushAgain
 	}
-	m.flushWg.Add(1)
-	go func() {
-		defer m.flushWg.Done()
+	m.flushWg.Go(func() {
 		for {
 			for m.flushAgain[i].Swap(false) {
 				// a flush requested while the previous one was running was requested before that
@@ -357,7 +356,7 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // flushNow flushes the consumer in the calling goroutine. When checkProgress is true (flush

@@ -4,11 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFromFlagEvaluation(t *testing.T) {
@@ -26,7 +27,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("user-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(true),
+				Disable: new(true),
 			},
 			expected: flagstate.FlagState{
 				Timestamp:    time.Now().Unix(),
@@ -44,7 +45,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface(1),
 					"var2": testconvert.Interface(2),
@@ -72,13 +73,13 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface(1),
 					"var2": testconvert.Interface(2),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 			},
 			expected: flagstate.FlagState{
@@ -97,7 +98,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
 					"var1": testconvert.Interface(
 						map[bool]*any{true: testconvert.Interface(1)},
@@ -107,7 +108,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 					),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 			},
 			expected: flagstate.FlagState{

@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
@@ -37,11 +38,9 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 func Test_retriever_refresh_Handler_valid(t *testing.T) {
 	// Create config for default mode
 	conf := config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{
-				Kind: retrieverconf.FileRetriever,
-				Path: "../../../../testdata/flag-config.yaml",
-			},
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind: retrieverconf.FileRetriever,
+			Path: "../../../../testdata/flag-config.yaml",
 		},
 	}
 

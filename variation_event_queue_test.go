@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type queueTestExporter struct {
@@ -115,17 +116,15 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 
 			var wg sync.WaitGroup
 			var maxG atomic.Int64
-			for w := 0; w < 4; w++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range 4 {
+				wg.Go(func() {
 					for i := 0; i < tt.evals/4; i++ {
 						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)
 						}
 					}
-				}()
+				})
 			}
 			// the evaluations must never wait for a blocked exporter.
 			done := make(chan struct{})

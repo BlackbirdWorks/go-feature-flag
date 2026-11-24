@@ -3,12 +3,13 @@ package proxynotifier_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNotifierSSE_Notify(t *testing.T) {
@@ -31,7 +32,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 						Variations: &map[string]*any{
 							"A": testconvert.Interface(true),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
 			},

@@ -402,7 +402,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 		return
 	}
 	var zero EventStoreItem[T]
-	for j := 0; j < removed; j++ {
+	for j := range removed {
 		e.events[j] = zero
 	}
 	e.events = e.events[removed:]

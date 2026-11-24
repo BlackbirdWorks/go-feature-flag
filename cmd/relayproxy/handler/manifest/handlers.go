@@ -4,15 +4,16 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	manifestHelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 )
 
 const (
