@@ -106,6 +106,8 @@ archives:
     files:
       - LICENSE
       - NOTICE
+      - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-fips
     name_template: "semaphore-fips_\
@@ -122,6 +124,8 @@ archives:
     files:
       - LICENSE
       - NOTICE
+      - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-cli
     name_template: "semaphore-cli_\
@@ -138,6 +142,8 @@ archives:
     files:
       - LICENSE
       - NOTICE
+      - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-lambda
     name_template: "semaphore-aws-lambda_{{ .Version }}"
@@ -168,6 +174,7 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -200,6 +207,7 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -229,6 +237,7 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -259,6 +268,7 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
@@ -289,6 +299,7 @@ dockers_v2:
       - LICENSE
       - NOTICE
       - rules/LICENSE
+      - internal/koanfhttpprovider/LICENSE
     images:
       - ghcr.io/blackbirdworks/semaphore-cli
     tags:

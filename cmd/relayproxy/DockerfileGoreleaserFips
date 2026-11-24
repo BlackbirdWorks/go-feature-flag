@@ -3,4 +3,5 @@ ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/semaphore-fips /usr/local/bin/semaphore-fips
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
+COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
 CMD ["/usr/local/bin/semaphore-fips"]
