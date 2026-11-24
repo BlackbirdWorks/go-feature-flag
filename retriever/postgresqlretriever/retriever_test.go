@@ -618,36 +618,45 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	require.NoError(t, second.Init(context.Background(), nil, nil))
 	want, err := second.Retrieve(context.Background())
 	require.NoError(t, err)
+	// the test holds a reference of its own: the pool is only closed when the last reference is released, which
+	// shows how many references the shutdowns released
+	pool, err := pools.GetPool(context.Background(), connectionString)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name            string
 		shutdown        *postgresqlretriever.Retriever
+		release         bool // the test releases its own reference after the shutdown
 		other           *postgresqlretriever.Retriever
 		wantStatus      retriever.Status
 		wantOtherStatus retriever.Status
 		wantOtherErr    string
+		wantPoolOpen    bool
 	}{
 		{
-			name:            "the first retriever leaves, the second keeps the pool",
-			shutdown:        first,
-			other:           second,
-			wantStatus:      retriever.RetrieverNotReady,
-			wantOtherStatus: retriever.RetrieverReady,
+			name: "the first retriever leaves, the second keeps the pool", shutdown: first, other: second,
+			wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverReady, wantPoolOpen: true,
 		},
 		{
-			name:            "the last retriever closes the pool",
-			shutdown:        second,
-			other:           first,
-			wantStatus:      retriever.RetrieverNotReady,
-			wantOtherStatus: retriever.RetrieverNotReady,
-			wantOtherErr:    "database connection pool is not initialized",
+			name: "the second retriever leaves, the reference of the test keeps the pool", shutdown: second,
+			other: first, wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
+			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: true,
+		},
+		{
+			name: "the last reference is released, the pool is closed", release: true, shutdown: first, other: first,
+			wantStatus: retriever.RetrieverNotReady, wantOtherStatus: retriever.RetrieverNotReady,
+			wantOtherErr: "database connection pool is not initialized", wantPoolOpen: false,
 		},
 	}
-	// sequential: the second case depends on the first shutdown
+	// sequential: each case depends on the previous shutdowns
 	for _, tt := range tests {
 		require.NoError(t, tt.shutdown.Shutdown(context.Background()), tt.name)
+		if tt.release {
+			pools.ReleasePool(context.Background(), connectionString)
+		}
 		assert.Equal(t, tt.wantStatus, tt.shutdown.Status(), tt.name)
 		assert.Equal(t, tt.wantOtherStatus, tt.other.Status(), tt.name)
+		assert.Equal(t, tt.wantPoolOpen, pool.Ping(context.Background()) == nil, tt.name)
 
 		got, err := tt.other.Retrieve(context.Background())
 		if tt.wantOtherErr != "" {

@@ -60,11 +60,21 @@ func TestNew_Options(t *testing.T) {
 
 			s := New(&config.Config{}, service.Services{}, zap.NewNop(), tt.opts...)
 
-			assert.Equal(t, tt.want, serverOptions{
-				globalTelemetry:    s.installGlobalTelemetry,
-				listener:           s.listener,
-				monitoringListener: s.monitoringListener,
-			})
+			assert.Equal(t, tt.want.globalTelemetry, s.installGlobalTelemetry)
+			assertSameListener(t, tt.want.listener, s.listener)
+			assertSameListener(t, tt.want.monitoringListener, s.monitoringListener)
 		})
 	}
+}
+
+// assertSameListener checks that got is the very listener that is wanted (and not another one with the same
+// content), or that both are nil.
+func assertSameListener(t *testing.T, want, got net.Listener) {
+	t.Helper()
+	if want == nil {
+		assert.Nil(t, got)
+
+		return
+	}
+	assert.Same(t, want, got)
 }

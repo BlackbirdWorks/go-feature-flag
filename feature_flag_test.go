@@ -285,13 +285,13 @@ test-flag:
 
 	// the poller (every second) picks the new content up
 	require.Eventually(t, func() bool {
-		got, _ := gffClient1.BoolVariation(
+		got, evalErr := gffClient1.BoolVariation(
 			"test-flag",
 			ffcontext.NewEvaluationContext("random-key"),
 			false,
 		)
 
-		return !got
+		return evalErr == nil && !got
 	}, 30*time.Second, 20*time.Millisecond, "the updated file was never picked up")
 }
 

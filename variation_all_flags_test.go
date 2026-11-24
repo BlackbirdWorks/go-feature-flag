@@ -335,9 +335,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				flags, err := goff.GetFlagsFromCache()
 				tt.wantErr(t, err)
 
-				if err != nil {
-					assert.Len(t, flags, tt.wantFlags)
-				}
+				assert.Len(t, flags, tt.wantFlags)
 			} else {
 				// we close directly so we can test with module not init
 				goff, _ = ffclient.New(tt.config)

@@ -167,7 +167,9 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	assert.Eventually(
 		t,
 		func() bool { return exp.events.Load() == 3*threshold },
-		10*time.Second, // only bounds a failure
+		// the flush is triggered by the number of events: the window stays below the backoff of a failed export
+		// (one second), a successful flush that scheduled a backoff would miss it
+		900*time.Millisecond,
 		time.Millisecond,
 	)
 	m.Stop()

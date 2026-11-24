@@ -540,11 +540,12 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	content, err := os.ReadFile(file.Name())
 	require.NoError(t, err)
 	loadedFlagsMap2 := map[string]dto.DTO{}
-	err = yaml.Unmarshal(content, &loadedFlagsMap)
+	err = yaml.Unmarshal(content, &loadedFlagsMap2)
 	require.NoError(t, err)
+	require.Len(t, loadedFlagsMap2, 1)
 	err = fCache2.UpdateCache(loadedFlagsMap2, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
 	require.NoError(t, err)
-	allFlags2, err := fCache.AllFlags()
+	allFlags2, err := fCache2.AllFlags()
 	require.NoError(t, err)
 
 	// Compare the 2 caches

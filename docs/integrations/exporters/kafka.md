@@ -29,6 +29,13 @@ exporters:
 | `kafka.addresses` |  Yes   | []string | **none**          | List of bootstrap addresses for the Kafka cluster.                                                                                                                                                                                                                                                         |
 | `kafka.config`    | No | object   | _see description_ | This field allows fine tuning of the Kafka reader. This object should contain the [Sarama configuration](https://pkg.go.dev/github.com/IBM/sarama#Config) that the reader will use. On empty, a sensible default is created using [sarama.NewConfig()](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) |
 
+### How `kafka.config` is merged with the defaults
+The configuration starts from the defaults of `sarama.NewConfig()` and the values you set in `kafka.config` replace them: a
+setting you provide always wins over the default (for example `Net.DialTimeout`, `Producer.Retry.Max`, `ClientID` or `Version` of the Sarama configuration).
+A setting you leave out keeps the default of Sarama. A zero value (`0`, `""` or `false`) cannot be told from a setting that
+is not set, so it keeps the default too. `Producer.Return.Successes` and `Producer.Return.Errors` are always `true`, the
+exporter needs them.
+
 ## Configure the GO Module
 To configure your GO module to use the Apache Kafka exporter, you need to add the following
 configuration to your `ffclient.Config{}` object:

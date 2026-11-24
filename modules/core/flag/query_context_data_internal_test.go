@@ -79,7 +79,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		{name: "negative zero and extremes", custom: map[string]any{
 			"z": math.Copysign(0, -1), "max": math.MaxFloat64, "min": math.SmallestNonzeroFloat64}},
 		{name: "map with int keys", custom: map[string]any{"m": map[int]string{2: "b", 1: "a"}}},
-		{name: "map with non string keys that can not be encoded", custom: map[string]any{"m": map[any]any{"a": 1}}},
+		{name: "map with interface keys", custom: map[string]any{"m": map[any]any{"a": 1}}},
 		{name: "map[string]string", custom: map[string]any{"m": map[string]string{"a": "b"}}},
 		{name: "named map type", custom: map[string]any{"m": namedMap{"a": 1}}},
 		{name: "invalid UTF-8 in a string", custom: map[string]any{"s": "a\xffb"}},
