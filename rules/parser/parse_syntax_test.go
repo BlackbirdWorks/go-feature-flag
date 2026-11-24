@@ -8,6 +8,8 @@ import (
 )
 
 func TestIssue41RuleValidator(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		rule    string
@@ -37,19 +39,23 @@ func TestIssue41RuleValidator(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
 			if tt.wantErr {
-				assert.Error(t, err, tt.rule)
+				require.Error(t, err, tt.rule)
 				assert.Nil(t, ev)
+
 				return
 			}
-			assert.NoError(t, err, tt.rule)
+			require.NoError(t, err, tt.rule)
 			assert.NotNil(t, ev)
 		})
 	}
 }
 
 func TestNewEvaluatorRejectsInvalidSyntax(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		rule string
@@ -65,14 +71,17 @@ func TestNewEvaluatorRejectsInvalidSyntax(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			assert.Error(t, err, tt.rule)
+			require.Error(t, err, tt.rule)
 			assert.Nil(t, ev)
 		})
 	}
 }
 
 func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		rule  string
@@ -131,6 +140,7 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
 			require.NoError(t, err, tt.rule)
 			result, err := ev.Process(tt.input)
@@ -141,7 +151,22 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 }
 
 func TestNormalizeRuleInput(t *testing.T) {
-	assert.Equal(t, `x eq 1 and y eq 2`, normalizeRuleInput("x eq 1  and y eq 2"))
-	assert.Equal(t, `env eq "pro"`, normalizeRuleInput(" env eq \"pro\" \r\n"))
-	assert.Equal(t, `x eq "a  b"`, normalizeRuleInput(`x eq "a  b"`))
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		rule string
+		want string
+	}{
+		{name: "collapses double spaces", rule: "x eq 1  and y eq 2", want: `x eq 1 and y eq 2`},
+		{name: "trims space and CRLF", rule: " env eq \"pro\" \r\n", want: `env eq "pro"`},
+		{name: "keeps spaces inside strings", rule: `x eq "a  b"`, want: `x eq "a  b"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, normalizeRuleInput(tt.rule))
+		})
+	}
 }

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -16,7 +17,7 @@ func (o *StringOperation) getString(operand Operand) (string, error) {
 	case fmt.Stringer:
 		return opVal.String(), nil
 	default:
-		return "", newErrInvalidOperand(operand, opVal)
+		return "", newInvalidOperandError(operand, opVal)
 	}
 }
 
@@ -32,8 +33,8 @@ func (o *StringOperation) get(left Operand, right Operand) (string, string, erro
 	if err != nil {
 		return "", "", err
 	}
-	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
 
+	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
 }
 
 func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
@@ -41,6 +42,7 @@ func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l == r, nil
 }
 
@@ -49,6 +51,7 @@ func (o *StringOperation) NE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l != r, nil
 }
 
@@ -57,6 +60,7 @@ func (o *StringOperation) GT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l > r, nil
 }
 
@@ -65,6 +69,7 @@ func (o *StringOperation) LT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l < r, nil
 }
 
@@ -73,6 +78,7 @@ func (o *StringOperation) GE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l >= r, nil
 }
 
@@ -81,6 +87,7 @@ func (o *StringOperation) LE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l <= r, nil
 }
 
@@ -89,6 +96,7 @@ func (o *StringOperation) CO(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return strings.Contains(l, r), nil
 }
 
@@ -97,6 +105,7 @@ func (o *StringOperation) SW(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return strings.HasPrefix(l, r), nil
 }
 
@@ -105,6 +114,7 @@ func (o *StringOperation) EW(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return strings.HasSuffix(l, r), nil
 }
 
@@ -116,12 +126,11 @@ func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
 
 	rightVal, ok := right.([]string)
 	if !ok {
-		return ok, newErrInvalidOperand(right, rightVal)
+		return ok, newInvalidOperandError(right, rightVal)
 	}
-	for _, val := range rightVal {
-		if leftVal == val {
-			return true, nil
-		}
+	if slices.Contains(rightVal, leftVal) {
+		return true, nil
 	}
+
 	return false, nil
 }

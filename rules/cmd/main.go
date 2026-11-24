@@ -1,44 +1,51 @@
+// Command cmd evaluates the rule in rules.txt against the JSON object in test.json.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 
-	"github.com/nikunjy/rules/parser"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
-type obj map[string]interface{}
-
 func main() {
-	jsonFile, err := ioutil.ReadFile("test.json")
-	if err != nil {
-		log.Fatal(fmt.Errorf("Error reading obj from file %v", err))
+	if err := run(); err != nil {
+		log.Fatal(err)
 	}
-	rulesBytes, err := ioutil.ReadFile("rules.txt")
+}
+
+func run() error {
+	jsonFile, err := os.ReadFile("test.json")
 	if err != nil {
-		log.Fatal(fmt.Errorf("Error reading rule from file %v", err))
+		return fmt.Errorf("error reading obj from file: %w", err)
 	}
-	var rulesString = string(rulesBytes)
-	var info map[string]interface{}
-	json.Unmarshal([]byte(jsonFile), &info)
+	rulesBytes, err := os.ReadFile("rules.txt")
+	if err != nil {
+		return fmt.Errorf("error reading rule from file: %w", err)
+	}
+	rulesString := string(rulesBytes)
+	var info map[string]any
+	if err := json.Unmarshal(jsonFile, &info); err != nil {
+		return fmt.Errorf("error decoding obj from file: %w", err)
+	}
 	ev, err := parser.NewEvaluator(rulesString)
 	if err != nil {
-		log.Fatal(fmt.Errorf("Error making evaluator from the rule %v, %v", rulesString, err))
+		return fmt.Errorf("error making evaluator from the rule %v: %w", rulesString, err)
 	}
 	ans, err := ev.Process(info)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	fmt.Println(
-		fmt.Sprintf(`
+	fmt.Fprintf(os.Stdout, `
 		Rule: %v
 		Object: %v
 		Answer: %v
-	`, rulesString, info, ans),
-	)
+	`+"\n", rulesString, info, ans)
 	if err := ev.LastDebugErr(); err != nil {
-		fmt.Println("Last debug error", ev.LastDebugErr())
+		fmt.Fprintln(os.Stdout, "Last debug error", err)
 	}
+
+	return nil
 }

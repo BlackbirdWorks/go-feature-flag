@@ -72,11 +72,13 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	if tokens.LA(1) != antlr.TokenEOF {
 		return nil, fmt.Errorf("invalid rule %q: unexpected input %q", rule, tokens.LT(1).GetText())
 	}
+
 	return tree, nil
 }
 
 func (e *Evaluator) Reset() error {
 	e.lastDebugErr.Store(nil)
+
 	return nil
 }
 
@@ -84,6 +86,7 @@ func (e *Evaluator) LastDebugErr() error {
 	if p := e.lastDebugErr.Load(); p != nil {
 		return *p
 	}
+
 	return nil
 }
 
@@ -94,6 +97,7 @@ func (e *Evaluator) setDebugErr(err error) {
 		if e.lastDebugErr.Load() != nil {
 			e.lastDebugErr.Store(nil)
 		}
+
 		return
 	}
 	box := err
@@ -121,7 +125,7 @@ func (e *Evaluator) compile() {
 }
 
 // Process evaluates items against the rule. The rule is compiled on first use.
-func (e *Evaluator) Process(items map[string]interface{}) (ret bool, retErr error) {
+func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	e.setDebugErr(nil)
 	// antlr lib has panics for exceptions so we have to put a recover here
 	// in the unlikely case there is an exception
@@ -139,15 +143,16 @@ func (e *Evaluator) Process(items map[string]interface{}) (ret bool, retErr erro
 	e.once.Do(e.compile)
 	var result bool
 	var err error
-	if e.root != nil {
+	switch {
+	case e.root != nil:
 		st := evalState{item: items}
 		result = e.root.eval(&st)
 		err = st.err
 		e.setDebugErr(st.debugErr)
-	} else if e.tree != nil {
+	case e.tree != nil:
 		result, err = e.visit(items)
-	} else {
-		err = errors.New("Invalid rule")
+	default:
+		err = errors.New("Invalid rule") //nolint:staticcheck // ST1005: text is observable, kept
 	}
 	if e.testHookPanic != nil {
 		defer e.testHookPanic()
@@ -159,7 +164,7 @@ func (e *Evaluator) Process(items map[string]interface{}) (ret bool, retErr erro
 	return result, nil
 }
 
-func (e *Evaluator) visit(items map[string]interface{}) (bool, error) {
+func (e *Evaluator) visit(items map[string]any) (bool, error) {
 	visitor := NewJsonQueryVisitorImpl(items)
 	result := visitor.Visit(e.tree)
 	e.setDebugErr(visitor.debugErr)
@@ -167,14 +172,15 @@ func (e *Evaluator) visit(items map[string]interface{}) (bool, error) {
 		return false, visitor.err
 	}
 
-	return result.(bool), visitor.err
+	return result.(bool), visitor.err //nolint:errcheck // panics on mismatch, as before
 }
 
-func Evaluate(rule string, items map[string]interface{}) bool {
+func Evaluate(rule string, items map[string]any) bool {
 	ev, err := NewEvaluator(rule)
 	if err != nil {
 		return false
 	}
 	result, _ := ev.Process(items)
+
 	return result
 }

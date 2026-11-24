@@ -14,7 +14,13 @@ type collectingErrorListener struct {
 	errs []string
 }
 
-func (l *collectingErrorListener) SyntaxError(_ antlr.Recognizer, _ interface{}, line, column int, msg string, _ antlr.RecognitionException) {
+func (l *collectingErrorListener) SyntaxError(
+	_ antlr.Recognizer,
+	_ any,
+	line, column int,
+	msg string,
+	_ antlr.RecognitionException,
+) {
 	l.errs = append(l.errs, fmt.Sprintf("line %d:%d %s", line, column, msg))
 }
 
@@ -46,24 +52,27 @@ func normalizeRuleInput(rule string) string {
 	inString := false
 	escape := false
 	lastWasSpace := false
-	for i := 0; i < len(rule); i++ {
+	for i := range len(rule) {
 		c := rule[i]
 		if inString {
 			b.WriteByte(c)
-			if escape {
+			switch {
+			case escape:
 				escape = false
-			} else if c == '\\' {
+			case c == '\\':
 				escape = true
-			} else if c == '"' {
+			case c == '"':
 				inString = false
 			}
 			lastWasSpace = false
+
 			continue
 		}
 		if c == '"' {
 			inString = true
 			b.WriteByte(c)
 			lastWasSpace = false
+
 			continue
 		}
 		if c == ' ' || c == '\t' {
@@ -71,10 +80,12 @@ func normalizeRuleInput(rule string) string {
 				b.WriteByte(' ')
 				lastWasSpace = true
 			}
+
 			continue
 		}
 		lastWasSpace = false
 		b.WriteByte(c)
 	}
+
 	return strings.TrimSpace(b.String())
 }

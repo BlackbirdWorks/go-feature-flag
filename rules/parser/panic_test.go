@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNestedError(t *testing.T) {
@@ -42,23 +43,20 @@ func TestNestedError(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.EqualValues(t, tt.original, tt.err.Original())
-			m := make(map[string]interface{})
-			assert.NoError(t, json.Unmarshal([]byte(tt.err.Error()), &m))
+			assert.Equal(t, tt.original, tt.err.Original())
+			m := make(map[string]any)
+			require.NoError(t, json.Unmarshal([]byte(tt.err.Error()), &m))
 			// concurrent Error calls must not race (run with -race) and
 			// must not write to Vals
 			var wg sync.WaitGroup
-			for g := 0; g < 4; g++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < 100; i++ {
+			for range 4 {
+				wg.Go(func() {
+					for range 100 {
 						assert.Equal(t, tt.want, tt.err.Error())
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			assert.Equal(t, tt.wantVals, tt.err.Vals)
@@ -67,12 +65,14 @@ func TestNestedError(t *testing.T) {
 }
 
 func TestEvaluatorPanic(t *testing.T) {
+	t.Parallel()
+
 	ev, err := NewEvaluator(`x eq 1`)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	ev.testHookPanic = func() {
 		panic("wait what")
 	}
-	ret, err := ev.Process(map[string]interface{}{"x": 1})
+	ret, err := ev.Process(map[string]any{"x": 1})
 	assert.False(t, ret)
-	assert.Error(t, err)
+	require.EqualError(t, err, `"wait what"`)
 }

@@ -11,6 +11,8 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 	"github.com/blang/semver/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testStringer struct{ s string }
@@ -19,7 +21,7 @@ func (s testStringer) String() string { return s.s }
 
 // visitorProcess runs a rule through the original ANTLR visitor, exactly as
 // Evaluator.Process did before rules were compiled.
-func visitorProcess(tree antlr.ParseTree, items map[string]interface{}) (ret bool, retErr error, debugErr error) {
+func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr error, debugErr error) {
 	defer func() {
 		if info := recover(); info != nil {
 			retErr = fmt.Errorf("%q", info)
@@ -32,10 +34,11 @@ func visitorProcess(tree antlr.ParseTree, items map[string]interface{}) (ret boo
 	if result == nil || visitor.err != nil {
 		return false, visitor.err, debugErr
 	}
+
 	return result.(bool), visitor.err, debugErr
 }
 
-// errString renders err, tolerating the existing ErrInvalidOperand.Error
+// errString renders err, tolerating the existing InvalidOperandError.Error
 // panic on a nil operand so both implementations can still be compared.
 func errString(err error) (s string) {
 	defer func() {
@@ -46,6 +49,7 @@ func errString(err error) (s string) {
 	if err == nil {
 		return "<nil>"
 	}
+
 	return err.Error()
 }
 
@@ -73,7 +77,6 @@ func TestEvaluatorProcess(t *testing.T) {
 		{name: "concurrent append to a stale list", run: testProcessConcurrentStaleList},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tt.run(t)
@@ -84,7 +87,7 @@ func TestEvaluatorProcess(t *testing.T) {
 // testProcessDifferential compares the compiled evaluator, fresh and reused,
 // and Evaluate against the visitor over a broad rule and input corpus.
 func testProcessDifferential(t *testing.T) {
-	type kv = map[string]interface{}
+	type kv = map[string]any
 	inputs := []kv{
 		{},
 		nil,
@@ -101,13 +104,75 @@ func testProcessDifferential(t *testing.T) {
 	}
 
 	ops := []string{"eq", "==", "ne", "!=", "gt", ">", "lt", "<", "ge", ">=", "le", "<=", "co", "sw", "ew", "in", "IN"}
-	attrs := []string{"i", "i64", "i32", "f", "s", "b", "n", "v", "l", "m", "missing", "str", "e", "u.plan", "u.age", "u.n", "u.deep.x", "u.deep.s", "u.deep.o.z", "u.missing.y", "missing.a.b", "u2.a", "i.x", "nilmap.a", "nm.a", "st", "f32", "esc", "uni", "r.r.r.r.r.z", "r.r.r.r.r.r.n.x"}
+	attrs := []string{
+		"i",
+		"i64",
+		"i32",
+		"f",
+		"s",
+		"b",
+		"n",
+		"v",
+		"l",
+		"m",
+		"missing",
+		"str",
+		"e",
+		"u.plan",
+		"u.age",
+		"u.n",
+		"u.deep.x",
+		"u.deep.s",
+		"u.deep.o.z",
+		"u.missing.y",
+		"missing.a.b",
+		"u2.a",
+		"i.x",
+		"nilmap.a",
+		"nm.a",
+		"st",
+		"f32",
+		"esc",
+		"uni",
+		"r.r.r.r.r.z",
+		"r.r.r.r.r.r.n.x",
+	}
 	values := []string{
-		`1`, `-3`, `5`, `0`, `1e3`, `-2E+1`, `2E+1`, `"a\"b"`, `"\u0041"`, `"\\"`, `2.5`, `-0.5`, `1.0e2`, `"hello"`, `"HELLO"`, `""`, `"1.2.4"`, `1.2.3`, `0.0.1`,
-		`true`, `false`, `null`,
-		`[1, 2, 3]`, `[5]`, `[1.5, 2.5]`, `[2.5]`, `["a", "hello"]`, `["x"]`,
-		`99999999999999999999`, `[1, 99999999999999999999]`, `[99999999999999999999, 2]`,
-		`1e999`, `1.5e999`, `[1.5, 1.5e999]`, `[1.5e999]`,
+		`1`,
+		`-3`,
+		`5`,
+		`0`,
+		`1e3`,
+		`-2E+1`,
+		`2E+1`,
+		`"a\"b"`,
+		`"\u0041"`,
+		`"\\"`,
+		`2.5`,
+		`-0.5`,
+		`1.0e2`,
+		`"hello"`,
+		`"HELLO"`,
+		`""`,
+		`"1.2.4"`,
+		`1.2.3`,
+		`0.0.1`,
+		`true`,
+		`false`,
+		`null`,
+		`[1, 2, 3]`,
+		`[5]`,
+		`[1.5, 2.5]`,
+		`[2.5]`,
+		`["a", "hello"]`,
+		`["x"]`,
+		`99999999999999999999`,
+		`[1, 99999999999999999999]`,
+		`[99999999999999999999, 2]`,
+		`1e999`,
+		`1.5e999`,
+		`[1.5, 1.5e999]`,
+		`[1.5e999]`,
 	}
 
 	type group struct {
@@ -117,7 +182,8 @@ func testProcessDifferential(t *testing.T) {
 	}
 	var groups []group
 	for _, a := range attrs {
-		rules := []string{a + " pr", "not (" + a + " pr)"}
+		rules := make([]string, 0, 2+len(values)*len(ops))
+		rules = append(rules, a+" pr", "not ("+a+" pr)")
 		for _, op := range ops {
 			for _, v := range values {
 				rules = append(rules, fmt.Sprintf("%s %s %s", a, op, v))
@@ -199,9 +265,9 @@ func testProcessDifferential(t *testing.T) {
 	// versions: the compiled path pre-parses valid rule versions and parses
 	// plain left versions without semver.Make; invalid rule versions keep
 	// VersionOperation.
-	var versionRules []string
+	versionRules := make([]string, 0, 14*len(versionRuleValues())+3)
 	for _, op := range []string{"eq", "==", "ne", "!=", "gt", ">", "lt", "<", "ge", ">=", "le", "<=", "co", "in"} {
-		for _, v := range versionRuleValues {
+		for _, v := range versionRuleValues() {
 			versionRules = append(versionRules, fmt.Sprintf("v %s %s", op, v))
 		}
 	}
@@ -210,8 +276,9 @@ func testProcessDifferential(t *testing.T) {
 		`v gt 99999999999999999999.0.0 or w lt 2.0.0`,
 		`v eq 1.2.3 or missing gt 1.0.0`,
 	)
-	versionInputs := []kv{nil, {}}
-	for _, left := range versionLeftValues {
+	versionInputs := make([]kv, 0, 2+len(versionLeftValues()))
+	versionInputs = append(versionInputs, nil, kv{})
+	for _, left := range versionLeftValues() {
 		versionInputs = append(versionInputs, kv{"v": left, "w": left})
 	}
 	groups = append(groups, group{name: "versions", rules: versionRules, inputs: versionInputs})
@@ -225,22 +292,22 @@ func testProcessDifferential(t *testing.T) {
 	for len(randRules) < count {
 		randRules = append(randRules, genRule(rnd, 4))
 	}
-	randInputs := []kv{nil}
-	for i := 0; i < 7; i++ {
+	randInputs := make([]kv, 0, 8)
+	randInputs = append(randInputs, nil)
+	for range 7 {
 		randInputs = append(randInputs, genMap(rnd, 3))
 	}
 	// chunks run in parallel; one sequential group dominated the run time
 	const chunk = 250
 	for start := 0; start < len(randRules); start += chunk {
-		end := start + chunk
-		if end > len(randRules) {
-			end = len(randRules)
-		}
-		groups = append(groups, group{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs})
+		end := min(start+chunk, len(randRules))
+		groups = append(
+			groups,
+			group{name: fmt.Sprintf("random/%d", start), rules: randRules[start:end], inputs: randInputs},
+		)
 	}
 
 	for _, tt := range groups {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, rule := range tt.rules {
@@ -260,19 +327,19 @@ func testProcessDifferential(t *testing.T) {
 					fresh := &Evaluator{rule: rule, tree: tree}
 					for name, ev := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
 						gotRet, gotErr := ev.Process(input)
-						if gotRet != wantRet {
-							t.Errorf("%q input %d (%s): result: got %v, want %v", rule, i, name, gotRet, wantRet)
-						}
-						if errString(gotErr) != errString(wantErr) {
-							t.Errorf("%q input %d (%s): err: got %q, want %q", rule, i, name, errString(gotErr), errString(wantErr))
-						}
-						if got, want := errString(ev.LastDebugErr()), errString(wantDebug); got != want {
-							t.Errorf("%q input %d (%s): debug err: got %q, want %q", rule, i, name, got, want)
-						}
+						assert.Equal(t, wantRet, gotRet, "%q input %d (%s): result", rule, i, name)
+						assert.Equal(t, errString(wantErr), errString(gotErr), "%q input %d (%s): err", rule, i, name)
+						assert.Equal(
+							t,
+							errString(wantDebug),
+							errString(ev.LastDebugErr()),
+							"%q input %d (%s): debug err",
+							rule,
+							i,
+							name,
+						)
 					}
-					if got := Evaluate(rule, input); got != wantRet {
-						t.Errorf("%q input %d: Evaluate: got %v, want %v", rule, i, got, wantRet)
-					}
+					assert.Equal(t, wantRet, Evaluate(rule, input), "%q input %d: Evaluate", rule, i)
 				}
 			}
 		})
@@ -281,30 +348,35 @@ func testProcessDifferential(t *testing.T) {
 
 // versionRuleValues are rule versions; the overflowing ones are lexed as
 // versions but rejected by semver.Make.
-var versionRuleValues = []string{
-	`1.2.3`, `0.0.0`, `10.20.30`, `1.2.3-alpha`, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
-	`1.2.3+build.5`, `1.2.3+-`, `1.2.3--x`,
-	`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
-	`1.2.3-99999999999999999999`, `"1.2.3"`,
+func versionRuleValues() []string {
+	return []string{
+		`1.2.3`, `0.0.0`, `10.20.30`, `1.2.3-alpha`, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
+		`1.2.3+build.5`, `1.2.3+-`, `1.2.3--x`,
+		`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
+		`1.2.3-99999999999999999999`, `"1.2.3"`,
+	}
 }
 
 // versionLeftValues are object values compared against rule versions.
-var versionLeftValues = []interface{}{
-	"1.2.3", "1.2.4", "1.2.2", "0.0.0", "10.20.30", "2.0.0", "1.10.0",
-	"1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
-	"1.2.3+build.5", "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
-	"v1.2.3", "1.2", "1.2.3.4", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "", " 1.2.3", "1.2.3 ",
-	"99999999999999999999.0.0", "1.2.99999999999999999999", "1..3", "1.2.", ".2.3", "1.2.3-", "x.y.z", "1.2.٣",
-	5, 1.5, true, nil, []string{"1.2.3"}, testStringer{"1.2.3"},
+func versionLeftValues() []any {
+	return []any{
+		"1.2.3", "1.2.4", "1.2.2", "0.0.0", "10.20.30", "2.0.0", "1.10.0",
+		"1.2.3-alpha", "1.2.3-alpha.1", "1.2.3-beta", "1.2.3-0", "1.2.3-rc.1+x",
+		"1.2.3+build.5", "1.2.3+other", "1.2.3+", "1.2.3+a..b", "1.2.3+a_b", "1.2.3+a+b",
+		"v1.2.3", "1.2", "1.2.3.4", "01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "", " 1.2.3", "1.2.3 ",
+		"99999999999999999999.0.0", "1.2.99999999999999999999", "1..3", "1.2.", ".2.3", "1.2.3-", "x.y.z", "1.2.٣",
+		5, 1.5, true, nil, []string{"1.2.3"}, testStringer{"1.2.3"},
+	}
 }
 
 // deepMap returns depth nested maps: each level has "r", the next level,
 // and "z", its depth.
-func deepMap(depth int) map[string]interface{} {
-	m := map[string]interface{}{"z": depth}
+func deepMap(depth int) map[string]any {
+	m := map[string]any{"z": depth}
 	if depth > 0 {
 		m["r"] = deepMap(depth - 1)
 	}
+
 	return m
 }
 
@@ -312,21 +384,28 @@ func deepMap(depth int) map[string]interface{} {
 // run (a tenth of it with -short).
 const randomRuleCount = 2000
 
-var fuzzAttrs = []string{"a", "b", "c", "x", "n", "s"}
-
-var fuzzVals = []string{
-	`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, `2.5`, `-0.5`, `1.0e2`, `1.5e999`,
-	`"hello"`, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, `"\u0041"`, `"1.2.3"`, `1.2.3`, `1.2.3-alpha+b`,
-	`true`, `false`, `null`, `99999999999999999999`, `-99999999999999999999`,
+func fuzzAttrs() []string {
+	return []string{"a", "b", "c", "x", "n", "s"}
 }
 
-var fuzzOps = []string{"eq", "ne", "gt", "lt", "ge", "le", "co", "sw", "ew", "in", "==", "!=", ">", "<", ">=", "<="}
+func fuzzVals() []string {
+	return []string{
+		`1`, `-3`, `0`, `5`, `1e3`, `-2E+1`, `2.5`, `-0.5`, `1.0e2`, `1.5e999`,
+		`"hello"`, `"HeLLo"`, `""`, `"A"`, `"a\"b"`, `"\u0041"`, `"1.2.3"`, `1.2.3`, `1.2.3-alpha+b`,
+		`true`, `false`, `null`, `99999999999999999999`, `-99999999999999999999`,
+	}
+}
+
+func fuzzOps() []string {
+	return []string{"eq", "ne", "gt", "lt", "ge", "le", "co", "sw", "ew", "in", "==", "!=", ">", "<", ">=", "<="}
+}
 
 func genPath(r *rand.Rand) string {
 	parts := make([]string, 1+r.Intn(4))
 	for i := range parts {
-		parts[i] = fuzzAttrs[r.Intn(len(fuzzAttrs))]
+		parts[i] = fuzzAttrs()[r.Intn(len(fuzzAttrs()))]
 	}
+
 	return strings.Join(parts, ".")
 }
 
@@ -344,6 +423,7 @@ func genList(r *rand.Rand) string {
 	for i := range el {
 		el[i] = pool[r.Intn(len(pool))]
 	}
+
 	return "[" + strings.Join(el, ", ") + "]"
 }
 
@@ -352,11 +432,12 @@ func genRule(r *rand.Rand, depth int) string {
 		if r.Intn(5) == 0 {
 			return genPath(r) + " pr"
 		}
-		v := fuzzVals[r.Intn(len(fuzzVals))]
+		v := fuzzVals()[r.Intn(len(fuzzVals()))]
 		if r.Intn(3) == 0 {
 			v = genList(r)
 		}
-		return genPath(r) + " " + fuzzOps[r.Intn(len(fuzzOps))] + " " + v
+
+		return genPath(r) + " " + fuzzOps()[r.Intn(len(fuzzOps()))] + " " + v
 	}
 	switch r.Intn(4) {
 	case 0:
@@ -370,7 +451,7 @@ func genRule(r *rand.Rand, depth int) string {
 	}
 }
 
-func genVal(r *rand.Rand, depth int) interface{} {
+func genVal(r *rand.Rand, depth int) any {
 	switch r.Intn(16) {
 	case 0:
 		return nil
@@ -393,7 +474,7 @@ func genVal(r *rand.Rand, depth int) interface{} {
 	case 9:
 		return testStringer{"HELLO"}
 	case 10:
-		return map[string]interface{}(nil)
+		return map[string]any(nil)
 	case 11:
 		return map[string]string{"a": "b"}
 	case 12:
@@ -402,29 +483,30 @@ func genVal(r *rand.Rand, depth int) interface{} {
 	if depth <= 0 {
 		return "leaf"
 	}
+
 	return genMap(r, depth-1)
 }
 
-func genMap(r *rand.Rand, depth int) map[string]interface{} {
-	m := map[string]interface{}{}
-	for _, a := range fuzzAttrs {
+func genMap(r *rand.Rand, depth int) map[string]any {
+	m := map[string]any{}
+	for _, a := range fuzzAttrs() {
 		if r.Intn(3) != 0 {
 			m[a] = genVal(r, depth)
 		}
 	}
+
 	return m
 }
 
 func testProcessZeroValue(t *testing.T) {
 	tests := []struct {
 		name  string
-		items map[string]interface{}
+		items map[string]any
 	}{
 		{name: "nil items"},
-		{name: "items", items: map[string]interface{}{"x": 1}},
+		{name: "items", items: map[string]any{"x": 1}},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var wantErr error
@@ -435,12 +517,9 @@ func testProcessZeroValue(t *testing.T) {
 			}()
 			ev := &Evaluator{}
 			got, err := ev.Process(tt.items)
-			if got || errString(err) != errString(wantErr) {
-				t.Errorf("got (%v, %v), want (false, %v)", got, err, wantErr)
-			}
-			if ev.LastDebugErr() != nil {
-				t.Errorf("unexpected debug err %v", ev.LastDebugErr())
-			}
+			assert.False(t, got)
+			assert.Equal(t, errString(wantErr), errString(err))
+			assert.NoError(t, ev.LastDebugErr())
 		})
 	}
 }
@@ -449,52 +528,45 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	tests := []struct {
 		name   string
 		rule   string
-		bad    map[string]interface{}
-		mutate func(rule interface{})
-		probe  map[string]interface{}
+		bad    map[string]any
+		mutate func(rule any)
+		probe  map[string]any
 		want   bool
 	}{
 		{
 			name:   "ints",
 			rule:   `x in [1, 2]`,
-			bad:    map[string]interface{}{"x": "str"},
-			mutate: func(r interface{}) { r.([]int)[0] = 42 },
-			probe:  map[string]interface{}{"x": 42},
+			bad:    map[string]any{"x": "str"},
+			mutate: func(r any) { r.([]int)[0] = 42 },
+			probe:  map[string]any{"x": 42},
 		},
 		{
 			name:   "floats",
 			rule:   `x in [1.5, 2.5]`,
-			bad:    map[string]interface{}{"x": "str"},
-			mutate: func(r interface{}) { r.([]float64)[0] = 42 },
-			probe:  map[string]interface{}{"x": 42.0},
+			bad:    map[string]any{"x": "str"},
+			mutate: func(r any) { r.([]float64)[0] = 42 },
+			probe:  map[string]any{"x": 42.0},
 		},
 		{
 			name:   "strings",
 			rule:   `x in ["a", "b"]`,
-			bad:    map[string]interface{}{"x": 5},
-			mutate: func(r interface{}) { r.([]string)[0] = "zzz" },
-			probe:  map[string]interface{}{"x": "zzz"},
+			bad:    map[string]any{"x": 5},
+			mutate: func(r any) { r.([]string)[0] = "zzz" },
+			probe:  map[string]any{"x": "zzz"},
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := ev.Process(tt.bad); err != nil {
-				t.Fatal(err)
-			}
-			ne, ok := ev.LastDebugErr().(*NestedError)
-			if !ok {
-				t.Fatalf("debug err is %T", ev.LastDebugErr())
-			}
+			require.NoError(t, err)
+			_, err = ev.Process(tt.bad)
+			require.NoError(t, err)
+			var ne *NestedError
+			require.ErrorAs(t, ev.LastDebugErr(), &ne)
 			tt.mutate(ne.Vals["rule_operand"])
-			if got, _ := ev.Process(tt.probe); got != tt.want {
-				t.Errorf("rule constant was mutated through the debug error: got %v, want %v", got, tt.want)
-			}
+			got, _ := ev.Process(tt.probe)
+			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
 	}
 }
@@ -509,27 +581,18 @@ func testProcessErrorIdentity(t *testing.T) {
 		{name: "double list overflow", rule: `x in [1.5, 1.5e999]`},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
-			_, err1 := ev.Process(map[string]interface{}{"x": 1})
-			_, err2 := ev.Process(map[string]interface{}{"x": 1})
-			ne1, ok1 := err1.(*strconv.NumError)
-			ne2, ok2 := err2.(*strconv.NumError)
-			if !ok1 || !ok2 {
-				t.Fatalf("expected *strconv.NumError, got %T and %T", err1, err2)
-			}
-			if ne1 == ne2 {
-				t.Fatal("the same error value was returned by two calls")
-			}
+			require.NoError(t, err)
+			_, err1 := ev.Process(map[string]any{"x": 1})
+			_, err2 := ev.Process(map[string]any{"x": 1})
+			var ne1, ne2 *strconv.NumError
+			require.ErrorAs(t, err1, &ne1)
+			require.ErrorAs(t, err2, &ne2)
+			require.NotSame(t, ne1, ne2, "the same error value was returned by two calls")
 			ne1.Func = "mutated"
-			if ne2.Func == "mutated" {
-				t.Error("errors share state")
-			}
+			assert.NotEqual(t, "mutated", ne2.Func, "errors share state")
 		})
 	}
 }
@@ -538,34 +601,33 @@ func testProcessConcurrent(t *testing.T) {
 	tests := []struct {
 		name  string
 		rule  string
-		items map[string]interface{}
+		items map[string]any
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": 2}, want: true},
-		{name: "nested", rule: `u.plan eq "pro" and u.age gt 18`, items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}}, want: true},
-		{name: "debug err", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": "s"}},
+		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{
+			name:  "nested",
+			rule:  `u.plan eq "pro" and u.age gt 18`,
+			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			want:  true,
+		},
+		{name: "debug err", rule: `y in [1, 2, 3]`, items: map[string]any{"y": "s"}},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			var wg sync.WaitGroup
-			for g := 0; g < 8; g++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < 500; i++ {
-						if got, err := ev.Process(tt.items); err != nil || got != tt.want {
-							t.Errorf("got (%v, %v)", got, err)
-							return
-						}
+			for range 8 {
+				wg.Go(func() {
+					for range 500 {
+						got, err := ev.Process(tt.items)
+						assert.Equal(t, tt.want, got)
 						_ = ev.LastDebugErr()
+						assert.NoError(t, err)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 		})
@@ -576,55 +638,63 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		rule  string
-		items map[string]interface{}
-		mut   func(val interface{})
-		want  interface{}
+		items map[string]any
+		mut   func(val any)
+		want  any
 		// wantListTypeObj: the error's typeObj also holds the rule list
 		wantListTypeObj bool
 	}{
-		{name: "ints", rule: `x eq [1, 2]`, items: map[string]interface{}{"x": 1}, mut: func(v interface{}) { v.([]int)[0] = 99 }, want: []int{1, 2}},
-		{name: "floats", rule: `x eq [1.5, 2.5]`, items: map[string]interface{}{"x": 1.0}, mut: func(v interface{}) { v.([]float64)[0] = 99 }, want: []float64{1.5, 2.5}},
-		{name: "strings", rule: `x eq ["a", "b"]`, items: map[string]interface{}{"x": "a"}, mut: func(v interface{}) { v.([]string)[0] = "zzz" }, want: []string{"a", "b"}, wantListTypeObj: true},
+		{
+			name:  "ints",
+			rule:  `x eq [1, 2]`,
+			items: map[string]any{"x": 1},
+			mut:   func(v any) { v.([]int)[0] = 99 },
+			want:  []int{1, 2},
+		},
+		{
+			name:  "floats",
+			rule:  `x eq [1.5, 2.5]`,
+			items: map[string]any{"x": 1.0},
+			mut:   func(v any) { v.([]float64)[0] = 99 },
+			want:  []float64{1.5, 2.5},
+		},
+		{
+			name:            "strings",
+			rule:            `x eq ["a", "b"]`,
+			items:           map[string]any{"x": "a"},
+			mut:             func(v any) { v.([]string)[0] = "zzz" },
+			want:            []string{"a", "b"},
+			wantListTypeObj: true,
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := ev.Process(tt.items); err != nil {
-				t.Fatal(err)
-			}
-			ne, ok := ev.LastDebugErr().(*NestedError)
-			if !ok {
-				t.Fatalf("debug err is %T", ev.LastDebugErr())
-			}
-			eio, ok := ne.Err.(*ErrInvalidOperand)
-			if !ok {
-				t.Fatalf("nested err is %T", ne.Err)
-			}
+			require.NoError(t, err)
+			_, err = ev.Process(tt.items)
+			require.NoError(t, err)
+			var ne *NestedError
+			require.ErrorAs(t, ev.LastDebugErr(), &ne)
+			var eio *InvalidOperandError
+			require.ErrorAs(t, ne.Err, &eio)
 			tt.mut(eio.Val)
 			if typeObj := reflect.ValueOf(eio.typeObj); typeObj.Kind() == reflect.Slice {
-				if typeObj.Pointer() == reflect.ValueOf(ev.root.cmp.listOp).Pointer() {
-					t.Error("typeObj shares the compiled list's backing array")
-				}
+				assert.NotEqual(t, reflect.ValueOf(ev.root.cmp.listOp).Pointer(), typeObj.Pointer(),
+					"typeObj shares the compiled list's backing array")
 				tt.mut(eio.typeObj)
-			} else if tt.wantListTypeObj {
-				t.Fatalf("typeObj is %T, want the rule list", eio.typeObj)
+			} else {
+				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
 			tt.mut(ne.Vals["rule_operand"])
-			if !reflect.DeepEqual(ev.root.cmp.listOp, tt.want) {
-				t.Errorf("compiled constant mutated: got %v, want %v", ev.root.cmp.listOp, tt.want)
-			}
-			if _, err := ev.Process(tt.items); err != nil {
-				t.Fatal(err)
-			}
-			ne2 := ev.LastDebugErr().(*NestedError)
-			if got := ne2.Err.(*ErrInvalidOperand).Val; !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("later debug error affected: got %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, ev.root.cmp.listOp, "compiled constant mutated")
+			_, err = ev.Process(tt.items)
+			require.NoError(t, err)
+			var ne2 *NestedError
+			require.ErrorAs(t, ev.LastDebugErr(), &ne2)
+			var eio2 *InvalidOperandError
+			require.ErrorAs(t, ne2.Err, &eio2)
+			assert.Equal(t, tt.want, eio2.Val, "later debug error affected")
 		})
 	}
 }
@@ -633,32 +703,32 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 	tests := []struct {
 		name  string
 		rule  string
-		items map[string]interface{}
+		items map[string]any
 		want  bool
 	}{
-		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]interface{}{"y": 2}, want: true},
-		{name: "nested", rule: `u.plan eq "pro" and u.age gt 18`, items: map[string]interface{}{"u": map[string]interface{}{"plan": "pro", "age": 31}}, want: true},
+		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
+		{
+			name:  "nested",
+			rule:  `u.plan eq "pro" and u.age gt 18`,
+			items: map[string]any{"u": map[string]any{"plan": "pro", "age": 31}},
+			want:  true,
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			for round := 0; round < 50; round++ {
+			for range 50 {
 				ev, err := NewEvaluator(tt.rule)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				var wg sync.WaitGroup
 				start := make(chan struct{})
-				for g := 0; g < 16; g++ {
-					wg.Add(1)
-					go func() {
-						defer wg.Done()
+				for range 16 {
+					wg.Go(func() {
 						<-start
-						if got, err := ev.Process(tt.items); err != nil || got != tt.want {
-							t.Errorf("got (%v, %v)", got, err)
-						}
-					}()
+						got, err := ev.Process(tt.items)
+						assert.Equal(t, tt.want, got)
+						assert.NoError(t, err)
+					})
 				}
 				close(start)
 				wg.Wait()
@@ -674,45 +744,39 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 	tests := []struct {
 		name  string
 		tree  antlr.ParseTree
-		items map[string]interface{}
+		items map[string]any
 	}{
 		{name: "nil items", tree: &CompareExpContext{}},
-		{name: "items", tree: &CompareExpContext{}, items: map[string]interface{}{"x": 1}},
-		{name: "unexpected tree node", tree: &QueryContext{}, items: map[string]interface{}{"x": 1}},
+		{name: "items", tree: &CompareExpContext{}, items: map[string]any{"x": 1}},
+		{name: "unexpected tree node", tree: &QueryContext{}, items: map[string]any{"x": 1}},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			wantRet, wantErr, wantDebug := visitorProcess(tt.tree, tt.items)
 			ev := &Evaluator{tree: tt.tree}
-			for call := 0; call < 2; call++ {
+			for call := range 2 {
 				gotRet, gotErr := ev.Process(tt.items)
-				if gotRet != wantRet || errString(gotErr) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
-					t.Errorf("call %d: got (%v, %q, %q), want (%v, %q, %q)", call, gotRet, errString(gotErr), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
-				}
+				assert.Equal(t, wantRet, gotRet, "call %d", call)
+				assert.Equal(t, errString(wantErr), errString(gotErr), "call %d", call)
+				assert.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "call %d", call)
 			}
-			if ev.root != nil || ev.tree == nil {
-				t.Errorf("failed compile must keep the tree and leave no root")
-			}
+			assert.Nil(t, ev.root, "failed compile must leave no root")
+			assert.NotNil(t, ev.tree, "failed compile must keep the tree")
 		})
 	}
 }
 
 func testProcessDropsTreeAfterCompile(t *testing.T) {
 	ev, err := NewEvaluator(`x eq 1`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ev.tree == nil || ev.root != nil {
-		t.Fatal("NewEvaluator must only parse")
-	}
-	if got, err := ev.Process(map[string]interface{}{"x": 1}); err != nil || !got {
-		t.Fatalf("got (%v, %v)", got, err)
-	}
-	if ev.tree != nil || ev.root == nil {
-		t.Error("tree should be dropped once compiled")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, ev.tree, "NewEvaluator must only parse")
+	require.Nil(t, ev.root, "NewEvaluator must only parse")
+	got, err := ev.Process(map[string]any{"x": 1})
+	require.NoError(t, err)
+	assert.True(t, got)
+	assert.Nil(t, ev.tree, "tree should be dropped once compiled")
+	assert.NotNil(t, ev.root)
 }
 
 func testProcessVersionFastPath(t *testing.T) {
@@ -733,70 +797,56 @@ func testProcessVersionFastPath(t *testing.T) {
 		{rule: `v in 1.2.3`},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
 			// the differential versions group would skip a rule that does not parse
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
-			items := map[string]interface{}{"v": "1.2.3"}
+			require.NoError(t, err)
+			items := map[string]any{"v": "1.2.3"}
 			want, wantErr := ev.Process(items)
-			if gotFast := ev.root.cmp.version != nil; gotFast != tt.wantFast {
-				t.Errorf("fast path: got %v, want %v", gotFast, tt.wantFast)
-			}
+			assert.Equal(t, tt.wantFast, ev.root.cmp.version != nil, "fast path")
 			// the fast path must be what evaluates the rule: with apply
 			// replaced, only the slow path would notice
 			slow := ev.root.cmp.apply
 			calledSlow := false
 			ev.root.cmp.apply = func(l, r Operand) (bool, error) {
 				calledSlow = true
+
 				return slow(l, r)
 			}
 			got, err := ev.Process(items)
-			if got != want || errString(err) != errString(wantErr) {
-				t.Errorf("got (%v, %v), want (%v, %v)", got, err, want, wantErr)
-			}
-			if usedFast := !calledSlow; usedFast != tt.wantFast {
-				t.Errorf("evaluated by the fast path: got %v, want %v", usedFast, tt.wantFast)
-			}
+			assert.Equal(t, want, got)
+			assert.Equal(t, errString(wantErr), errString(err))
+			assert.Equal(t, tt.wantFast, !calledSlow, "evaluated by the fast path")
 		})
 	}
 }
 
 func testProcessStaleDebugErr(t *testing.T) {
-	bad := map[string]interface{}{"x": "s"}
-	good := map[string]interface{}{"x": 1}
+	bad := map[string]any{"x": "s"}
+	good := map[string]any{"x": 1}
 	tests := []struct {
 		name  string
 		clear func(ev *Evaluator)
 	}{
-		{name: "clean call", clear: func(ev *Evaluator) { ev.Process(good) }},
-		{name: "reset", clear: func(ev *Evaluator) { ev.Reset() }},
+		{name: "clean call", clear: func(ev *Evaluator) { _, _ = ev.Process(good) }},
+		{name: "reset", clear: func(ev *Evaluator) { _ = ev.Reset() }},
 		{name: "panicking call", clear: func(ev *Evaluator) {
 			ev.testHookPanic = func() { panic("p") }
-			ev.Process(good)
+			_, _ = ev.Process(good)
 			ev.testHookPanic = nil
 		}},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(`x in [1, 2]`)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for round := 0; round < 3; round++ {
-				ev.Process(bad)
-				if ev.LastDebugErr() == nil {
-					t.Fatalf("round %d: want a debug error", round)
-				}
+			require.NoError(t, err)
+			for round := range 3 {
+				_, _ = ev.Process(bad)
+				require.Error(t, ev.LastDebugErr(), "round %d: want a debug error", round)
 				tt.clear(ev)
-				if got := ev.LastDebugErr(); got != nil {
-					t.Fatalf("round %d: stale debug error %v", round, got)
-				}
+				require.NoError(t, ev.LastDebugErr(), "round %d: stale debug error", round)
 			}
 		})
 	}
@@ -807,40 +857,36 @@ func testProcessStaleDebugErr(t *testing.T) {
 func TestPanicClearsDebugErrStoredByOverlappingCall(t *testing.T) {
 	t.Parallel()
 	ev, err := NewEvaluator(`x in [1, 2]`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ev.testHookPanic = func() {
 		ev.testHookPanic = nil
 		// stands in for an overlapping call that failed after this one started
-		ev.Process(map[string]interface{}{"x": "not a number"})
-		if ev.LastDebugErr() == nil {
-			t.Error("overlapping call should have stored a debug error")
-		}
+		_, _ = ev.Process(map[string]any{"x": "not a number"})
+		require.Error(t, ev.LastDebugErr(), "overlapping call should have stored a debug error")
 		panic("p")
 	}
-	if _, err := ev.Process(map[string]interface{}{"x": 1}); err == nil {
-		t.Fatal("want the recovered panic as an error")
-	}
-	if got := ev.LastDebugErr(); got != nil {
-		t.Fatalf("stale debug error %v", got)
-	}
+	_, err = ev.Process(map[string]any{"x": 1})
+	require.Error(t, err, "want the recovered panic as an error")
+	assert.NoError(t, ev.LastDebugErr(), "stale debug error")
 }
 
 func TestParsePlainVersion(t *testing.T) {
 	t.Parallel()
 
-	inputs := []string{
+	literals := []string{
 		"1.2.3", "0.0.0", "10.20.30", "18446744073709551615.0.1", "18446744073709551616.0.1",
 		"1.2.3+b", "1.2.3+build.5", "1.2.3+-", "1.2.3+a-b.c", "1.2.3+", "1.2.3+a.", "1.2.3+.a", "1.2.3+a..b",
 		"1.2.3+a+b", "1.2.3+a_b", "1.2.3+é", "1+a.2.3", "1.2+a.3",
 		"1.2.3-alpha", "1.2.3-alpha+b", "1.2.3-", "1.2", "1", "", "1.2.3.4", "1..3", ".2.3", "1.2.",
 		"01.2.3", "1.02.3", "1.2.03", "0.0.00", "v1.2.3", " 1.2.3", "1.2.3 ", "1.2.٣", "-1.2.3", "+1.2.3",
 	}
+	const randomInputs = 20000
+	inputs := make([]string, 0, len(literals)+randomInputs)
+	inputs = append(inputs, literals...)
 	// seeded random strings over the characters that matter to the parser
 	rnd := rand.New(rand.NewSource(1))
 	const alphabet = "0123456789..++--aZ_"
-	for i := 0; i < 20000; i++ {
+	for range randomInputs {
 		b := make([]byte, rnd.Intn(12))
 		for j := range b {
 			b[j] = alphabet[rnd.Intn(len(alphabet))]
@@ -853,18 +899,17 @@ func TestParsePlainVersion(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if err != nil {
-			t.Errorf("%q: accepted, semver.Make error %v", in, err)
-			continue
-		}
-		if len(want.Pre) != 0 || got.Major != want.Major || got.Minor != want.Minor || got.Patch != want.Patch || got.Pre != nil || got.Build != nil {
-			t.Errorf("%q: got %+v, semver.Make %+v", in, got, want)
-		}
+		require.NoError(t, err, "%q: accepted but semver.Make fails", in)
+		assert.Empty(t, want.Pre, "%q", in)
+		assert.Equal(t, want.Major, got.Major, "%q", in)
+		assert.Equal(t, want.Minor, got.Minor, "%q", in)
+		assert.Equal(t, want.Patch, got.Patch, "%q", in)
+		assert.Nil(t, got.Pre, "%q", in)
+		assert.Nil(t, got.Build, "%q", in)
 	}
 	for _, in := range []string{"1.2.3", "0.0.0", "1.2.3+b.5"} {
-		if _, ok := parsePlainVersion(in); !ok {
-			t.Errorf("%q: not parsed by the fast path", in)
-		}
+		_, ok := parsePlainVersion(in)
+		assert.True(t, ok, "%q: not parsed by the fast path", in)
 	}
 }
 
@@ -881,18 +926,14 @@ func testProcessListCapacity(t *testing.T) {
 		{rule: `x in [1, 2, 3, 4, 5]`},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
-			ev.Process(map[string]interface{}{"x": 1})
+			require.NoError(t, err)
+			_, _ = ev.Process(map[string]any{"x": 1})
 			list := reflect.ValueOf(ev.root.cmp.listOp)
-			if list.Kind() != reflect.Slice || list.Cap() != list.Len() {
-				t.Errorf("listOp %v: len %d, cap %d", ev.root.cmp.listOp, list.Len(), list.Cap())
-			}
+			require.Equal(t, reflect.Slice, list.Kind())
+			assert.Equal(t, list.Len(), list.Cap(), "listOp %v", ev.root.cmp.listOp)
 		})
 	}
 }
@@ -907,43 +948,45 @@ func testProcessConcurrentStaleList(t *testing.T) {
 	tests := []struct {
 		name  string
 		rule  string
-		items map[string]interface{}
+		items map[string]any
 	}{
-		{name: "ints", rule: `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`, items: map[string]interface{}{"a": 1, "b": 2, "c": 6}},
-		{name: "floats", rule: `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`, items: map[string]interface{}{"a": 1, "b": 2.5, "c": 4.5}},
-		{name: "strings", rule: `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`, items: map[string]interface{}{"a": 1, "b": "y", "c": "w"}},
+		{
+			name:  "ints",
+			rule:  `a eq 99999999999999999999 or b in [1, 2, 3, 4, 5] or c in [6, 7]`,
+			items: map[string]any{"a": 1, "b": 2, "c": 6},
+		},
+		{
+			name:  "floats",
+			rule:  `a eq 99999999999999999999 or b in [1.5, 2.5, 3.5, 4.5, 5.5] or c in [6.5, 7.5]`,
+			items: map[string]any{"a": 1, "b": 2.5, "c": 4.5},
+		},
+		{
+			name:  "strings",
+			rule:  `a eq 99999999999999999999 or b in ["p", "q", "x", "y", "z"] or c in ["v", "w"]`,
+			items: map[string]any{"a": 1, "b": "y", "c": "w"},
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			tree, err := parseRule(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			wantRet, wantErr, wantDebug := visitorProcess(tree, tt.items)
 			ev, err := NewEvaluator(tt.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			var wg sync.WaitGroup
-			for g := 0; g < 8; g++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < 200; i++ {
+			for range 8 {
+				wg.Go(func() {
+					for range 200 {
 						got, err := ev.Process(tt.items)
-						if got != wantRet || errString(err) != errString(wantErr) {
-							t.Errorf("got (%v, %v), want (%v, %v)", got, err, wantRet, wantErr)
+						if !assert.Equal(t, wantRet, got) || !assert.Equal(t, errString(wantErr), errString(err)) {
 							return
 						}
 					}
-				}()
+				})
 			}
 			wg.Wait()
-			if got, want := errString(ev.LastDebugErr()), errString(wantDebug); got != want {
-				t.Errorf("debug err: got %q, want %q", got, want)
-			}
+			assert.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "debug err")
 		})
 	}
 }
@@ -963,11 +1006,10 @@ func TestAttrStack(t *testing.T) {
 		{name: "clear after pop to boundary", ops: []int{1, 2, 3, 4, 5, 0, -1, 1, 2, 3, 4, 9}},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var s attrStack
-			var want []interface{}
+			var want []any
 			for i, op := range tt.ops {
 				switch {
 				case op > 0:
@@ -980,15 +1022,11 @@ func TestAttrStack(t *testing.T) {
 					s.clear()
 					want = want[:0]
 				}
-				wantMore := len(want) - attrStackInline
-				if wantMore < 0 {
-					wantMore = 0
-				}
-				if s.n != len(want) || len(s.more) != wantMore {
-					t.Fatalf("op %d: n %d, len(more) %d; want %d, %d", i, s.n, len(s.more), len(want), wantMore)
-				}
-				if s.n > 0 && s.top() != want[len(want)-1] {
-					t.Fatalf("op %d: top %v, want %v", i, s.top(), want[len(want)-1])
+				wantMore := max(len(want)-attrStackInline, 0)
+				require.Equal(t, len(want), s.n, "op %d: n", i)
+				require.Len(t, s.more, wantMore, "op %d: len(more)", i)
+				if s.n > 0 {
+					require.Equal(t, want[len(want)-1], s.top(), "op %d: top", i)
 				}
 			}
 		})

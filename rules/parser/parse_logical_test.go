@@ -5,16 +5,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNestedObject(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x.a eq 1 and x.b.c eq 2`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
 					"a": 1,
-					"b": map[string]interface{}{
+					"b": map[string]any{
 						"c": 2.0,
 					},
 				},
@@ -24,10 +27,10 @@ func TestNestedObject(t *testing.T) {
 		},
 		{
 			`x.a eq 1 and x.b.c eq 2`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
 					"a": 1,
-					"b": map[string]interface{}{
+					"b": map[string]any{
 						"c": 2,
 					},
 				},
@@ -37,9 +40,9 @@ func TestNestedObject(t *testing.T) {
 		},
 		{
 			`x.a eq 1 and x.b.c eq 2`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
-					"b": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
+					"b": map[string]any{
 						"c": 2,
 					},
 				},
@@ -49,9 +52,9 @@ func TestNestedObject(t *testing.T) {
 		},
 		{
 			`x.a eq 1 or x.b.c eq 2`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
-					"b": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
+					"b": map[string]any{
 						"c": 2,
 					},
 				},
@@ -79,8 +82,8 @@ func TestNestedObject(t *testing.T) {
 		},
 		{
 			`x.a eq 1 or x.b.c gt true`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
 					"a": 1,
 				},
 			},
@@ -89,8 +92,8 @@ func TestNestedObject(t *testing.T) {
 		},
 		{
 			`x.b.c gt true or x.a eq 1`,
-			map[string]interface{}{
-				"x": map[string]interface{}{
+			map[string]any{
+				"x": map[string]any{
 					"a": 1,
 				},
 			},
@@ -100,17 +103,24 @@ func TestNestedObject(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result, err := eval(t, tt.rule, tt.input)
-		if tt.hasError {
-			assert.Error(t, err)
-			continue
-		}
-		assert.NoError(t, err)
-		assert.Equal(t, tt.result, result)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := eval(tt.rule, tt.input)
+			if tt.hasError {
+				assert.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.result, result)
+		})
 	}
 }
 
 func TestIssue42VersionAndLogicalOrder(t *testing.T) {
+	t.Parallel()
+
 	input := obj{
 		"x": "abc",
 		"y": "11.3.0",
@@ -172,8 +182,9 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
-			result, err := eval(t, tt.rule, tt.input)
-			assert.NoError(t, err, tt.rule)
+			t.Parallel()
+			result, err := eval(tt.rule, tt.input)
+			require.NoError(t, err, tt.rule)
 			assert.Equal(t, tt.result, result, tt.rule)
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
@@ -182,6 +193,8 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 }
 
 func TestLogicalExpWithAnd(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq 1 or y gt 1`,
@@ -262,6 +275,7 @@ func TestLogicalExpWithAnd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
 		})
@@ -269,6 +283,8 @@ func TestLogicalExpWithAnd(t *testing.T) {
 }
 
 func TestLogicalExpWithAndWithExtraSpaces(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x < 2 and ( y > 4 or z == true )`,
@@ -312,6 +328,7 @@ func TestLogicalExpWithAndWithExtraSpaces(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
 		})

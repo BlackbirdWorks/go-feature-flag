@@ -3,19 +3,37 @@ package rules
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestEvaluateBasic(t *testing.T) {
-	res, err := Evaluate(`x eq "abc"`, map[string]interface{}{
-		"x": "abc",
-	})
-	require.NoError(t, err)
-	require.True(t, res)
+func TestEvaluate(t *testing.T) {
+	t.Parallel()
 
-	res, err = Evaluate(`x eq abc`, map[string]interface{}{
-		"x": "abc",
-	})
-	require.Error(t, err)
-	require.False(t, res)
+	tests := []struct {
+		name    string
+		rule    string
+		items   map[string]any
+		want    bool
+		wantErr bool
+	}{
+		{name: "string equal", rule: `x eq "abc"`, items: map[string]any{"x": "abc"}, want: true},
+		{name: "string not equal", rule: `x eq "abc"`, items: map[string]any{"x": "abd"}, want: false},
+		{name: "unquoted string is a syntax error", rule: `x eq abc`, items: map[string]any{"x": "abc"}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := Evaluate(tt.rule, tt.items)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.False(t, got)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
