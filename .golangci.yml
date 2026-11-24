@@ -191,8 +191,6 @@ linters:
     - err113 # 318: dynamic errors, needs sentinel errors
     - errcheck # 18: unchecked type assertions
     - exhaustive # 3
-    - gochecknoglobals # 55
-    - gochecknoinits # 1
     - gocognit # 3
     - gocritic # 2
     - gosec # 1
@@ -204,7 +202,6 @@ linters:
     - nonamedreturns # 13
     - prealloc # 8
     - promlinter # 5 (renaming a metric breaks dashboards: needs a decision)
-    - reassign # 2 (tests swap os.Stderr, http.DefaultTransport, version vars)
     - revive # 62
     - sloglint # 9
     - staticcheck # 74
