@@ -523,9 +523,15 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 		return c, nil
 	}
 	saramaConfig := sarama.NewConfig()
-	err := mergo.Merge(saramaConfig, k.Config)
+	// WithOverride: a value set by the operator wins over the sarama default; a zero value cannot be told from
+	// an unset one, so it keeps the default.
+	err := mergo.Merge(saramaConfig, k.Config, mergo.WithOverride)
 	if err != nil {
 		return kafkaexporter.Settings{}, err
+	}
+	// mergo copies a struct with unexported fields as a whole, so an unset Version would erase the default one.
+	if k.Config.Version == (sarama.KafkaVersion{}) {
+		saramaConfig.Version = sarama.NewConfig().Version
 	}
 	// the kafka exporter is using a sync producer, it needs both to be true to start.
 	saramaConfig.Producer.Return.Errors = true

@@ -879,21 +879,88 @@ func TestSetKafkaConfig(t *testing.T) {
 		assert.True(t, kafkaConfig.Config.Producer.Return.Errors)
 	})
 
-	t.Run("a setting that differs from a non-zero default of sarama is overridden by the default", func(t *testing.T) {
+	t.Run("settings of the operator win over the defaults of sarama", func(t *testing.T) {
 		t.Parallel()
 
-		userConfig := &sarama.Config{ClientID: "mine"}
-		userConfig.Net.DialTimeout = 5 * time.Second
-		userConfig.Producer.Retry.Max = 7
+		defaults := sarama.NewConfig()
+		tests := []struct {
+			name string
+			user func(c *sarama.Config)
+			// got reads the setting from the merged configuration, want is its expected value.
+			got  func(c *sarama.Config) any
+			want any
+		}{
+			{
+				name: "DialTimeout", user: func(c *sarama.Config) { c.Net.DialTimeout = 5 * time.Second },
+				got: func(c *sarama.Config) any { return c.Net.DialTimeout }, want: 5 * time.Second,
+			},
+			{
+				name: "ReadTimeout", user: func(c *sarama.Config) { c.Net.ReadTimeout = 6 * time.Second },
+				got: func(c *sarama.Config) any { return c.Net.ReadTimeout }, want: 6 * time.Second,
+			},
+			{
+				name: "Producer.Retry.Max", user: func(c *sarama.Config) { c.Producer.Retry.Max = 7 },
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Max }, want: 7,
+			},
+			{
+				name: "Producer.Retry.Backoff", user: func(c *sarama.Config) { c.Producer.Retry.Backoff = time.Second },
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Backoff }, want: time.Second,
+			},
+			{
+				name: "Producer.Flush.Messages", user: func(c *sarama.Config) { c.Producer.Flush.Messages = 9 },
+				got: func(c *sarama.Config) any { return c.Producer.Flush.Messages }, want: 9,
+			},
+			{
+				name: "Producer.MaxMessageBytes", user: func(c *sarama.Config) { c.Producer.MaxMessageBytes = 2048 },
+				got: func(c *sarama.Config) any { return c.Producer.MaxMessageBytes }, want: 2048,
+			},
+			{
+				name: "Producer.RequiredAcks", user: func(c *sarama.Config) { c.Producer.RequiredAcks = sarama.WaitForLocal },
+				got: func(c *sarama.Config) any { return c.Producer.RequiredAcks }, want: sarama.WaitForLocal,
+			},
+			{
+				name: "ClientID", user: func(c *sarama.Config) { c.ClientID = "mine" },
+				got: func(c *sarama.Config) any { return c.ClientID }, want: "mine",
+			},
+			{
+				name: "Version", user: func(c *sarama.Config) { c.Version = sarama.V2_1_0_0 },
+				got: func(c *sarama.Config) any { return c.Version }, want: sarama.V2_1_0_0,
+			},
+			{
+				name: "Metadata.Retry.Max", user: func(c *sarama.Config) { c.Metadata.Retry.Max = 11 },
+				got: func(c *sarama.Config) any { return c.Metadata.Retry.Max }, want: 11,
+			},
+			{
+				// a zero value cannot be told from an unset one: the default of sarama is kept
+				name: "an unset ClientID keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.ClientID }, want: defaults.ClientID,
+			},
+			{
+				name: "an unset DialTimeout keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Net.DialTimeout }, want: defaults.Net.DialTimeout,
+			},
+			{
+				name: "an unset Version keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Version }, want: defaults.Version,
+			},
+			{
+				name: "an unset Producer.Retry.Max keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Max }, want: defaults.Producer.Retry.Max,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 
-		kafkaConfig, err := setKafkaConfig(kafkaexporter.Settings{Topic: "t", Config: userConfig})
-		require.NoError(t, err)
+				userConfig := &sarama.Config{}
+				tt.user(userConfig)
 
-		// Tracked by issue #51: the settings of the operator must win over the defaults, these are the current values
-		// (want: 5s, 7, "mine").
-		assert.Equal(t, 30*time.Second, kafkaConfig.Config.Net.DialTimeout)
-		assert.Equal(t, 3, kafkaConfig.Config.Producer.Retry.Max)
-		assert.Equal(t, "sarama", kafkaConfig.Config.ClientID)
+				kafkaConfig, err := setKafkaConfig(kafkaexporter.Settings{Topic: "t", Config: userConfig})
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.want, tt.got(kafkaConfig.Config))
+			})
+		}
 	})
 
 	t.Run("should return a valid sarama.Config with specific settings set and value should be"+
