@@ -15,6 +15,7 @@ warning per process and per kind of name, never one per request. When both names
 | Go module `github.com/thomaspoignant/go-feature-flag` (and `/modules/core`) | `github.com/blackbirdworks/semaphore` (and `/modules/core`) | No: change your imports. The Go identifiers (`ffclient`, `GoFeatureFlag`, ...) are unchanged. |
 | Relay proxy binary `go-feature-flag` (`go-feature-flag-relay-proxy`) | `semaphore` | No (release artifact name) |
 | CLI binary `go-feature-flag-cli`, `goff` | `semaphore-cli` | No (release artifact name) |
+| Binary path in the image `/go-feature-flag` | `/usr/local/bin/semaphore` (still the image `CMD`, so options need the full command) | No: update any `command:` / `docker run ... /go-feature-flag` override |
 | Image `thomaspoignant/go-feature-flag` | `ghcr.io/blackbirdworks/semaphore` | No (different registry) |
 | Image `thomaspoignant/go-feature-flag-cli` | `ghcr.io/blackbirdworks/semaphore-cli` | No |
 | Relay proxy config file `goff-proxy.<yaml\|toml\|json\|yml>` | `semaphore-proxy.<yaml\|toml\|json\|yml>` | Yes, searched after the new name in every folder; warns once |

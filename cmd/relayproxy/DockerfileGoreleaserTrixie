@@ -4,4 +4,3 @@ COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
 CMD ["/usr/local/bin/semaphore"]
-COPY rules/LICENSE /licenses/rules-LICENSE
