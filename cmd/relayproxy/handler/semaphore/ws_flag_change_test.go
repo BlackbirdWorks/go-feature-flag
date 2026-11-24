@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
@@ -145,9 +145,8 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			log := slog.New(slog.DiscardHandler)
 			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), log)
-
-			e := echo.New()
-			e.GET("/ws/v1/flag/change", ctrl.Handler)
+			e := http.NewServeMux()
+			e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
@@ -248,9 +247,8 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	}()
 
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
-
-	e := echo.New()
-	e.GET("/ws/v1/flag/change", ctrl.Handler)
+	e := http.NewServeMux()
+	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
@@ -340,9 +338,8 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	}()
 
 	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
-
-	e := echo.New()
-	e.GET("/ws/v1/flag/change", ctrl.LegacyHandler)
+	e := http.NewServeMux()
+	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.LegacyHandler, false))
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
@@ -381,19 +378,21 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		handler        func(*controller.WSFlagChange) echo.HandlerFunc
+		handler        func(*controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error
 		wantFlag       string
 		wantAbsentFlag string
 	}{
 		{
 			name:           "handler",
-			handler:        func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			handler:        func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error { return c.Handler },
 			wantFlag:       "right-flag",
 			wantAbsentFlag: "wrong-flag",
 		},
 		{
-			name:           "legacy handler",
-			handler:        func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			name: "legacy handler",
+			handler: func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error {
+				return c.LegacyHandler
+			},
 			wantFlag:       "right-flag",
 			wantAbsentFlag: "wrong-flag",
 		},
@@ -410,9 +409,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 
 			flagsetMgr := &mockFlagsetManagerSSE{flagsetName: "flagsetA", isDefault: false}
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
-
-			e := echo.New()
-			e.GET("/ws", tt.handler(ctrl))
+			e := http.NewServeMux()
+			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
@@ -478,29 +476,33 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		handler    func(*controller.WSFlagChange) echo.HandlerFunc
+		handler    func(*controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error
 		query      string
 		wantStatus int
 	}{
 		{
 			name:       "handler: no apiKey",
-			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			handler:    func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error { return c.Handler },
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "handler: apiKey not associated to a flagset",
-			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.Handler },
+			handler:    func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error { return c.Handler },
 			query:      "?apiKey=unknown",
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "legacy handler: no apiKey",
-			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			name: "legacy handler: no apiKey",
+			handler: func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error {
+				return c.LegacyHandler
+			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "legacy handler: apiKey not associated to a flagset",
-			handler:    func(c *controller.WSFlagChange) echo.HandlerFunc { return c.LegacyHandler },
+			name: "legacy handler: apiKey not associated to a flagset",
+			handler: func(c *controller.WSFlagChange) func(http.ResponseWriter, *http.Request) error {
+				return c.LegacyHandler
+			},
 			query:      "?apiKey=unknown",
 			wantStatus: http.StatusBadRequest,
 		},
@@ -517,9 +519,8 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 				err:       errNoFlagSetAssociated,
 			}
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
-
-			e := echo.New()
-			e.GET("/ws", tt.handler(ctrl))
+			e := http.NewServeMux()
+			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 

@@ -1,7 +1,7 @@
-status: 404
+status: 200
 Content-Type: application/json
 Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden
 ---
-"{\"message\":\"Not Found\"}\n"
+"{\"flags\":{\"test-flag\":{\"value\":false,\"timestamp\":1749988800,\"variationType\":\"Default\",\"trackEvents\":true,\"errorCode\":\"\",\"reason\":\"DEFAULT\",\"metadata\":{\"defaultValue\":false,\"description\":\"this is a simple feature flag\",\"issue-link\":\"https://jira.xxx/GOFF-01\"}},\"test-flag2\":{\"value\":false,\"timestamp\":1749988800,\"variationType\":\"Default\",\"trackEvents\":true,\"errorCode\":\"\",\"reason\":\"DEFAULT\",\"metadata\":{\"defaultValue\":false}}},\"valid\":true}\n"

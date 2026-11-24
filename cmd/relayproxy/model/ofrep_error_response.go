@@ -13,7 +13,7 @@ type OFREPEvaluateResponseError struct {
 }
 
 type OFREPCommonResponseError struct {
-	ErrorCode    flag.ErrorCode `json:"errorCode"`
+	ErrorCode    flag.ErrorCode `json:"errorCode"    enum:"PROVIDER_NOT_READY,FLAG_NOT_FOUND,PARSE_ERROR,TYPE_MISMATCH,GENERAL,INVALID_CONTEXT,TARGETING_KEY_MISSING,FLAG_CONFIG"` //nolint:lll // struct tags can not be wrapped
 	ErrorDetails string         `json:"errorDetails"`
 }
 

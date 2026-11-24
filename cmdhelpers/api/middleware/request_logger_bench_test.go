@@ -5,10 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
@@ -25,15 +23,13 @@ func BenchmarkRequestLogger(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			l, err := cmdlog.New("json", tc.level, cmdlog.WithWriter(discard{}))
 			require.NoError(b, err)
-			e := echo.New()
-			h := middleware.RequestLogger(l.Slog, true)(func(c *echo.Context) error { return c.String(tc.status, "") })
+			h := requestLogger(l.Slog, true)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
 			req := httptest.NewRequest(http.MethodGet, "/v1/feature/x/eval?a=b", nil)
 			b.ReportAllocs()
 			for b.Loop() {
-				c := e.NewContext(req, httptest.NewRecorder())
-				if handlerErr := h(c); handlerErr != nil {
-					require.NoError(b, handlerErr)
-				}
+				h.ServeHTTP(httptest.NewRecorder(), req)
 			}
 		})
 	}

@@ -8,11 +8,11 @@ import (
 	"net/http"
 
 	"github.com/dustin/go-humanize"
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
@@ -40,72 +40,49 @@ type FlagValidationResponse struct {
 // The unset (zero) limits are replaced by their default.
 func NewValidateFlags(
 	version string, metrics metric.Metrics, limits config.ValidateFlagsEndpoint,
-) Controller {
+) RawHandler {
 	return &validateFlags{version: version, metrics: metrics, limits: limits.WithDefaults()}
 }
 
 // Handler validates a flag file without loading it in the relay proxy.
-// @Summary      Validate a flag file
-// @Tags Admin API to manage Semaphore
-// @Description  Validates the flag file sent in the body of the request, using the same rules as the
-// @Description  `goff lint` command.
-// @Description  The flag file is not loaded, nothing is changed on the flags served by the relay proxy.
-// @Description  The format of the body is selected with the `Content-Type` header (`application/json`,
-// @Description  `application/yaml`, `application/x-yaml`, `text/yaml` or `application/toml`).
-// @Description  The maximum size of the body is configurable per format with `endpoints.validateFlags`
-// @Description  (defaults: 1 MiB for JSON, 64 KiB for YAML and TOML).
-// @Security     ApiKeyAuth
-// @Accept       json
-// @Accept       application/yaml
-// @Accept       application/x-yaml
-// @Accept       text/yaml
-// @Accept       application/toml
-// @Produce      json
-// @Param        data body object true "The flag file to validate"
-// @Success      200  {object} FlagValidationResponse "All the flags are valid"
-// @Failure      400  {object} modeldocs.HTTPErrorDoc "Unparseable body"
-// @Failure      413  {object} modeldocs.HTTPErrorDoc "Body too large"
-// @Failure      415  {object} modeldocs.HTTPErrorDoc "Missing or unsupported content type"
-// @Failure      422  {object} FlagValidationResponse "At least one flag is invalid"
-// @Router       /admin/v1/flags/validate [post]
-func (h *validateFlags) Handler(c *echo.Context) error {
-	outcome, err := h.validate(c)
+func (h *validateFlags) Handler(w http.ResponseWriter, r *http.Request) error {
+	outcome, err := h.validate(w, r)
 	h.metrics.IncValidateFlags(outcome)
 
 	return err
 }
 
 // validate runs the validation and returns the outcome used for the metric alongside the handler error.
-func (h *validateFlags) validate(c *echo.Context) (string, error) {
+func (h *validateFlags) validate(w http.ResponseWriter, r *http.Request) (string, error) {
 	const outcomeError = metric.ValidateFlagsOutcomeError
-	format, maxSize, ok := h.formatFromContentType(c.Request().Header.Get(echo.HeaderContentType))
+	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
 	if !ok {
-		return outcomeError, echo.NewHTTPError(
+		return outcomeError, helper.NewHTTPError(
 			http.StatusUnsupportedMediaType,
 			"unsupported or missing Content-Type, use application/json, application/yaml or application/toml",
 		)
 	}
 
-	if c.Request().ContentLength > maxSize {
-		return outcomeError, echo.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
+	if r.ContentLength > maxSize {
+		return outcomeError, helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
 	}
-	body := http.MaxBytesReader(c.Response(), c.Request().Body, maxSize)
+	body := http.MaxBytesReader(w, r.Body, maxSize)
 	data, err := io.ReadAll(body)
 	if err != nil {
 		if _, isMaxBytes := errors.AsType[*http.MaxBytesError](err); isMaxBytes {
-			return outcomeError, echo.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
+			return outcomeError, helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
 		}
 
-		return outcomeError, echo.NewHTTPError(http.StatusBadRequest, "impossible to read the request body")
+		return outcomeError, helper.NewHTTPError(http.StatusBadRequest, "impossible to read the request body")
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
-	_, span := tracer.Start(c.Request().Context(), "validateFlags")
+	_, span := tracer.Start(r.Context(), "validateFlags")
 	defer span.End()
 
 	flags, err := configfile.ParseConfig(data, format)
 	if err != nil {
-		return outcomeError, echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return outcomeError, helper.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	resp := FlagValidationResponse{
@@ -131,7 +108,7 @@ func (h *validateFlags) validate(c *echo.Context) (string, error) {
 		outcome = metric.ValidateFlagsOutcomeInvalid
 	}
 
-	return outcome, c.JSON(status, resp)
+	return outcome, helper.WriteJSON(w, status, resp)
 }
 
 // formatFromContentType returns the flag file format matching the content type and the maximum

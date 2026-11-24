@@ -1,7 +1,6 @@
 # The ignore list mirrors .github/ci-scripts/coverage-exclude.txt exactly
 # (checked by .github/ci-scripts/coverage.py --check-codecov).
 ignore:
-  - "cmd/relayproxy/docs/"
   - "rules/parser/jsonquery_lexer.go"
   - "rules/parser/jsonquery_parser.go"
   - "rules/parser/jsonquery_visitor.go"

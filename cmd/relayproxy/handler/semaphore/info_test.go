@@ -5,16 +5,15 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
@@ -98,12 +97,7 @@ func Test_info_Handler(t *testing.T) {
 			srv := service.NewMonitoring(flagsetManager)
 			infoCtrl := controller.NewInfo(srv)
 
-			e := echo.New()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/info", nil)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			res := infoCtrl.Handler(c)
+			out, res := infoCtrl.Handle(t.Context(), &struct{}{})
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
@@ -111,11 +105,14 @@ func Test_info_Handler(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
+			require.NoError(t, res)
+			assert.Equal(t, http.StatusOK, tt.want.httpCode)
 
 			// Parse the response JSON to check the structure
 			var response map[string]any
-			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			encoded, err := json.Marshal(out.Body)
+			require.NoError(t, err)
+			err = json.Unmarshal(encoded, &response)
 			require.NoError(t, err, "Response should be valid JSON")
 
 			// Check that cacheRefresh field exists and is a valid timestamp
@@ -161,18 +158,13 @@ func Test_info_Handler_Error(t *testing.T) {
 
 		infoCtrl := controller.NewInfo(mockMonitoring)
 
-		e := echo.New()
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/info", nil)
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		c := e.NewContext(req, rec)
-		res := infoCtrl.Handler(c)
+		_, res := infoCtrl.Handle(t.Context(), &struct{}{})
 
 		// Verify that the handler returns an error
 		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError := &echo.HTTPError{}
+		httpError := &helper.HTTPError{}
 		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")
@@ -191,18 +183,13 @@ func Test_info_Handler_Error(t *testing.T) {
 
 		infoCtrl := controller.NewInfo(mockMonitoring)
 
-		e := echo.New()
-		rec := httptest.NewRecorder()
-		req := httptest.NewRequest(http.MethodGet, "/info", nil)
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		c := e.NewContext(req, rec)
-		res := infoCtrl.Handler(c)
+		_, res := infoCtrl.Handle(t.Context(), &struct{}{})
 
 		// Verify that the handler returns an error
 		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError := &echo.HTTPError{}
+		httpError := &helper.HTTPError{}
 		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")

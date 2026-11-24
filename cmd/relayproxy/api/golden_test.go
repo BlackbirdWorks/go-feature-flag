@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -58,9 +59,7 @@ func jsonHeaders() map[string]string { return map[string]string{"Content-Type": 
 
 func withHeaders(extra map[string]string) map[string]string {
 	h := jsonHeaders()
-	for k, v := range extra {
-		h[k] = v
-	}
+	maps.Copy(h, extra)
 
 	return h
 }
@@ -83,14 +82,20 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(),
 		},
 		{
-			name: "collector_ok", method: http.MethodPost, path: "/v1/data/collector",
-			body:    `{"meta":{"app":"x"},"events":[{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1,"key":"test-flag","variation":"True","value":true,"default":false}]}`,
+			name:   "collector_ok",
+			method: http.MethodPost,
+			path:   "/v1/data/collector",
+			body: `{"meta":{"app":"x"},"events":[{"kind":"feature","contextKind":"user","userKey":"u",` +
+				`"creationDate":1,"key":"test-flag","variation":"True","value":true,"default":false}]}`,
 			headers: jsonHeaders(),
 		},
 		{name: "flag_change_ok", method: http.MethodGet, path: "/v1/flag/change"},
 		{name: "flag_change_304", method: http.MethodGet, path: "/v1/flag/change", followETag: true},
 		{
-			name: "configuration_ok", method: http.MethodPost, path: "/v1/flag/configuration", body: `{"flags":["test-flag"]}`,
+			name:    "configuration_ok",
+			method:  http.MethodPost,
+			path:    "/v1/flag/configuration",
+			body:    `{"flags":["test-flag"]}`,
 			headers: jsonHeaders(),
 		},
 		{
@@ -101,6 +106,7 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(), followETag: true,
 		},
 		{name: "swagger_index", method: http.MethodGet, path: "/swagger/index.html", headers: nil},
+		{name: "swagger_openapi", method: http.MethodGet, path: "/swagger/openapi.json", headers: nil},
 		{
 			name: "ofrep_bulk_ok", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody,
 			headers: jsonHeaders(),
@@ -138,7 +144,10 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(),
 		},
 		{
-			name: "allflags_wrong_type", method: http.MethodPost, path: "/v1/allflags", body: `{"evaluationContext":42}`,
+			name:    "allflags_wrong_type",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    `{"evaluationContext":42}`,
 			headers: jsonHeaders(),
 		},
 		{
@@ -225,7 +234,10 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_bulk_empty_body", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", headers: jsonHeaders(),
+			name:    "ofrep_bulk_empty_body",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags",
+			headers: jsonHeaders(),
 		},
 		{
 			name: "ofrep_bulk_text_plain", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody,
@@ -236,7 +248,14 @@ func goldenOpenCases() []goldenCase {
 			body: `{"context":{"targetingKey":"u","flags":["test-flag"]}}`, headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_eval_not_found", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/nope", body: ofrepBody,
+			name: "ofrep_eval_empty_key", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/", body: ofrepBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "ofrep_eval_not_found",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags/nope",
+			body:    ofrepBody,
 			headers: jsonHeaders(),
 		},
 		{
@@ -244,7 +263,10 @@ func goldenOpenCases() []goldenCase {
 			headers: jsonHeaders(),
 		},
 		{
-			name: "ofrep_eval_no_context", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag", body: `{}`,
+			name:    "ofrep_eval_no_context",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags/test-flag",
+			body:    `{}`,
 			headers: jsonHeaders(),
 		},
 		{
@@ -255,7 +277,12 @@ func goldenOpenCases() []goldenCase {
 			name: "ofrep_eval_no_etag", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag",
 			body: ofrepBody, headers: withHeaders(map[string]string{"If-None-Match": `"x"`}),
 		},
-		{name: "ws_bad_apikey_flagset", method: http.MethodGet, path: "/stream/v1/sse/flag/change?apiKey=zzz", headersOnly: true},
+		{
+			name:        "ws_bad_apikey_flagset",
+			method:      http.MethodGet,
+			path:        "/stream/v1/sse/flag/change?apiKey=zzz",
+			headersOnly: true,
+		},
 
 		// 404, 405, preflight and the other methods
 		{name: "notfound_root", method: http.MethodGet, path: "/"},
@@ -265,19 +292,79 @@ func goldenOpenCases() []goldenCase {
 		{name: "notfound_prefix_slash", method: http.MethodPost, path: "/v1/", body: `{}`, headers: jsonHeaders()},
 		{name: "notfound_swagger_dir", method: http.MethodGet, path: "/swagger"},
 		{name: "swagger_missing_file", method: http.MethodGet, path: "/swagger/nope.css"},
-		{name: "trailing_slash_allflags", method: http.MethodPost, path: "/v1/allflags/", body: flagBody, headers: jsonHeaders()},
+		{
+			name:    "trailing_slash_allflags",
+			method:  http.MethodPost,
+			path:    "/v1/allflags/",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
 		{name: "trailing_slash_health", method: http.MethodGet, path: "/health/"},
-		{name: "double_slash_allflags", method: http.MethodPost, path: "//v1/allflags", body: flagBody, headers: jsonHeaders()},
-		{name: "dot_segment_allflags", method: http.MethodPost, path: "/v1/./allflags", body: flagBody, headers: jsonHeaders()},
-		{name: "dotdot_segment_allflags", method: http.MethodPost, path: "/v1/x/../allflags", body: flagBody, headers: jsonHeaders()},
-		{name: "case_sensitive_path", method: http.MethodPost, path: "/V1/allflags", body: flagBody, headers: jsonHeaders()},
-		{name: "escaped_path_allflags", method: http.MethodPost, path: "/v1/all%66lags", body: flagBody, headers: jsonHeaders()},
-		{name: "escaped_slash_prefix", method: http.MethodPost, path: "/v1%2Fallflags", body: flagBody, headers: jsonHeaders()},
-		{name: "query_string_allflags", method: http.MethodPost, path: "/v1/allflags?x=1", body: flagBody, headers: jsonHeaders()},
+		{
+			name:    "double_slash_allflags",
+			method:  http.MethodPost,
+			path:    "//v1/allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "dot_segment_allflags",
+			method:  http.MethodPost,
+			path:    "/v1/./allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "dotdot_segment_allflags",
+			method:  http.MethodPost,
+			path:    "/v1/x/../allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "case_sensitive_path",
+			method:  http.MethodPost,
+			path:    "/V1/allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "escaped_path_allflags",
+			method:  http.MethodPost,
+			path:    "/v1/all%66lags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "escaped_slash_prefix",
+			method:  http.MethodPost,
+			path:    "/v1%2Fallflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "query_string_allflags",
+			method:  http.MethodPost,
+			path:    "/v1/allflags?x=1",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
 		{name: "method_get_allflags", method: http.MethodGet, path: "/v1/allflags"},
-		{name: "method_put_allflags", method: http.MethodPut, path: "/v1/allflags", body: flagBody, headers: jsonHeaders()},
+		{
+			name:    "method_put_allflags",
+			method:  http.MethodPut,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
 		{name: "method_delete_health", method: http.MethodDelete, path: "/health"},
-		{name: "method_post_flag_change", method: http.MethodPost, path: "/v1/flag/change", body: `{}`, headers: jsonHeaders()},
+		{
+			name:    "method_post_flag_change",
+			method:  http.MethodPost,
+			path:    "/v1/flag/change",
+			body:    `{}`,
+			headers: jsonHeaders(),
+		},
 		{name: "method_get_ofrep_bulk", method: http.MethodGet, path: "/ofrep/v1/evaluate/flags"},
 		{name: "method_get_ofrep_eval", method: http.MethodGet, path: "/ofrep/v1/evaluate/flags/test-flag"},
 		{name: "method_get_admin_refresh", method: http.MethodGet, path: "/admin/v1/retriever/refresh"},
@@ -350,13 +437,31 @@ func goldenAuthCases() []goldenCase {
 	}
 
 	return []goldenCase{
-		{name: "allflags_no_key", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: jsonHeaders()},
-		{name: "allflags_bearer_ok", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: bearer(goldenEvalKey)},
+		{
+			name:    "allflags_no_key",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
+		{
+			name:    "allflags_bearer_ok",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: bearer(goldenEvalKey),
+		},
 		{
 			name: "allflags_bearer_lower", method: http.MethodPost, path: "/v1/allflags", body: flagBody,
 			headers: map[string]string{"Authorization": "bearer " + goldenEvalKey, "Content-Type": "application/json"},
 		},
-		{name: "allflags_bearer_bad", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: bearer("zzz")},
+		{
+			name:    "allflags_bearer_bad",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: bearer("zzz"),
+		},
 		{
 			name: "allflags_basic_scheme", method: http.MethodPost, path: "/v1/allflags", body: flagBody,
 			headers: map[string]string{"Authorization": "Basic abc", "Content-Type": "application/json"},
@@ -369,25 +474,61 @@ func goldenAuthCases() []goldenCase {
 			name: "allflags_bearer_empty", method: http.MethodPost, path: "/v1/allflags", body: flagBody,
 			headers: map[string]string{"Authorization": "Bearer ", "Content-Type": "application/json"},
 		},
-		{name: "allflags_xapikey_ok", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: apiKey(goldenEvalKey)},
-		{name: "allflags_xapikey_bad", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: apiKey("zzz")},
+		{
+			name:    "allflags_xapikey_ok",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: apiKey(goldenEvalKey),
+		},
+		{
+			name:    "allflags_xapikey_bad",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: apiKey("zzz"),
+		},
 		{
 			name: "allflags_xapikey_bad_bearer_ok", method: http.MethodPost, path: "/v1/allflags", body: flagBody,
 			headers: map[string]string{
 				"X-API-Key": "zzz", "Authorization": "Bearer " + goldenEvalKey, "Content-Type": "application/json",
 			},
 		},
-		{name: "allflags_admin_key", method: http.MethodPost, path: "/v1/allflags", body: flagBody, headers: bearer(goldenAdminKey)},
-		{name: "eval_no_key", method: http.MethodPost, path: "/v1/feature/test-flag/eval", body: flagBody, headers: jsonHeaders()},
+		{
+			name:    "allflags_admin_key",
+			method:  http.MethodPost,
+			path:    "/v1/allflags",
+			body:    flagBody,
+			headers: bearer(goldenAdminKey),
+		},
+		{
+			name:    "eval_no_key",
+			method:  http.MethodPost,
+			path:    "/v1/feature/test-flag/eval",
+			body:    flagBody,
+			headers: jsonHeaders(),
+		},
 		{
 			name: "eval_ok_bearer", method: http.MethodPost, path: "/v1/feature/test-flag/eval", body: flagBody,
 			headers: bearer(goldenEvalKey),
 		},
-		{name: "collector_no_key", method: http.MethodPost, path: "/v1/data/collector", body: `{"events":[]}`, headers: jsonHeaders()},
+		{
+			name:    "collector_no_key",
+			method:  http.MethodPost,
+			path:    "/v1/data/collector",
+			body:    `{"events":[]}`,
+			headers: jsonHeaders(),
+		},
 		{name: "flag_change_no_key", method: http.MethodGet, path: "/v1/flag/change"},
 		{name: "flag_change_ok", method: http.MethodGet, path: "/v1/flag/change", headers: bearer(goldenEvalKey)},
 		{name: "configuration_no_key", method: http.MethodPost, path: "/v1/flag/configuration", headers: jsonHeaders()},
-		{name: "ofrep_bulk_no_key", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody, headers: jsonHeaders()},
+		{
+			name:    "ofrep_bulk_no_key",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags",
+			body:    ofrepBody,
+			headers: jsonHeaders(),
+		},
 		{
 			name: "ofrep_bulk_ok", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody,
 			headers: bearer(goldenEvalKey),
@@ -396,15 +537,31 @@ func goldenAuthCases() []goldenCase {
 			name: "ofrep_bulk_304", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags", body: ofrepBody,
 			headers: bearer(goldenEvalKey), followETag: true,
 		},
-		{name: "ofrep_eval_no_key", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag", body: ofrepBody, headers: jsonHeaders()},
+		{
+			name:    "ofrep_eval_no_key",
+			method:  http.MethodPost,
+			path:    "/ofrep/v1/evaluate/flags/test-flag",
+			body:    ofrepBody,
+			headers: jsonHeaders(),
+		},
 		{
 			name: "ofrep_eval_ok", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag", body: ofrepBody,
 			headers: bearer(goldenEvalKey),
 		},
 		{name: "manifest_no_key", method: http.MethodGet, path: "/openfeature/v0/manifest"},
 		{name: "manifest_ok", method: http.MethodGet, path: "/openfeature/v0/manifest", headers: bearer(goldenEvalKey)},
-		{name: "admin_refresh_eval_key", method: http.MethodPost, path: "/admin/v1/retriever/refresh", headers: bearer(goldenEvalKey)},
-		{name: "admin_refresh_ok", method: http.MethodPost, path: "/admin/v1/retriever/refresh", headers: bearer(goldenAdminKey)},
+		{
+			name:    "admin_refresh_eval_key",
+			method:  http.MethodPost,
+			path:    "/admin/v1/retriever/refresh",
+			headers: bearer(goldenEvalKey),
+		},
+		{
+			name:    "admin_refresh_ok",
+			method:  http.MethodPost,
+			path:    "/admin/v1/retriever/refresh",
+			headers: bearer(goldenAdminKey),
+		},
 		{
 			name: "admin_validate_ok", method: http.MethodPost, path: "/admin/v1/flags/validate",
 			headers: bearer(goldenAdminKey), body: `{"f":{"variations":{"a":1,"b":2},"defaultRule":{"variation":"a"}}}`,
@@ -428,8 +585,14 @@ func goldenAuthCases() []goldenCase {
 			body:    "[f]\n[f.variations]\na = 1\nb = 2\n[f.defaultRule]\nvariation = \"a\"\n",
 		},
 		{
-			name: "admin_validate_wrong_ct", method: http.MethodPost, path: "/admin/v1/flags/validate",
-			headers: map[string]string{"Authorization": "Bearer " + goldenAdminKey, "Content-Type": "text/plain"}, body: `{}`,
+			name:   "admin_validate_wrong_ct",
+			method: http.MethodPost,
+			path:   "/admin/v1/flags/validate",
+			headers: map[string]string{
+				"Authorization": "Bearer " + goldenAdminKey,
+				"Content-Type":  "text/plain",
+			},
+			body: `{}`,
 		},
 		{
 			name: "admin_validate_no_ct", method: http.MethodPost, path: "/admin/v1/flags/validate",
@@ -441,10 +604,19 @@ func goldenAuthCases() []goldenCase {
 		},
 		{name: "ws_no_key", method: http.MethodGet, path: "/stream/v1/ws/flag/change"},
 		{name: "ws_bad_key", method: http.MethodGet, path: "/stream/v1/ws/flag/change?apiKey=zzz"},
-		{name: "ws_ok_key_no_upgrade", method: http.MethodGet, path: "/stream/v1/ws/flag/change?apiKey=" + goldenEvalKey},
+		{
+			name:   "ws_ok_key_no_upgrade",
+			method: http.MethodGet,
+			path:   "/stream/v1/ws/flag/change?apiKey=" + goldenEvalKey,
+		},
 		{name: "ws_legacy_no_key", method: http.MethodGet, path: "/ws/v1/flag/change"},
 		{name: "sse_no_key", method: http.MethodGet, path: "/stream/v1/sse/flag/change"},
-		{name: "sse_ok_key", method: http.MethodGet, path: "/stream/v1/sse/flag/change?apiKey=" + goldenEvalKey, headersOnly: true},
+		{
+			name:        "sse_ok_key",
+			method:      http.MethodGet,
+			path:        "/stream/v1/sse/flag/change?apiKey=" + goldenEvalKey,
+			headersOnly: true,
+		},
 		{name: "health_no_key", method: http.MethodGet, path: "/health"},
 		{name: "info_no_key", method: http.MethodGet, path: "/info"},
 		{name: "metrics_no_key", method: http.MethodGet, path: "/metrics", noBody: true},
@@ -457,7 +629,7 @@ func Test_Golden_Open(t *testing.T) {
 	t.Parallel()
 	conf := testConfig(t)
 	conf.Version = goldenVersion
-	conf.EnableSwagger = true
+	conf.Swagger.Enabled = true
 	runGoldenCases(t, conf, "open", goldenOpenCases())
 }
 
@@ -500,6 +672,8 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 	t.Helper()
 	baseURL := startGoldenServer(t, conf)
 	t.Run("cases", func(t *testing.T) {
+		t.Parallel()
+
 		for _, tt := range cases {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -511,7 +685,7 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 
 					return
 				}
-				want, err := os.ReadFile(path) //nolint:gosec // a fixed testdata path
+				want, err := os.ReadFile(path)
 				require.NoError(t, err, "missing golden file, run with GOLDEN_UPDATE=1")
 				assert.Equal(t, string(want), got)
 			})
@@ -591,7 +765,7 @@ func recordGolden(t *testing.T, baseURL string, tt goldenCase) string {
 
 	resp := do(nil)
 	if tt.followETag {
-		etag := resp.Header.Get("Etag")
+		etag := resp.Header.Get("ETag")
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 		require.NotEmpty(t, etag, "the first response has no ETag")
@@ -653,7 +827,7 @@ func Test_Golden_HTTPMetrics(t *testing.T) {
 		_ = recordGolden(t, baseURL, r)
 	}
 
-	resp, err := http.Get(baseURL + "/metrics") //nolint:noctx // a local test server
+	resp, err := http.Get(baseURL + "/metrics")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var lines []string
@@ -681,7 +855,7 @@ func Test_Golden_HTTPMetrics(t *testing.T) {
 
 		return
 	}
-	want, err := os.ReadFile(path) //nolint:gosec // a fixed testdata path
+	want, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, string(want), got)
 }

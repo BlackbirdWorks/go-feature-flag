@@ -9,12 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
@@ -82,7 +82,7 @@ func assertValidateResult(
 ) {
 	t.Helper()
 	if wantStatus != http.StatusOK && wantStatus != http.StatusUnprocessableEntity {
-		var httpErr *echo.HTTPError
+		var httpErr *helper.HTTPError
 		require.ErrorAs(t, err, &httpErr)
 		assert.Equal(t, wantStatus, httpErr.Code)
 		if wantStatus == http.StatusRequestEntityTooLarge {
@@ -309,7 +309,6 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
 			ctrl := controller.NewValidateFlags("v1.2.3", metrics, tt.limits)
-			e := echo.New()
 			rec := httptest.NewRecorder()
 			req := httptest.NewRequestWithContext(
 				t.Context(), http.MethodPost, "/admin/v1/flags/validate", strings.NewReader(tt.body))
@@ -322,11 +321,10 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 				req.ContentLength = -1
 			}
 			if tt.contentType != "" {
-				req.Header.Set(echo.HeaderContentType, tt.contentType)
+				req.Header.Set("Content-Type", tt.contentType)
 			}
-			c := e.NewContext(req, rec)
 
-			err = ctrl.Handler(c)
+			err = ctrl.Handler(rec, req)
 			assert.Equal(t, map[string]float64{outcomeForStatus(tt.wantStatus): 1}, validateOutcomeCounts(t, metrics))
 			assertValidateResult(t, err, rec, tt.wantStatus, tt.wantValid, tt.altMessage, tt.wantErrors)
 		})

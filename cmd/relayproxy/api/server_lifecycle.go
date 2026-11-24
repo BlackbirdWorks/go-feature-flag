@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/labstack/echo/v5"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
@@ -22,6 +21,9 @@ import (
 
 // gracefulShutdownTimeout is the time given to in-flight requests to complete when the servers are stopped.
 const gracefulShutdownTimeout = 5 * time.Second
+
+// readTimeout is how long the server waits for a request to be read (a defence against slow clients).
+const readTimeout = 30 * time.Second
 
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
@@ -113,12 +115,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 		slog.String("socket", socketPath),
 		slog.String("version", s.config.Version))
 
-	err = echo.StartConfig{
-		Listener:        listener,
-		HideBanner:      true,
-		HidePort:        true,
-		GracefulTimeout: gracefulShutdownTimeout,
-	}.Start(ctx, s.apiEcho)
+	err = s.serve(ctx, s.apiHandler, listener, false, "error shutting down api server")
 	if err != nil {
 		s.fatal("Error starting relay proxy as unix socket", cmdlog.Err(err))
 	}
@@ -138,33 +135,59 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		slog.String("address", address),
 		slog.String("version", s.config.Version))
 
-	// Start blocks until ctx is cancelled and the graceful shutdown has drained the connections.
-	err := echo.StartConfig{
-		Address:         address,
-		Listener:        s.listener,
-		HideBanner:      true,
-		HidePort:        true,
-		GracefulTimeout: gracefulShutdownTimeout,
-		BeforeServeFunc: s.httpServerProtocols,
-		OnShutdownError: func(err error) {
-			s.logger.LogAttrs(context.Background(), slog.LevelError, "error shutting down api server", cmdlog.Err(err))
-		},
-	}.Start(ctx, s.apiEcho)
+	// serve blocks until ctx is cancelled and the graceful shutdown has drained the connections.
+	listener, err := s.listenOn(ctx, address, s.listener)
+	if err == nil {
+		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "error shutting down api server")
+	}
 	if err != nil {
 		s.fatal("Error starting relay proxy", cmdlog.Err(err))
 	}
 }
 
-// httpServerProtocols enables HTTP/2 over cleartext (h2c, prior knowledge) next to HTTP/1.1 when
-// server.enableH2C is set. Without it the server keeps net/http's default (HTTP/1.1 only).
-func (s *Server) httpServerProtocols(srv *http.Server) error {
-	if !s.config.Server.EnableH2C {
-		return nil
+// listenOn returns the listener the server was given, or else listens on the address.
+func (*Server) listenOn(ctx context.Context, address string, given net.Listener) (net.Listener, error) {
+	if given != nil {
+		return given, nil
 	}
-	var p http.Protocols
-	p.SetHTTP1(true)
-	p.SetUnencryptedHTTP2(true)
-	srv.Protocols = &p
+
+	return (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+}
+
+// serve serves the handler on the listener until ctx is done, then it gracefully shuts the server down: the
+// connections get gracefulShutdownTimeout to complete. With h2c, HTTP/2 over cleartext (prior knowledge) is served
+// next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
+func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c bool, shutdownMsg string) error {
+	srv := &http.Server{
+		Handler:  h,
+		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
+		// ReadTimeout is a defence against slow clients (gosec G112). There is no WriteTimeout: the streams
+		// (SSE, websocket) are long-lived.
+		ReadTimeout: readTimeout,
+	}
+	if h2c {
+		var p http.Protocols
+		p.SetHTTP1(true)
+		p.SetUnencryptedHTTP2(true)
+		srv.Protocols = &p
+	}
+
+	gCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		<-gCtx.Done()
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+		defer cancelShutdown()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			s.logger.LogAttrs(context.Background(), slog.LevelError, shutdownMsg, cmdlog.Err(err))
+		}
+	})
+	defer wg.Wait()
+
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
 
 	return nil
 }
@@ -174,16 +197,10 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
-	err := echo.StartConfig{
-		Address:         addressMonitoring,
-		Listener:        s.monitoringListener,
-		HideBanner:      true,
-		HidePort:        true,
-		GracefulTimeout: gracefulShutdownTimeout,
-		OnShutdownError: func(err error) {
-			s.logger.LogAttrs(context.Background(), slog.LevelError, "error stopping monitoring", cmdlog.Err(err))
-		},
-	}.Start(ctx, s.monitoringEcho)
+	listener, err := s.listenOn(ctx, addressMonitoring, s.monitoringListener)
+	if err == nil {
+		err = s.serve(ctx, s.monitoringHandler, listener, false, "error stopping monitoring")
+	}
 	if err != nil {
 		s.fatal("Error starting monitoring", cmdlog.Err(err))
 	}
@@ -198,7 +215,7 @@ func (s *Server) startAwsLambda() {
 // We need a dedicated function because it is called from tests as well, this is the
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
-	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsAPIGatewayBasePath(s.logger))
+	handlerMngr := newAwsLambdaHandlerManager(s.apiHandler, s.config.EffectiveAwsAPIGatewayBasePath(s.logger))
 
 	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.logger))
 }
@@ -221,7 +238,7 @@ func (s *Server) Stop(ctx context.Context) {
 
 // isMonitoringPortConfigured checks if the monitoring port is configured.
 func (s *Server) isMonitoringPortConfigured() bool {
-	return s.monitoringEcho != nil && s.config.EffectiveMonitoringPort(s.logger) > 0
+	return s.monitoringHandler != nil && s.config.EffectiveMonitoringPort(s.logger) > 0
 }
 
 // fatal logs the message at the fatal level and exits the process.

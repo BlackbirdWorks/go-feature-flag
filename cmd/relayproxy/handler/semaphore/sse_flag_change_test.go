@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
@@ -137,9 +137,8 @@ func Test_SSE_FlagChange(t *testing.T) {
 			}
 
 			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
-
-			e := echo.New()
-			e.GET("/stream/v1/sse/flag/change", ctrl.Handler)
+			e := http.NewServeMux()
+			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 			srv := httptest.NewServer(e)
 			defer srv.Close()
 
@@ -196,9 +195,8 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	}
 
 	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
-
-	e := echo.New()
-	e.GET("/stream/v1/sse/flag/change", ctrl.Handler)
+	e := http.NewServeMux()
+	e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 	srv := httptest.NewServer(e)
 	defer srv.Close()
 
@@ -296,9 +294,8 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			defer sseService.Close()
 
 			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr, slog.New(slog.DiscardHandler))
-
-			e := echo.New()
-			e.GET("/stream/v1/sse/flag/change", ctrl.Handler)
+			e := http.NewServeMux()
+			e.Handle("GET /stream/v1/sse/flag/change", helper.Handle(ctrl.Handler, false))
 			srv := httptest.NewServer(e)
 			defer srv.Close()
 

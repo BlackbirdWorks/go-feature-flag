@@ -3,14 +3,11 @@ package controller_test
 import (
 	"encoding/json"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -114,21 +111,12 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			e := echo.New()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/flag/change", nil)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			if tt.apiKey != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
-			}
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/flag/change")
-			handlerErr := ctrl.Handler(c)
+			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), in)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
-			assert.JSONEq(t, string(want), rec.Body.String())
-			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 
 			content, err = os.ReadFile(testdataDir + "/config_flags_v2.yaml")
 			require.NoError(t, err)
@@ -141,15 +129,13 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			require.NoError(t, err)
 			var after string
 			require.Eventually(t, func() bool {
-				rec2 := httptest.NewRecorder()
-				c2 := e.NewContext(req, rec2)
-				c2.SetPath("/v1/flag/change")
-				if handlerErr2 := ctrl.Handler(c2); handlerErr2 != nil {
+				out2, handlerErr2 := ctrl.Handle(t.Context(), in)
+				if handlerErr2 != nil {
 					return false
 				}
-				after = rec2.Body.String()
+				after = jsonOf(t, out2.Body)
 
-				return rec2.Code == http.StatusOK && !jsonEqual(after, string(want))
+				return !jsonEqual(after, string(want))
 			}, 30*time.Second, 50*time.Millisecond, "the answer never changed after the configuration change")
 			assert.JSONEq(t, string(wantAfter), after)
 		})
@@ -245,32 +231,20 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			e := echo.New()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/v1/flag/change", nil)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			if tt.apiKey != "" {
-				req.Header.Set("Authorization", "Bearer "+tt.apiKey)
-			}
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/flag/change")
-			handlerErr := ctrl.Handler(c)
+			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), in)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
 				testdataDir + "/flag_change/" + tt.wantFile,
 			)
-			assert.JSONEq(t, string(want), rec.Body.String())
-			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 
 			time.Sleep(1500 * time.Millisecond)
 
-			rec2 := httptest.NewRecorder()
-			c2 := e.NewContext(req, rec2)
-			c2.SetPath("/v1/flag/change")
-			handlerErr2 := ctrl.Handler(c2)
+			out2, handlerErr2 := ctrl.Handle(t.Context(), in)
 			require.NoError(t, handlerErr2)
-			assert.JSONEq(t, string(want), rec2.Body.String())
+			assert.JSONEq(t, string(want), jsonOf(t, out2.Body))
 		})
 	}
 }

@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -45,9 +45,9 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	f.Cleanup(flagsetManager.Close)
 
 	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
-	e := echo.New()
-	e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
-	e.POST("/ofrep/v1/evaluate/flags", ctrl.BulkEvaluate)
+	e := http.NewServeMux()
+	e.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+	e.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
 
 	f.Fuzz(func(t *testing.T, flagKey, body string, bulk bool) {
 		target := "/ofrep/v1/evaluate/flags/" + url.PathEscape(flagKey)
@@ -55,7 +55,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 			target = "/ofrep/v1/evaluate/flags"
 		}
 		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		e.ServeHTTP(rec, req)
 

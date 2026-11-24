@@ -177,25 +177,6 @@ jobs:
       - uses: $/.github/actions/setup-go
       - run: make vuln-check
 
-  swagger:
-    name: swagger
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - uses: $/.github/actions/setup-go
-      - run: make swagger
-      - name: Fail if the generated swagger docs are out of date
-        run: git diff --exit-code --stat
-
   # Test types run as separate parallel jobs; each calls the Makefile target a
   # developer runs locally. Every job writes a coverage profile (artifact, plus
   # Codecov when a CODECOV_TOKEN secret exists) under a distinct flag.
@@ -646,7 +627,6 @@ jobs:
       - lint
       - modules
       - vulncheck
-      - swagger
       - test-unit-root
       - test-integration
       - test-e2e

@@ -1,8 +1,7 @@
 package middleware
 
 import (
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
+	"net/http"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
@@ -15,35 +14,17 @@ const (
 	LegacyVersionHeaderName = "X-Gofeatureflag-Version"
 )
 
-// VersionHeaderConfig defines the configuration for the middleware.
-type VersionHeaderConfig struct {
-	Skipper          middleware.Skipper
-	RelayProxyConfig *config.Config
-}
-
 // VersionHeader is a middleware that adds the version of the relay proxy in the headers
-// VersionHeaderName and LegacyVersionHeaderName.
-func VersionHeader(cfg VersionHeaderConfig) echo.MiddlewareFunc {
-	// Use provided skipper or fallback to the default skipper.
-	skipper := cfg.Skipper
-	if skipper == nil {
-		skipper = DefaultVersionHeaderSkipper
-	}
-
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
-			if skipper(c) {
-				return next(c)
+// VersionHeaderName and LegacyVersionHeaderName, unless the configuration disables them.
+func VersionHeader(cfg *config.Config) Func {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !cfg.DisableVersionHeader {
+				h := w.Header()
+				h.Set(VersionHeaderName, cfg.Version)
+				h.Set(LegacyVersionHeaderName, cfg.Version)
 			}
-
-			c.Response().Header().Set(VersionHeaderName, cfg.RelayProxyConfig.Version)
-			c.Response().Header().Set(LegacyVersionHeaderName, cfg.RelayProxyConfig.Version)
-
-			return next(c)
-		}
+			next.ServeHTTP(w, r)
+		})
 	}
-}
-
-func DefaultVersionHeaderSkipper(_ *echo.Context) bool {
-	return false
 }

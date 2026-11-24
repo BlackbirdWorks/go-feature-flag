@@ -1,4 +1,6 @@
-status: 404
+status: 200
+Content-Type: application/json
+Etag: "77-acddbd6524b942c89c572237829efa3fef4c15de"
 Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden

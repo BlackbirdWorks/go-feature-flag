@@ -7,23 +7,12 @@ import (
 	"os"
 	"sync"
 
-	echootel "github.com/labstack/echo-otel/v5"
-	echoprometheus "github.com/labstack/echo-prometheus"
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
-	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
 
 type AuthMiddlewareType = string
@@ -53,9 +42,6 @@ func New(config *config.Config,
 	for _, opt := range opts {
 		opt(&s)
 	}
-	s.apiEcho = echo.New()
-	// what the framework logs itself (failed error handler, ...) goes through the same logger.
-	s.apiEcho.Logger = logger
 	s.initRoutes()
 
 	return s
@@ -92,144 +78,33 @@ func WithGlobalTelemetry() Option {
 	return func(s *Server) { s.installGlobalTelemetry = true }
 }
 
+// WithTracing sets the tracer provider and the propagator of the spans of the requests. Without it the server
+// uses the global ones of OpenTelemetry (the ones the telemetry installed at startup).
+func WithTracing(provider trace.TracerProvider, propagator propagation.TextMapPropagator) Option {
+	return func(s *Server) {
+		s.tracerProvider = provider
+		s.propagator = propagator
+	}
+}
+
 // Server is the struct that represents the API server.
 type Server struct {
-	otelService opentelemetry.OtelService
-	// listener is set by WithListener, the server then serves on it instead of listening on the configured address.
-	listener net.Listener
-	// monitoringListener is set by WithMonitoringListener, the monitoring server then serves on it.
-	monitoringListener net.Listener
-	config             *config.Config
-	apiEcho            *echo.Echo
-	monitoringEcho     *echo.Echo
-	logger             *slog.Logger
-	// exit is called after a fatal error was logged, see WithExit.
-	exit func()
-	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
-	// the servers started by StartWithContext.
-	stopRequested chan struct{}
-	stop          func()
-	// stopped is closed when StartWithContext returns.
-	stopped  chan struct{}
-	services service.Services
-	// installGlobalTelemetry is set by WithGlobalTelemetry.
+	otelService            opentelemetry.OtelService
+	tracerProvider         trace.TracerProvider
+	listener               net.Listener
+	monitoringListener     net.Listener
+	propagator             propagation.TextMapPropagator
+	apiHandler             http.Handler
+	monitoringHandler      http.Handler
+	logger                 *slog.Logger
+	stopRequested          chan struct{}
+	stop                   func()
+	stopped                chan struct{}
+	exit                   func()
+	config                 *config.Config
+	services               service.Services
 	installGlobalTelemetry bool
 }
 
-// initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy.
-func (s *Server) initRoutes() {
-	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
-	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))
-	s.apiEcho.Use(helpermiddleware.RequestLogger(s.logger, s.config.IsDebugEnabled()))
-	s.apiEcho.Use(middleware.BodyDumpWithConfig(middleware.BodyDumpConfig{
-		Skipper: bodyDumpSkipper(s.logger),
-		Handler: bodyDumpHandler(s.logger),
-	}))
-	if s.services.Metrics != (metric.Metrics{}) {
-		s.apiEcho.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
-			Subsystem:  metric.SubSystem,
-			Registerer: s.services.Metrics.Registry,
-			HistogramOptsFunc: func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
-				// Enable native histograms for all middleware histograms
-				// This provides higher-fidelity latency distributions while preserving
-				// classic histogram buckets for backward compatibility.
-				opts.NativeHistogramBucketFactor = 1.1
-				opts.NativeHistogramMaxBucketNumber = 160
-
-				return opts
-			},
-		}))
-	}
-	s.apiEcho.Use(corsMiddleware())
-
-	s.apiEcho.Use(custommiddleware.VersionHeader(custommiddleware.VersionHeaderConfig{
-		Skipper: func(_ *echo.Context) bool {
-			return s.config.DisableVersionHeader
-		},
-		RelayProxyConfig: s.config,
-	}))
-
-	s.apiEcho.Use(middleware.Recover())
-
-	// Init controllers
-	cAllFlags := controller.NewAllFlags(s.services.FlagsetManager, s.services.Metrics)
-	cFlagEval := controller.NewFlagEval(s.services.FlagsetManager, s.services.Metrics)
-	cFlagEvalOFREP := ofrep.NewOFREPEvaluate(
-		s.services.FlagsetManager,
-		s.services.Metrics,
-		s.config.OfrepEventStream,
-		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
-	)
-	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.logger)
-	cEvalDataCollector := controller.NewCollectEvalData(
-		s.services.FlagsetManager,
-		s.services.Metrics,
-		s.logger,
-	)
-	cRetrieverRefresh := controller.NewForceFlagsRefresh(
-		s.services.FlagsetManager,
-		s.services.Metrics,
-	)
-	cValidateFlags := controller.NewValidateFlags(
-		s.config.Version, s.services.Metrics, s.config.Endpoints.ValidateFlags)
-	cFlagChangeAPI := controller.NewAPIFlagChange(
-		s.services.FlagsetManager,
-		s.services.Metrics,
-	)
-	cFlagConfiguration := controller.NewAPIFlagConfiguration(
-		s.services.FlagsetManager,
-		s.services.Metrics,
-	)
-
-	// Init routes
-	userAuth := s.getAuthMiddleware(UserAuth)
-	adminAuth := s.getAuthMiddleware(AdminAuth)
-	s.addRelayRoutes(cAllFlags, cFlagEval, cEvalDataCollector, cFlagChangeAPI, cFlagConfiguration, userAuth)
-	s.addOFREPRoutes(cFlagEvalOFREP, userAuth)
-	s.addStreamRoutes()
-	s.addMonitoringRoutes()
-	s.addAdminRoutes(cRetrieverRefresh, cValidateFlags, adminAuth)
-	s.addManifestRoutes(cManifest, userAuth)
-}
-
-// corsMiddleware allows any origin and answers every preflight with a fixed list of methods.
-// AllowMethods is set explicitly because, when left empty, echo v5 answers the preflight with
-// the methods registered on the route, which would change the CORS contract of the relay proxy.
-func corsMiddleware() echo.MiddlewareFunc {
-	return middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"},
-		AllowMethods: []string{
-			http.MethodGet, http.MethodHead, http.MethodPut,
-			http.MethodPatch, http.MethodPost, http.MethodDelete,
-		},
-	})
-}
-
-func (s *Server) getAuthMiddleware(middlewareType AuthMiddlewareType) echo.MiddlewareFunc {
-	switch middlewareType {
-	case AdminAuth:
-		return custommiddleware.KeyAuthExtended(custommiddleware.KeyAuthExtendedConfig{
-			Validator: func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
-				return s.config.APIKeysAdminExists(key), nil
-			},
-			ErrorHandler: custommiddleware.AuthMiddlewareErrHandler,
-		})
-	default:
-		return custommiddleware.KeyAuthExtended(custommiddleware.KeyAuthExtendedConfig{
-			Validator: func(c *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
-				manager := s.services.FlagsetManager
-				if manager == nil || manager.IsDefaultFlagSet() {
-					return s.config.APIKeyExists(key), nil
-				}
-				// In flag set mode a key is accepted if it routes to a flag set: the routing is the single
-				// table, and the flag set resolved here is the one the handler uses.
-				// An admin key is accepted and then refused by the handler, as documented.
-				return helper.AuthenticateFlagSet(c, manager, key) || s.config.APIKeysAdminExists(key), nil
-			},
-			ErrorHandler: custommiddleware.AuthMiddlewareErrHandler,
-			Skipper: func(_ *echo.Context) bool {
-				return !s.config.IsAuthenticationEnabled()
-			},
-		})
-	}
-}
+// Handler returns the handler that serves the API listener.
+func (s *Server) Handler() http.Handler { return s.apiHandler }

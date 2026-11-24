@@ -1,34 +1,28 @@
 package controller
 
 import (
-	"net/http"
+	"context"
 
-	"github.com/labstack/echo/v5"
-
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
-type health struct {
+// Health is the controller of the health endpoint.
+type Health struct {
 	monitoringService service.Monitoring
 }
 
-// NewHealth is a constructor to create a new controller for the health method.
-func NewHealth(monitoring service.Monitoring) Controller {
-	return &health{
-		monitoringService: monitoring,
-	}
+// HealthOutput is the response of the health endpoint.
+type HealthOutput struct {
+	Body model.HealthResponse
 }
 
-// Handler is the entry point for this API
-// @Summary      Health
-// @Tags Monitoring
-// @Description Making a **GET** request to the URL path `/health` will tell you if the relay proxy is ready to serve
-// @Description traffic.
-// @Description
-// @Description This is useful especially for loadbalancer to know that they can send traffic to the service.
-// @Produce      json
-// @Success      200  {object}   model.HealthResponse
-// @Router       /health [get]
-func (h *health) Handler(c *echo.Context) error {
-	return c.JSON(http.StatusOK, h.monitoringService.Health())
+// NewHealth is a constructor to create a new controller for the health method.
+func NewHealth(monitoring service.Monitoring) *Health {
+	return &Health{monitoringService: monitoring}
+}
+
+// Handle tells if the relay proxy is ready to serve traffic.
+func (h *Health) Handle(_ context.Context, _ *struct{}) (*HealthOutput, error) {
+	return &HealthOutput{Body: h.monitoringService.Health()}, nil
 }

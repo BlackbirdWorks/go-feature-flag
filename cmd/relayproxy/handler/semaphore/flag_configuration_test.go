@@ -4,18 +4,17 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -94,31 +93,24 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
-			e := echo.New()
-			rec := httptest.NewRecorder()
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/v1/flag/configuration",
-				strings.NewReader(string(requestBody)),
-			)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/flag/configuration")
-
 			// Call the handler
-			require.NoError(t, ctrl.Handler(c))
+			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
+				Request: controller.NewRequest("", "application/json"),
+				RawBody: requestBody,
+			})
+			require.NoError(t, handlerErr)
 
-			assert.Equal(t, tt.want.statusCode, rec.Code)
+			assert.Equal(t, tt.want.statusCode, out.Status)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, readFileErr := os.ReadFile(tt.want.bodyLocation)
 				require.NoError(t, readFileErr)
-				assert.JSONEq(t, string(wantBody), rec.Body.String())
+				assert.JSONEq(t, string(wantBody), jsonOf(t, out.Body))
 			}
 		})
 	}
@@ -227,34 +219,20 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
-			e := echo.New()
-			rec := httptest.NewRecorder()
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/v1/flag/configuration",
-				strings.NewReader(string(requestBody)),
-			)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-
-			// Add API key to header if provided
-			if tt.apiKey != "" {
-				req.Header.Set(echo.HeaderAuthorization, "Bearer "+tt.apiKey)
-			}
-
-			c := e.NewContext(req, rec)
-			c.SetPath("/v1/flag/configuration")
-
-			// Call the handler
-			err = ctrl.Handler(c)
+			// Call the handler, with the API key if provided
+			out, err := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
+				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				RawBody: requestBody,
+			})
 
 			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
 				require.Error(t, err, "handler should return an error for invalid API key")
-				he := &echo.HTTPError{}
+				he := &helper.HTTPError{}
 				ok := errors.As(err, &he)
 				if ok {
 					assert.Equal(t, tt.want.statusCode, he.Code)
@@ -264,12 +242,12 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.want.statusCode, rec.Code)
+			assert.Equal(t, tt.want.statusCode, out.Status)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, readFileErr := os.ReadFile(tt.want.bodyLocation)
 				require.NoError(t, readFileErr)
-				assert.JSONEq(t, string(wantBody), rec.Body.String())
+				assert.JSONEq(t, string(wantBody), jsonOf(t, out.Body))
 			}
 		})
 	}
@@ -351,21 +329,15 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			require.NoError(t, metricsErr)
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
-			req := httptest.NewRequest(
-				http.MethodPost,
-				"/v1/flag/configuration",
-				strings.NewReader(string(requestBody)),
-			)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			req.Header.Set(echo.HeaderAuthorization, "Bearer "+tt.apiKey)
-			rec := httptest.NewRecorder()
-			c := echo.New().NewContext(req, rec)
-			c.SetPath("/v1/flag/configuration")
-
-			handlerErr := ctrl.Handler(c)
-			statusCode := rec.Code
-			if handlerErr != nil {
-				var he *echo.HTTPError
+			out, handlerErr := ctrl.Handle(t.Context(), &controller.FlagConfigurationInput{
+				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				RawBody: requestBody,
+			})
+			var statusCode int
+			if handlerErr == nil {
+				statusCode = out.Status
+			} else {
+				var he *helper.HTTPError
 				require.ErrorAs(t, handlerErr, &he)
 				statusCode = he.Code
 			}

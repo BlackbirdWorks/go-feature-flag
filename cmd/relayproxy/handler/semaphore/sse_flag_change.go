@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/labstack/echo/v5"
-
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -18,7 +16,7 @@ func NewSSEFlagChange(
 	sseService stream.SSEService,
 	flagsetManager service.FlagsetManager,
 	logger *slog.Logger,
-) Controller {
+) RawHandler {
 	return &sseFlagChange{
 		sseService:     sseService,
 		flagsetManager: flagsetManager,
@@ -33,28 +31,11 @@ type sseFlagChange struct {
 }
 
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
-// @Summary      SSE endpoint to be notified about flag changes
-// @Tags         Semaphore Evaluation Stream API
-// @Description  Server-Sent Events endpoint pushing flag change notifications, following OpenFeature ADR-0008.
-// @Description  It is advertised in the `eventStreams` field of the OFREP bulk evaluation response.
-// @Description  Each event is sent as `event: message` with a `model.OFREPSSEEvent` JSON payload,
-// @Description  a `refetchEvaluation` event means that the provider must re-fetch its evaluations.
-// @Description  The stream also sends SSE comment lines (`: connected` when the connection opens,
-// @Description  `: heartbeat` every 30 seconds), they are ignored by SSE clients.
-// @Description  The full URL (including query string) is sensitive and must not be logged
-// @Description  or persisted by intermediaries.
-// @Produce      text/event-stream
-// @Param        apiKey query string false "apiKey to authorize the connection to the relay proxy"
-// @Success      200  {object} model.OFREPSSEEvent "SSE stream of OFREP flag change events"
-// @Failure      400  {object} modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      401  {object} modeldocs.HTTPErrorDoc "Unauthorized"
-// @Failure      500  {object} modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /stream/v1/sse/flag/change [get]
-func (h *sseFlagChange) Handler(c *echo.Context) error {
-	apiKey := c.QueryParam("apiKey")
-	flagsetName, err := helper.RequestFlagSetName(c, h.flagsetManager, apiKey)
+func (h *sseFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
+	apiKey := r.URL.Query().Get("apiKey")
+	flagsetName, err := helper.RequestFlagSetName(r.Context(), h.flagsetManager, apiKey)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	h.logger.LogAttrs(
@@ -69,12 +50,12 @@ func (h *sseFlagChange) Handler(c *echo.Context) error {
 	// We also need to delete the "apiKey" query parameter.
 	// This is because the r3labs/sse server will use the "stream" query parameter to route the
 	// request to the correct flagset. After that point the apiKey is not needed anymore, so we delete it.
-	q := c.Request().URL.Query()
+	q := r.URL.Query()
 	q.Set("stream", flagsetName)
 	q.Del("apiKey")
-	c.Request().URL.RawQuery = q.Encode()
+	r.URL.RawQuery = q.Encode()
 
-	h.sseService.ServeHTTP(c.Response(), c.Request())
+	h.sseService.ServeHTTP(w, r)
 
 	return nil
 }

@@ -21,7 +21,7 @@ It exposes the OFREP endpoints:
 | `POST /ofrep/v1/evaluate/flags`           | Bulk evaluation of all flags (client-side SDKs).               |
 
 See the [endpoints page](../relay-proxy/endpoints.md) and the OpenAPI documentation in
-`cmd/relayproxy/docs/swagger.yaml` for the details.
+`cmd/relayproxy/api/testdata/openapi.golden.json` for the details.
 
 Point the OFREP provider of your language at the base URL of the relay proxy (for example `http://localhost:1031`).
 If you configured [API keys](../relay-proxy/configuration.md), pass the key to the provider as the `X-API-Key` header or as

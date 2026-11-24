@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,14 +18,13 @@ import (
 )
 
 // invoke runs the handler once the way the router would, without any network.
-func invoke(b *testing.B, e *echo.Echo, h func(*echo.Context) error, ep relay.Endpoint, key string, i int) {
+func invoke(b *testing.B, h func(http.ResponseWriter, *http.Request) error, ep relay.Endpoint, key string, i int) {
 	b.Helper()
 	req := httptest.NewRequest(http.MethodPost, ep.Path(key), strings.NewReader(ep.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.SetPathValues(echo.PathValues{{Name: "flagKey", Value: key}})
-	if err := h(c); err != nil {
+	req.SetPathValue("flagKey", key)
+	if err := h(rec, req); err != nil {
 		assert.NoError(b, err)
 
 		return
@@ -47,13 +45,12 @@ func BenchmarkHandlers(b *testing.B) {
 	semEval := controller.NewFlagEval(fm, metrics)
 	semAll := controller.NewAllFlags(fm, metrics)
 	ofrepCtrl := ofrep.NewOFREPEvaluate(fm, metrics, config.OfrepEventStream{})
-	handlers := map[relay.Endpoint]func(*echo.Context) error{
+	handlers := map[relay.Endpoint]func(http.ResponseWriter, *http.Request) error{
 		relay.SemaphoreEval:     semEval.Handler,
 		relay.SemaphoreAllFlags: semAll.Handler,
 		relay.OFREPEval:         ofrepCtrl.Evaluate,
 		relay.OFREPBulk:         ofrepCtrl.BulkEvaluate,
 	}
-	e := echo.New()
 	for _, ep := range relay.Endpoints() {
 		for _, track := range []bool{false, true} {
 			if (ep == relay.SemaphoreAllFlags || ep == relay.OFREPBulk) && track {
@@ -64,7 +61,7 @@ func BenchmarkHandlers(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/track=%t", ep, track), func(b *testing.B) {
 				b.ReportAllocs()
 				for i := range b.N {
-					invoke(b, e, h, ep, key, i)
+					invoke(b, h, ep, key, i)
 				}
 			})
 			b.Run(fmt.Sprintf("%s/track=%t/parallel", ep, track), func(b *testing.B) {
@@ -73,7 +70,7 @@ func BenchmarkHandlers(b *testing.B) {
 					i := 0
 					for pb.Next() {
 						i++
-						invoke(b, e, h, ep, key, i)
+						invoke(b, h, ep, key, i)
 					}
 				})
 			})

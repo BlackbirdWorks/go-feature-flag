@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -39,8 +38,7 @@ func Test_bodyDumpSkipper(t *testing.T) {
 			core, _ := slogutil.NewObserver(tt.level)
 			skipper := bodyDumpSkipper(core)
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, tt.path, nil)
-			c := echo.New().NewContext(req, httptest.NewRecorder())
-			assert.Equal(t, tt.want, skipper(c))
+			assert.Equal(t, tt.want, skipper(req))
 		})
 	}
 }
@@ -53,7 +51,7 @@ func Test_bodyDumpHandler_smallBody(t *testing.T) {
 
 	body := []byte("small body")
 	handler := bodyDumpHandler(logger)
-	handler(nil, body, nil, nil)
+	handler(nil, body)
 
 	logs := recorded.All()
 	assert.Len(t, logs, 1)
@@ -70,7 +68,7 @@ func Test_bodyDumpHandler_largeBody(t *testing.T) {
 
 	body := []byte(strings.Repeat("x", 20*1024)) // 20KB
 	handler := bodyDumpHandler(logger)
-	handler(nil, body, nil, nil)
+	handler(nil, body)
 
 	logs := recorded.All()
 	assert.Len(t, logs, 1)
@@ -92,7 +90,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			handler(nil, body, nil, nil)
+			handler(nil, body)
 		}
 	})
 
@@ -102,7 +100,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			handler(nil, body, nil, nil)
+			handler(nil, body)
 		}
 	})
 }

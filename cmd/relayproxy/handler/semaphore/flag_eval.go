@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -26,44 +25,22 @@ type flagEval struct {
 	metrics     metric.Metrics
 }
 
-func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) Controller {
+func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) RawHandler {
 	return &flagEval{
 		flagsetMngr: flagsetMngr,
 		metrics:     metrics,
 	}
 }
 
-// Handler is the entry point for the flag eval endpoint
-// @Summary     Evaluate a feature flag
-// @Tags Semaphore Evaluation API
-// @Description Making a **POST** request to the URL `/v1/feature/<your_flag_name>/eval` will give you the value of the
-// @Description flag for this user.
-// @Description
-// @Description To get a variation you should provide information about the user:
-// @Description - User information in JSON in the request body.
-// @Description - A default value in case there is an error while evaluating the flag.
-// @Description
-// @Description Note that you will always have a usable value in the response, you can use the field `failed` to know if
-// @Description an issue has occurred during the validation of the flag, in that case the value returned will be the
-// @Description default value.
-// @Security     ApiKeyAuth
-// @Security     XApiKeyAuth
-// @Produce      json
-// @Accept	 	 json
-// @Param 		 data body model.EvalFlagRequest true "Evaluation context and default value for the flag."
-// @Param        flag_key path string true "Name of your feature flag"
-// @Success      200  {object} modeldocs.EvalFlagDoc "Success"
-// @Failure      400 {object}  modeldocs.HTTPErrorDoc "Bad Request"
-// @Failure      500 {object}  modeldocs.HTTPErrorDoc "Internal server error"
-// @Router       /v1/feature/{flag_key}/eval [post]
-func (h *flagEval) Handler(c *echo.Context) error {
-	flagKey := helper.FlagKey(c)
+// Handler is the entry point for the flag eval endpoint.
+func (h *flagEval) Handler(w http.ResponseWriter, r *http.Request) error {
+	flagKey := r.PathValue("flagKey")
 	if flagKey == "" {
 		return errImpossibleToFindThe
 	}
 
 	reqBody := new(model.EvalFlagRequest)
-	if err := c.Bind(reqBody); err != nil {
+	if err := helper.BindBody(r, reqBody); err != nil {
 		return err
 	}
 
@@ -77,10 +54,10 @@ func (h *flagEval) Handler(c *echo.Context) error {
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
-	_, span := tracer.Start(c.Request().Context(), "flagEvaluation")
+	_, span := tracer.Start(r.Context(), "flagEvaluation")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetMngr)
+	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetMngr, helper.APIKey(r))
 	if httpErr != nil {
 		return httpErr
 	}
@@ -105,9 +82,9 @@ func (h *flagEval) Handler(c *echo.Context) error {
 		attribute.String("flagEvaluation.value", fmt.Sprintf("%v", flagValue.Value)),
 	)
 
-	if flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(c)); flagSetNameErr == nil {
+	if flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(r)); flagSetNameErr == nil {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 
-	return c.JSON(http.StatusOK, flagValue)
+	return helper.WriteJSON(w, http.StatusOK, flagValue)
 }

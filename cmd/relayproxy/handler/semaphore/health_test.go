@@ -1,13 +1,12 @@
 package controller_test
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -63,12 +62,7 @@ func Test_health_Handler(t *testing.T) {
 			srv := service.NewMonitoring(flagsetManager)
 			healthCtrl := controller.NewHealth(srv)
 
-			e := echo.New()
-			rec := httptest.NewRecorder()
-			req := httptest.NewRequest(http.MethodGet, "/health", nil)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			c := e.NewContext(req, rec)
-			res := healthCtrl.Handler(c)
+			out, res := healthCtrl.Handle(t.Context(), &struct{}{})
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
@@ -76,10 +70,12 @@ func Test_health_Handler(t *testing.T) {
 				return
 			}
 
+			require.NoError(t, res)
 			body, err := os.ReadFile(tt.want.bodyFile)
 			require.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
-			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
-			assert.JSONEq(t, string(body), rec.Body.String(), "Invalid response body")
+			got, err := json.Marshal(out.Body)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(body), string(got), "Invalid response body")
 		})
 	}
 }

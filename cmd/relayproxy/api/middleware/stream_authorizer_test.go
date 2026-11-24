@@ -1,88 +1,73 @@
 package middleware_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 )
+
+// namedManager is a flag set manager that routes the keys of names to a flag set name.
+type namedManager struct {
+	mock.MockFlagsetManager
+
+	names map[string]string
+}
+
+func (m *namedManager) FlagSetName(apiKey string) (string, error) {
+	if name, ok := m.names[apiKey]; ok {
+		return name, nil
+	}
+
+	return "", errNotFound
+}
 
 func TestStreamAuthorizer(t *testing.T) {
 	t.Parallel()
 
-	type args struct {
-		confAPIKey string
-		urlAPIKey  string
+	authenticated := func() *config.Config {
+		c := &config.Config{AuthorizedKeys: config.APIKeys{Evaluation: []string{"valid-api-key"}}}
+		c.ForceReloadAPIKeys()
+
+		return c
 	}
 	tests := []struct {
-		wantErr    error
-		args       args
-		name       string
-		wantBody   string
-		wantStatus int
+		manager     service.FlagsetManager
+		conf        *config.Config
+		name        string
+		query       string
+		wantBody    string
+		wantStatus  int
+		exposeError bool
 	}{
-		{
-			name: "valid apiKey",
-			args: args{
-				confAPIKey: "valid-api-key",
-				urlAPIKey:  "valid-api-key",
-			},
-			wantStatus: http.StatusOK,
-			wantBody:   "Authorized",
-		},
-		{
-			name: "invalid apiKey",
-			args: args{
-				confAPIKey: "valid-api-key",
-				urlAPIKey:  "invalid-api-key",
-			},
-			wantStatus: http.StatusUnauthorized,
-			wantErr:    echo.ErrUnauthorized,
-		},
+		{name: "valid apiKey", conf: authenticated(), query: "?apiKey=valid-api-key", wantStatus: http.StatusOK},
+		{name: "invalid apiKey", conf: authenticated(), query: "?apiKey=nope", wantStatus: http.StatusUnauthorized,
+			wantBody: `{"message":"Unauthorized"}` + "\n"},
+		{name: "invalid apiKey, debug", conf: authenticated(), query: "?apiKey=nope", exposeError: true,
+			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized","error":"Unauthorized"}` + "\n"},
+		{name: "authentication disabled", conf: &config.Config{}, wantStatus: http.StatusOK},
+		{name: "flag set key", conf: authenticated(), query: "?apiKey=k",
+			manager: &namedManager{names: map[string]string{"k": "t"}}, wantStatus: http.StatusOK},
+		{name: "unknown flag set key", conf: authenticated(), query: "?apiKey=k",
+			manager: &namedManager{}, wantStatus: http.StatusUnauthorized,
+			wantBody: `{"message":"Unauthorized"}` + "\n"},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			e := echo.New()
-			req := httptest.NewRequest(
-				http.MethodGet,
-				fmt.Sprintf("/stream?apiKey=%s", tt.args.urlAPIKey),
-				nil,
-			)
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			rec := httptest.NewRecorder()
-			c := e.NewContext(req, rec)
-			conf := &config.Config{
-				AuthorizedKeys: config.APIKeys{
-					Evaluation: []string{tt.args.confAPIKey},
-				},
+			h := middleware.StreamAuthorizer(tt.conf, tt.manager, tt.exposeError)(newOK())
+			rec := serve(h, httptest.NewRequest(http.MethodGet, "/stream"+tt.query, nil))
+			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantBody != "" {
+				assert.Equal(t, tt.wantBody, rec.Body.String())
 			}
-			conf.ForceReloadAPIKeys()
-			middleware := middleware2.StreamAuthorizer(conf, nil)
-			handler := middleware(func(c *echo.Context) error {
-				return c.String(http.StatusOK, "Authorized")
-			})
-
-			err := handler(c)
-
-			assert.Equal(t, tt.wantErr, err)
-			if tt.wantErr != nil {
-				var coder echo.HTTPStatusCoder
-				require.ErrorAs(t, err, &coder)
-				assert.Equal(t, tt.wantStatus, coder.StatusCode())
-			} else {
-				assert.Equal(t, tt.wantStatus, rec.Code)
-			}
-			assert.Equal(t, tt.wantBody, rec.Body.String())
 		})
 	}
 }

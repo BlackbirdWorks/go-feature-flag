@@ -1,6 +1,8 @@
-status: 404
+status: 200
+Content-Type: application/json
 Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
+X-Manifest-Capabilities: read
 X-Semaphore-Version: v0.0.0-golden
 ---
 ""

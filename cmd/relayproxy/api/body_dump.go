@@ -3,19 +3,17 @@ package api
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
-
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
 )
 
 // bodyDumpSkipper returns the skipper of the body dump middleware.
 // The dump is skipped for swagger, when the debug level is disabled, and for the flag file validation
 // endpoint to avoid buffering and logging the flag files sent to it.
-func bodyDumpSkipper(logger *slog.Logger) func(c *echo.Context) bool {
-	return func(c *echo.Context) bool {
-		path := c.Request().URL.Path
+func bodyDumpSkipper(logger *slog.Logger) func(r *http.Request) bool {
+	return func(r *http.Request) bool {
+		path := r.URL.Path
 
 		return strings.HasPrefix(path, "/swagger") ||
 			path == "/admin/v1/flags/validate" ||
@@ -25,7 +23,7 @@ func bodyDumpSkipper(logger *slog.Logger) func(c *echo.Context) bool {
 
 // bodyDumpHandler logs request bodies with truncation for large payloads.
 // Bodies larger than maxBodyLogSize are truncated and suffixed with a marker.
-func bodyDumpHandler(logger *slog.Logger) middleware.BodyDumpHandler {
+func bodyDumpHandler(logger *slog.Logger) func(r *http.Request, body []byte) {
 	maxBodyLogSize := 8192 // 8KiB
 	truncatedBodySuffix := []byte("... truncated ...")
 	truncatedSize := maxBodyLogSize + len(truncatedBodySuffix)
@@ -41,7 +39,7 @@ func bodyDumpHandler(logger *slog.Logger) middleware.BodyDumpHandler {
 		},
 	}
 
-	return func(_ *echo.Context, reqBody, _ []byte, _ error) {
+	return func(_ *http.Request, reqBody []byte) {
 		if len(reqBody) <= maxBodyLogSize {
 			logger.LogAttrs(
 				context.Background(),

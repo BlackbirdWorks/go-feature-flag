@@ -278,6 +278,16 @@ linters:
               desc: Use log/slog, cmdhelpers/log writes the logfmt format itself
             - pkg: github.com/samber/slog-zap
               desc: Use log/slog, there is no zap logger to bridge to
+        "no echo, gin, swaggo":
+          files:
+            - "$all"
+          deny:
+            - pkg: github.com/labstack/echo
+              desc: The relay proxy is served by net/http and huma (see issue #30), echo was removed
+            - pkg: github.com/gin-gonic
+              desc: The relay proxy is served by net/http (ServeMux) and huma, gin was tried and dropped (see issue #30)
+            - pkg: github.com/swaggo
+              desc: The OpenAPI document is generated from the huma operations, there are no swaggo annotations
         "non-test files":
           files:
             - "!$test"
@@ -559,8 +569,6 @@ linters:
     warn-unused: true
     # Generated files ("Code generated ... DO NOT EDIT") are skipped by default (generated: lax).
     paths:
-      # swag-generated OpenAPI docs
-      - (^|/)cmd/relayproxy/docs($|/)
       # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
       - (^|/)internal/koanfhttpprovider($|/)
       # files carried from upstream (UPSTREAM.md): kept verbatim so they can be re-synced
@@ -572,10 +580,7 @@ linters:
       - std-error-handling
       - common-false-positives
     rules:
-      # swag annotations are parsed by swag init, a trailing period would break them
-      - source: '^\s*// @\w+'
-        linters: [ godot ]
-      # swagger model-doc stubs (long annotation lines, never executed)
+      # documentation stubs of the OpenAPI document (long example lines, never executed)
       - path: 'cmd/relayproxy/modeldocs/'
         linters: [ lll, revive, godot, gochecknoglobals ]
       - text: 'should have a package comment'
