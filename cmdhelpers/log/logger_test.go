@@ -170,9 +170,11 @@ func callerPC(t *testing.T) uintptr {
 //
 //go:noinline
 func here() int {
-	_, _, line, _ := runtime.Caller(1)
+	var pcs [1]uintptr
+	runtime.Callers(2, pcs[:])
+	frame, _ := runtime.CallersFrames(pcs[:]).Next()
 
-	return line
+	return frame.Line
 }
 
 // logHere is small enough to be inlined into its caller: the caller field must still be the line of the record.
