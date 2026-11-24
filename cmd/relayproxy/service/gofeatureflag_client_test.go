@@ -1107,7 +1107,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 
 // Not parallel: the test uses t.Setenv.
 //
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	// no S3 is reachable: the point is that the flagset gets a private registry and releases it
 	t.Setenv("AWS_REGION", "us-east-1")

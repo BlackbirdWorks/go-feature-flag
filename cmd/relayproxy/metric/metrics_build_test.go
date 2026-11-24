@@ -15,7 +15,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable promversion.Version
+//nolint:paralleltest,tparallel // assigns to the package-level variable promversion.Version; removed by the service-object refactor (follow-up PR)
 func TestMetrics_BuildInfo(t *testing.T) {
 	version := "9.9.9"
 	promversion.Version = version

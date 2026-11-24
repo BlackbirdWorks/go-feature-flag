@@ -2,14 +2,14 @@ package flag
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-//nolint:paralleltest,tparallel // changes process-wide GOMAXPROCS
 func Test_constructMetadataParallel(t *testing.T) {
+	t.Parallel()
+
 	sharedMetadata := map[string]any{
 		"key1": "value1",
 	}
@@ -18,8 +18,6 @@ func Test_constructMetadataParallel(t *testing.T) {
 		name                  string
 		wantEvaluatedRuleName string
 	}
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// generate test cases
 	for i := range 10_000 {

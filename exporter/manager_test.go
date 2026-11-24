@@ -458,7 +458,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
 }
 
-//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 	// We are running the same test multiple times to have more chance to have a race condition.
 	for i := 1; i < 20; i++ {
@@ -520,7 +520,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // leaks one goroutine and the events it retains per client, which is unbounded for the relay
 // proxy since it builds a client per flagset on every hot reload.
 //
-//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
 func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 	const nbManagers = 50
 	goroutinesBefore := runtime.NumGoroutine()

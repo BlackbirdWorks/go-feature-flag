@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func TestNewSharedItems_DefaultConfigError(t *testing.T) {
 	t.Setenv("AWS_PROFILE", "this-profile-does-not-exist")
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")

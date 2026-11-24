@@ -64,8 +64,9 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // changes process-wide GOMAXPROCS
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing.T) {
+	t.Parallel()
+
 	c := newNikunjyEvaluatorCache()
 	const query = `group eq "match"`
 	ev, err := c.get(query)
@@ -197,7 +198,7 @@ func gcUntil(t *testing.T, condition func() bool, msg string) {
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
 
-//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators
+//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 	const (
 		removed   = `key eq "removed-by-reload"`

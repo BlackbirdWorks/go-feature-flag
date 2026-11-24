@@ -76,7 +76,7 @@ func TestOutput_PrintLines(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable pterm.Error
+//nolint:paralleltest,tparallel // assigns to the package-level variable pterm.Error; removed by the service-object refactor (follow-up PR)
 func TestPrintFatalAndExit(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()

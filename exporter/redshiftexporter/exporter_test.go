@@ -1017,7 +1017,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 	assert.NotContains(t, err.Error(), "secretsmanager")
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func TestExporter_InitClient(t *testing.T) {
 	tests := []struct {
 		name      string

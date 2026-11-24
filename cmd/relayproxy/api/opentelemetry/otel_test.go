@@ -23,7 +23,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -61,7 +61,7 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -175,7 +175,7 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // uses t.Setenv (process environment)
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInit(t *testing.T) {
 	logger := log.InitLogger().ZapLogger
 

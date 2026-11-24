@@ -78,7 +78,7 @@ func assertExpectedLog(t *testing.T, handler *slogassert.Handler, expectedLog st
 		"no log message containing %q was emitted", expectedLog)
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -395,7 +395,7 @@ func TestBoolVariation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -870,7 +870,7 @@ func TestBoolVariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64Variation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1188,7 +1188,7 @@ func TestFloat64Variation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64VariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1516,7 +1516,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1819,7 +1819,7 @@ func TestJSONArrayVariation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2140,7 +2140,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2426,7 +2426,7 @@ func TestJSONVariation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2667,7 +2667,7 @@ func TestJSONVariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2984,7 +2984,7 @@ func TestStringVariation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3223,7 +3223,7 @@ func TestStringVariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3540,7 +3540,7 @@ func TestIntVariation(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3821,7 +3821,7 @@ func TestIntVariationDetails(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestRawVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
