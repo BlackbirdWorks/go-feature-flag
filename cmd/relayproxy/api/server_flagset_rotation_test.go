@@ -237,7 +237,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 			}
 		})
 	}
-	for i := range 300 {
+	for i := range 301 {
 		if i%2 == 0 {
 			manager.OnConfigChange(&config.Config{FlagSets: stateTwo()})
 		} else {
@@ -250,9 +250,13 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	assert.Equal(t, int64(0), unexpected.Load(), "a key was authenticated and then failed, or got a wrong flag set")
 	assert.Positive(t, requests.Load())
 
-	// The last reload (an odd iteration) applied the first state: the keys really rotated back and forth.
+	// The last reload (an even iteration) applied the second state, which differs from the startup state: the
+	// keys really rotated and moved.
 	_, errOld := manager.FlagSet("old-key")
 	_, errNew := manager.FlagSet("new-key")
-	assert.NoError(t, errOld) //nolint:testifylint
-	assert.Error(t, errNew)   //nolint:testifylint
+	nameRotating, errRotating := manager.FlagSetName("rotating-key")
+	assert.Error(t, errOld)        //nolint:testifylint
+	assert.NoError(t, errNew)      //nolint:testifylint
+	assert.NoError(t, errRotating) //nolint:testifylint
+	assert.Equal(t, "b", nameRotating)
 }
