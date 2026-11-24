@@ -19,7 +19,7 @@ import (
 
 var (
 	errRequestTo                  = errors.New("request to")
-	errHttpDefaultTransportIs     = errors.New("http default transport is")
+	errHTTPDefaultTransportIs     = errors.New("http default transport is")
 	errClientCertificateAndClient = errors.New("client certificate and client key must be provided together")
 	errFailedToParseCA            = errors.New("failed to parse CA certificate")
 )
@@ -139,7 +139,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 		}
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHttpDefaultTransportIs, base)
+			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
 		}
 
 		tlsTransport := defaultTransport.Clone()

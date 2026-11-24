@@ -12,8 +12,8 @@ var (
 	errOfrepEventStreamInactivityDelaySecMustBe = errors.New(
 		"ofrepEventStream.inactivityDelaySec must be positive, got",
 	)
-	errOfrepEventStreamBaseUrlMustBe  = errors.New("ofrepEventStream.baseUrl must be an absolute http(s) URL")
-	errOfrepEventStreamBaseUrlMustNot = errors.New(
+	errOfrepEventStreamBaseURLMustBe  = errors.New("ofrepEventStream.baseUrl must be an absolute http(s) URL")
+	errOfrepEventStreamBaseURLMustNot = errors.New(
 		"ofrepEventStream.baseUrl must not contain a query or a fragment",
 	)
 )
@@ -51,10 +51,10 @@ func (o OfrepEventStream) IsValid() error {
 		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return errOfrepEventStreamBaseUrlMustBe
+		return errOfrepEventStreamBaseURLMustBe
 	}
 	if u.RawQuery != "" || u.Fragment != "" {
-		return errOfrepEventStreamBaseUrlMustNot
+		return errOfrepEventStreamBaseURLMustNot
 	}
 
 	return nil

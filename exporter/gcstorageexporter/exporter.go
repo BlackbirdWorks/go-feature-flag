@@ -18,7 +18,9 @@ import (
 )
 
 var (
-	errYouShouldSpecifyA = errors.New("you should specify a bucket.")
+	errYouShouldSpecifyA = errors.New(
+		"you should specify a bucket.",
+	) //nolint:staticcheck // ST1005: the text is observable
 )
 
 var _ exporter.Exporter = &Exporter{}

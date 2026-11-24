@@ -30,7 +30,7 @@ func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retEr
 			ret = false
 		}
 	}()
-	visitor := NewJsonQueryVisitorImpl(items)
+	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(tree)
 	debugErr = visitor.debugErr
 	if result == nil || visitor.err != nil {
@@ -515,7 +515,7 @@ func testProcessZeroValue(t *testing.T) {
 			t.Parallel()
 			var wantErr error
 			func() {
-				v := NewJsonQueryVisitorImpl(tt.items)
+				v := NewJSONQueryVisitorImpl(tt.items)
 				v.Visit(nil)
 				wantErr = v.err
 			}()

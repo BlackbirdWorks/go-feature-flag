@@ -4,7 +4,6 @@ package s3retrieverv2
 // downloader and lister fields. Not parallel because the subtests use t.Setenv.
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -102,7 +101,7 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 		require.NoError(t, err)
 		r.AwsConfig = &cfg
 	}
-	var ctx context.Context = t.Context()
+	ctx := t.Context()
 	if nilCtx {
 		ctx = nil
 	}

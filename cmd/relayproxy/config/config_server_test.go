@@ -498,9 +498,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "base path from server config",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "/api/v1",
+					AwsAPIGatewayBasePath: "/api/v1",
 				},
-				AwsApiGatewayBasePath: "",
+				AwsAPIGatewayBasePath: "",
 			},
 			wantBasePath:          "/api/v1",
 			wantDeprecationWarned: false,
@@ -509,9 +509,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "base path from deprecated top-level config",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "",
+					AwsAPIGatewayBasePath: "",
 				},
-				AwsApiGatewayBasePath: "/legacy/path",
+				AwsAPIGatewayBasePath: "/legacy/path",
 			},
 			wantBasePath:          "/legacy/path",
 			wantDeprecationWarned: true,
@@ -520,9 +520,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "server base path takes precedence over deprecated config",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "/api/v2",
+					AwsAPIGatewayBasePath: "/api/v2",
 				},
-				AwsApiGatewayBasePath: "/api/v1",
+				AwsAPIGatewayBasePath: "/api/v1",
 			},
 			wantBasePath:          "/api/v2",
 			wantDeprecationWarned: false,
@@ -531,9 +531,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "no base path set returns empty string",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "",
+					AwsAPIGatewayBasePath: "",
 				},
-				AwsApiGatewayBasePath: "",
+				AwsAPIGatewayBasePath: "",
 			},
 			wantBasePath:          "",
 			wantDeprecationWarned: false,
@@ -542,9 +542,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "complex base path",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "/dev/feature-flags/v1",
+					AwsAPIGatewayBasePath: "/dev/feature-flags/v1",
 				},
-				AwsApiGatewayBasePath: "",
+				AwsAPIGatewayBasePath: "",
 			},
 			wantBasePath:          "/dev/feature-flags/v1",
 			wantDeprecationWarned: false,
@@ -553,9 +553,9 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 			name: "nil logger does not panic",
 			config: &config.Config{
 				Server: config.Server{
-					AwsApiGatewayBasePath: "",
+					AwsAPIGatewayBasePath: "",
 				},
-				AwsApiGatewayBasePath: "/api",
+				AwsAPIGatewayBasePath: "/api",
 			},
 			wantBasePath:          "/api",
 			wantDeprecationWarned: false,
@@ -577,7 +577,7 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 				logger = zap.NewNop()
 			}
 
-			got := tt.config.EffectiveAwsApiGatewayBasePath(logger)
+			got := tt.config.EffectiveAwsAPIGatewayBasePath(logger)
 			assert.Equal(t, tt.wantBasePath, got)
 
 			if observedLogs != nil && tt.wantDeprecationWarned {

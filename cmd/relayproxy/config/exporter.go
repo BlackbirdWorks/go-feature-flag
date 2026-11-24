@@ -46,7 +46,7 @@ type ExporterConf struct {
 	ClusterIdentifier string `mapstructure:"clusterIdentifier" koanf:"clusteridentifier"`
 	WorkgroupName     string `mapstructure:"workgroupName"     koanf:"workgroupname"`
 	Database          string `mapstructure:"database"          koanf:"database"`
-	DbUser            string `mapstructure:"dbUser"            koanf:"dbuser"`
+	DBUser            string `mapstructure:"dbUser"            koanf:"dbuser"`
 	SecretArn         string `mapstructure:"secretArn"         koanf:"secretarn"`
 	AwsRegion         string `mapstructure:"awsRegion"         koanf:"awsregion"`
 }
@@ -159,10 +159,10 @@ func (c *ExporterConf) isValidRedshift() error {
 		return invalidExporterf(
 			"exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"%s\"", c.Kind)
 	}
-	if c.DbUser != "" && c.WorkgroupName != "" {
+	if c.DBUser != "" && c.WorkgroupName != "" {
 		return invalidExporterf("\"dbUser\" cannot be used with \"workgroupName\" for kind \"%s\"", c.Kind)
 	}
-	if c.DbUser != "" && c.SecretArn != "" {
+	if c.DBUser != "" && c.SecretArn != "" {
 		return invalidExporterf("\"dbUser\" and \"secretArn\" are mutually exclusive for kind \"%s\"", c.Kind)
 	}
 	if !redshiftexporter.IsValidTableName(c.TableName) {

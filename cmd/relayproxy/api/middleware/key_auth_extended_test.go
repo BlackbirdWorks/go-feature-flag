@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	errDbConnectionLost = errors.New("db connection lost")
+	errDBConnectionLost = errors.New("db connection lost")
 )
 
 func TestKeyAuthExtended(t *testing.T) {
@@ -419,7 +419,7 @@ func TestKeyAuthExtended_InvalidXAPIKey_NilErrorHandler(t *testing.T) {
 func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 	t.Parallel()
 
-	validatorErr := errDbConnectionLost
+	validatorErr := errDBConnectionLost
 	failingValidator := func(_ *echo.Context, _ string, _ middleware.ExtractorSource) (bool, error) {
 		return false, validatorErr
 	}

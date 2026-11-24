@@ -291,7 +291,7 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		{
 			name:  "TTL expiry lists again and only the changed item is downloaded",
 			items: map[string]time.Duration{"p1/dev/flags.yaml": 20 * time.Second, "p1/prod/flags.yaml": time.Minute},
-			run:   runTtlExpiry,
+			run:   runTTLExpiry,
 		},
 		{
 			name:  "short polling interval uses the 1s minimum TTL",
@@ -501,7 +501,7 @@ func runCommonPrefix(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Sh
 	assert.ElementsMatch(t, []string{"p1/"}, b.prefixes)
 }
 
-func runTtlExpiry(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
+func runTTLExpiry(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
 	dev, prod := r["p1/dev/flags.yaml"], r["p1/prod/flags.yaml"]
 	_, err := dev.Retrieve(t.Context())

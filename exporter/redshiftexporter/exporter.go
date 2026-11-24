@@ -183,9 +183,9 @@ type Exporter struct {
 	// Database is the name of the database receiving the events.
 	Database string
 
-	// DbUser is the database user, used with ClusterIdentifier to get temporary credentials.
-	// If DbUser and SecretArn are empty, the database user is derived from the IAM identity.
-	DbUser string
+	// DBUser is the database user, used with ClusterIdentifier to get temporary credentials.
+	// If DBUser and SecretArn are empty, the database user is derived from the IAM identity.
+	DBUser string
 
 	// SecretArn is the ARN of an AWS Secrets Manager secret containing the database credentials.
 	SecretArn string
@@ -385,8 +385,8 @@ func (e *Exporter) run(ctx context.Context, sqls []string, params []types.SqlPar
 	if e.WorkgroupName != "" {
 		input.WorkgroupName = aws.String(e.WorkgroupName)
 	}
-	if e.DbUser != "" {
-		input.DbUser = aws.String(e.DbUser)
+	if e.DBUser != "" {
+		input.DbUser = aws.String(e.DBUser)
 	}
 	if e.SecretArn != "" {
 		input.SecretArn = aws.String(e.SecretArn)

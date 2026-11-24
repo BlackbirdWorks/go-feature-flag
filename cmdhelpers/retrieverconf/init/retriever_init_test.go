@@ -77,7 +77,7 @@ func Test_InitRetriever(t *testing.T) {
 				RepositorySlug: "thomaspoignant/go-feature-flag",
 				Path:           "testdata/flag-config.yaml",
 				Timeout:        20,
-				GithubToken:    "xxx",
+				GithubToken:    "xxx", //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			},
 			want: &githubretriever.Retriever{
 				RepositorySlug: "thomaspoignant/go-feature-flag",

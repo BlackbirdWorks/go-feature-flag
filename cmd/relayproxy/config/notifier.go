@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	errInvalidNotifierNoSlackWebhookUrl = errors.New("invalid notifier: no \"slackWebhookUrl\" property found for kind")
+	errInvalidNotifierNoSlackWebhookURL = errors.New("invalid notifier: no \"slackWebhookUrl\" property found for kind")
 	errInvalidNotifierNoWebhookURL      = errors.New("invalid notifier: no \"WebhookURL\" property found for kind")
-	errInvalidNotifierNoEndpointUrl     = errors.New("invalid notifier: no \"endpointUrl\" property found for kind")
-	errInvalidNotifierNoWebhookUrl      = errors.New("invalid notifier: no \"webhookUrl\" property found for kind")
+	errInvalidNotifierNoEndpointURL     = errors.New("invalid notifier: no \"endpointUrl\" property found for kind")
+	errInvalidNotifierNoLowerWebhookURL = errors.New("invalid notifier: no \"webhookUrl\" property found for kind")
 	errInvalidNotifierKind              = errors.New("invalid notifier: kind")
 )
 
@@ -29,7 +29,7 @@ func (c *NotifierConf) IsValid() error {
 		return err
 	}
 	if c.Kind == SlackNotifier && (c.SlackWebhookURL == "" && c.WebhookURL == "") {
-		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoSlackWebhookUrl,
+		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoSlackWebhookURL,
 			c.Kind,
 		)
 	}
@@ -39,12 +39,12 @@ func (c *NotifierConf) IsValid() error {
 		)
 	}
 	if c.Kind == WebhookNotifier && c.EndpointURL == "" {
-		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoEndpointUrl,
+		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoEndpointURL,
 			c.Kind,
 		)
 	}
 	if c.Kind == DiscordNotifier && c.WebhookURL == "" {
-		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoWebhookUrl,
+		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoLowerWebhookURL,
 			c.Kind,
 		)
 	}

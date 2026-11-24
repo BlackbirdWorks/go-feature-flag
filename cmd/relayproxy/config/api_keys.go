@@ -6,14 +6,14 @@ type APIKeys struct {
 	Evaluation []string `mapstructure:"evaluation" koanf:"evaluation"`
 }
 
-type ApiKeyType = string
+type APIKeyType = string
 
 // Enum for the type of the API keys.
 const (
-	EvaluationKeyType ApiKeyType = "EVALUATION"
-	AdminKeyType      ApiKeyType = "ADMIN"
-	FlagSetKeyType    ApiKeyType = "FLAGSET"
-	ErrorKeyType      ApiKeyType = "ERROR"
+	EvaluationKeyType APIKeyType = "EVALUATION"
+	AdminKeyType      APIKeyType = "ADMIN"
+	FlagSetKeyType    APIKeyType = "FLAGSET"
+	ErrorKeyType      APIKeyType = "ERROR"
 )
 
 // APIKeysAdminExists is checking if an admin API Key exist in the relay proxy configuration.
@@ -45,8 +45,8 @@ func (c *Config) IsAuthenticationEnabled() bool {
 // It assumes the caller holds the write lock (c.mutex.Lock()).
 // This function should never be called directly; use preloadAPIKeys() or ForceReloadAPIKeys() instead.
 func (c *Config) preloadAPIKeysLocked() {
-	apiKeySet := make(map[string]ApiKeyType)
-	addAPIKeys := func(keys []string, keyType ApiKeyType) {
+	apiKeySet := make(map[string]APIKeyType)
+	addAPIKeys := func(keys []string, keyType APIKeyType) {
 		for _, k := range keys {
 			apiKeySet[k] = keyType
 		}

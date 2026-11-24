@@ -210,7 +210,7 @@ func TestBoolVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -242,7 +242,7 @@ func TestBoolVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -306,7 +306,7 @@ func TestBoolVariation(t *testing.T) {
 			name: "No exported log",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -540,7 +540,7 @@ func TestBoolVariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -582,7 +582,7 @@ func TestBoolVariationDetails(t *testing.T) {
 			name: "Get rule name on metadata, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -624,7 +624,7 @@ func TestBoolVariationDetails(t *testing.T) {
 			name: "Get no rule name on metadata, rule apply has not name",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -662,7 +662,7 @@ func TestBoolVariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1006,7 +1006,7 @@ func TestFloat64Variation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1038,7 +1038,7 @@ func TestFloat64Variation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1102,7 +1102,7 @@ func TestFloat64Variation(t *testing.T) {
 			name: "No exported log",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1337,7 +1337,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1379,7 +1379,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1656,7 +1656,7 @@ func TestJSONArrayVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -1688,7 +1688,7 @@ func TestJSONArrayVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
@@ -1973,7 +1973,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2015,7 +2015,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
@@ -2286,7 +2286,7 @@ func TestJSONVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2318,7 +2318,7 @@ func TestJSONVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2534,7 +2534,7 @@ func TestJSONVariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2576,7 +2576,7 @@ func TestJSONVariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2818,7 +2818,7 @@ func TestStringVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -2850,7 +2850,7 @@ func TestStringVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3096,7 +3096,7 @@ func TestStringVariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3138,7 +3138,7 @@ func TestStringVariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3377,7 +3377,7 @@ func TestIntVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3409,7 +3409,7 @@ func TestIntVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3473,7 +3473,7 @@ func TestIntVariation(t *testing.T) {
 			name: "Convert float to Int",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3656,7 +3656,7 @@ func TestIntVariationDetails(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3698,7 +3698,7 @@ func TestIntVariationDetails(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -3740,7 +3740,7 @@ func TestIntVariationDetails(t *testing.T) {
 			name: "Convert float to Int",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -4014,7 +4014,7 @@ func TestRawVariation(t *testing.T) {
 			name: "Get true value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  map[string]any{"test123": "test"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -4056,7 +4056,7 @@ func TestRawVariation(t *testing.T) {
 			name: "Get false value, rule apply",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key-ssss1"),
+				evaluationCtx: anonymousContext("random-key-ssss1"),
 				defaultValue:  map[string]any{"test123": "test"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
@@ -4098,7 +4098,7 @@ func TestRawVariation(t *testing.T) {
 			name: "No exported log",
 			args: args{
 				flagKey:       "test-flag",
-				evaluationCtx: ffcontext.NewAnonymousEvaluationContext("random-key"),
+				evaluationCtx: anonymousContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
@@ -4315,4 +4315,11 @@ flag1:
 
 	allFlags3 := goff3.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags3.GetFlags()["flag1"].Value)
+}
+
+// anonymousContext builds the evaluation context with the deprecated constructor, which the tests keep covering.
+func anonymousContext(key string) ffcontext.EvaluationContext {
+	return ffcontext.NewAnonymousEvaluationContext(
+		key,
+	) //nolint:staticcheck // SA1019: the deprecated constructor is under test
 }

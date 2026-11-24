@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: the v1 pubsub exporter is under test
 	"cloud.google.com/go/pubsub/pstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,7 +203,7 @@ func TestExporter_Export(t *testing.T) {
 			t.Parallel()
 
 			server, client := newTestClient(t, ctx, projectID, topic)
-			var newClientFunc clientFactory = func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
+			newClientFunc := func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
 				return client, nil
 			}
 			if tt.fields.newClientFunc != nil {

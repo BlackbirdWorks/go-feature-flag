@@ -35,7 +35,7 @@ var (
 	errFlagsetNotFoundFor         = errors.New("flagset not found for API key")
 	errImpossibleToFindThe        = errors.New("impossible to find the flagset with the name")
 	errNoConfiguredFlagset        = errors.New("no configured flagset")
-	errApiKeyIsRequiredWhen       = errors.New("apiKey is required when using flagsets")
+	errAPIKeyIsRequiredWhen       = errors.New("apiKey is required when using flagsets")
 	errNoFlagSetAssociated        = errors.New("no flag set associated to the API key")
 	errNoFlagsetsConfigured       = errors.New("no flagsets configured")
 	errNoDefaultFlagsetConfigured = errors.New("no default flagset configured")
@@ -302,7 +302,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
-			return "", errApiKeyIsRequiredWhen
+			return "", errAPIKeyIsRequiredWhen
 		}
 		m.flagsetsMutex.RLock()
 		name, ok := m.FlagSetRouting[apiKey]

@@ -826,7 +826,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -837,7 +837,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"new-api-key"},
+			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
@@ -860,7 +860,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-authorized-key"},
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -874,7 +874,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-authorized-key"},
 			},
-			APIKeys: []string{"new-api-key"},
+			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
@@ -896,7 +896,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		// Preload API keys to initialize the internal API key set
 		cfg.ForceReloadAPIKeys()
@@ -906,7 +906,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets:  []config.FlagSet{},
 			Retriever: nil,
-			APIKeys:   []string{"new-api-key"},
+			APIKeys:   []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		assert.NotPanics(t, func() {

@@ -69,7 +69,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: port,
 				},
-				MonitoringPort: monitoringPort,
+				MonitoringPort: monitoringPort, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				EnablePprof:    tt.EnablePprof,
 			}
 

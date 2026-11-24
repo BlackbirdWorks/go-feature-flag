@@ -78,7 +78,7 @@ ffConfig := ffclient.Config{
             Exporter: &redshiftexporter.Exporter{
                 ClusterIdentifier: "my-cluster",
                 Database:          "analytics",
-                DbUser:            "semaphore_writer",
+                DBUser:            "semaphore_writer",
                 TableName:         "feature_flag_evaluations",
                 AwsConfig:         &awsConfig,
                 AutoMigrate:       true,
@@ -89,7 +89,7 @@ ffConfig := ffclient.Config{
             Exporter: &redshiftexporter.Exporter{
                 ClusterIdentifier: "my-cluster",
                 Database:          "analytics",
-                DbUser:            "semaphore_writer",
+                DBUser:            "semaphore_writer",
                 TableName:         "tracking_events",
                 AwsConfig:         &awsConfig,
                 AutoMigrate:       true,
@@ -107,8 +107,8 @@ defer client.Close()
 | `Database`          |  Yes   | **none**                                                           | Name of the Redshift database receiving the events.                                               |
 | `ClusterIdentifier` | No | **none**                                                           | Identifier of a provisioned Redshift cluster. Set either `ClusterIdentifier` or `WorkgroupName`.  |
 | `WorkgroupName`     | No | **none**                                                           | Name or ARN of a Redshift Serverless workgroup. Set either `ClusterIdentifier` or `WorkgroupName`.|
-| `DbUser`            | No | **none**                                                           | Database user used with `ClusterIdentifier` to get temporary credentials. It cannot be used with `WorkgroupName` or `SecretArn`. |
-| `SecretArn`         | No | **none**                                                           | ARN of an AWS Secrets Manager secret containing the database credentials. It cannot be used with `DbUser`. |
+| `DBUser`            | No | **none**                                                           | Database user used with `ClusterIdentifier` to get temporary credentials. It cannot be used with `WorkgroupName` or `SecretArn`. |
+| `SecretArn`         | No | **none**                                                           | ARN of an AWS Secrets Manager secret containing the database credentials. It cannot be used with `DBUser`. |
 | `TableName`         | No | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Table used by this exporter instance, it can be prefixed by a schema.                             |
 | `AwsConfig`         | No | **none**                                                           | AWS SDK configuration. If empty, the default AWS configuration is loaded.                         |
 | `AutoMigrate`       | No | `false`                                                            | When `true`, the exporter creates the table if it does not exist.                                 |

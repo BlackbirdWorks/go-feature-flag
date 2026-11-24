@@ -7,7 +7,7 @@ type NestedKeyNotFoundError struct {
 	Key string
 }
 
-// Implement the Error() method for the custom error type.
+// Error returns the text of the error.
 func (e *NestedKeyNotFoundError) Error() string {
 	return fmt.Sprintf("nested key not found: %s", e.Key)
 }

@@ -87,8 +87,8 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			z, err := zap.NewProduction()
 			require.NoError(t, err)
 			c := &config.Config{
-				StartAsAwsLambda: true,
-				AwsLambdaAdapter: tt.mode,
+				StartAsAwsLambda: true,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
+				AwsLambdaAdapter: tt.mode, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "file",
@@ -204,9 +204,9 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 			t.Parallel()
 
 			c := &config.Config{
-				StartAsAwsLambda:      true,
-				AwsLambdaAdapter:      "APIGatewayV2",
-				AwsApiGatewayBasePath: tt.basePath,
+				StartAsAwsLambda:      true,           //nolint:staticcheck // SA1019: the test covers the deprecated setting
+				AwsLambdaAdapter:      "APIGatewayV2", //nolint:staticcheck // SA1019: the test covers the deprecated setting
+				AwsAPIGatewayBasePath: tt.basePath,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			}
 			apiServer := New(c, commonServices, z)
 

@@ -57,12 +57,12 @@ type Server struct {
 	// default: APIGatewayV2
 	LambdaAdapter LambdaAdapter `mapstructure:"awsLambdaAdapter" koanf:"awsLambdaAdapter"`
 
-	// AwsApiGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
+	// AwsAPIGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
 	// This is useful when deploying behind a non-root path like "/api" or "/dev/feature-flags".
 	// The relay proxy will strip this base path from incoming requests before processing.
 	// Example: if set to "/api/feature-flags", requests to "/api/feature-flags/health" will be processed as "/health"
 	// Default: ""
-	AwsApiGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	AwsAPIGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
 }
 
 // EffectiveMonitoringPort returns the monitoring port, checking first the top-level config
@@ -150,20 +150,20 @@ func (c *Config) LambdaAdapter(logger *zap.Logger) LambdaAdapter {
 	return LambdaAdapterAPIGatewayV2
 }
 
-// EffectiveAwsApiGatewayBasePath returns the AWS API Gateway base path, checking first the server config
+// EffectiveAwsAPIGatewayBasePath returns the AWS API Gateway base path, checking first the server config
 // and then the top-level config, defaulting to empty string if not set.
-func (c *Config) EffectiveAwsApiGatewayBasePath(logger *zap.Logger) string {
-	if c.Server.AwsApiGatewayBasePath != "" {
-		return c.Server.AwsApiGatewayBasePath
+func (c *Config) EffectiveAwsAPIGatewayBasePath(logger *zap.Logger) string {
+	if c.Server.AwsAPIGatewayBasePath != "" {
+		return c.Server.AwsAPIGatewayBasePath
 	}
 
-	if c.AwsApiGatewayBasePath != "" {
+	if c.AwsAPIGatewayBasePath != "" {
 		if logger != nil {
 			logger.Warn("The AWS API Gateway base path is set using `awsApiGatewayBasePath`, " +
 				"this option is deprecated, please migrate to `server.awsApiGatewayBasePath`")
 		}
 
-		return c.AwsApiGatewayBasePath
+		return c.AwsAPIGatewayBasePath
 	}
 
 	return ""

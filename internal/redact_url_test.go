@@ -18,7 +18,7 @@ import (
 var (
 	errBoom                  = errors.New("boom")
 	errFailedToParseLocation = errors.New("failed to parse Location header")
-	errBadHttpsUSECRETMARKER = errors.New("bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here")
+	errBadHTTPSUSECRETMARKER = errors.New("bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here")
 	errRandomError           = errors.New("random error")
 )
 
@@ -30,7 +30,9 @@ func TestRedactURLError(t *testing.T) {
 	closedURL := closed.URL
 	closed.Close()
 
-	_, parseErr := url.Parse("https://{}hooks.example.com/SECRETMARKER-token")
+	_, parseErr := url.Parse(
+		"https://{}hooks.example.com/SECRETMARKER-token", //nolint:staticcheck // SA1007: the invalid URL is the point
+	)
 	require.Error(t, parseErr)
 	_, doErr := http.Get(closedURL + "/SECRETMARKER-token") //nolint:noctx // test of the error message only
 	require.Error(t, doErr)
@@ -70,7 +72,7 @@ func TestRedactURLError(t *testing.T) {
 			err: &url.Error{
 				Op:  "Get",
 				URL: secretURL,
-				Err: errBadHttpsUSECRETMARKER,
+				Err: errBadHTTPSUSECRETMARKER,
 			},
 		},
 		{

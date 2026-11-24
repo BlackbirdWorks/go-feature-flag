@@ -51,7 +51,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	e := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
-		DbUser:            "goff_writer",
+		DBUser:            "goff_writer",
 		TableName:         "feature_table",
 		client:            client,
 	}
@@ -1018,7 +1018,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 	e := &Exporter{
 		ClusterIdentifier: "my-cluster",
 		Database:          "analytics",
-		DbUser:            "goff_writer",
+		DBUser:            "goff_writer",
 		SecretArn:         "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
 		client:            client,
 	}

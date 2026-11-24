@@ -17,8 +17,12 @@ import (
 )
 
 var (
-	errYouShouldSpecifyAn = errors.New("you should specify an AccountName.")
-	errYouShouldSpecifyA  = errors.New("you should specify a container.")
+	errYouShouldSpecifyAn = errors.New(
+		"you should specify an AccountName.",
+	) //nolint:staticcheck // ST1005: the text is observable
+	errYouShouldSpecifyA = errors.New(
+		"you should specify a container.",
+	) //nolint:staticcheck // ST1005: the text is observable
 )
 
 var _ exporter.Exporter = &Exporter{}

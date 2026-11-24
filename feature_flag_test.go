@@ -142,9 +142,8 @@ func TestValidUseCaseToml(t *testing.T) {
 		LeveledLogger:   slog.Default(),
 		FileFormat:      "toml",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -162,9 +161,8 @@ func TestValidUseCaseJson(t *testing.T) {
 		LeveledLogger:   slog.Default(),
 		FileFormat:      "json",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -185,9 +183,8 @@ func TestValidUseCaseMultilineQueryJson(t *testing.T) {
 		LeveledLogger: slog.Default(),
 		FileFormat:    "json",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -204,6 +201,7 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 		LeveledLogger:   slog.Default(),
 	})
+	require.NoError(t, err)
 	defer gffClient1.Close()
 
 	gffClient2, err2 := ffclient.New(ffclient.Config{
@@ -211,11 +209,8 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/test-instance2.yaml"},
 		LeveledLogger:   slog.Default(),
 	})
+	require.NoError(t, err2)
 	defer gffClient2.Close()
-
-	// Init should be OK for both clients.
-	assert.NoError(t, err)
-	assert.NoError(t, err2)
 
 	user := ffcontext.NewEvaluationContext("random-key")
 
@@ -372,9 +367,8 @@ test-flag:
 		LeveledLogger:           slog.Default(),
 		StartWithRetrieverError: true,
 	})
-	defer gff.Close()
-
 	require.NoError(t, err, "should not return any error even if we can't retrieve the file")
+	defer gff.Close()
 
 	flagValue, _ := gff.StringVariation(
 		"test-flag",
@@ -407,8 +401,8 @@ func TestInvalidConf(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/invalid-flag-config.json"},
 		LeveledLogger:   slog.Default(),
 	})
-	defer gff.Close()
 	require.Error(t, err)
+	defer gff.Close()
 	assert.Equal(
 		t,
 		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, please check your configuration: yaml: line 43: did not find expected ',' or '}'",
@@ -450,9 +444,8 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config-big.yaml"},
 	})
-	defer gff.Close()
-
 	require.NoError(t, err)
+	defer gff.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gff.BoolVariation("test-flag99", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")

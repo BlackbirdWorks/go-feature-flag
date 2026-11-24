@@ -11,7 +11,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
-func TestVariationResultToJsonStr(t *testing.T) {
+func TestVariationResultToJSONStr(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -159,17 +159,17 @@ func TestVariationResultToJsonStr(t *testing.T) {
 			var jsonStr string
 			switch v := tt.result.(type) {
 			case model.VariationResult[bool]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			case model.VariationResult[string]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			case model.VariationResult[int]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			case model.VariationResult[float64]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			case model.VariationResult[map[string]any]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			case model.VariationResult[[]any]:
-				jsonStr = v.ToJsonStr()
+				jsonStr = v.ToJSONStr()
 			}
 
 			// Verify JSON is valid and matches expected

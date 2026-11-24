@@ -12,7 +12,7 @@ import (
 
 var (
 	errInvalidRule  = errors.New("invalid rule")
-	errInvalidRule2 = errors.New("Invalid rule")
+	errInvalidRule2 = errors.New("Invalid rule") //nolint:staticcheck // ST1005: the text is observable
 )
 
 // Evaluator evaluates a single parsed rule against attribute maps.
@@ -172,7 +172,7 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 }
 
 func (e *Evaluator) visit(items map[string]any) (bool, error) {
-	visitor := NewJsonQueryVisitorImpl(items)
+	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(e.tree)
 	e.setDebugErr(visitor.debugErr)
 	if result == nil || visitor.err != nil {

@@ -28,8 +28,8 @@ import (
 )
 
 var (
-	errApiKeyIsRequiredWhen = errors.New("apiKey is required when using flagsets")
-	errUnknownApiKey        = errors.New("unknown api key")
+	errAPIKeyIsRequiredWhen = errors.New("apiKey is required when using flagsets")
+	errUnknownAPIKey        = errors.New("unknown api key")
 )
 
 type mockFlagsetManagerSSE struct {
@@ -273,7 +273,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errApiKeyIsRequiredWhen,
+				err:       errAPIKeyIsRequiredWhen,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -282,7 +282,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "unknown-key",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errUnknownApiKey,
+				err:       errUnknownAPIKey,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},

@@ -505,7 +505,7 @@ func createAWSExporter(c *config.ExporterConf, d exporterDefaults) (exporter.Com
 			ClusterIdentifier: c.ClusterIdentifier,
 			WorkgroupName:     c.WorkgroupName,
 			Database:          c.Database,
-			DbUser:            c.DbUser,
+			DBUser:            c.DBUser,
 			SecretArn:         c.SecretArn,
 			TableName:         c.TableName,
 			AwsConfig:         &awsConfig,

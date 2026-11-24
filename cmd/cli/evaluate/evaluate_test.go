@@ -255,7 +255,7 @@ func Test_Evaluate(t *testing.T) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:           "github",
 					RepositorySlug: "thomaspoignant/go-feature-flag",
-					GithubToken:    "XXX_GH_TOKEN",
+					GithubToken:    "XXX_GH_TOKEN", //nolint:staticcheck // SA1019: the test covers the deprecated setting
 					Path:           "testdata/flag-config.yaml",
 				}, "test-flag", `{"targetingKey": "user-123"}`, func(r retriever.Retriever) {
 					gitHubRetriever, ok := r.(*githubretriever.Retriever)

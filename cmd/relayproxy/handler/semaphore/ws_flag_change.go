@@ -74,7 +74,7 @@ type WSFlagChange struct {
 	pingInterval time.Duration
 }
 
-// Handler is the entry point for the websocket endpoint to get notified when a flag has been edited
+// LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited
 // @Summary      Websocket endpoint to be notified about flag changes
 // @Tags         Semaphore Evaluation Stream API
 // @Deprecated

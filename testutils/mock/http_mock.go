@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	errHttpError = errors.New("http error")
+	errHTTPError = errors.New("http error")
 )
 
 type HTTP struct {
@@ -76,7 +76,7 @@ func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if strings.Contains(req.URL.String(), "error") {
-		return nil, errHttpError
+		return nil, errHTTPError
 	} else if strings.HasSuffix(req.URL.String(), "httpError") {
 		return errorResponse, nil
 	}

@@ -151,14 +151,14 @@ type Config struct {
 	// Deprecated: use `Server.LambdaAdapter` instead
 	AwsLambdaAdapter string `mapstructure:"awsLambdaAdapter" koanf:"awslambdaadapter"`
 
-	// AwsApiGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
+	// AwsAPIGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
 	// This is useful when deploying behind a non-root path like "/api" or "/dev/feature-flags".
 	// The relay proxy will strip this base path from incoming requests before processing.
 	// Example: if set to "/api/feature-flags", requests to "/api/feature-flags/health" will be processed as "/health"
 	// Default: ""
 	//
-	// Deprecated: use `Server.AwsApiGatewayBasePath` instead
-	AwsApiGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	// Deprecated: use `Server.AwsAPIGatewayBasePath` instead
+	AwsAPIGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
 	// ---------- End of deprecated fields ----------
 
 	// ---------- Private fields ----------
@@ -174,7 +174,7 @@ type Config struct {
 
 	// apiKeySet is the internal representation of an API keys list configured
 	// we store them in a set to be
-	apiKeysSet map[string]ApiKeyType
+	apiKeysSet map[string]APIKeyType
 
 	// hadFlagSets latches to true once the configuration has had a flag set: the relay proxy cannot switch
 	// between default and flag set mode at runtime, so a reload that leaves no running flag set (their
