@@ -34,7 +34,7 @@ const (
 // converted into an InternalFlag to be used in the library.
 type InternalFlag struct {
 	// Variations are all the variations available for this flag. You can have as many variation as needed.
-	Variations *map[string]*any `json:"variations,omitempty" yaml:"variations,omitempty" toml:"variations,omitempty"` //nolint:lll
+	Variations *map[string]*any `json:"variations,omitempty" yaml:"variations,omitempty" toml:"variations,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Rules is the list of Rule for this flag.
 	// This an optional field.
@@ -50,12 +50,12 @@ type InternalFlag struct {
 	// Experimentation is your struct to configure an experimentation, it will allow you to configure a start date and
 	// an end date for your flag.
 	// When the experimentation is not running, the flag will serve the default value.
-	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" yaml:"experimentation,omitempty" toml:"experimentation,omitempty"` //nolint: lll
+	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" yaml:"experimentation,omitempty" toml:"experimentation,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Scheduled is your struct to configure an update on some fields of your flag over time.
 	// You can add several steps that updates the flag, this is typically used if you want to gradually add more user
 	// in your flag.
-	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty"` //nolint: lll
+	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// TrackEvents is false if you don't want to export the data in your data exporter.
 	// Default value is true

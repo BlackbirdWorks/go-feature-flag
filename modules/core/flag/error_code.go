@@ -15,6 +15,6 @@ const (
 
 	// Custom error code for Semaphore.
 
-	// ErrorFlagConfiguration is returned when we were not able to use the flag because of a misconfiguration
+	// ErrorFlagConfiguration is returned when we were not able to use the flag because of a misconfiguration.
 	ErrorFlagConfiguration ErrorCode = "FLAG_CONFIG"
 )

@@ -721,7 +721,8 @@ func (g *SharedItems) nextDelay() time.Duration {
 		return g.interval
 	}
 	// not security sensitive: the jitter only spreads the requests
-	delay := g.interval + time.Duration((rand.Float64()*2*pollJitter-pollJitter)*float64(g.interval)) //nolint:gosec
+	jitter := rand.Float64()*2*pollJitter - pollJitter //nolint:gosec // G404: jitter, not security sensitive
+	delay := g.interval + time.Duration(jitter*float64(g.interval))
 	// the jitter must not go below the minimum interval
 	return max(delay, minSharedListingTTL)
 }

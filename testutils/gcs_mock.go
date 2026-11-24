@@ -1,7 +1,7 @@
 package testutils
 
 import (
-	"crypto/md5" //nolint: gosec
+	"crypto/md5" //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	"encoding/base64"
 	"os"
 	"testing"
@@ -43,7 +43,7 @@ func (m MockedStorage) WithFiles(t *testing.T, bucketName string, files map[stri
 }
 
 func EncodedMd5Hash(content []byte) string {
-	h := md5.New() //nolint: gosec
+	h := md5.New() //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	h.Write(content)
 
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))

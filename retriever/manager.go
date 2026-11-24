@@ -237,7 +237,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 	case m.config.PersistentFlagConfigurationFile != "":
 		errPersist := m.retrievePersistentLocalDisk(ctx)
 		if errPersist != nil && !m.config.StartWithRetrieverError {
-			return fmt.Errorf("%w: %v [original error: %v]", errPersistentFile, errPersist, err)
+			return fmt.Errorf("%w: %w [original error: %w]", errPersistentFile, errPersist, err)
 		}
 	case !m.config.StartWithRetrieverError:
 		return fmt.Errorf(

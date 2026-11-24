@@ -55,7 +55,7 @@ type RetrieverConf struct {
 	ConfigMap          string              `mapstructure:"configmap"      koanf:"configmap"`
 	Key                string              `mapstructure:"key"            koanf:"key"`
 	BaseURL            string              `mapstructure:"baseUrl"        koanf:"baseurl"`
-	AuthToken          string              `mapstructure:"token"          koanf:"token"` //nolint:gosec // G117
+	AuthToken          string              `mapstructure:"token"          koanf:"token"`
 
 	// URI is used by
 	// - the postgresql retriever
@@ -84,14 +84,13 @@ type RetrieverConf struct {
 	// Mutually exclusive with token / githubToken.
 	// AppID and InstallationID are required; supply the private key either inline
 	// (GitHubAppPrivateKey) or as a file path (GitHubAppPrivateKeyFile).
-	GitHubAppID          int64 `mapstructure:"githubAppId"          koanf:"githubappid"`
-	GitHubInstallationID int64 `mapstructure:"githubInstallationId" koanf:"githubinstallationid"`
-	//nolint:gosec // G117 - these fields hold operator-supplied config, not hardcoded secrets
+	GitHubAppID             int64  `mapstructure:"githubAppId"             koanf:"githubappid"`
+	GitHubInstallationID    int64  `mapstructure:"githubInstallationId"    koanf:"githubinstallationid"`
 	GitHubAppPrivateKey     string `mapstructure:"githubAppPrivateKey"     koanf:"githubappprivatekey"`
 	GitHubAppPrivateKeyFile string `mapstructure:"githubAppPrivateKeyFile" koanf:"githubappprivatekeyfile"`
 }
 
-// IsValid validate the configuration of the retriever
+// IsValid validates the configuration of the retriever.
 func (c *RetrieverConf) IsValid() error {
 	if err := c.Kind.IsValid(); err != nil {
 		return err
@@ -192,7 +191,8 @@ func (c *RetrieverConf) validateGitRetriever() error {
 // validateGitHubAuth ensures the authentication configuration is consistent.
 // A config may use either a static token OR GitHub App credentials, not both.
 func (c *RetrieverConf) validateGitHubAuth() error {
-	hasToken := c.AuthToken != "" || c.GithubToken != "" //nolint:staticcheck
+	hasToken := c.AuthToken != "" ||
+		c.GithubToken != ""
 	hasAppFields := c.GitHubAppID != 0 || c.GitHubInstallationID != 0 ||
 		c.GitHubAppPrivateKey != "" || c.GitHubAppPrivateKeyFile != ""
 

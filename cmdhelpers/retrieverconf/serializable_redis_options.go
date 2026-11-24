@@ -28,7 +28,7 @@ type SerializableRedisOptions struct {
 	Username string `mapstructure:"username" koanf:"username" json:"username,omitempty"`
 
 	// Password is an optional password.
-	Password string `mapstructure:"password" koanf:"password" json:"password,omitempty"` //nolint:gosec // G117
+	Password string `mapstructure:"password" koanf:"password" json:"password,omitempty"`
 
 	// DB is the database to be selected after connecting to the server.
 	DB int `mapstructure:"db" koanf:"db" json:"db,omitempty"`
@@ -63,7 +63,7 @@ type SerializableRedisOptions struct {
 
 	// ContextTimeoutEnabled controls whether the client respects context timeouts and deadlines.
 	// Default is false.
-	ContextTimeoutEnabled bool `mapstructure:"contextTimeoutEnabled" koanf:"contexttimeoutenabled" json:"contextTimeoutEnabled,omitempty"` //nolint:lll
+	ContextTimeoutEnabled bool `mapstructure:"contextTimeoutEnabled" koanf:"contexttimeoutenabled" json:"contextTimeoutEnabled,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// PoolFIFO uses FIFO mode for each node connection pool GET/PUT (default LIFO).
 	PoolFIFO bool `mapstructure:"poolFIFO" koanf:"poolfifo" json:"poolFIFO,omitempty"`

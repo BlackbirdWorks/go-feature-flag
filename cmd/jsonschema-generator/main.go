@@ -15,7 +15,7 @@ import (
 
 func main() {
 	var opts struct {
-		SchemaLocation string `long:"schema-location" description:"Location where the schema will be saved." required:"true"` //nolint: lll
+		SchemaLocation string `long:"schema-location" description:"Location where the schema will be saved." required:"true"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 	}
 
 	_, err := flags.Parse(&opts)

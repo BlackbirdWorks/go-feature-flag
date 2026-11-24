@@ -72,7 +72,7 @@ type Config struct {
 	// if in the evaluation context you have a field with the same name,
 	// it will be overridden by the evaluationContextEnrichment.
 	// Default: nil
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint: lll
+	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// OpenTelemetryOtlpEndpoint (optional) is the endpoint of the OpenTelemetry collector
 	// Default: ""
@@ -83,7 +83,7 @@ type Config struct {
 	//
 	// By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here,
 	// you ensure that Semaphore will always start with a configuration but which can be out-dated.
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint: lll
+	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// OtelConfig is the configuration for the OpenTelemetry part of the relay proxy
 	OtelConfig OpenTelemetryConfiguration `mapstructure:"otel" koanf:"otel"`
@@ -137,7 +137,7 @@ type Config struct {
 
 	// Deprecated: use AuthorizedKeys instead
 	// APIKeys list of API keys that authorized to use endpoints
-	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"` //nolint:gosec // G117
+	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"`
 
 	// StartAsAwsLambda (optional) if true, the relay proxy will start ready to be launched as AWS Lambda
 	//

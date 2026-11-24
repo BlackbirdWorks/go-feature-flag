@@ -788,6 +788,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			name: "sqs exporter",
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
+
 				return receiveSQS(t, sc, aws.ToString(q.QueueUrl), sqsReceived)
 			},
 			wantUsers: wantUsers,

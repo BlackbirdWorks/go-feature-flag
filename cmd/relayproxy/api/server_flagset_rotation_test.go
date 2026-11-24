@@ -278,8 +278,8 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	_, errOld := manager.FlagSet("old-key")
 	_, errNew := manager.FlagSet("new-key")
 	nameRotating, errRotating := manager.FlagSetName("rotating-key")
-	assert.Error(t, errOld)        //nolint:testifylint
-	assert.NoError(t, errNew)      //nolint:testifylint
-	assert.NoError(t, errRotating) //nolint:testifylint
+	assert.Error(t, errOld) //nolint:testifylint // assert on purpose: the three results are checked together
+	assert.NoError(t, errNew)
+	assert.NoError(t, errRotating)
 	assert.Equal(t, "b", nameRotating)
 }

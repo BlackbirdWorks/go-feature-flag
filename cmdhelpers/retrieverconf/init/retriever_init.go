@@ -109,8 +109,8 @@ func Retriever(
 func createGitHubRetriever(
 	c *retrieverconf.RetrieverConf, timeout time.Duration) (retriever.Retriever, error) {
 	token := c.AuthToken
-	if token == "" && c.GithubToken != "" { //nolint: staticcheck
-		token = c.GithubToken //nolint: staticcheck
+	if token == "" && c.GithubToken != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
+		token = c.GithubToken //nolint:staticcheck // SA1019: the deprecated setting is still supported
 	}
 
 	return &githubretriever.Retriever{

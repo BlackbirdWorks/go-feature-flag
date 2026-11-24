@@ -43,7 +43,7 @@ func signAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
 	// GitHub App JWTs require RS256 (PKCS#1 v1.5 + SHA-256); PSS/PS256 is not accepted by GitHub.
 	// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/
 	// generating-a-json-web-token-jwt-for-a-github-app
-	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:]) //nolint:gosec //NOSONAR
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
 	if err != nil {
 		return "", fmt.Errorf("github app jwt: failed to sign: %w", err)
 	}

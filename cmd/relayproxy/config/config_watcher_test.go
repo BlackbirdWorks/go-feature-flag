@@ -119,6 +119,7 @@ loglevel: info`)
 			name: "Stop watcher when configLoader is nil - should return nil",
 			setupConfig: func(t *testing.T) *config.Config {
 				t.Helper()
+
 				return &config.Config{}
 			},
 			wantErr: nil,

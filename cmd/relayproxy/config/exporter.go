@@ -21,7 +21,7 @@ type ExporterConf struct {
 	Bucket                  string                 `mapstructure:"bucket"                  koanf:"bucket"`
 	Path                    string                 `mapstructure:"path"                    koanf:"path"`
 	EndpointURL             string                 `mapstructure:"endpointUrl"             koanf:"endpointurl"`
-	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"` //nolint:gosec
+	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"` //nolint:gosec // G117: the field is a configuration value read from the file, it is never logged
 	Meta                    map[string]string      `mapstructure:"meta"                    koanf:"meta"`
 	LogFormat               string                 `mapstructure:"logFormat"               koanf:"logformat"`
 	FlushInterval           int64                  `mapstructure:"flushInterval"           koanf:"flushinterval"`
@@ -33,22 +33,21 @@ type ExporterConf struct {
 	ProjectID               string                 `mapstructure:"projectID"               koanf:"projectid"`
 	DatasetID               string                 `mapstructure:"datasetID"               koanf:"datasetid"`
 	TableName               string                 `mapstructure:"tableName"               koanf:"tablename"`
-	//nolint:gosec
-	GoogleCredentials string `mapstructure:"googleCredentials" koanf:"googlecredentials"`
-	AutoMigrate       bool   `mapstructure:"autoMigrate"       koanf:"automigrate"`
-	Topic             string `mapstructure:"topic"             koanf:"topic"`
-	StreamArn         string `mapstructure:"streamArn"         koanf:"streamarn"`
-	StreamName        string `mapstructure:"streamName"        koanf:"streamname"`
-	AccountName       string `mapstructure:"accountName"       koanf:"accountname"`
-	AccountKey        string `mapstructure:"accountKey"        koanf:"accountkey"`
-	Container         string `mapstructure:"container"         koanf:"container"`
-	ExporterEventType string `mapstructure:"eventType"         koanf:"eventtype"`
-	ClusterIdentifier string `mapstructure:"clusterIdentifier" koanf:"clusteridentifier"`
-	WorkgroupName     string `mapstructure:"workgroupName"     koanf:"workgroupname"`
-	Database          string `mapstructure:"database"          koanf:"database"`
-	DBUser            string `mapstructure:"dbUser"            koanf:"dbuser"`
-	SecretArn         string `mapstructure:"secretArn"         koanf:"secretarn"`
-	AwsRegion         string `mapstructure:"awsRegion"         koanf:"awsregion"`
+	GoogleCredentials       string                 `mapstructure:"googleCredentials"       koanf:"googlecredentials"`
+	AutoMigrate             bool                   `mapstructure:"autoMigrate"             koanf:"automigrate"`
+	Topic                   string                 `mapstructure:"topic"                   koanf:"topic"`
+	StreamArn               string                 `mapstructure:"streamArn"               koanf:"streamarn"`
+	StreamName              string                 `mapstructure:"streamName"              koanf:"streamname"`
+	AccountName             string                 `mapstructure:"accountName"             koanf:"accountname"`
+	AccountKey              string                 `mapstructure:"accountKey"              koanf:"accountkey"`
+	Container               string                 `mapstructure:"container"               koanf:"container"`
+	ExporterEventType       string                 `mapstructure:"eventType"               koanf:"eventtype"`
+	ClusterIdentifier       string                 `mapstructure:"clusterIdentifier"       koanf:"clusteridentifier"`
+	WorkgroupName           string                 `mapstructure:"workgroupName"           koanf:"workgroupname"`
+	Database                string                 `mapstructure:"database"                koanf:"database"`
+	DBUser                  string                 `mapstructure:"dbUser"                  koanf:"dbuser"`
+	SecretArn               string                 `mapstructure:"secretArn"               koanf:"secretarn"`
+	AwsRegion               string                 `mapstructure:"awsRegion"               koanf:"awsregion"`
 }
 
 // errInvalidExporter is the root of the errors reported for an exporter configuration that is not valid.

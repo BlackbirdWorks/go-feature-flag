@@ -323,7 +323,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 	var err error
 
 	if r.PrivateKeyFile != "" {
-		pemBytes, err = os.ReadFile(r.PrivateKeyFile) //nolint:gosec // path is operator-supplied config
+		pemBytes, err = os.ReadFile(r.PrivateKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("github app: failed to read private key file %s: %w", r.PrivateKeyFile, err)
 		}

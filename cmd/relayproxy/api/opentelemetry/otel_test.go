@@ -314,7 +314,6 @@ func TestExportEnvironment(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // t.Setenv changes the process environment, which the OpenTelemetry SDK reads
 func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)

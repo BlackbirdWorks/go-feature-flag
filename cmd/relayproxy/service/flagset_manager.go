@@ -750,10 +750,10 @@ func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 		reloadAPIKeys = true
 	}
 
-	//nolint: staticcheck
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
 	if !cmp.Equal(currentAPIKeys, newAPIKeys) {
 		m.logger.Info("Configuration changed: reloading the APIKeys")
-		//nolint: staticcheck
+		//nolint:staticcheck // SA1019: the deprecated setting is still supported
 		m.config.SetAPIKeys(newAPIKeys)
 		reloadAPIKeys = true
 	}

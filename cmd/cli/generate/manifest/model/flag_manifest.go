@@ -8,7 +8,7 @@ import (
 
 // DefaultFlagManifestSchemaURL is the JSON Schema URL emitted for every serialized
 // flag manifest ($schema), per Open Feature CLI tooling.
-const DefaultFlagManifestSchemaURL = "https://raw.githubusercontent.com/open-feature/cli/refs/heads/main/schema/v0/flag-manifest.json" //nolint: lll
+const DefaultFlagManifestSchemaURL = "https://raw.githubusercontent.com/open-feature/cli/refs/heads/main/schema/v0/flag-manifest.json" //nolint:lll // long literal that can not be wrapped
 
 // FlagManifest is the machine-readable manifest envelope for CLI and tooling.
 type FlagManifest struct {

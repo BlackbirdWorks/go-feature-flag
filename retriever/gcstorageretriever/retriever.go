@@ -3,7 +3,7 @@ package gcstorageretriever
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint: gosec
+	"crypto/md5" //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	"fmt"
 	"io"
 
@@ -82,7 +82,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	// Update Cache along with its hash.
 	retriever.cache = content
-	md5Hash := md5.Sum(content) //nolint: gosec
+	md5Hash := md5.Sum(content) //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	retriever.md5 = md5Hash[:]
 
 	return content, nil

@@ -542,7 +542,7 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 func waitForHealth(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + "/health") //nolint:noctx // bounded by Eventually
+		resp, err := http.Get(baseURL + "/health")
 		if err != nil {
 			return false
 		}

@@ -94,7 +94,7 @@ func (f *Exporter) Export(
 		filePath = filename
 	} else {
 		// Ensure OutputDir exists or create it
-		//nolint:gosec
+		//nolint:gosec // G302/G304: the path is chosen by the operator
 		if mkdirAllErr := os.MkdirAll(outputDir, 0755); mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
@@ -115,7 +115,7 @@ func (f *Exporter) IsBulk() bool {
 }
 
 func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent) error {
-	//nolint:gosec
+	//nolint:gosec // G302/G304: the path is chosen by the operator
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err

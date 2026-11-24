@@ -28,7 +28,7 @@ type FlagSet struct {
 	// APIKeys is the api keys for the flag set.
 	// This will add a new API keys to the list of authorizedKeys.evaluation keys.
 	// This property is madatory for every flagset, we will use it to filter the flag available.
-	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"` //nolint:gosec // G117
+	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"`
 
 	// Name of the flagset.
 	// This allow to identify the flagset.
@@ -77,7 +77,7 @@ type CommonFlagSet struct {
 	// of removing the old events. It must not be negative, 0 means the default.
 	// In flagset mode the top-level value is used by the flagsets that do not set their own.
 	// Default: 1 minute
-	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"` //nolint: lll
+	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// StartWithRetrieverError (optional) If true, the relay proxy will start even if we did not get any flags from
 	// the retriever. It will serve only default values until the retriever returns the flags.
@@ -101,10 +101,10 @@ type CommonFlagSet struct {
 	DisableNotifierOnInit bool `mapstructure:"disableNotifierOnInit" koanf:"disablenotifieroninit"`
 
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint: lll
+	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// PersistentFlagConfigurationFile is the flag to enable the persistent flag configuration file.
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint: lll
+	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Environment is the environment of the flag set.
 	Environment string `mapstructure:"environment" koanf:"environment"`

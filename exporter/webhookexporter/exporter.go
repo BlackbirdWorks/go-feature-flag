@@ -47,7 +47,7 @@ type Exporter struct {
 	// EndpointURL of your webhook
 	EndpointURL string
 	// Secret used to sign your request body.
-	Secret string //nolint:gosec // G117
+	Secret string
 	// Meta information that you want to send to your webhook (not mandatory)
 	Meta map[string]string
 	// Headers (optional) the list of Headers to send to the endpoint

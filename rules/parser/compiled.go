@@ -344,7 +344,7 @@ func (n *compareNode) setDebugErr(st *evalState, err error) {
 			errValObjectOperand: st.leftOp,
 			errValRuleOperand:   copyOperand(st.rightOp),
 		})
-	case ErrEvalOperandMissing: //nolint:errorlint // see above
+	case ErrEvalOperandMissing:
 		st.debugErr = newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
 			errValAttrPath: n.attrPath,
 		})

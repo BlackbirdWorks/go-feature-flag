@@ -9,7 +9,7 @@ import (
 )
 
 type redactProbe struct {
-	hidden string //nolint:unused // read through reflection to reach a value that cannot be interfaced
+	hidden string
 }
 
 func TestRedactValue(t *testing.T) {

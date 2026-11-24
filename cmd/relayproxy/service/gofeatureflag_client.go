@@ -164,8 +164,10 @@ func newGoFeatureFlagClient(
 
 	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
 	// fixed in version v1.46.0
-	if len(notif) == 0 && cFlagSet.FixNotifiers != nil { // nolint: staticcheck
-		notif, err = initNotifier(cFlagSet.FixNotifiers, logger) // nolint: staticcheck
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
+	fixNotifiers := cFlagSet.FixNotifiers
+	if len(notif) == 0 && fixNotifiers != nil {
+		notif, err = initNotifier(fixNotifiers, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -388,7 +390,6 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
-//nolint:funlen // one case per exporter kind
 func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 	d := newExporterDefaults(c)
 
@@ -564,9 +565,10 @@ func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notif
 	for _, cNotif := range c {
 		switch cNotif.Kind {
 		case config.SlackNotifier:
-			if cNotif.WebhookURL == "" && cNotif.SlackWebhookURL != "" { // nolint
+			if cNotif.WebhookURL == "" &&
+				cNotif.SlackWebhookURL != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
 				logger.Warn("slackWebhookURL field is deprecated, please use webhookURL instead")
-				cNotif.WebhookURL = cNotif.SlackWebhookURL // nolint
+				cNotif.WebhookURL = cNotif.SlackWebhookURL //nolint:staticcheck // SA1019: the deprecated setting is still supported
 			}
 			notifiers = append(
 				notifiers,

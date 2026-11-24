@@ -159,7 +159,7 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	case e.tree != nil:
 		result, err = e.visit(items)
 	default:
-		err = errInvalidRule2 //nolint:staticcheck // ST1005: text is observable, kept
+		err = errInvalidRule2
 	}
 	if e.testHookPanic != nil {
 		defer e.testHookPanic()

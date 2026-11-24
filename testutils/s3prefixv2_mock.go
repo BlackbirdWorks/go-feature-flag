@@ -159,7 +159,7 @@ func (m *S3PrefixMock) ListObjectsV2(
 	if !aws.ToBool(out.IsTruncated) {
 		out.NextContinuationToken = nil
 	}
-	out.KeyCount = aws.Int32(int32(count)) //nolint:gosec // small test values
+	out.KeyCount = aws.Int32(int32(count))
 
 	return out, nil
 }

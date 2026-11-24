@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	errRandomErr = errors.New("random err")
+	errRandom = errors.New("random err")
 )
 
 func TestDataExporterManager_flushWithTime(t *testing.T) {
@@ -246,7 +246,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	t.Parallel()
 
-	mockExporter := mock.Exporter{Err: errRandomErr, ExpectedNumberErr: 1, Bulk: true}
+	mockExporter := mock.Exporter{Err: errRandom, ExpectedNumberErr: 1, Bulk: true}
 	dataExporterMock := []exporter.Config{
 		{
 			FlushInterval:    10 * time.Minute,

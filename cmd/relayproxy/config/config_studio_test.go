@@ -450,7 +450,6 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			}
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
-			//nolint:testifylint // the cached bytes must match exactly, not just semantically
 			assert.Equal(t, tt.wantCached, string(cached))
 			mu.Lock()
 			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")

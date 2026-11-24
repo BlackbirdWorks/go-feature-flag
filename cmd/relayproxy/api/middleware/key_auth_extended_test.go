@@ -25,7 +25,7 @@ func TestKeyAuthExtended(t *testing.T) {
 	validKey := "valid-api-key"
 	invalidKey := "invalid-api-key"
 
-	//nolint:unparam
+	//nolint:unparam // the signature is fixed by the middleware, the error is always nil here
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
@@ -148,7 +148,7 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 	validKey := "valid-api-key"
 
-	//nolint:unparam
+	//nolint:unparam // the signature is fixed by the middleware, the error is always nil here
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}

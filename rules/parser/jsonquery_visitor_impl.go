@@ -87,7 +87,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 	case *PresentExpContext:
 		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
 	default:
-		j.setErr(errInvalidRule2) //nolint:staticcheck // ST1005: text is observable, kept
+		j.setErr(errInvalidRule2)
 
 		return false
 	}
@@ -138,7 +138,7 @@ func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 			"%w %s",
 			errUnknownOperation,
 			ctx.op.GetText(),
-		) //nolint:staticcheck // ST1005: text is observable
+		)
 		j.setErr(err)
 
 		return false

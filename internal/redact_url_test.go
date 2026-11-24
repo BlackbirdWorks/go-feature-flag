@@ -34,7 +34,7 @@ func TestRedactURLError(t *testing.T) {
 		"https://{}hooks.example.com/SECRETMARKER-token", //nolint:staticcheck // SA1007: the invalid URL is the point
 	)
 	require.Error(t, parseErr)
-	_, doErr := http.Get(closedURL + "/SECRETMARKER-token") //nolint:noctx // test of the error message only
+	_, doErr := http.Get(closedURL + "/SECRETMARKER-token")
 	require.Error(t, doErr)
 
 	tests := []struct {
@@ -178,7 +178,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			require.Error(t, parseErr)
 			require.Contains(t, parseErr.Error(), "SECRETMARKER", "the shape must make url.Parse quote the input")
 
-			_, reqErr := http.NewRequest(http.MethodGet, tt.raw, nil) //nolint:noctx // error message only
+			_, reqErr := http.NewRequest(http.MethodGet, tt.raw, nil)
 			require.Error(t, reqErr)
 
 			assert.Equal(t, tt.wantMessage, internal.RedactURLError(parseErr).Error())

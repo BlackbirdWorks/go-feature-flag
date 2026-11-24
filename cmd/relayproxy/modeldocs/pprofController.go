@@ -1,4 +1,3 @@
-// nolint: lll
 package modeldocs
 
 import "github.com/labstack/echo/v5"

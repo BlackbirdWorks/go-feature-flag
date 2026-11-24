@@ -229,7 +229,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 			httpclient := http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true, //nolint: gosec
+						InsecureSkipVerify: true,
 					},
 				},
 			}
@@ -298,7 +298,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 	httpclient := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint: gosec
+				InsecureSkipVerify: true,
 			},
 		},
 	}

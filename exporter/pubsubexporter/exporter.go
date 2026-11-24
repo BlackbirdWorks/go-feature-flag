@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"cloud.google.com/go/pubsub" //nolint:staticcheck
+	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: the v1 pubsub client is still used by the v1 exporter
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"

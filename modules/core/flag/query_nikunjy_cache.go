@@ -110,7 +110,10 @@ func hashNikunjyQuery(query string) uint64 {
 		prime2 = 0xC2B2AE3D27D4EB4F
 		prime3 = 0x165667B19E3779F9
 	)
-	b := unsafe.Slice(unsafe.StringData(query), len(query)) //nolint: gosec
+	b := unsafe.Slice(
+		unsafe.StringData(query),
+		len(query),
+	)
 	h0, h1, h2, h3 := uint64(len(query))*prime3, uint64(prime1), uint64(prime2), uint64(prime3)
 	for ; len(b) >= 32; b = b[32:] {
 		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, rotate0)
@@ -261,7 +264,11 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 		found[i].evaluator = entry.evaluator
 		keys = append(keys, key)
 		// The rule shares the bytes of the text of its key: see index.
-		if unsafe.StringData(*r.Query) != unsafe.StringData(entry.query) { //nolint: gosec
+		if unsafe.StringData(
+			*r.Query,
+		) != unsafe.StringData(
+			entry.query,
+		) {
 			*r.Query = entry.query
 		}
 	}
@@ -327,7 +334,11 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 		// The rule shares the bytes of the text of its key. The text is the same, but the
 		// evaluation of the rule recognizes it without reading its bytes, and the memory of the
 		// copies that every flag holds is released.
-		if unsafe.StringData(q.raw) != unsafe.StringData(entry.query) { //nolint: gosec
+		if unsafe.StringData(
+			q.raw,
+		) != unsafe.StringData(
+			entry.query,
+		) {
 			*r.Query = entry.query
 		}
 	}
