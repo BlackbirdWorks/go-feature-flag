@@ -133,7 +133,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				require.NoError(t, err)
 				req.Header.Set("Content-Type", "application/json")
 				if !ep.keyInQuery {
-					req.Header.Set("X-API-Key", k.key)
+					req.Header.Set("X-Api-Key", k.key)
 				}
 				resp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)
@@ -226,7 +226,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 
 					return
 				}
-				req.Header.Set("X-API-Key", key)
+				req.Header.Set("X-Api-Key", key)
 				req.Header.Set("Content-Type", "application/json")
 				resp, err := client.Do(req)
 				if err != nil {

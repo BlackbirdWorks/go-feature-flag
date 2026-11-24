@@ -347,7 +347,7 @@ func TestExporter_UnverifiableResponsesNeverAcknowledged(t *testing.T) {
 	t.Parallel()
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	s := &responseSender{respond: func(int, *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // the test feeds the exporter an unverifiable (nil) response on purpose
 	}}
 	err := newTestExporter(s, noSleep).Export(context.Background(), logger, testEvents(2))
 	require.Error(t, err)

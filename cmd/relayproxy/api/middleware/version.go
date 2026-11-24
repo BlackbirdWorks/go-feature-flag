@@ -9,10 +9,10 @@ import (
 
 const (
 	// VersionHeaderName is the response header carrying the version of the relay proxy.
-	VersionHeaderName = "X-SEMAPHORE-VERSION"
+	VersionHeaderName = "X-Semaphore-Version"
 	// LegacyVersionHeaderName is the name GO Feature Flag used for the same header, still sent
 	// next to VersionHeaderName for the clients that read it.
-	LegacyVersionHeaderName = "X-GOFEATUREFLAG-VERSION"
+	LegacyVersionHeaderName = "X-Gofeatureflag-Version"
 )
 
 // VersionHeaderConfig defines the configuration for the middleware.

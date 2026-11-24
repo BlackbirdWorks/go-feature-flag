@@ -116,7 +116,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 				require.NoError(t, err)
 				req.Header.Set("Content-Type", "application/json")
 				if !ep.keyInQuery {
-					req.Header.Set("X-API-Key", k.key)
+					req.Header.Set("X-Api-Key", k.key)
 				}
 				resp, err := http.DefaultClient.Do(req)
 				require.NoError(t, err)

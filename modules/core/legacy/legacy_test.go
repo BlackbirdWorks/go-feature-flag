@@ -89,9 +89,13 @@ func TestWarnersDoNotShareState(t *testing.T) {
 }
 
 // panics reports whether f panics.
-func panics(f func()) (panicked bool) {
-	defer func() { panicked = recover() != nil }()
-	f()
+func panics(f func()) bool {
+	panicked := true
+	func() {
+		defer func() { _ = recover() }()
+		f()
+		panicked = false
+	}()
 
-	return false
+	return panicked
 }

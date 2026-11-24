@@ -13,10 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func countSets(n *node) (c int) {
+func countSets(n *node) int {
 	if n == nil {
 		return 0
 	}
+	c := 0
 	if n.cmp != nil && (n.cmp.strSet != nil || n.cmp.intSet != nil) {
 		c++
 	}

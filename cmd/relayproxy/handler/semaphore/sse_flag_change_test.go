@@ -43,9 +43,10 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
+//nolint:nilnil // mock: the SSE handler tests never reach a flagset
 func (m *mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) { return nil, nil }
 func (m *mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // mock: the SSE handler tests never list flagsets
 }
 func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
 func (m *mockFlagsetManagerSSE) Close()                           {}

@@ -118,7 +118,7 @@ func newGoFeatureFlagClient(
 	logger *zap.Logger,
 	notifiers []notifier.Notifier,
 	opts ...clientOption,
-) (_ *ffclient.GoFeatureFlag, retErr error) {
+) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
 	var err error
 	if cFlagSet == nil {
 		return nil, errors.New("proxy config is empty")

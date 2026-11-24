@@ -19,7 +19,7 @@ import (
 // newWSConnPair stands up a throwaway websocket server and returns the
 // server-side and client-side *websocket.Conn so the unexported write paths
 // (threadSafeConn / pingPongLoop) can be tested directly.
-func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
+func newWSConnPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Helper()
 	upgrader := websocket.Upgrader{}
 	serverConnCh := make(chan *websocket.Conn, 1)
@@ -35,7 +35,7 @@ func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
 	client, _, err := websocket.DefaultDialer.Dial(url, nil)
 	require.NoError(t, err)
-	server = <-serverConnCh
+	server := <-serverConnCh
 	t.Cleanup(func() {
 		_ = client.Close()
 		_ = server.Close()

@@ -414,6 +414,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 func TestS3_Export_RemovesTempDir(t *testing.T) {
 	t.Parallel()
 
+	//nolint:usetesting // Export creates its directory in the process temp dir; the test globs exactly that directory
 	tempPattern := filepath.Join(os.TempDir(), "go_feature_flag_s3_export*")
 	before, _ := filepath.Glob(tempPattern)
 

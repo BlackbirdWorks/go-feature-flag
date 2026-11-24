@@ -621,6 +621,8 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 				r.values[i] = truncateUTF8(r.values[i], c.maxBytes)
 			case superColumn:
 				tooLarge = tooLarge || len(r.values[i]) > maxSuperBytes
+			default:
+				// fixed-size values: nothing to truncate or to check
 			}
 		}
 		var params []types.SqlParameter

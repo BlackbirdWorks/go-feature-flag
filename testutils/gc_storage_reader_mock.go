@@ -17,29 +17,28 @@ func (r *GCStorageReaderMock) Close() error {
 	return nil
 }
 
-func (r *GCStorageReaderMock) Read(p []byte) (n int, err error) {
+func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
 	if r.ShouldFail {
 		return 0, errors.New("failed to read from GCP")
 	}
 
 	// Set the mocked data to be read.
 	if r.data == nil {
-		r.data, err = os.ReadFile(r.FileToRead)
+		data, err := os.ReadFile(r.FileToRead)
 		if err != nil {
 			return 0, err
 		}
+		r.data = data
 	}
 
 	// Return io.EOF if read all bytes.
 	if r.readIndex >= int64(len(r.data)) {
-		err = io.EOF
-
-		return n, err
+		return 0, io.EOF
 	}
 
 	// Copy unread bytes.
-	n = copy(p, r.data[r.readIndex:])
+	n := copy(p, r.data[r.readIndex:])
 	r.readIndex += int64(n)
 
-	return n, err
+	return n, nil
 }

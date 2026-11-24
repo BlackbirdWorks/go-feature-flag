@@ -21,6 +21,8 @@ func (s testStringer) String() string { return s.s }
 
 // visitorProcess runs a rule through the original ANTLR visitor, exactly as
 // Evaluator.Process did before rules were compiled.
+//
+//nolint:nonamedreturns // recover sets the result
 func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr error, debugErr error) {
 	defer func() {
 		if info := recover(); info != nil {
@@ -40,7 +42,7 @@ func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retEr
 
 // errString renders err, tolerating the existing InvalidOperandError.Error
 // panic on a nil operand so both implementations can still be compared.
-func errString(err error) (s string) {
+func errString(err error) (s string) { //nolint:nonamedreturns // recover sets the result
 	defer func() {
 		if info := recover(); info != nil {
 			s = fmt.Sprintf("Error() panicked: %v", info)

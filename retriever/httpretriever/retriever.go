@@ -183,6 +183,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 
 func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 	if r.CACertPath == "" {
+		//nolint:nilnil // a nil pool means no custom CA is configured, the transport then uses the system pool
 		return nil, nil
 	}
 

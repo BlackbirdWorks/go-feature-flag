@@ -184,7 +184,7 @@ func findRetrieverByName(retrievers []retriever.Retriever, name string) retrieve
 
 // initCalled reports whether Init was recorded as called on a mock retriever.
 // The second return value is false when r is not an initializable mock type.
-func initCalled(r retriever.Retriever) (called bool, ok bool) {
+func initCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.InitCalled, true
@@ -198,7 +198,7 @@ func initCalled(r retriever.Retriever) (called bool, ok bool) {
 }
 
 // statusCalled reports whether Status was recorded as called on a mock retriever.
-func statusCalled(r retriever.Retriever) (called bool, ok bool) {
+func statusCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.StatusCalled, true
@@ -212,7 +212,7 @@ func statusCalled(r retriever.Retriever) (called bool, ok bool) {
 }
 
 // shutdownCalled reports whether Shutdown was recorded as called on a mock retriever.
-func shutdownCalled(r retriever.Retriever) (called bool, ok bool) {
+func shutdownCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.ShutdownCalled, true

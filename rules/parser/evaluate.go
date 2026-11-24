@@ -34,7 +34,7 @@ type Evaluator struct {
 	testHookPanic func()
 }
 
-func NewEvaluator(rule string) (ret *Evaluator, retErr error) {
+func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamedreturns // recover sets the result
 	// antlr lib has panics for exceptions so we have to put a recover here
 	// in the unlikely case there is an exception
 	defer func() {
@@ -125,6 +125,8 @@ func (e *Evaluator) compile() {
 }
 
 // Process evaluates items against the rule. The rule is compiled on first use.
+//
+//nolint:nonamedreturns // recover sets the result
 func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	e.setDebugErr(nil)
 	// antlr lib has panics for exceptions so we have to put a recover here

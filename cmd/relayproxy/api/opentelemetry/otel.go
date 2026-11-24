@@ -174,6 +174,7 @@ func initSampler(serviceName string, conf *config.Config) (sdktrace.Sampler, err
 	}
 
 	if sampler != "jaeger_remote" {
+		//nolint:nilnil // a nil sampler means "no sampler configured here"; the caller falls back to its default
 		return nil, nil
 	}
 

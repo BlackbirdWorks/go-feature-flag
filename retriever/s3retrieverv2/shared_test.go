@@ -1423,7 +1423,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 					assert.Equal(t, tt.wantFirst, got[0])
 				}
 				prev := time.Duration(0)
-				distinct := map[time.Duration]struct{}{}
+				distinct := make(map[time.Duration]struct{})
 				for _, at := range got {
 					gap := at - prev
 					prev = at

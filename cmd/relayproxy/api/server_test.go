@@ -553,9 +553,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -641,9 +639,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	skipUnixSocketOnWindows(t)
 	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -729,9 +725,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
@@ -907,14 +901,14 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 	}
 
+	// Short path: the sub-test names would push a unix socket path over the OS limit.
+	tempDir := t.TempDir()
+
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Create a temporary directory for the socket
-			tempDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-%d.sock", index))
 
@@ -1016,14 +1010,14 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 		},
 	}
 
+	// Short path: the sub-test names would push a unix socket path over the OS limit.
+	tempDir := t.TempDir()
+
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Create a temporary directory for the socket
-			tempDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 

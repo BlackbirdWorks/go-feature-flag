@@ -25,9 +25,7 @@ func TestFile_Export(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for test file operations
-	tempDir, err := os.MkdirTemp("", "fileexporter-test")
-	require.NoError(t, err, "Failed to create temp dir")
-	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	tempDir := t.TempDir()
 
 	hostname, _ := os.Hostname()
 	type fields struct {
@@ -624,8 +622,7 @@ func TestFile_Export(t *testing.T) {
 
 			outputDir := tt.fields.OutputDir
 			if tt.fields.OutputDir == "" {
-				outputDir, _ = os.MkdirTemp("", "fileExporter")
-				defer os.Remove(outputDir)
+				outputDir = t.TempDir()
 			}
 
 			if tt.setup != nil {

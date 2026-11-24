@@ -224,6 +224,8 @@ func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 }
 
 // evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
+//
+//nolint:nonamedreturns // recover sets the result
 func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext) (success bool) {
 	// Catch any panics that may occur during evaluation
 	defer func() {
@@ -251,6 +253,7 @@ func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, map
 	return ok
 }
 
+//nolint:nonamedreturns // recover sets the result
 func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool) {
 	query := compiled.trimmed
 	if query == "" {
@@ -379,44 +382,45 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		r.ProgressiveRollout.End.Variation != nil &&
 		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
 
-	if isRolloutValid {
-		if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
-			return *r.ProgressiveRollout.Initial.Variation, nil
-		}
-
-		// We are between initial and end
-		initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
-		// The rule is shared by all the evaluations of the flag (concurrently): it must never be
-		// written here, an end percentage outside of ]0, 100] means 100.
-		endPercentage := r.ProgressiveRollout.End.getPercentage()
-		if endPercentage == 0 || endPercentage > 100 {
-			endPercentage = 100
-		}
-		endPercentage *= PercentageMultiplier
-		nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-		percentage := endPercentage - initialPercentage
-		percentPerSec := percentage / float64(nbSec)
-
-		var currentPercentage float64
-		// Cap the percentage at endPercentage if evaluation date is at or after end date
-		if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
-			currentPercentage = endPercentage
-		} else {
-			c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-			currentPercentage = float64(c)*percentPerSec + initialPercentage
-		}
-
-		// The percentage represents how many users get the END variation
-		// Users with hash < currentPercentage get END variation
-		// Users with hash >= currentPercentage get INITIAL variation
-		if hash < uint32(currentPercentage) {
-			return r.ProgressiveRollout.End.getVariation(), nil
-		}
-
-		return r.ProgressiveRollout.Initial.getVariation(), nil
+	if !isRolloutValid {
+		return "", errors.New("error in the progressive rollout, missing params")
 	}
 
-	return "", errors.New("error in the progressive rollout, missing params")
+	if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
+		return *r.ProgressiveRollout.Initial.Variation, nil
+	}
+
+	// We are between initial and end
+	initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
+	// The rule is shared by all the evaluations of the flag (concurrently): it must never be
+	// written here, an end percentage outside of ]0, 100] means 100.
+	endPercentage := r.ProgressiveRollout.End.getPercentage()
+	if endPercentage == 0 || endPercentage > 100 {
+		endPercentage = 100
+	}
+	endPercentage *= PercentageMultiplier
+	nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+	percentage := endPercentage - initialPercentage
+	percentPerSec := percentage / float64(nbSec)
+
+	var currentPercentage float64
+	// Cap the percentage at endPercentage if evaluation date is at or after end date
+	if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
+		currentPercentage = endPercentage
+	} else {
+		c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+		currentPercentage = float64(c)*percentPerSec + initialPercentage
+	}
+
+	// The percentage represents how many users get the END variation
+	// Users with hash < currentPercentage get END variation
+	// Users with hash >= currentPercentage get INITIAL variation
+	if hash < uint32(currentPercentage) {
+		return r.ProgressiveRollout.End.getVariation(), nil
+	}
+
+	return r.ProgressiveRollout.Initial.getVariation(), nil
+
 }
 
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {

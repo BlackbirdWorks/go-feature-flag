@@ -297,7 +297,8 @@ func evalLoop(ctx context.Context, t Target, w int, st *workerStats) {
 
 // drain returns the cumulative counters of the workers and resets hist to the latency histogram
 // accumulated since the previous call (nLat is its number of samples).
-func drain(stats []*workerStats, hist []int64) (count, errs, nLat int64) {
+func drain(stats []*workerStats, hist []int64) (int64, int64, int64) {
+	var count, errs, nLat int64
 	for i := range hist {
 		hist[i] = 0
 	}

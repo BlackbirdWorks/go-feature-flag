@@ -363,8 +363,7 @@ test-flag:
   defaultRule:
     variation: false_var`
 
-	tempDir, _ := os.MkdirTemp("", "")
-	defer os.Remove(tempDir)
+	tempDir := t.TempDir()
 
 	flagFilePath := tempDir + "_FlagFileUnreachable.yaml"
 	gff, err := ffclient.New(ffclient.Config{
@@ -688,7 +687,8 @@ func Test_ForceRefreshCache(t *testing.T) {
 // readPersistedFlags returns the content of the persistent flag configuration file and the
 // flags it contains. The library writes this file from a goroutine, so a read can catch a
 // partial write: in that case ok is false and the caller (a require.Eventually) just retries.
-func readPersistedFlags(path string) (content []byte, flags map[string]any, ok bool) {
+func readPersistedFlags(path string) ([]byte, map[string]any, bool) {
+	var flags map[string]any
 	content, err := os.ReadFile(path)
 	if err != nil || len(content) == 0 {
 		return nil, nil, false

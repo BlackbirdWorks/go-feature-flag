@@ -28,6 +28,7 @@ func (r *Rule) validate(
 	svc *Service, defaultRule bool, variations map[string]*any, known *parser.Evaluator,
 ) (*parser.Evaluator, error) {
 	if !defaultRule && r.IsDisable() {
+		//nolint:nilnil // a nil evaluator means the rule has no nikunjy query to validate (documented on validate)
 		return nil, nil
 	}
 
@@ -184,7 +185,7 @@ func (r *Rule) isQueryValid(svc *Service, defaultRule bool) error {
 // validateQuery is isQueryValid. It also returns the evaluator of a nikunjy query.
 func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator, error) {
 	if defaultRule {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil evaluator means there is no nikunjy query to validate (default rule)
 	}
 
 	if r.Query == nil {
@@ -198,7 +199,7 @@ func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator,
 			return nil, errors.New("invalid jsonlogic query")
 		}
 
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil evaluator means the query is JSONLogic, not nikunjy
 	default:
 		return svc.nikunjy.validateEvaluator(r.GetTrimmedQuery())
 	}

@@ -672,9 +672,9 @@ func (m *flagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName m
 func resolveNamedAPIKeyRouting(
 	reconciled map[string]config.FlagSet,
 	running map[string]*ffclient.GoFeatureFlag,
-) (assigned map[string]string, collisions map[string][2]string) {
-	assigned = make(map[string]string)
-	collisions = make(map[string][2]string)
+) (map[string]string, map[string][2]string) {
+	assigned := make(map[string]string)
+	collisions := make(map[string][2]string)
 	for name, flagset := range reconciled {
 		if _, ok := running[name]; !ok {
 			continue

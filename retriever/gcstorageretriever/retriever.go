@@ -38,7 +38,7 @@ func (retriever *Retriever) SetOptions(options []option.ClientOption) {
 }
 
 // Retrieve is the function in charge of fetching the flag configuration.
-func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err error) {
+func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if retriever.obj == nil {
 		// Create GC Storage Client.
 		client, err := storage.NewClient(ctx, retriever.Options...)
@@ -69,7 +69,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err e
 	defer func() { _ = reader.Close() }()
 
 	// Read all contents from the Reader.
-	content, err = io.ReadAll(reader)
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		return nil,
 			fmt.Errorf(

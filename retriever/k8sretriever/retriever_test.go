@@ -144,7 +144,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			if tt.name == "k8s client is nil" {
 				// mocking the client factory
 				newClient = func(config *restclient.Config) (kubernetes.Interface, error) {
-					return nil, nil
+					return nil, nil //nolint:nilnil // the test simulates a factory that returns no client
 				}
 			}
 			s := Retriever{

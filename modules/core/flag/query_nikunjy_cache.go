@@ -269,14 +269,15 @@ func (c *nikunjyEvaluatorCache) qualifiesForKnown(r *Rule) bool {
 // text already. Otherwise the query is hashed, the hash is returned so that index does not hash
 // it again, and the key is saved in r if the query has one. It returns a nil entry if the query
 // has no key.
-func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (key uint64, entry *nikunjyKeyedEvaluator, hash uint64) {
+func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (uint64, *nikunjyKeyedEvaluator, uint64) {
 	raw := *r.Query
-	key = r.QueryHash
-	if entry = c.referenceEntry(key, raw); entry != nil {
+	key := r.QueryHash
+	if entry := c.referenceEntry(key, raw); entry != nil {
 		return key, entry, 0
 	}
-	hash = c.hash(raw)
-	if key, entry = c.find(hash, raw); entry != nil {
+	hash := c.hash(raw)
+	key, entry := c.find(hash, raw)
+	if entry != nil {
 		r.QueryHash = key
 	}
 
@@ -351,7 +352,8 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 		if !ok {
 			return 0, nil
 		}
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw { //nolint:errcheck // the maps only ever store this type
+		//nolint:errcheck // the maps only ever store this type
+		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -379,7 +381,8 @@ func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evalu
 
 			return key, entry
 		}
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw { //nolint:errcheck // the maps only ever store this type
+		//nolint:errcheck // the maps only ever store this type
+		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry

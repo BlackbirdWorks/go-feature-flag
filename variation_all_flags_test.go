@@ -133,7 +133,7 @@ func TestAllFlagsState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			exportDir, _ := os.MkdirTemp("", "export")
+			exportDir := t.TempDir()
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
 				MaxEventInMemory: 1,
@@ -241,7 +241,7 @@ func TestGetFlagStates(t *testing.T) {
 			t.Parallel()
 
 			// init logger
-			exportDir, _ := os.MkdirTemp("", "export")
+			exportDir := t.TempDir()
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
 				MaxEventInMemory: 1,

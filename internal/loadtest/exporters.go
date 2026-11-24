@@ -62,6 +62,8 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 		e.Failures.Add(1)
 
 		return errors.New("loadtest: exporter is failing")
+	case ExporterDiscard:
+		// counts the batch below, like a healthy exporter
 	case ExporterSlow:
 		select {
 		case <-time.After(e.Delay):

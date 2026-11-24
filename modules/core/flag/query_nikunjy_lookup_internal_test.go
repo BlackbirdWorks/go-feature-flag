@@ -159,7 +159,8 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 }
 
 // splitRulesByQuery returns the rules of flags whose query is listA, and the other ones.
-func splitRulesByQuery(flags []*InternalFlag, listA string) (rulesA, rulesB []*Rule) {
+func splitRulesByQuery(flags []*InternalFlag, listA string) ([]*Rule, []*Rule) {
+	var rulesA, rulesB []*Rule
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]

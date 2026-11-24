@@ -131,6 +131,21 @@ type sharedDownload struct {
 	err  error
 }
 
+// newS3Client builds the S3 client of the shared items from the AWS configuration of opts, or from
+// the default AWS configuration chain.
+func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, error) {
+	cfg := opts.AwsConfig
+	if cfg == nil {
+		loaded, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("impossible to init shared S3 items: %w", err)
+		}
+		cfg = &loaded
+	}
+
+	return s3.NewFromConfig(*cfg, opts.S3ClientOptions...), nil
+}
+
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
 func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
@@ -141,15 +156,10 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 	}
 	lister, downloader := opts.Lister, opts.Downloader
 	if lister == nil || downloader == nil {
-		cfg := opts.AwsConfig
-		if cfg == nil {
-			loaded, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("impossible to init shared S3 items: %w", err)
-			}
-			cfg = &loaded
+		client, err := newS3Client(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
-		client := s3.NewFromConfig(*cfg, opts.S3ClientOptions...)
 		if lister == nil {
 			lister = client
 		}

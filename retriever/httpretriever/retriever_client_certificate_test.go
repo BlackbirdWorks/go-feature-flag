@@ -210,7 +210,7 @@ func TestRetriever_Retrieve_WithIncompleteClientCertificateConfiguration(t *test
 type unsupportedTransport struct{}
 
 func (unsupportedTransport) RoundTrip(*http.Request) (*http.Response, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // the test feeds the client a nil response on purpose
 }
 
 func createClientCertificateFiles(t *testing.T) (string, string) {
