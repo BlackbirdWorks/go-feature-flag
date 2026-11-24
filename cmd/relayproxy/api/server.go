@@ -62,7 +62,8 @@ type Option func(*Server)
 
 // WithListener makes the HTTP server serve on an already bound listener instead of binding the configured
 // address. A caller that needs a free port keeps it bound until the server uses it, instead of closing it
-// and hoping that nothing else takes the port before the server binds it.
+// and hoping that nothing else takes the port before the server binds it. The server owns the listener: it
+// closes it when it stops, or when it is stopped before it started.
 func WithListener(l net.Listener) Option {
 	return func(s *Server) { s.listener = l }
 }

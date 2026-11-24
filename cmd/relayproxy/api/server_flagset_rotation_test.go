@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -245,10 +246,15 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	}
 	firstRequests.Wait()
 	for i := range 301 {
+		// Every reload overlaps requests: wait for one that completes after it started.
+		completedBefore := requests.Load()
 		if i%2 == 0 {
 			manager.OnConfigChange(&config.Config{FlagSets: stateTwo()})
 		} else {
 			manager.OnConfigChange(&config.Config{FlagSets: stateOne()})
+		}
+		for requests.Load() == completedBefore && unexpected.Load() == 0 {
+			runtime.Gosched()
 		}
 	}
 	close(done)

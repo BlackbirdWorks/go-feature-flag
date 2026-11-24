@@ -26,7 +26,11 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
 	select {
 	case <-s.stopRequested:
-		// Stop has been called before the server started.
+		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
+		if s.listener != nil {
+			_ = s.listener.Close()
+		}
+
 		return
 	default:
 	}

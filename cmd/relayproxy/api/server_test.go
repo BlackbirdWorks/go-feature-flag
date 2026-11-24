@@ -1281,7 +1281,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	t.Parallel()
 
 	// The server is given a listener that stays bound: closing it and binding the port again later would let
-	// another test take the port in between.
+	// another test take the port in between, and the server closes it when it is stopped before it started.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -1337,8 +1337,8 @@ func Test_StopBeforeStart(t *testing.T) {
 		require.Fail(t, "StartWithContext did not return for a server already stopped")
 	}
 
-	// The server never served: it did not close the listener it was given (closing a listener twice fails).
-	require.NoError(t, ln.Close(), "the server must not have used the listener on port %d", port)
+	// The server never served and it closed the listener it owns: closing it again fails.
+	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
 }
 
 func Test_New_Options(t *testing.T) {
