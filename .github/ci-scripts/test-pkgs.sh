@@ -38,8 +38,8 @@ docker_pkgs() {
 			other:*) dirname "$f" ;;
 			esac
 		done | sort -u)
-	# Keep only directories that are packages of the root module (nested
-	# modules such as rules/ and modules/core have their own go.mod).
+	# Keep only directories that are packages of the root module (the nested
+	# module rules/ has its own go.mod).
 	for d in $dirs; do
 		go list -tags=docker "$d" 2>/dev/null || true
 	done | sort -u

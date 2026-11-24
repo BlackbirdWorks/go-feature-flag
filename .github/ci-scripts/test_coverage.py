@@ -14,7 +14,7 @@ sys.dont_write_bytecode = True
 import coverage  # noqa: E402
 
 ROOT_MOD = "example.com/app"
-CORE_MOD = "example.com/app/modules/core"
+CORE_MOD = ROOT_MOD + "/modules/core"  # a directory of the root module
 RULES_MOD = "example.com/app/rules"
 
 GO_A = "package a\n\nfunc F() {\n\tx := 1\n\t// comment\n\t_ = x\n}\n"
@@ -27,7 +27,6 @@ class Fixture(unittest.TestCase):
         self.addCleanup(self._td.cleanup)
         self.root = self._td.name
         self.write("go.mod", "module %s\n\ngo 1.22\n" % ROOT_MOD)
-        self.write("modules/core/go.mod", "module %s\n" % CORE_MOD)
         self.write("rules/go.mod", "module %s\n" % RULES_MOD)
         self.write("exclude.txt", "# c\ntestutils/\nmodules/core/testutils/\n**/gen_*.go\n")
 
@@ -100,7 +99,7 @@ class MergeTest(Fixture):
 
 
 class PathMappingTest(Fixture):
-    def test_three_modules_map_to_repo_relative(self):
+    def test_modules_map_to_repo_relative(self):
         mods = coverage.module_map(self.root)
         cases = {
             ROOT_MOD + "/a/a.go": "a/a.go",
@@ -114,7 +113,7 @@ class PathMappingTest(Fixture):
         self.assertIsNone(coverage.to_repo_path("other.org/z.go", mods))
 
     def test_module_of(self):
-        self.assertEqual(coverage.module_of("modules/core/x/y.go"), "modules/core")
+        self.assertEqual(coverage.module_of("modules/core/x/y.go"), "root")
         self.assertEqual(coverage.module_of("rules/y.go"), "rules")
         self.assertEqual(coverage.module_of("cmd/y.go"), "root")
 

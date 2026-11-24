@@ -2,7 +2,7 @@ GOCMD=go
 DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
-ALL_GO_MOD_DIRS := ./rules ./modules/core ./
+ALL_GO_MOD_DIRS := ./rules ./
 
 # In CI we disable workspace mode.
 ifeq ($(CI),true)
@@ -81,7 +81,7 @@ endif
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Tidying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod tidy);)
 
 tidy-check: tidy ## Check that go.mod and go.sum are tidy (fails if there are uncommitted changes after tidy)
-	git diff --exit-code --quiet go.mod go.sum modules/core/go.mod modules/core/go.sum rules/go.mod rules/go.sum
+	git diff --exit-code --quiet go.mod go.sum rules/go.mod rules/go.sum
 
 verify: ## Run go mod verify for all modules to validate checksums match go.sum
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Verifying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod verify) &&) true
@@ -115,12 +115,12 @@ generate-helm-docs: ## Generates helm documentation for the project
 
 ## Test:
 # Test types run as separate targets (and separate CI jobs):
-#   test-unit         unit tests, no docker tag (root module, modules/core, rules)
+#   test-unit         unit tests, no docker tag (root module including modules/core, rules)
 #   test-integration  testcontainers tests (azurite, mongo, postgres, redis, ...)
 #   test-e2e          gopherstack-backed e2e tests (tests named *E2E*)
 # Optional variables: COVERPROFILE=<file> writes a coverage profile,
 # TEST_LOG=<file> tees the output, GROUP=<cmd|plugins|rest|all> picks the root
-# unit shard, MODULE=<rules|modules/core> picks the module of test-unit-module.
+# unit shard, MODULE=rules picks the module of test-unit-module.
 # On the aggregate targets (test, test-unit) the files are suffixed per suite.
 TEST_PKG_SCRIPT := .github/ci-scripts/test-pkgs.sh
 COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)) $(if $(COVERPKG),-coverpkg=$(COVERPKG)),)
@@ -142,14 +142,13 @@ test: ## Run every test type (unit, integration, e2e); one coverage/log file per
 test-unit: ## Run the unit tests of all modules (no docker); one coverage/log file per module
 	@$(call suite_make,test-unit-root,unit-root)
 	@$(call suite_make,test-unit-module MODULE=rules,unit-rules)
-	@$(call suite_make,test-unit-module MODULE=modules/core,unit-core)
 
 test-unit-root: ## Run the root module unit tests with the race detector (GROUP=cmd|plugins|rest|all)
 	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) unit-$(GROUP)); \
 	[ -n "$$pkgs" ] || { echo "no packages in group $(GROUP)"; exit 1; }; \
 	CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race $(COVER_FLAGS) $$pkgs $(TEE)
 
-test-unit-module: ## Run the unit tests of one nested module (MODULE=rules|modules/core)
+test-unit-module: ## Run the unit tests of one nested module (MODULE=rules)
 	@test -n "$(MODULE)" || { echo "usage: make test-unit-module MODULE=<dir>"; exit 1; }
 	@set -o pipefail; cd $(MODULE) && CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker $(COVER_FLAGS) ./... $(TEE)
 
