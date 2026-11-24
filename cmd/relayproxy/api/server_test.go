@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -18,8 +19,6 @@ import (
 	promdto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/encoding/protodelim"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
@@ -27,25 +26,21 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
-// newTestLogger returns a logger whose Fatal() terminates the calling goroutine instead of the
-// whole process. server.go reports a failed bind with zapLog.Fatal, and the default zap
-// behaviour is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
-// takes the test binary down and every remaining test in the package is silently skipped.
-// With this hook the server goroutine dies, the Fatal is still logged, and the test fails on
-// its own readiness assertion with a message that points at the right place.
-func newTestLogger(t *testing.T) *log.Logger {
+// newTestLogger returns a logger that writes to stderr. server.go reports a failed bind with a fatal log,
+// and its default reaction is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
+// takes the test binary down and every remaining test in the package is silently skipped. The servers of these
+// tests are built with api.WithExit(runtime.Goexit): the server goroutine dies, the fatal error is still logged,
+// and the test fails on its own readiness assertion with a message that points at the right place.
+func newTestLogger(t *testing.T) *cmdlog.Logger {
 	t.Helper()
-	l := log.InitLogger()
-	l.ZapLogger = l.ZapLogger.WithOptions(zap.WithFatalHook(zapcore.WriteThenGoexit))
-	t.Cleanup(func() { _ = l.ZapLogger.Sync() })
 
-	return l
+	return cmdlog.NewDefault()
 }
 
 // waitForServer blocks until the server accepts connections on baseURL. Binding a listener is
@@ -84,12 +79,17 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -146,12 +146,17 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -163,7 +168,14 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln), api.WithMonitoringListener(monitoringLn))
+	s := api.New(
+		proxyConf,
+		services,
+		log.Slog,
+		api.WithExit(runtime.Goexit),
+		api.WithListener(ln),
+		api.WithMonitoringListener(monitoringLn),
+	)
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -227,12 +239,17 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close() // close all the open connections
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -244,7 +261,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -307,7 +324,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	require.NoError(t, err)
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -317,7 +334,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -354,7 +371,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	require.NoError(t, err)
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -364,7 +381,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -502,7 +519,7 @@ func runAuthMiddlewareTests(
 			require.NoError(t, err)
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
 			services := service.Services{
@@ -512,7 +529,7 @@ func runAuthMiddlewareTests(
 				Metrics:           metricsV2,
 			}
 
-			s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+			s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 
@@ -574,12 +591,17 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -591,7 +613,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -661,12 +683,17 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -678,7 +705,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithMonitoringListener(monitoringLn))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithMonitoringListener(monitoringLn))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -750,12 +777,17 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	metricsV2, err := metric.NewMetrics()
 	if err != nil {
-		log.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		log.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			cmdlog.Err(err),
+		)
 	}
 	wsService := stream.NewWebsocketService()
 	defer wsService.Close()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -767,7 +799,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -936,7 +968,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			require.NoError(t, err)
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
 			services := service.Services{
@@ -946,7 +978,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 				Metrics:           metricsV2,
 			}
 
-			s := api.New(proxyConf, services, log.ZapLogger)
+			s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 
@@ -1043,7 +1075,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			require.NoError(t, err)
 			wsService := stream.NewWebsocketService()
 			defer wsService.Close()
-			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 			require.NoError(t, err)
 
 			services := service.Services{
@@ -1053,7 +1085,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 				Metrics:           metricsV2,
 			}
 
-			s := api.New(proxyConf, services, log.ZapLogger)
+			s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 
@@ -1117,7 +1149,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, log.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, nil, wsService)
 	require.NoError(t, err)
@@ -1129,7 +1161,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 	go func() { s.StartWithContext(ctx) }()
 	defer s.Stop(ctx)
 
@@ -1223,7 +1255,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	wsService := stream.NewWebsocketService()
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.ZapLogger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -1232,7 +1264,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		FlagsetManager:    flagsetManager,
 	}
 
-	s := api.New(proxyConf, services, l.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, l.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1293,14 +1325,14 @@ func Test_StopBeforeStart(t *testing.T) {
 	}
 
 	l := newTestLogger(t)
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.ZapLogger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, l.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  stream.NewWebsocketService(),
 		FlagsetManager:    flagsetManager,
 	}
-	s := api.New(proxyConf, services, l.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, l.Slog, api.WithExit(runtime.Goexit), api.WithListener(ln))
 
 	// StartWithContext has not run, so Stop cannot see the servers drain and must give up
 	// when its context is done instead of blocking forever.

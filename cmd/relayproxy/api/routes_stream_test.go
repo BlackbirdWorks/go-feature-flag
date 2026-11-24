@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -27,8 +27,7 @@ import (
 func TestDeprecatedAliasHeaders(t *testing.T) {
 	t.Parallel()
 
-	z, err := zap.NewProduction()
-	require.NoError(t, err)
+	z := slog.New(slog.DiscardHandler)
 
 	ln, port := testutils.ListenLocal(t)
 	c := &config.Config{
@@ -148,7 +147,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		},
 	}
 	c.ForceReloadAPIKeys()
-	z := zap.NewNop()
+	z := slog.New(slog.DiscardHandler)
 
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(func() { wsService.Close() })

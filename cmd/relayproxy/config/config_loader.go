@@ -1,8 +1,10 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +19,8 @@ import (
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
-	"go.uber.org/zap"
 
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/utils"
@@ -47,7 +49,7 @@ type Loader struct {
 	studioLoadErr error
 	// internal state
 	k   *koanf.Koanf
-	log *zap.Logger
+	log *slog.Logger
 	// input parameters
 	cmdLineFlagSet *pflag.FlagSet
 	fileProvider   *file.File
@@ -84,7 +86,7 @@ func WithEnviron(environ func() []string) LoaderOption {
 
 // NewConfigLoader creates a new ConfigLoader.
 func NewConfigLoader(
-	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool, opts ...LoaderOption,
+	cmdLineFlagSet *pflag.FlagSet, log *slog.Logger, version string, watchChanges bool, opts ...LoaderOption,
 ) *Loader {
 	configLoader := Loader{
 		cmdLineFlagSet: cmdLineFlagSet,
@@ -99,7 +101,7 @@ func NewConfigLoader(
 	}
 	if configLoader.warner == nil {
 		configLoader.warner = legacy.NewWarner(func(kind, message string) {
-			log.Warn(message, zap.String("legacyName", kind))
+			log.LogAttrs(context.Background(), slog.LevelWarn, message, slog.String("legacyName", kind))
 		})
 	}
 
@@ -162,7 +164,12 @@ func (c *Loader) startWatchChanges() {
 	// This prevents blocking the fsnotify goroutine
 	onChange := func(_ any, err error) {
 		if err != nil {
-			c.log.Error("error watching for configuration changes", zap.Error(err))
+			c.log.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"error watching for configuration changes",
+				cmdlog.Err(err),
+			)
 
 			return
 		}
@@ -179,12 +186,22 @@ func (c *Loader) startWatchChanges() {
 	}
 	if c.fileProvider != nil {
 		if errWatch := c.fileProvider.Watch(onChange); errWatch != nil {
-			c.log.Error("error watching for configuration changes (error from file provider)", zap.Error(errWatch))
+			c.log.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"error watching for configuration changes (error from file provider)",
+				cmdlog.Err(errWatch),
+			)
 		}
 	}
 	if c.studioProvider != nil {
 		if errWatch := c.studioProvider.Watch(onChange); errWatch != nil {
-			c.log.Error("error watching for studio flagSets changes", zap.Error(errWatch))
+			c.log.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"error watching for studio flagSets changes",
+				cmdlog.Err(errWatch),
+			)
 		}
 	}
 }
@@ -245,7 +262,7 @@ func (c *Loader) reloadConfigAndNotify() {
 	}
 	modifiedConfig, err := newConfig.ToConfig()
 	if err != nil {
-		c.log.Error("error loading new config", zap.Error(err))
+		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading new config", cmdlog.Err(err))
 
 		return
 	}
@@ -308,7 +325,12 @@ func (c *Loader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 	posflagProvider := posflag.Provider(cmdLineFlagSet, ".", c.k)
 	errBindFlag := c.k.Load(posflagProvider, nil)
 	if errBindFlag != nil {
-		c.log.Error("impossible to parse flag command line", zap.Error(errBindFlag))
+		c.log.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to parse flag command line",
+			cmdlog.Err(errBindFlag),
+		)
 	}
 }
 
@@ -320,7 +342,12 @@ func (c *Loader) loadConfigFile() {
 	if c.configFilePath == "" {
 		c.configFilePath, errFileLocation = locateConfigFile(c.k.String("config"), c.legacyWarner())
 		if errFileLocation != nil {
-			c.log.Error("not using any configuration file", zap.Error(errFileLocation))
+			c.log.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"not using any configuration file",
+				cmdlog.Err(errFileLocation),
+			)
 
 			return
 		}
@@ -329,7 +356,7 @@ func (c *Loader) loadConfigFile() {
 	parser := selectParserForFile(c.configFilePath)
 	c.fileProvider = file.Provider(c.configFilePath)
 	if errBindFile := c.k.Load(c.fileProvider, parser); errBindFile != nil {
-		c.log.Error("error loading file", zap.Error(errBindFile))
+		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading file", cmdlog.Err(errBindFile))
 	}
 }
 
@@ -384,7 +411,7 @@ func (c *Loader) loadStudioFlagSets() {
 		// ETag and content are unchanged, since this reload could not use it.
 		c.studioProvider.Invalidate()
 		c.studioLoadErr = err
-		c.log.Error("error loading the flagSets from studio", zap.Error(err))
+		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading the flagSets from studio", cmdlog.Err(err))
 
 		return
 	}

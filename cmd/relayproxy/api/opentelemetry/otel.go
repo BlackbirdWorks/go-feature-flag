@@ -3,6 +3,7 @@ package opentelemetry
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -15,9 +16,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace/noop"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 type OtelService struct {
@@ -99,21 +100,21 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 // the global OpenTelemetry provider, with the error handler and the propagator of the relay proxy.
 // The OpenTelemetry API only offers process-wide registration, so it is the startup wiring (main) that
 // asks for it.
-func (s *OtelService) Install(zapLog *zap.Logger) {
+func (s *OtelService) Install(logger *slog.Logger) {
 	if s.otelTraceProvider == nil {
 		otel.SetTracerProvider(noop.NewTracerProvider())
 
 		return
 	}
 	otel.SetTracerProvider(s.otelTraceProvider)
-	otel.SetErrorHandler(newErrorHandler(zapLog))
+	otel.SetErrorHandler(newErrorHandler(logger))
 	otel.SetTextMapPropagator(newPropagator())
 }
 
-// newErrorHandler logs the OTel errors to zap rather than the default log package.
-func newErrorHandler(zapLog *zap.Logger) otel.ErrorHandler {
+// newErrorHandler logs the OTel errors rather than the default log package.
+func newErrorHandler(logger *slog.Logger) otel.ErrorHandler {
 	return otelErrHandler(func(err error) {
-		zapLog.Error("OTel error", zap.Error(err))
+		logger.LogAttrs(context.Background(), slog.LevelError, "OTel error", cmdlog.Err(err))
 	})
 }
 

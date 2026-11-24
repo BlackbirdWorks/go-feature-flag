@@ -32,14 +32,14 @@ func TestServer_WithListener(t *testing.T) {
 		Server:     config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", Port: port},
 	}
 	log := newTestLogger(t)
-	manager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger, nil, nil, nil)
+	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 	s := api.New(proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
-	}, log.ZapLogger, api.WithListener(listener))
+	}, log.Slog, api.WithListener(listener))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 

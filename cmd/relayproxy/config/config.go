@@ -1,12 +1,11 @@
 package config
 
 import (
+	"log/slog"
 	"strings"
 	"sync"
 
 	"github.com/spf13/pflag"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 type Config struct {
@@ -23,7 +22,7 @@ type Config struct {
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"`
 	// logger is the logger for the relay proxy
-	logger *zap.Logger
+	logger *slog.Logger
 	// configLoader is the service in charge of loading the configuration.
 	configLoader *Loader
 	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
@@ -161,7 +160,7 @@ type Config struct {
 }
 
 // New is reading the configuration file.
-func New(cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, opts ...LoaderOption) (*Config, error) {
+func New(cmdLineFlagSet *pflag.FlagSet, log *slog.Logger, version string, opts ...LoaderOption) (*Config, error) {
 	// Map environment variables
 	configLoader := NewConfigLoader(cmdLineFlagSet, log, version, true, opts...)
 	proxyConf, errUnmarshal := configLoader.ToConfig()
@@ -182,19 +181,6 @@ func (c *Config) IsDebugEnabled() bool {
 	}
 
 	return strings.ToLower(c.LogLevel) == "debug"
-}
-
-// ZapLogLevel returns the zap core level for the log level.
-func (c *Config) ZapLogLevel() zapcore.Level {
-	if c == nil {
-		return zapcore.InvalidLevel
-	}
-	level, err := zapcore.ParseLevel(c.LogLevel)
-	if err != nil {
-		return zapcore.InvalidLevel
-	}
-
-	return level
 }
 
 // IsUsingFlagsets returns true if the configuration is using flagsets.

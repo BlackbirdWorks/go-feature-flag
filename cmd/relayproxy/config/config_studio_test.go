@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -225,7 +225,8 @@ flagSets:
 			f.String("config", "", "Location of your config file")
 			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", false, withEnviron(environ...)).ToConfig()
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(environ...)).
+				ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(got))
@@ -290,7 +291,7 @@ studio:
 			f.String("config", "", "Location of your config file")
 			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 
-			loader := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", true)
+			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
 			defer func() { _ = loader.StopWatchChanges() }()
 			initialConfig, err := loader.ToConfig()
 			require.NoError(t, err)
@@ -474,7 +475,7 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String("config", "", "Location of your config file")
 	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
-	loader := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", true)
+	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 
 	return loader

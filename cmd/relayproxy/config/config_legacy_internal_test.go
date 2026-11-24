@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -10,10 +11,9 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
@@ -152,7 +152,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 			t.Parallel()
 			warner, warnings := recordingWarner()
 			c := &Loader{
-				log:         zap.NewNop(),
+				log:         slog.New(slog.DiscardHandler),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 				warner:      warner,
@@ -173,7 +173,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 	t.Parallel()
 	c := &Loader{
-		log: zap.NewNop(),
+		log: slog.New(slog.DiscardHandler),
 		k:   koanf.New("."),
 		environFunc: func() []string {
 			return []string{
@@ -215,7 +215,11 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &Loader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &Loader{
+				log:         slog.New(slog.DiscardHandler),
+				k:           koanf.New("."),
+				environFunc: func() []string { return tt.environ },
+			}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)
@@ -240,7 +244,11 @@ func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &Loader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &Loader{
+				log:         slog.New(slog.DiscardHandler),
+				k:           koanf.New("."),
+				environFunc: func() []string { return tt.environ },
+			}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)
@@ -287,9 +295,9 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			core, logs := observer.New(zap.DebugLevel)
+			core, logs := slogutil.NewObserver(slog.LevelDebug)
 			c := &Loader{
-				log:         zap.New(core),
+				log:         core,
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
 			}
@@ -302,9 +310,9 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 			}
 			var ignored []string
 			for _, e := range logs.FilterMessage("config: ignoring Kubernetes service link variables").All() {
-				for _, n := range e.ContextMap()["names"].([]any) {
-					ignored = append(ignored, n.(string))
-				}
+				names, ok := e.ContextMap()["names"].([]string)
+				require.True(t, ok)
+				ignored = append(ignored, names...)
 				for k, v := range e.ContextMap() {
 					assert.NotContains(t, fmtAny(v), "10.0.0.1", "values must not be logged (%s)", k)
 				}

@@ -48,7 +48,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String("config", "", "")
 	require.NoError(t, f.Parse([]string{"--config", confPath}))
-	proxyConf, err := config.New(f, log.ZapLogger, "e2e")
+	proxyConf, err := config.New(f, log.Slog, "e2e")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = proxyConf.StopConfigChangeWatcher() })
 	require.NoError(t, proxyConf.IsValid(), "config:\n%s", buf.String())
@@ -57,7 +57,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 	require.NoError(t, err)
 	ws := stream.NewWebsocketService()
 	sse := stream.NewSSEService()
-	manager, err := service.NewFlagsetManager(proxyConf, log.ZapLogger,
+	manager, err := service.NewFlagsetManager(proxyConf, log.Slog,
 		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, sse, ws)
 	require.NoError(t, err)
 	services := service.Services{
@@ -67,7 +67,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		FlagsetManager:    manager,
 		Metrics:           metrics,
 	}
-	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
+	s := api.New(proxyConf, services, log.Slog, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {

@@ -3,13 +3,13 @@ package api_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -48,8 +48,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			z, err := zap.NewProduction()
-			require.NoError(t, err)
+			z := slog.New(slog.DiscardHandler)
 			ln, port := testutils.ListenLocal(t)
 			opts := []api.Option{api.WithListener(ln)}
 			monitoringPort := 0

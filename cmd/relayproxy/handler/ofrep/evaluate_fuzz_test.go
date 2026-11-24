@@ -2,6 +2,7 @@ package ofrep_test
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -13,7 +14,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
@@ -40,7 +40,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 		},
-	}, zap.NewNop(), nil, nil, nil)
+	}, slog.New(slog.DiscardHandler), nil, nil, nil)
 	require.NoError(f, err)
 	f.Cleanup(flagsetManager.Close)
 

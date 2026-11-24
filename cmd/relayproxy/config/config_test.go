@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,13 +13,11 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
@@ -49,7 +48,7 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 			flagSet.String("config", "", "Location of your config file")
 			require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
 
-			got, err := config.New(flagSet, zap.NewNop(), "1.X.X", withEnviron(environ...))
+			got, err := config.New(flagSet, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantDisabled, got.DisableFlagDetailsInStream)
 		})
@@ -377,7 +376,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
 
-			got, err := config.New(f, zap.L(), "1.X.X", withEnviron("version=1.X.X"))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron("version=1.X.X"))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -490,7 +489,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1728,7 +1727,7 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1769,7 +1768,7 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
+			got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
 			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
@@ -1781,55 +1780,48 @@ func TestConfig_LogLevel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		config       *config.Config
-		name         string
-		wantDebug    bool
-		wantLogLevel zapcore.Level
+		config    *config.Config
+		name      string
+		wantDebug bool
 	}{
 		{
-			name:         "no config",
-			wantDebug:    false,
-			wantLogLevel: zapcore.InvalidLevel,
+			name:      "no config",
+			wantDebug: false,
 		},
 		{
 			name: "invalid log level",
 			config: &config.Config{
 				LogLevel: "invalid",
 			},
-			wantDebug:    false,
-			wantLogLevel: zapcore.InvalidLevel,
+			wantDebug: false,
 		},
 		{
 			name: "debug level",
 			config: &config.Config{
 				LogLevel: "debug",
 			},
-			wantDebug:    true,
-			wantLogLevel: zapcore.DebugLevel,
+			wantDebug: true,
 		},
 		{
 			name: "info level",
 			config: &config.Config{
 				LogLevel: "info",
 			},
-			wantDebug:    false,
-			wantLogLevel: zapcore.InfoLevel,
+			wantDebug: false,
 		},
 		{
 			name: "error level",
 			config: &config.Config{
 				LogLevel: "error",
 			},
-			wantDebug:    false,
-			wantLogLevel: zapcore.ErrorLevel,
+			wantDebug: false,
 		},
 		{
 			name: "panic level",
 			config: &config.Config{
 				LogLevel: "panic",
 			},
-			wantDebug:    false,
-			wantLogLevel: zapcore.PanicLevel,
+			wantDebug: false,
 		},
 	}
 
@@ -1838,7 +1830,6 @@ func TestConfig_LogLevel(t *testing.T) {
 			t.Parallel()
 
 			assert.Equalf(t, tt.wantDebug, tt.config.IsDebugEnabled(), "IsDebugEnabled()")
-			assert.Equalf(t, tt.wantLogLevel, tt.config.ZapLogLevel(), "ZapLogLevel()")
 		})
 	}
 }
@@ -1905,7 +1896,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 
-		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+		got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(
 			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
 			"RETRIEVERS_0_PATH=cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 		))
@@ -1919,7 +1910,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 		t.Parallel()
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+		got, err := config.New(f, slog.New(slog.DiscardHandler), "1.X.X", withEnviron(
 			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
 			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
 		))
@@ -2012,7 +2003,7 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	flagSet.String("config", "", "Location of your config file")
 	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
-	got, err := config.New(flagSet, zap.NewNop(), "1.X.X", opts...)
+	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), "1.X.X", opts...)
 	require.NoError(t, err)
 
 	return got
@@ -2116,15 +2107,15 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			core, logs := observer.New(zapcore.DebugLevel)
+			core, logs := slogutil.NewObserver(slog.LevelDebug)
 
-			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X",
+			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), core, "1.X.X",
 				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes))
 			require.NoError(t, err)
 
 			entries := logs.FilterMessageSnippet("OTEL_RESOURCE_ATTRIBUTES").All()
 			require.Len(t, entries, 1)
-			assert.Equal(t, zapcore.ErrorLevel, entries[0].Level)
+			assert.Equal(t, slog.LevelError, entries[0].Level)
 			assert.Equal(t, tt.wantPosition, entries[0].ContextMap()["position"])
 			for _, e := range logs.All() {
 				assert.NotContains(t, fmt.Sprintf("%v %v", e.Message, e.ContextMap()), marker)

@@ -2,6 +2,7 @@ package controller_test
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -84,7 +84,13 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 				},
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(
+				&conf,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
@@ -211,7 +217,13 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 				},
 			}
 
-			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			flagsetManager, err := service.NewFlagsetManager(
+				&conf,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
@@ -283,7 +295,13 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			},
 		},
 	}
-	flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(
+		&conf,
+		slog.New(slog.DiscardHandler),
+		[]notifier.Notifier{},
+		nil,
+		nil,
+	)
 	require.NoError(t, err, "impossible to create flagset manager")
 	t.Cleanup(func() { flagsetManager.Close() })
 

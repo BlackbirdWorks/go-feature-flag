@@ -1,20 +1,23 @@
 package middleware_test
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
-func TestZapLogger200(t *testing.T) {
+func TestRequestLogger200(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -26,11 +29,11 @@ func TestZapLogger200(t *testing.T) {
 		return c.String(http.StatusOK, "")
 	}
 
-	obs, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, false)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	logger := obs
+	err := middleware.RequestLogger(logger, false)(h)(c)
 	require.NoError(t, err)
-	logFields := logs.AllUntimed()[0].ContextMap()
+	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields["status"])
 	assert.NotNil(t, logFields["latency"])
@@ -39,7 +42,7 @@ func TestZapLogger200(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 
-func TestZapLogger300(t *testing.T) {
+func TestRequestLogger300(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -51,11 +54,11 @@ func TestZapLogger300(t *testing.T) {
 		return c.String(http.StatusFound, "")
 	}
 
-	obs, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, false)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	logger := obs
+	err := middleware.RequestLogger(logger, false)(h)(c)
 	require.NoError(t, err)
-	logFields := logs.AllUntimed()[0].ContextMap()
+	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields["status"])
 	assert.NotNil(t, logFields["latency"])
@@ -63,7 +66,7 @@ func TestZapLogger300(t *testing.T) {
 	assert.NotNil(t, logFields["host"])
 	assert.NotNil(t, logFields["size"])
 }
-func TestZapLogger400(t *testing.T) {
+func TestRequestLogger400(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -75,11 +78,11 @@ func TestZapLogger400(t *testing.T) {
 		return c.String(http.StatusBadRequest, "")
 	}
 
-	obs, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, false)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	logger := obs
+	err := middleware.RequestLogger(logger, false)(h)(c)
 	require.NoError(t, err)
-	logFields := logs.AllUntimed()[0].ContextMap()
+	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
 	assert.NotNil(t, logFields["latency"])
@@ -88,7 +91,7 @@ func TestZapLogger400(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 
-func TestZapLogger500(t *testing.T) {
+func TestRequestLogger500(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -100,11 +103,11 @@ func TestZapLogger500(t *testing.T) {
 		return c.String(http.StatusInternalServerError, "")
 	}
 
-	obs, logs := observer.New(zap.ErrorLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, false)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelError)
+	logger := obs
+	err := middleware.RequestLogger(logger, false)(h)(c)
 	require.NoError(t, err)
-	logFields := logs.AllUntimed()[0].ContextMap()
+	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
 	assert.NotNil(t, logFields["latency"])
@@ -113,7 +116,7 @@ func TestZapLogger500(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 
-func TestZapLoggerHealth(t *testing.T) {
+func TestRequestLoggerHealth(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -125,14 +128,14 @@ func TestZapLoggerHealth(t *testing.T) {
 		return c.String(http.StatusInternalServerError, "")
 	}
 
-	obs, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, false)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	logger := obs
+	err := middleware.RequestLogger(logger, false)(h)(c)
 	require.NoError(t, err)
-	assert.Empty(t, logs.AllUntimed())
+	assert.Empty(t, logs.All())
 }
 
-func TestZapLoggerHealthDebug(t *testing.T) {
+func TestRequestLoggerHealthDebug(t *testing.T) {
 	t.Parallel()
 
 	e := echo.New()
@@ -144,14 +147,14 @@ func TestZapLoggerHealthDebug(t *testing.T) {
 		return c.String(http.StatusInternalServerError, "")
 	}
 
-	obs, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(obs)
-	err := middleware.ZapLogger(logger, true)(h)(c)
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	logger := obs
+	err := middleware.RequestLogger(logger, true)(h)(c)
 	require.NoError(t, err)
-	assert.Len(t, logs.AllUntimed(), 1)
+	assert.Len(t, logs.All(), 1)
 }
 
-func TestZapLoggerRedactsAPIKey(t *testing.T) {
+func TestRequestLoggerRedactsAPIKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -196,11 +199,116 @@ func TestZapLoggerRedactsAPIKey(t *testing.T) {
 				return c.String(http.StatusUnauthorized, "")
 			}
 
-			obs, logs := observer.New(zap.DebugLevel)
-			err := middleware.ZapLogger(zap.New(obs), false)(h)(c)
+			obs, logs := slogutil.NewObserver(slog.LevelDebug)
+			err := middleware.RequestLogger(obs, false)(h)(c)
 			require.NoError(t, err)
 			assert.Equal(t, 1, logs.Len())
-			assert.Equal(t, tt.want, logs.AllUntimed()[0].ContextMap()["request"])
+			assert.Equal(t, tt.want, logs.All()[0].ContextMap()["request"])
 		})
 	}
+}
+
+var errBoom = errors.New("boom")
+
+func TestLogRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		wantContext map[string]any
+		name        string
+		wantMessage string
+		rec         middleware.RequestRecord
+		wantLevel   slog.Level
+	}{
+		{
+			name: "server error",
+			rec: middleware.RequestRecord{
+				Status: http.StatusBadGateway, Method: http.MethodPost, URI: "/v1/eval", Err: errBoom,
+				RemoteIP: "10.0.0.1", Host: "relay", UserAgent: "curl", RequestID: "id-1", Size: 7,
+				Latency: 1500 * time.Microsecond,
+			},
+			wantLevel: slog.LevelError, wantMessage: "Server error",
+			wantContext: map[string]any{
+				"error": "boom", "remote_ip": "10.0.0.1", "latency": "1.5ms", "host": "relay",
+				"request": "POST /v1/eval", "status": int64(502), "size": int64(7), "user_agent": "curl",
+				"request_id": "id-1",
+			},
+		},
+		{
+			name: "client error redacts the apiKey",
+			rec: middleware.RequestRecord{
+				Status: http.StatusUnauthorized, Method: http.MethodGet, URI: "/ws/v1/flag/change?apiKey=s3cr3t&a=b",
+			},
+			wantLevel: slog.LevelWarn, wantMessage: "Client error",
+			wantContext: map[string]any{
+				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /ws/v1/flag/change?apiKey=REDACTED&a=b",
+				"status": int64(401), "size": int64(0), "user_agent": "", "request_id": "",
+			},
+		},
+		{
+			name:      "redirection",
+			rec:       middleware.RequestRecord{Status: http.StatusFound, Method: http.MethodGet, URI: "/"},
+			wantLevel: slog.LevelDebug, wantMessage: "Redirection",
+			wantContext: map[string]any{
+				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /", "status": int64(302),
+				"size": int64(0), "user_agent": "", "request_id": "",
+			},
+		},
+		{
+			name:      "success",
+			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/?x"},
+			wantLevel: slog.LevelDebug, wantMessage: "Success",
+			wantContext: map[string]any{
+				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /?x", "status": int64(200),
+				"size": int64(0), "user_agent": "", "request_id": "",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			obs, logs := slogutil.NewObserver(slog.LevelDebug)
+			middleware.LogRequest(t.Context(), obs, &tt.rec)
+
+			got := logs.All()
+			require.Len(t, got, 1)
+			assert.Equal(t, tt.wantLevel, got[0].Level)
+			assert.Equal(t, tt.wantMessage, got[0].Message)
+			assert.Equal(t, tt.wantContext, got[0].ContextMap())
+		})
+	}
+}
+
+// TestLogRequestDisabledLevel checks that a disabled level costs nothing: no record, no allocation.
+// It is not parallel on purpose: AllocsPerRun counts the allocations of the parallel tests too.
+//
+//nolint:paralleltest // see above
+func TestLogRequestDisabledLevel(t *testing.T) {
+	obs, logs := slogutil.NewObserver(slog.LevelError)
+	rec := middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/v1/eval?apiKey=x"}
+	ctx := context.Background()
+
+	allocs := testing.AllocsPerRun(100, func() { middleware.LogRequest(ctx, obs, &rec) })
+
+	assert.InDelta(t, 0, allocs, 0)
+	assert.Zero(t, logs.Len())
+}
+
+func TestRequestLoggerRequestIDFromResponse(t *testing.T) {
+	t.Parallel()
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/something", nil)
+	c := e.NewContext(req, httptest.NewRecorder())
+	obs, logs := slogutil.NewObserver(slog.LevelDebug)
+	h := func(c *echo.Context) error {
+		c.Response().Header().Set(echo.HeaderXRequestID, "from-response")
+
+		return c.String(http.StatusOK, "")
+	}
+
+	require.NoError(t, middleware.RequestLogger(obs, false)(h)(c))
+
+	assert.Equal(t, "from-response", logs.All()[0].ContextMap()["request_id"])
 }

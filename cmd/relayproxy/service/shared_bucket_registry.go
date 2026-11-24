@@ -9,10 +9,9 @@ import (
 	"time"
 
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
@@ -44,7 +43,7 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 // retrievers have been shut down.
 type sharedBucketRegistry struct {
 	factory sharedItemsFactory
-	logger  *zap.Logger
+	logger  *slog.Logger
 	groups  map[string]*registryGroup
 	// pending are the retrievers created by preRegister and not claimed yet.
 	pending map[string][]*releasingRetriever
@@ -62,13 +61,13 @@ type registryGroup struct {
 // newSharedBucketRegistry builds the registry. The groups poll their bucket every pollingInterval
 // (the top-level pollingInterval of the relay proxy, 0 means 60s) with the jitter if enabled.
 func newSharedBucketRegistry(
-	factory sharedItemsFactory, pollingInterval time.Duration, jitter bool, logger *zap.Logger,
+	factory sharedItemsFactory, pollingInterval time.Duration, jitter bool, logger *slog.Logger,
 ) *sharedBucketRegistry {
 	if factory == nil {
 		factory = defaultSharedItemsFactory
 	}
 	if logger == nil {
-		logger = zap.NewNop()
+		logger = slog.New(slog.DiscardHandler)
 	}
 
 	return &sharedBucketRegistry{
@@ -133,8 +132,13 @@ func (r *sharedBucketRegistry) preRegisterAll(flagsets []config.FlagSet) {
 			continue
 		}
 		if err := r.preRegister(&flagsets[i]); err != nil {
-			r.logger.Warn("unable to pre-register the shared-poller retriever of the flagset",
-				zap.String("flagset", flagsets[i].Name), zap.Error(err))
+			r.logger.LogAttrs(
+				context.Background(),
+				slog.LevelWarn,
+				"unable to pre-register the shared-poller retriever of the flagset",
+				slog.String("flagset", flagsets[i].Name),
+				cmdlog.Err(err),
+			)
 		}
 	}
 }
@@ -219,7 +223,7 @@ func normalizePollingInterval(interval time.Duration) time.Duration {
 // pollerConfig is the polling configuration of the group of a bucket. The caller must hold r.mu.
 func (r *sharedBucketRegistry) pollerConfig(bucket string) s3retrieverv2.PollerConfig {
 	cfg := r.polling
-	cfg.Logger = slog.New(slogzap.Option{Level: slog.LevelDebug, Logger: r.logger}.NewZapHandler()).
+	cfg.Logger = r.logger.
 		With(slog.String("component", "shared-poller-poller"), slog.String("bucket", bucket))
 
 	return cfg
@@ -234,19 +238,23 @@ func (r *sharedBucketRegistry) warnPollingMismatch(fs *config.FlagSet) {
 	own := time.Duration(fs.PollingInterval) * time.Millisecond
 	if own != 0 && own != parent.Interval {
 		r.warnIgnored(fs, "pollingInterval",
-			zap.Duration("flagsetPollingInterval", own), zap.Duration("pollingInterval", parent.Interval))
+			slog.Duration("flagsetPollingInterval", own), slog.Duration("pollingInterval", parent.Interval))
 	}
 	if fs.EnablePollingJitter && !parent.Jitter {
 		r.warnIgnored(fs, "enablePollingJitter",
-			zap.Bool("flagsetEnablePollingJitter", fs.EnablePollingJitter),
-			zap.Bool("enablePollingJitter", parent.Jitter))
+			slog.Bool("flagsetEnablePollingJitter", fs.EnablePollingJitter),
+			slog.Bool("enablePollingJitter", parent.Jitter))
 	}
 }
 
 // warnIgnored warns that a polling setting of the flagset is ignored in favour of the top-level one.
-func (r *sharedBucketRegistry) warnIgnored(fs *config.FlagSet, setting string, fields ...zap.Field) {
-	r.logger.Warn("enableSharedPollerPerBucket: the "+setting+" of the flagset is ignored, "+
-		"the top-level "+setting+" is used", append([]zap.Field{zap.String("flagset", fs.Name)}, fields...)...)
+func (r *sharedBucketRegistry) warnIgnored(fs *config.FlagSet, setting string, fields ...slog.Attr) {
+	r.logger.LogAttrs(
+		context.Background(),
+		slog.LevelWarn,
+		"enableSharedPollerPerBucket: the "+setting+" of the flagset is ignored, "+
+			"the top-level "+setting+" is used",
+		append([]slog.Attr{slog.String("flagset", fs.Name)}, fields...)...)
 }
 
 // setPolling applies a new top-level pollingInterval and enablePollingJitter to the running
@@ -268,8 +276,13 @@ func (r *sharedBucketRegistry) setPolling(
 		g.items.SetPoller(r.pollerConfig(bucket))
 	}
 	r.mu.Unlock()
-	r.logger.Info("Configuration changed: polling of the shared pollers updated",
-		zap.Duration("pollingInterval", interval), zap.Bool("enablePollingJitter", jitter))
+	r.logger.LogAttrs(
+		context.Background(),
+		slog.LevelInfo,
+		"Configuration changed: polling of the shared pollers updated",
+		slog.Duration("pollingInterval", interval),
+		slog.Bool("enablePollingJitter", jitter),
+	)
 	for i := range flagsets {
 		if flagsets[i].EnableSharedPollerPerBucket {
 			r.warnPollingMismatch(&flagsets[i])

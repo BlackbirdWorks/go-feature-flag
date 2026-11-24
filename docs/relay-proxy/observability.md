@@ -6,7 +6,7 @@ your feature flag solution as well.
 This is why Semaphore relay-proxy offers out of the box some ways of monitor what is happening.
 
 ## Logging
-Semaphore relay proxy is using [Zap](https://pkg.go.dev/go.uber.org/zap) as the logging library.
+Semaphore relay proxy logs through the standard [`log/slog`](https://pkg.go.dev/log/slog) package, with its own handler (`cmdhelpers/log`) that writes the `json` and `logfmt` formats without allocating.
 
 By default, the relay proxy is logging to the standard output with a JSON format in level `INFO`.
 
@@ -22,6 +22,24 @@ logFormat: json
 |------------|:----------------:|--------|------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | logLevel   | No | string | **`INFO`** | The log level to use for the relay proxy.<br/> Available values are `ERROR`, `WARN`, `INFO`, `DEBUG`.                                                                                                                                                           |
 | logFormat  | No | string | **`json`** | <p>The format to use for structured logs from the relay proxy.<br/>Valid values are `json` and `logfmt`.</p><p><ul><li>**json**: Will output the logs in `JSON` format (default).</li><li>**logfmt**: Will output the log as text in the console.</li></ul></p> |
+
+### Log output
+
+A `json` record is one line with the keys `level` (`debug`, `info`, `warn`, `error` or `fatal`), `ts` (seconds since the
+epoch, as a decimal number), `caller` (`directory/file.go:line`), `msg`, then the attributes of the record.
+A `logfmt` record has the same fields as `ts=... level=... caller=... msg=... key=value`. Durations are written in seconds.
+Values that contain a space, a `=` or a `"` are quoted in `logfmt`.
+
+Secrets are never logged: the configuration is logged redacted, and the values of the API keys, tokens and connection
+strings are replaced by `[REDACTED]`.
+
+Differences with the logs of the versions that used Zap:
+
+- the records of level `error` no longer carry a `stacktrace` field, and repeated identical records are no longer sampled;
+- in `logfmt`, a value that is a map or a structure is written as quoted JSON (it used to be written as an empty value
+  followed by a `...Error="unsupported value type"` field);
+- in `json`, the configuration logged at the `debug` level when a new configuration is rejected is a JSON object, it used
+  to be a string containing JSON.
 
 ## Tracing
 

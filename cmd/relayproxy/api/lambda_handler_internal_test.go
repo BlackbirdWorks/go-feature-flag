@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -84,8 +84,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			z, err := zap.NewProduction()
-			require.NoError(t, err)
+			z := slog.New(slog.DiscardHandler)
 			c := &config.Config{
 				StartAsAwsLambda: true,    //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				AwsLambdaAdapter: tt.mode, //nolint:staticcheck // SA1019: the test covers the deprecated setting
@@ -179,8 +178,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 		},
 	}
 
-	z, err := zap.NewProduction()
-	require.NoError(t, err)
+	z := slog.New(slog.DiscardHandler)
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{

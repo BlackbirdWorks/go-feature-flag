@@ -1,13 +1,15 @@
 package config
 
 import (
+	"context"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/v2"
-	"go.uber.org/zap"
 
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 )
 
@@ -35,7 +37,7 @@ func (s Studio) parser() koanf.Parser {
 }
 
 // provider returns a koanf provider polling the URL.
-func (s Studio) provider(parser koanf.Parser, log *zap.Logger) *httpprovider.HTTP {
+func (s Studio) provider(parser koanf.Parser, log *slog.Logger) *httpprovider.HTTP {
 	return httpprovider.Provider(s.URL,
 		httpprovider.WithHeaders(s.Headers),
 		httpprovider.WithPollInterval(time.Duration(s.PollingInterval)*time.Millisecond),
@@ -45,8 +47,8 @@ func (s Studio) provider(parser koanf.Parser, log *zap.Logger) *httpprovider.HTT
 			return validateStudioFlagSets(content, parser)
 		}),
 		httpprovider.WithOnFallback(func(fetchErr error, cachedAt time.Time) {
-			log.Warn("studio unreachable, using the cached flagSets",
-				zap.Error(fetchErr), zap.Time("cachedAt", cachedAt))
+			log.LogAttrs(context.Background(), slog.LevelWarn, "studio unreachable, using the cached flagSets",
+				cmdlog.Err(fetchErr), slog.Time("cachedAt", cachedAt))
 		}),
 	)
 }

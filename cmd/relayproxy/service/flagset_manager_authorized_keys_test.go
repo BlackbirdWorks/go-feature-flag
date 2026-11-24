@@ -1,18 +1,18 @@
 package service_test
 
 import (
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 func authorizedKeysFlagset() config.FlagSet {
@@ -211,12 +211,12 @@ func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			obs, logs := observer.New(zap.WarnLevel)
+			obs, logs := slogutil.NewObserver(slog.LevelWarn)
 			manager, err := service.NewFlagsetManager(&config.Config{
 				FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
 				AuthorizedKeys: tt.keys,
 				APIKeys:        tt.apiKeys, //nolint:staticcheck // SA1019: the test covers the deprecated setting
-			}, zap.New(obs), nil, nil, nil)
+			}, obs, nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(manager.Close)
 

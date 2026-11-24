@@ -1,7 +1,8 @@
 package middleware
 
 import (
-	"fmt"
+	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -9,13 +10,8 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-)
 
-const (
-	// logFieldsCapacity is the number of fields of a request log line.
-	logFieldsCapacity = 8
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 // DefaultSkipper is what we use as a default.
@@ -37,8 +33,57 @@ func DebugSkipper(_ *echo.Context) bool {
 	return false
 }
 
-// ZapLogger is a middleware and zap to provide an "access log" like logging for each request.
-func ZapLogger(log *zap.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
+// RequestRecord is what the request logger logs about a request. It holds no framework type, so the logging is
+// the same whatever the router that fills it.
+type RequestRecord struct {
+	Err       error
+	RemoteIP  string
+	Host      string
+	Method    string
+	URI       string
+	UserAgent string
+	RequestID string
+	Latency   time.Duration
+	Size      int64
+	Status    int
+}
+
+// LogRequest logs a request at the level of its status: server errors are errors, client errors warnings,
+// the rest is debug. Nothing is built when the level is disabled.
+func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
+	var (
+		level slog.Level
+		msg   string
+	)
+	switch n := r.Status; {
+	case n >= http.StatusInternalServerError:
+		level, msg = slog.LevelError, "Server error"
+	case n >= http.StatusBadRequest:
+		level, msg = slog.LevelWarn, "Client error"
+	case n >= http.StatusMultipleChoices:
+		level, msg = slog.LevelDebug, "Redirection"
+	default:
+		level, msg = slog.LevelDebug, "Success"
+	}
+	if !logger.Enabled(ctx, level) {
+		return
+	}
+
+	logger.LogAttrs(ctx, level, msg,
+		cmdlog.Err(r.Err),
+		slog.String("remote_ip", r.RemoteIP),
+		slog.String("latency", r.Latency.String()),
+		slog.String("host", r.Host),
+		slog.String("request", r.Method+" "+redactAPIKey(r.URI)),
+		slog.Int("status", r.Status),
+		slog.Int64("size", r.Size),
+		slog.String("user_agent", r.UserAgent),
+		slog.String("request_id", r.RequestID),
+	)
+}
+
+// RequestLogger is a middleware to provide an "access log" like logging for each request.
+func RequestLogger(logger *slog.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
 	// select the right skipper
 	skipper := DefaultSkipper
 	if isDebugEnabled {
@@ -50,41 +95,24 @@ func ZapLogger(log *zap.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
 		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
 			req := c.Request()
 			res := c.Response()
-			var status int
-			var size int64
+			rec := RequestRecord{
+				Err:       v.Error,
+				RemoteIP:  c.RealIP(),
+				Latency:   time.Since(v.StartTime),
+				Host:      req.Host,
+				Method:    req.Method,
+				URI:       req.RequestURI,
+				UserAgent: req.UserAgent(),
+				RequestID: req.Header.Get(echo.HeaderXRequestID),
+			}
 			if r, err := echo.UnwrapResponse(res); err == nil {
-				status = r.Status
-				size = r.Size
+				rec.Status = r.Status
+				rec.Size = r.Size
 			}
-
-			fields := make([]zapcore.Field, 0, logFieldsCapacity)
-			fields = append(fields,
-				zap.String("remote_ip", c.RealIP()),
-				zap.String("latency", time.Since(v.StartTime).String()),
-				zap.String("host", req.Host),
-				zap.String("request", fmt.Sprintf("%s %s", req.Method, redactAPIKey(req.RequestURI))),
-				zap.Int("status", status),
-				zap.Int64("size", size),
-				zap.String("user_agent", req.UserAgent()),
-			)
-
-			id := req.Header.Get(echo.HeaderXRequestID)
-			if id == "" {
-				id = res.Header().Get(echo.HeaderXRequestID)
+			if rec.RequestID == "" {
+				rec.RequestID = res.Header().Get(echo.HeaderXRequestID)
 			}
-			fields = append(fields, zap.String("request_id", id))
-
-			n := status
-			switch {
-			case n >= http.StatusInternalServerError:
-				log.With(zap.Error(v.Error)).Error("Server error", fields...)
-			case n >= http.StatusBadRequest:
-				log.With(zap.Error(v.Error)).Warn("Client error", fields...)
-			case n >= http.StatusMultipleChoices:
-				log.Debug("Redirection", fields...)
-			default:
-				log.Debug("Success", fields...)
-			}
+			LogRequest(req.Context(), logger, &rec)
 
 			return nil
 		},

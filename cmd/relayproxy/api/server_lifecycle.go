@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -14,9 +15,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/labstack/echo/v5"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 // gracefulShutdownTimeout is the time given to in-flight requests to complete when the servers are stopped.
@@ -40,12 +41,12 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	// start the OpenTelemetry tracing service
 	err := s.otelService.Init(ctx, s.config)
 	if err == nil && s.installGlobalTelemetry {
-		s.otelService.Install(s.zapLog)
+		s.otelService.Install(s.logger)
 	}
 	if err != nil {
-		s.zapLog.Error(
+		s.logger.LogAttrs(context.Background(), slog.LevelError,
 			"error while initializing OTel, continuing without tracing enabled",
-			zap.Error(err),
+			cmdlog.Err(err),
 		)
 		// we can continue because otel is not mandatory to start the server
 	}
@@ -61,7 +62,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		}
 	}()
 
-	switch s.config.ServerMode(s.zapLog) {
+	switch s.config.ServerMode(s.logger) {
 	case config.ServerModeLambda:
 		s.startAwsLambda()
 	case config.ServerModeUnixSocket:
@@ -78,7 +79,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	// Clean up the old socket file if it exists (important for graceful restarts)
 	if _, err := os.Stat(socketPath); err == nil {
 		if removeErr := os.Remove(socketPath); removeErr != nil {
-			s.zapLog.Fatal("Could not remove old socket file", zap.String("path", socketPath), zap.Error(removeErr))
+			s.fatal("Could not remove old socket file", slog.String("path", socketPath), cmdlog.Err(removeErr))
 		}
 	}
 
@@ -92,20 +93,25 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "unix", socketPath)
 	if err != nil {
-		s.zapLog.Fatal("Error creating Unix listener", zap.Error(err))
+		s.fatal("Error creating Unix listener", cmdlog.Err(err))
 	}
 
 	defer func() {
 		// the graceful shutdown already closes the listener
 		if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
-			s.zapLog.Error("error closing unix socket listener", zap.Error(closeErr))
+			s.logger.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"error closing unix socket listener",
+				cmdlog.Err(closeErr),
+			)
 		}
 	}()
 
-	s.zapLog.Info(
+	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
 		"Starting semaphore relay proxy as unix socket...",
-		zap.String("socket", socketPath),
-		zap.String("version", s.config.Version))
+		slog.String("socket", socketPath),
+		slog.String("version", s.config.Version))
 
 	err = echo.StartConfig{
 		Listener:        listener,
@@ -114,7 +120,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 		GracefulTimeout: gracefulShutdownTimeout,
 	}.Start(ctx, s.apiEcho)
 	if err != nil {
-		s.zapLog.Fatal("Error starting relay proxy as unix socket", zap.Error(err))
+		s.fatal("Error starting relay proxy as unix socket", cmdlog.Err(err))
 	}
 }
 
@@ -126,11 +132,11 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		defer wg.Wait()
 	}
 
-	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.zapLog))
-	s.zapLog.Info(
+	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.logger))
+	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
 		"Starting semaphore relay proxy ...",
-		zap.String("address", address),
-		zap.String("version", s.config.Version))
+		slog.String("address", address),
+		slog.String("version", s.config.Version))
 
 	// Start blocks until ctx is cancelled and the graceful shutdown has drained the connections.
 	err := echo.StartConfig{
@@ -141,11 +147,11 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 		GracefulTimeout: gracefulShutdownTimeout,
 		BeforeServeFunc: s.httpServerProtocols,
 		OnShutdownError: func(err error) {
-			s.zapLog.Error("error shutting down api server", zap.Error(err))
+			s.logger.LogAttrs(context.Background(), slog.LevelError, "error shutting down api server", cmdlog.Err(err))
 		},
 	}.Start(ctx, s.apiEcho)
 	if err != nil {
-		s.zapLog.Fatal("Error starting relay proxy", zap.Error(err))
+		s.fatal("Error starting relay proxy", cmdlog.Err(err))
 	}
 }
 
@@ -164,10 +170,10 @@ func (s *Server) httpServerProtocols(srv *http.Server) error {
 }
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
-	addressMonitoring := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.EffectiveMonitoringPort(s.zapLog))
-	s.zapLog.Info(
+	addressMonitoring := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.EffectiveMonitoringPort(s.logger))
+	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
 		"Starting monitoring",
-		zap.String("address", addressMonitoring))
+		slog.String("address", addressMonitoring))
 	err := echo.StartConfig{
 		Address:         addressMonitoring,
 		Listener:        s.monitoringListener,
@@ -175,11 +181,11 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,
 		OnShutdownError: func(err error) {
-			s.zapLog.Error("error stopping monitoring", zap.Error(err))
+			s.logger.LogAttrs(context.Background(), slog.LevelError, "error stopping monitoring", cmdlog.Err(err))
 		},
 	}.Start(ctx, s.monitoringEcho)
 	if err != nil {
-		s.zapLog.Fatal("Error starting monitoring", zap.Error(err))
+		s.fatal("Error starting monitoring", cmdlog.Err(err))
 	}
 }
 
@@ -192,9 +198,9 @@ func (s *Server) startAwsLambda() {
 // We need a dedicated function because it is called from tests as well, this is the
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
-	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsAPIGatewayBasePath(s.zapLog))
+	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsAPIGatewayBasePath(s.logger))
 
-	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.zapLog))
+	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.logger))
 }
 
 // Stop shutdown the API server.
@@ -202,18 +208,24 @@ func (s *Server) lambdaHandler() any {
 func (s *Server) Stop(ctx context.Context) {
 	err := s.otelService.Stop(ctx)
 	if err != nil {
-		s.zapLog.Error("impossible to stop otel", zap.Error(err))
+		s.logger.LogAttrs(context.Background(), slog.LevelError, "impossible to stop otel", cmdlog.Err(err))
 	}
 
 	s.stop()
 	select {
 	case <-s.stopped:
 	case <-ctx.Done():
-		s.zapLog.Error("error stopping relay proxy", zap.Error(ctx.Err()))
+		s.logger.LogAttrs(context.Background(), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
 	}
 }
 
 // isMonitoringPortConfigured checks if the monitoring port is configured.
 func (s *Server) isMonitoringPortConfigured() bool {
-	return s.monitoringEcho != nil && s.config.EffectiveMonitoringPort(s.zapLog) > 0
+	return s.monitoringEcho != nil && s.config.EffectiveMonitoringPort(s.logger) > 0
+}
+
+// fatal logs the message at the fatal level and exits the process.
+func (s *Server) fatal(msg string, attrs ...slog.Attr) {
+	s.logger.LogAttrs(context.Background(), cmdlog.LevelFatal, msg, attrs...)
+	s.exit()
 }

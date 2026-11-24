@@ -1,14 +1,13 @@
 package config_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 func TestConfig_EffectiveMonitoringPort(t *testing.T) {
@@ -83,11 +82,11 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *zap.Logger
-			var observedLogs *observer.ObservedLogs
+			var logger *slog.Logger
+			var observedLogs *slogutil.ObservedLogs
 
-			core, logs := observer.New(zapcore.WarnLevel)
-			logger = zap.New(core)
+			core, logs := slogutil.NewObserver(slog.LevelWarn)
+			logger = core
 			observedLogs = logs
 
 			if tt.setLoggerNil {
@@ -234,11 +233,11 @@ func TestConfig_ServerPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *zap.Logger
-			var observedLogs *observer.ObservedLogs
+			var logger *slog.Logger
+			var observedLogs *slogutil.ObservedLogs
 
-			core, logs := observer.New(zapcore.WarnLevel)
-			logger = zap.New(core)
+			core, logs := slogutil.NewObserver(slog.LevelWarn)
+			logger = core
 			observedLogs = logs
 
 			if tt.setLoggerNil {
@@ -349,15 +348,15 @@ func TestConfig_ServerMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *zap.Logger
-			var observedLogs *observer.ObservedLogs
+			var logger *slog.Logger
+			var observedLogs *slogutil.ObservedLogs
 
 			if tt.wantDeprecationWarned {
-				core, logs := observer.New(zapcore.WarnLevel)
-				logger = zap.New(core)
+				core, logs := slogutil.NewObserver(slog.LevelWarn)
+				logger = core
 				observedLogs = logs
 			} else {
-				logger = zap.NewNop()
+				logger = slog.New(slog.DiscardHandler)
 			}
 
 			got := tt.config.ServerMode(logger)
@@ -463,15 +462,15 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *zap.Logger
-			var observedLogs *observer.ObservedLogs
+			var logger *slog.Logger
+			var observedLogs *slogutil.ObservedLogs
 
 			if tt.wantDeprecationWarned {
-				core, logs := observer.New(zapcore.WarnLevel)
-				logger = zap.New(core)
+				core, logs := slogutil.NewObserver(slog.LevelWarn)
+				logger = core
 				observedLogs = logs
 			} else {
-				logger = zap.NewNop()
+				logger = slog.New(slog.DiscardHandler)
 			}
 
 			got := tt.config.LambdaAdapter(logger)
@@ -566,15 +565,15 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *zap.Logger
-			var observedLogs *observer.ObservedLogs
+			var logger *slog.Logger
+			var observedLogs *slogutil.ObservedLogs
 
 			if tt.wantDeprecationWarned {
-				core, logs := observer.New(zapcore.WarnLevel)
-				logger = zap.New(core)
+				core, logs := slogutil.NewObserver(slog.LevelWarn)
+				logger = core
 				observedLogs = logs
 			} else {
-				logger = zap.NewNop()
+				logger = slog.New(slog.DiscardHandler)
 			}
 
 			got := tt.config.EffectiveAwsAPIGatewayBasePath(logger)

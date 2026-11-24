@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +16,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -143,7 +143,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				}
 			}()
 
-			log := zap.L()
+			log := slog.New(slog.DiscardHandler)
 			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), log)
 
 			e := echo.New()
@@ -247,7 +247,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), zap.L())
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
 
 	e := echo.New()
 	e.GET("/ws/v1/flag/change", ctrl.Handler)
@@ -339,7 +339,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), zap.L())
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
 
 	e := echo.New()
 	e.GET("/ws/v1/flag/change", ctrl.LegacyHandler)
@@ -409,7 +409,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			defer websocketService.Close()
 
 			flagsetMgr := &mockFlagsetManagerSSE{flagsetName: "flagsetA", isDefault: false}
-			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, zap.NewNop())
+			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
 
 			e := echo.New()
 			e.GET("/ws", tt.handler(ctrl))
@@ -516,7 +516,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 				isDefault: false,
 				err:       errNoFlagSetAssociated,
 			}
-			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, zap.NewNop())
+			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
 
 			e := echo.New()
 			e.GET("/ws", tt.handler(ctrl))
