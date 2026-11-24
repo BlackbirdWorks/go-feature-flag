@@ -307,6 +307,32 @@ func goldenOpenCases() []goldenCase {
 			name: "cors_simple", method: http.MethodGet, path: "/health",
 			headers: map[string]string{"Origin": "https://example.com"},
 		},
+		{name: "options_health_no_origin", method: http.MethodOptions, path: "/health"},
+		{
+			name: "options_health_preflight", method: http.MethodOptions, path: "/health",
+			headers: map[string]string{
+				"Origin": "https://example.com", "Access-Control-Request-Method": "GET",
+			},
+		},
+		{
+			name: "options_health_origin_only", method: http.MethodOptions, path: "/health",
+			headers: map[string]string{"Origin": "https://example.com"},
+		},
+		{
+			name: "options_swagger_preflight", method: http.MethodOptions, path: "/swagger/index.html",
+			headers: map[string]string{
+				"Origin": "https://example.com", "Access-Control-Request-Method": "GET",
+				"Access-Control-Request-Headers": "x-api-key",
+			},
+		},
+		{name: "head_info", method: http.MethodHead, path: "/info"},
+		{name: "head_manifest", method: http.MethodHead, path: "/openfeature/v0/manifest"},
+		{name: "info_trailing_slash", method: http.MethodGet, path: "/info/"},
+		{name: "metrics_post", method: http.MethodPost, path: "/metrics"},
+		{
+			name: "cors_simple_error", method: http.MethodGet, path: "/nope",
+			headers: map[string]string{"Origin": "https://example.com"},
+		},
 		{name: "trace_method", method: http.MethodTrace, path: "/health"},
 		{name: "connect_method", method: http.MethodConnect, path: "/health"},
 		{name: "patch_allflags", method: http.MethodPatch, path: "/v1/allflags", body: `{}`, headers: jsonHeaders()},

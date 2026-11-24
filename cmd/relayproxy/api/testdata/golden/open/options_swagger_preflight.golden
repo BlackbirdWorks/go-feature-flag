@@ -1,0 +1,8 @@
+status: 204
+Access-Control-Allow-Headers: x-api-key
+Access-Control-Allow-Methods: GET,HEAD,PUT,PATCH,POST,DELETE
+Access-Control-Allow-Origin: *
+Allow: OPTIONS, GET
+Vary: Origin | Access-Control-Request-Method | Access-Control-Request-Headers
+---
+""

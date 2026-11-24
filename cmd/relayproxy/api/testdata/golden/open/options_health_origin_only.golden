@@ -1,0 +1,8 @@
+status: 204
+Access-Control-Allow-Origin: *
+Allow: OPTIONS, GET
+Vary: Origin
+X-Gofeatureflag-Version: v0.0.0-golden
+X-Semaphore-Version: v0.0.0-golden
+---
+""
