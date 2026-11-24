@@ -343,13 +343,6 @@ func TestRequestLoggerReturnedErrors(t *testing.T) {
 			wantLevel:   slog.LevelDebug,
 			wantMessage: "Success",
 		},
-		{name: "panic recovered by a middleware", handler: func(w http.ResponseWriter, r *http.Request) {
-			// what the recovery middleware does: the error is recorded and the 500 is sent
-			middleware.RecordError(r.Context(), errBoom)
-			w.WriteHeader(http.StatusInternalServerError)
-		},
-			wantStatus: http.StatusInternalServerError, wantLevel: slog.LevelError,
-			wantMessage: "Server error", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

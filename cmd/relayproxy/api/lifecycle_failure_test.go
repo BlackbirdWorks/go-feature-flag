@@ -3,6 +3,8 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"runtime"
 	"testing"
@@ -14,7 +16,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 var errAcceptFailed = errors.New("accept failed")
@@ -35,17 +39,23 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		setup func(t *testing.T, conf *config.Config) []api.Option
-		name  string
+		setup       func(t *testing.T, conf *config.Config) []api.Option
+		wantMessage string
+		wantCause   string
+		name        string
 	}{
 		{
-			name: "the API listener fails while serving",
+			name:        "the API listener fails while serving",
+			wantMessage: "Error starting relay proxy",
+			wantCause:   "accept failed",
 			setup: func(*testing.T, *config.Config) []api.Option {
 				return []api.Option{api.WithListener(failingListener{})}
 			},
 		},
 		{
-			name: "the monitoring listener fails while serving",
+			name:        "the monitoring listener fails while serving",
+			wantMessage: "Error starting monitoring",
+			wantCause:   "accept failed",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
 				ln, port := testutils.ListenLocal(t)
@@ -55,7 +65,9 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			},
 		},
 		{
-			name: "the API port is already bound",
+			name:        "the API port is already bound",
+			wantMessage: "Error starting relay proxy",
+			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
 				_, port := testutils.ListenLocal(t)
@@ -66,7 +78,9 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			},
 		},
 		{
-			name: "the monitoring port is already bound",
+			name:        "the monitoring port is already bound",
+			wantMessage: "Error starting monitoring",
+			wantCause:   "address already in use",
 			setup: func(t *testing.T, conf *config.Config) []api.Option {
 				t.Helper()
 				ln, _ := testutils.ListenLocal(t)
@@ -95,10 +109,11 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 				}
 				runtime.Goexit()
 			}))
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			s := api.New(conf, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				FlagsetManager:    flagsetManager,
-			}, newTestLogger(t).Slog, opts...)
+			}, logger, opts...)
 			go func() { s.StartWithContext(context.Background()) }()
 			t.Cleanup(func() {
 				stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -109,8 +124,21 @@ func Test_ListenerFailure_IsFatal(t *testing.T) {
 			select {
 			case <-exited:
 			case <-time.After(10 * time.Second):
-				assert.Fail(t, "the failure of the listener never reached the fatal handler")
+				require.Fail(t, "the failure of the listener never reached the fatal handler")
 			}
+
+			// the fatal handler was reached for the failure that was provoked, not for another one
+			var fatal []map[string]any
+			for _, entry := range logs.All() {
+				if entry.Level == cmdlog.LevelFatal {
+					fields := entry.ContextMap()
+					fields["message"] = entry.Message
+					fatal = append(fatal, fields)
+				}
+			}
+			require.Len(t, fatal, 1)
+			assert.Equal(t, tt.wantMessage, fatal[0]["message"])
+			assert.Contains(t, fmt.Sprint(fatal[0]["error"]), tt.wantCause)
 		})
 	}
 }

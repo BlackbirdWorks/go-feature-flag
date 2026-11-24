@@ -92,7 +92,8 @@ func WithGlobalTelemetry() Option {
 
 // WithReadTimeout sets how long a request may take to be read, its body included: the servers close the connection
 // of a client that is slower. The default is 30 seconds, the uploads (data collector, flag configuration) are bound
-// by the same duration.
+// by the same duration. A duration of zero or less means no bound at all, for the servers and for the uploads: it is
+// for an embedder that bounds the reads elsewhere (a proxy in front, a test), the relay proxy itself never sets it.
 func WithReadTimeout(d time.Duration) Option {
 	return func(s *Server) { s.readTimeout = d }
 }

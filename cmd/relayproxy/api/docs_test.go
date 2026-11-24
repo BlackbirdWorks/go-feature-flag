@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -94,53 +95,59 @@ func Test_Swagger_ConcurrentFirstRequests(t *testing.T) {
 	t.Parallel()
 
 	h := newDocsServer(t, 0)
-	var wg sync.WaitGroup
-	for _, path := range []string{
+	var (
+		wg     sync.WaitGroup
+		mu     sync.Mutex
+		bodies = map[string][]string{}
+	)
+	paths := []string{
 		"/swagger/openapi.json", "/swagger/openapi-3.0.json", "/swagger/openapi.yaml", "/swagger/openapi-3.0.yaml",
-	} {
+	}
+	for _, path := range paths {
 		for range 8 {
 			wg.Go(func() {
 				rec := httptest.NewRecorder()
 				h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
 				assert.Equal(t, http.StatusOK, rec.Code)
-				assert.NotEmpty(t, rec.Body.Bytes())
+				mu.Lock()
+				bodies[path] = append(bodies[path], rec.Body.String())
+				mu.Unlock()
 			})
 		}
 	}
 	wg.Wait()
+
+	// the race detector reports the unsynchronised cache; every request must also have got the same complete document.
+	for _, path := range paths {
+		require.Len(t, bodies[path], 8)
+		assert.NotEmpty(t, bodies[path][0])
+		for _, body := range bodies[path] {
+			assert.Equal(t, bodies[path][0], body, path)
+		}
+	}
 }
 
-// Test_Upload_ReadIsBound checks that the routes that read their own body honour the read timeout the server was
-// given. The same stalled upload (the headers announce a body that never arrives in full) is sent to both
-// endpoints, with the read timeout of the server on and off: the two cases differ only by that option.
-//   - with the timeout, the server ends the exchange (it answers 408 or closes the connection). The client waits up
-//     to a generous deadline that only keeps a hang from blocking the test: the pass condition is the outcome, a
-//     client-side timeout fails it.
-//   - without the timeout, the server does not end it: the client's short read deadline expires first. This control
-//     proves that what ends the first case is the timeout, not something else about the request.
+// Test_Upload_ReadIsBound checks end to end that the routes that read their own body end a stalled upload (the
+// headers announce a body that never arrives in full) when the server has a read timeout: it answers 408 or closes
+// the connection. The pass condition is the outcome: a client-side timeout fails the test, the generous client
+// deadline only keeps a hang from blocking it. That the timeout is what is applied, and that it is absent when the
+// option disables it, is checked at the mechanism by Test_Upload_ReadDeadline.
 func Test_Upload_ReadIsBound(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		path         string
-		readTimeout  time.Duration
-		clientWait   time.Duration
-		wantServerOn bool
+		name string
+		path string
 	}{
-		{name: "data collector, timeout", path: "/v1/data/collector", readTimeout: 100 * time.Millisecond,
-			clientWait: 30 * time.Second, wantServerOn: true},
-		{name: "flag configuration, timeout", path: "/v1/flag/configuration", readTimeout: 100 * time.Millisecond,
-			clientWait: 30 * time.Second, wantServerOn: true},
-		{name: "data collector, no timeout", path: "/v1/data/collector", clientWait: 500 * time.Millisecond},
-		{name: "flag configuration, no timeout", path: "/v1/flag/configuration", clientWait: 500 * time.Millisecond},
+		{name: "data collector", path: "/v1/data/collector"},
+		{name: "flag configuration", path: "/v1/flag/configuration"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			conf := testConfig(t)
-			baseURL := startGoldenServer(t, conf, api.WithReadTimeout(tt.readTimeout))
+			baseURL := startGoldenServer(t, conf, api.WithReadTimeout(100*time.Millisecond))
 			conn, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(
 				t.Context(),
 				"tcp",
@@ -153,16 +160,10 @@ func Test_Upload_ReadIsBound(t *testing.T) {
 				"Content-Length: 100000\r\n\r\n{\"events\":[", tt.path)
 			require.NoError(t, err, "the request was sent in full")
 
-			require.NoError(t, conn.SetReadDeadline(time.Now().Add(tt.clientWait)))
+			require.NoError(t, conn.SetReadDeadline(time.Now().Add(30*time.Second)))
 			line, err := bufio.NewReader(conn).ReadString('\n')
 			var netErr net.Error
-			clientGaveUp := errors.As(err, &netErr) && netErr.Timeout()
-			if !tt.wantServerOn {
-				assert.True(t, clientGaveUp, "without a read timeout the server waits for the body: %q, %v", line, err)
-
-				return
-			}
-			require.False(t, clientGaveUp, "the server never ended the stalled upload")
+			require.False(t, errors.As(err, &netErr) && netErr.Timeout(), "the server never ended the stalled upload")
 			if err == nil {
 				assert.Contains(t, line, "408", "the answer to a stalled upload is a 408")
 
@@ -170,6 +171,87 @@ func Test_Upload_ReadIsBound(t *testing.T) {
 			}
 			// the server closed the connection (EOF, or a reset when it closes with data unread)
 			assert.True(t, errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET), "unexpected error: %v", err)
+		})
+	}
+}
+
+// deadlineRecorder is a response writer that records the read deadlines that are set on the connection (huma sets
+// them through the writer, following Unwrap): it shows what the registered routes ask of the server.
+type deadlineRecorder struct {
+	*httptest.ResponseRecorder
+
+	deadlines []time.Time
+}
+
+func (d *deadlineRecorder) SetReadDeadline(deadline time.Time) error {
+	d.deadlines = append(d.deadlines, deadline)
+
+	return nil
+}
+
+// Test_Upload_ReadDeadline checks the read deadline that the registered upload routes set for the body, through the
+// whole chain of middleware: the read timeout of the server when it is on, no deadline (a zero time clears the
+// deadline of the connection, so the read is not bound at all, and huma's default of 5 seconds is not applied) when
+// the option disables it. It is the proof that the "off" case is really unbounded, without waiting for anything.
+func Test_Upload_ReadDeadline(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		path    string
+		timeout time.Duration
+		wantOn  bool
+	}{
+		{name: "data collector, timeout on", path: "/v1/data/collector", timeout: 100 * time.Millisecond, wantOn: true},
+		{
+			name:    "flag configuration, timeout on",
+			path:    "/v1/flag/configuration",
+			timeout: 100 * time.Millisecond,
+			wantOn:  true,
+		},
+		{name: "data collector, timeout off", path: "/v1/data/collector"},
+		{name: "flag configuration, timeout off", path: "/v1/flag/configuration"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			conf := testConfig(t)
+			flagsetManager, err := service.NewFlagsetManager(conf, newTestLogger(t).Slog, nil, nil, nil)
+			require.NoError(t, err)
+			t.Cleanup(flagsetManager.Close)
+			srv := api.New(conf, service.Services{FlagsetManager: flagsetManager}, newTestLogger(t).Slog,
+				api.WithReadTimeout(tt.timeout))
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				tt.path,
+				strings.NewReader(`{"events":[]}`),
+			)
+			req.Header.Set("Content-Type", "application/json")
+			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+			before := time.Now()
+			srv.Handler().ServeHTTP(rec, req)
+			after := time.Now()
+
+			require.NotEmpty(
+				t,
+				rec.deadlines,
+				"the route set no read deadline: the chain hides the connection from huma",
+			)
+			first := rec.deadlines[0]
+			if !tt.wantOn {
+				assert.True(t, first.IsZero(), "the deadline is cleared: no bound on the read, got %v", first)
+
+				return
+			}
+			assert.False(
+				t,
+				first.Before(before.Add(tt.timeout)),
+				"the deadline is the read timeout from the start of the read",
+			)
+			assert.False(t, first.After(after.Add(tt.timeout)), "the deadline is not later than the read timeout")
 		})
 	}
 }
