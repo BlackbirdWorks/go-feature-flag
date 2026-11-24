@@ -1,6 +1,7 @@
 package flag_test
 
 import (
+	"time"
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
@@ -48,4 +49,44 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 	}
 	var nilFlag *flag.InternalFlag
 	assert.Nil(t, nilFlag.DeepCopy())
+}
+
+func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
+	t.Parallel()
+	str := func(s string) *string { return &s }
+	flt := func(f float64) *float64 { return &f }
+	boolean := func(b bool) *bool { return &b }
+	date := time.Date(2021, 1, 2, 3, 4, 5, 0, time.UTC)
+	build := func() *flag.InternalFlag {
+		step := &flag.ProgressiveRolloutStep{Variation: str("A"), Percentage: flt(1), Date: &date}
+		d := date
+		return &flag.InternalFlag{
+			BucketingKey: str("k"), TrackEvents: boolean(true), Disable: boolean(false), Version: str("1"),
+			Rules: &[]flag.Rule{{
+				Name: str("r"), Query: str("q"), VariationResult: str("A"), Disable: boolean(false),
+				Percentages:        &map[string]float64{"A": 1},
+				ProgressiveRollout: &flag.ProgressiveRollout{Initial: step, End: step},
+			}},
+			DefaultRule:     &flag.Rule{Percentages: &map[string]float64{"A": 1}},
+			Experimentation: &flag.ExperimentationRollout{Start: &d, End: &d},
+			Scheduled: &[]flag.ScheduledStep{{
+				InternalFlag: flag.InternalFlag{Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}}},
+				Date:         &d,
+			}},
+		}
+	}
+	orig := build()
+	cp := orig.DeepCopy()
+	assert.Equal(t, orig, cp)
+
+	(*cp.Rules)[0].ProgressiveRollout.End.Percentage = flt(9)
+	*(*cp.Rules)[0].ProgressiveRollout.Initial.Variation = "changed"
+	*(*cp.Rules)[0].Name = "changed"
+	(*(*cp.Rules)[0].Percentages)["A"] = 9
+	*cp.DefaultRule.Percentages = map[string]float64{}
+	*cp.Experimentation.Start = time.Time{}
+	*(*cp.Scheduled)[0].Date = time.Time{}
+	(*(*cp.Scheduled)[0].Metadata)["a"].([]any)[0] = "changed"
+	*cp.Version = "changed"
+	assert.Equal(t, build(), orig)
 }

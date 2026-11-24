@@ -82,6 +82,9 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 			defer func() { _ = m.Shutdown(context.Background()) }()
 
 			flags, err := m.GetFlagsFromCache(context.Background())
+			readOnly, errReadOnly := m.GetFlagsFromCacheReadOnly(context.Background())
+			require.NoError(t, errReadOnly)
+			assert.Len(t, readOnly, len(flags))
 			if tt.wantFlag {
 				require.NoError(t, err)
 				assert.Contains(t, flags, "test-flag")
@@ -124,6 +127,8 @@ func TestManagerGetFlagsFromCacheWithoutManager(t *testing.T) {
 	t.Parallel()
 	var m *retriever.Manager
 	_, err := m.GetFlagsFromCache(context.Background())
+	assert.ErrorContains(t, err, "cache is not initialized")
+	_, err = m.GetFlagsFromCacheReadOnly(context.Background())
 	assert.ErrorContains(t, err, "cache is not initialized")
 }
 

@@ -195,3 +195,22 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		})
 	}
 }
+
+// Test_AllFlagsReadOnly_ReturnsTheLiveFlags checks that the copy-free accessor serves the flags of the cache
+// (same pointers as the evaluation lookup) and fails before the initialisation.
+func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
+	t.Parallel()
+	m := cache.New(nil, "", &fflog.FFLogger{})
+	m.Close()
+	_, err := m.AllFlagsReadOnly()
+	require.Error(t, err)
+
+	m = cache.New(nil, "", &fflog.FFLogger{})
+	require.NoError(t, m.UpdateCache(benchFlagsMap(t, 3), nil, false))
+	shared, err := m.AllFlagsReadOnly()
+	require.NoError(t, err)
+	require.Len(t, shared, 3)
+	live, err := m.GetFlag("flag-1")
+	require.NoError(t, err)
+	assert.Same(t, live, shared["flag-1"])
+}
