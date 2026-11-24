@@ -20,10 +20,7 @@ rules/ - Rules engine
   Licensed under the MIT License (see rules/LICENSE)
   Original source: https://github.com/nikunjy/rules
   The directory is a vendored copy of https://github.com/go-feature-flag/rules (see
-  rules/README.md and UPSTREAM.md), a fork of the project above, with local changes (the
-  carried upstream pull request and the import path rewritten to
-  github.com/blackbirdworks/semaphore/rules). It is part of the root Go module, not a
-  separate module.
+  rules/README.md and UPSTREAM.md), a fork of the project above, with local changes.
 
 internal/koanfhttpprovider/ - koanf HTTP provider
   Copyright (c) 2026 Thomas Poignant

@@ -2,7 +2,6 @@ package parser
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 )
@@ -26,7 +25,8 @@ type NestedError struct {
 }
 
 func (e *NestedError) Original() error {
-	if nested, ok := errors.AsType[*NestedError](e.Err); ok {
+	// Exact type, not errors.As: an error that merely wraps a NestedError is the original.
+	if nested, ok := e.Err.(*NestedError); ok { //nolint:errorlint // see above
 		return nested.Original()
 	}
 

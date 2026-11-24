@@ -3,6 +3,7 @@ package parser
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -14,6 +15,7 @@ func TestNestedError(t *testing.T) {
 	t.Parallel()
 
 	base := errors.New("some random error")
+	wrapper := fmt.Errorf("wrapped: %w", newNestedError(base, "a"))
 	tests := []struct {
 		name     string
 		err      *NestedError
@@ -26,6 +28,12 @@ func TestNestedError(t *testing.T) {
 			err:      newNestedError(newNestedError(base, "a"), "b"),
 			original: base,
 			want:     `{"err":"{\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
+		},
+		{
+			name:     "an error wrapping a nested error is the original",
+			err:      newNestedError(wrapper, "b"),
+			original: wrapper,
+			want:     `{"err":"wrapped: {\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,
 		},
 		{
 			name:     "vals",
