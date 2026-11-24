@@ -14,7 +14,7 @@ type Context struct {
 
 	// Service owns the caches that evaluating the flag uses. A client creates one and passes it
 	// here for every evaluation, so that the evaluations share the parsed queries and nothing else
-	// does. Nil means a throwaway Service for each evaluation (see InternalFlag.Value).
+	// does. It is required: InternalFlag.Value returns an error resolution when it is nil.
 	Service *Service `json:"-"`
 }
 

@@ -46,6 +46,7 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
@@ -1182,6 +1183,48 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 			require.NoError(t, err)
 			t.Cleanup(client.Close)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		uris []string
+	}{
+		{
+			name: "two retrievers on the same database",
+			uris: []string{"postgres://localhost/db", "postgres://localhost/db"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			retrievers := make([]retrieverconf.RetrieverConf, 0, len(tt.uris))
+			for _, uri := range tt.uris {
+				retrievers = append(retrievers, retrieverconf.RetrieverConf{
+					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: "flags",
+				})
+			}
+			var o clientOptions
+			o.ensurePostgresPools()
+
+			got, err := initRetrieversWithRegistry(
+				&config.FlagSet{Retrievers: &retrievers},
+				nil,
+				o.retrieverOptions()...)
+
+			require.NoError(t, err)
+			require.Len(t, got, len(tt.uris))
+			first, ok := got[0].(*postgresqlretriever.Retriever)
+			require.True(t, ok)
+			second, ok := got[1].(*postgresqlretriever.Retriever)
+			require.True(t, ok)
+			require.NotNil(t, first.Pools)
+			assert.Same(t, first.Pools, second.Pools, "retrievers of one client share their pools")
 		})
 	}
 }

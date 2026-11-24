@@ -82,6 +82,14 @@ func withPostgresPools(p *postgresqlretriever.PoolRegistry) clientOption {
 	return func(o *clientOptions) { o.postgresPools = p }
 }
 
+// ensurePostgresPools gives the retrievers of a client created without a shared registry (the default mode, or a
+// test) one registry of their own, so that the PostgreSQL retrievers of the client that use the same URI share a pool.
+func (o *clientOptions) ensurePostgresPools() {
+	if o.postgresPools == nil {
+		o.postgresPools = postgresqlretriever.NewPoolRegistry()
+	}
+}
+
 // retrieverOptions are the options that the retrievers of a client are created with.
 func (o *clientOptions) retrieverOptions() []retrieverInit.Option {
 	if o.postgresPools == nil {
@@ -120,6 +128,7 @@ func newGoFeatureFlagClient(
 		opt(&o)
 	}
 
+	o.ensurePostgresPools()
 	if o.sharedRegistry == nil {
 		o.sharedRegistry = standaloneSharedRegistry(cFlagSet, logger)
 	}

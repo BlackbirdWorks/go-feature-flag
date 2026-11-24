@@ -14,7 +14,8 @@ configuration keys and the CLI output are unchanged.
 | `ffclient.BoolVariation`, `IntVariation`, `Float64Variation`, `StringVariation`, `JSONVariation`, `JSONArrayVariation` and their `...Details` forms | the methods with the same name on the client |
 | `ffclient.AllFlagsState`, `ffclient.GetFlagsFromCache`, `ffclient.GetFlagsFromCacheWithContext` | the methods with the same name on the client |
 | `ffclient.Track` | `client.Track` |
-| `ffclient.SetOffline`, `ffclient.SetOfflineWithContext`, `ffclient.IsOffline` | the methods on the client (`SetOfflineWithContext` is new on the client) |
+| `ffclient.SetOffline`, `ffclient.SetOfflineWithContext` | `client.SetOfflineWithContext(ctx, offline)`, which (like the package function) stops the background polling when going offline. `client.SetOffline(offline)` only switches the offline setting and leaves the polling running |
+| `ffclient.IsOffline` | `client.IsOffline` |
 | `ffclient.GetCacheRefreshDate`, `ffclient.ForceRefresh` | the methods on the client (`ForceRefresh` returns `false` while offline) |
 
 ```go

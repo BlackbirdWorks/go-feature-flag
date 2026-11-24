@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,10 +154,22 @@ func (c *Config) serviceLogger() *slog.Logger {
 	case c.LeveledLogger != nil:
 		return c.LeveledLogger
 	case c.Logger != nil:
-		return slog.New(slog.NewTextHandler(c.Logger.Writer(), nil))
+		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
 	default:
 		return nil
 	}
+}
+
+// legacyWriter sends what a slog handler writes through a *log.Logger, so that the records follow the output, the
+// flags and the lock of the legacy logger (SetOutput included).
+type legacyWriter struct{ logger *log.Logger }
+
+func (w legacyWriter) Write(p []byte) (int, error) {
+	if err := w.logger.Output(0, strings.TrimSuffix(string(p), "\n")); err != nil {
+		return 0, err
+	}
+
+	return len(p), nil
 }
 
 // adjustPollingInterval is a function that will check the polling interval and set it to the minimum value if it is

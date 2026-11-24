@@ -50,7 +50,7 @@ make swagger           # regenerate swagger after API annotation changes
 ## Names: Semaphore first, GO Feature Flag still accepted
 
 The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
-that keeps working (one warning per process and kind when it is used, `modules/core/legacy`). Do not remove an alias
+that keeps working (one warning per owner (relay config loader, client, CLI command) and kind when it is used, `modules/core/legacy`). Do not remove an alias
 without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table.
 
 - Relay proxy config file `semaphore-proxy.<ext>` before the legacy `goff-proxy.<ext>`, searched in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, `/etc/opt/goff/`.

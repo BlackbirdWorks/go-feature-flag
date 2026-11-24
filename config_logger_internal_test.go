@@ -13,42 +13,55 @@ func TestConfig_serviceLogger(t *testing.T) {
 	t.Parallel()
 
 	leveled := slog.New(slog.DiscardHandler)
-	var buf bytes.Buffer
 	tests := []struct {
 		name       string
-		config     Config
-		wantSame   *slog.Logger
+		legacy     bool
+		leveled    *slog.Logger
 		wantNil    bool
+		wantSame   bool
 		wantOutput string
 	}{
-		{
-			name:     "the leveled logger wins",
-			config:   Config{LeveledLogger: leveled, Logger: log.New(&buf, "", 0)},
-			wantSame: leveled,
-		},
-		{name: "no logger", config: Config{}, wantNil: true},
-		{
-			name:       "the legacy logger is seen as a slog handler",
-			config:     Config{Logger: log.New(&buf, "", 0)},
-			wantOutput: "msg=hello",
-		},
+		{name: "the leveled logger wins", legacy: true, leveled: leveled, wantSame: true},
+		{name: "no logger", wantNil: true},
+		{name: "the legacy logger is seen as a slog handler", legacy: true, wantOutput: "msg=hello"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			buf.Reset()
-			got := tt.config.serviceLogger()
+			var buf bytes.Buffer
+			config := Config{LeveledLogger: tt.leveled}
+			if tt.legacy {
+				config.Logger = log.New(&buf, "", 0)
+			}
+
+			got := config.serviceLogger()
 
 			switch {
 			case tt.wantNil:
 				assert.Nil(t, got)
-			case tt.wantSame != nil:
-				assert.Same(t, tt.wantSame, got)
+			case tt.wantSame:
+				assert.Same(t, leveled, got)
 			default:
 				got.Info("hello")
 				assert.Contains(t, buf.String(), tt.wantOutput)
 			}
 		})
 	}
+}
+
+func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
+	t.Parallel()
+
+	var first, second bytes.Buffer
+	legacy := log.New(&first, "", 0)
+	logger := (&Config{Logger: legacy}).serviceLogger()
+
+	logger.Info("one")
+	legacy.SetOutput(&second)
+	logger.Info("two")
+
+	assert.Contains(t, first.String(), "msg=one")
+	assert.NotContains(t, first.String(), "msg=two")
+	assert.Contains(t, second.String(), "msg=two")
 }

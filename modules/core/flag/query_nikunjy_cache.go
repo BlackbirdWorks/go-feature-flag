@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/nikunjy/rules/parser"
@@ -48,6 +49,9 @@ type nikunjyEvaluatorCache struct {
 	// rules are then evaluated through get, as rules that are not validated. It is a field so that
 	// tests can run that case.
 	keysEnabled bool
+	// epoch counts the resets. The cleanups of the rule lists that were retained before a reset must not
+	// release anything from what was rebuilt after it, so each one remembers the epoch it was registered in.
+	epoch atomic.Uint64
 	// keysMinQueryLen is the length from which a query is given a key. A short query is hashed and
 	// compared by get faster than a key is saved, released and looked up: giving it a key would only
 	// make loading slower and keep its evaluator in memory. It is a field so that tests can give
@@ -198,7 +202,8 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 		c.refs[q]++
 	}
 	c.refsMu.Unlock()
-	runtime.AddCleanup(rules, c.release, queries)
+	epoch := c.epoch.Load()
+	runtime.AddCleanup(rules, func(q []string) { c.releaseAt(epoch, q) }, queries)
 
 	return ruleQueries
 }
@@ -245,7 +250,8 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 		}
 	}
 	if len(keys) > 0 {
-		runtime.AddCleanup(rules, c.unindex, keys)
+		epoch := c.epoch.Load()
+		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
 
 	return found
@@ -309,7 +315,8 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 		}
 	}
 	if len(keys) > 0 {
-		runtime.AddCleanup(rules, c.unindex, keys)
+		epoch := c.epoch.Load()
+		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
 }
 
@@ -379,11 +386,15 @@ func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evalu
 	}
 }
 
-// unindex releases the keys of a collected rule list. A rule that still has a key that was
-// removed falls back to get, which is slower but returns the same evaluator.
-func (c *nikunjyEvaluatorCache) unindex(keys []uint64) {
+// unindexAt releases the keys of a collected rule list that was indexed in epoch (it does nothing once the
+// cache was reset). A rule that still has a key that was removed falls back to get, which is slower but
+// returns the same evaluator.
+func (c *nikunjyEvaluatorCache) unindexAt(epoch uint64, keys []uint64) {
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
+	if c.epoch.Load() != epoch {
+		return
+	}
 	for _, key := range keys {
 		c.keyRefs[key]--
 		if c.keyRefs[key] <= 0 {
@@ -416,9 +427,14 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 	return e.evaluator
 }
 
-func (c *nikunjyEvaluatorCache) release(queries []string) {
+// releaseAt releases the queries of a collected rule list that was retained in epoch (it does nothing once the
+// cache was reset).
+func (c *nikunjyEvaluatorCache) releaseAt(epoch uint64, queries []string) {
 	c.refsMu.Lock()
 	defer c.refsMu.Unlock()
+	if c.epoch.Load() != epoch {
+		return
+	}
 	for _, q := range queries {
 		c.refs[q]--
 		if c.refs[q] <= 0 {
@@ -429,9 +445,15 @@ func (c *nikunjyEvaluatorCache) release(queries []string) {
 }
 
 // reset drops every evaluator and key. The rule lists that were validated keep working: a key that
-// no longer leads to an evaluator falls back to get, and the reference counts restart from zero (a
-// release of a collected rule list then only removes what is not there).
+// no longer leads to an evaluator falls back to get, and the reference counts restart from zero. The
+// cleanups of the rule lists retained before the reset are ignored (see epoch), so they cannot evict what
+// the rule lists validated after it retain.
 func (c *nikunjyEvaluatorCache) reset() {
+	c.refsMu.Lock()
+	c.keysMu.Lock()
+	c.epoch.Add(1)
+	c.keysMu.Unlock()
+	c.refsMu.Unlock()
 	c.entries.Clear()
 	c.byKey.Clear()
 	c.refsMu.Lock()

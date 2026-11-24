@@ -12,7 +12,6 @@ import (
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/nikunjy/rules/parser"
 
-	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
@@ -123,7 +122,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		}
 
 		// only the progressive rollout depends on the date: the clock is not read for the other rules.
-		return r.EvaluateProgressiveRollout(key, flagName, DateFromContextOrDefault(ctx, clock.Now()))
+		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {

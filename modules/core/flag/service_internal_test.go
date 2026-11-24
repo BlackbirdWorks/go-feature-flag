@@ -3,6 +3,7 @@ package flag
 import (
 	"bytes"
 	"log/slog"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -153,4 +154,69 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 			assert.Equal(t, tt.wantLogged, buf.Len() > 0)
 		})
 	}
+}
+
+func TestService_CloseDoesNotLetOldRuleListsEvictRebuiltEvaluators(t *testing.T) {
+	t.Parallel()
+
+	const query = `plan eq "kept-after-close"`
+	tests := []struct {
+		name       string
+		closeFirst bool
+		wantCached bool
+	}{
+		{name: "after a Close the old rule list is collected", closeFirst: true, wantCached: true},
+		{name: "without a Close the last rule list keeps the entry", closeFirst: false, wantCached: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := NewService()
+			// validated in a function of its own, so that the rule list is collectable afterwards
+			validateAndDrop := func() {
+				require.NoError(t, newFlagWithQueries(query).IsValid(svc))
+			}
+			validateAndDrop()
+			if tt.closeFirst {
+				svc.Close()
+			}
+			rebuilt := newFlagWithQueries(query)
+			require.NoError(t, rebuilt.IsValid(svc))
+
+			for range 5 {
+				runtime.GC()
+				time.Sleep(10 * time.Millisecond)
+			}
+
+			_, cached := svc.nikunjy.entries.Load(query)
+			assert.Equal(t, tt.wantCached, cached, "the rebuilt rule list still uses the query")
+			runtime.KeepAlive(rebuilt)
+		})
+	}
+}
+
+func TestService_ProgressiveRolloutReportsTheLegacyAttribute(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
+	start, end := clocktest.Instant().Add(-time.Hour), clocktest.Instant().Add(time.Hour)
+	f := &InternalFlag{
+		Variations: &map[string]*any{"a": new(any(true)), "b": new(any(false))},
+		DefaultRule: &Rule{ProgressiveRollout: &ProgressiveRollout{
+			Initial: &ProgressiveRolloutStep{Variation: new("a"), Percentage: new(float64(0)), Date: &start},
+			End:     &ProgressiveRolloutStep{Variation: new("b"), Percentage: new(float64(100)), Date: &end},
+		}},
+	}
+	ctx := ffcontext.NewEvaluationContext("user")
+	ctx.AddCustomAttribute(
+		ffcontext.LegacyReservedKey,
+		map[string]any{"currentDateTime": clocktest.Instant().Format(time.RFC3339)},
+	)
+
+	_, details := f.Value("flag", ctx, Context{Service: svc})
+
+	require.Empty(t, details.ErrorCode)
+	assert.Equal(t, 1, strings.Count(buf.String(), "legacy name"))
 }
