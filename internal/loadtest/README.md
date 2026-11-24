@@ -30,6 +30,11 @@ go run ./internal/loadtest/cmd/soak -target relay -endpoint ofrep-bulk -flag x -
 Endpoints: `semaphore-eval`, `semaphore-allflags`, `ofrep-eval`, `ofrep-bulk`. Only `semaphore-eval` and `ofrep-eval` queue events: `-exporter slow|failing` is rejected on the bulk
 endpoints (they would bypass the exporter). Unknown `-endpoint`/`-exporter` values are rejected, a failed evaluation
 (for example an unknown `-flag`) counts as an error, and Ctrl+C stops the run without a verdict (exit status 130). `-cpuprofile` writes a CPU profile.
+`-protocol http1|h2c` (relay target) selects HTTP/1.1 with keep-alive or HTTP/2 over cleartext with prior knowledge (the proxy is started
+with `server.enableH2C`; a response that does not use the expected protocol counts as an error). For the bulk endpoints the
+report gives flags evaluated per second next to calls per second (one probe request counts the flags of a response), and the last
+lines print the window after the warm-up: calls/s, flags/s, errors and p50/p95/p99 latency. See
+[the performance page](../../docs/performance.md) for a measured matrix.
 For the relay target the proxy runs in the same process as the load generator (the heap and the
 CPU are shared), the exporter is the webhook exporter pointed at a local sink with the chosen
 behaviour.
