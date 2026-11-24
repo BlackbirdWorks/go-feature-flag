@@ -39,6 +39,10 @@ make tidy-check       # go.mod / go.sum must be tidy
 make swagger          # regenerate cmd/relayproxy/docs after changing API annotations
 ```
 
+If you created a `go.work` with `make workspace-init` before `modules/core` was folded into the root module, run
+`go work edit -dropuse=./modules/core` once from the repository root (or delete `go.work` and run `make workspace-init`
+again); otherwise Go fails reading the removed go.mod of `modules/core`.
+
 Optional: `pre-commit install` runs `gofumpt` and the import-order linter before each commit.
 
 ### Tests

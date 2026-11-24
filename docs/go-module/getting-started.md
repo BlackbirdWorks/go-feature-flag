@@ -19,6 +19,10 @@ go get github.com/blackbirdworks/semaphore
 >   `github.com/xitongsys/parquet-go v1.6.2`, which has the AWS Athena v3 (Trino) incompatibility. It only matters if
 >   you import a parquet exporter.
 >
+> `go get github.com/blackbirdworks/semaphore@<branch or commit>` (a remote revision, no local `replace`) was
+> verified to resolve and build `ffclient` and `modules/core/flag` in a fresh module, with the upstream
+> `nikunjy/rules v1.5.0` as described above.
+>
 > `go get github.com/blackbirdworks/semaphore@<version>` also needs a published version: no release tag exists on
 > the repository yet, so use a pseudo-version of a commit of `main` (`@main`) until one is tagged.
 > To get the same behaviour as this repository, repeat the replacements in your `go.mod`, with a checkout of this
