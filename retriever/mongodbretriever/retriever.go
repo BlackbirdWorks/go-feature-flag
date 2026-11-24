@@ -64,16 +64,12 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	err := r.dbClient.Disconnect(ctx)
+	// the client is dropped whatever the outcome of the disconnection: the retriever can not be used anymore
 	r.dbClient = nil
 	r.dbConnection = nil
-	if err != nil {
-		r.status = retriever.RetrieverError
-
-		return err
-	}
 	r.status = retriever.RetrieverNotReady
 
-	return nil
+	return err
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
