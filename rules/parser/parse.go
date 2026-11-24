@@ -14,13 +14,7 @@ type collectingErrorListener struct {
 	errs []string
 }
 
-func (l *collectingErrorListener) SyntaxError(
-	_ antlr.Recognizer,
-	_ interface{},
-	line, column int,
-	msg string,
-	_ antlr.RecognitionException,
-) {
+func (l *collectingErrorListener) SyntaxError(_ antlr.Recognizer, _ interface{}, line, column int, msg string, _ antlr.RecognitionException) {
 	l.errs = append(l.errs, fmt.Sprintf("line %d:%d %s", line, column, msg))
 }
 
