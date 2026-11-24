@@ -156,67 +156,97 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 	}
 }
 
-func TestService_CloseDoesNotLetOldRuleListsEvictRebuiltEvaluators(t *testing.T) {
+func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing.T) {
 	t.Parallel()
 
 	const query = `plan eq "kept-after-close"`
 	tests := []struct {
-		name       string
-		closeFirst bool
-		wantCached bool
+		name string
+		// cleanup runs the cleanup of the rule list validated before the reset, for the epoch given.
+		cleanup func(c *nikunjyEvaluatorCache, epoch uint64)
+		// count is what the cleanup would remove: the evaluator entries or the keys.
+		count func(c *nikunjyEvaluatorCache) int
 	}{
-		{name: "after a Close the old rule list is collected", closeFirst: true, wantCached: true},
-		{name: "without a Close the last rule list keeps the entry", closeFirst: false, wantCached: true},
+		{
+			name:    "the queries of the evaluator cache",
+			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) { c.releaseAt(epoch, []string{query}) },
+			count:   func(c *nikunjyEvaluatorCache) int { return countEntries(&c.entries) },
+		},
+		{
+			name: "the keys of the index",
+			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) {
+				var keys []uint64
+				c.byKey.Range(func(k, _ any) bool {
+					keys = append(keys, k.(uint64))
+
+					return true
+				})
+				c.unindexAt(epoch, keys)
+			},
+			count: func(c *nikunjyEvaluatorCache) int { return countEntries(&c.byKey) },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			svc := NewService()
-			// validated in a function of its own, so that the rule list is collectable afterwards
-			validateAndDrop := func() {
-				require.NoError(t, newFlagWithQueries(query).IsValid(svc))
-			}
-			validateAndDrop()
-			if tt.closeFirst {
-				svc.Close()
-			}
+			svc := newIndexingService()
+			c := svc.nikunjy
+			oldEpoch := c.epoch.Load()
+			first := newFlagWithQueries(query)
+			require.NoError(t, first.IsValid(svc))
+			svc.Close()
 			rebuilt := newFlagWithQueries(query)
 			require.NoError(t, rebuilt.IsValid(svc))
+			require.Equal(t, 1, tt.count(c), "the rebuilt rule list is cached")
 
-			for range 5 {
-				runtime.GC()
-				time.Sleep(10 * time.Millisecond)
-			}
+			tt.cleanup(c, oldEpoch)
+			assert.Equal(t, 1, tt.count(c), "the cleanup of the rule list of the earlier epoch must not evict anything")
 
-			_, cached := svc.nikunjy.entries.Load(query)
-			assert.Equal(t, tt.wantCached, cached, "the rebuilt rule list still uses the query")
+			tt.cleanup(c, c.epoch.Load())
+			assert.Equal(t, 0, tt.count(c), "the cleanup of the current epoch does release")
+			runtime.KeepAlive(first)
 			runtime.KeepAlive(rebuilt)
 		})
 	}
 }
 
-func TestService_ProgressiveRolloutReportsTheLegacyAttribute(t *testing.T) {
+func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-	svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
-	start, end := clocktest.Instant().Add(-time.Hour), clocktest.Instant().Add(time.Hour)
-	f := &InternalFlag{
-		Variations: &map[string]*any{"a": new(any(true)), "b": new(any(false))},
-		DefaultRule: &Rule{ProgressiveRollout: &ProgressiveRollout{
-			Initial: &ProgressiveRolloutStep{Variation: new("a"), Percentage: new(float64(0)), Date: &start},
-			End:     &ProgressiveRolloutStep{Variation: new("b"), Percentage: new(float64(100)), Date: &end},
-		}},
+	tests := []struct {
+		name         string
+		evaluations  int
+		wantWarnings int
+	}{
+		{name: "one evaluation", evaluations: 1, wantWarnings: 1},
+		{name: "many evaluations", evaluations: 5, wantWarnings: 1},
 	}
-	ctx := ffcontext.NewEvaluationContext("user")
-	ctx.AddCustomAttribute(
-		ffcontext.LegacyReservedKey,
-		map[string]any{"currentDateTime": clocktest.Instant().Format(time.RFC3339)},
-	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	_, details := f.Value("flag", ctx, Context{Service: svc})
+			var buf bytes.Buffer
+			svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
+			start, end := clocktest.Instant().Add(-time.Hour), clocktest.Instant().Add(time.Hour)
+			f := &InternalFlag{
+				Variations: &map[string]*any{"a": new(any(true)), "b": new(any(false))},
+				DefaultRule: &Rule{ProgressiveRollout: &ProgressiveRollout{
+					Initial: &ProgressiveRolloutStep{Variation: new("a"), Percentage: new(float64(0)), Date: &start},
+					End:     &ProgressiveRolloutStep{Variation: new("b"), Percentage: new(float64(100)), Date: &end},
+				}},
+			}
+			ctx := ffcontext.NewEvaluationContext("user")
+			ctx.AddCustomAttribute(ffcontext.LegacyReservedKey, map[string]any{
+				"currentDateTime": clocktest.Instant().Format(time.RFC3339),
+			})
 
-	require.Empty(t, details.ErrorCode)
-	assert.Equal(t, 1, strings.Count(buf.String(), "legacy name"))
+			for range tt.evaluations {
+				_, details := f.Value("flag", ctx, Context{Service: svc})
+				require.Empty(t, details.ErrorCode)
+			}
+
+			assert.Equal(t, tt.wantWarnings, strings.Count(buf.String(), "legacy name"))
+		})
+	}
 }

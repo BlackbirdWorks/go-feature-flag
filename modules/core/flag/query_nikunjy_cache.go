@@ -174,6 +174,9 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 	if rules == nil {
 		return nil
 	}
+	// The epoch is read before anything is counted: a reset in between makes the cleanup a no-op (the
+	// entries are kept), never an eviction of what the rebuilt cache holds.
+	epoch := c.epoch.Load()
 	queries := make([]string, 0, len(*rules))
 	ruleQueries := make([]nikunjyRuleQuery, 0, len(*rules))
 	for i := range *rules {
@@ -202,7 +205,6 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 		c.refs[q]++
 	}
 	c.refsMu.Unlock()
-	epoch := c.epoch.Load()
 	runtime.AddCleanup(rules, func(q []string) { c.releaseAt(epoch, q) }, queries)
 
 	return ruleQueries
@@ -226,6 +228,7 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 	if rules == nil || !c.keysEnabled {
 		return nil
 	}
+	epoch := c.epoch.Load() // before the references are counted, see retain
 	var found []nikunjyKnownQuery
 	var keys []uint64
 	for i := range *rules {
@@ -250,7 +253,6 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 		}
 	}
 	if len(keys) > 0 {
-		epoch := c.epoch.Load()
 		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
 
@@ -293,6 +295,7 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 	if !c.keysEnabled {
 		return
 	}
+	epoch := c.epoch.Load() // before the references are counted, see retain
 	keys := make([]uint64, 0, len(queries))
 	for _, q := range queries {
 		ev := evaluators[q.rule]
@@ -315,7 +318,6 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 		}
 	}
 	if len(keys) > 0 {
-		epoch := c.epoch.Load()
 		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
 }

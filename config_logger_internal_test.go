@@ -53,15 +53,54 @@ func TestConfig_serviceLogger(t *testing.T) {
 func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
 	t.Parallel()
 
-	var first, second bytes.Buffer
-	legacy := log.New(&first, "", 0)
-	logger := (&Config{Logger: legacy}).serviceLogger()
+	tests := []struct {
+		name         string
+		prefix       string
+		flags        int
+		redirect     bool
+		wantFirst    string
+		wantSecond   string
+		wantNotFirst string
+	}{
+		{name: "same output", prefix: "", flags: 0, wantFirst: "msg=one"},
+		{name: "the prefix of the legacy logger", prefix: "[legacy] ", flags: 0, wantFirst: "[legacy] "},
+		{
+			name:      "the flags of the legacy logger",
+			prefix:    "[legacy] ",
+			flags:     log.Lmsgprefix,
+			wantFirst: "[legacy] time=",
+		},
+		{
+			name:         "SetOutput is followed",
+			prefix:       "",
+			flags:        0,
+			redirect:     true,
+			wantFirst:    "msg=one",
+			wantSecond:   "msg=two",
+			wantNotFirst: "msg=two",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	logger.Info("one")
-	legacy.SetOutput(&second)
-	logger.Info("two")
+			var first, second bytes.Buffer
+			legacy := log.New(&first, tt.prefix, tt.flags)
+			logger := (&Config{Logger: legacy}).serviceLogger()
 
-	assert.Contains(t, first.String(), "msg=one")
-	assert.NotContains(t, first.String(), "msg=two")
-	assert.Contains(t, second.String(), "msg=two")
+			logger.Info("one")
+			if tt.redirect {
+				legacy.SetOutput(&second)
+			}
+			logger.Info("two")
+
+			assert.Contains(t, first.String(), tt.wantFirst)
+			if tt.wantSecond != "" {
+				assert.Contains(t, second.String(), tt.wantSecond)
+			}
+			if tt.wantNotFirst != "" {
+				assert.NotContains(t, first.String(), tt.wantNotFirst)
+			}
+		})
+	}
 }
