@@ -90,7 +90,7 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 
 ## Lint
 
-- `make lint` must be clean (golangci-lint, version pinned in the `Makefile`; see `.golangci.yml`, every linter is enabled
+- `make lint` must be clean (golangci-lint plus `mulint` through `go vet -vettool`, version pinned in the `Makefile`; see `.golangci.yml`, every linter is enabled
   or listed there with a reason). Run `make tidy-check` and `make swagger` (tree stays clean) too.
 - No blanket or path-wide exclusions. A suppression is one line, `//nolint:<linter> // <specific reason>`, and unused ones
   are removed (`nolintlint`). Generated files are excluded by their `Code generated` header only.

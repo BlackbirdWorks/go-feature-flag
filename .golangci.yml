@@ -544,7 +544,6 @@ linters:
     warn-unused: true
     # Generated files ("Code generated ... DO NOT EDIT") are skipped by default (generated: lax).
     paths:
-      - (^|/)bin($|/)
       # swag-generated OpenAPI docs
       - (^|/)cmd/relayproxy/docs($|/)
       # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE

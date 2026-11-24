@@ -226,7 +226,9 @@ lint-module: lint-install lint-run ## Lint one module (usage: make lint-module M
 lint: lint-install ## Use golintci-lint on all the modules of the project
 	@rc=0; for module in $(ALL_GO_MOD_DIRS); do \
 		$(MAKE) --no-print-directory lint-run MODULE=$$module || rc=1; \
-	done; exit $$rc
+	done; \
+	go vet -vettool=$$(go tool -n mulint-vet) ./... || rc=1; \
+	exit $$rc
 
 vuln-check: ## Run govulncheck on all modules in the workspace
 	@which govulncheck > /dev/null 2>&1 || $(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest
