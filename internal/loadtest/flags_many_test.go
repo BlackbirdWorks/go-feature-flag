@@ -22,15 +22,18 @@ func TestManyFlagsYAML(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var flags map[string]struct {
-				TrackEvents *bool                    `yaml:"trackEvents"`
-				Variations  map[string]bool          `yaml:"variations"`
-				Targeting   []struct{ Query string } `yaml:"targeting"`
+			type flagYAML struct {
+				TrackEvents *bool           `yaml:"trackEvents"`
+				Variations  map[string]bool `yaml:"variations"`
+				Targeting   []struct {
+					Query string `yaml:"query"`
+				} `yaml:"targeting"`
 				DefaultRule struct {
 					Variation  string             `yaml:"variation"`
 					Percentage map[string]float64 `yaml:"percentage"`
 				} `yaml:"defaultRule"`
 			}
+			var flags map[string]flagYAML
 			require.NoError(t, yaml.Unmarshal([]byte(ManyFlagsYAML(tt.n)), &flags))
 			require.Len(t, flags, tt.n)
 			var static, targeted, percentage int

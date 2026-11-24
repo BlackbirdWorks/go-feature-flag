@@ -203,21 +203,7 @@ loop:
 		}
 		now := time.Now()
 		count, errs, nLat := drain(stats, hist)
-		runtime.GC()
-		var ms runtime.MemStats
-		runtime.ReadMemStats(&ms)
-		s := Sample{
-			Elapsed:     now.Sub(start).Round(time.Second),
-			EvalsPerSec: float64(count-lastCount) / now.Sub(last).Seconds(),
-			Errors:      errs - lastErr,
-			P50:         quantile(hist, nLat, 0.50),
-			P99:         quantile(hist, nLat, 0.99),
-			HeapAlloc:   ms.HeapAlloc,
-			HeapInuse:   ms.HeapInuse,
-			HeapObjects: ms.HeapObjects,
-			NumGC:       ms.NumGC,
-			Goroutines:  runtime.NumGoroutine(),
-		}
+		s := takeSample(now.Sub(start), now.Sub(last), count-lastCount, errs-lastErr, hist, nLat)
 		rep.Samples = append(rep.Samples, s)
 		sampleHists = append(sampleHists, append([]int64(nil), hist...))
 		if out != nil {
@@ -244,6 +230,25 @@ loop:
 			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>20))
 	}
 	return rep
+}
+
+// takeSample forces a GC and builds the sample of the interval that just ended.
+func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64, nLat int64) Sample {
+	runtime.GC()
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	return Sample{
+		Elapsed:     elapsed.Round(time.Second),
+		EvalsPerSec: float64(calls) / interval.Seconds(),
+		Errors:      errs,
+		P50:         quantile(hist, nLat, 0.50),
+		P99:         quantile(hist, nLat, 0.99),
+		HeapAlloc:   ms.HeapAlloc,
+		HeapInuse:   ms.HeapInuse,
+		HeapObjects: ms.HeapObjects,
+		NumGC:       ms.NumGC,
+		Goroutines:  runtime.NumGoroutine(),
+	}
 }
 
 // watchdog cancels the run when the live heap exceeds maxHeap, recording when in abortedAt.
