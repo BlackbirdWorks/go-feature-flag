@@ -23,23 +23,23 @@ func TestS3_Export(t *testing.T) {
 
 	hostname, _ := os.Hostname()
 	type fields struct {
-		Bucket          string
+		Context         context.Context
 		AwsConfig       *aws.Config
+		Bucket          string
 		Format          string
 		S3Path          string
 		Filename        string
 		CsvTemplate     string
 		S3ClientOptions []func(*s3.Options)
-		Context         context.Context
 	}
 
 	tests := []struct {
-		name         string
 		fields       fields
-		events       []exporter.ExportableEvent
-		wantErr      bool
+		name         string
 		expectedFile string
 		expectedName string
+		events       []exporter.ExportableEvent
+		wantErr      bool
 	}{
 		{
 			name: "All default test",

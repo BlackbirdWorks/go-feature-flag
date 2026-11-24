@@ -40,10 +40,9 @@ func escapeSlack(s string) string {
 
 // Notifier is the component in charge of sending flag changes to Slack.
 type Notifier struct {
+	httpClient      internal.HTTPClient
 	SlackWebhookURL string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	init            sync.Once
 }
 
 // Notify is the notifying all the changes to the notifier.
@@ -163,10 +162,10 @@ type attachment struct {
 	Color      string   `json:"color"`
 	Title      string   `json:"title"`
 	Text       string   `json:"text,omitempty"`
-	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
-	Fields     []Field  `json:"fields"`
 	FooterIcon string   `json:"footer_icon,omitempty"`
 	Footer     string   `json:"footer,omitempty"`
+	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
+	Fields     []Field  `json:"fields"`
 }
 
 // Field is the representation of a field in a slack message.

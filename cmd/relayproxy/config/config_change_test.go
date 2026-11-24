@@ -42,9 +42,9 @@ const (
 // httpRequestCheck defines a check to perform on an HTTP request.
 type httpRequestCheck struct {
 	apiKey          string   // API key to use in the request (empty means no API key header)
-	expectedStatus  int      // expected HTTP status code
 	bodyContains    []string // strings that should be in the response body (optional)
 	bodyNotContains []string // strings that should NOT be in the response body (optional)
+	expectedStatus  int      // expected HTTP status code
 }
 
 func TestConfigChangeDefaultMode(t *testing.T) {

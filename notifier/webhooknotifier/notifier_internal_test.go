@@ -22,24 +22,24 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 		Secret string
 	}
 	type expected struct {
-		err       bool
+		headers   map[string][]string
 		errorMsg  string
 		bodyPath  string
 		signature string
-		headers   map[string][]string
+		err       bool
 	}
 	type args struct {
 		diff       notifier.DiffCache
+		headers    map[string][]string
+		url        string
 		statusCode int
 		forceError bool
-		url        string
-		headers    map[string][]string
 	}
 	tests := []struct {
 		name     string
 		fields   fields
-		args     args
 		expected expected
+		args     args
 	}{
 		{
 			name: "should call webhook and have valid results",

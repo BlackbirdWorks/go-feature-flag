@@ -71,56 +71,44 @@ type FlagsetManager interface {
 
 // flagsetManagerImpl is the internal implementation of FlagsetManager.
 type flagsetManagerImpl struct {
-	// DefaultFlagSet is the flagset used when no API Key is provider.
-	// It is the legacy way to handle feature flags in Semaphore.
-	// This is used only if no flag set is configured in the configuration file.
-	DefaultFlagSet *ffclient.GoFeatureFlag
-
-	// FlagSets is a map that stores the different instances of GoFeatureFlag (one per flagset)
-	// It is used to retrieve the flagset linked to the API Key.
-	FlagSets map[string]*ffclient.GoFeatureFlag
-
+	// sseService is used to create a per-flagset SSE notifier when a flagset is added at
+	// runtime. It can be nil.
+	sseService stream.SSEService
+	// wsService is used to create a per-flagset websocket notifier when a flagset is added at
+	// runtime. It can be nil.
+	wsService stream.WebsocketService
+	// Logger is the logger for the flagset manager.
+	logger *zap.Logger
 	// FlagSetRouting routes a request credential to the NAME of the flagset it selects (the values are
 	// public flagset names, the keys are secrets and must never be logged).
 	// It is used to retrieve the flagset linked to the API Key.
 	FlagSetRouting map[string]string
-
-	// flagsetsMutex protects concurrent access to FlagSets and FlagSetRouting.
-	// Both maps can be mutated at runtime when flagsets are added or removed, so every
-	// read or write of these maps must be done while holding this lock.
-	flagsetsMutex sync.RWMutex
-
+	// FlagSets is a map that stores the different instances of GoFeatureFlag (one per flagset)
+	// It is used to retrieve the flagset linked to the API Key.
+	FlagSets map[string]*ffclient.GoFeatureFlag
+	// Config is the configuration of the relay proxy.
+	// It is used to retrieve the configuration of the relay proxy.
+	config *config.Config
+	// DefaultFlagSet is the flagset used when no API Key is provider.
+	// It is the legacy way to handle feature flags in Semaphore.
+	// This is used only if no flag set is configured in the configuration file.
+	DefaultFlagSet *ffclient.GoFeatureFlag
+	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
+	sharedRegistry *sharedBucketRegistry
+	// postgresPools shares the PostgreSQL connection pools between the flagsets that use the same database.
+	postgresPools *postgresqlretriever.PoolRegistry
+	// Mode is the mode of the flagset manager.
+	mode flagsetManagerMode
 	// notifiers are the relay-proxy level notifiers (e.g. prometheus) passed at
 	// construction time. They are stored so we can re-create a GoFeatureFlag client when a
 	// flagset is added at runtime.
 	notifiers []notifier.Notifier
-
-	// sseService is used to create a per-flagset SSE notifier when a flagset is added at
-	// runtime. It can be nil.
-	sseService stream.SSEService
-
-	// wsService is used to create a per-flagset websocket notifier when a flagset is added at
-	// runtime. It can be nil.
-	wsService stream.WebsocketService
-
-	// Config is the configuration of the relay proxy.
-	// It is used to retrieve the configuration of the relay proxy.
-	config *config.Config
-
-	// Mode is the mode of the flagset manager.
-	mode flagsetManagerMode
-
-	// Logger is the logger for the flagset manager.
-	logger *zap.Logger
-
-	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
-	sharedRegistry *sharedBucketRegistry
-
-	// postgresPools shares the PostgreSQL connection pools between the flagsets that use the same database.
-	postgresPools *postgresqlretriever.PoolRegistry
-
 	// clientOptions are extra options for the clients created at runtime (nil outside the tests).
 	clientOptions []clientOption
+	// flagsetsMutex protects concurrent access to FlagSets and FlagSetRouting.
+	// Both maps can be mutated at runtime when flagsets are added or removed, so every
+	// read or write of these maps must be done while holding this lock.
+	flagsetsMutex sync.RWMutex
 }
 
 // NewFlagsetManager is creating a new FlagsetManager.

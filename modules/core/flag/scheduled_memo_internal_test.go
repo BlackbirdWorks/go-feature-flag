@@ -37,9 +37,9 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	base := clocktest.Instant()
 	tests := []struct {
 		name        string
-		offset      time.Duration
 		wantVar     string
 		wantVersion string
+		offset      time.Duration
 	}{
 		{name: "no step due", offset: 0, wantVar: "A", wantVersion: ""},
 		{name: "one step due (steps are not in date order)", offset: 90 * time.Minute, wantVar: "A", wantVersion: "v2"},
@@ -95,11 +95,11 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		value  func() any
 		mutate func(v any)
 		// wantSecond is the value the second evaluation returns: the mutation of the first one is not shared
 		wantSecond func() any
+		name       string
 	}{
 		{
 			name:       "object",

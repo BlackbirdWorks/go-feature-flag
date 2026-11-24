@@ -51,17 +51,17 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 // To construct an EvaluationContext, use either a simple constructor (NewEvaluationContext) or the builder pattern
 // with NewEvaluationContextBuilder.
 type EvaluationContext struct {
+	attributes value
 	// uniquely identifying the subject (end-user, or client service) of a flag evaluation
 	targetingKey string
-	attributes   value
 }
 
 // MarshalJSON is a custom JSON marshaller for EvaluationContext.
 // It will only marshal the targetingKey and the attributes of the context and avoid to expose the internal structure.
 func (u EvaluationContext) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		TargetingKey string `json:"targetingKey"`
 		Attributes   value  `json:"attributes"`
+		TargetingKey string `json:"targetingKey"`
 	}{
 		TargetingKey: u.targetingKey,
 		Attributes:   u.attributes,

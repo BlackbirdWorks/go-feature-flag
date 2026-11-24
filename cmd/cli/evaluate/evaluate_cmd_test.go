@@ -16,11 +16,11 @@ func TestCmdEvaluate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		args           []string
 		wantErr        assert.ErrorAssertionFunc
+		name           string
 		expectedResult string
 		expectedErr    string
+		args           []string
 	}{
 		{
 			name: "should return an error if flag does not exists",

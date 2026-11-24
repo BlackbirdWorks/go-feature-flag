@@ -28,11 +28,11 @@ func TestInternalFlag_Value_RequiresTheService(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
+		wantValue     any
 		service       *flag.Service
+		name          string
 		wantErrorCode flag.ErrorCode
 		wantVariant   string
-		wantValue     any
 	}{
 		{
 			name:          "no Service is an error, not a throwaway Service",
@@ -69,10 +69,10 @@ func TestRule_Evaluate_RequiresTheService(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
 		service *flag.Service
-		wantErr bool
+		name    string
 		want    string
+		wantErr bool
 	}{
 		{name: "no Service", service: nil, wantErr: true, want: ""},
 		{name: "a Service", service: flag.NewService(), wantErr: false, want: "on"},

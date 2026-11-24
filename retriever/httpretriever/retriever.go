@@ -26,34 +26,26 @@ var (
 
 // Retriever is a configuration struct for an HTTP endpoint retriever.
 type Retriever struct {
-	// URL of your endpoint
-	URL string
-
-	// HTTP Method we should use (default: GET)
-	Method string
-
-	// Body of the request if needed (default: empty body)
-	Body string
-
-	// Header added to the request
-	Header http.Header
-
-	// Timeout we should wait before failing (default: 10 seconds)
-	Timeout time.Duration
-
-	// ClientCertPath is the path to the client certificate file used for mTLS.
-	ClientCertPath string
-
-	// ClientKeyPath is the path to the client certificate key file used for mTLS.
-	ClientKeyPath string
-
-	// CACertPath is the path to the CA certificate file used to verify the server certificate.
-	CACertPath string
-
 	httpClient internal.HTTPClient
 	// baseTransport is the transport the TLS transport is cloned from (http.DefaultTransport when nil).
 	baseTransport http.RoundTripper
-	status        retriever.Status
+	// Header added to the request
+	Header http.Header
+	// URL of your endpoint
+	URL string
+	// HTTP Method we should use (default: GET)
+	Method string
+	// Body of the request if needed (default: empty body)
+	Body string
+	// ClientCertPath is the path to the client certificate file used for mTLS.
+	ClientCertPath string
+	// ClientKeyPath is the path to the client certificate key file used for mTLS.
+	ClientKeyPath string
+	// CACertPath is the path to the CA certificate file used to verify the server certificate.
+	CACertPath string
+	status     retriever.Status
+	// Timeout we should wait before failing (default: 10 seconds)
+	Timeout time.Duration
 }
 
 // SetBaseTransport sets the transport that the TLS transport (mTLS, custom CA) is cloned from, which

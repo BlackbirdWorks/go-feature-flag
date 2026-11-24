@@ -19,29 +19,24 @@ var (
 
 // Retriever is a configuration struct for a GitHub retriever.
 type Retriever struct {
+	// httpClient is the http.Client if you want to override it.
+	httpClient internal.HTTPClient
 	// Branch is the name of the GITLAB branch where to download the file
 	// default: main
 	Branch string // default is main
 	// FilePath is the location of your file in the repository
 	FilePath string
-
 	// GitlabToken is the token to use when downloading the file
 	GitlabToken string
-
 	// RepositorySlug is the name of your repository in your gitlab instance
 	// ex: thomaspoignant/go-feature-flag
 	RepositorySlug string
-
 	// BaseURL is the DNS of your GITLAB installation.
 	// default: https://gitlab.com
 	BaseURL string
-
 	// Timeout is the time before we timeout while retrieving the flag file.
 	// default: 10 seconds
 	Timeout time.Duration
-
-	// httpClient is the http.Client if you want to override it.
-	httpClient internal.HTTPClient
 }
 
 // Retrieve is the function in charge of fetching the flag configuration.

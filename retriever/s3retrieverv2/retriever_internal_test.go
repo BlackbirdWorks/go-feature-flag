@@ -18,17 +18,17 @@ import (
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
 	tests := []struct {
+		r func() *Retriever
+		// env sets extra environment variables for the test.
+		env        map[string]string
 		name       string
-		r          func() *Retriever
-		awsConfig  bool // set an explicit AwsConfig in us-east-1
 		wantRegion string
+		awsConfig  bool // set an explicit AwsConfig in us-east-1
 		wantLister bool
 		// wantAccelerate is the expected UseAccelerate option of the built S3 client.
 		wantAccelerate bool
 		// nilCtx calls Init with a nil context.
 		nilCtx bool
-		// env sets extra environment variables for the test.
-		env map[string]string
 		// wantErr expects Init to fail while loading the default AWS configuration.
 		wantErr bool
 	}{

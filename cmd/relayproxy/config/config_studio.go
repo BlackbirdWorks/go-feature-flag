@@ -16,18 +16,15 @@ import (
 // still comes from the configuration file and the environment variables.
 // Changes to the Studio configuration require restarting the relay proxy.
 type Studio struct {
-	// URL of the relay proxy configuration served by Studio, only its flagSets key is used.
-	URL string `mapstructure:"url" koanf:"url"`
-
 	// Headers (optional) are sent with every request, for example an Authorization header.
 	Headers map[string][]string `mapstructure:"headers" koanf:"headers"`
-
+	// URL of the relay proxy configuration served by Studio, only its flagSets key is used.
+	URL string `mapstructure:"url" koanf:"url"`
+	// CacheFile (optional) keeps the last valid document, it is used when the URL is unreachable.
+	CacheFile string `mapstructure:"cacheFile" koanf:"cachefile"`
 	// PollingInterval (optional) is the time in milliseconds between two checks of the URL.
 	// Default: 60000
 	PollingInterval int `mapstructure:"pollingInterval" koanf:"pollinginterval"`
-
-	// CacheFile (optional) keeps the last valid document, it is used when the URL is unreachable.
-	CacheFile string `mapstructure:"cacheFile" koanf:"cachefile"`
 }
 
 // parser returns the parser matching the extension of the URL path.

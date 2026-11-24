@@ -94,8 +94,8 @@ func (m *Manifest) storeManifest(definitionsJSON string) error {
 }
 
 type capturedRecord struct {
-	level   slog.Level
 	message string
+	level   slog.Level
 }
 
 // captureHandler records each slog record for replay into helper.Output.

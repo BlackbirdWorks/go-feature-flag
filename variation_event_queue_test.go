@@ -24,10 +24,10 @@ var (
 )
 
 type queueTestExporter struct {
-	bulk   bool
 	block  chan struct{} // when not nil, Export blocks until it is closed
-	fail   bool
 	events atomic.Int64
+	bulk   bool
+	fail   bool
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
@@ -59,8 +59,8 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
 	tests := []struct {
-		name        string
 		exp         func() *queueTestExporter
+		name        string
 		queueSize   int
 		evals       int
 		maxQueued   int64

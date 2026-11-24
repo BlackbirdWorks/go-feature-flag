@@ -31,11 +31,11 @@ func Test_Bulk_Evaluation(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
-		handlerErr bool
 		errorMsg   string
+		httpCode   int
 		errorCode  int
+		handlerErr bool
 	}
 
 	type args struct {
@@ -183,8 +183,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		eventStream config.OfrepEventStream
 		headers     map[string]string
+		eventStream config.OfrepEventStream
 	}
 
 	tests := []struct {
@@ -283,8 +283,8 @@ func Test_Evaluate(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode int
 		bodyFile string
+		httpCode int
 	}
 
 	type args struct {
@@ -462,9 +462,9 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		flagKeys []string
 		bodyFile string
 		want     string
+		flagKeys []string
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",

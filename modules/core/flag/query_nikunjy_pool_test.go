@@ -23,11 +23,11 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 		isDefault bool
 	}
 	tests := []struct {
-		name    string
-		rule    flag.Rule
-		args    args
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		rule    flag.Rule
+		name    string
+		want    string
+		args    args
 	}{
 		{
 			name: "simple match",
@@ -298,8 +298,8 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 	wg.Add(total)
 
 	type result struct {
-		variation string
 		err       error
+		variation string
 	}
 	results := make([]result, total)
 

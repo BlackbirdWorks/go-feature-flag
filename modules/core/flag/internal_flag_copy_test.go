@@ -13,10 +13,10 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 	t.Parallel()
 	ptr := func(v any) *any { return &v }
 	tests := []struct {
-		name  string
 		value func() any
 		// mutate changes the copied value in place.
 		mutate func(v any)
+		name   string
 		// wantOriginalUnchanged is whether the original equals what it was built as after the copy was mutated
 		wantOriginalUnchanged bool
 	}{

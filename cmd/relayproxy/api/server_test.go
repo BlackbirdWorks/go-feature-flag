@@ -461,8 +461,8 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 }
 
 type authMiddlewareTestCase struct {
-	name          string
 	configAPIKeys *config.APIKeys
+	name          string
 	want          int // http status code
 }
 

@@ -51,11 +51,11 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 
 	pools := rr.NewPoolRegistry()
 	tests := []struct {
-		name string
-		r    *rr.Retriever
+		r       *rr.Retriever
+		name    string
+		wantErr string
 		// wantShared is whether the retriever has the registry of the caller after Init, or a registry of its own
 		wantShared bool
-		wantErr    string
 	}{
 		{
 			name: "with the registry of the caller", r: &rr.Retriever{URI: "not a postgres uri", Pools: pools},

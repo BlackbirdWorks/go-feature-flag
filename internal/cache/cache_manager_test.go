@@ -102,11 +102,11 @@ trackEvents = false
 		loadedFlags []byte
 	}
 	tests := []struct {
-		name       string
-		args       args
 		expected   map[string]flag.InternalFlag
-		wantErr    bool
+		name       string
 		flagFormat string
+		args       args
+		wantErr    bool
 	}{
 		{
 			name:       "Yaml valid",
@@ -321,11 +321,11 @@ test-flag:
 		loadedFlags []byte
 	}
 	tests := []struct {
-		name       string
-		args       args
 		expected   map[string]flag.InternalFlag
-		wantErr    bool
+		name       string
 		flagFormat string
+		args       args
+		wantErr    bool
 	}{
 		{
 			name:       "Yaml valid",

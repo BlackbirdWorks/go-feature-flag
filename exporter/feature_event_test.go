@@ -15,13 +15,13 @@ func TestNewFeatureEvent(t *testing.T) {
 
 	type args struct {
 		user             ffcontext.Context
-		flagKey          string
 		value            any
+		exporterMetadata exporter.FeatureEventMetadata
+		flagKey          string
 		variation        string
-		failed           bool
 		version          string
 		source           string
-		exporterMetadata exporter.FeatureEventMetadata
+		failed           bool
 	}
 	tests := []struct {
 		name string
@@ -97,9 +97,9 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		featureEvent *exporter.FeatureEvent
 		want         *exporter.FeatureEvent
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -186,10 +186,10 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		featureEvent *exporter.FeatureEvent
-		want         string
 		wantErr      assert.ErrorAssertionFunc
+		name         string
+		want         string
 	}{
 		{
 			name: "Should not return a metadata field if metadata is empty",

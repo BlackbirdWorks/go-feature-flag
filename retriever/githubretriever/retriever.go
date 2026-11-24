@@ -51,47 +51,41 @@ var (
 
 // Retriever is a configuration struct for a GitHub retriever.
 type Retriever struct {
-	RepositorySlug string
+	rateLimitReset time.Time
+	tokenExpiresAt time.Time
+	// httpClient is the http.Client if you want to override it.
+	httpClient     internal.HTTPClient
 	Branch         string // default is main
 	FilePath       string
 	GithubToken    string
-	Timeout        time.Duration // default is 10 seconds
-
+	RepositorySlug string
 	// BaseURL is the base URL for the GitHub API.
 	// If not specified, it defaults to "https://api.github.com" for GitHub.com.
 	// For GitHub Enterprise instances, specify your instance URL (e.g., "https://github.acme.com/api/v3").
 	BaseURL string
-
+	// cached installation token state (GitHub App auth only)
+	cachedToken    string
+	PrivateKey     string // PEM-encoded RSA private key
+	PrivateKeyFile string // path to a PEM file; takes precedence over PrivateKey if both are set
+	status         retriever.Status
+	Timeout        time.Duration // default is 10 seconds
+	// rate limit fields
+	rateLimitRemaining int
+	InstallationID     int64
 	// GitHub App authentication fields.
 	// AppID and InstallationID are required together with either
 	// PrivateKey (PEM string) or PrivateKeyFile (path to a PEM file).
 	// Mutually exclusive with GithubToken / AuthToken.
-	AppID          int64
-	InstallationID int64
-	PrivateKey     string // PEM-encoded RSA private key
-	PrivateKeyFile string // path to a PEM file; takes precedence over PrivateKey if both are set
-
-	// httpClient is the http.Client if you want to override it.
-	httpClient internal.HTTPClient
-	status     retriever.Status
-
+	AppID int64
 	// mu guards the rate limit fields and the cached installation token,
 	// so concurrent Retrieve calls mint the token only once.
 	mu sync.Mutex
-
-	// rate limit fields
-	rateLimitRemaining int
-	rateLimitReset     time.Time
-
-	// cached installation token state (GitHub App auth only)
-	cachedToken    string
-	tokenExpiresAt time.Time
 }
 
 // installationTokenResponse is the JSON body returned by the access_tokens endpoint.
 type installationTokenResponse struct {
-	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Token     string    `json:"token"`
 }
 
 // Init validates the authentication configuration.

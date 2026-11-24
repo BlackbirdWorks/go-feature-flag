@@ -648,9 +648,9 @@ func TestChangeList(t *testing.T) {
 	}
 	tests := []struct {
 		name      string
+		want      string
 		changes   []string
 		maxLength int
-		want      string
 	}{
 		{name: "should list changes with the bullet", changes: changes(2), want: "• change 1\n• change 2"},
 		{

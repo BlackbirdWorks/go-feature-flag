@@ -11,10 +11,10 @@ var (
 )
 
 type GCStorageReaderMock struct {
-	ShouldFail bool
 	FileToRead string
 	data       []byte
 	readIndex  int64
+	ShouldFail bool
 }
 
 func (r *GCStorageReaderMock) Close() error {

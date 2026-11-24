@@ -17,9 +17,8 @@ type EvalFlagRequest struct {
 
 // EvaluationContextRequest The representation of a EvaluationContext for your feature flag system.
 type EvaluationContextRequest struct {
-	// Key is the identifier of the evaluation context.
-	Key string `json:"key" xml:"key" form:"key" query:"key" example:"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"`
-
 	// Custom is a map containing all extra information for this user.
 	Custom map[string]any `json:"custom" xml:"custom" form:"custom" query:"custom" swaggertype:"object,string" example:"email:contact@gofeatureflag.org,firstname:John,lastname:Doe,company:Semaphore"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	// Key is the identifier of the evaluation context.
+	Key string `json:"key" xml:"key" form:"key" query:"key" example:"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"`
 }

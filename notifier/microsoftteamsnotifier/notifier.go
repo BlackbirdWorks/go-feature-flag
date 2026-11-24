@@ -20,9 +20,8 @@ var _ notifier.Notifier = &Notifier{}
 
 // Notifier is the component in charge of sending flag changes to Microsoft Teams.
 type Notifier struct {
+	teamsClient              *goteamsnotify.TeamsClient
 	MicrosoftTeamsWebhookURL string
-
-	teamsClient *goteamsnotify.TeamsClient
 }
 
 // Notify is the notifying all the changes to the notifier.

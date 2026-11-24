@@ -35,15 +35,14 @@ var (
 
 // fakeS3 serves the same flag file for every key and counts the requests.
 type fakeS3 struct {
-	content []byte
-	listErr error
-	keys    []string
-	lists   atomic.Int32
-	gets    atomic.Int32
-
-	mu        sync.Mutex
+	listErr   error
 	etags     map[string]string // key -> ETag, "x" by default
 	getsByKey map[string]int
+	content   []byte
+	keys      []string
+	mu        sync.Mutex
+	lists     atomic.Int32
+	gets      atomic.Int32
 }
 
 func (f *fakeS3) setETag(key, etag string) {
@@ -336,8 +335,8 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	plain := s3FlagSet("plain", "b1", "p/b.yaml")
 	plain.EnableSharedPollerPerBucket = false
 	tests := []struct {
-		name       string
 		reg        func(logger *zap.Logger) *sharedBucketRegistry
+		name       string
 		wantGroups int
 		wantWarn   int
 	}{
@@ -367,9 +366,9 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func Test_defaultSharedItemsFactory(t *testing.T) {
 	tests := []struct {
-		name    string
 		env     map[string]string
 		wantErr assert.ErrorAssertionFunc
+		name    string
 	}{
 		{name: "default AWS config", wantErr: assert.NoError},
 		{
@@ -397,11 +396,11 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
-		parent      time.Duration
-		parentJit   bool
-		polling     int
-		jitter      bool
 		wantMessage []string
+		parent      time.Duration
+		polling     int
+		parentJit   bool
+		jitter      bool
 	}{
 		{name: "unset values follow the parent", parent: 10 * time.Second},
 		{name: "same values", parent: time.Minute, polling: 60000},

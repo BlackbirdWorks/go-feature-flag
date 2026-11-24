@@ -90,8 +90,8 @@ func TestConfig_GetRetrievers(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		PollingInterval time.Duration
 		Retriever       retriever.Retriever
+		PollingInterval time.Duration
 	}
 	tests := []struct {
 		name    string
@@ -199,13 +199,13 @@ func TestConfig_GetDataExporters(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		DataExporter  ffClient.DataExporter
 		DataExporters []ffClient.DataExporter
+		DataExporter  ffClient.DataExporter
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		want   []ffClient.DataExporter
+		fields fields
 	}{
 		{
 			name:   "No data exporter",

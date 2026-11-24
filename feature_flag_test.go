@@ -901,8 +901,8 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
 		config               *ffclient.Config
+		name                 string
 		disableNotification  bool
 		expectedNotifyCalled bool
 	}{
@@ -993,9 +993,9 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
 		enrichment     map[string]any
 		wantEnrichment map[string]any
+		name           string
 	}{
 		{
 			name:       "nil enrichment",

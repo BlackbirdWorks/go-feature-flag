@@ -40,19 +40,19 @@ type Manager interface {
 }
 
 type cacheManagerImpl struct {
+	latestUpdate        time.Time
+	notificationService notification.Service
 	// inMemoryCache is the current flag cache: it is replaced as a whole by UpdateCache, so the
 	// evaluations read it without taking any lock (nil when the manager is closed).
 	inMemoryCache atomic.Pointer[Cache]
-	// mutex protects latestUpdate and serializes the writers of inMemoryCache.
-	mutex                           sync.RWMutex
-	notificationService             notification.Service
-	latestUpdate                    time.Time
-	logger                          *fflog.FFLogger
+	logger        *fflog.FFLogger
+	// service validates the flags that are loaded, and owns the parses of their queries.
+	service                         *flag.Service
 	persistentFlagConfigurationFile string
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
-	// service validates the flags that are loaded, and owns the parses of their queries.
-	service *flag.Service
+	// mutex protects latestUpdate and serializes the writers of inMemoryCache.
+	mutex sync.RWMutex
 }
 
 // Option customizes the Manager that New creates.

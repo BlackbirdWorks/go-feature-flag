@@ -28,12 +28,12 @@ func TestNewFlagsetManager(t *testing.T) {
 
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	tests := []struct {
-		name        string
 		config      *config.Config
 		logger      *zap.Logger
+		name        string
+		expectedErr string
 		notifiers   []notifier.Notifier
 		wantErr     bool
-		expectedErr string
 	}{
 		{
 			name:        "nil config should return error",
@@ -122,9 +122,8 @@ func TestNewFlagsetManager(t *testing.T) {
 // fakeSSEService records the flagset name of every broadcast.
 type fakeSSEService struct {
 	stream.SSEService
-
-	mu      sync.Mutex
 	streams []string
+	mu      sync.Mutex
 }
 
 func (f *fakeSSEService) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {

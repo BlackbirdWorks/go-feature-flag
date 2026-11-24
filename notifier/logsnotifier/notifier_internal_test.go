@@ -17,10 +17,10 @@ func TestLogNotifier_Notify(t *testing.T) {
 	type args struct {
 	}
 	tests := []struct {
-		name        string
 		args        args
 		diff        notifier.DiffCache
 		expectedLog *slogassert.LogMessageMatch
+		name        string
 	}{
 		{
 			name: "Flag deleted",

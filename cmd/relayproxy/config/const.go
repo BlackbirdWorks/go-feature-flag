@@ -23,11 +23,11 @@ type ExporterDefaults struct {
 	LogFormat               string
 	FileName                string
 	CsvFormat               string
-	FlushInterval           time.Duration
-	MaxEventInMemory        int64
 	ParquetCompressionCodec string
 	LogLevel                string
 	ExporterEventType       ffclient.ExporterEventType
+	FlushInterval           time.Duration
+	MaxEventInMemory        int64
 }
 
 // DefaultExporter returns the defaults of the exporter configuration.

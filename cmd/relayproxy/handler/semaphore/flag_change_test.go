@@ -27,10 +27,10 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		config        config.Config
 		apiKey        string
 		wantFile      string
 		wantAfterFile string
+		config        config.Config
 	}{
 		{
 			name: "default mode",
@@ -155,9 +155,9 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		config   config.Config
 		apiKey   string
 		wantFile string
+		config   config.Config
 	}{
 		{
 			name: "default mode",

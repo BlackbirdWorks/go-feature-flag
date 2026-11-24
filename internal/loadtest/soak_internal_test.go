@@ -46,11 +46,11 @@ func TestJudge(t *testing.T) {
 	flatG := []int{10, 10, 10, 10, 10, 10, 10, 10}
 	tests := []struct {
 		name       string
+		wantReason string
 		heap       []uint64
 		gor        []int
 		opts       Options
 		wantPass   bool
-		wantReason string
 	}{
 		{
 			name:     "stable",
@@ -331,8 +331,8 @@ func (w weightedTarget) FlagsPerCall() int     { return w.n }
 func TestFlagsPerCall(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		target Target
+		name   string
 		want   int
 	}{
 		{name: "plain target evaluates one flag", target: &fakeTarget{}, want: 1},

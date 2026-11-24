@@ -55,11 +55,11 @@ func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retri
 func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
 		persisted   *string // content of the persistent flag configuration file, nil when there is none
+		name        string
+		wantErr     string
 		withFile    bool
 		startAnyway bool
-		wantErr     string
 		wantFlag    bool
 	}{
 		{name: "no persistent file and no tolerance fails", wantErr: "impossible to retrieve the flags"},
@@ -116,8 +116,8 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 func TestManagerForceRefresh(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
 		retriever retriever.Retriever
+		name      string
 		want      bool
 	}{
 		{name: "refreshes from a working retriever", retriever: &countingRetriever{}, want: true},

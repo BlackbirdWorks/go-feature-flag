@@ -58,8 +58,8 @@ func TestMetrics_Gatherer(t *testing.T) {
 
 // countingCollector exposes a gauge that increases at every collection, like a collector with a side effect.
 type countingCollector struct {
-	calls atomic.Int64
 	desc  *prom.Desc
+	calls atomic.Int64
 }
 
 func (c *countingCollector) Describe(ch chan<- *prom.Desc) { ch <- c.desc }

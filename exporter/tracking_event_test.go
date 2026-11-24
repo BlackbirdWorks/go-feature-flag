@@ -14,11 +14,11 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		trackingEvent *exporter.TrackingEvent
+		wantErr       assert.ErrorAssertionFunc
+		name          string
 		template      string
 		want          string
-		wantErr       assert.ErrorAssertionFunc
 	}{
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
@@ -76,10 +76,10 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		trackingEvent *exporter.TrackingEvent
-		want          string
 		wantErr       assert.ErrorAssertionFunc
+		name          string
+		want          string
 	}{
 		{
 			name: "Should return a marshalled JSON string of the tracking event",

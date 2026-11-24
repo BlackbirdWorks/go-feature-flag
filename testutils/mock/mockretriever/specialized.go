@@ -47,8 +47,8 @@ func (m *ContextAwareRetriever) Status() retriever.Status {
 
 // StatusChangingRetriever allows testing status changes during operations.
 type StatusChangingRetriever struct {
-	StatusCalled  bool
 	CurrentStatus retriever.Status
+	StatusCalled  bool
 }
 
 func NewStatusChangingRetriever() *StatusChangingRetriever {

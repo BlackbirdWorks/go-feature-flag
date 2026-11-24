@@ -53,10 +53,10 @@ func runParallel(n int, fn func(i int)) {
 func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name          string
 		endPercentage *float64
 		// wantEndPercentage is the end percentage the flag still has after the evaluations
 		wantEndPercentage *float64
+		name              string
 	}{
 		{name: "end percentage not set", endPercentage: nil, wantEndPercentage: nil},
 		{name: "end percentage 0", endPercentage: new(float64(0)), wantEndPercentage: new(float64(0))},
@@ -148,8 +148,8 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 
 // customContext is a ffcontext.Context that exposes the map it was built with, as is.
 type customContext struct {
-	key    string
 	custom map[string]any
+	key    string
 }
 
 func (c *customContext) GetKey() string            { return c.key }

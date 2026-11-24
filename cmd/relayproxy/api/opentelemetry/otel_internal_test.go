@@ -226,11 +226,11 @@ func TestNewErrorHandler(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
 		err         error
-		wantLevel   zapcore.Level
+		name        string
 		wantMessage string
 		wantContext []zapcore.Field
+		wantLevel   zapcore.Level
 	}{
 		{
 			name:        "the error is logged to zap",

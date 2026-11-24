@@ -31,11 +31,11 @@ func TestGoogleStorage_Export(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
 		fields       fields
+		name         string
+		expectedName string
 		events       []exporter.ExportableEvent
 		wantErr      bool
-		expectedName string
 	}{
 		{
 			name: "All default test",

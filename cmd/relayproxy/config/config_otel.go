@@ -4,9 +4,7 @@ package config
 // It is used to configure the OpenTelemetry SDK and the OpenTelemetry Exporter
 // Most of the time this configuration is set using environment variables.
 type OpenTelemetryConfiguration struct {
-	SDK struct {
-		Disabled bool `mapstructure:"disabled" koanf:"disabled"`
-	} `mapstructure:"sdk"      koanf:"sdk"`
+	Resource OtelResource `mapstructure:"resource" koanf:"resource"`
 	Exporter OtelExporter `mapstructure:"exporter" koanf:"exporter"`
 	Service  struct {
 		Name string `mapstructure:"name" koanf:"name"`
@@ -14,7 +12,9 @@ type OpenTelemetryConfiguration struct {
 	Traces struct {
 		Sampler string `mapstructure:"sampler" koanf:"sampler"`
 	} `mapstructure:"traces"   koanf:"traces"`
-	Resource OtelResource `mapstructure:"resource" koanf:"resource"`
+	SDK struct {
+		Disabled bool `mapstructure:"disabled" koanf:"disabled"`
+	} `mapstructure:"sdk"      koanf:"sdk"`
 }
 
 type OtelExporter struct {

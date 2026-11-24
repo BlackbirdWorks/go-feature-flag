@@ -29,11 +29,11 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
-		handlerErr bool
 		errorMsg   string
+		httpCode   int
 		errorCode  int
+		handlerErr bool
 	}
 
 	type args struct {
@@ -188,11 +188,11 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 	const configFlagsLocation = testdataDir + "/config_flags.yaml"
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
-		handlerErr bool
 		errorMsg   string
+		httpCode   int
 		errorCode  int
+		handlerErr bool
 	}
 
 	type args struct {

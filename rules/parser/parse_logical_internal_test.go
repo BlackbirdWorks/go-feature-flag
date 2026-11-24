@@ -13,8 +13,8 @@ func TestNestedObject(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x.a eq 1 and x.b.c eq 2`,
-			map[string]any{
+			rule: `x.a eq 1 and x.b.c eq 2`,
+			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
 					"b": map[string]any{
@@ -22,12 +22,12 @@ func TestNestedObject(t *testing.T) {
 					},
 				},
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 and x.b.c eq 2`,
-			map[string]any{
+			rule: `x.a eq 1 and x.b.c eq 2`,
+			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
 					"b": map[string]any{
@@ -35,70 +35,70 @@ func TestNestedObject(t *testing.T) {
 					},
 				},
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 and x.b.c eq 2`,
-			map[string]any{
+			rule: `x.a eq 1 and x.b.c eq 2`,
+			input: map[string]any{
 				"x": map[string]any{
 					"b": map[string]any{
 						"c": 2,
 					},
 				},
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 or x.b.c eq 2`,
-			map[string]any{
+			rule: `x.a eq 1 or x.b.c eq 2`,
+			input: map[string]any{
 				"x": map[string]any{
 					"b": map[string]any{
 						"c": 2,
 					},
 				},
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 or x.b.c eq 2`,
-			nil,
-			false,
-			false,
+			rule:     `x.a eq 1 or x.b.c eq 2`,
+			input:    nil,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 or x.b.c eq 2`,
-			obj{},
-			false,
-			false,
+			rule:     `x.a eq 1 or x.b.c eq 2`,
+			input:    obj{},
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x.a eq 1 or x.b.c gt true`,
-			obj{},
-			false,
-			true,
+			rule:     `x.a eq 1 or x.b.c gt true`,
+			input:    obj{},
+			result:   false,
+			hasError: true,
 		},
 		{
-			`x.a eq 1 or x.b.c gt true`,
-			map[string]any{
+			rule: `x.a eq 1 or x.b.c gt true`,
+			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
 				},
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x.b.c gt true or x.a eq 1`,
-			map[string]any{
+			rule: `x.b.c gt true or x.a eq 1`,
+			input: map[string]any{
 				"x": map[string]any{
 					"a": 1,
 				},
 			},
-			false,
-			true,
+			result:   false,
+			hasError: true,
 		},
 	}
 
@@ -131,52 +131,52 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 	}
 	tests := []testCase{
 		{
-			`y gt 11.1.0-0 and not(x IN ["abc","cde","fgh"])`,
-			input,
-			false,
-			false,
+			rule:     `y gt 11.1.0-0 and not(x IN ["abc","cde","fgh"])`,
+			input:    input,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`not(x IN ["abc","cde","fgh"]) and y gt 11.1.0-0`,
-			input,
-			false,
-			false,
+			rule:     `not(x IN ["abc","cde","fgh"]) and y gt 11.1.0-0`,
+			input:    input,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`y gt 11.1.0-0 and not(x IN ["cde","fgh"])`,
-			input,
-			true,
-			false,
+			rule:     `y gt 11.1.0-0 and not(x IN ["cde","fgh"])`,
+			input:    input,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`not(x IN ["cde","fgh"]) and y gt 11.1.0-0`,
-			input,
-			true,
-			false,
+			rule:     `not(x IN ["cde","fgh"]) and y gt 11.1.0-0`,
+			input:    input,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x gt 2.1.0-0 and not(y in ["a", "b", "c"])`,
-			parenInput,
-			true,
-			false,
+			rule:     `x gt 2.1.0-0 and not(y in ["a", "b", "c"])`,
+			input:    parenInput,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`(x gt 2.1.0-0) and not(y in ["a", "b", "c"])`,
-			parenInput,
-			true,
-			false,
+			rule:     `(x gt 2.1.0-0) and not(y in ["a", "b", "c"])`,
+			input:    parenInput,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`((x gt 2.1.0-0) and not(y in ["a", "b", "c"]))`,
-			parenInput,
-			true,
-			false,
+			rule:     `((x gt 2.1.0-0) and not(y in ["a", "b", "c"]))`,
+			input:    parenInput,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`(x gt 2.1.0-0 and not(y in ["a", "b", "c"]))`,
-			parenInput,
-			true,
-			false,
+			rule:     `(x gt 2.1.0-0 and not(y in ["a", "b", "c"]))`,
+			input:    parenInput,
+			result:   true,
+			hasError: false,
 		},
 	}
 
@@ -197,79 +197,79 @@ func TestLogicalExpWithAnd(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq 1 or y gt 1`,
-			obj{
+			rule: `x eq 1 or y gt 1`,
+			input: obj{
 				"x": 1,
 				"y": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1 and y gt 1`,
-			obj{
+			rule: `x eq 1 and y gt 1`,
+			input: obj{
 				"x": 1,
 				"y": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1 and y gt 1`,
-			obj{
+			rule: `x eq 1 and y gt 1`,
+			input: obj{
 				"x": 1,
 				"y": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x eq 1 and not (y gt 1)`,
-			obj{
+			rule: `x eq 1 and not (y gt 1)`,
+			input: obj{
 				"x": 1,
 				"y": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1 and not (y gt 1)`,
-			obj{
+			rule: `x eq 1 and not (y gt 1)`,
+			input: obj{
 				"x": 1,
 				"y": 2,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`(x eq 1 and y gt 1) and z eq 3`,
-			obj{
+			rule: `(x eq 1 and y gt 1) and z eq 3`,
+			input: obj{
 				"x": 1,
 				"y": 2,
 				"z": 3,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`(x eq 1 and y gt 1) and z eq 3 or a gt 4`,
-			obj{
+			rule: `(x eq 1 and y gt 1) and z eq 3 or a gt 4`,
+			input: obj{
 				"x": 1,
 				"y": 2,
 				"a": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`(x eq 1 and y gt 1) and (z eq 3 or a gt 4)`,
-			obj{
+			rule: `(x eq 1 and y gt 1) and (z eq 3 or a gt 4)`,
+			input: obj{
 				"x": 1,
 				"y": 2,
 				"a": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 	}
 
@@ -287,42 +287,42 @@ func TestLogicalExpWithAndWithExtraSpaces(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x < 2 and ( y > 4 or z == true )`,
-			obj{
+			rule: `x < 2 and ( y > 4 or z == true )`,
+			input: obj{
 				"x": 1,
 				"y": 3,
 				"z": true,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x < 2 and ( y > 4 or z == true )`,
-			obj{
+			rule: `x < 2 and ( y > 4 or z == true )`,
+			input: obj{
 				"x": 1,
 				"y": 3,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x < 2 and ( y > 4 or z == true )`,
-			obj{
+			rule: `x < 2 and ( y > 4 or z == true )`,
+			input: obj{
 				"x": 1,
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x < 2 and ( y > 4 or z == true)`,
-			obj{
+			rule: `x < 2 and ( y > 4 or z == true)`,
+			input: obj{
 				"x": 1,
 				"y": 3,
 				"z": true,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 	}
 

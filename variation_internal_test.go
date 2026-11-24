@@ -92,19 +92,19 @@ func TestBoolVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  bool
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  bool
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
+		expectedLog string
 		args        args
 		want        bool
 		wantErr     bool
-		expectedLog string
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -411,19 +411,19 @@ func TestBoolVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  bool
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  bool
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[bool]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[bool]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -888,19 +888,19 @@ func TestFloat64Variation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  float64
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  float64
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
+		expectedLog string
 		args        args
 		want        float64
 		wantErr     bool
-		expectedLog string
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -1208,19 +1208,19 @@ func TestFloat64VariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  float64
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  float64
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[float64]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[float64]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -1538,19 +1538,19 @@ func TestJSONArrayVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  []any
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  []any
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        []any
-		wantErr     bool
 		expectedLog string
+		want        []any
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -1847,19 +1847,19 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  []any
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  []any
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[[]any]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[[]any]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -2174,19 +2174,19 @@ func TestJSONVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  map[string]any
 		cacheMock     cache.Manager
+		defaultValue  map[string]any
+		flagKey       string
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
-		name        string
-		args        args
 		want        map[string]any
-		wantErr     bool
+		name        string
 		expectedLog string
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -2462,19 +2462,19 @@ func TestJSONVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  map[string]any
 		cacheMock     cache.Manager
+		defaultValue  map[string]any
+		flagKey       string
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[map[string]any]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[map[string]any]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Get default value if flag disable",
@@ -2705,19 +2705,19 @@ func TestStringVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  string
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  string
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
 		want        string
-		wantErr     bool
 		expectedLog string
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -3024,19 +3024,19 @@ func TestStringVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  string
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  string
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[string]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[string]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Get default value if flag disable",
@@ -3265,19 +3265,19 @@ func TestIntVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  int
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  int
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
+		expectedLog string
 		args        args
 		want        int
 		wantErr     bool
-		expectedLog string
 	}{
 		{
 			name: "Call variation before init of SDK",
@@ -3584,19 +3584,19 @@ func TestIntVariationDetails(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
-		defaultValue  int
 		cacheMock     cache.Manager
+		flagKey       string
+		defaultValue  int
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.VariationResult[int]
-		wantErr     bool
 		expectedLog string
+		want        model.VariationResult[int]
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Get default value if flag disable",
@@ -3867,19 +3867,19 @@ func TestRawVariation(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagKey       string
 		evaluationCtx ffcontext.Context
 		defaultValue  any
 		cacheMock     cache.Manager
+		flagKey       string
 		offline       bool
 		disableInit   bool
 	}
 	tests := []struct {
 		name        string
-		args        args
-		want        model.RawVarResult
-		wantErr     bool
 		expectedLog string
+		want        model.RawVarResult
+		args        args
+		wantErr     bool
 	}{
 		{
 			name: "Call variation before init of SDK",

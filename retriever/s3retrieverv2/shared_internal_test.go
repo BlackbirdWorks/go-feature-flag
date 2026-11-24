@@ -59,8 +59,8 @@ func TestSharedItems_listingPrefix(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		keys []string
 		want string
+		keys []string
 	}{
 		{name: "no key", want: ""},
 		{name: "single key", keys: []string{"a/b/flags.yaml"}, want: "a/b/"},
@@ -119,9 +119,9 @@ func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 
 // tokenLister returns truncated pages following a token policy.
 type tokenLister struct {
-	calls atomic.Int64
 	// next gives the NextContinuationToken of the page number n.
-	next func(n int64) string
+	next  func(n int64) string
+	calls atomic.Int64
 }
 
 func (l *tokenLister) ListObjectsV2(

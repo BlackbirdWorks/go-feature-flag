@@ -21,21 +21,20 @@ import (
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
+	csvTemplate      *template.Template
+	filenameTemplate *template.Template
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV, and Parquet.
 	// Default: JSON
 	Format string
-
 	// OutputDir is the location of the directory where to store the exported files
 	// Default: the current directory
 	OutputDir string
-
 	// Filename is the name of your output file
 	// You can use a templated config to define the name of your export files.
 	// Available replacement are {{ .Hostname}}, {{ .Timestamp}} and {{ .Format}}
 	// Default: "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}"
 	Filename string
-
 	// CsvTemplate is used if your output format is CSV.
 	// This field will be ignored if you are using another format than CSV.
 	// You can decide which fields you want in your CSV line with a go-template syntax,
@@ -44,15 +43,11 @@ type Exporter struct {
 	// {{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};
 	// {{ .Default}};{{ .Source}}\n
 	CsvTemplate string
-
 	// ParquetCompressionCodec is the parquet compression codec for better space efficiency.
 	// Available options https://github.com/apache/parquet-format/blob/master/Compression.md
 	// Default: SNAPPY
 	ParquetCompressionCodec string
-
-	csvTemplate      *template.Template
-	filenameTemplate *template.Template
-	initTemplates    sync.Once
+	initTemplates           sync.Once
 }
 
 // Export is saving a collection of events in a file.

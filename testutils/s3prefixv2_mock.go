@@ -23,25 +23,24 @@ var (
 // downloader APIs used by the S3 retriever v2. It supports prefix/delimiter semantics,
 // pagination, ETags and call counters.
 type S3PrefixMock struct {
-	// PageSize is the max number of keys returned by one ListObjectsV2 call (default 1000).
-	PageSize int
 	// ListErr, if set, is returned by every ListObjectsV2 call.
 	ListErr error
 	// DownloadErr, if set, is returned by every DownloadObject call.
 	DownloadErr error
-	// NoETag lists the objects with an empty ETag, like some S3 compatible stores do.
-	NoETag bool
 	// BeforeDownload, if set, is called with the key at the start of every DownloadObject call,
 	// without the mock lock held, so it can call Put and Delete to swap an object between the list
 	// and the download.
 	BeforeDownload func(key string)
 	// DownloadErrKeys makes the download of the given keys fail. Guarded by the mock, use SetDownloadErrKey.
 	downloadErrKeys map[string]error
-
-	mu            sync.Mutex
-	objects       map[string][]byte
-	listCalls     int
-	downloadCalls map[string]int
+	objects         map[string][]byte
+	downloadCalls   map[string]int
+	// PageSize is the max number of keys returned by one ListObjectsV2 call (default 1000).
+	PageSize  int
+	listCalls int
+	mu        sync.Mutex
+	// NoETag lists the objects with an empty ETag, like some S3 compatible stores do.
+	NoETag bool
 }
 
 // Put creates or replaces an object. The ETag is derived from the content.

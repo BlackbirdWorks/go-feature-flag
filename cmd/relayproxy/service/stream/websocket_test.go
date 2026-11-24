@@ -69,9 +69,9 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 	diff := sensitiveDiffCache()
 	tests := []struct {
+		expected any
 		name     string
 		options  []stream.Option
-		expected any
 	}{
 		{
 			name:     "includes flag details by default",
@@ -161,9 +161,9 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		want             map[string]bool
 		name             string
 		broadcastFlagset string
-		want             map[string]bool
 	}{
 		{
 			name:             "broadcast on flagset-a only reaches flagset-a clients",

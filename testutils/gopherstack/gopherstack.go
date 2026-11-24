@@ -61,10 +61,10 @@ const (
 
 // Server is a running gopherstack instance.
 type Server struct {
+	container testcontainers.Container
 	// Endpoint is the base URL (ex: http://127.0.0.1:49153). An IP host makes the AWS SDK use
 	// path-style S3 addressing, so no DNS is needed.
-	Endpoint  string
-	container testcontainers.Container
+	Endpoint string
 }
 
 // Start starts a container (or attaches to GOPHERSTACK_ENDPOINT) and waits until it is healthy.

@@ -47,13 +47,13 @@ func TestFile_Export(t *testing.T) {
 		trackingEvents []exporter.TrackingEvent
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		wantErr  bool
-		expected expected
 		setup    func(t *testing.T, fields fields)
 		teardown func(t *testing.T, fields fields)
+		fields   fields
+		name     string
+		expected expected
+		args     args
+		wantErr  bool
 	}{
 		{
 			name:    "all default json",

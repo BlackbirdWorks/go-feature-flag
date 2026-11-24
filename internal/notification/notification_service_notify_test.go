@@ -26,10 +26,10 @@ func TestNotificationServiceNotify(t *testing.T) {
 	}
 	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
 	tests := []struct {
-		name         string
+		notifierErr  error
 		oldCache     map[string]flag.Flag
 		newCache     map[string]flag.Flag
-		notifierErr  error
+		name         string
 		wantCalls    int32
 		wantLogError bool
 	}{

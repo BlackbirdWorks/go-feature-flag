@@ -202,8 +202,8 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		result   model.RawVarResult
 		wantJSON string
+		result   model.RawVarResult
 	}{
 		{
 			name: "raw var result with all fields",

@@ -30,15 +30,13 @@ const (
 )
 
 type Exporter struct {
+	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
+	tracerProvider trace.TracerProvider
+	tracer         trace.Tracer
 	// TracerName allows overriding the OpenTelemetry tracer name.
 	// Default: semaphore
 	TracerName string
-
-	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
-	tracerProvider trace.TracerProvider
-
-	tracer trace.Tracer
-	once   sync.Once
+	once       sync.Once
 }
 
 func (e *Exporter) init() {

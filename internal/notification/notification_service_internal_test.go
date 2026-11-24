@@ -21,10 +21,10 @@ func Test_notificationService_getDifferences(t *testing.T) {
 		newCache map[string]flag.Flag
 	}
 	tests := []struct {
+		want   notifier.DiffCache
+		args   args
 		name   string
 		fields fields
-		args   args
-		want   notifier.DiffCache
 	}{
 		{
 			name: "Delete flag",

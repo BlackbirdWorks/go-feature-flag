@@ -15,9 +15,9 @@ func TestQueryContext_MapOnce(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		ctx  ffcontext.Context
 		want map[string]any
+		name string
 	}{
 		{
 			name: "context with custom attributes",

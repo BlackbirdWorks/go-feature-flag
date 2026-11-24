@@ -44,17 +44,16 @@ var _ exporter.Exporter = &Exporter{}
 //	   ]
 //	 }
 type Exporter struct {
-	// EndpointURL of your webhook
-	EndpointURL string
-	// Secret used to sign your request body.
-	Secret string
+	httpClient internal.HTTPClient
 	// Meta information that you want to send to your webhook (not mandatory)
 	Meta map[string]string
 	// Headers (optional) the list of Headers to send to the endpoint
 	Headers map[string][]string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	// EndpointURL of your webhook
+	EndpointURL string
+	// Secret used to sign your request body.
+	Secret string
+	init   sync.Once
 }
 
 // webhookPayload contains the body of the webhook.

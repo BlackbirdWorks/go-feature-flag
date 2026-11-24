@@ -33,33 +33,32 @@ var (
 
 // fakeBucket is a fake S3 bucket counting the requests it receives.
 type fakeBucket struct {
-	mu      sync.Mutex
-	objects map[string]fakeObject
 	listErr error
 	getErr  error
-	// hang makes the listing wait for its context.
-	hang bool
-	// downloadETag overrides the ETag returned by the downloads when set.
-	downloadETag string
-	// getLatency is the duration of each download.
-	getLatency time.Duration
-	// curGets and maxGets are the current and the maximum number of concurrent downloads.
-	curGets, maxGets atomic.Int32
-	// noDownloadETag makes the downloads return no ETag.
-	noDownloadETag bool
-	// pageLatency is the duration of each listing page.
-	pageLatency time.Duration
-	// downloadGate blocks the downloads (ignoring their context) until it is closed.
-	downloadGate chan struct{}
-	// prefixes are the prefixes of the listings, in order.
-	prefixes []string
+	objects map[string]fakeObject
+	gets    map[string]int
 	// listGate blocks the listings (ignoring their context) until it is closed.
 	listGate chan struct{}
+	// downloadGate blocks the downloads (ignoring their context) until it is closed.
+	downloadGate chan struct{}
+	// downloadETag overrides the ETag returned by the downloads when set.
+	downloadETag string
+	// prefixes are the prefixes of the listings, in order.
+	prefixes []string
+	// getLatency is the duration of each download.
+	getLatency time.Duration
 	// pageSize forces the listing to be paginated when > 0.
 	pageSize int
-
-	lists atomic.Int32
-	gets  map[string]int
+	// pageLatency is the duration of each listing page.
+	pageLatency time.Duration
+	mu          sync.Mutex
+	// curGets and maxGets are the current and the maximum number of concurrent downloads.
+	curGets, maxGets atomic.Int32
+	lists            atomic.Int32
+	// noDownloadETag makes the downloads return no ETag.
+	noDownloadETag bool
+	// hang makes the listing wait for its context.
+	hang bool
 }
 
 type fakeObject struct {
@@ -203,8 +202,8 @@ func TestNewSharedItems(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		opts    s3retrieverv2.SharedItemsOptions
 		wantErr string
+		opts    s3retrieverv2.SharedItemsOptions
 	}{
 		{name: "no bucket", opts: s3retrieverv2.SharedItemsOptions{}, wantErr: "bucket is empty"},
 		{
@@ -267,10 +266,10 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
 	// every case registers the items in order, then runs. The retrievers are initialized.
 	tests := []struct {
-		name  string
 		items map[string]time.Duration // item -> polling interval
 		setup func(b *fakeBucket)
 		run   func(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever)
+		name  string
 	}{
 		{
 			name: "N facades in one window do one list and no extra get",
@@ -961,8 +960,8 @@ type pollCase struct {
 }
 
 type lockedBuffer struct {
-	mu  sync.Mutex
 	buf strings.Builder
+	mu  sync.Mutex
 }
 
 func (l *lockedBuffer) Write(p []byte) (int, error) {
@@ -1082,8 +1081,8 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 	t.Parallel()
 	const dev, prod = "p1/dev/flags.yaml", "p1/prod/flags.yaml"
 	tests := []struct {
-		name string
 		run  func(t *testing.T)
+		name string
 	}{
 		{name: "only the changed object is refreshed, after one listing per interval", run: func(t *testing.T) {
 			t.Helper()

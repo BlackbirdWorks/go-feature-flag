@@ -166,10 +166,10 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		autoMigrate          bool
 		tableName            string
 		events               []exporter.ExportableEvent
 		wantEnsureTableCalls []ensureTableCall
+		autoMigrate          bool
 	}{
 		{
 			name:        "AutoMigrate true ensures feature table",
@@ -310,13 +310,13 @@ func TestExporter_ExportErrors(t *testing.T) {
 	putErr := errPutRowsFailed
 
 	tests := []struct {
-		name                string
-		events              []exporter.ExportableEvent
-		client              *mockBigQueryClient
 		newClientErr        error
-		autoMigrate         bool
+		client              *mockBigQueryClient
+		name                string
 		tableName           string
 		wantErrContains     string
+		events              []exporter.ExportableEvent
+		autoMigrate         bool
 		wantNewClientCalled bool
 	}{
 		{
@@ -581,8 +581,8 @@ func TestCredentialsType(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		creds []byte
 		want  option.CredentialsType
+		creds []byte
 	}{
 		{
 			name:  "authorized user",
@@ -644,8 +644,8 @@ func TestIsAlreadyExists(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		err  error
+		name string
 		want bool
 	}{
 		{
@@ -715,11 +715,11 @@ type ensureTableCall struct {
 }
 
 type mockBigQueryClient struct {
-	inserters        map[string]*mockInserter
-	ensureTableCalls []ensureTableCall
 	ensureTableErr   error
 	putErr           error
+	inserters        map[string]*mockInserter
 	putErrByTable    map[string]error
+	ensureTableCalls []ensureTableCall
 }
 
 func newMockBigQueryClient() *mockBigQueryClient {
@@ -771,8 +771,8 @@ func (m *mockBigQueryClient) Close() error {
 }
 
 type mockInserter struct {
-	puts []any
 	err  error
+	puts []any
 }
 
 func (m *mockInserter) Put(_ context.Context, src any) error {

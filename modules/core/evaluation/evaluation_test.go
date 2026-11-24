@@ -16,18 +16,18 @@ func Test_evaluate(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flag            flag.Flag
-		flagKey         string
-		evaluationCtx   ffcontext.Context
 		flagCtx         flag.Context
-		expectedType    string
+		flag            flag.Flag
+		evaluationCtx   ffcontext.Context
 		sdkDefaultValue any
+		flagKey         string
+		expectedType    string
 	}
 	tests := []struct {
-		name         string
-		args         args
-		want         model.VariationResult[any]
 		errAssertion assert.ErrorAssertionFunc
+		args         args
+		name         string
+		want         model.VariationResult[any]
 	}{
 		{
 			name: "Test with a rule name",

@@ -75,31 +75,24 @@ func (r rowSaver) Save() (map[string]bigquery.Value, string, error) {
 
 // Exporter streams events to Google BigQuery.
 type Exporter struct {
+	// client is the initialized BigQuery client.
+	client  bigQueryClient
+	initErr error
+	// newClientFunc is used only for unit testing purposes.
+	newClientFunc func(context.Context, string, ...option.ClientOption) (bigQueryClient, error)
 	// ProjectID is the ID of the GCP project containing the BigQuery dataset.
 	ProjectID string
-
 	// DatasetID is the BigQuery dataset receiving the events.
 	DatasetID string
-
 	// TableName is the table receiving events for this exporter instance.
 	// Default: feature_flag_evaluations
 	TableName string
-
 	// GoogleCredentials is an optional Google credentials JSON.
 	// If empty, Application Default Credentials are used.
 	GoogleCredentials []byte
-
+	initOnce          sync.Once
 	// AutoMigrate creates the dataset and tables with the expected schema if they do not exist.
 	AutoMigrate bool
-
-	// newClientFunc is used only for unit testing purposes.
-	newClientFunc func(context.Context, string, ...option.ClientOption) (bigQueryClient, error)
-
-	// client is the initialized BigQuery client.
-	client bigQueryClient
-
-	initOnce sync.Once
-	initErr  error
 }
 
 // Export streams events to the configured BigQuery table.

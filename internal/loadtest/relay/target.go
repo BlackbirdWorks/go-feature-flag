@@ -197,8 +197,8 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 		return nil
 	}
 	var v struct {
-		Failed    bool   `json:"failed"`
 		ErrorCode string `json:"errorCode"`
+		Failed    bool   `json:"failed"`
 	}
 	if err := json.Unmarshal(body, &v); err != nil {
 		return fmt.Errorf("invalid response: %w", err)

@@ -47,10 +47,10 @@ func Test_ConstructMetadata(t *testing.T) {
 	rule := "test-rule"
 
 	tests := []struct {
-		name         string
 		flagMetadata map[string]any
 		ruleName     *string
 		want         map[string]any
+		name         string
 	}{
 		{
 			name:         "nil metadata, nil rule",

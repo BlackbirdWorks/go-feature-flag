@@ -35,11 +35,11 @@ const (
 const FlagNotFoundLabelValue = "FLAG_NOT_FOUND"
 
 type MetricsOpts struct {
-	// enables per-flag metrics for bulk evaluation endpoints
-	EnableBulkMetricFlagNames bool
 	// Version is the version that semaphore_build_info reports (the one of the binary, set at build
 	// time, when empty).
 	Version string
+	// enables per-flag metrics for bulk evaluation endpoints
+	EnableBulkMetricFlagNames bool
 }
 
 const (
@@ -220,23 +220,23 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 
 // Metrics is a struct containing all custom prometheus metrics.
 type Metrics struct {
-	opts                     MetricsOpts
-	Registry                 *prom.Registry
-	flagEvaluationCounter    prom.CounterVec
+	flagConfigurationCounter prom.Counter
+	flagUpdateCounter        prom.Counter
+	getManifestCounter       prom.Counter
 	allFlagCounter           prom.Counter
-	allFlagCounterWithFlag   prom.CounterVec
+	flagDeleteCounter        prom.Counter
 	collectEvalDataCounter   prom.Counter
 	flagChange               prom.Counter
 	flagCreateCounter        prom.Counter
-	flagDeleteCounter        prom.Counter
-	flagUpdateCounter        prom.Counter
 	forceRefreshCounter      prom.Counter
+	Registry                 *prom.Registry
+	allFlagCounterWithFlag   prom.CounterVec
 	validateFlagsCounterVec  prom.CounterVec
-	flagConfigurationCounter prom.Counter
 	flagUpdateCounterVec     prom.CounterVec
 	flagDeleteCounterVec     prom.CounterVec
 	flagCreateCounterVec     prom.CounterVec
-	getManifestCounter       prom.Counter
+	flagEvaluationCounter    prom.CounterVec
+	opts                     MetricsOpts
 }
 
 func (m *Metrics) IncFlagEvaluation(flagName string) {

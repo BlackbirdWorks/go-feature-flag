@@ -10,9 +10,9 @@ func TestNewUser(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		got  EvaluationContext
 		want EvaluationContext
+		name string
 	}{
 		{
 			name: "Builder with only targetingKey",

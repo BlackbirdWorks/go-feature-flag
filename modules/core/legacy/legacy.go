@@ -13,8 +13,8 @@ type LogFunc func(kind, message string)
 // Warner (the relay's configuration loader, the evaluation Service of a client, a CLI command), so
 // that two of them never share the "already warned" state.
 type Warner struct {
-	seen sync.Map
 	logf LogFunc
+	seen sync.Map
 }
 
 // NewWarner creates a Warner that sends its warnings to logf (they are dropped when logf is nil).

@@ -98,9 +98,9 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		setupConfig func(*testing.T) *config.Config
 		wantErr     error
+		setupConfig func(*testing.T) *config.Config
+		name        string
 	}{
 		{
 			name: "Successfully stop watcher when configLoader is initialized",

@@ -27,11 +27,11 @@ func TestRuleEvaluate(t *testing.T) {
 		isDefault bool
 	}
 	tests := []struct {
-		name    string
-		args    args
-		rule    flag.Rule
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		rule    flag.Rule
+		args    args
+		name    string
+		want    string
 	}{
 		{
 			name: "No query, default variation result",

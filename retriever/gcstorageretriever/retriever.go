@@ -13,24 +13,19 @@ import (
 
 // Retriever is a configuration struct for a Google Cloud Storage retriever.
 type Retriever struct {
+	// Internal field used to fetch metadata of the file.
+	obj *storage.ObjectHandle
 	// Bucket is the name of your Google Cloud Storage Bucket.
 	Bucket string
-
 	// Object is the name of your file in your bucket.
 	Object string
-
 	// Options are Google Cloud Api options needed for downloading
 	// your feature flag configuration file.
 	Options []option.ClientOption
-
 	// Internal field used to cache the file data.
 	cache []byte
-
 	// Internal MD5 hash of cache
 	md5 []byte
-
-	// Internal field used to fetch metadata of the file.
-	obj *storage.ObjectHandle
 }
 
 func (retriever *Retriever) SetOptions(options []option.ClientOption) {

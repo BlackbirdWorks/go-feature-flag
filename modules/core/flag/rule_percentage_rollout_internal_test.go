@@ -68,18 +68,22 @@ func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
 		percentages map[string]float64
+		name        string
 		// wantFailures is the number of keys for which no variation of the percentages is found
 		wantFailures int
 	}{
 		{
-			"fuzz failure, sum above 100",
-			map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5},
-			0,
+			name:         "fuzz failure, sum above 100",
+			percentages:  map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5},
+			wantFailures: 0,
 		},
-		{"thirds", map[string]float64{"A": 100.0 / 3, "B": 100.0 / 3, "C": 100.0 / 3}, 0},
-		{"tenths", map[string]float64{"A": 0.1, "B": 0.2, "C": 0.3}, 0},
+		{
+			name:         "thirds",
+			percentages:  map[string]float64{"A": 100.0 / 3, "B": 100.0 / 3, "C": 100.0 / 3},
+			wantFailures: 0,
+		},
+		{name: "tenths", percentages: map[string]float64{"A": 0.1, "B": 0.2, "C": 0.3}, wantFailures: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,14 +108,19 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 func TestVariationFromBuckets_TopBucket(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
 		p    map[string]float64
-		hash uint32
+		name string
 		want string
+		hash uint32
 	}{
-		{"fuzz failure", map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5}, 2250, "A"},
-		{"last bucket without share", map[string]float64{"A": 0, "B": 0.5, "C": 0.5}, 1000, "B"},
-		{"inside", map[string]float64{"A": 0.5, "B": 0.5}, 999, "A"},
+		{
+			name: "fuzz failure",
+			p:    map[string]float64{"A": 0.16666666666666666, "B": 0.5833333333333333, "C": 1.5},
+			hash: 2250,
+			want: "A",
+		},
+		{name: "last bucket without share", p: map[string]float64{"A": 0, "B": 0.5, "C": 0.5}, hash: 1000, want: "B"},
+		{name: "inside", p: map[string]float64{"A": 0.5, "B": 0.5}, hash: 999, want: "A"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

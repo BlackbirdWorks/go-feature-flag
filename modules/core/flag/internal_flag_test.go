@@ -17,16 +17,16 @@ func TestInternalFlag_Value(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagName    string
-		user        ffcontext.Context
 		flagContext flag.Context
+		user        ffcontext.Context
+		flagName    string
 	}
 	tests := []struct {
-		name  string
+		want1 flag.ResolutionDetails
 		flag  flag.InternalFlag
 		args  args
 		want  any
-		want1 flag.ResolutionDetails
+		name  string
 	}{
 		{
 			name: "Should use default value if no targeting",
@@ -2193,9 +2193,9 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagName    string
-		user        ffcontext.Context
 		flagContext flag.Context
+		user        ffcontext.Context
+		flagName    string
 	}
 	tests := []struct {
 		name                string
@@ -2294,15 +2294,15 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagName    string
-		user        ffcontext.Context
 		flagContext flag.Context
+		user        ffcontext.Context
+		flagName    string
 	}
 	tests := []struct {
-		name string
+		want flag.ResolutionDetails
 		flag flag.InternalFlag
 		args args
-		want flag.ResolutionDetails
+		name string
 	}{
 		{
 			name: "Should return error when bucketing key not found",
@@ -2459,9 +2459,9 @@ func TestInternalFlag_GetVariations(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		flag flag.InternalFlag
 		want map[string]*any
+		name string
 	}{
 		{
 			name: "Should return empty map if variations nil",
@@ -2502,10 +2502,10 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		flag     flag.InternalFlag
-		ruleName string
 		want     *int
+		name     string
+		ruleName string
 	}{
 		{
 			name: "Should return nil if no rules in flag",
@@ -2558,10 +2558,10 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
 		flag      flag.InternalFlag
-		variation string
 		want      any
+		name      string
+		variation string
 	}{
 		{
 			name: "Should return nil if variation does not exist",

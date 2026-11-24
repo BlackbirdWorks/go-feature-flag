@@ -14,10 +14,10 @@ import (
 func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
-		query      string
 		callerAnon any // nil: attribute not set by the caller
 		enrichment map[string]any
+		name       string
+		query      string
 		wantMatch  bool
 	}{
 		{

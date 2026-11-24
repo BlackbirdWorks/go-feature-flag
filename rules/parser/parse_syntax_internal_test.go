@@ -83,9 +83,9 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		input obj
 		name  string
 		rule  string
-		input obj
 		want  bool
 	}{
 		{

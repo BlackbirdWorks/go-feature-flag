@@ -101,11 +101,11 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
 		headers map[string][]string
-		secret  string
 		// wantHeaders is the configuration of the headers after the notification: it is left untouched
 		wantHeaders http.Header
+		name        string
+		secret      string
 	}{
 		{name: "nil headers", secret: "test-secret", wantHeaders: nil},
 		{

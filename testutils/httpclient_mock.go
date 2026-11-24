@@ -12,11 +12,11 @@ var (
 )
 
 type HTTPClientMock struct {
-	ForceError bool
-	StatusCode int
+	Headers    map[string][]string
 	Body       string
 	Signature  string
-	Headers    map[string][]string
+	StatusCode int
+	ForceError bool
 }
 
 func (h *HTTPClientMock) Do(req *http.Request) (*http.Response, error) {

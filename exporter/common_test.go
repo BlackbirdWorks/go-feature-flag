@@ -82,10 +82,10 @@ func TestComputeFilename(t *testing.T) {
 		format   string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		args    args
+		name    string
+		want    string
 	}{
 		{
 			name: "Nothing to template",
@@ -159,10 +159,10 @@ func TestFormatEventInCSV(t *testing.T) {
 		event       exporter.FeatureEvent
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		name    string
+		want    string
+		args    args
 	}{
 		{
 			name: "valid",
@@ -219,10 +219,10 @@ func TestFormatEventInJSON(t *testing.T) {
 		event exporter.FeatureEvent
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		name    string
+		want    string
+		args    args
 	}{
 		{
 			name: "valid",

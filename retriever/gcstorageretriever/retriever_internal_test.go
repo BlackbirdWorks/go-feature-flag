@@ -28,9 +28,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 		Object string
 	}
 	type storageConfig struct {
-		bucket       string
 		files        map[string]string
 		updatedFiles map[string]string
+		bucket       string
 	}
 
 	tests := []struct {

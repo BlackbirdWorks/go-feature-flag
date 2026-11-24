@@ -21,14 +21,12 @@ var (
 type Retriever struct {
 	// Options to connect to Redis
 	Options *redis.Options
-
+	client  *redis.Client
 	// Prefix is the prefix of the keys in Redis, it is used to filter
 	// the keys to retrieve in redis. If empty, no prefix is used.
 	// Your flag names will be returned without the prefix.
 	Prefix string
-
 	status retriever.Status
-	client *redis.Client
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.

@@ -18,8 +18,8 @@ func TestDiffCache_HasDiff(t *testing.T) {
 		Updated map[string]notifier.DiffUpdated
 	}
 	tests := []struct {
-		name   string
 		fields fields
+		name   string
 		want   bool
 	}{
 		{

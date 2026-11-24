@@ -19,10 +19,11 @@ import (
 // GoFeatureFlag is the main object of the library
 // it contains the cache, the config, the updater and the exporter.
 type GoFeatureFlag struct {
-	config                    Config
-	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
 	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
+	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
 	retrieverManager          *retriever.Manager
+	// eventWorkerStop is closed by Close to ask the worker to drain the queue and exit.
+	eventWorkerStop chan struct{}
 	// evaluationService owns the caches of the flag evaluation (parsed queries, scheduled rollouts, ...).
 	// It is created with the client, shared by the cache that validates the flags and by the
 	// evaluations, and released by Close.
@@ -31,22 +32,21 @@ type GoFeatureFlag struct {
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
 	eventQueue chan exporter.FeatureEvent
-	// eventWorkerStop is closed by Close to ask the worker to drain the queue and exit.
-	eventWorkerStop chan struct{}
-	// evalExporterWg waits for the event worker to finish before closing GOFF
-	evalExporterWg sync.WaitGroup
-	closeOnce      sync.Once
-	// closing is set by Close, under eventAdmission, before the event workers are asked to stop: an
-	// event is only put in eventQueue while it is false, so that nothing is queued after the final drain.
-	closing        bool
-	eventAdmission sync.RWMutex
 	// enrichment is the evaluation context enrichment (with the env), built once by evaluationEnrichment.
-	enrichment     map[string]any
-	enrichmentOnce sync.Once
-	// droppedEvents counts the evaluation events dropped because eventQueue was full.
-	droppedEvents atomic.Int64
+	enrichment map[string]any
 	// dropSignal asks reportDrops to write the warning about the dropped events.
 	dropSignal chan struct{}
+	config     Config
+	// evalExporterWg waits for the event worker to finish before closing GOFF
+	evalExporterWg sync.WaitGroup
+	// droppedEvents counts the evaluation events dropped because eventQueue was full.
+	droppedEvents  atomic.Int64
+	eventAdmission sync.RWMutex
+	closeOnce      sync.Once
+	enrichmentOnce sync.Once
+	// closing is set by Close, under eventAdmission, before the event workers are asked to stop: an
+	// event is only put in eventQueue while it is false, so that nothing is queued after the final drain.
+	closing bool
 }
 
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.

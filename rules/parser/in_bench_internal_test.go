@@ -42,9 +42,9 @@ func BenchmarkIn(b *testing.B) {
 				}
 				ev := newBenchEvaluator(b, rule)
 				for _, c := range []struct {
-					name string
 					v    any
-				}{{"hit", hit}, {"miss", miss}} {
+					name string
+				}{{name: "hit", v: hit}, {name: "miss", v: miss}} {
 					input := map[string]any{"x": c.v}
 					ev.Process(input) // compile
 					name := fmt.Sprintf("%s/%s/%s/n=%d", kind, strings.ReplaceAll(op, " ", ""), c.name, n)

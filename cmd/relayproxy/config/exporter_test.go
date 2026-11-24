@@ -38,10 +38,10 @@ func TestExporterConf_IsValid(t *testing.T) {
 		SecretArn               string
 	}
 	tests := []struct {
-		name     string
 		fields   fields
-		wantErr  bool
+		name     string
 		errValue string
+		wantErr  bool
 	}{
 		{
 			name:     "no fields",

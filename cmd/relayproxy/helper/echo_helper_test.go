@@ -208,11 +208,11 @@ func TestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
 		flagsetManager service.FlagsetManager
+		name           string
 		apiKey         string
-		wantError      bool
 		wantMsg        string
+		wantError      bool
 	}{
 		{
 			name:           "nil flagset manager should return internal server error",

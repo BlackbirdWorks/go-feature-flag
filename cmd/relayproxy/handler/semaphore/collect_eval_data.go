@@ -28,8 +28,8 @@ const (
 
 type collectEvalData struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
 	logger         *zap.Logger
+	metrics        metric.Metrics
 }
 
 // NewCollectEvalData initialize the controller for the /data/collector endpoint.

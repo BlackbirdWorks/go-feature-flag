@@ -9,14 +9,13 @@ import (
 )
 
 type TrackingEventExporter struct {
-	ExportedEvents    []exporter.TrackingEvent
 	Err               error
+	ExportedEvents    []exporter.TrackingEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
+	once              sync.Once
+	mutex             sync.Mutex
 	Bulk              bool
-
-	mutex sync.Mutex
-	once  sync.Once
 }
 
 func (m *TrackingEventExporter) Export(

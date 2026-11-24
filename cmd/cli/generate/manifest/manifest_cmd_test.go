@@ -17,12 +17,12 @@ func TestManifestCmd(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
+		assertError      assert.ErrorAssertionFunc
 		name             string
-		args             []string
 		expectedManifest string
 		expectedOutput   string
 		expectedError    string
-		assertError      assert.ErrorAssertionFunc
+		args             []string
 	}{
 		{
 			name:             "should return success if everything is ok",

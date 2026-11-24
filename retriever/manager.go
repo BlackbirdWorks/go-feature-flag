@@ -28,23 +28,23 @@ var (
 
 // ManagerConfig is the configuration of the retriever manager.
 type ManagerConfig struct {
+	Name                            *string
 	FileFormat                      string
-	DisableNotifierOnInit           bool
 	PersistentFlagConfigurationFile string
+	PollingInterval                 time.Duration
+	DisableNotifierOnInit           bool
 	StartWithRetrieverError         bool
 	EnablePollingJitter             bool
-	PollingInterval                 time.Duration
-	Name                            *string
 }
 
 // Manager is a struct that managed the retrievers.
 type Manager struct {
+	cacheManager     cache.Manager
+	bgUpdater        backgroundUpdater
+	logger           *fflog.FFLogger
 	retrievers       []Retriever
 	onErrorRetriever []Retriever
-	logger           *fflog.FFLogger
-	cacheManager     cache.Manager
 	config           ManagerConfig
-	bgUpdater        backgroundUpdater
 	// pollingWg is done when the polling goroutine started by Init has returned.
 	pollingWg sync.WaitGroup
 	// stopPollingOnce guarantees that we close the background updater only once,

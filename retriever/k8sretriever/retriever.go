@@ -17,13 +17,13 @@ var (
 
 // Retriever is a configuration struct for a Kubernetes retriever.
 type Retriever struct {
+	ClientConfig restclient.Config
+	client       kubernetes.Interface
+	// newClient creates the client from ClientConfig (kubernetes.NewForConfig when nil). The tests set it.
+	newClient     func(*restclient.Config) (kubernetes.Interface, error)
 	Namespace     string
 	ConfigMapName string
 	Key           string
-	ClientConfig  restclient.Config
-	client        kubernetes.Interface
-	// newClient creates the client from ClientConfig (kubernetes.NewForConfig when nil). The tests set it.
-	newClient func(*restclient.Config) (kubernetes.Interface, error)
 }
 
 // createClient creates the Kubernetes client of the retriever.

@@ -32,37 +32,30 @@ type Server struct {
 	// Mode is the server mode.
 	// default: http
 	Mode ServerMode `mapstructure:"mode" koanf:"mode"`
-
 	// Host is the server host.
 	// default: 0.0.0.0
 	Host string `mapstructure:"host" koanf:"host"`
-
-	// Port is the server port.
-	// default: 1031
-	Port int `mapstructure:"port" koanf:"port"`
-
-	// MonitoringPort is the monitoring port. It can be specified only if the server mode is HTTP.
-	// default: none, it will use the same as server port.
-	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
-
 	// UnixSocket is the server unix socket path.
 	UnixSocketPath string `mapstructure:"unixSocketPath" koanf:"unixsocketpath"`
-
-	// EnableH2C makes the HTTP server also accept HTTP/2 over cleartext TCP (h2c, prior knowledge), next to HTTP/1.1.
-	// It is only used in http mode and is off by default.
-	EnableH2C bool `mapstructure:"enableH2C" koanf:"enableh2c"`
-
 	// AWS Lambda configuration
 	// LambdaAdapter is the adapter to use when the relay proxy is started as an AWS Lambda.
 	// default: APIGatewayV2
 	LambdaAdapter LambdaAdapter `mapstructure:"awsLambdaAdapter" koanf:"awsLambdaAdapter"`
-
 	// AwsAPIGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
 	// This is useful when deploying behind a non-root path like "/api" or "/dev/feature-flags".
 	// The relay proxy will strip this base path from incoming requests before processing.
 	// Example: if set to "/api/feature-flags", requests to "/api/feature-flags/health" will be processed as "/health"
 	// Default: ""
 	AwsAPIGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	// Port is the server port.
+	// default: 1031
+	Port int `mapstructure:"port" koanf:"port"`
+	// MonitoringPort is the monitoring port. It can be specified only if the server mode is HTTP.
+	// default: none, it will use the same as server port.
+	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
+	// EnableH2C makes the HTTP server also accept HTTP/2 over cleartext TCP (h2c, prior knowledge), next to HTTP/1.1.
+	// It is only used in http mode and is off by default.
+	EnableH2C bool `mapstructure:"enableH2C" koanf:"enableh2c"`
 }
 
 // EffectiveMonitoringPort returns the monitoring port, checking first the top-level config

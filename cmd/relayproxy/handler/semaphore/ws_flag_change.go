@@ -68,8 +68,8 @@ const defaultPingInterval = 1 * time.Second
 type WSFlagChange struct {
 	websocketService stream.WebsocketService
 	flagsetManager   service.FlagsetManager
-	upgrader         websocket.Upgrader
 	logger           *zap.Logger
+	upgrader         websocket.Upgrader
 	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
 	pingInterval time.Duration
 }

@@ -51,10 +51,10 @@ func TestRequestFlagSet(t *testing.T) {
 	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errFlagsetNotFoundFor}
 
 	tests := []struct {
-		name         string
-		authenticate bool
 		manager      *mock.MockFlagsetManager
 		wantFlagSet  *ffclient.GoFeatureFlag
+		name         string
+		authenticate bool
 		wantErr      bool
 	}{
 		{name: "the flag set resolved by the authentication is used", authenticate: true, manager: manager,
@@ -85,8 +85,8 @@ func TestAuthenticateFlagSet(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
 		manager *mock.MockFlagsetManager
+		name    string
 		want    bool
 	}{
 		{name: "a key that routes to a flag set",
@@ -110,8 +110,8 @@ func TestRequestFlagSetName(t *testing.T) {
 	tests := []struct {
 		name         string
 		apiKey       string
-		authenticate bool
 		wantName     string
+		authenticate bool
 		wantAuth     bool
 		wantErr      bool
 	}{

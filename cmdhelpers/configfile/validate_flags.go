@@ -18,8 +18,8 @@ var errInternalValidation = errors.New(
 
 // FlagError is the validation error of a single flag.
 type FlagError struct {
-	Flag string
 	Err  error
+	Flag string
 }
 
 // Error implements the error interface.

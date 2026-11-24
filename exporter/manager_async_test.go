@@ -22,8 +22,8 @@ func Test_EventStore_AddAll(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
-		limit       int64
 		batches     []int
+		limit       int64
 		wantStored  int64
 		wantDropped int64
 	}{
@@ -60,9 +60,9 @@ func Test_EventStore_AddAll(t *testing.T) {
 }
 
 type countingExporter struct {
-	bulk   bool
 	events atomic.Int64
 	calls  atomic.Int64
+	bulk   bool
 	fail   bool
 }
 
@@ -82,14 +82,14 @@ func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exp
 func Test_Manager_QueueEvents(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
 		exp        *countingExporter
+		name       string
 		maxMem     int64
 		maxQueued  int64
 		batches    int
 		batchSize  int
-		wantAll    bool
 		maxCalls   int64
+		wantAll    bool
 		wantDroped bool
 	}{
 		{

@@ -14,9 +14,9 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 
 	tests := []struct {
 		name     string
+		errValue string
 		fields   retrieverconf.RetrieverConf
 		wantErr  bool
-		errValue string
 	}{
 		{
 			name:     "no fields",
@@ -499,9 +499,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 
 	tests := []struct {
 		name     string
+		errValue string
 		fields   retrieverconf.RetrieverConf
 		wantErr  bool
-		errValue string
 	}{
 		{
 			name: "valid: App auth with inline PEM key",

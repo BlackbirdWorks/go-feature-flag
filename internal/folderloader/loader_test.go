@@ -38,25 +38,24 @@ const (
 
 // fakeStore is an in-memory Store. The version of a file is derived from its content.
 type fakeStore struct {
-	mu sync.Mutex
-	// files are the objects by key.
-	files map[string]string
-	// noVersion lists the files with an empty version, and Get returns an empty one too.
-	noVersion bool
-	// getNoVersion makes Get return an empty version, the listed one is used then.
-	getNoVersion bool
-	// listVersion / getVersion, if set, replace the version of every file in List / Get.
-	listVersion string
-	getVersion  string
-	listErr     error
-	getErr      error
-	getErrKeys  map[string]error
+	listErr error
+	getErr  error
 	// beforeGet is called at the start of Get, without the lock held.
 	beforeGet func(key string)
-
-	getCalls     map[string]int
+	// files are the objects by key.
+	files      map[string]string
+	getErrKeys map[string]error
+	getCalls   map[string]int
+	// listVersion / getVersion, if set, replace the version of every file in List / Get.
+	listVersion  string
+	getVersion   string
 	listPrefixes []string
 	listRecurse  []bool
+	mu           sync.Mutex
+	// getNoVersion makes Get return an empty version, the listed one is used then.
+	getNoVersion bool
+	// noVersion lists the files with an empty version, and Get returns an empty one too.
+	noVersion bool
 }
 
 func (f *fakeStore) put(key, content string) {
@@ -159,17 +158,17 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 
 type step struct {
 	mutate         func(s *fakeStore)
-	wantFlags      []string // flag names of the merged flag set, nil means not checked
-	wantFormat     string   // expected OutputFormat after the step, "" means not checked
-	wantLog        string
-	wantNoLog      string
-	wantLogCount   int
-	wantLogCountOf string
-	wantErr        string
-	wantSameAs     []string // local files whose decoding (merged) must equal the decoded result
 	check          func(t *testing.T, flags map[string]dto.DTO)
 	wantGets       map[string]int // cumulative number of Get per key
-	wantContent    string         // exact content expected for the flag file(s), "" means not checked
+	wantFormat     string         // expected OutputFormat after the step, "" means not checked
+	wantLog        string
+	wantNoLog      string
+	wantLogCountOf string
+	wantErr        string
+	wantContent    string   // exact content expected for the flag file(s), "" means not checked
+	wantFlags      []string // flag names of the merged flag set, nil means not checked
+	wantSameAs     []string // local files whose decoding (merged) must equal the decoded result
+	wantLogCount   int
 }
 
 type loadCase struct {
@@ -775,8 +774,8 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 	tests := []struct {
 		name          string
 		prefix        string
-		recursive     bool
 		wantPrefix    string
+		recursive     bool
 		wantRecursive bool
 	}{
 		{name: "empty", prefix: "", wantPrefix: ""},
@@ -859,9 +858,9 @@ func TestReuse(t *testing.T) {
 	logger := &fflog.FFLogger{}
 	base := folderloader.Options{Prefix: "f/", Pattern: "a.*", Recursive: true, Logger: logger, Location: "b"}
 	tests := []struct {
+		opts      func(o folderloader.Options) folderloader.Options
 		name      string
 		nilLoader bool
-		opts      func(o folderloader.Options) folderloader.Options
 		wantSame  bool
 	}{
 		{name: "nil loader", nilLoader: true},

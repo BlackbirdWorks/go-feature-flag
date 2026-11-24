@@ -13,13 +13,13 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		Key    string
 		Custom map[string]any
+		Key    string
 	}
 	tests := []struct {
-		name   string
 		fields fields
 		want   ffcontext.Context
+		name   string
 	}{
 		{
 			name: "simple case",

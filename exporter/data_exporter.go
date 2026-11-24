@@ -48,13 +48,12 @@ type Config struct {
 }
 
 type dataExporterImpl[T ExportableEvent] struct {
-	consumerID string
 	eventStore EventStore[T]
 	logger     *fflog.FFLogger
-	exporter   Config
-
 	daemonChan chan struct{}
 	ticker     *time.Ticker
+	consumerID string
+	exporter   Config
 	// stopOnce guarantees that we stop the daemon only once: Close() can be called several times
 	// on a Semaphore client, and closing an already closed channel panics.
 	stopOnce sync.Once

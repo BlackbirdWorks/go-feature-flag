@@ -15,9 +15,9 @@ func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name      string
+		handoffs  []int
 		limit     int64
 		threshold int64
-		handoffs  []int
 		exporters int
 	}{
 		{name: "handoff twice the limit", limit: 10, threshold: 10, handoffs: []int{20}, exporters: 1},

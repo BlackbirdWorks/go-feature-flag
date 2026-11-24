@@ -105,8 +105,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 	tests := []struct {
 		name            string
 		endpoint        string
-		wantStatus      int
 		wantAllowOrigin string
+		wantStatus      int
 	}{
 		{name: "health endpoint", endpoint: "/health", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 		{name: "evaluation endpoint", endpoint: "/v1/flag/change", wantStatus: http.StatusOK, wantAllowOrigin: "*"},

@@ -27,11 +27,11 @@ func Test_github_Retrieve(t *testing.T) {
 		githubToken    string
 	}
 	tests := []struct {
-		name    string
 		fields  fields
+		name    string
+		errMsg  string
 		want    []byte
 		wantErr bool
-		errMsg  string
 	}{
 		{
 			name: "Success",
@@ -214,11 +214,11 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		branch         string
 	}
 	tests := []struct {
-		name        string
 		fields      fields
+		name        string
+		expectedURL string
 		want        []byte
 		wantErr     bool
-		expectedURL string
 	}{
 		{
 			name: "GitHub Enterprise base URL",

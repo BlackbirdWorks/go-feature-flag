@@ -24,9 +24,9 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 	t.Parallel()
 
 	type test struct {
+		request    any
 		name       string
 		mode       string
-		request    any
 		wantStatus int
 	}
 

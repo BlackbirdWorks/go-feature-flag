@@ -69,21 +69,21 @@ func tokenResponse(token string, expiresAt time.Time) []byte {
 // It records all requests and lets tests configure per-call behaviour.
 // Every minted token is unique (ghs_token_1, ghs_token_2, ...) so tests can tell which one was used.
 type appMockHTTP struct {
-	mu sync.Mutex
+	// retryErr is returned as a transport error for the contents request retried after a 401.
+	retryErr error
+	// tokenBody overrides the body of the access_tokens response.
+	tokenBody    []byte
+	recordedReqs []*http.Request
 	// tokenStatus is the HTTP status returned for the access_tokens endpoint.
 	// Defaults to 201 Created.
 	tokenStatus int
-	// tokenBody overrides the body of the access_tokens response.
-	tokenBody []byte
 	// tokenTTL is the lifetime of the minted tokens. Defaults to 1 hour.
-	tokenTTL time.Duration
-	// first401ThenOK makes the first contents request return 401, then 200.
-	first401ThenOK bool
-	// retryErr is returned as a transport error for the contents request retried after a 401.
-	retryErr      error
+	tokenTTL      time.Duration
 	tokenCalls    int
 	contentsCalls int
-	recordedReqs  []*http.Request
+	mu            sync.Mutex
+	// first401ThenOK makes the first contents request return 401, then 200.
+	first401ThenOK bool
 }
 
 func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
@@ -254,9 +254,9 @@ func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
 
 	tests := []struct {
 		name          string
+		wantLastToken string
 		tokenTTL      time.Duration
 		wantMints     int
-		wantLastToken string
 	}{
 		{
 			name:          "token still valid is reused",

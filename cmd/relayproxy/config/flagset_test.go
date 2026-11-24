@@ -24,12 +24,12 @@ func TestConfigSetFlagSetAPIKeys(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
 		config         *config.Config
+		name           string
 		flagsetName    string
+		wantErrContain string
 		apiKeys        []string
 		wantErr        bool
-		wantErrContain string
 	}{
 		{
 			name: "set API keys for existing flagset",
@@ -102,12 +102,12 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
 		config         *config.Config
+		name           string
 		flagsetName    string
+		wantErrContain string
 		wantAPIKeys    []string
 		wantErr        bool
-		wantErrContain string
 	}{
 		{
 			name: "get API keys for existing flagset",

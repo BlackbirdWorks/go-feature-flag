@@ -45,31 +45,30 @@ type DroppedEventsCounter interface {
 }
 
 type managerImpl[T ExportableEvent] struct {
-	logger     *fflog.FFLogger
-	consumers  []DataExporter[T]
+	// dropSignal wakes up reportDrops, which writes the warning outside of the callers.
+	dropSignal chan struct{}
+	stopCh     chan struct{}
 	eventStore *EventStore[T]
-	// nextFlushAfter (unix nano), per consumer, is the time before which the "pending events
-	// reached MaxEventInMemory" trigger does not retry a flush that has just failed.
-	nextFlushAfter []atomic.Int64
+	flushEnded chan struct{}
+	logger     *fflog.FFLogger
+	// background flushes (QueueEvent), one goroutine at most per consumer
+	flushRunning []atomic.Bool
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
 	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
 	flushThresholds []int64
-	// dropSignal wakes up reportDrops, which writes the warning outside of the callers.
-	dropSignal chan struct{}
-
-	// background flushes (QueueEvent), one goroutine at most per consumer
-	flushRunning []atomic.Bool
-	flushAgain   []atomic.Bool
+	flushAgain      []atomic.Bool
 	// flushStalled[i] is set when a handoff gave up waiting for the running flush of the consumer i,
 	// until that flush ends: the next handoffs do not wait for it again.
 	flushStalled []atomic.Bool
-	flushWg      sync.WaitGroup
-	stopMu       sync.RWMutex
-	stopped      bool
+	// nextFlushAfter (unix nano), per consumer, is the time before which the "pending events
+	// reached MaxEventInMemory" trigger does not retry a flush that has just failed.
+	nextFlushAfter []atomic.Int64
+	consumers      []DataExporter[T]
+	flushWg        sync.WaitGroup
+	stopMu         sync.RWMutex
 	// flushEnded is closed (and replaced) each time a background flush round ends, see waitForRoom.
 	flushEndedMu sync.Mutex
-	flushEnded   chan struct{}
-	stopCh       chan struct{}
+	stopped      bool
 }
 
 // flushWaitBudget is the longest a handoff waits for the flush of a consumer to make room in the

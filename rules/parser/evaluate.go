@@ -23,20 +23,17 @@ var (
 // quiesce it holds the error of the last call to finish (nil if that call was
 // clean or panicked). Reset clears it.
 type Evaluator struct {
-	// lastDebugErr is atomic so concurrent Process calls do not race on it;
-	// with concurrent callers it holds the error of whichever call finished last.
-	lastDebugErr atomic.Pointer[error]
-
-	rule string
-
 	// tree is kept until the first Process compiles it into root, after
 	// which it is dropped. If compiling fails, tree stays and Process falls
 	// back to walking it with the visitor.
 	tree antlr.ParseTree
-	once sync.Once
-	root *node
-
+	// lastDebugErr is atomic so concurrent Process calls do not race on it;
+	// with concurrent callers it holds the error of whichever call finished last.
+	lastDebugErr  atomic.Pointer[error]
+	root          *node
 	testHookPanic func()
+	rule          string
+	once          sync.Once
 }
 
 func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamedreturns // recover sets the result

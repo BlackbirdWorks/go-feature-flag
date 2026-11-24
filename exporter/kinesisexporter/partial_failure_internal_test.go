@@ -22,9 +22,9 @@ import (
 // scriptedSender answers each PutRecords call using fail(callIndex, recordIndex) which returns
 // the error code to reject the record with ("" means accepted).
 type scriptedSender struct {
-	mu    sync.Mutex
-	calls [][]string // data of the records of each call
 	fail  func(call, rec int, data string) string
+	calls [][]string // data of the records of each call
+	mu    sync.Mutex
 }
 
 func (s *scriptedSender) SendMessages(
@@ -176,12 +176,12 @@ func TestExporter_ChunksPutRecordsCalls(t *testing.T) {
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	tests := []struct {
 		name   string
-		events int
 		want   []int
+		events int
 	}{
-		{"exactly 500", 500, []int{500}},
-		{"501", 501, []int{500, 1}},
-		{"1200", 1200, []int{500, 500, 200}},
+		{name: "exactly 500", events: 500, want: []int{500}},
+		{name: "501", events: 501, want: []int{500, 1}},
+		{name: "1200", events: 1200, want: []int{500, 500, 200}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -213,9 +213,9 @@ func TestChunkRecords_ByteLimit(t *testing.T) {
 
 // responseSender replies to each PutRecords call with respond(callIndex, request).
 type responseSender struct {
-	mu      sync.Mutex
-	calls   [][]string
 	respond func(call int, in *kinesis.PutRecordsInput) (*kinesis.PutRecordsOutput, error)
+	calls   [][]string
+	mu      sync.Mutex
 }
 
 func (s *responseSender) SendMessages(

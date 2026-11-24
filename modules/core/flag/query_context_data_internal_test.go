@@ -42,8 +42,8 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
 		custom map[string]any
+		name   string
 		// wantErr is whether the JSON round trip, and so the fast path, must fail for these attributes
 		wantErr bool
 	}{

@@ -36,12 +36,12 @@ func TestCacheManagerPersist(t *testing.T) {
 	t.Parallel()
 	const sentinel = "sentinel"
 	tests := []struct {
-		name        string
 		fileInDir   func(dir string) string
-		existing    bool
 		flags       func(t *testing.T) map[string]dto.DTO
-		wantMessage string
 		wantContent func(t *testing.T, path string)
+		name        string
+		wantMessage string
+		existing    bool
 	}{
 		{
 			name:        "the flags are written to the persistent file",

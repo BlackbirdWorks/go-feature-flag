@@ -34,8 +34,8 @@ func NewManifest(
 
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
 	logger         *zap.Logger
+	metrics        metric.Metrics
 }
 
 // GetManifest is a GET endpoint to return the flags configured in Semaphore as a OpenFeature flag manifest.

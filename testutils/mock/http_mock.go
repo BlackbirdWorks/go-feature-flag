@@ -18,9 +18,9 @@ var (
 
 type HTTP struct {
 	Req           http.Request
+	EndRatelimit  time.Time
 	RateLimit     bool
 	HasBeenCalled bool
-	EndRatelimit  time.Time
 }
 
 func (m *HTTP) Do(req *http.Request) (*http.Response, error) {

@@ -21,8 +21,8 @@ var (
 )
 
 type messageSenderMock struct {
-	messages []*sarama.ProducerMessage
 	error    error
+	messages []*sarama.ProducerMessage
 }
 
 func (s *messageSenderMock) SendMessages(msgs []*sarama.ProducerMessage) error {
@@ -44,12 +44,12 @@ func TestExporter_Export(t *testing.T) {
 	const mockTopic = "mockTopic"
 
 	tests := []struct {
+		dialer   func(addrs []string, config *sarama.Config) (MessageSender, error)
 		name     string
 		format   string
-		dialer   func(addrs []string, config *sarama.Config) (MessageSender, error)
+		settings Settings
 		events   []exporter.ExportableEvent
 		wantErr  bool
-		settings Settings
 	}{
 		{
 			name:    "should receive an error if dial failed",

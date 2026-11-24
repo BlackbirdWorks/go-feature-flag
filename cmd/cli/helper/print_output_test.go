@@ -23,8 +23,8 @@ func TestOutput_PrintLines(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		output   helper.Output
 		expected string
+		output   helper.Output
 	}{
 		{
 			name: "print info level line",

@@ -37,10 +37,10 @@ const (
 // random seed, so lookups cannot be steered into long probe chains by crafted
 // keys; the seed is state of the set, not of the package.
 type strSet struct {
-	seed maphash.Seed
 	data string   // all elements, concatenated
 	ends []uint32 // len n+1: element i is data[ends[i]:ends[i+1]], ends[0] = 0
 	tab  []uint32 // open addressing slots: element index + 1, 0 = empty
+	seed maphash.Seed
 	mask uint64
 }
 
@@ -131,8 +131,8 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 
 // sourceText gives the rule text the lexer read, once per compile.
 type sourceText struct {
-	done    bool
 	text    string
+	done    bool
 	isASCII bool
 }
 

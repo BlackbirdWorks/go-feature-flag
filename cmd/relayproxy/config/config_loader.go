@@ -43,39 +43,34 @@ const (
 )
 
 type Loader struct {
+	studioParser  koanf.Parser
+	studioLoadErr error
+	// internal state
+	k   *koanf.Koanf
+	log *zap.Logger
 	// input parameters
 	cmdLineFlagSet *pflag.FlagSet
-	log            *zap.Logger
-	version        string
-	watchChanges   bool
-
-	// internal state
-	k              *koanf.Koanf
 	fileProvider   *file.File
-	configFilePath string // stored config file path for reload
+	stopChan       chan struct{} // signals the event processor goroutine to stop
 	// environFunc returns the environment variables, os.Environ when nil (it is set by the tests).
 	environFunc func() []string
 	// warner is where the use of a legacy name is reported: the loader owns one that logs through log,
 	// unless a LoaderOption set another.
 	warner *legacy.Warner
-
 	// flagSets loaded from studio.url, the provider and its parser are reused on reload
 	studioProvider *httpprovider.HTTP
-	studioParser   koanf.Parser
-	studioFlagSets []FlagSet
-	studioLoadErr  error
-
-	// callbacks to be called when the configuration changes
-	callbacks []func(newConfig *Config)
-
-	// callbacksMutex is used to protect the callbacks slice
-	callbacksMutex sync.RWMutex
-
 	// channel-based event processing for file watcher
 	// Using a buffered channel of size 1 coalesces multiple rapid events into one
-	eventChan chan struct{} // receives file change events
-	stopChan  chan struct{} // signals the event processor goroutine to stop
-	stopOnce  sync.Once     // ensures stopChan is only closed once
+	eventChan      chan struct{} // receives file change events
+	version        string
+	configFilePath string // stored config file path for reload
+	studioFlagSets []FlagSet
+	// callbacks to be called when the configuration changes
+	callbacks []func(newConfig *Config)
+	// callbacksMutex is used to protect the callbacks slice
+	callbacksMutex sync.RWMutex
+	stopOnce       sync.Once // ensures stopChan is only closed once
+	watchChanges   bool
 }
 
 // LoaderOption configures a ConfigLoader.

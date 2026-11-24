@@ -12,10 +12,10 @@ func TestGetNestedFieldValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		ctx     map[string]any
-		key     string
 		want    any
+		ctx     map[string]any
+		name    string
+		key     string
 		wantErr bool
 	}{
 		{

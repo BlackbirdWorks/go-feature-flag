@@ -30,19 +30,18 @@ func defaultColumns() map[string]string {
 }
 
 type Retriever struct {
-	URI     string
-	Table   string
 	Columns map[string]string
 	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
 	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
 	// creates one of its own at Init.
-	Pools *PoolRegistry
-
+	Pools   *PoolRegistry
 	logger  *fflog.FFLogger
-	status  retriever.Status
 	columns map[string]string
 	pool    *pgxpool.Pool
 	flagset *string
+	URI     string
+	Table   string
+	status  retriever.Status
 }
 
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {

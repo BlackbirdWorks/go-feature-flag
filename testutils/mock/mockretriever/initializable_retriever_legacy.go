@@ -9,13 +9,13 @@ import (
 
 // InitializableRetrieverLegacy implements the standard InitializableRetriever interface.
 type InitializableRetrieverLegacy struct {
+	ReceivedLogger *log.Logger
 	Name           string
 	InitShouldFail bool
 	RetrieveCalled bool
 	InitCalled     bool
 	ShutdownCalled bool
 	StatusCalled   bool
-	ReceivedLogger *log.Logger
 }
 
 func NewInitializableRetrieverLegacy(name string) *InitializableRetrieverLegacy {

@@ -24,9 +24,9 @@ func TestEvaluateIntegerLiteralBounds(t *testing.T) {
 	hugeDigits := strings.Repeat("9", 41)
 
 	tests := []struct {
+		value   any
 		name    string
 		rule    string
-		value   any
 		want    bool
 		wantErr bool
 	}{

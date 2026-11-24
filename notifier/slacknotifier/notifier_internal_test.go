@@ -20,20 +20,20 @@ func TestSlackNotifier_Notify(t *testing.T) {
 
 	type args struct {
 		diff       notifier.DiffCache
+		url        string
 		statusCode int
 		forceError bool
-		url        string
 	}
 	type expected struct {
-		err       bool
 		errMsg    string
 		bodyPath  string
 		signature string
+		err       bool
 	}
 	tests := []struct {
 		name     string
-		args     args
 		expected expected
+		args     args
 	}{
 		{
 			name: "should call webhook and have valid results",

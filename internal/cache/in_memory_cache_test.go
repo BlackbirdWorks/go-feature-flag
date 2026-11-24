@@ -14,9 +14,9 @@ func TestAll(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
 		param map[string]dto.DTO
 		want  map[string]flag.Flag
+		name  string
 	}{
 		{
 			name: "all with 1 flag",
@@ -135,8 +135,8 @@ func TestCopy(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
 		param map[string]dto.DTO
+		name  string
 		// wantEqual is whether the copy equals the cache it was taken from
 		wantEqual bool
 	}{

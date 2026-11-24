@@ -225,8 +225,8 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
 		source     FlagsetSource
+		name       string
 		wantSeries int
 	}{
 		{name: "source error", source: fakeFlagsetSource{err: errNoFlagsetsConfigured}, wantSeries: 0},
@@ -274,10 +274,10 @@ func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		withRegistry   bool
 		source         FlagsetSource
 		wantErr        error
+		name           string
+		withRegistry   bool
 		wantRegistered bool
 	}{
 		{name: "no registry", withRegistry: false, source: fakeFlagsetSource{}, wantErr: nil},

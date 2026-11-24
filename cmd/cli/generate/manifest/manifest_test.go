@@ -17,9 +17,9 @@ func TestNewManifest(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         string
-		setDestination bool
 		wantErr        string
 		wantManifest   string
+		setDestination bool
 	}{
 		{
 			name:           "should error if config file does not exist",

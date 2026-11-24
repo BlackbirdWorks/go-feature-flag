@@ -63,17 +63,17 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 
 	type fields struct {
 		object        runtime.Object
+		context       context.Context
 		namespace     string
 		configMapName string
 		key           string
-		context       context.Context
 		setClient     bool
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		want    []byte
 		wantErr error
+		fields  fields
+		name    string
+		want    []byte
 	}{
 		{
 			name: "ConfigMap existing",

@@ -89,8 +89,8 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		in      config.ValidateFlagsEndpoint
 		wantErr string
+		in      config.ValidateFlagsEndpoint
 	}{
 		{name: "unset", in: config.ValidateFlagsEndpoint{}},
 		{name: "valid", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3}},
@@ -174,9 +174,9 @@ func TestEndpoints_Loading(t *testing.T) {
 
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
 	tests := []struct {
+		env         map[string]string
 		name        string
 		file        string
-		env         map[string]string
 		want        config.ValidateFlagsEndpoint
 		wantInvalid bool
 	}{

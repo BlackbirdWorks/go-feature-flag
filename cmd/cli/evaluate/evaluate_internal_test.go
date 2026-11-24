@@ -24,11 +24,11 @@ import (
 
 // evaluateTestCase describes a single Test_Evaluate scenario.
 type evaluateTestCase struct {
-	name           string
 	initEvaluate   func() (evaluate, error)
 	wantErr        assert.ErrorAssertionFunc
-	expectedErr    string
 	expectedResult map[string]model.RawVarResult
+	name           string
+	expectedErr    string
 }
 
 // buildEvaluate initializes a retriever from the given configuration and wraps

@@ -19,9 +19,9 @@ func Test_assertRequest(t *testing.T) {
 		"assertRequest: impossible to find evaluationContext in request")
 	legacy := echo.NewHTTPError(http.StatusBadRequest, errLegacyUser)
 	tests := []struct {
-		name    string
 		req     *model.AllFlagRequest
 		wantErr *echo.HTTPError
+		name    string
 	}{
 		{name: "no request", req: nil, wantErr: missing},
 		{name: "request without evaluation context", req: &model.AllFlagRequest{}, wantErr: missing},
@@ -64,10 +64,10 @@ func Test_assertRequest(t *testing.T) {
 func Test_evaluationContextFromRequest(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		req     *model.AllFlagRequest
 		wantErr error
 		want    ffcontext.Context
+		req     *model.AllFlagRequest
+		name    string
 	}{
 		{
 			name: "no request",

@@ -17,8 +17,8 @@ func Test_bodyDumpSkipper(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
-		level zapcore.Level
 		path  string
+		level zapcore.Level
 		want  bool
 	}{
 		{name: "debug on regular endpoint", level: zapcore.DebugLevel, path: "/v1/allflags", want: false},

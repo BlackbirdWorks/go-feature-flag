@@ -138,9 +138,9 @@ func ChangeList(changes []string, bullet string, maxLength int) string {
 const notAppliedInStep = " (not applied by scheduled steps)"
 
 type describer struct {
-	lines []string
 	// code formats a name or a value.
-	code func(string) string
+	code  func(string) string
+	lines []string
 	// inStep is true when describing a scheduled rollout step. A step is a partial update:
 	// it only changes the fields it sets, and rules are merged field by field.
 	inStep bool
@@ -647,8 +647,8 @@ func (d *describer) ruleLabel(key ruleKey) string {
 }
 
 type indexedRules struct {
-	order []ruleKey
 	rules map[ruleKey]flag.Rule
+	order []ruleKey
 }
 
 func indexRules(rules []flag.Rule) indexedRules {

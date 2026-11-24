@@ -37,8 +37,8 @@ func Test_info_Handler(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		want   want
 		config config.Config
+		want   want
 	}{
 		{
 			name: "valid info default mode",

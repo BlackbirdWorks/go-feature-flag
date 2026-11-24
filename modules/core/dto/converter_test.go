@@ -14,9 +14,9 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		input    dto.DTO
 		expected flag.InternalFlag
+		name     string
 	}{
 		{
 			name: "all fields set",
@@ -153,9 +153,9 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		input    flag.InternalFlag
 		expected dto.DTO
+		input    flag.InternalFlag
+		name     string
 	}{
 		{
 			name: "all fields set",

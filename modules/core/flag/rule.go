@@ -159,12 +159,12 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 // the query engines must only read the map, never modify it. The JSON form JsonLogic reads
 // is shared the same way.
 type queryContext struct {
+	ctx                 ffcontext.Context
+	parsedEvalCtxAsData any
 	// svc owns the caches and the pool that evaluating the queries uses.
 	svc                  *Service
-	ctx                  ffcontext.Context
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
-	parsedEvalCtxAsData  any
 	// pooled is true when parsedEvalCtxAsMap comes from the pool of svc (see release).
 	pooled bool
 }

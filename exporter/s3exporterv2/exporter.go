@@ -20,27 +20,23 @@ import (
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
-	// Bucket is the name of your Exporter Bucket.
-	Bucket string
-
+	s3Uploader UploaderAPI
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
-
+	// Bucket is the name of your Exporter Bucket.
+	Bucket string
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV and Parquet.
 	// Default: JSON
 	Format string
-
 	// S3Path allows you to specify in which directory you want to export your data.
 	S3Path string
-
 	// Filename is the name of your output file
 	// You can use a templated config to define the name of your export files.
 	// Available replacement are {{ .Hostname}}, {{ .Timestamp}} and {{ .Format}}
 	// Default: "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}"
 	Filename string
-
 	// CsvTemplate is used if your output format is CSV.
 	// This field will be ignored if you are using another format than CSV.
 	// You can decide which fields you want in your CSV line with a go-template syntax,
@@ -48,21 +44,17 @@ type Exporter struct {
 	// Default:
 	// {{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};{{ .Default}}\n
 	CsvTemplate string
-
 	// ParquetCompressionCodec is the parquet compression codec for better space efficiency.
 	// Available options https://github.com/apache/parquet-format/blob/master/Compression.md
 	// Default: SNAPPY
 	ParquetCompressionCodec string
-
 	// S3ClientOptions is a list of functional options to configure the S3 client.
 	// Provide additional functional options to further configure the behavior of the client,
 	// such as changing the client's endpoint or adding custom middleware behavior.
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3#Options
 	S3ClientOptions []func(*s3.Options)
-
-	s3Uploader UploaderAPI
-	init       sync.Once
+	init            sync.Once
 }
 
 func (f *Exporter) initializeUploader(ctx context.Context) error {

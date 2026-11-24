@@ -20,19 +20,18 @@ var (
 
 // Retriever is a configuration struct for a MongoDB connection and Collection.
 type Retriever struct {
+	dbConnection *mongo.Database
+	dbClient     *mongo.Client
+	logger       *fflog.FFLogger
 	// MongoDB connection URI
 	URI string
 	// Mongodb database where flags collection is
 	Database string
 	// Mongodb collection where flag definitions are stored
 	Collection string
-
+	status     string
 	// mu guards the connection: Shutdown can run while a Retrieve (a forced refresh) is still in flight.
-	mu           sync.RWMutex
-	dbConnection *mongo.Database
-	dbClient     *mongo.Client
-	status       string
-	logger       *fflog.FFLogger
+	mu sync.RWMutex
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.

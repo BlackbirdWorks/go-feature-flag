@@ -17,11 +17,11 @@ func TestCmdLint(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
-		name              string
-		args              []string
 		wantErr           assert.ErrorAssertionFunc
+		name              string
 		expectedStderr    string
 		expectedErrString string
+		args              []string
 	}{
 		{
 			name:    "missing configuration file location",

@@ -47,20 +47,20 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 
 	type args struct {
 		diff       notifier.DiffCache
+		url        string
 		statusCode int
 		forceError bool
-		url        string
 	}
 	type expected struct {
-		err       bool
 		errMsg    string
 		bodyPath  string
 		signature string
+		err       bool
 	}
 	tests := []struct {
 		name     string
-		args     args
 		expected expected
+		args     args
 	}{
 		{
 			name: "should call webhook and have valid results",
@@ -285,9 +285,9 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 
 	tests := []struct {
 		name        string
+		wantLast    string
 		changes     int
 		valueLength int
-		wantLast    string
 	}{
 		{
 			name:        "should list every change below the limits",

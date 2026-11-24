@@ -368,8 +368,8 @@ func TestTruncateUTF8(t *testing.T) {
 	tests := []struct {
 		name     string
 		value    string
-		maxBytes int
 		want     string
+		maxBytes int
 	}{
 		{name: "shorter than max", value: "abc", maxBytes: 5, want: "abc"},
 		{name: "exact size", value: "abcde", maxBytes: 5, want: "abcde"},
@@ -396,11 +396,11 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		oversize func(*exporter.FeatureEvent)
-		// wantRows is the number of rows exported, wantSkipped the number of rows reported as skipped
-		wantRows    int
+		oversize    func(*exporter.FeatureEvent)
+		name        string
 		wantSkipped string
+		// wantRows is the number of rows exported, wantSkipped the number of rows reported as skipped
+		wantRows int
 	}{
 		{
 			name: "JSON value larger than a VARCHAR",
@@ -484,8 +484,8 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		events  []exporter.ExportableEvent
 		wantErr string
+		events  []exporter.ExportableEvent
 	}{
 		{
 			name:    "feature value NaN",
@@ -562,9 +562,9 @@ func TestExporter_AutoMigrate(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		autoMigrate bool
-		events      []exporter.ExportableEvent
 		wantCreate  string
+		events      []exporter.ExportableEvent
+		autoMigrate bool
 	}{
 		{
 			name:        "feature table",
@@ -649,12 +649,12 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
+		wantErrIs         error
 		client            *mockRedshiftDataClient
-		timeout           time.Duration
+		name              string
 		wantErr           []string
 		notWantErr        []string
-		wantErrIs         error
+		timeout           time.Duration
 		wantPolls         int
 		wantCancel        bool
 		wantDescribeInput bool
@@ -921,10 +921,10 @@ func TestExporter_ExportErrors(t *testing.T) {
 
 	featureEvents := []exporter.ExportableEvent{newFeatureEvent(0)}
 	tests := []struct {
-		name     string
 		exporter *Exporter
-		events   []exporter.ExportableEvent
+		name     string
 		wantErr  string
+		events   []exporter.ExportableEvent
 	}{
 		{
 			name:     "missing database",
@@ -1073,33 +1073,32 @@ func TestExporter_InitClient(t *testing.T) {
 }
 
 type mockRedshiftDataClient struct {
-	mu sync.Mutex
-	// executeErrs are returned by the successive BatchExecuteStatement calls, nil means success.
-	executeErrs []error
-	// describeErrs are returned by the first DescribeStatement calls.
-	describeErrs []error
+	executedAt time.Time
+	cancelErr  error
 	// describeErr is returned by every DescribeStatement call.
-	describeErr error
-	// statuses are returned by the successive DescribeStatement calls, the last one is repeated.
-	// FINISHED is returned when empty.
-	statuses          []types.StatusString
-	statusError       string
+	describeErr       error
+	lastDescribeInput *redshiftdata.DescribeStatementInput
 	subStatementError string
+	statusError       string
+	executed          []*redshiftdata.BatchExecuteStatementInput
 	// afterCancel are returned by the DescribeStatement calls once the statement has been cancelled,
 	// the last one is repeated.
 	afterCancel []types.StatusString
+	// statuses are returned by the successive DescribeStatement calls, the last one is repeated.
+	// FINISHED is returned when empty.
+	statuses []types.StatusString
+	// describeErrs are returned by the first DescribeStatement calls.
+	describeErrs []error
+	described    []string
+	// executeErrs are returned by the successive BatchExecuteStatement calls, nil means success.
+	executeErrs []error
+	cancelled   []string
 	// finishAfter makes a statement STARTED until this duration elapsed since its execution.
 	finishAfter time.Duration
-	executedAt  time.Time
-	cancelErr   error
+	mu          sync.Mutex
 	// longPoll makes DescribeStatement wait until the context is done, like a long polling call
 	// on a statement that does not complete, and return the context error.
 	longPoll bool
-
-	executed          []*redshiftdata.BatchExecuteStatementInput
-	described         []string
-	lastDescribeInput *redshiftdata.DescribeStatementInput
-	cancelled         []string
 }
 
 func (m *mockRedshiftDataClient) BatchExecuteStatement(

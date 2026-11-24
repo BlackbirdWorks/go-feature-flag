@@ -81,10 +81,10 @@ func (customError) Error() string { return "custom" }
 func TestFlagError(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
 		err       error
-		wantMsg   string
 		wantIsErr error
+		name      string
+		wantMsg   string
 		wantAs    bool
 	}{
 		{

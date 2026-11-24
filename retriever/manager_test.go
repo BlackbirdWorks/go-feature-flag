@@ -25,12 +25,12 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                    string
-		retrievers              []retriever.Retriever
-		expectError             bool
 		expectedInitCalls       map[string]bool
 		expectedStatusCalls     map[string]bool
 		expectedShutdownCalls   map[string]bool
+		name                    string
+		retrievers              []retriever.Retriever
+		expectError             bool
 		startWithRetrieverError bool
 	}{
 		{

@@ -39,53 +39,44 @@ const (
 
 // Retriever is a configuration struct for a S3 retriever.
 type Retriever struct {
-	// Bucket is the name of your S3 Bucket.
-	Bucket string
-
-	// Item is the path to your flag file in your bucket.
-	// If it is not set, the retriever is in folder mode: all the files selected by Prefix, Pattern
-	// and Recursive are merged into a single flag set.
-	Item string
-
-	// Prefix is a key prefix (ex: "flags/") restricting the files loaded in folder mode.
-	// Empty (or "/") is the root of the bucket. Leading "/" are trimmed and a trailing "/" is added
-	// if missing. Can't be used with Item.
-	Prefix string
-
+	lister ListerAPI
+	// downloader is an internal field, it is the downloader use by the AWS-SDK
+	downloader DownloaderAPI
+	// AwsConfig is the AWS SDK configuration object we will use to
+	// download your feature flag configuration file.
+	AwsConfig *aws.Config
+	// loader is the folder mode engine, set by Init (nil in single file mode). It is atomic so
+	// that OutputFormat can read it without waiting for a Retrieve holding mu.
+	loader atomic.Pointer[folderloader.Loader]
+	logger *fflog.FFLogger
+	status retriever.Status
 	// Pattern is an optional glob (see path.Match) matched against the file name only (the last
 	// element of the key, not the whole path) of each object found in folder mode (ex: "*.yaml").
 	// It can't contain a "/". If empty, all the objects are used. Can't be used with Item.
 	Pattern string
-
-	// Recursive makes the folder mode also look into the "sub folders" of Prefix.
-	// If false only the direct children of Prefix are used. Can't be used with Item.
-	Recursive bool
-
-	// AwsConfig is the AWS SDK configuration object we will use to
-	// download your feature flag configuration file.
-	AwsConfig *aws.Config
-
+	// Bucket is the name of your S3 Bucket.
+	Bucket string
+	// Prefix is a key prefix (ex: "flags/") restricting the files loaded in folder mode.
+	// Empty (or "/") is the root of the bucket. Leading "/" are trimmed and a trailing "/" is added
+	// if missing. Can't be used with Item.
+	Prefix string
+	// mode is set by Init, from Item, and only read under mu.
+	mode retrieverMode
+	// Item is the path to your flag file in your bucket.
+	// If it is not set, the retriever is in folder mode: all the files selected by Prefix, Pattern
+	// and Recursive are merged into a single flag set.
+	Item string
 	// S3ClientOptions is a list of functional options to configure the S3 client.
 	// Provide additional functional options to further configure the behavior of the client,
 	// such as changing the client's endpoint or adding custom middleware behavior.
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3#Options
 	S3ClientOptions []func(*s3.Options)
-
-	// downloader is an internal field, it is the downloader use by the AWS-SDK
-	downloader DownloaderAPI
-	lister     ListerAPI
-	status     retriever.Status
-	logger     *fflog.FFLogger
-	// mode is set by Init, from Item, and only read under mu.
-	mode retrieverMode
-
-	// loader is the folder mode engine, set by Init (nil in single file mode). It is atomic so
-	// that OutputFormat can read it without waiting for a Retrieve holding mu.
-	loader atomic.Pointer[folderloader.Loader]
-
 	// mu protects downloader, lister and loader, and serializes Retrieve calls.
 	mu sync.Mutex
+	// Recursive makes the folder mode also look into the "sub folders" of Prefix.
+	// If false only the direct children of Prefix are used. Can't be used with Item.
+	Recursive bool
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.

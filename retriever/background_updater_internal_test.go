@@ -11,8 +11,8 @@ func TestClose(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
 		backgroundUpdater backgroundUpdater
+		name              string
 		// wantSignalClosed is true when closing must end the wait of the goroutines that read updaterChan.
 		wantSignalClosed bool
 	}{

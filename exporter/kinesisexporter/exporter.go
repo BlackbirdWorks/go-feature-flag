@@ -66,30 +66,24 @@ func (k *DefaultKinesisSender) SendMessages(
 }
 
 type Exporter struct {
+	sender MessageSender
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
-
+	Settings  *Settings
+	// sleep replaces the real backoff wait, it is only set by tests.
+	sleep func(ctx context.Context, d time.Duration) error
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV and Parquet.
 	// Default: JSON
 	Format string
-
 	// kinesis.Options is a list of functional options to configure the Kinesis client.
 	// Provide additional functional options to further configure the behavior of the client,
 	// such as changing the client's endpoint or adding custom middleware behavior.
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/kinesis#Options
 	KinesisOptions []func(*kinesis.Options)
-
-	Settings *Settings
-
-	init sync.Once
-
-	sender MessageSender
-
-	// sleep replaces the real backoff wait, it is only set by tests.
-	sleep func(ctx context.Context, d time.Duration) error
+	init           sync.Once
 }
 
 type PartitionKeyFunc = func(context.Context, exporter.ExportableEvent) string

@@ -14,9 +14,9 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		items    map[string]any
 		name     string
 		rule     string
-		items    map[string]any
 		want     bool
 		wantErr  bool
 		wantDebg bool

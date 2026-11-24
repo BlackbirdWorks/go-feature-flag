@@ -34,8 +34,8 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -109,8 +109,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -179,8 +179,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -318,9 +318,9 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		ctx  ffcontext.EvaluationContext
 		want map[string]any
+		name string
 	}{
 		{
 			name: "extract exporter metadata from context",

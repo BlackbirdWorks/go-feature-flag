@@ -20,11 +20,11 @@ func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		setupCallback func(*testing.T, *config.Loader) (*[]*config.Config, *sync.Mutex)
 		name          string
 		initialConfig string
 		updatedConfig string
 		wantCallbacks int
-		setupCallback func(*testing.T, *config.Loader) (*[]*config.Config, *sync.Mutex)
 	}{
 		{
 			name: "Single callback triggered on config change",

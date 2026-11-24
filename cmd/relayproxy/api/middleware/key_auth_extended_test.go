@@ -34,8 +34,8 @@ func TestKeyAuthExtended(t *testing.T) {
 		name           string
 		xAPIKey        string
 		authorization  string
-		skipper        bool
 		expectedStatus int
+		skipper        bool
 		expectedError  bool
 	}{
 		{

@@ -22,11 +22,11 @@ func TestStreamAuthorizer(t *testing.T) {
 		urlAPIKey  string
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantStatus int
-		wantBody   string
 		wantErr    error
+		args       args
+		name       string
+		wantBody   string
+		wantStatus int
 	}{
 		{
 			name: "valid apiKey",

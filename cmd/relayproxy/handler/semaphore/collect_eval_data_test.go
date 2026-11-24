@@ -30,12 +30,12 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode          int
 		bodyFile          string
-		handlerErr        bool
 		errorMsg          string
-		errorCode         int
 		collectedDataFile string
+		httpCode          int
+		errorCode         int
+		handlerErr        bool
 	}
 	type args struct {
 		bodyFile string
@@ -43,9 +43,9 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	tests := []struct {
 		name   string
 		args   args
+		apiKey string
 		want   want
 		config config.Config
-		apiKey string
 	}{
 		{
 			name: "valid usecase",
@@ -393,10 +393,10 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		config       config.Config
 		apiKey       string
 		wantEval     string
 		wantTracking string
+		config       config.Config
 	}{
 		{
 			name: "default mode",

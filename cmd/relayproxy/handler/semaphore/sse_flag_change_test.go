@@ -33,9 +33,9 @@ var (
 )
 
 type mockFlagsetManagerSSE struct {
+	err         error
 	flagsetName string
 	isDefault   bool
-	err         error
 }
 
 func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
@@ -263,9 +263,9 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		flagsetMgr     *mockFlagsetManagerSSE
 		name           string
 		apiKey         string
-		flagsetMgr     *mockFlagsetManagerSSE
 		expectedStatus int
 	}{
 		{

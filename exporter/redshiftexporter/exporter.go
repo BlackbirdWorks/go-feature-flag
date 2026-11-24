@@ -172,48 +172,37 @@ func trackingEventColumns() []column {
 
 // Exporter inserts events in an AWS Redshift table using the Redshift Data API.
 type Exporter struct {
-	// ClusterIdentifier is the identifier of a provisioned Redshift cluster.
-	// Set either ClusterIdentifier or WorkgroupName.
-	ClusterIdentifier string
-
-	// WorkgroupName is the name or ARN of a Redshift Serverless workgroup.
-	// Set either ClusterIdentifier or WorkgroupName.
-	WorkgroupName string
-
-	// Database is the name of the database receiving the events.
-	Database string
-
-	// DBUser is the database user, used with ClusterIdentifier to get temporary credentials.
-	// If DBUser and SecretArn are empty, the database user is derived from the IAM identity.
-	DBUser string
-
-	// SecretArn is the ARN of an AWS Secrets Manager secret containing the database credentials.
-	SecretArn string
-
-	// TableName is the table receiving events for this exporter instance, it can be prefixed by a schema.
-	// Default: feature_flag_evaluations for feature events, tracking_events for tracking events.
-	TableName string
-
+	initErr error
+	// client is the Redshift Data API client, it can be set for testing purposes.
+	client redshiftDataClient
 	// AwsConfig is the AWS SDK configuration used to call the Redshift Data API.
 	// If nil, the default AWS configuration is loaded.
 	AwsConfig *aws.Config
-
-	// AutoMigrate creates the table with the expected schema if it does not exist.
-	AutoMigrate bool
-
-	// client is the Redshift Data API client, it can be set for testing purposes.
-	client redshiftDataClient
-
-	initOnce sync.Once
-	initErr  error
-
-	migrateMutex sync.Mutex
-	migrated     bool
-
+	// SecretArn is the ARN of an AWS Secrets Manager secret containing the database credentials.
+	SecretArn string
+	// ClusterIdentifier is the identifier of a provisioned Redshift cluster.
+	// Set either ClusterIdentifier or WorkgroupName.
+	ClusterIdentifier string
+	// TableName is the table receiving events for this exporter instance, it can be prefixed by a schema.
+	// Default: feature_flag_evaluations for feature events, tracking_events for tracking events.
+	TableName string
+	// DBUser is the database user, used with ClusterIdentifier to get temporary credentials.
+	// If DBUser and SecretArn are empty, the database user is derived from the IAM identity.
+	DBUser string
+	// Database is the name of the database receiving the events.
+	Database string
+	// WorkgroupName is the name or ARN of a Redshift Serverless workgroup.
+	// Set either ClusterIdentifier or WorkgroupName.
+	WorkgroupName string
 	// pollInterval, statementTimeout and cancelTimeout can be overridden for testing purposes.
 	pollInterval     time.Duration
 	statementTimeout time.Duration
 	cancelTimeout    time.Duration
+	initOnce         sync.Once
+	migrateMutex     sync.Mutex
+	// AutoMigrate creates the table with the expected schema if it does not exist.
+	AutoMigrate bool
+	migrated    bool
 }
 
 // row is a row ready to be inserted, values are in the order of the table columns.

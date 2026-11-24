@@ -45,23 +45,15 @@ const (
 // once and the hash is saved in the rule (Rule.QueryHash); byKey maps that hash to the
 // evaluator, and evaluating the rule only reads byKey (see lookup).
 type nikunjyEvaluatorCache struct {
-	entries sync.Map // map[string]*parser.Evaluator
-	refsMu  sync.Mutex
-	refs    map[string]int
-
+	refs map[string]int
 	// hash is the hash saved in the rules. It is a field so that tests can force collisions.
-	hash func(string) uint64
+	hash    func(string) uint64
+	keyRefs map[uint64]int // the validated rule lists that use each key, protected by keysMu
+	entries sync.Map       // map[string]*parser.Evaluator
 	// byKey maps a rule's QueryHash to the evaluator of the rule's query text. A key is
 	// shared by the rules that have the same text, and is never shared by two different
 	// texts: intern gives the second text of a hash another key.
-	byKey   sync.Map // map[uint64]*nikunjyKeyedEvaluator
-	keysMu  sync.Mutex
-	keyRefs map[uint64]int // the validated rule lists that use each key, protected by keysMu
-
-	// keysEnabled is whether index saves keys. It is not when the keys could not be released: the
-	// rules are then evaluated through get, as rules that are not validated. It is a field so that
-	// tests can run that case.
-	keysEnabled bool
+	byKey sync.Map // map[uint64]*nikunjyKeyedEvaluator
 	// epoch counts the resets. The cleanups of the rule lists that were retained before a reset must not
 	// release anything from what was rebuilt after it, so each one remembers the epoch it was registered in.
 	epoch atomic.Uint64
@@ -70,6 +62,12 @@ type nikunjyEvaluatorCache struct {
 	// make loading slower and keep its evaluator in memory. It is a field so that tests can give
 	// keys to short queries.
 	keysMinQueryLen int
+	refsMu          sync.Mutex
+	keysMu          sync.Mutex
+	// keysEnabled is whether index saves keys. It is not when the keys could not be released: the
+	// rules are then evaluated through get, as rules that are not validated. It is a field so that
+	// tests can run that case.
+	keysEnabled bool
 }
 
 // defaultNikunjyKeysMinQueryLen is the default length from which a nikunjy query is given a key.
@@ -78,15 +76,15 @@ const defaultNikunjyKeysMinQueryLen = 1024
 // nikunjyKeyedEvaluator is the evaluator of a query text. Its key is only used for rules
 // whose query is that text: lookup compares the text.
 type nikunjyKeyedEvaluator struct {
-	query     string
 	evaluator *parser.Evaluator
+	query     string
 }
 
 // nikunjyRuleQuery is the query of rule number rule of the retained rules.
 type nikunjyRuleQuery struct {
-	rule    int
 	raw     string
 	trimmed string
+	rule    int
 	// hash is the hash of raw if known computed it already.
 	hash   uint64
 	hashed bool

@@ -25,11 +25,11 @@ func Test_InitRetriever(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                   string
-		conf                   *retrieverconf.RetrieverConf
 		want                   retriever.Retriever
-		wantErr                assert.ErrorAssertionFunc
 		wantType               retriever.Retriever
+		conf                   *retrieverconf.RetrieverConf
+		wantErr                assert.ErrorAssertionFunc
+		name                   string
 		skipCompleteValidation bool
 	}{
 		{
@@ -331,10 +331,10 @@ func Test_InitRetriever_Redis(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
 		conf              *retrieverconf.RetrieverConf
-		wantErr           bool
 		validateRetriever func(t *testing.T, r retriever.Retriever)
+		name              string
+		wantErr           bool
 	}{
 		{
 			name: "Redis with RedisOptions",
@@ -462,9 +462,9 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 
 	pools := postgresqlretriever.NewPoolRegistry()
 	tests := []struct {
+		wantPools *postgresqlretriever.PoolRegistry
 		name      string
 		opts      []Option
-		wantPools *postgresqlretriever.PoolRegistry
 	}{
 		{name: "the registry of the caller is shared", opts: []Option{WithPostgresPools(pools)}, wantPools: pools},
 		{name: "without it the retriever owns its pool", opts: nil, wantPools: nil},

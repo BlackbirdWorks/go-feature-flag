@@ -40,17 +40,17 @@ func TestExporter_Export(t *testing.T) {
 	type clientFactory = func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error)
 
 	type fields struct {
+		publishSettings       *pubsub.PublishSettings
+		newClientFunc         func(client *pubsub.Client) clientFactory
 		projectID             string
 		topic                 string
 		options               []option.ClientOption
-		publishSettings       *pubsub.PublishSettings
 		enableMessageOrdering bool
-		newClientFunc         func(client *pubsub.Client) clientFactory
 	}
 	tests := []struct {
 		name    string
-		fields  fields
 		events  []exporter.ExportableEvent
+		fields  fields
 		wantErr bool
 	}{
 		{

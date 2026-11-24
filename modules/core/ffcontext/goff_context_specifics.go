@@ -5,10 +5,10 @@ import "time"
 type GoffContextSpecifics struct {
 	// CurrentDateTime is the current date time to use for the evaluation.
 	CurrentDateTime *time.Time `json:"currentDateTime"`
-	// FlagList is the list of flags to evaluate in a bulk evaluation.
-	FlagList []string `json:"flagList"`
 	// ExporterMetadata is the metadata to be used by the exporter.
 	ExporterMetadata map[string]any `json:"exporterMetadata"`
+	// FlagList is the list of flags to evaluate in a bulk evaluation.
+	FlagList []string `json:"flagList"`
 	// UsedLegacyKey is true when the context carried these fields under the legacy attribute name
 	// (LegacyReservedKey). The code that evaluates the flags reports it, once, through its own
 	// legacy.Warner: extracting the fields has no owner to warn.

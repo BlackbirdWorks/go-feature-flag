@@ -61,8 +61,8 @@ func TestEvaluatorProcess(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		run  func(t *testing.T)
+		name string
 	}{
 		{name: "differential", run: testProcessDifferential},
 		{name: "zero value evaluator", run: testProcessZeroValue},
@@ -504,8 +504,8 @@ func genMap(r *rand.Rand, depth int) map[string]any {
 func testProcessZeroValue(t *testing.T) {
 	t.Helper()
 	tests := []struct {
-		name  string
 		items map[string]any
+		name  string
 	}{
 		{name: "nil items"},
 		{name: "items", items: map[string]any{"x": 1}},
@@ -531,11 +531,11 @@ func testProcessZeroValue(t *testing.T) {
 func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	t.Helper()
 	tests := []struct {
-		name   string
-		rule   string
 		bad    map[string]any
 		mutate func(rule any)
 		probe  map[string]any
+		name   string
+		rule   string
 		want   bool
 	}{
 		{
@@ -606,9 +606,9 @@ func testProcessErrorIdentity(t *testing.T) {
 func testProcessConcurrent(t *testing.T) {
 	t.Helper()
 	tests := []struct {
+		items map[string]any
 		name  string
 		rule  string
-		items map[string]any
 		want  bool
 	}{
 		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
@@ -644,11 +644,11 @@ func testProcessConcurrent(t *testing.T) {
 func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	t.Helper()
 	tests := []struct {
-		name  string
-		rule  string
+		want  any
 		items map[string]any
 		mut   func(val any)
-		want  any
+		name  string
+		rule  string
 		// wantListTypeObj: the error's typeObj also holds the rule list
 		wantListTypeObj bool
 	}{
@@ -710,9 +710,9 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 func testProcessConcurrentFirstCall(t *testing.T) {
 	t.Helper()
 	tests := []struct {
+		items map[string]any
 		name  string
 		rule  string
-		items map[string]any
 		want  bool
 	}{
 		{name: "int in", rule: `y in [1, 2, 3]`, items: map[string]any{"y": 2}, want: true},
@@ -752,9 +752,9 @@ func testProcessCompileFailureFallsBack(t *testing.T) {
 	// then report what the visitor reports for that tree, not a
 	// half-initialized evaluator.
 	tests := []struct {
-		name  string
 		tree  antlr.ParseTree
 		items map[string]any
+		name  string
 	}{
 		{name: "nil items", tree: &CompareExpContext{}},
 		{name: "items", tree: &CompareExpContext{}, items: map[string]any{"x": 1}},
@@ -839,8 +839,8 @@ func testProcessStaleDebugErr(t *testing.T) {
 	bad := map[string]any{"x": "s"}
 	good := map[string]any{"x": 1}
 	tests := []struct {
-		name  string
 		clear func(ev *Evaluator)
+		name  string
 	}{
 		{name: "clean call", clear: func(ev *Evaluator) { _, _ = ev.Process(good) }},
 		{name: "reset", clear: func(ev *Evaluator) { _ = ev.Reset() }},
@@ -961,9 +961,9 @@ func testProcessListCapacity(t *testing.T) {
 func testProcessConcurrentStaleList(t *testing.T) {
 	t.Helper()
 	tests := []struct {
+		items map[string]any
 		name  string
 		rule  string
-		items map[string]any
 	}{
 		{
 			name:  "ints",

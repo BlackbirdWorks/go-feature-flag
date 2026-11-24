@@ -17,8 +17,8 @@ func TestSign(t *testing.T) {
 	}
 	tests := []struct {
 		name string
-		args args
 		want string
+		args args
 	}{
 		{
 			name: "sign valid",

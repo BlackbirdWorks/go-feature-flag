@@ -17,11 +17,11 @@ func TestFromFlagEvaluation(t *testing.T) {
 	evaluatedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 
 	tests := []struct {
+		flagCtx       flag.Context
+		evaluationCtx ffcontext.Context
+		currentFlag   flag.Flag
 		name          string
 		key           string
-		evaluationCtx ffcontext.Context
-		flagCtx       flag.Context
-		currentFlag   flag.Flag
 		expected      flagstate.FlagState
 	}{
 		{

@@ -23,9 +23,9 @@ type EvaluationContextBuilder interface {
 }
 
 type evaluationContextBuilderImpl struct {
-	// Key is the only mandatory attribute
-	key    string
 	custom value
+	// Key is the only mandatory attribute
+	key string
 }
 
 // Deprecated: Anonymous is to flag the context for an anonymous context or not.

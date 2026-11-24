@@ -55,9 +55,9 @@ type sseServiceImpl struct {
 	server *sse.Server
 	// activeStreams counts the connected clients per stream, used to send the heartbeats.
 	activeStreams   map[string]int
-	muActiveStreams sync.Mutex
 	done            chan struct{}
 	closeOnce       sync.Once
+	muActiveStreams sync.Mutex
 }
 
 // BroadcastFlagChanges only notifies that the flags changed, the diff is not sent:

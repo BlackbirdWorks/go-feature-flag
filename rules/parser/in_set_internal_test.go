@@ -107,50 +107,74 @@ func TestInSet(t *testing.T) {
 	t.Parallel()
 	strs, ints := seqStrs(100), seqInts(100)
 	tests := []struct {
+		input   kv
 		name    string
 		rule    string
-		input   kv
 		want    bool
 		wantSet bool // a hash set is expected to be compiled
 	}{
-		{"string hit", "s in " + strs, kv{"s": "u50"}, true, true},
-		{"string first", "s in " + strs, kv{"s": "u0"}, true, true},
-		{"string last", "s in " + strs, kv{"s": "u99"}, true, true},
-		{"string miss", "s in " + strs, kv{"s": "u100"}, false, true},
-		{"string is case sensitive", "s in " + strs, kv{"s": "U50"}, false, true},
-		{"string empty", "s in " + strs, kv{"s": ""}, false, true},
-		{"string upper-case operator", "s IN " + strs, kv{"s": "u7"}, true, true},
-		{"string stringer", "s in " + strs, kv{"s": testStringer{"u7"}}, true, true},
-		{"string wrong type", "s in " + strs, kv{"s": 7}, false, true},
-		{"string nil value", "s in " + strs, kv{"s": nil}, false, true},
-		{"string missing attribute", "s in " + strs, kv{"other": "u1"}, false, true},
-		{"string nil input", "s in " + strs, nil, false, true},
-		{"string nested hit", "a.b in " + strs, kv{"a": kv{"b": "u3"}}, true, true},
-		{"string nested miss", "a.b in " + strs, kv{"a": kv{"b": "zz"}}, false, true},
-		{"string nested not object", "a.b in " + strs, kv{"a": "u3"}, false, true},
-		{"string not in hit", "not (s in " + strs + ")", kv{"s": "u50"}, false, true},
-		{"string not in miss", "not (s in " + strs + ")", kv{"s": "zz"}, true, true},
-		{"string not in missing", "not (s in " + strs + ")", kv{}, true, true},
-		{"string in or other", "s in " + strs + " or n eq 1", kv{"s": "zz", "n": 1}, true, true},
-		{"string in and other", "s in " + strs + " and n eq 1", kv{"s": "u1", "n": 2}, false, true},
-		{"int hit", "n in " + ints, kv{"n": 50}, true, true},
-		{"int first", "n in " + ints, kv{"n": 0}, true, true},
-		{"int last", "n in " + ints, kv{"n": 99}, true, true},
-		{"int miss", "n in " + ints, kv{"n": 100}, false, true},
-		{"int negative", "n in " + ints, kv{"n": -1}, false, true},
-		{"int float value", "n in " + ints, kv{"n": 5.0}, false, true},
-		{"int int64 value", "n in " + ints, kv{"n": int64(5)}, false, true},
-		{"int string value", "n in " + ints, kv{"n": "5"}, false, true},
-		{"int bool value", "n in " + ints, kv{"n": true}, false, true},
-		{"int nil value", "n in " + ints, kv{"n": nil}, false, true},
-		{"int missing attribute", "n in " + ints, kv{}, false, true},
-		{"int nested hit", "a.n in " + ints, kv{"a": kv{"n": 9}}, true, true},
-		{"int not in hit", "not (n in " + ints + ")", kv{"n": 9}, false, true},
-		{"int not in miss", "not (n in " + ints + ")", kv{"n": 900}, true, true},
-		{"int duplicates", "n in [" + strings.Repeat("3, ", 99) + "4]", kv{"n": 4}, true, true},
-		{"float list never uses a set", "n in [" + strings.Repeat("1.0, ", 99) + "2.0]", kv{"n": 2.0}, true, false},
-		{"short string list", "s in " + seqStrs(5), kv{"s": "u4"}, true, false},
-		{"short int list", "n in " + seqInts(5), kv{"n": 4}, true, false},
+		{name: "string hit", rule: "s in " + strs, input: kv{"s": "u50"}, want: true, wantSet: true},
+		{name: "string first", rule: "s in " + strs, input: kv{"s": "u0"}, want: true, wantSet: true},
+		{name: "string last", rule: "s in " + strs, input: kv{"s": "u99"}, want: true, wantSet: true},
+		{name: "string miss", rule: "s in " + strs, input: kv{"s": "u100"}, want: false, wantSet: true},
+		{name: "string is case sensitive", rule: "s in " + strs, input: kv{"s": "U50"}, want: false, wantSet: true},
+		{name: "string empty", rule: "s in " + strs, input: kv{"s": ""}, want: false, wantSet: true},
+		{name: "string upper-case operator", rule: "s IN " + strs, input: kv{"s": "u7"}, want: true, wantSet: true},
+		{name: "string stringer", rule: "s in " + strs, input: kv{"s": testStringer{"u7"}}, want: true, wantSet: true},
+		{name: "string wrong type", rule: "s in " + strs, input: kv{"s": 7}, want: false, wantSet: true},
+		{name: "string nil value", rule: "s in " + strs, input: kv{"s": nil}, want: false, wantSet: true},
+		{name: "string missing attribute", rule: "s in " + strs, input: kv{"other": "u1"}, want: false, wantSet: true},
+		{name: "string nil input", rule: "s in " + strs, input: nil, want: false, wantSet: true},
+		{name: "string nested hit", rule: "a.b in " + strs, input: kv{"a": kv{"b": "u3"}}, want: true, wantSet: true},
+		{name: "string nested miss", rule: "a.b in " + strs, input: kv{"a": kv{"b": "zz"}}, want: false, wantSet: true},
+		{name: "string nested not object", rule: "a.b in " + strs, input: kv{"a": "u3"}, want: false, wantSet: true},
+		{name: "string not in hit", rule: "not (s in " + strs + ")", input: kv{"s": "u50"}, want: false, wantSet: true},
+		{name: "string not in miss", rule: "not (s in " + strs + ")", input: kv{"s": "zz"}, want: true, wantSet: true},
+		{name: "string not in missing", rule: "not (s in " + strs + ")", input: kv{}, want: true, wantSet: true},
+		{
+			name:    "string in or other",
+			rule:    "s in " + strs + " or n eq 1",
+			input:   kv{"s": "zz", "n": 1},
+			want:    true,
+			wantSet: true,
+		},
+		{
+			name:    "string in and other",
+			rule:    "s in " + strs + " and n eq 1",
+			input:   kv{"s": "u1", "n": 2},
+			want:    false,
+			wantSet: true,
+		},
+		{name: "int hit", rule: "n in " + ints, input: kv{"n": 50}, want: true, wantSet: true},
+		{name: "int first", rule: "n in " + ints, input: kv{"n": 0}, want: true, wantSet: true},
+		{name: "int last", rule: "n in " + ints, input: kv{"n": 99}, want: true, wantSet: true},
+		{name: "int miss", rule: "n in " + ints, input: kv{"n": 100}, want: false, wantSet: true},
+		{name: "int negative", rule: "n in " + ints, input: kv{"n": -1}, want: false, wantSet: true},
+		{name: "int float value", rule: "n in " + ints, input: kv{"n": 5.0}, want: false, wantSet: true},
+		{name: "int int64 value", rule: "n in " + ints, input: kv{"n": int64(5)}, want: false, wantSet: true},
+		{name: "int string value", rule: "n in " + ints, input: kv{"n": "5"}, want: false, wantSet: true},
+		{name: "int bool value", rule: "n in " + ints, input: kv{"n": true}, want: false, wantSet: true},
+		{name: "int nil value", rule: "n in " + ints, input: kv{"n": nil}, want: false, wantSet: true},
+		{name: "int missing attribute", rule: "n in " + ints, input: kv{}, want: false, wantSet: true},
+		{name: "int nested hit", rule: "a.n in " + ints, input: kv{"a": kv{"n": 9}}, want: true, wantSet: true},
+		{name: "int not in hit", rule: "not (n in " + ints + ")", input: kv{"n": 9}, want: false, wantSet: true},
+		{name: "int not in miss", rule: "not (n in " + ints + ")", input: kv{"n": 900}, want: true, wantSet: true},
+		{
+			name:    "int duplicates",
+			rule:    "n in [" + strings.Repeat("3, ", 99) + "4]",
+			input:   kv{"n": 4},
+			want:    true,
+			wantSet: true,
+		},
+		{
+			name:    "float list never uses a set",
+			rule:    "n in [" + strings.Repeat("1.0, ", 99) + "2.0]",
+			input:   kv{"n": 2.0},
+			want:    true,
+			wantSet: false,
+		},
+		{name: "short string list", rule: "s in " + seqStrs(5), input: kv{"s": "u4"}, want: true, wantSet: false},
+		{name: "short int list", rule: "n in " + seqInts(5), input: kv{"n": 4}, want: true, wantSet: false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -352,23 +376,28 @@ func TestInSetDifferential(t *testing.T) {
 func TestInSetConcurrent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		rule string
 		val  func(i int) any
 		want func(i int) bool
+		name string
+		rule string
 	}{
 		{
-			"string",
-			"s in " + seqStrs(300),
-			func(i int) any { return fmt.Sprintf("u%d", i%600) },
-			func(i int) bool { return i%600 < 300 },
+			name: "string",
+			rule: "s in " + seqStrs(300),
+			val:  func(i int) any { return fmt.Sprintf("u%d", i%600) },
+			want: func(i int) bool { return i%600 < 300 },
 		},
-		{"int", "s in " + seqInts(300), func(i int) any { return i % 600 }, func(i int) bool { return i%600 < 300 }},
 		{
-			"string not in",
-			"not (s in " + seqStrs(300) + ")",
-			func(i int) any { return fmt.Sprintf("u%d", i%600) },
-			func(i int) bool { return i%600 >= 300 },
+			name: "int",
+			rule: "s in " + seqInts(300),
+			val:  func(i int) any { return i % 600 },
+			want: func(i int) bool { return i%600 < 300 },
+		},
+		{
+			name: "string not in",
+			rule: "not (s in " + seqStrs(300) + ")",
+			val:  func(i int) any { return fmt.Sprintf("u%d", i%600) },
+			want: func(i int) bool { return i%600 >= 300 },
 		},
 	}
 	for _, tc := range tests {

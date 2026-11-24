@@ -24,16 +24,16 @@ var (
 
 // Retriever is the interface to fetch the flags from Bitbucket.
 type Retriever struct {
+	rateLimitReset     time.Time
+	httpClient         internal.HTTPClient
 	RepositorySlug     string
 	FilePath           string
 	Branch             string
 	BitBucketToken     string
 	BaseURL            string
 	Timeout            time.Duration
-	httpClient         internal.HTTPClient
 	rateLimitRemaining int
 	rateLimitNearLimit bool
-	rateLimitReset     time.Time
 }
 
 // Retrieve get the content of the file from the Bitbucket API.

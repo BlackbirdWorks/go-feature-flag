@@ -15,28 +15,24 @@ const (
 
 // DataExporter is the configuration of your export target.
 type DataExporter struct {
+	// Exporter is the configuration of your exporter.
+	// You can see all available exporter in the exporter package.
+	Exporter exporter.CommonExporter
+	// ExporterEventType is the type of event the exporter is expecting.
+	// The default type if not set is FeatureEventExporter.
+	ExporterEventType ExporterEventType
 	// FlushInterval is the interval we are waiting to export the data.
 	// example: if you set your FlushInterval to 1 minutes, we will send
 	// the data every minute unless we reach the max event in cache before.
 	FlushInterval time.Duration
-
 	// MaxEventInMemory is the maximum number of event you keep in the cache
 	// before sending the data to the Exporter.
 	// We will send the data when the MaxEventInMemory is reach or if we have
 	// waited the FlushInterval.
 	MaxEventInMemory int64
-
 	// MaxQueuedEvents is the hard limit of events kept in memory while they wait to be exported.
 	// When it is reached (the exporter is slow or failing), new events are dropped and counted
 	// (see GoFeatureFlag.DroppedEvents) instead of growing the memory without limit.
 	// Default: max(4 x MaxEventInMemory, 50000).
 	MaxQueuedEvents int64
-
-	// Exporter is the configuration of your exporter.
-	// You can see all available exporter in the exporter package.
-	Exporter exporter.CommonExporter
-
-	// ExporterEventType is the type of event the exporter is expecting.
-	// The default type if not set is FeatureEventExporter.
-	ExporterEventType ExporterEventType
 }

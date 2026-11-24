@@ -12,29 +12,29 @@ import (
 
 // ExporterConf contains all the field to configure an exporter.
 type ExporterConf struct {
-	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
-	TracerName              string                 `mapstructure:"tracerName"              koanf:"tracername"`
-	OutputDir               string                 `mapstructure:"outputDir"               koanf:"outputdir"`
-	Format                  string                 `mapstructure:"format"                  koanf:"format"`
+	Meta                    map[string]string      `mapstructure:"meta"                    koanf:"meta"`
+	Headers                 map[string][]string    `mapstructure:"headers"                 koanf:"headers"`
+	ProjectID               string                 `mapstructure:"projectID"               koanf:"projectid"`
+	DatasetID               string                 `mapstructure:"datasetID"               koanf:"datasetid"`
 	Filename                string                 `mapstructure:"filename"                koanf:"filename"`
 	CsvTemplate             string                 `mapstructure:"csvTemplate"             koanf:"csvtemplate"`
 	Bucket                  string                 `mapstructure:"bucket"                  koanf:"bucket"`
 	Path                    string                 `mapstructure:"path"                    koanf:"path"`
 	EndpointURL             string                 `mapstructure:"endpointUrl"             koanf:"endpointurl"`
 	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"`
-	Meta                    map[string]string      `mapstructure:"meta"                    koanf:"meta"`
+	OutputDir               string                 `mapstructure:"outputDir"               koanf:"outputdir"`
 	LogFormat               string                 `mapstructure:"logFormat"               koanf:"logformat"`
-	FlushInterval           int64                  `mapstructure:"flushInterval"           koanf:"flushinterval"`
-	MaxEventInMemory        int64                  `mapstructure:"maxEventInMemory"        koanf:"maxeventinmemory"`
-	ParquetCompressionCodec string                 `mapstructure:"parquetCompressionCodec" koanf:"parquetcompressioncodec"`
-	Headers                 map[string][]string    `mapstructure:"headers"                 koanf:"headers"`
-	QueueURL                string                 `mapstructure:"queueUrl"                koanf:"queueurl"`
-	Kafka                   kafkaexporter.Settings `mapstructure:"kafka"                   koanf:"kafka"`
-	ProjectID               string                 `mapstructure:"projectID"               koanf:"projectid"`
-	DatasetID               string                 `mapstructure:"datasetID"               koanf:"datasetid"`
 	TableName               string                 `mapstructure:"tableName"               koanf:"tablename"`
+	AwsRegion               string                 `mapstructure:"awsRegion"               koanf:"awsregion"`
+	ParquetCompressionCodec string                 `mapstructure:"parquetCompressionCodec" koanf:"parquetcompressioncodec"`
+	TracerName              string                 `mapstructure:"tracerName"              koanf:"tracername"`
+	QueueURL                string                 `mapstructure:"queueUrl"                koanf:"queueurl"`
+	SecretArn               string                 `mapstructure:"secretArn"               koanf:"secretarn"`
+	Format                  string                 `mapstructure:"format"                  koanf:"format"`
+	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
+	DBUser                  string                 `mapstructure:"dbUser"                  koanf:"dbuser"`
 	GoogleCredentials       string                 `mapstructure:"googleCredentials"       koanf:"googlecredentials"`
-	AutoMigrate             bool                   `mapstructure:"autoMigrate"             koanf:"automigrate"`
+	Database                string                 `mapstructure:"database"                koanf:"database"`
 	Topic                   string                 `mapstructure:"topic"                   koanf:"topic"`
 	StreamArn               string                 `mapstructure:"streamArn"               koanf:"streamarn"`
 	StreamName              string                 `mapstructure:"streamName"              koanf:"streamname"`
@@ -44,10 +44,10 @@ type ExporterConf struct {
 	ExporterEventType       string                 `mapstructure:"eventType"               koanf:"eventtype"`
 	ClusterIdentifier       string                 `mapstructure:"clusterIdentifier"       koanf:"clusteridentifier"`
 	WorkgroupName           string                 `mapstructure:"workgroupName"           koanf:"workgroupname"`
-	Database                string                 `mapstructure:"database"                koanf:"database"`
-	DBUser                  string                 `mapstructure:"dbUser"                  koanf:"dbuser"`
-	SecretArn               string                 `mapstructure:"secretArn"               koanf:"secretarn"`
-	AwsRegion               string                 `mapstructure:"awsRegion"               koanf:"awsregion"`
+	Kafka                   kafkaexporter.Settings `mapstructure:"kafka"                   koanf:"kafka"`
+	FlushInterval           int64                  `mapstructure:"flushInterval"           koanf:"flushinterval"`
+	MaxEventInMemory        int64                  `mapstructure:"maxEventInMemory"        koanf:"maxeventinmemory"`
+	AutoMigrate             bool                   `mapstructure:"autoMigrate"             koanf:"automigrate"`
 }
 
 // errInvalidExporter is the root of the errors reported for an exporter configuration that is not valid.

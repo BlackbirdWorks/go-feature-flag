@@ -74,11 +74,11 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode         int
 		bodyFile         string
-		handlerErr       bool
-		errorCode        int
 		errorMsgContains string
+		httpCode         int
+		errorCode        int
+		handlerErr       bool
 	}
 
 	tests := []struct {

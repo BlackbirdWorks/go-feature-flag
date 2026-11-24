@@ -45,14 +45,13 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 type sharedBucketRegistry struct {
 	factory sharedItemsFactory
 	logger  *zap.Logger
-
-	mu sync.Mutex
-	// polling is the polling configuration of the relay proxy (top-level pollingInterval and
-	// enablePollingJitter), shared by all the groups.
-	polling s3retrieverv2.PollerConfig
 	groups  map[string]*registryGroup
 	// pending are the retrievers created by preRegister and not claimed yet.
 	pending map[string][]*releasingRetriever
+	// polling is the polling configuration of the relay proxy (top-level pollingInterval and
+	// enablePollingJitter), shared by all the groups.
+	polling s3retrieverv2.PollerConfig
+	mu      sync.Mutex
 }
 
 type registryGroup struct {

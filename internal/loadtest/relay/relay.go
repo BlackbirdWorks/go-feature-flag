@@ -37,12 +37,12 @@ type Options struct {
 	// ExporterMode is the behaviour of the webhook sink the relay proxy exports to.
 	// An empty value disables the exporter.
 	ExporterMode loadtest.ExporterMode
+	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
+	TempDir string
 	// FlushIntervalMs is the flush interval of the exporter (default 1000).
 	FlushIntervalMs int64
 	// MaxEventInMemory is the flush trigger of the exporter (default 100000).
 	MaxEventInMemory int64
-	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
-	TempDir string
 	// H2C makes the relay proxy accept HTTP/2 over cleartext (server.enableH2C); only with Listen.
 	H2C bool
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
@@ -51,19 +51,18 @@ type Options struct {
 
 // Relay is a running relay proxy.
 type Relay struct {
+	wsSvc  stream.WebsocketService
+	sink   *httptest.Server
+	server *api.Server
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
+	dir     string
 	// Services are the relay proxy services, usable to build handlers in-process.
 	Services service.Services
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.
 	SinkBytes atomic.Int64
-
-	sink   *httptest.Server
-	server *api.Server
-	wsSvc  stream.WebsocketService
-	dir    string
 }
 
 // Start starts a relay proxy.

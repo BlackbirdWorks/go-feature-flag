@@ -9,9 +9,8 @@ import (
 )
 
 type testCase struct {
-	rule  string
-	input map[string]any
-
+	input    map[string]any
+	rule     string
 	result   bool
 	hasError bool
 }
@@ -52,356 +51,356 @@ func TestVersions(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x EQ 1.0.0`,
-			obj{
+			rule: `x EQ 1.0.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0`,
-			obj{
+			rule: `x EQ 1.0.0`,
+			input: obj{
 				"x": 2,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0`,
-			obj{
+			rule: `x EQ 1.0.0`,
+			input: obj{
 				"y": "1.0.0",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0`,
-			obj{},
-			false,
-			false,
+			rule:     `x EQ 1.0.0`,
+			input:    obj{},
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0`,
-			obj{
+			rule: `x EQ 1.0.0`,
+			input: obj{
 				"x": "1.1.1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x NE 1.0.0`,
-			obj{
+			rule: `x NE 1.0.0`,
+			input: obj{
 				"x": "1.0.0.",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x NE 1.0.0`,
-			obj{
+			rule: `x NE 1.0.0`,
+			input: obj{
 				"x": 2.3,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x NE 1.0.0`,
-			obj{
+			rule: `x NE 1.0.0`,
+			input: obj{
 				"x": "1.1.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.1.0`,
-			obj{
+			rule: `x LT 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.1.0`,
-			obj{
+			rule: `x LT 1.1.0`,
+			input: obj{
 				"x": "2.0.0",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x LT 1.1.0`,
-			obj{
+			rule: `x LT 1.1.0`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x LE 1.1.0`,
-			obj{
+			rule: `x LE 1.1.0`,
+			input: obj{
 				"x": "1.1.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LE 1.1.0`,
-			obj{
+			rule: `x LE 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LE 1.1.0`,
-			obj{
+			rule: `x LE 1.1.0`,
+			input: obj{
 				"x": "2.0.0",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x LE 1.1.0`,
-			obj{
+			rule: `x LE 1.1.0`,
+			input: obj{
 				"x": 2,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GT 1.1.0`,
-			obj{
+			rule: `x GT 1.1.0`,
+			input: obj{
 				"x": "2.0.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x GT 1.1.0`,
-			obj{
+			rule: `x GT 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GT 1.1.0`,
-			obj{
+			rule: `x GT 1.1.0`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GE 1.1.0`,
-			obj{
+			rule: `x GE 1.1.0`,
+			input: obj{
 				"x": "2.0.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x GE 1.1.0`,
-			obj{
+			rule: `x GE 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GE 1.1.0`,
-			obj{
+			rule: `x GE 1.1.0`,
+			input: obj{
 				"x": "1.1.0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x GE 1.1.0`,
-			obj{
+			rule: `x GE 1.1.0`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x CO 1.1.0`,
-			obj{
+			rule: `x CO 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			true,
+			result:   true,
+			hasError: true,
 		},
 		{
-			`x SW 1.1.0`,
-			obj{
+			rule: `x SW 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			true,
+			result:   true,
+			hasError: true,
 		},
 		{
-			`x EW 1.1.0`,
-			obj{
+			rule: `x EW 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			true,
+			result:   true,
+			hasError: true,
 		},
 		{
-			`x SW 1.1.0`,
-			obj{
+			rule: `x SW 1.1.0`,
+			input: obj{
 				"x": "1.0.0",
 			},
-			true,
-			true,
+			result:   true,
+			hasError: true,
 		},
 		// ensure prerelease comparisons work per semver spec
 		{
-			`x LT 1.1.0`,
-			obj{
+			rule: `x LT 1.1.0`,
+			input: obj{
 				"x": "1.1.0-alpha",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x GT 1.1.0-alpha`,
-			obj{
+			rule: `x GT 1.1.0-alpha`,
+			input: obj{
 				"x": "1.1.0-beta",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.1.0-alpha.1`,
-			obj{
+			rule: `x EQ 1.1.0-alpha.1`,
+			input: obj{
 				"x": "1.1.0-alpha.1",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0-0`,
-			obj{
+			rule: `x EQ 1.0.0-0`,
+			input: obj{
 				"x": "1.0.0-0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-alpha`,
-			obj{
+			rule: `x LT 1.0.0-alpha`,
+			input: obj{
 				"x": "1.0.0-0",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x GT 1.0.0-alpha.1`,
-			obj{
+			rule: `x GT 1.0.0-alpha.1`,
+			input: obj{
 				"x": "1.0.0-alpha.beta",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-beta.2`,
-			obj{
+			rule: `x LT 1.0.0-beta.2`,
+			input: obj{
 				"x": "1.0.0-alpha.beta",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-beta.11`,
-			obj{
+			rule: `x LT 1.0.0-beta.11`,
+			input: obj{
 				"x": "1.0.0-beta.2",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-rc.1`,
-			obj{
+			rule: `x LT 1.0.0-rc.1`,
+			input: obj{
 				"x": "1.0.0-beta.11",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0`,
-			obj{
+			rule: `x LT 1.0.0`,
+			input: obj{
 				"x": "1.0.0-rc.1",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		// build metadata is ignored in comparisons per semver spec
 		{
-			`x EQ 1.0.0`,
-			obj{
+			rule: `x EQ 1.0.0`,
+			input: obj{
 				"x": "1.0.0+20130313144700",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.0.0-beta`,
-			obj{
+			rule: `x EQ 1.0.0-beta`,
+			input: obj{
 				"x": "1.0.0-beta+exp.sha.5114f85",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.1.0+build.1`,
-			obj{
+			rule: `x EQ 1.1.0+build.1`,
+			input: obj{
 				"x": "1.1.0+build.2",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EQ 1.1.0-alpha+build.1`,
-			obj{
+			rule: `x EQ 1.1.0-alpha+build.1`,
+			input: obj{
 				"x": "1.1.0-alpha+build.2",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-alpha.10`,
-			obj{
+			rule: `x LT 1.0.0-alpha.10`,
+			input: obj{
 				"x": "1.0.0-alpha.2",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-alpha`,
-			obj{
+			rule: `x LT 1.0.0-alpha`,
+			input: obj{
 				"x": "1.0.0-1",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-alpha.beta`,
-			obj{
+			rule: `x LT 1.0.0-alpha.beta`,
+			input: obj{
 				"x": "1.0.0-alpha.1",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x LT 1.0.0-alpha.1`,
-			obj{
+			rule: `x LT 1.0.0-alpha.1`,
+			input: obj{
 				"x": "1.0.0-alpha",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 	}
 
@@ -428,47 +427,47 @@ func TestListOfStrings(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x IN ["abc", "cde", "fgh"]`,
-			obj{
+			rule: `x IN ["abc", "cde", "fgh"]`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and x IN ["abc", "cde", "fgh"]`,
-			obj{
+			rule: `y eq 5 and x IN ["abc", "cde", "fgh"]`,
+			input: obj{
 				"x": "abc",
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and (x IN ["abc","cde","fgh"])`,
-			obj{
+			rule: `y eq 5 and (x IN ["abc","cde","fgh"])`,
+			input: obj{
 				"x": "cde",
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and not (x IN ["abc","cde","fgh"])`,
-			obj{
+			rule: `y eq 5 and not (x IN ["abc","cde","fgh"])`,
+			input: obj{
 				"x": "abc",
 				"y": 5,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x IN ["abc", "cde", "fgh"]`,
-			obj{
+			rule: `x IN ["abc", "cde", "fgh"]`,
+			input: obj{
 				"x": "xyz",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -487,47 +486,47 @@ func TestListOfDoubles(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x IN [1.1, 2.2, 3.3]`,
-			obj{
+			rule: `x IN [1.1, 2.2, 3.3]`,
+			input: obj{
 				"x": 1.1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and x IN [1.1, 2.1, 3.3]`,
-			obj{
+			rule: `y eq 5 and x IN [1.1, 2.1, 3.3]`,
+			input: obj{
 				"x": 1.1,
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and (x IN [1.4, 2.1, 3.3])`,
-			obj{
+			rule: `y eq 5 and (x IN [1.4, 2.1, 3.3])`,
+			input: obj{
 				"x": 1.4,
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and not (x IN [1.1, 2.2, 3.3])`,
-			obj{
+			rule: `y eq 5 and not (x IN [1.1, 2.2, 3.3])`,
+			input: obj{
 				"x": 1.1,
 				"y": 5,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x IN [1.0, 2.2, 3.3]`,
-			obj{
+			rule: `x IN [1.0, 2.2, 3.3]`,
+			input: obj{
 				"x": 4.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -547,47 +546,47 @@ func TestListOfInts(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x IN [1, 2, 3]`,
-			obj{
+			rule: `x IN [1, 2, 3]`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and x IN [1, 2, 3]`,
-			obj{
-				"x": 1,
-				"y": 5,
-			},
-			true,
-			false,
-		},
-		{
-			`y eq 5 and (x IN [1, 2, 3])`,
-			obj{
+			rule: `y eq 5 and x IN [1, 2, 3]`,
+			input: obj{
 				"x": 1,
 				"y": 5,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`y eq 5 and not (x IN [1, 2, 3])`,
-			obj{
+			rule: `y eq 5 and (x IN [1, 2, 3])`,
+			input: obj{
 				"x": 1,
 				"y": 5,
 			},
-			false,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x IN [1, 2, 3]`,
-			obj{
+			rule: `y eq 5 and not (x IN [1, 2, 3])`,
+			input: obj{
+				"x": 1,
+				"y": 5,
+			},
+			result:   false,
+			hasError: false,
+		},
+		{
+			rule: `x IN [1, 2, 3]`,
+			input: obj{
 				"x": 4,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -607,34 +606,34 @@ func TestPresent(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x pr`,
-			obj{
+			rule: `x pr`,
+			input: obj{
 				"x": true,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x pr`,
-			obj{},
-			false,
-			false,
+			rule:     `x pr`,
+			input:    obj{},
+			result:   false,
+			hasError: false,
 		},
 		{
-			`not (x pr)`,
-			obj{
+			rule: `not (x pr)`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`NOT (x pr)`,
-			obj{
+			rule: `NOT (x pr)`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -653,42 +652,42 @@ func TestNull(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq null`,
-			obj{
+			rule: `x eq null`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x EQ null`,
-			obj{
+			rule: `x EQ null`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne null`,
-			obj{
+			rule: `x ne null`,
+			input: obj{
 				"x": true,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq null`,
-			obj{
+			rule: `x eq null`,
+			input: obj{
 				"x": nil,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq null`,
-			obj{},
-			true,
-			false,
+			rule:     `x eq null`,
+			input:    obj{},
+			result:   true,
+			hasError: false,
 		},
 	}
 
@@ -732,52 +731,52 @@ func TestBool(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq true`,
-			obj{
+			rule: `x eq true`,
+			input: obj{
 				"x": true,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ne true`,
-			obj{
+			rule: `x ne true`,
+			input: obj{
 				"x": false,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq true`,
-			obj{
+			rule: `x eq true`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne true`,
-			obj{
+			rule: `x ne true`,
+			input: obj{
 				"x": 2,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x eq false`,
-			obj{
+			rule: `x eq false`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`xy eq true`,
-			obj{
+			rule: `xy eq true`,
+			input: obj{
 				"x": true,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -846,276 +845,276 @@ func TestInt(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq 1`,
-			obj{
+			rule: `x eq 1`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x == 1`,
-			obj{
+			rule: `x == 1`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1`,
-			obj{
+			rule: `x eq 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x eq 1`,
-			obj{
+			rule: `x eq 1`,
+			input: obj{
 				"y": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne 1`,
-			obj{
+			rule: `x ne 1`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x != 1`,
-			obj{
+			rule: `x != 1`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne 1`,
-			obj{
+			rule: `x ne 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x != 1`,
-			obj{
+			rule: `x != 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x NE 1`,
-			obj{
+			rule: `x NE 1`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x le 1`,
-			obj{
+			rule: `x le 1`,
+			input: obj{
 				"x": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x <= 1`,
-			obj{
+			rule: `x <= 1`,
+			input: obj{
 				"x": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le 1`,
-			obj{
+			rule: `x le 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x LE 1`,
-			obj{
+			rule: `x LE 1`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le 1`,
-			obj{
+			rule: `x le 1`,
+			input: obj{
 				"x": 2,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x LT 1`,
-			obj{
+			rule: `x LT 1`,
+			input: obj{
 				"x": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x < 1`,
-			obj{
+			rule: `x < 1`,
+			input: obj{
 				"x": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x lt 1`,
-			obj{
+			rule: `x lt 1`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x lt 1`,
-			obj{
+			rule: `x lt 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x < 1`,
-			obj{
+			rule: `x < 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GT 1`,
-			obj{
+			rule: `x GT 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x > 1`,
-			obj{
+			rule: `x > 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x gt 1`,
-			obj{
+			rule: `x gt 1`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x gt 1`,
-			obj{
+			rule: `x gt 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x > 1`,
-			obj{
+			rule: `x > 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x GE 1`,
-			obj{
+			rule: `x GE 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x >= 1`,
-			obj{
+			rule: `x >= 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge 1`,
-			obj{
+			rule: `x ge 1`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge 1`,
-			obj{
+			rule: `x ge 1`,
+			input: obj{
 				"x": "1",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ge 1`,
-			obj{
+			rule: `x ge 1`,
+			input: obj{
 				"x": 0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x >= 1`,
-			obj{
+			rule: `x >= 1`,
+			input: obj{
 				"x": 0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x NE 1`,
-			obj{
+			rule: `x NE 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x != 1`,
-			obj{
+			rule: `x != 1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1`,
-			obj{
+			rule: `x eq 1`,
+			input: obj{
 				"y": 1.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x == 1`,
-			obj{
+			rule: `x == 1`,
+			input: obj{
 				"y": 1.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -1134,124 +1133,124 @@ func TestFloat(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq 1.0`,
-			obj{
+			rule: `x eq 1.0`,
+			input: obj{
 				"x": 1.0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1.0`,
-			obj{
+			rule: `x eq 1.0`,
+			input: obj{
 				"y": 1.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne 1.1`,
-			obj{
+			rule: `x ne 1.1`,
+			input: obj{
 				"x": 1.1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x le 1.1`,
-			obj{
+			rule: `x le 1.1`,
+			input: obj{
 				"x": 0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le 1.1`,
-			obj{
+			rule: `x le 1.1`,
+			input: obj{
 				"x": 1.1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le 1.1`,
-			obj{
+			rule: `x le 1.1`,
+			input: obj{
 				"x": 2.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x lt 1.1`,
-			obj{
+			rule: `x lt 1.1`,
+			input: obj{
 				"x": 0.0,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x lt 1.0`,
-			obj{
+			rule: `x lt 1.0`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x gt 1.1`,
-			obj{
+			rule: `x gt 1.1`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x gt 1.0`,
-			obj{
+			rule: `x gt 1.0`,
+			input: obj{
 				"x": 1,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ge 1.2`,
-			obj{
+			rule: `x ge 1.2`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge 1.0`,
-			obj{
+			rule: `x ge 1.0`,
+			input: obj{
 				"x": 1,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge 1.0`,
-			obj{
+			rule: `x ge 1.0`,
+			input: obj{
 				"x": 0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne 1.0`,
-			obj{
+			rule: `x ne 1.0`,
+			input: obj{
 				"x": 2,
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq 1.0`,
-			obj{
+			rule: `x eq 1.0`,
+			input: obj{
 				"y": 1.0,
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 
@@ -1271,194 +1270,194 @@ func TestString(t *testing.T) {
 
 	tests := []testCase{
 		{
-			`x eq ""`,
-			obj{},
-			false,
-			false,
+			rule:     `x eq ""`,
+			input:    obj{},
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x eq ""`,
-			obj{
+			rule: `x eq ""`,
+			input: obj{
 				"x": "",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq "abc"`,
-			obj{
+			rule: `x eq "abc"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x eq "abc"`,
-			obj{
+			rule: `x eq "abc"`,
+			input: obj{
 				"y": "abc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne "abc"`,
-			obj{
+			rule: `x ne "abc"`,
+			input: obj{
 				"x": "abc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x le "abc"`,
-			obj{
+			rule: `x le "abc"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le "cde"`,
-			obj{
+			rule: `x le "cde"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x le "cde"`,
-			obj{
+			rule: `x le "cde"`,
+			input: obj{
 				"x": "efg",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x lt "cde"`,
-			obj{
+			rule: `x lt "cde"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x lt "cde"`,
-			obj{
+			rule: `x lt "cde"`,
+			input: obj{
 				"x": "cde",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x gt "cde"`,
-			obj{
+			rule: `x gt "cde"`,
+			input: obj{
 				"x": "def",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x gt "cde"`,
-			obj{
+			rule: `x gt "cde"`,
+			input: obj{
 				"x": "abc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ge "cde"`,
-			obj{
+			rule: `x ge "cde"`,
+			input: obj{
 				"x": "cde",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge "cde"`,
-			obj{
+			rule: `x ge "cde"`,
+			input: obj{
 				"x": "def",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x ge "cde"`,
-			obj{
+			rule: `x ge "cde"`,
+			input: obj{
 				"x": "abc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ne "abc"`,
-			obj{
+			rule: `x ne "abc"`,
+			input: obj{
 				"x": "cde",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x co "ab"`,
-			obj{
+			rule: `x co "ab"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x co "ab"`,
-			obj{
+			rule: `x co "ab"`,
+			input: obj{
 				"x": "bbc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x CO "ab"`,
-			obj{
+			rule: `x CO "ab"`,
+			input: obj{
 				"x": "bbc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x sw "ab"`,
-			obj{
+			rule: `x sw "ab"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x SW "ab"`,
-			obj{
+			rule: `x SW "ab"`,
+			input: obj{
 				"x": "abc",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x sw "ab"`,
-			obj{
+			rule: `x sw "ab"`,
+			input: obj{
 				"x": "bbc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 		{
-			`x ew "ab"`,
-			obj{
+			rule: `x ew "ab"`,
+			input: obj{
 				"x": "bab",
 			},
-			true,
-			false,
+			result:   true,
+			hasError: false,
 		},
 		{
-			`x EW "ab"`,
-			obj{
+			rule: `x EW "ab"`,
+			input: obj{
 				"x": "bbc",
 			},
-			false,
-			false,
+			result:   false,
+			hasError: false,
 		},
 	}
 

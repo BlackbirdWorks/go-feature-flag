@@ -15,8 +15,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                  string
 		config                *config.Config
+		name                  string
 		wantPort              int
 		wantDeprecationWarned bool
 		setLoggerNil          bool
@@ -166,8 +166,8 @@ func TestConfig_ServerPort(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                  string
 		config                *config.Config
+		name                  string
 		wantPort              int
 		wantDeprecationWarned bool
 		setLoggerNil          bool

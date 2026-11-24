@@ -19,9 +19,9 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr    assert.ErrorAssertionFunc
 		name       string
 		query      string
-		wantErr    assert.ErrorAssertionFunc
 		wantCached bool
 	}{
 		{

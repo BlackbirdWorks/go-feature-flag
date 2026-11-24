@@ -26,27 +26,27 @@ func TestWebhook_Export(t *testing.T) {
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	type fields struct {
+		Meta        map[string]string
+		Headers     map[string][]string
 		EndpointURL string
 		Secret      string
-		Meta        map[string]string
 		httpClient  testutils.HTTPClientMock
-		Headers     map[string][]string
 	}
 	type args struct {
 		logger        *fflog.FFLogger
 		featureEvents []exporter.ExportableEvent
 	}
 	type expected struct {
+		headers      map[string][]string
 		bodyFilePath string
 		signHeader   string
-		headers      map[string][]string
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		wantErr  bool
 		expected expected
+		name     string
+		args     args
+		fields   fields
+		wantErr  bool
 	}{
 		{
 			name: "Invalid EndpointURL",

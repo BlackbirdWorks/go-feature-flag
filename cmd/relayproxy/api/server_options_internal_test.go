@@ -12,9 +12,9 @@ import (
 )
 
 type serverOptions struct {
-	globalTelemetry    bool
 	listener           net.Listener
 	monitoringListener net.Listener
+	globalTelemetry    bool
 }
 
 func TestNew_Options(t *testing.T) {
@@ -24,9 +24,9 @@ func TestNew_Options(t *testing.T) {
 	monitoringListener := &net.TCPListener{}
 
 	tests := []struct {
+		want serverOptions
 		name string
 		opts []Option
-		want serverOptions
 	}{
 		{name: "no option", opts: nil, want: serverOptions{}},
 		{

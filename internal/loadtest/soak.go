@@ -114,17 +114,17 @@ type Window struct {
 
 // Report is the result of Run.
 type Report struct {
-	Name      string
-	Samples   []Sample
+	Extra   map[string]int64
+	Name    string
+	Samples []Sample
+	Reasons []string
+	// Window is the throughput and latency of the measured window; the zero value when it is too short.
+	Window    Window
 	TotalEval int64
 	TotalErr  int64
-	Extra     map[string]int64
-	Pass      bool
-	Reasons   []string
 	// HeapGrowthBytes is the growth of the median HeapInuse between the first and the last half of the measured window.
 	HeapGrowthBytes float64
-	// Window is the throughput and latency of the measured window; the zero value when it is too short.
-	Window Window
+	Pass            bool
 }
 
 const (

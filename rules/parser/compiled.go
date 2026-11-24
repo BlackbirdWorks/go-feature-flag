@@ -45,35 +45,30 @@ const (
 // below; present and compare nodes are allocated as a compareNode holding
 // the rest, so the common inner nodes stay small.
 type node struct {
-	kind nodeKind
-
+	left, right *node
+	cmp         *compareNode // present / compare: the compareNode this node is part of
+	kind        nodeKind
 	// paren / logical
 	not  bool // paren: negate the result
 	isOr bool // logical: or (true) / and (false)
-
-	left, right *node
-
-	cmp *compareNode // present / compare: the compareNode this node is part of
 }
 
 // compareNode is a present or compare node.
 type compareNode struct {
 	node
-
-	path []string
-
+	listOp  Operand // lists: the parsed list ([]int, []float64 or []string)
+	rightOp Operand // valueConst: operand set for the rule value
+	valErr  error   // valueConst: error set on eval (invalid integer)
+	listErr error   // lists: parse error of the first bad element; the list then holds the elements before it
+	intSet  *intSet // long int lists: hash index over listOp, used by IN
+	apply   func(Operand, Operand) (bool, error)
+	version *versionCompare // set instead of using apply for a pre-parsed rule version
+	strSet  *strSet         // long string lists: the packed list and its hash index, used by IN; listOp is nil then
 	// compare
 	attrPath string
+	path     []string
 	opType   int
-	apply    func(Operand, Operand) (bool, error)
-	version  *versionCompare // set instead of using apply for a pre-parsed rule version
 	valKind  valueKind
-	rightOp  Operand // valueConst: operand set for the rule value
-	valErr   error   // valueConst: error set on eval (invalid integer)
-	listErr  error   // lists: parse error of the first bad element; the list then holds the elements before it
-	strSet   *strSet // long string lists: the packed list and its hash index, used by IN; listOp is nil then
-	intSet   *intSet // long int lists: hash index over listOp, used by IN
-	listOp   Operand // lists: the parsed list ([]int, []float64 or []string)
 }
 
 func newCompareNode(kind nodeKind, path []string) *compareNode {
@@ -87,15 +82,12 @@ func newCompareNode(kind nodeKind, path []string) *compareNode {
 // evalState mirrors the mutable state the visitor keeps while walking a
 // rule, including its quirks (stale leftOp/rightOp, the attribute stack).
 type evalState struct {
-	item map[string]any
-
-	stack attrStack
-
-	leftOp  Operand
-	rightOp Operand
-
+	leftOp   Operand
+	rightOp  Operand
 	err      error
 	debugErr error
+	item     map[string]any
+	stack    attrStack
 }
 
 // attrStack is the visitor's attribute stack. The first attrStackInline
@@ -104,9 +96,9 @@ type evalState struct {
 // more. Nothing takes the address of inline, which would move the whole
 // evalState to the heap.
 type attrStack struct {
-	n      int
 	inline [attrStackInline]any
 	more   []any
+	n      int
 }
 
 const attrStackInline = 4
@@ -469,9 +461,9 @@ func applyFor(op Operation, opType int) func(Operand, Operand) (bool, error) {
 // versionCompare is a VersionOperation comparison whose rule version was
 // parsed at compile time.
 type versionCompare struct {
-	right semver.Version
 	// want reports whether left.Compare(right) satisfies the operator.
-	want func(cmp int) bool
+	want  func(cmp int) bool
+	right semver.Version
 }
 
 // compileVersionCompare returns a comparison against the pre-parsed version

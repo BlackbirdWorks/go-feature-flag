@@ -14,14 +14,13 @@ type ExporterMock interface {
 	GetExportedEvents() []exporter.ExportableEvent
 }
 type Exporter struct {
-	ExportedEvents    []exporter.ExportableEvent
 	Err               error
+	ExportedEvents    []exporter.ExportableEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
+	once              sync.Once
+	mutex             sync.Mutex
 	Bulk              bool
-
-	mutex sync.Mutex
-	once  sync.Once
 }
 
 func (m *Exporter) Export(
@@ -62,14 +61,13 @@ func (m *Exporter) initMutex() {
 
 // ExporterDeprecated -----.
 type ExporterDeprecated struct {
-	ExportedEvents    []exporter.FeatureEvent
 	Err               error
+	ExportedEvents    []exporter.FeatureEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
+	once              sync.Once
+	mutex             sync.Mutex
 	Bulk              bool
-
-	mutex sync.Mutex
-	once  sync.Once
 }
 
 func (m *ExporterDeprecated) Export(
@@ -115,14 +113,13 @@ func (m *ExporterDeprecated) initMutex() {
 
 // ExporterDeprecatedV2 -----.
 type ExporterDeprecatedV2 struct {
-	ExportedEvents    []exporter.FeatureEvent
 	Err               error
+	ExportedEvents    []exporter.FeatureEvent
 	ExpectedNumberErr int
 	CurrentNumberErr  int
+	once              sync.Once
+	mutex             sync.Mutex
 	Bulk              bool
-
-	mutex sync.Mutex
-	once  sync.Once
 }
 
 func (m *ExporterDeprecatedV2) Export(

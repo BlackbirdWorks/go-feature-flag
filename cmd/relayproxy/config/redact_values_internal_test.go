@@ -19,10 +19,10 @@ func TestRedactValue(t *testing.T) {
 	var nilPtr *string
 	probe := redactProbe{hidden: "x"}
 	tests := []struct {
-		name  string
-		value reflect.Value
-		depth int
 		want  any
+		value reflect.Value
+		name  string
+		depth int
 	}{
 		{name: "invalid value", value: reflect.Value{}, want: nil},
 		{name: "too deep", value: reflect.ValueOf("deep"), depth: maxRedactDepth + 1, want: nil},

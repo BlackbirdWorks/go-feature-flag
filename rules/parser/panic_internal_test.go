@@ -21,11 +21,11 @@ func TestNestedError(t *testing.T) {
 	base := errSomeRandomError
 	wrapper := fmt.Errorf("wrapped: %w", newNestedError(base, "a"))
 	tests := []struct {
-		name     string
-		err      *NestedError
 		original error
-		want     string
+		err      *NestedError
 		wantVals ErrVals
+		name     string
+		want     string
 	}{
 		{
 			name:     "nested",

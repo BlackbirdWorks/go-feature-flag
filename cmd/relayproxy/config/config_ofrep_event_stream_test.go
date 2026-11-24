@@ -12,9 +12,9 @@ func TestOfrepEventStream_IsValid(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr     assert.ErrorAssertionFunc
 		name        string
 		eventStream config.OfrepEventStream
-		wantErr     assert.ErrorAssertionFunc
 	}{
 		{
 			name:        "default configuration",

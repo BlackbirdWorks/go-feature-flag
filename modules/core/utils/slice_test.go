@@ -12,8 +12,8 @@ func TestContains(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		s   []string
 		str string
+		s   []string
 	}
 	tests := []struct {
 		name string

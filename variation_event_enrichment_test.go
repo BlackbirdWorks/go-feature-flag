@@ -18,8 +18,8 @@ import (
 )
 
 type collectingExporter struct {
-	mu     sync.Mutex
 	events []exporter.FeatureEvent
+	mu     sync.Mutex
 }
 
 func (c *collectingExporter) IsBulk() bool { return true }

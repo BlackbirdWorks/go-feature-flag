@@ -26,10 +26,10 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		diff             notifier.DiffCache
 		name             string
 		subscribeFlagset string
 		broadcastFlagset string
-		diff             notifier.DiffCache
 		expectReceive    bool
 	}{
 		{
@@ -142,9 +142,9 @@ func TestSSEService_Close(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		wantStream string
 		connect    bool
 		closeTwice bool
-		wantStream string
 	}{
 		{
 			name:       "closing the service ends the stream of a connected client",

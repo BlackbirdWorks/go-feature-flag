@@ -8,9 +8,9 @@ import (
 
 // compiledQuery is the trimmed form, the format and the decoded JsonLogic rule of a raw query.
 type compiledQuery struct {
+	jsonLogic any
 	trimmed   string
 	format    QueryFormat
-	jsonLogic any
 }
 
 // compiledQuery returns the compiled form of raw. It is memoized per raw query by the Service: only

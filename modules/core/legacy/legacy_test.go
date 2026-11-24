@@ -60,8 +60,8 @@ func TestWarnerConcurrentUse(t *testing.T) {
 func TestWarnerWithoutDestination(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		warner *legacy.Warner
+		name   string
 		// wantPanics is whether warning through this warner panics: neither of them does, the warning is dropped
 		wantPanics bool
 	}{

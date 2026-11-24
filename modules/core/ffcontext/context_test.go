@@ -14,14 +14,14 @@ func TestUserAddCustomAttribute(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		name  string
 		value any
+		name  string
 	}
 	tests := []struct {
-		name string
-		user ffcontext.EvaluationContext
 		args args
+		user ffcontext.EvaluationContext
 		want map[string]any
+		name string
 	}{
 		{
 			name: "trying to add nil value",
@@ -313,9 +313,9 @@ func TestEvaluationContextToMap(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		context  ffcontext.EvaluationContext
 		expected map[string]any
+		name     string
 	}{
 		{
 			name:     "empty attributes",
@@ -420,11 +420,11 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 	newDate := "2025-01-02T03:04:05Z"
 	legacyDate := "2020-01-02T03:04:05Z"
 	tests := []struct {
-		name       string
 		attributes map[string]any
-		wantFlags  []string
-		wantDate   string
 		wantMeta   map[string]any
+		name       string
+		wantDate   string
+		wantFlags  []string
 	}{
 		{
 			name: "semaphore key",

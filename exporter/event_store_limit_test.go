@@ -42,17 +42,17 @@ func Test_EventStoreWithLimit(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
-		// steps are executed in order against a store limited to limit events
-		limit          int64
-		adds           int
-		consume        bool // consume everything after the adds
 		consumeErr     error
+		name           string
 		wantConsumeErr string
-		addsAfter      int
-		wantStored     int64
-		wantDropped    int64
 		wantOut        []string // events exported by the (successful) consume, in order
+		// steps are executed in order against a store limited to limit events
+		limit       int64
+		adds        int
+		addsAfter   int
+		wantStored  int64
+		wantDropped int64
+		consume     bool // consume everything after the adds
 	}{
 		{name: "no limit keeps everything", limit: 0, adds: 50, wantStored: 50},
 		{name: "under the limit", limit: 10, adds: 10, wantStored: 10},

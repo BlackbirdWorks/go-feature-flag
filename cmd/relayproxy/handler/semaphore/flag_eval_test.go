@@ -29,11 +29,11 @@ func Test_flag_eval_Handler(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
-		handlerErr bool
 		errorMsg   string
+		httpCode   int
 		errorCode  int
+		handlerErr bool
 	}
 
 	type args struct {
@@ -230,9 +230,9 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		flagKeys []string
 		bodyFile string
 		want     string
+		flagKeys []string
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",

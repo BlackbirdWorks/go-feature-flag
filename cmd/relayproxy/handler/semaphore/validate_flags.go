@@ -32,8 +32,8 @@ type FlagValidationError struct {
 // FlagValidationResponse is the response of the validate flags endpoint.
 type FlagValidationResponse struct {
 	Version string                `json:"version" example:"v1.0.0"`
-	Valid   bool                  `json:"valid"`
 	Errors  []FlagValidationError `json:"errors"`
+	Valid   bool                  `json:"valid"`
 }
 
 // NewValidateFlags initializes the controller for the /admin/v1/flags/validate endpoint.

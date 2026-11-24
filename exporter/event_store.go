@@ -26,28 +26,28 @@ var (
 const minOffset = int64(math.MinInt64)
 
 type eventStoreImpl[T ExportableEvent] struct {
-	// events is a list of events to store
-	events []EventStoreItem[T]
-	// mutex to protect the events and consumers
-	mutex sync.RWMutex
 	// consumers is a map of consumers with their name as key
 	consumers map[string]*consumer
-	// lastOffset is the last offset used for the Event store
-	lastOffset int64
 	// stopPeriodicCleaning is a channel to stop the periodic cleaning goroutine
 	stopPeriodicCleaning chan struct{}
-	// stopOnce guarantees that we close stopPeriodicCleaning only once, Stop() is reachable
-	// from the exporter manager and directly from the tests.
-	stopOnce sync.Once
+	// onDrop is called (outside of the lock) with the total number of dropped events, each time
+	// events have been dropped. It must be cheap and non-blocking.
+	onDrop func(totalDropped int64)
+	// events is a list of events to store
+	events []EventStoreItem[T]
+	// lastOffset is the last offset used for the Event store
+	lastOffset int64
 	// cleanQueueInterval is the duration between each cleaning
 	cleanQueueInterval time.Duration
 	// maxEvents is the hard limit of events kept in the store, 0 means unlimited.
 	maxEvents int64
 	// dropped is the number of events rejected because the store was full.
 	dropped atomic.Int64
-	// onDrop is called (outside of the lock) with the total number of dropped events, each time
-	// events have been dropped. It must be cheap and non-blocking.
-	onDrop func(totalDropped int64)
+	// mutex to protect the events and consumers
+	mutex sync.RWMutex
+	// stopOnce guarantees that we close stopPeriodicCleaning only once, Stop() is reachable
+	// from the exporter manager and directly from the tests.
+	stopOnce sync.Once
 }
 
 // NewEventStore creates an event store without any limit on the number of events it keeps.
@@ -118,8 +118,8 @@ type EventStore[T ExportableEvent] interface {
 }
 
 type EventStoreItem[T ExportableEvent] struct {
-	Offset int64
 	Data   T
+	Offset int64
 }
 
 // consumer serializes ProcessPendingEvents calls for a single consumer.

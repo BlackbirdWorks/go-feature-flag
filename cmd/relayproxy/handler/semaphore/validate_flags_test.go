@@ -114,17 +114,17 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	oversizedJSON := padTo(validJSON, " ", jsonBodyLimit+1)
 
 	tests := []struct {
+		reader      io.Reader
 		name        string
 		contentType string
 		body        string
 		// altMessage is the message returned when modules/core validates the flag without panicking.
 		altMessage string
-		reader     io.Reader
-		chunked    bool
+		wantErrors []controller.FlagValidationError
 		limits     config.ValidateFlagsEndpoint
 		wantStatus int
+		chunked    bool
 		wantValid  bool
-		wantErrors []controller.FlagValidationError
 	}{
 		{
 			name:        "valid json",

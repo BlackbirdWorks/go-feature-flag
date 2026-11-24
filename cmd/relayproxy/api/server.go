@@ -84,25 +84,24 @@ func WithGlobalTelemetry() Option {
 
 // Server is the struct that represents the API server.
 type Server struct {
-	config         *config.Config
-	apiEcho        *echo.Echo
-	monitoringEcho *echo.Echo
-	services       service.Services
-	zapLog         *zap.Logger
-	otelService    opentelemetry.OtelService
-	// installGlobalTelemetry is set by WithGlobalTelemetry.
-	installGlobalTelemetry bool
+	otelService opentelemetry.OtelService
 	// listener is set by WithListener, the server then serves on it instead of listening on the configured address.
 	listener net.Listener
 	// monitoringListener is set by WithMonitoringListener, the monitoring server then serves on it.
 	monitoringListener net.Listener
-
+	config             *config.Config
+	apiEcho            *echo.Echo
+	monitoringEcho     *echo.Echo
+	zapLog             *zap.Logger
 	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
 	// the servers started by StartWithContext.
 	stopRequested chan struct{}
 	stop          func()
 	// stopped is closed when StartWithContext returns.
-	stopped chan struct{}
+	stopped  chan struct{}
+	services service.Services
+	// installGlobalTelemetry is set by WithGlobalTelemetry.
+	installGlobalTelemetry bool
 }
 
 // initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy.

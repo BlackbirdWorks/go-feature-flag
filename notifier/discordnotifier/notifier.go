@@ -39,10 +39,9 @@ const (
 
 // Notifier is the component in charge of sending flag changes to Discord.
 type Notifier struct {
+	httpClient        internal.HTTPClient
 	DiscordWebhookURL string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	init              sync.Once
 }
 
 // Notify is the notifying all the changes to the notifier.
@@ -169,11 +168,10 @@ type discordMessage struct {
 
 type embed struct {
 	Title       string `json:"title"`
-	Color       int    `json:"color"`
 	Description string `json:"description,omitempty"`
-
 	// changes are the changes listed in Description, kept to shorten the list if the message is too long.
 	changes []string
+	Color   int `json:"color"`
 }
 
 // fitTotalLength shortens change lists so all embeds fit in the characters Discord accepts

@@ -17,8 +17,8 @@ func TestValidate(t *testing.T) {
 		item      string
 		prefix    string
 		pattern   string
-		recursive bool
 		wantErr   string
+		recursive bool
 	}{
 		{name: "item only", item: "a.yaml"},
 		{name: "nothing is the bucket root"},

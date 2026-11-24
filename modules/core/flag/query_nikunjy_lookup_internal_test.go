@@ -106,11 +106,11 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 
 	const query = `key eq "shared"`
 	tests := []struct {
-		name  string
-		flags int
-		rules int
 		// queryOf returns the query of rule r of flag f.
 		queryOf func(f, r int) string
+		name    string
+		flags   int
+		rules   int
 		// wantEvaluators is the number of distinct evaluators behind all the rules.
 		wantEvaluators int
 	}{
@@ -225,12 +225,12 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		n    int
 		// listA and listB differ in exactly one id (or in one more id).
 		listB     func(n int) string
+		name      string
 		wantOnlyA string // only in A
 		wantOnlyB string // only in B
+		n         int
 	}{
 		{
 			name:      "300k ids, one id differs, same length",
@@ -293,13 +293,13 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		// mutate changes a validated rule, or returns another rule to evaluate.
 		mutate func(r *Rule) *Rule
-		// wantIndexed is whether the rule can still be found by its hash.
-		wantIndexed bool
+		name   string
 		// matches and wantNoMatch are keys that must (not) apply to the rule afterwards.
 		wantMatches, wantNoMatch string
+		// wantIndexed is whether the rule can still be found by its hash.
+		wantIndexed bool
 	}{
 		{
 			name:        "unchanged rule",
@@ -438,8 +438,8 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		hash func(string) uint64
+		name string
 		// wantQueries is the number of distinct queries that must each get their own text and evaluator
 		wantQueries int
 	}{
@@ -533,12 +533,12 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		query string
-		// valid is whether the flag is valid.
-		wantValid   bool
+		name        string
+		query       string
 		wantMatches string
 		wantNoMatch string
+		// valid is whether the flag is valid.
+		wantValid bool
 	}{
 		{
 			name:        "jsonlogic query",
@@ -664,8 +664,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 	svc := newIndexingService()
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
 	var current struct {
-		mu    sync.RWMutex
 		flags []*InternalFlag
+		mu    sync.RWMutex
 	}
 	newSet := func(i int) []*InternalFlag {
 		a, b := listA, listB
@@ -955,9 +955,9 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 
 	query := idList(200, -1, "")
 	tests := []struct {
-		name string
 		// invalid makes the flag that carries the known query fail its validation.
 		invalid func(f *InternalFlag)
+		name    string
 		// wantRefsWhileInvalid is the number of key references while the invalid flag lives, wantRefsAfter once
 		// it is collected
 		wantRefsWhileInvalid, wantRefsAfter int

@@ -106,15 +106,15 @@ func TestGenerateDefinition(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
 		flags      map[string]flag.InternalFlag
+		name       string
 		goldenFile string
-		// wantLogs is the set of expected slog messages. Map iteration is
-		// non-deterministic, so order is not asserted.
-		wantLogs []string
 		// wantErr, when non-empty, asserts the returned error contains it.
 		// In that case the manifest output (and golden file) are not checked.
 		wantErr string
+		// wantLogs is the set of expected slog messages. Map iteration is
+		// non-deterministic, so order is not asserted.
+		wantLogs []string
 	}{
 		{
 			name:       "empty input produces empty manifest",

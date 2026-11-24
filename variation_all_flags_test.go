@@ -88,9 +88,9 @@ func TestAllFlagsState(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		wantJSONFile string
 		config       ffclient.Config
 		wantValid    bool
-		wantJSONFile string
 		initModule   bool
 	}{
 		{
@@ -172,12 +172,12 @@ func TestGetFlagStates(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		evaluationContext ffcontext.EvaluationContext
 		name              string
+		wantJSONFile      string
 		config            ffclient.Config
 		wantValid         bool
-		wantJSONFile      string
 		initModule        bool
-		evaluationContext ffcontext.EvaluationContext
 	}{
 		{
 			name: "Valid multiple flags",
@@ -282,11 +282,11 @@ func TestAllFlagsFromCache(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr    assert.ErrorAssertionFunc
 		name       string
 		config     ffclient.Config
-		initModule bool
 		wantFlags  int
-		wantErr    assert.ErrorAssertionFunc
+		initModule bool
 	}{
 		{
 			name: "Valid multiple types",

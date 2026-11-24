@@ -256,8 +256,8 @@ studio:
 		name         string
 		newBody      string // new content served by the server
 		newFile      string // new content of the configuration file
-		wantPort     int
 		wantFlagSets []string
+		wantPort     int
 	}{
 		{
 			name:         "the URL changes",
@@ -384,14 +384,14 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		body   string
-		status int
+		name string
+		body string
 		// wantRetryETag is the ETag the failed updates keep sending, wantCached the cache file after them and
 		// wantFlagSets the flagsets after the recovery.
 		wantRetryETag string
 		wantCached    string
 		wantFlagSets  []string
+		status        int
 	}{
 		{
 			name: "HTTP error", status: http.StatusServiceUnavailable,

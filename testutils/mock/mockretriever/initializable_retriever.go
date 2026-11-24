@@ -14,13 +14,13 @@ var (
 
 // InitializableRetriever implements the standard InitializableRetriever interface.
 type InitializableRetriever struct {
+	ReceivedLogger *fflog.FFLogger
 	Name           string
 	InitShouldFail bool
 	RetrieveCalled bool
 	InitCalled     bool
 	ShutdownCalled bool
 	StatusCalled   bool
-	ReceivedLogger *fflog.FFLogger
 }
 
 func NewInitializableRetriever(name string) *InitializableRetriever {

@@ -30,13 +30,13 @@ var (
 // environProvider is koanf's env provider reading the variables from environ instead of [os.Environ], so
 // the tests do not have to change the environment of the process.
 type environProvider struct {
-	prefix  string
 	environ func() []string
 	cb      func(key, value string) (string, any)
 	// skip (optional) tells the variables to leave out, by the name without the prefix and the value.
 	skip func(key, value string) bool
 	// skipped (optional) receives the names of the variables left out.
 	skipped func(names []string)
+	prefix  string
 }
 
 // ReadBytes is not supported by the environment provider.

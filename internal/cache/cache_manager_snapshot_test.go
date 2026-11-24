@@ -21,10 +21,10 @@ import (
 func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
+		want   any
 		mutate func(f *flag.InternalFlag)
 		read   func(f flag.Flag) any
-		want   any
+		name   string
 	}{
 		{
 			name: "disable the flag in the snapshot",
@@ -136,8 +136,8 @@ const nestedFlagYAML = `nested:
 func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		mutate func(f *flag.InternalFlag)
+		name   string
 		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
 		wantLiveChanged bool
 	}{

@@ -20,10 +20,10 @@ func TestFFLogger_Error(t *testing.T) {
 		keysAndValues []any
 	}
 	tests := []struct {
-		name        string
 		logger      *fflog.FFLogger
-		fields      fields
+		name        string
 		expectedLog string
+		fields      fields
 	}{
 		{
 			name: "Test Happy Path - slog",
@@ -152,10 +152,10 @@ func TestFFLogger_Warn(t *testing.T) {
 		keysAndValues []any
 	}
 	tests := []struct {
-		name        string
 		logger      *fflog.FFLogger
-		fields      fields
+		name        string
 		expectedLog string
+		fields      fields
 	}{
 		{
 			name: "Test Happy Path - slog",
@@ -284,10 +284,10 @@ func TestFFLogger_Info(t *testing.T) {
 		keysAndValues []any
 	}
 	tests := []struct {
-		name        string
 		logger      *fflog.FFLogger
-		fields      fields
+		name        string
 		expectedLog string
+		fields      fields
 	}{
 		{
 			name: "Test Happy Path - slog",
@@ -416,10 +416,10 @@ func TestFFLogger_Debug(t *testing.T) {
 		keysAndValues []any
 	}
 	tests := []struct {
-		name        string
 		logger      *fflog.FFLogger
-		fields      fields
+		name        string
 		expectedLog string
+		fields      fields
 	}{
 		{
 			name: "Test Happy Path - slog",

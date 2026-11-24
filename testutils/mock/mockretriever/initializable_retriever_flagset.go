@@ -9,14 +9,14 @@ import (
 
 // InitializableRetrieverWithFlagset implements the InitializableRetrieverWithFlagset interface.
 type InitializableRetrieverWithFlagset struct {
+	ReceivedLogger  *fflog.FFLogger
+	ReceivedFlagset *string
 	Name            string
 	InitShouldFail  bool
 	RetrieveCalled  bool
 	InitCalled      bool
 	ShutdownCalled  bool
 	StatusCalled    bool
-	ReceivedLogger  *fflog.FFLogger
-	ReceivedFlagset *string
 }
 
 func NewInitializableRetrieverWithFlagset(name string) *InitializableRetrieverWithFlagset {
