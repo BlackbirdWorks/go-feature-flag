@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/big"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,10 +21,7 @@ func TestEvaluateIntegerLiteralBounds(t *testing.T) {
 	t.Parallel()
 
 	maxInt, minInt := strconv.Itoa(math.MaxInt), strconv.Itoa(math.MinInt)
-	hugeDigits := "9"
-	for i := 0; i < 40; i++ {
-		hugeDigits += "9"
-	}
+	hugeDigits := strings.Repeat("9", 41)
 
 	tests := []struct {
 		name    string
@@ -56,7 +54,12 @@ func TestEvaluateIntegerLiteralBounds(t *testing.T) {
 		{name: "list with min int is a syntax error", rule: `x in [` + minInt + `, 1]`, value: 1, wantErr: true},
 		{name: "list with max int + 1", rule: `x in [1, ` + plusOne(math.MaxInt) + `]`, value: 1, wantErr: true},
 		{name: "list with huge first element", rule: `x in [` + hugeDigits + `, 1]`, value: 1, wantErr: true},
-		{name: "list with uint64 max does not wrap to -1", rule: `x in [18446744073709551615]`, value: -1, wantErr: true},
+		{
+			name:    "list with uint64 max does not wrap to -1",
+			rule:    `x in [18446744073709551615]`,
+			value:   -1,
+			wantErr: true,
+		},
 		{name: "list with 2^32 does not wrap to 0", rule: `x in [4294967296, 5]`, value: 0, want: false},
 	}
 	for _, tt := range tests {
@@ -66,6 +69,7 @@ func TestEvaluateIntegerLiteralBounds(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.False(t, got)
+
 				return
 			}
 			require.NoError(t, err)

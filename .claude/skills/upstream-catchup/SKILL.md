@@ -108,13 +108,13 @@ SHA and PR number.
   `git diff --name-only --cached | grep -E '\.(go|mod)$' | xargs sed -i "s#github.com/thomaspoignant/go-feature-flag#$MOD#g"`
   and `git commit -c <sha>`; or
   `git format-patch -1 --stdout <sha> | sed "s#github.com/thomaspoignant/go-feature-flag#$MOD#g" | git am -3 --trailer "(cherry picked from upstream $sha)"`.
-  Do not rewrite `go.sum` hunks or the `replace` line for `rules`; keep the local `replace` directive. Upstream's go.mod/go.sum hunks under `modules/core` have no counterpart here (`modules/core` is a plain directory of the root module): drop them and carry their dependency changes into the root `go.mod`.
+  Do not rewrite `go.sum` hunks. Upstream's go.mod/go.sum hunks under `modules/core` have no counterpart here (`modules/core` is a plain directory of the root module): drop them and carry their dependency changes into the root `go.mod`.
   Upstream names that were renamed here (directories, binaries, `goff-proxy`, `gofeatureflag*` keys) are listed in
   `UPSTREAM.md`, "Path and name mapping": port such hunks by hand to the Semaphore name and keep the alias behaviour.
 - Paths deleted locally (e.g. `cmd/wasm`): in a conflict, `git rm` the "deleted by us" files and
   continue; the rest of the commit still applies.
 - Dependency bumps: do not cherry-pick `go.sum` hunks. Re-run the bump in each module that uses it
-  (`rules`, root; dependencies of `modules/core` live in the root `go.mod`): `go get <mod>@<ver> && go mod tidy`, then `make tidy-check`.
+  (root only; dependencies of `modules/core` and `rules` live in the root `go.mod`): `go get <mod>@<ver> && go mod tidy`, then `make tidy-check`.
 - ALREADY-HAVE: reconcile as described in step 3.
 
 ## 6. Verify
@@ -151,9 +151,10 @@ gh pr view 2 -R go-feature-flag/rules --json state,mergedAt,mergeCommit
 gh api repos/go-feature-flag/rules/compare/<pinned>...main --jq '.commits[] | "\(.sha[0:10]) \(.commit.message | split("\n")[0])"'
 git clone https://github.com/go-feature-flag/rules "$TMPDIR/rules-src" && git -C "$TMPDIR/rules-src" checkout <new-sha>
 rsync -a --delete --exclude LICENSE --exclude go.mod --exclude go.sum --exclude .git "$TMPDIR/rules-src/" rules/
+# then rewrite the upstream module path in the imports under rules/ to github.com/blackbirdworks/semaphore/rules
 ```
 
-Keep `rules/LICENSE`, keep the local `go.mod` module path and `go` directive, re-add local-only
+Keep `rules/LICENSE`, never re-add `rules/go.mod` or `rules/go.sum` (rules is part of the root module; merge any new dependency into the root `go.mod`), keep the rewritten import paths, re-add local-only
 changes (`git diff` shows them), update the pinned commit in `rules/README.md` and `UPSTREAM.md`,
-then run `make tidy-check test` (the root `replace` makes the engine tests exercise it).
+then run `make tidy-check lint test`.
 If PR #2 was merged, pin to the merge commit; if closed, keep the pin and say so in the table.

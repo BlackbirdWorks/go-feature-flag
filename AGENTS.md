@@ -16,7 +16,7 @@ divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs),
 - `cmd/cli/`: command line (`evaluate`, `lint`, `generate`); `cmd/jsonschema-generator/`.
 - `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
 - `modules/core/`: flag, context and evaluation logic (a directory of the root module, not a separate module).
-- `rules/`: vendored rules engine (separate module, own `LICENSE`, must be kept).
+- `rules/`: vendored rules engine (a directory of the root module, import path `github.com/blackbirdworks/semaphore/rules`; own `LICENSE`, must be kept).
 - `internal/`, `ffcontext/`, `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
 - `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
 - `.schema/flag-schema.json`: JSON schema of the flag file.
@@ -58,7 +58,7 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 - Evaluation-context key `semaphore` (and its sub-keys), legacy `gofeatureflag`; OFREP metadata `semaphore_cacheable` and `gofeatureflag_cacheable`; headers `X-SEMAPHORE-VERSION` and `X-GOFEATUREFLAG-VERSION`.
 - Prometheus prefix `semaphore_`, legacy `gofeatureflag_` behind `exposeLegacyMetrics`. OpenTelemetry service name and scope default to `semaphore`.
 - Wire paths, JSON field names and the flag file format are not renamed; the provider tests in `openfeature/provider_tests` run the upstream providers and must keep passing.
-- Go module path `github.com/blackbirdworks/semaphore` (nested modules below it).
+- Go module path `github.com/blackbirdworks/semaphore` (a single Go module; `openfeature/provider_tests/go-integration-tests` is the only other `go.mod`).
 
 ## Entry points
 

@@ -10,11 +10,11 @@ import (
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nikunjy/rules/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 // newIndexingService creates a Service that gives keys to the short queries of the tests too.

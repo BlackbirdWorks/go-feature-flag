@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func countSets(n *node) (c int) {
@@ -16,6 +20,7 @@ func countSets(n *node) (c int) {
 	if n.cmp != nil && (n.cmp.strSet != nil || n.cmp.intSet != nil) {
 		c++
 	}
+
 	return c + countSets(n.left) + countSets(n.right)
 }
 
@@ -25,6 +30,7 @@ func seqStrs(n int) string {
 	for i := range parts {
 		parts[i] = fmt.Sprintf("%q", fmt.Sprintf("u%d", i))
 	}
+
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
@@ -32,13 +38,32 @@ func seqStrs(n int) string {
 func seqInts(n int) string {
 	parts := make([]string, n)
 	for i := range parts {
-		parts[i] = fmt.Sprint(i)
+		parts[i] = strconv.Itoa(i)
 	}
+
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 func randStrList(r *rand.Rand, n int) string {
-	pool := []string{"a", "A", "u1", "U1", "", "ß", "é", "é", "1.2.3", "5", "true", "null", "x y", `q\"q`, "日本", "İ", "i"}
+	pool := []string{
+		"a",
+		"A",
+		"u1",
+		"U1",
+		"",
+		"ß",
+		"é",
+		"é",
+		"1.2.3",
+		"5",
+		"true",
+		"null",
+		"x y",
+		`q\"q`,
+		"日本",
+		"İ",
+		"i",
+	}
 	parts := make([]string, n)
 	for i := range parts {
 		s := fmt.Sprintf("u%d", r.Intn(n*2+1))
@@ -47,6 +72,7 @@ func randStrList(r *rand.Rand, n int) string {
 		}
 		parts[i] = `"` + s + `"` // pool entries containing \" are already escaped
 	}
+
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
@@ -59,18 +85,19 @@ func randIntList(r *rand.Rand, n int, bad bool) string {
 		case 0:
 			parts[i] = "0"
 		case 1:
-			parts[i] = fmt.Sprint(r.Intn(10)) // the grammar has no negative list ints
+			parts[i] = strconv.Itoa(r.Intn(10)) // the grammar has no negative list ints
 		default:
-			parts[i] = fmt.Sprint(r.Intn(n * 2))
+			parts[i] = strconv.Itoa(r.Intn(n * 2))
 		}
 	}
 	if bad && n > 2 {
 		parts[r.Intn(n)] = "99999999999999999999"
 	}
+
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-type kv = map[string]interface{}
+type kv = map[string]any
 
 // TestInSet checks IN / NOT IN results on lists above the set threshold
 // against hand-written expectations and against the original visitor, which
@@ -125,32 +152,24 @@ func TestInSet(t *testing.T) {
 		{"short int list", "n in " + seqInts(5), kv{"n": 4}, true, false},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tc.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			// the visitor must run first: it reads the parse tree that Process
 			// compiles away. The second pass reuses the compiled rule.
 			wantRet, wantErr, wantDebug := visitorProcess(ev.tree, tc.input)
-			for pass := 0; pass < 2; pass++ {
+			for pass := range 2 {
 				got, err := ev.Process(tc.input)
-				if err != nil && tc.want {
-					t.Fatalf("pass %d: unexpected error %v", pass, err)
+				if tc.want {
+					require.NoError(t, err, "pass %d", pass)
 				}
-				if got != tc.want {
-					t.Fatalf("pass %d: got %v, want %v (err %v)", pass, got, tc.want, err)
-				}
-				if got != wantRet || errString(err) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
-					t.Fatalf("pass %d: got %v/%q/%q, visitor %v/%q/%q", pass,
-						got, errString(err), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
-				}
+				require.Equal(t, tc.want, got, "pass %d (err %v)", pass, err)
+				require.Equal(t, wantRet, got, "pass %d: visitor result", pass)
+				require.Equal(t, errString(wantErr), errString(err), "pass %d: visitor err", pass)
+				require.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "pass %d: visitor debug err", pass)
 			}
-			if hasSet := countSets(ev.root) > 0; hasSet != tc.wantSet {
-				t.Fatalf("hash set compiled = %v, want %v", hasSet, tc.wantSet)
-			}
+			require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")
 		})
 	}
 }
@@ -171,32 +190,34 @@ func TestInSetThreshold(t *testing.T) {
 	}
 	for _, kind := range []string{"string", "int"} {
 		for _, tc := range tests {
-			tc := tc
 			t.Run(kind+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
 				var rule string
-				var first, last, miss interface{}
+				var first, last, miss any
 				if kind == "string" {
-					rule, first, last, miss = "x in "+seqStrs(tc.n), "u0", fmt.Sprintf("u%d", tc.n-1), fmt.Sprintf("u%d", tc.n)
+					rule, first, last, miss = "x in "+seqStrs(
+						tc.n,
+					), "u0", fmt.Sprintf(
+						"u%d",
+						tc.n-1,
+					), fmt.Sprintf(
+						"u%d",
+						tc.n,
+					)
 				} else {
 					rule, first, last, miss = "x in "+seqInts(tc.n), 0, tc.n-1, tc.n
 				}
 				ev, err := NewEvaluator(rule)
-				if err != nil {
-					t.Fatal(err)
-				}
+				require.NoError(t, err)
 				for _, c := range []struct {
-					v    interface{}
+					v    any
 					want bool
 				}{{first, true}, {last, true}, {miss, false}} {
 					got, err := ev.Process(kv{"x": c.v})
-					if err != nil || got != c.want {
-						t.Fatalf("x=%v: got %v, %v; want %v", c.v, got, err, c.want)
-					}
+					require.NoError(t, err, "x=%v", c.v)
+					require.Equal(t, c.want, got, "x=%v", c.v)
 				}
-				if hasSet := countSets(ev.root) > 0; hasSet != tc.wantSet {
-					t.Fatalf("hash set compiled = %v, want %v", hasSet, tc.wantSet)
-				}
+				require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")
 			})
 		}
 	}
@@ -207,22 +228,63 @@ func TestInSetThreshold(t *testing.T) {
 // errors and debug errors must be identical.
 func TestInSetDifferential(t *testing.T) {
 	t.Parallel()
-	vals := []interface{}{"u1", "U1", "u3", "a", "A", "", "é", "é", "ß", "SS", "5", "1.2.3", "null", "i", "İ", "日本",
-		0, 1, 3, -1, 5, 15, int64(3), int32(3), uint(3), 3.0, 2.0, 0.0, math.Copysign(0, -1), math.NaN(), math.Inf(1), float32(3),
-		true, false, nil, []string{"u1"}, []int{3}, kv{"a": 1}, testStringer{"u1"}, testStringer{"U1"}, fmt.Stringer(nil), "\xff"}
-	inputs := []kv{nil, {}}
+	vals := []any{
+		"u1",
+		"U1",
+		"u3",
+		"a",
+		"A",
+		"",
+		"é",
+		"é",
+		"ß",
+		"SS",
+		"5",
+		"1.2.3",
+		"null",
+		"i",
+		"İ",
+		"日本",
+		0,
+		1,
+		3,
+		-1,
+		5,
+		15,
+		int64(3),
+		int32(3),
+		uint(3),
+		3.0,
+		2.0,
+		0.0,
+		math.Copysign(0, -1),
+		math.NaN(),
+		math.Inf(1),
+		float32(3),
+		true,
+		false,
+		nil,
+		[]string{"u1"},
+		[]int{3},
+		kv{"a": 1},
+		testStringer{"u1"},
+		testStringer{"U1"},
+		fmt.Stringer(nil),
+		"\xff",
+	}
+	inputs := make([]kv, 0, 2+len(vals)+3)
+	inputs = append(inputs, nil, kv{})
 	for _, v := range vals {
 		inputs = append(inputs, kv{"s": v, "n": v, "u": kv{"s": v, "n": v}})
 	}
 	inputs = append(inputs, kv{"n": 3, "s": "u1"}, kv{"n": "x", "s": 3}, kv{"other": 1})
 
 	for _, size := range []int{1, 7, inSetMinLen - 1, inSetMinLen, inSetMinLen + 1, 200} {
-		size := size
 		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
 			t.Parallel()
 			r := rand.New(rand.NewSource(int64(7 + size)))
-			var rules []string
-			for k := 0; k < 2; k++ {
+			rules := make([]string, 0, 39)
+			for range 2 {
 				sl, il, ilBad := randStrList(r, size), randIntList(r, size, false), randIntList(r, size, true)
 				rules = append(rules,
 					"s in "+sl, "s IN "+sl, "u.s in "+sl, "not (s in "+sl+")", "NOT (n in "+il+")",
@@ -250,19 +312,35 @@ func TestInSetDifferential(t *testing.T) {
 					fresh := &Evaluator{rule: rule, tree: tree}
 					for name, ev := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
 						gotRet, gotErr := ev.Process(in)
-						if gotRet != wantRet || errString(gotErr) != errString(wantErr) || errString(ev.LastDebugErr()) != errString(wantDebug) {
-							t.Errorf("%.80q input %d %v (%s): got %v/%q/%q want %v/%q/%q", rule, i, in, name,
-								gotRet, errString(gotErr), errString(ev.LastDebugErr()), wantRet, errString(wantErr), errString(wantDebug))
-						}
+						assert.Equal(t, wantRet, gotRet, "%.80q input %d %v (%s): result", rule, i, in, name)
+						assert.Equal(
+							t,
+							errString(wantErr),
+							errString(gotErr),
+							"%.80q input %d %v (%s): err",
+							rule,
+							i,
+							in,
+							name,
+						)
+						assert.Equal(
+							t,
+							errString(wantDebug),
+							errString(ev.LastDebugErr()),
+							"%.80q input %d %v (%s): debug err",
+							rule,
+							i,
+							in,
+							name,
+						)
 					}
 				}
 				sets += countSets(repeated.root)
 			}
-			if size >= inSetMinLen && sets == 0 {
-				t.Fatal("no hash set was built: test is vacuous")
-			}
-			if size < inSetMinLen && sets != 0 {
-				t.Fatalf("%d hash sets built below the threshold", sets)
+			if size >= inSetMinLen {
+				require.NotZero(t, sets, "no hash set was built: test is vacuous")
+			} else {
+				require.Zero(t, sets, "hash sets built below the threshold")
 			}
 		})
 	}
@@ -275,33 +353,38 @@ func TestInSetConcurrent(t *testing.T) {
 	tests := []struct {
 		name string
 		rule string
-		val  func(i int) interface{}
+		val  func(i int) any
 		want func(i int) bool
 	}{
-		{"string", "s in " + seqStrs(300), func(i int) interface{} { return fmt.Sprintf("u%d", i%600) }, func(i int) bool { return i%600 < 300 }},
-		{"int", "s in " + seqInts(300), func(i int) interface{} { return i % 600 }, func(i int) bool { return i%600 < 300 }},
-		{"string not in", "not (s in " + seqStrs(300) + ")", func(i int) interface{} { return fmt.Sprintf("u%d", i%600) }, func(i int) bool { return i%600 >= 300 }},
+		{
+			"string",
+			"s in " + seqStrs(300),
+			func(i int) any { return fmt.Sprintf("u%d", i%600) },
+			func(i int) bool { return i%600 < 300 },
+		},
+		{"int", "s in " + seqInts(300), func(i int) any { return i % 600 }, func(i int) bool { return i%600 < 300 }},
+		{
+			"string not in",
+			"not (s in " + seqStrs(300) + ")",
+			func(i int) any { return fmt.Sprintf("u%d", i%600) },
+			func(i int) bool { return i%600 >= 300 },
+		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ev, err := NewEvaluator(tc.rule)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			var wg sync.WaitGroup
-			for g := 0; g < 16; g++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < 1000; i++ {
-						if got, _ := ev.Process(kv{"s": tc.val(i)}); got != tc.want(i) {
-							t.Errorf("i=%d: got %v, want %v", i, got, tc.want(i))
+			for range 16 {
+				wg.Go(func() {
+					for i := range 1000 {
+						got, _ := ev.Process(kv{"s": tc.val(i)})
+						if !assert.Equal(t, tc.want(i), got, "i=%d", i) {
 							return
 						}
 					}
-				}()
+				})
 			}
 			wg.Wait()
 		})
