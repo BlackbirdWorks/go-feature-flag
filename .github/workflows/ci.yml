@@ -607,24 +607,28 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: check
-      - name: Snapshot build for this platform
+      # The FIPS build is the one with its own settings (GOFIPS140 read from .fips-version) and
+      # the regular and CLI builds are compiled by the build job; building only this id keeps the job short.
+      - name: Snapshot build of the FIPS binary for this platform
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: build --snapshot --clean --single-target
+          args: build --snapshot --clean --single-target --id semaphore-fips
       - name: Compile the AWS Lambda target (linux/arm64)
         # --single-target only builds for the runner, which excludes the arm64-only Lambda build.
         run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/relayproxy
       - name: Check the version baked into the binary
         run: |
-          bin=$(ls release/semaphore_linux_amd64*/semaphore)
+          bin=$(ls release/semaphore-fips_linux_amd64*/semaphore-fips)
           go version -m "$bin" | grep -- '-X main.version='
+          go version -m "$bin" | grep -- 'GOFIPS140='
       - name: Check the Dockerfiles that GoReleaser does not build here
         run: |
-          # Every release Dockerfile must drop root and keep the documented command.
+          # Every release Dockerfile must drop root and keep its entrypoint.
           for f in cmd/relayproxy/DockerfileGoreleaser* cmd/cli/Dockerfile; do
             grep -q '^USER 65532:65532$' "$f" || { echo "::error file=$f::the image must run as uid 65532"; exit 1; }
+            grep -q '^ENTRYPOINT \[' "$f" || { echo "::error file=$f::the image must set an ENTRYPOINT"; exit 1; }
           done
 
   # Single required check for branch protection. `needs` lists every job above;

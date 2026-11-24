@@ -33,7 +33,7 @@ chart (the Helm chart of the original project was not carried over: the owner do
 
 1. Decide the version (see "First version" below) and make sure `main` is green.
 2. Nothing else carries the version: it is taken from the tag (the binaries get it through the
-   `-X main.version` linker flag). The workflow rejects a tag that is not `vMAJOR.MINOR.PATCH`.
+   `-X main.version` linker flag). The workflow rejects a tag that is not `vMAJOR.MINOR.PATCH` with an optional `-alpha.N`, `-beta.N` or `-rc.N` suffix.
 3. Run the dry run first (next section) on the commit you are about to tag.
 4. Tag that commit and push the tag: `git tag -s v0.1.0 -m "v0.1.0" && git push origin v0.1.0`.
 5. Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
