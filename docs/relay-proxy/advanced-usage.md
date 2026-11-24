@@ -138,6 +138,7 @@ GODEBUG=fips140=only ./out/bin/semaphore-fips --config=/semaphore/config.yaml
 
 The FIPS build covers cryptography only. The released images already run as the non-root user 65532; in addition
 run the container with all capabilities dropped, no privilege escalation, the `RuntimeDefault` seccomp profile and,
-where your setup allows it, a read-only root filesystem. Leave the root filesystem writable if you use the file
-exporter or `persistentFlagConfigurationFile`: both write to the container filesystem. Combine this with your
+where your setup allows it, a read-only root filesystem. If you use the file exporter or
+`persistentFlagConfigurationFile` (both write files), keep the root filesystem read-only and mount a writable
+volume for those paths, owned by or writable for uid 65532. Combine this with your
 platform's pod security standards as appropriate.

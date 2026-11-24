@@ -23,7 +23,7 @@ Nothing has been released yet. Everything below is "available after the first re
 
 All images run as uid 65532 and have `/usr/local/bin/semaphore` as `ENTRYPOINT` (the CLI image has
 `/semaphore-cli`): arguments are passed directly (`docker run IMAGE --config /path`), and `--entrypoint` overrides it. They carry the `org.opencontainers.image.*` labels (source =
-this repository, license, version, revision). Images carry a BuildKit SBOM.
+this repository, license, version, revision). The images are not attested or signed; the archives are (see below).
 
 Not published, on purpose, because the project owns no destination for them: Homebrew tap,
 Scoop bucket, Docker Hub, AWS public ECR, npm, PyPI, Maven, NuGet, WebAssembly packages, a Helm
@@ -36,7 +36,9 @@ chart (the Helm chart of the original project was not carried over: the owner do
    `-X main.version` linker flag). The workflow rejects a tag that is not `vMAJOR.MINOR.PATCH` with an optional `-alpha.N`, `-beta.N` or `-rc.N` suffix.
 3. Run the dry run first (next section) on the commit you are about to tag.
 4. Tag that commit and push the tag: `git tag -s v0.1.0 -m "v0.1.0" && git push origin v0.1.0`.
-5. Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
+5. Push one tag at a time and watch the `Release` run to its end before pushing the next: a second tag pushed
+   while one run is active and another is pending replaces the pending run (one pending run per concurrency group).
+   Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
 6. The first push to `ghcr.io` creates the packages as private: in the organization package
    settings, link them to this repository and make them public. There are two: `semaphore`
    and `semaphore-cli`.
@@ -75,7 +77,6 @@ curl -fLO https://github.com/BlackbirdWorks/semaphore/releases/download/v$V/chec
 curl -fLO https://github.com/BlackbirdWorks/semaphore/releases/download/v$V/semaphore_${V}_Linux_x86_64.tar.gz
 sha256sum --ignore-missing -c checksums.txt
 gh attestation verify semaphore_${V}_Linux_x86_64.tar.gz -R BlackbirdWorks/semaphore
-gh attestation verify oci://ghcr.io/blackbirdworks/semaphore:v$V -R BlackbirdWorks/semaphore
 tar xzf semaphore_${V}_Linux_x86_64.tar.gz && go version -m ./semaphore | grep -E 'main.version|GOFIPS140'
 docker run --rm ghcr.io/blackbirdworks/semaphore:v$V --version
 ```

@@ -3,7 +3,7 @@ name: Release
 # Publishes a release of Semaphore when a version tag (v*) is pushed:
 #   - GitHub Release with the archives, checksums and SBOMs,
 #   - container images on ghcr.io/blackbirdworks/semaphore and ghcr.io/blackbirdworks/semaphore-cli,
-#   - build provenance attestations (keyless, GitHub OIDC) for the release files and the images.
+#   - build provenance attestations (keyless, GitHub OIDC) for the release files (the archives, through checksums.txt).
 # Only the GITHUB_TOKEN is used: no other secret, no other registry, nothing is pushed to a
 # branch or to another repository.
 #
