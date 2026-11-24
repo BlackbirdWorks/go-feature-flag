@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 func TestService_CompiledQuery(t *testing.T) {
@@ -67,23 +66,25 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 	t.Parallel()
 
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
+	trimmed := `{"==": [{"var": "key"}, "abc"]}`
 	tests := []struct {
 		name           string
 		evaluate       bool
+		wantTrimmed    string
 		wantStoredSize int
 	}{
-		{name: "validation does not store the query", evaluate: false, wantStoredSize: 0},
-		{name: "evaluation stores a multi-line query once", evaluate: true, wantStoredSize: 1},
+		{name: "validation does not store the query", evaluate: false, wantTrimmed: trimmed, wantStoredSize: 0},
+		{name: "evaluation stores a multi-line query once", evaluate: true, wantTrimmed: trimmed, wantStoredSize: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			svc := NewService()
-			r := Rule{Query: &query, VariationResult: testconvert.String("A")}
+			r := Rule{Query: &query, VariationResult: new("A")}
 			require.NoError(t, r.isQueryValid(svc, false))
 			assert.Equal(t, JSONLogicQueryFormat, r.GetQueryFormat())
-			assert.Equal(t, `{"==": [{"var": "key"}, "abc"]}`, r.GetTrimmedQuery())
+			assert.Equal(t, tt.wantTrimmed, r.GetTrimmedQuery())
 			if tt.evaluate {
 				_, err := r.Evaluate(svc, "abc", ffcontext.NewEvaluationContext("abc"), "flag", false)
 				require.NoError(t, err)
