@@ -64,7 +64,7 @@ goreleaser check
 goreleaser release --snapshot --clean --skip=publish,sign
 ```
 
-The snapshot version is `<last tag + 1 patch>-next` (`0.0.0`-based when there is no tag). A
+The snapshot version is `<last tag + 1 patch>-next` (`0.0.1-next` when there is no tag). A
 snapshot never pushes; the images stay in the local Docker daemon.
 
 If the Go toolchain of your machine ships a corrupted `lib/fips140/*.zip`, the FIPS build fails
