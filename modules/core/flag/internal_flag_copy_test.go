@@ -1,8 +1,8 @@
 package flag_test
 
 import (
-	"time"
 	"testing"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
