@@ -15,10 +15,18 @@ class Plan(unittest.TestCase):
         self.addCleanup(td.cleanup)
         self.dir = td.name
         self.git("init", "-q")
-        self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "c")
+        self.git("commit", "-q", "--allow-empty", "-m", "c")
 
     def git(self, *args):
-        subprocess.run(["git", *args], cwd=self.dir, check=True, capture_output=True)
+        # Isolated from the user's git configuration (signing, hooks, templates): the fixture
+        # must not depend on a signer being available.
+        env = {"PATH": os.environ["PATH"], "HOME": self.dir, "GIT_CONFIG_GLOBAL": os.devnull,
+               "GIT_CONFIG_SYSTEM": os.devnull, "GIT_CONFIG_COUNT": "4",
+               "GIT_CONFIG_KEY_0": "user.name", "GIT_CONFIG_VALUE_0": "t",
+               "GIT_CONFIG_KEY_1": "user.email", "GIT_CONFIG_VALUE_1": "t@t",
+               "GIT_CONFIG_KEY_2": "commit.gpgsign", "GIT_CONFIG_VALUE_2": "false",
+               "GIT_CONFIG_KEY_3": "tag.gpgsign", "GIT_CONFIG_VALUE_3": "false"}
+        subprocess.run(["git", *args], cwd=self.dir, env=env, check=True, capture_output=True)
 
     def tags(self, *names):
         for n in names:
@@ -26,7 +34,8 @@ class Plan(unittest.TestCase):
 
     def run_plan(self, **env):
         outfile = os.path.join(self.dir, "out.txt")
-        e = {"PATH": os.environ["PATH"], "HOME": self.dir, "GITHUB_OUTPUT": outfile,
+        e = {"PATH": os.environ["PATH"], "HOME": self.dir, "GIT_CONFIG_GLOBAL": os.devnull,
+             "GIT_CONFIG_SYSTEM": os.devnull, "GITHUB_OUTPUT": outfile,
              "GITHUB_STEP_SUMMARY": os.path.join(self.dir, "sum.txt")}
         e.update(env)
         p = subprocess.run(["bash", SCRIPT], cwd=self.dir, env=e, capture_output=True, text=True)

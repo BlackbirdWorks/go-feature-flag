@@ -16,8 +16,8 @@ name: Release
 #
 # Other entry points, both of which publish an existing tag and never create or move one:
 #   - a pushed tag (v*), for example a pre-release such as v0.2.0-rc.1 pushed by an owner;
-#   - release_tag=<tag> on a manual run with dry_run=false started ON that tag (pick the tag in
-#     "Use workflow from"), to re-publish a tag whose release run failed. The attestations take
+#   - release_tag=<tag> on a manual run with dry_run=false started ON that tag (
+#     `gh workflow run release.yml --ref <tag> ...`), to re-publish a tag whose release run failed. The attestations take
 #     their source commit from the run, so the run must be on the tag for them to name the built commit.
 # See docs/RELEASING.md.
 
@@ -40,7 +40,7 @@ on:
         type: boolean
         default: true
       release_tag:
-        description: "Re-publish this EXISTING tag instead of creating one (needs dry_run=false and the run started on that tag in Use workflow from; the bump input is ignored; never moves the tag)"
+        description: "Re-publish this EXISTING tag instead of creating one (needs dry_run=false and the run started on that tag with gh workflow run --ref <tag>; the bump input is ignored; never moves the tag)"
         type: string
         required: false
         default: ""

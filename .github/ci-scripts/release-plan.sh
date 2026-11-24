@@ -34,7 +34,7 @@ elif [[ -n "${INPUT_RELEASE_TAG:-}" ]]; then
   git rev-parse -q --verify "refs/tags/$tag" > /dev/null || fail "tag $tag does not exist: release_tag never creates a tag"
   # The attestations record the commit of the run (OIDC claims), so the run must be made on
   # the tag itself for the provenance to name the commit that was built.
-  [[ "${REF:-}" == "refs/tags/$tag" ]] || fail "release_tag needs the run to be started on the tag: pick $tag in 'Use workflow from'"
+  [[ "${REF:-}" == "refs/tags/$tag" ]] || fail "release_tag needs the run to be started on the tag: gh workflow run release.yml --ref $tag -f release_tag=$tag -f dry_run=false"
 else
   [[ "${INPUT_DRY_RUN:-true}" == false ]] && dry=false
   if [[ "$dry" == false ]]; then
