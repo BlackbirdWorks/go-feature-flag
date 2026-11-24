@@ -216,9 +216,7 @@ func (n *compareNode) setRight(st *evalState) {
 		} else {
 			list = st.rightOp.([]int) //nolint:errcheck // panics on mismatch, as before
 		}
-		added := n.listOp.([]int) //nolint:errcheck // panics on mismatch, as before
-		list = append(list, added...)
-		st.rightOp = list
+		st.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -229,9 +227,7 @@ func (n *compareNode) setRight(st *evalState) {
 		} else {
 			list = st.rightOp.([]float64) //nolint:errcheck // panics on mismatch, as before
 		}
-		added := n.listOp.([]float64) //nolint:errcheck // panics on mismatch, as before
-		list = append(list, added...)
-		st.rightOp = list
+		st.rightOp = append(list, n.listOp.([]float64)...) //nolint:errcheck,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -242,9 +238,7 @@ func (n *compareNode) setRight(st *evalState) {
 		} else {
 			list = st.rightOp.([]string) //nolint:errcheck // panics on mismatch, as before
 		}
-		strs := n.listValue().([]string) //nolint:errcheck // panics on mismatch, as before
-		list = append(list, strs...)
-		st.rightOp = list
+		st.rightOp = append(list, n.listValue().([]string)...) //nolint:errcheck,gocritic // stale operand
 	default:
 		st.rightOp = n.rightOp
 		if n.valErr != nil {
@@ -272,8 +266,9 @@ func (n *compareNode) evalCompare(st *evalState) bool {
 		ret, err = n.apply(st.leftOp, st.rightOp)
 	}
 	if err != nil {
-		var eio *InvalidOperandError
-		if errors.As(err, &eio) && n.valKind != valueConst {
+		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
+		// the evaluation path (measured), and this block is inlined on purpose.
+		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst { //nolint:errorlint // see above
 			// the operand may be the shared compiled list
 			c := *eio
 			c.Val = copyOperand(c.Val)
@@ -529,11 +524,12 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 func parsePlainVersion(s string) (semver.Version, bool) {
 	var v semver.Version
 	core := s
-	if before, after, ok := strings.Cut(s, "+"); ok {
-		if !validBuild(after) {
+	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
+	if i := strings.IndexByte(s, '+'); i >= 0 { //nolint:modernize // see above
+		if !validBuild(s[i+1:]) {
 			return v, false
 		}
-		core = before
+		core = s[:i]
 	}
 	var nums [3]uint64
 	for i := range nums {
