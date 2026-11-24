@@ -442,14 +442,17 @@ func TestRetrieverEdgeCases(t *testing.T) {
 	t.Run("Flagset filtering with no matches", func(t *testing.T) {
 		t.Parallel()
 
-		// Insert some data first
+		// Insert some data first, in a table of its own: the sibling subtests run in parallel
+		// and one of them expects go_feature_flag to stay empty.
 		ctx := context.Background()
 		conn, err := pgx.Connect(ctx, connectionString)
 		require.NoError(t, err)
 		defer conn.Close(ctx)
 
+		_, err = conn.Exec(ctx, `CREATE TABLE flagset_filter_flags (LIKE go_feature_flag INCLUDING ALL)`)
+		require.NoError(t, err)
 		_, err = conn.Exec(ctx, `
-			INSERT INTO go_feature_flag (flag_name, flagset, config) 
+			INSERT INTO flagset_filter_flags (flag_name, flagset, config) 
 			VALUES ('test_flag', 'production', '{"enabled": true}')
 		`)
 		require.NoError(t, err)
@@ -458,7 +461,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		nonExistentFlagset := "non-existent-flagset"
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: "flagset_filter_flags",
 		}
 
 		err = r.Init(context.Background(), nil, &nonExistentFlagset)
