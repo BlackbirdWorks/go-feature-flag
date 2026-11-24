@@ -41,10 +41,10 @@ builds:
     binary: semaphore-fips
     env:
       - CGO_ENABLED=0
-      # Version is read from the .fips-version file at the repo root and injected via the
-      # GOFIPS140 environment variable (see the Makefile, GOFIPS140_VERSION). This repository
-      # has no release workflow: export GOFIPS140 yourself before running goreleaser.
-      - GOFIPS140={{ .Env.GOFIPS140 }}
+      # Version is read from the .fips-version file at the repo root (single source of truth,
+      # shared with the Makefile). It is set per build here, never exported for the whole
+      # goreleaser run, so the other builds stay regular (non-FIPS) builds.
+      - GOFIPS140={{ readFile ".fips-version" | trim }}
     goos:
       - linux
     goarch:
@@ -92,6 +92,10 @@ builds:
 
 archives:
   - id: semaphore
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "semaphore_\
       {{ .Version }}_\
       {{- title .Os }}_\
@@ -128,6 +132,10 @@ archives:
       - internal/koanfhttpprovider/LICENSE
 
   - id: semaphore-cli
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "semaphore-cli_\
       {{ .Version }}_\
       {{- title .Os }}_\
@@ -314,6 +322,7 @@ dockers_v2:
     labels:
       "org.opencontainers.image.created": "{{ .Date }}"
       "org.opencontainers.image.description": "A command line tool to manage Semaphore from your terminal"
+      "org.opencontainers.image.licenses": "MIT"
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
       "org.opencontainers.image.source": "https://github.com/BlackbirdWorks/semaphore"
       "org.opencontainers.image.title": "semaphore-cli"
@@ -322,21 +331,18 @@ dockers_v2:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
-signs:
-  - artifacts: checksum
-    cmd: gpg
-    args:
-      [
-        "--batch",
-        "--yes",
-        "--armor",
-        "--pinentry-mode",
-        "loopback",
-        "--local-user",
-        "{{ .Env.GPG_FINGERPRINT }}",
-        "--output",
-        "${signature}",
-        "--detach-sign",
-        "${artifact}",
-      ]
-    signature: "${artifact}.sig"
+# SBOM of every archive (SPDX, generated with syft, which the release workflow installs).
+sboms:
+  - artifacts: archive
+
+# Archives and checksums are attested with GitHub build provenance by the release workflow
+# (actions/attest-build-provenance, keyless, verified with `gh attestation verify`). There is
+# no detached GPG signature: the project has no signing key.
+
+release:
+  github:
+    owner: BlackbirdWorks
+    name: semaphore
+  # A tag with a pre-release suffix (v0.1.0-rc.1) is published as a GitHub pre-release.
+  prerelease: auto
+  draft: false

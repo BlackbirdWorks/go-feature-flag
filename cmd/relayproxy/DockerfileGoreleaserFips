@@ -1,7 +1,11 @@
-FROM gcr.io/distroless/static-debian13:latest
+# Release image, built by GoReleaser: it only COPYs the binary it has already cross-compiled.
+# For a Dockerfile that compiles from source see Dockerfile.local.
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c8604714ccb351ce59607327bcc4957448da279b5
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/semaphore-fips /usr/local/bin/semaphore-fips
+COPY $TARGETPLATFORM/semaphore-fips /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
 COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
-CMD ["/usr/local/bin/semaphore-fips"]
+EXPOSE 1031
+USER 65532:65532
+CMD ["/usr/local/bin/semaphore"]

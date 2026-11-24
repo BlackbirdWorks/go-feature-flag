@@ -1,7 +1,13 @@
-FROM debian:bookworm-slim
+# Release image, built by GoReleaser: it only COPYs the binary it has already cross-compiled.
+# For a Dockerfile that compiles from source see Dockerfile.local.
+FROM debian:bookworm-slim@sha256:e67eeead736ff7bbe258ef088bff683635c561b1fcfefad0806c1df4ab49ce0e
 ARG TARGETPLATFORM
 COPY $TARGETPLATFORM/semaphore /usr/local/bin/semaphore
 COPY LICENSE NOTICE /licenses/
 COPY rules/LICENSE /licenses/rules-LICENSE
 COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
+# uid 65532 needs no /etc/passwd entry; not creating one avoids a RUN (and QEMU emulation) for
+# the foreign architectures.
+EXPOSE 1031
+USER 65532:65532
 CMD ["/usr/local/bin/semaphore"]
