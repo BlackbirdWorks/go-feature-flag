@@ -215,13 +215,20 @@ bench: ## Launch the benchmark test
 	 $(GOWORK_ENV) $(GOTEST) -tags=bench -bench Benchmark -cpu 2 -run=^$$
 
 ## Lint:
+# Pinned: the lint rules are version specific (same version as gopherstack).
+GOLANGCI_LINT_VERSION ?= 2.15.0
+
 lint-install:
-	mkdir -p ./bin
-	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b ./bin
+	@mkdir -p ./bin
+	@if ./bin/golangci-lint version 2>/dev/null | grep -q "version $(GOLANGCI_LINT_VERSION) "; then \
+		echo "golangci-lint v$(GOLANGCI_LINT_VERSION) already installed"; \
+	else \
+		curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b ./bin v$(GOLANGCI_LINT_VERSION); \
+	fi
 
 lint-run:
 	@test -n "$(MODULE)" || { echo "usage: make lint-module MODULE=<dir>"; exit 1; }
-	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=5m --config $(CURDIR)/.golangci.yml ./...
+	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=20m --config $(if $(wildcard $(MODULE)/.golangci.yml),$(abspath $(MODULE)/.golangci.yml),$(CURDIR)/.golangci.yml) ./...
 
 lint-module: lint-install lint-run ## Lint one module (usage: make lint-module MODULE=rules)
 

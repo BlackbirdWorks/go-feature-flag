@@ -355,6 +355,17 @@ linters:
         # https://github.com/godoc-lint/godoc-lint?tab=readme-ov-file#require-stdlib-doclink
         - require-stdlib-doclink
 
+    gomoddirectives:
+      replace-local: true
+      replace-allow-list:
+        # the rules engine lives in rules/ of this repository
+        - github.com/nikunjy/rules
+        # modules/core is resolved from this repository
+        - github.com/blackbirdworks/semaphore/modules/core
+        # fix for Athena v3 parquet query issue - https://github.com/xitongsys/parquet-go/issues/547
+        - github.com/xitongsys/parquet-go
+        - github.com/apache/thrift
+
     govet:
       # Enable all analyzers.
       # Default: false
@@ -362,7 +373,9 @@ linters:
       # Disable analyzers by name.
       # Run `GL_DEBUG=govet golangci-lint run --enable=govet` to see default, all available analyzers, and enabled analyzers.
       # Default: []
-      enable:
+      # TEMPORARY (enabled in a follow-up PR): fieldalignment reorders struct fields,
+      # which changes serialized key order, public struct layout and breaks unkeyed literals.
+      disable:
         - fieldalignment
       # Settings per analyzer.
       settings:
