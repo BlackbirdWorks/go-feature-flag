@@ -452,10 +452,11 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 
 	// The authorized keys (admin keys) and the top-level API keys are reloadable too. They are replaced
 	// together with the accepted key set, in one step, so that no request sees a partial update.
-	if !cmp.Equal(m.config.GetAuthorizedKeys(), newConfig.GetAuthorizedKeys(), cmpopts.IgnoreUnexported(config.APIKeys{})) {
+	newAuthorizedKeys := newConfig.GetAuthorizedKeys()
+	if !cmp.Equal(m.config.GetAuthorizedKeys(), newAuthorizedKeys, cmpopts.IgnoreUnexported(config.APIKeys{})) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 	}
-	m.config.ReplaceAPIKeys(newConfig.GetAuthorizedKeys(), newConfig.GetAPIKeys())
+	m.config.ReplaceAPIKeys(newAuthorizedKeys, newConfig.GetAPIKeys())
 	if newConfig.HasUnroutableEvaluationKeys() {
 		m.logger.Warn(unroutableKeysWarning)
 	}
