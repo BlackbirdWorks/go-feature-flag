@@ -13,17 +13,14 @@ import (
 
 // fastRun keeps a run to about a second: 100 ms samples, a one sample warm-up, and a heap tolerance that
 // cannot flake (the verdict logic itself is tested in the loadtest package).
-var fastRun = []string{
-	"-duration",
-	"1s",
-	"-interval",
-	"100ms",
-	"-warmup",
-	"1",
-	"-workers",
-	"2",
-	"-heap-tolerance",
-	"100",
+func fastRun() []string {
+	return []string{
+		"-duration", "1s",
+		"-interval", "100ms",
+		"-warmup", "1",
+		"-workers", "2",
+		"-heap-tolerance", "100",
+	}
 }
 
 func TestRun(t *testing.T) {
@@ -37,22 +34,22 @@ func TestRun(t *testing.T) {
 	}{
 		{name: "help", args: []string{"-h"}, wantCode: 0, wantStderr: "Usage of soak"},
 		{name: "unknown flag", args: []string{"-nope"}, wantCode: 2, wantStderr: "flag provided but not defined"},
-		{name: "unknown target", args: append([]string{"-target", "bogus"}, fastRun...), wantCode: 2,
+		{name: "unknown target", args: append([]string{"-target", "bogus"}, fastRun()...), wantCode: 2,
 			wantStderr: `unknown target "bogus"`},
-		{name: "unknown exporter", args: append([]string{"-exporter", "bogus"}, fastRun...), wantCode: 2,
+		{name: "unknown exporter", args: append([]string{"-exporter", "bogus"}, fastRun()...), wantCode: 2,
 			wantStderr: "bogus"},
-		{name: "unknown endpoint", args: append([]string{"-target", "relay", "-endpoint", "bogus"}, fastRun...),
+		{name: "unknown endpoint", args: append([]string{"-target", "relay", "-endpoint", "bogus"}, fastRun()...),
 			wantCode: 2, wantStderr: `unknown endpoint "bogus"`},
-		{name: "unknown protocol", args: append([]string{"-target", "relay", "-protocol", "quic"}, fastRun...),
+		{name: "unknown protocol", args: append([]string{"-target", "relay", "-protocol", "quic"}, fastRun()...),
 			wantCode: 2, wantStderr: `unknown protocol "quic"`},
 		{name: "exporter that the endpoint never exercises", wantCode: 2, wantStderr: "does not emit events",
-			args: append([]string{"-target", "relay", "-endpoint", "ofrep-bulk", "-exporter", "slow"}, fastRun...)},
+			args: append([]string{"-target", "relay", "-endpoint", "ofrep-bulk", "-exporter", "slow"}, fastRun()...)},
 		{name: "library target", wantCode: 0,
-			args:       append([]string{"-target", "library"}, fastRun...),
+			args:       append([]string{"-target", "library"}, fastRun()...),
 			wantStdout: []string{"# target=library exporter=discard workers=2", "PASS memory-stable", "window ("}},
 		{name: "relay bulk endpoint over h2c", wantCode: 0,
 			args: append([]string{"-target", "relay", "-endpoint", "ofrep-bulk", "-protocol", "h2c",
-				"-exporter", "discard"}, fastRun...),
+				"-exporter", "discard"}, fastRun()...),
 			wantStdout: []string{"endpoint=ofrep-bulk protocol=h2c", "PASS memory-stable", "flags/s"}},
 	}
 	for _, tt := range tests {
@@ -74,7 +71,7 @@ func TestRunInterrupted(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var stdout, stderr bytes.Buffer
-	code := run(ctx, append([]string{"-target", "library"}, fastRun...), &stdout, &stderr)
+	code := run(ctx, append([]string{"-target", "library"}, fastRun()...), &stdout, &stderr)
 	assert.Equal(t, 130, code)
 	assert.Contains(t, stderr.String(), "interrupted")
 }
@@ -86,7 +83,7 @@ func TestRunCPUProfile(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run(
 		context.Background(),
-		append([]string{"-target", "library", "-cpuprofile", path}, fastRun...),
+		append([]string{"-target", "library", "-cpuprofile", path}, fastRun()...),
 		&stdout,
 		&stderr,
 	)

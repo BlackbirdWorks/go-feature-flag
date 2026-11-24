@@ -289,7 +289,7 @@ func TestBuildBatches_LimitsStatementsPerBatch(t *testing.T) {
 		rows = append(rows, row{key: "k", values: values, size: 1})
 	}
 
-	batches := buildBatches("tracking_events", trackingEventColumns, rows)
+	batches := buildBatches("tracking_events", trackingEventColumns(), rows)
 
 	require.Len(t, batches, 2)
 	assert.Len(t, batches[0].sqls, maxStatementsPerBatch)

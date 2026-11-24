@@ -54,7 +54,7 @@ func BenchmarkHandlers(b *testing.B) {
 		relay.OFREPBulk:         ofrepCtrl.BulkEvaluate,
 	}
 	e := echo.New()
-	for _, ep := range relay.Endpoints {
+	for _, ep := range relay.Endpoints() {
 		for _, track := range []bool{false, true} {
 			if (ep == relay.SemaphoreAllFlags || ep == relay.OFREPBulk) && track {
 				continue

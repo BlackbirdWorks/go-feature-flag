@@ -35,7 +35,8 @@ const (
 	maxBackoff  = 2 * time.Second
 )
 
-var DefaultPartitionKey = func(context context.Context, _ exporter.ExportableEvent) string {
+// DefaultPartitionKey is the partition key function used when none is configured.
+func DefaultPartitionKey(context context.Context, _ exporter.ExportableEvent) string {
 	context.Value("feature")
 
 	return "default"

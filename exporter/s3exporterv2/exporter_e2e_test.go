@@ -45,7 +45,7 @@ func events(n int) []exporter.ExportableEvent {
 
 func TestE2E_Export(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	hostname, _ := os.Hostname()
 
 	tests := []struct {
@@ -160,7 +160,7 @@ func checkJSON(t *testing.T, content []byte, n int) {
 
 func TestE2E_Export_Errors(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name   string
@@ -180,7 +180,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 
 func TestE2E_Export_EachCallCreatesAFile(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "multi")
 	cfg := srv.MustAwsConfig(t)
 	e := &s3exporterv2.Exporter{Bucket: bucket, AwsConfig: &cfg, S3Path: "p"}

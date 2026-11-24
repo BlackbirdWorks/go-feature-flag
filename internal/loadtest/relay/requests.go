@@ -19,8 +19,10 @@ const (
 	OFREPBulk Endpoint = "ofrep-bulk"
 )
 
-// Endpoints lists all the endpoints.
-var Endpoints = []Endpoint{SemaphoreEval, SemaphoreAllFlags, OFREPEval, OFREPBulk}
+// Endpoints returns all the endpoints.
+func Endpoints() []Endpoint {
+	return []Endpoint{SemaphoreEval, SemaphoreAllFlags, OFREPEval, OFREPBulk}
+}
 
 // ParseEndpoint validates an endpoint name. The legacy goff-eval and goff-allflags names are aliases.
 func ParseEndpoint(s string) (Endpoint, error) {
@@ -31,13 +33,13 @@ func ParseEndpoint(s string) (Endpoint, error) {
 	case "goff-allflags":
 		s = string(SemaphoreAllFlags)
 	}
-	for _, e := range Endpoints {
+	for _, e := range Endpoints() {
 		if string(e) == s {
 			return e, nil
 		}
 	}
 
-	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints)
+	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints())
 }
 
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the

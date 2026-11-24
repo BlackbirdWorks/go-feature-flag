@@ -276,8 +276,8 @@ func TestFlagKeyAndYAML(t *testing.T) {
 	assert.Equal(t, "rule-bool-track", FlagKey("rule", "bool", true))
 	assert.Equal(t, "rule-bool-notrack", FlagKey("rule", "bool", false))
 	y := FlagsYAML()
-	for _, s := range Scenarios {
-		for _, ty := range Types {
+	for _, s := range Scenarios() {
+		for _, ty := range Types() {
 			assert.Contains(t, y, FlagKey(s, ty, true)+":")
 		}
 	}

@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,9 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 )
-
-// postgreSQLContainerList maps a test name to its container; sync.Map because tests run in parallel.
-var postgreSQLContainerList sync.Map
 
 func TestPostgreSQLRetriever(t *testing.T) {
 	t.Parallel()
@@ -95,8 +91,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			connectionString := startPostgreSQLAndAddData(t, t.Name(), tt.files)
-			defer stopPostgreSQL(t, t.Name())
+			connectionString := startPostgreSQLAndAddData(t, tt.files)
 
 			r := postgresqlretriever.Retriever{
 				URI:     connectionString,
@@ -122,14 +117,15 @@ func TestPostgreSQLRetriever(t *testing.T) {
 	}
 }
 
-func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) string {
+// startPostgreSQLAndAddData starts a PostgreSQL container, removed when the test ends, and loads the files in it.
+func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 	ctx := context.TODO()
 	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)
 
 	connectionString, err := postgreSQLContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
-	postgreSQLContainerList.Store(testName, postgreSQLContainer)
+	t.Cleanup(func() { assert.NoError(t, postgreSQLContainer.Terminate(context.TODO())) })
 
 	// Retry connection with backoff
 	var conn *pgx.Conn
@@ -160,13 +156,6 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 	}
 
 	return connectionString
-}
-
-func stopPostgreSQL(t *testing.T, testName string) {
-	if v, ok := postgreSQLContainerList.LoadAndDelete(testName); ok {
-		container, _ := v.(*testcontainerPostgres.PostgresContainer)
-		assert.NoError(t, container.Terminate(context.TODO()))
-	}
 }
 
 // TestRetrieverErrorHandling tests various error conditions in the PostgreSQL retriever.
@@ -265,8 +254,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 func TestRetrieverQueryErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql", "sql/insert_data.sql"})
-	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
+	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql", "sql/insert_data.sql"})
 
 	t.Run("Query execution error - invalid table", func(t *testing.T) {
 		t.Parallel()
@@ -339,8 +327,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	t.Parallel()
 
 	// Create a test container with some test data
-	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
+	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
 
 	// Insert some test data
 	ctx := context.Background()
@@ -417,8 +404,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 func TestRetrieverEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
+	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
 
 	t.Run("Empty result set", func(t *testing.T) {
 		t.Parallel()
@@ -548,8 +534,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 func TestRetrieverShutdownErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
+	connectionString := startPostgreSQLAndAddData(t, []string{"sql/init.sql"})
 
 	t.Run("Shutdown with active connection", func(t *testing.T) {
 		t.Parallel()

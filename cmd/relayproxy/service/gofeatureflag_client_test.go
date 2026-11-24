@@ -301,8 +301,8 @@ func Test_initExporter(t *testing.T) {
 				Secret:      "1234",
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &webhookexporter.Exporter{
 					EndpointURL: "https://gofeatureflag.org/webhook-example",
 					Secret:      "1234",
@@ -321,13 +321,13 @@ func Test_initExporter(t *testing.T) {
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &fileexporter.Exporter{
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					OutputDir:               "/outputfolder/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
 					ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
@@ -341,10 +341,10 @@ func Test_initExporter(t *testing.T) {
 				Kind: "log",
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &logsexporter.Exporter{
-					LogFormat: config.DefaultExporter.LogFormat,
+					LogFormat: config.DefaultExporter().LogFormat,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -361,14 +361,14 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &s3exporterv2.Exporter{
 					Bucket:                  "my-bucket",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					S3Path:                  "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 			},
 			wantType:               &s3exporterv2.Exporter{},
@@ -384,7 +384,7 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &sqsexporter.Exporter{
 					QueueURL: "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
 				},
@@ -436,15 +436,15 @@ func Test_initExporter(t *testing.T) {
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &gcstorageexporter.Exporter{
 					Bucket:                  "my-bucket",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					Path:                    "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -463,10 +463,10 @@ func Test_initExporter(t *testing.T) {
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &kafkaexporter.Exporter{
-					Format: config.DefaultExporter.Format,
+					Format: config.DefaultExporter().Format,
 					Settings: kafkaexporter.Settings{
 						Topic:     "example-topic",
 						Addresses: []string{"addr1", "addr2"},
@@ -485,9 +485,9 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &kinesisexporter.Exporter{
-					Format: config.DefaultExporter.Format,
+					Format: config.DefaultExporter().Format,
 					Settings: kinesisexporter.NewSettings(
 						kinesisexporter.WithStreamArn("my-stream"),
 					),
@@ -506,15 +506,15 @@ func Test_initExporter(t *testing.T) {
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &azureexporter.Exporter{
 					Container:               "my-container",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					Path:                    "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},

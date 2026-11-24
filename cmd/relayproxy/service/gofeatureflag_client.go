@@ -314,7 +314,7 @@ func initDataExporters(proxyConf *config.FlagSet) ([]ffclient.DataExporter, erro
 func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 	exporterEventType := c.ExporterEventType
 	if exporterEventType == "" {
-		exporterEventType = config.DefaultExporter.ExporterEventType
+		exporterEventType = config.DefaultExporter().ExporterEventType
 	}
 	dataExp := ffclient.DataExporter{
 		FlushInterval: func() time.Duration {
@@ -322,14 +322,14 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 				return time.Duration(c.FlushInterval) * time.Millisecond
 			}
 
-			return config.DefaultExporter.FlushInterval
+			return config.DefaultExporter().FlushInterval
 		}(),
 		MaxEventInMemory: func() int64 {
 			if c.MaxEventInMemory != 0 {
 				return c.MaxEventInMemory
 			}
 
-			return config.DefaultExporter.MaxEventInMemory
+			return config.DefaultExporter().MaxEventInMemory
 		}(),
 		ExporterEventType: exporterEventType,
 	}
@@ -345,22 +345,22 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 
 // nolint: funlen
 func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
-	format := config.DefaultExporter.Format
+	format := config.DefaultExporter().Format
 	if c.Format != "" {
 		format = c.Format
 	}
 
-	filename := config.DefaultExporter.FileName
+	filename := config.DefaultExporter().FileName
 	if c.Filename != "" {
 		filename = c.Filename
 	}
 
-	csvTemplate := config.DefaultExporter.CsvFormat
+	csvTemplate := config.DefaultExporter().CsvFormat
 	if c.CsvTemplate != "" {
 		csvTemplate = c.CsvTemplate
 	}
 
-	parquetCompressionCodec := config.DefaultExporter.ParquetCompressionCodec
+	parquetCompressionCodec := config.DefaultExporter().ParquetCompressionCodec
 	if c.ParquetCompressionCodec != "" {
 		parquetCompressionCodec = c.ParquetCompressionCodec
 	}
@@ -388,7 +388,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 					return c.LogFormat
 				}
 
-				return config.DefaultExporter.LogFormat
+				return config.DefaultExporter().LogFormat
 			}(),
 		}, nil
 	case config.S3Exporter:

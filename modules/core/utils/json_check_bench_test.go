@@ -6,8 +6,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
-var isJSONObjectSink bool
-
 func BenchmarkIsJSONObject(b *testing.B) {
 	tests := []struct {
 		name  string
@@ -31,7 +29,7 @@ func BenchmarkIsJSONObject(b *testing.B) {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				isJSONObjectSink = utils.IsJSONObject(tt.input)
+				_ = utils.IsJSONObject(tt.input)
 			}
 		})
 	}

@@ -9,9 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 )
 
-// TestMain removes the gopherstack container shared by the tests of this package.
+// TestMain starts the gopherstack emulator shared by the tests of this package, and removes it at the end.
 func TestMain(m *testing.M) {
-	code := m.Run()
-	gopherstack.TerminateShared()
-	os.Exit(code)
+	os.Exit(gopherstack.Main(m))
 }

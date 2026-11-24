@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
-var expectedFile = `test-flag:
+const expectedFile = `test-flag:
   variations:
     true_var: true
     false_var: false

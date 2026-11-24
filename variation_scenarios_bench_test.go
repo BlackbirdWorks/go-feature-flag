@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,11 +16,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-)
-
-var (
-	scenarioOnce   sync.Once
-	scenarioClient *ffclient.GoFeatureFlag
 )
 
 func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFeatureFlag {
@@ -47,11 +41,13 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 	return c
 }
 
+// getScenarioClient starts a client on the scenarios flags, closed when the benchmark ends.
 func getScenarioClient(b *testing.B) *ffclient.GoFeatureFlag {
 	b.Helper()
-	scenarioOnce.Do(func() { scenarioClient = newBenchClient(b, loadtest.FlagsYAML(), true) })
+	c := newBenchClient(b, loadtest.FlagsYAML(), true)
+	b.Cleanup(c.Close)
 
-	return scenarioClient
+	return c
 }
 
 // benchContext builds a realistic evaluation context (about 10 attributes).
@@ -86,8 +82,8 @@ func evalOne(c *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Context) 
 // BenchmarkScenarios evaluates every scenario/type with event tracking OFF and ON, sequentially.
 func BenchmarkScenarios(b *testing.B) {
 	c := getScenarioClient(b)
-	for _, sc := range loadtest.Scenarios {
-		for _, typ := range loadtest.Types {
+	for _, sc := range loadtest.Scenarios() {
+		for _, typ := range loadtest.Types() {
 			for _, track := range []bool{false, true} {
 				// to keep the matrix readable, only bool is run for every scenario;
 				// string and json are run for the no-rule and the targeting scenarios.
@@ -110,7 +106,7 @@ func BenchmarkScenarios(b *testing.B) {
 // BenchmarkScenariosParallel is the same matrix as BenchmarkScenarios using all cores.
 func BenchmarkScenariosParallel(b *testing.B) {
 	c := getScenarioClient(b)
-	for _, sc := range loadtest.Scenarios {
+	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
 			key := loadtest.FlagKey(sc, "bool", track)
 			b.Run(fmt.Sprintf("%s/bool/track=%t", sc, track), func(b *testing.B) {
@@ -161,7 +157,7 @@ func BenchmarkAllFlagsState(b *testing.B) {
 func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 	c := getScenarioClient(b)
 	ctx := benchContext(5)
-	for _, sc := range loadtest.Scenarios {
+	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
 			key := loadtest.FlagKey(sc, "bool", track)
 			name := fmt.Sprintf("%s/track=%t", sc, track)
