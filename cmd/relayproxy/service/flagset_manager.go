@@ -23,6 +23,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+const (
+	// extraNotifiers is the room reserved for the notifiers the relay proxy adds to the configured ones.
+	extraNotifiers = 2
+)
+
 var (
 	errConfigurationIsNil         = errors.New("configuration is nil")
 	errNoFlagsetConfigured        = errors.New("no flagset configured")
@@ -764,7 +769,7 @@ func appendStreamNotifiers(
 	notifiers []notifier.Notifier, sseService stream.SSEService, wsService stream.WebsocketService,
 	flagsetName string,
 ) []notifier.Notifier {
-	out := make([]notifier.Notifier, len(notifiers), len(notifiers)+2)
+	out := make([]notifier.Notifier, len(notifiers), len(notifiers)+extraNotifiers)
 	copy(out, notifiers)
 	if sseService != nil {
 		out = append(out, proxynotifier.NewNotifierSSE(sseService, flagsetName))

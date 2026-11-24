@@ -12,6 +12,11 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
+const (
+	// defaultPollingInterval is the polling interval of the retrievers of the command.
+	defaultPollingInterval = 10 * time.Minute
+)
+
 type evaluate struct {
 	retriever     retriever.Retriever
 	fileFormat    string
@@ -42,7 +47,7 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 // initGOFF initializes the Semaphore client.
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 	c := ffclient.Config{
-		PollingInterval:       10 * time.Minute,
+		PollingInterval:       defaultPollingInterval,
 		DisableNotifierOnInit: true,
 		Context:               context.Background(),
 		Retriever:             e.retriever,

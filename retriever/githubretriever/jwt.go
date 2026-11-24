@@ -13,6 +13,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+const (
+	// jwtLifetime is how long a GitHub App JWT is valid (GitHub allows 10 minutes at most).
+	jwtLifetime = 9 * time.Minute
+)
+
 // signAppJWT creates a minimal RS256 JWT for GitHub App authentication using
 // stdlib only (no external JWT library). The token is valid for 9 minutes,
 // which is within GitHub's 10-minute maximum.
@@ -29,7 +34,7 @@ func signAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
 	claimsJSON, _ := json.Marshal(map[string]int64{
 		"iss": appID,
 		"iat": now.Add(-60 * time.Second).Unix(),
-		"exp": now.Add(9 * time.Minute).Unix(),
+		"exp": now.Add(jwtLifetime).Unix(),
 	})
 
 	signingInput := jwtBase64(headerJSON) + "." + jwtBase64(claimsJSON)

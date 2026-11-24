@@ -10,6 +10,11 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 )
 
+const (
+	// defaultHTTPTimeout is the timeout of the HTTP requests when none is configured.
+	defaultHTTPTimeout = 10 * time.Second
+)
+
 var (
 	errURLIsAMandatory = errors.New("URL is a mandatory parameter when using httpretriever.Retriever")
 )
@@ -22,7 +27,7 @@ func CallHTTPAPI(
 	header http.Header,
 	httpClient internal.HTTPClient) (*http.Response, error) {
 	if timeout <= 0 {
-		timeout = 10 * time.Second
+		timeout = defaultHTTPTimeout
 	}
 
 	if url == "" {

@@ -6,6 +6,11 @@ import (
 	"net/http"
 )
 
+const (
+	// distinctUsers is the number of distinct users of the generated evaluation contexts.
+	distinctUsers = 1000
+)
+
 var (
 	errUnknownEndpoint = errors.New("unknown endpoint")
 )
@@ -71,7 +76,7 @@ func (e Endpoint) Path(flagKey string) string {
 
 // Body returns a request body with a realistic evaluation context (10 attributes) for the user i.
 func (e Endpoint) Body(i int) string {
-	user := i % 1000
+	user := i % distinctUsers
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
 	switch e {

@@ -4,6 +4,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// DefaultServerPort is the port the relay proxy listens on when none is configured.
+	DefaultServerPort = 1031
+)
+
 type ServerMode = string
 
 const (
@@ -104,7 +109,7 @@ func (c *Config) ServerPort(logger *zap.Logger) int {
 		return c.ListenPort
 	}
 
-	return 1031
+	return DefaultServerPort
 }
 
 // ServerMode returns the server mode, checking first the server config

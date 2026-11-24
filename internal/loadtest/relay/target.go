@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 )
 
+const (
+	// clientTimeout is the timeout of the requests, connsPerWorker the idle connections kept per worker.
+	clientTimeout  = 30 * time.Second
+	connsPerWorker = 2
+)
+
 var errChooseFlagWithTracking = errors.New("choose a flag with tracking on")
 
 var (
@@ -51,10 +57,10 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 		h2c:      o.H2C,
 		perCall:  1,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: clientTimeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        workers * 2,
-				MaxIdleConnsPerHost: workers * 2,
+				MaxIdleConns:        workers * connsPerWorker,
+				MaxIdleConnsPerHost: workers * connsPerWorker,
 				IdleConnTimeout:     time.Minute,
 				Protocols:           clientProtocols(o.H2C),
 			},

@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	// maxRuleParts and maxPatchParts are the numbers of parts of the description of a rule and of a patch.
+	maxRuleParts  = 5
+	maxPatchParts = 3
+)
+
 var (
 	errImpossibleToDescribeChanges = errors.New("impossible to describe changes between flags of type")
 )
@@ -532,7 +538,7 @@ func (d *describer) describeServe(rule *flag.Rule) string {
 
 // describePatch lists the fields a scheduled step sets on a rule, as Rule.MergeRules applies them.
 func (d *describer) describePatch(rule flag.Rule) string {
-	parts := make([]string, 0, 5)
+	parts := make([]string, 0, maxRuleParts)
 	if rule.Query != nil {
 		parts = append(parts, "query "+d.code(*rule.Query))
 	}
@@ -573,7 +579,7 @@ func (d *describer) describeProgressive(rollout *flag.ProgressiveRollout) string
 		if s == nil {
 			return "an unset step"
 		}
-		parts := make([]string, 0, 3)
+		parts := make([]string, 0, maxPatchParts)
 		if s.Variation != nil {
 			parts = append(parts, d.code(*s.Variation))
 		}

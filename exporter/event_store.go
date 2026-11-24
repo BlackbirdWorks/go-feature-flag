@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+const (
+	// eventStoreGrowth is the room kept for the events added while the store is compacted (a factor).
+	eventStoreGrowth = 2
+	// minEventStoreCapacity is the smallest capacity given to a compacted store.
+	minEventStoreCapacity = 256
+)
+
 var (
 	errConsumerWithName    = errors.New("consumer with name")
 	errInvalidOffsetOffset = errors.New("invalid offset: offset")
@@ -412,7 +419,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	// alive, so we release the removed events and copy the rest in a right-sized array when
 	// more than half of the array is waste.
 	if cap(e.events) > 1024 && remaining < cap(e.events)/2 {
-		kept := make([]EventStoreItem[T], remaining, max(remaining*2, 256))
+		kept := make([]EventStoreItem[T], remaining, max(remaining*eventStoreGrowth, minEventStoreCapacity))
 		copy(kept, e.events[removed:])
 		e.events = kept
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"cloud.google.com/go/bigquery"
@@ -403,7 +404,7 @@ func (c *realBigQueryClient) Close() error {
 
 func isAlreadyExists(err error) bool {
 	if googleErr, ok := errors.AsType[*googleapi.Error](err); ok {
-		return googleErr.Code == 409
+		return googleErr.Code == http.StatusConflict
 	}
 
 	return false

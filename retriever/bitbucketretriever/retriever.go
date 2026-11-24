@@ -80,7 +80,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	r.updateRateLimit(resp.Header)
 
-	if resp.StatusCode > 399 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		bitbucketHeaders := map[string]string{}
 		for name := range resp.Header {

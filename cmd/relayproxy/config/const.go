@@ -8,6 +8,13 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 )
 
+const (
+	// defaultExporterFlushInterval is how often the exporters flush their events.
+	defaultExporterFlushInterval = 60000 * time.Millisecond
+	// defaultExporterMaxEventInMemory is the number of events kept in memory before a flush.
+	defaultExporterMaxEventInMemory = 100000
+)
+
 const DefaultLogLevel = "info"
 
 // ExporterDefaults are the values that an exporter configuration falls back to.
@@ -31,8 +38,8 @@ func DefaultExporter() ExporterDefaults {
 		FileName:  "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}",
 		CsvFormat: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
 			"{{ .Value}};{{ .Default}};{{ .Source}}\n",
-		FlushInterval:           60000 * time.Millisecond,
-		MaxEventInMemory:        100000,
+		FlushInterval:           defaultExporterFlushInterval,
+		MaxEventInMemory:        defaultExporterMaxEventInMemory,
 		ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
 		LogLevel:                DefaultLogLevel,
 		ExporterEventType:       ffclient.FeatureEventExporter,

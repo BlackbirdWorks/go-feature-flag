@@ -17,6 +17,11 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	// maxPercentage is the percentage that selects every user.
+	maxPercentage = 100
+)
+
 var (
 	errEvaluateRuleNoKey           = errors.New("evaluate Rule: no key for bucketing-required rule")
 	errEvaluateRuleNoEvaluation    = errors.New("evaluate Rule: no evaluation context")
@@ -323,7 +328,7 @@ func (r *Rule) EvaluateProgressiveRollout(
 	key, flagName string,
 	evaluationDate time.Time,
 ) (string, error) {
-	progressiveRolloutMaxPercentage := uint32(100 * PercentageMultiplier)
+	progressiveRolloutMaxPercentage := uint32(maxPercentage * PercentageMultiplier)
 	hashID := utils.BuildHash(flagName, key, progressiveRolloutMaxPercentage)
 	variation, err := r.getVariationFromProgressiveRollout(hashID, evaluationDate)
 	if err != nil {
@@ -368,7 +373,7 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 func (r *Rule) IsDynamic() bool {
 	hasPercentage100 := false
 	for _, percentage := range r.GetPercentages() {
-		if percentage == 100 {
+		if percentage == maxPercentage {
 			hasPercentage100 = true
 
 			break

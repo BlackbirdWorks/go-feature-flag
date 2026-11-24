@@ -6,9 +6,14 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+const (
+	// reservedContextKeys is the room kept in the map of a context for the keys that are not custom ones.
+	reservedContextKeys = 3
+)
+
 // ContextToMap convert the context to a MAP to use the query on it.
 func ContextToMap(ctx ffcontext.Context) map[string]any {
-	return ContextToMapInto(make(map[string]any, len(ctx.GetCustom())+3), ctx)
+	return ContextToMapInto(make(map[string]any, len(ctx.GetCustom())+reservedContextKeys), ctx)
 }
 
 // ContextToMapInto is ContextToMap filling (and returning) the empty map dst, that the caller can

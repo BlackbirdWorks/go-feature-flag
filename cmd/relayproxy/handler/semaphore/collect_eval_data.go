@@ -21,6 +21,11 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
+const (
+	// maxCreationDateSeconds is the last creation date, in seconds, that is not in milliseconds (year 2286).
+	maxCreationDateSeconds = 9999999999
+)
+
 type collectEvalData struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
@@ -178,7 +183,7 @@ func convertFeatureEvent(event map[string]any,
 }
 
 func formatCreationDate(input int64, logger *zap.Logger) int64 {
-	if input > 9999999999 {
+	if input > maxCreationDateSeconds {
 		logger.Warn(
 			"creationDate received is in milliseconds, we convert it to seconds",
 			zap.Int64("creationDate", input))

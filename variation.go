@@ -15,6 +15,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
+const (
+	// The number of workers is half the CPUs, at most maxWorkers.
+	maxWorkers     = 4
+	workersDivisor = 2
+)
+
 var (
 	errSemaphoreIsNotInitialised = errors.New("semaphore is not initialised, default value is used")
 )
@@ -349,7 +355,7 @@ func (g *GoFeatureFlag) startEventWorker() {
 	go g.reportDrops()
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
 	// per event): a few workers keep up with an evaluation rate of millions per second.
-	workers := max(1, min(4, runtime.GOMAXPROCS(0)/2))
+	workers := max(1, min(maxWorkers, runtime.GOMAXPROCS(0)/workersDivisor))
 	for range workers {
 		g.evalExporterWg.Add(1)
 		go g.runEventWorker()

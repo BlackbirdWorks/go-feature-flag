@@ -19,6 +19,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// keyValueParts is the number of parts of a "key:value" or "key=value" argument.
+	keyValueParts = 2
+)
+
 //nolint:funlen
 func NewEvaluateCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
@@ -335,11 +340,11 @@ func tryInitializeWithFlagset(
 func parseHTTPHeaders(headers []string) map[string][]string {
 	result := make(map[string][]string)
 	for _, h := range headers {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) != 2 {
-			parts = strings.SplitN(h, "=", 2)
+		parts := strings.SplitN(h, ":", keyValueParts)
+		if len(parts) != keyValueParts {
+			parts = strings.SplitN(h, "=", keyValueParts)
 		}
-		if len(parts) != 2 {
+		if len(parts) != keyValueParts {
 			continue
 		}
 		key := strings.TrimSpace(parts[0])
@@ -353,8 +358,8 @@ func parseHTTPHeaders(headers []string) map[string][]string {
 func parsePostgresColumns(columns []string) map[string]string {
 	result := make(map[string]string)
 	for _, c := range columns {
-		parts := strings.SplitN(c, ":", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(c, ":", keyValueParts)
+		if len(parts) != keyValueParts {
 			continue
 		}
 		key := strings.TrimSpace(parts[0])

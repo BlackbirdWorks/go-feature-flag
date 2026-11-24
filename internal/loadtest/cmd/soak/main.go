@@ -24,6 +24,18 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
 
+const (
+	// Defaults of the flags of the command.
+	defaultDuration      = 60 * time.Second
+	defaultInterval      = 5 * time.Second
+	defaultFlushMillis   = 100
+	defaultMaxEvents     = 10000
+	defaultHeapTolerance = 0.25
+	// Exit codes of the command, besides 0 and 1.
+	exitUsage       = 2
+	exitInterrupted = 130
+)
+
 var (
 	errUnknownProtocol = errors.New("unknown protocol")
 	errUnknownTarget   = errors.New("unknown target")
@@ -56,19 +68,19 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	fs.StringVar(&o.protocol, "protocol", "http1",
 		"relay client and server protocol: http1 (keep-alive) | h2c (HTTP/2 cleartext)")
 	fs.StringVar(&o.exporter, "exporter", "discard", "discard | slow | failing")
-	fs.DurationVar(&o.duration, "duration", 60*time.Second, "total run time")
-	fs.DurationVar(&o.interval, "interval", 5*time.Second, "sampling interval")
+	fs.DurationVar(&o.duration, "duration", defaultDuration, "total run time")
+	fs.DurationVar(&o.interval, "interval", defaultInterval, "sampling interval")
 	fs.IntVar(&o.workers, "workers", runtime.GOMAXPROCS(0), "number of load goroutines")
 	fs.StringVar(&o.flagKey, "flag", "rule-bool-track", "flag key to evaluate (tracking on by default)")
-	fs.Int64Var(&o.flushMs, "flush-ms", 100, "exporter flush interval (ms)")
+	fs.Int64Var(&o.flushMs, "flush-ms", defaultFlushMillis, "exporter flush interval (ms)")
 	fs.Int64Var(
 		&o.maxEvents,
 		"max-events",
-		10000,
+		defaultMaxEvents,
 		"exporter MaxEventInMemory (a small backlog keeps the heap measuring leaks, not the pending events)",
 	)
 	fs.IntVar(&o.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
-	fs.Float64Var(&o.heapTolerance, "heap-tolerance", 0.25, "relative HeapInuse growth tolerated")
+	fs.Float64Var(&o.heapTolerance, "heap-tolerance", defaultHeapTolerance, "relative HeapInuse growth tolerated")
 	fs.StringVar(&o.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")
 
 	return o, fs.Parse(args)
@@ -130,7 +142,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if err != nil {
-		return 2
+		return exitUsage
 	}
 	slog.SetLogLoggerLevel(slog.LevelError)
 
@@ -139,7 +151,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		if startCPUProfileErr != nil {
 			_, _ = fmt.Fprintln(stderr, "error:", startCPUProfileErr)
 
-			return 2
+			return exitUsage
 		}
 		defer stop()
 	}
@@ -147,7 +159,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
 
-		return 2
+		return exitUsage
 	}
 	defer t.Close()
 
@@ -164,7 +176,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if ctx.Err() != nil {
 		_, _ = fmt.Fprintln(stderr, "interrupted: no verdict")
 
-		return 130
+		return exitInterrupted
 	}
 	rep.Summary(stdout)
 	if !rep.Pass {

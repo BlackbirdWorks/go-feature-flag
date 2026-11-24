@@ -21,6 +21,13 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// listingTTLDivisor divides the polling interval to get the listing TTL; pollJitter is the share of the interval
+	// that a poll can be early or late.
+	listingTTLDivisor = 2
+	pollJitter        = 0.1
+)
+
 var (
 	errImpossibleToInitShared   = errors.New("impossible to init shared S3 items: bucket is empty")
 	errItemIsNotRegistered      = errors.New("item is not registered in the shared listing")
@@ -293,7 +300,7 @@ func (g *SharedItems) recompute() {
 
 // listingTTL is the window during which a listing is served without listing again.
 func listingTTL(interval time.Duration) time.Duration {
-	return max(minSharedListingTTL, interval/2)
+	return max(minSharedListingTTL, interval/listingTTLDivisor)
 }
 
 // listingPrefix is the longest common prefix of the keys, cut after its last "/" ("" if there is
@@ -714,7 +721,7 @@ func (g *SharedItems) nextDelay() time.Duration {
 		return g.interval
 	}
 	// not security sensitive: the jitter only spreads the requests
-	delay := g.interval + time.Duration((rand.Float64()*0.2-0.1)*float64(g.interval)) //nolint:gosec
+	delay := g.interval + time.Duration((rand.Float64()*2*pollJitter-pollJitter)*float64(g.interval)) //nolint:gosec
 	// the jitter must not go below the minimum interval
 	return max(delay, minSharedListingTTL)
 }

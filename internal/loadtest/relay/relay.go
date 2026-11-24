@@ -24,6 +24,12 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	// readyTimeout is how long the relay proxy has to answer the health check, polled every readyPollInterval.
+	readyTimeout      = 15 * time.Second
+	readyPollInterval = 20 * time.Millisecond
+)
+
 // Options configures Start.
 type Options struct {
 	// FlagsYAML is the flag configuration (see loadtest.FlagsYAML).
@@ -199,7 +205,7 @@ const healthRequestTimeout = 5 * time.Second
 // waitHealthy polls the relay proxy health endpoint until it answers or 15s elapse.
 func waitHealthy(baseURL string) error {
 	client := &http.Client{Timeout: healthRequestTimeout}
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(readyTimeout)
 	for {
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
@@ -214,6 +220,6 @@ func waitHealthy(baseURL string) error {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("relay proxy did not start: %w", err)
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(readyPollInterval)
 	}
 }

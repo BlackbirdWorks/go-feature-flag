@@ -119,7 +119,7 @@ func (f *Exporter) Export(
 		return internal.RedactURLError(err)
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
+	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w %d received, response: %v", errErrorWhileCallingThe,
 			response.StatusCode,
 			response.Body,

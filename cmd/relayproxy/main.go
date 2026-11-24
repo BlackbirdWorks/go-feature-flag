@@ -21,6 +21,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	// shutdownTimeout is how long the shutdown of the servers can last.
+	shutdownTimeout = 5 * time.Second
+)
+
 // version is overridden by GoReleaser during the build.
 var version = "localdev"
 
@@ -145,7 +150,7 @@ func shutdown(
 	flagsetManager service.FlagsetManager,
 ) {
 	logger.Info("Stopping API server")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	wsService.Close()
 	sseService.Close()

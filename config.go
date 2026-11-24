@@ -14,6 +14,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// defaultPollingInterval is the polling interval when none is configured.
+	defaultPollingInterval = 60 * time.Second
+)
+
 var (
 	errNoRetrieverInThe = errors.New("no retriever in the configuration, impossible to get the flags")
 )
@@ -182,7 +187,7 @@ func adjustPollingInterval(pollingInterval time.Duration) time.Duration {
 	switch {
 	case pollingInterval == 0:
 		// The default value for the poll interval is 60 seconds
-		return 60 * time.Second
+		return defaultPollingInterval
 	case pollingInterval > 0 && pollingInterval < time.Second:
 		// the minimum value for the polling policy is 1 second
 		return time.Second

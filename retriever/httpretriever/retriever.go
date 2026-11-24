@@ -110,7 +110,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode > 399 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("%w %s failed with code %d", errRequestTo, internal.RedactURL(r.URL), resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)

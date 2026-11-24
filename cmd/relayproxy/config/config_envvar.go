@@ -16,6 +16,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// minArrayEnvPaths is the number of parts of an array environment variable: <ARRAY>_<INDEX>_<FIELD>.
+	minArrayEnvPaths = 3
+)
+
 var (
 	errEnvProviderDoesNot  = errors.New("env provider does not support this method")
 	errEnvironmentVariable = errors.New("environment variable")
@@ -188,7 +193,7 @@ func (c *ConfigLoader) environ() func() []string {
 // Load the ENV Like:RETRIEVERS_0_HEADERS_AUTHORIZATION.
 func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error) {
 	paths := normalizePaths(s)
-	if len(paths) < 3 {
+	if len(paths) < minArrayEnvPaths {
 		return configMap, fmt.Errorf("%w %q: expected <ARRAY>_<INDEX>_<FIELD>", errEnvironmentVariable, s)
 	}
 	prefixKey := paths[0]

@@ -25,6 +25,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// maxErrorBodyBytes is how much of an error response is read to build the error message.
+	maxErrorBodyBytes = 512
+)
+
 var errRequestTo = errors.New("request to")
 
 var (
@@ -286,7 +291,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 	if resp.StatusCode != http.StatusCreated {
 		// GitHub explains the failure in the body (bad app id, suspended installation, clock skew...).
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 
 		return "", time.Time{}, fmt.Errorf("%w %d for installation %d: %s", errGithubAppAccessTokens,
 			resp.StatusCode, r.InstallationID, strings.TrimSpace(string(msg)),
@@ -402,7 +407,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
 func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
-	if resp.StatusCode > 399 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
 		for name := range resp.Header {

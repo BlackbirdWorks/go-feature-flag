@@ -82,7 +82,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
+	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w = %d", errErrorSlackNotifierWhile,
 			response.StatusCode)
 	}

@@ -24,6 +24,14 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// Sizes, in bytes, of the text columns of the events table.
+	maxKindBytes      = 50
+	maxUserKeyBytes   = 512
+	maxKeyBytes       = 256
+	maxShortTextBytes = 64
+)
+
 var errRedshiftExporter = errors.New("redshift exporter")
 
 var (
@@ -136,27 +144,27 @@ func textCol(name string, maxBytes int) column {
 
 func featureEventColumns() []column {
 	return []column{
-		textCol("kind", 50),
-		textCol("context_kind", 50),
-		textCol("user_key", 512),
+		textCol("kind", maxKindBytes),
+		textCol("context_kind", maxKindBytes),
+		textCol("user_key", maxUserKeyBytes),
 		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-		textCol("key", 256),
-		textCol("variation", 256),
+		textCol("key", maxKeyBytes),
+		textCol("variation", maxKeyBytes),
 		{name: "value", sqlType: sqlTypeSuper, kind: superColumn},
 		{name: "default", sqlType: sqlTypeBoolean, kind: booleanColumn},
-		textCol("version", 64),
-		textCol("source", 64),
+		textCol("version", maxShortTextBytes),
+		textCol("source", maxShortTextBytes),
 		{name: "metadata", sqlType: sqlTypeSuper, kind: superColumn},
 	}
 }
 
 func trackingEventColumns() []column {
 	return []column{
-		textCol("kind", 50),
-		textCol("context_kind", 50),
-		textCol("user_key", 512),
+		textCol("kind", maxKindBytes),
+		textCol("context_kind", maxKindBytes),
+		textCol("user_key", maxUserKeyBytes),
 		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-		textCol("key", 256),
+		textCol("key", maxKeyBytes),
 		{name: "tracking_details", sqlType: sqlTypeSuper, kind: superColumn},
 		{name: "evaluation_context", sqlType: sqlTypeSuper, kind: superColumn},
 	}

@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	// metricsPerFamily is the expected number of metric families produced for a family (the legacy aliases).
+	metricsPerFamily = 2
+)
+
+const (
 	flagNameLabel = "flag_name"
 	outcomeLabel  = "outcome"
 )
@@ -352,7 +357,7 @@ type legacyGatherer struct {
 func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
-	out := make([]*dto.MetricFamily, 0, len(families)*2)
+	out := make([]*dto.MetricFamily, 0, len(families)*metricsPerFamily)
 	out = append(out, families...)
 	for _, family := range families {
 		name := family.GetName()

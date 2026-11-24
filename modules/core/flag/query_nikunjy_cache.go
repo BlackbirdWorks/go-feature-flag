@@ -14,6 +14,20 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	// Rotation and shift distances of the query hash (xxhash like mixing).
+	rotate0     = 29
+	rotate1     = 31
+	rotate2     = 33
+	rotate3     = 37
+	mixRotate1  = 11
+	mixRotate2  = 23
+	mixRotate3  = 47
+	tailRotate  = 13
+	finalShift1 = 32
+	finalShift2 = 29
+)
+
 // nikunjyEvaluatorCache keeps one parsed *parser.Evaluator per query string. Parsing the
 // query via ANTLR is the dominant cost of a nikunjy rule evaluation. An evaluator compiles
 // its rule on the first Process and is then safe for concurrent use, so one evaluator per
@@ -99,21 +113,21 @@ func hashNikunjyQuery(query string) uint64 {
 	b := unsafe.Slice(unsafe.StringData(query), len(query)) //nolint: gosec
 	h0, h1, h2, h3 := uint64(len(query))*prime3, uint64(prime1), uint64(prime2), uint64(prime3)
 	for ; len(b) >= 32; b = b[32:] {
-		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, 29)
-		h1 = bits.RotateLeft64((h1^binary.LittleEndian.Uint64(b[8:]))*prime2, 31)
-		h2 = bits.RotateLeft64((h2^binary.LittleEndian.Uint64(b[16:]))*prime3, 33)
-		h3 = bits.RotateLeft64((h3^binary.LittleEndian.Uint64(b[24:]))*prime1, 37)
+		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, rotate0)
+		h1 = bits.RotateLeft64((h1^binary.LittleEndian.Uint64(b[8:]))*prime2, rotate1)
+		h2 = bits.RotateLeft64((h2^binary.LittleEndian.Uint64(b[16:]))*prime3, rotate2)
+		h3 = bits.RotateLeft64((h3^binary.LittleEndian.Uint64(b[24:]))*prime1, rotate3)
 	}
-	h := h0 ^ bits.RotateLeft64(h1, 11) ^ bits.RotateLeft64(h2, 23) ^ bits.RotateLeft64(h3, 47)
+	h := h0 ^ bits.RotateLeft64(h1, mixRotate1) ^ bits.RotateLeft64(h2, mixRotate2) ^ bits.RotateLeft64(h3, mixRotate3)
 	for ; len(b) >= 8; b = b[8:] {
-		h = bits.RotateLeft64((h^binary.LittleEndian.Uint64(b))*prime2, 31)
+		h = bits.RotateLeft64((h^binary.LittleEndian.Uint64(b))*prime2, rotate1)
 	}
 	for _, c := range b {
-		h = bits.RotateLeft64((h^uint64(c))*prime1, 13)
+		h = bits.RotateLeft64((h^uint64(c))*prime1, tailRotate)
 	}
-	h ^= h >> 32
+	h ^= h >> finalShift1
 	h *= prime2
-	h ^= h >> 29
+	h ^= h >> finalShift2
 
 	return h
 }

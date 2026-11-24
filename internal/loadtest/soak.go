@@ -16,6 +16,32 @@ import (
 	"time"
 )
 
+const (
+	// The latency histogram has subBuckets log scale sub-buckets per power of two.
+	subBuckets    = 4
+	subBucketBits = 2
+	subBucketMask = subBuckets - 1
+	// Defaults of the options of Run.
+	defaultSampleInterval = 5 * time.Second
+	defaultHeapMinGrowth  = 32 << 20
+	defaultMaxHeap        = 6 << 30
+	// Quantiles of the latency, and the unit conversions of the report.
+	quantileMedian   = 0.50
+	quantileP95      = 0.95
+	quantileP99      = 0.99
+	heapPollInterval = 200 * time.Millisecond
+	nsPerUs          = 1e3
+	mibShift         = 20
+	mib              = 1 << mibShift
+	// The verdict ignores the first warmupDivisor-th of the samples (at least minWarmupIntervals) and needs
+	// minMeasuredSamples samples after them; halves is the number of windows the heap growth compares.
+	minWarmupIntervals = 2
+	warmupDivisor      = 5
+	minMeasuredSamples = 3
+	halves             = 2
+	tabPadding         = 2
+)
+
 // Target is something we can evaluate flags against.
 type Target interface {
 	// Eval does one evaluation. i is a per-worker increasing counter.
@@ -120,20 +146,20 @@ func bucket(ns int64) int {
 	}
 	l := bits.Len64(uint64(ns)) - 1
 	sub := 0
-	if l >= 2 {
-		sub = int((uint64(ns) >> (l - 2)) & 3)
+	if l >= subBucketBits {
+		sub = int((uint64(ns) >> (l - subBucketBits)) & subBucketMask)
 	}
 
-	return l*4 + sub
+	return l*subBuckets + sub
 }
 
 func bucketUpper(b int) time.Duration {
-	l, sub := b/4, b%4
-	if l < 2 {
+	l, sub := b/subBuckets, b%subBuckets
+	if l < subBucketBits {
 		return time.Duration(1 << (l + 1))
 	}
 
-	return time.Duration(int64(4+sub+1) << (l - 2))
+	return time.Duration(int64(subBuckets+sub+1) << (l - subBucketBits))
 }
 
 func quantile(h []int64, total int64, q float64) time.Duration {
@@ -157,7 +183,7 @@ func quantile(h []int64, total int64, q float64) time.Duration {
 // each sample is written to it as it is taken.
 func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 	if o.Interval <= 0 {
-		o.Interval = 5 * time.Second
+		o.Interval = defaultSampleInterval
 	}
 	if o.Workers <= 0 {
 		o.Workers = runtime.GOMAXPROCS(0)
@@ -166,13 +192,13 @@ func Run(ctx context.Context, t Target, o Options, out io.Writer) Report {
 		o.HeapTolerance = 0.25
 	}
 	if o.HeapMinGrowthBytes == 0 {
-		o.HeapMinGrowthBytes = 32 << 20
+		o.HeapMinGrowthBytes = defaultHeapMinGrowth
 	}
 	if o.GoroutineSlack == 0 {
 		o.GoroutineSlack = 64
 	}
 	if o.MaxHeapBytes == 0 {
-		o.MaxHeapBytes = 6 << 30
+		o.MaxHeapBytes = defaultMaxHeap
 	}
 	ctx, cancel := context.WithTimeout(ctx, o.Duration)
 	defer cancel()
@@ -231,7 +257,7 @@ loop:
 		rep.Pass = false
 		rep.Reasons = append(rep.Reasons, fmt.Sprintf(
 			"aborted after %s: live heap exceeded the %d MiB safety cap (unbounded growth)",
-			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>20))
+			time.Duration(a-1).Round(time.Millisecond), o.MaxHeapBytes>>mibShift))
 	}
 
 	return rep
@@ -247,8 +273,8 @@ func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64
 		Elapsed:     elapsed.Round(time.Second),
 		EvalsPerSec: float64(calls) / interval.Seconds(),
 		Errors:      errs,
-		P50:         quantile(hist, nLat, 0.50),
-		P99:         quantile(hist, nLat, 0.99),
+		P50:         quantile(hist, nLat, quantileMedian),
+		P99:         quantile(hist, nLat, quantileP99),
 		HeapAlloc:   ms.HeapAlloc,
 		HeapInuse:   ms.HeapInuse,
 		HeapObjects: ms.HeapObjects,
@@ -261,7 +287,7 @@ func takeSample(elapsed, interval time.Duration, calls, errs int64, hist []int64
 func watchdog(ctx context.Context, cancel context.CancelFunc, maxHeap uint64, abortedAt *atomic.Int64) {
 	sample := []metrics.Sample{{Name: "/memory/classes/heap/objects:bytes"}}
 	start := time.Now()
-	tk := time.NewTicker(200 * time.Millisecond)
+	tk := time.NewTicker(heapPollInterval)
 	defer tk.Stop()
 	for {
 		select {
@@ -320,8 +346,8 @@ const header = "  t     evals/s   err   p50(us)  p99(us)  heapAlloc(MiB) heapInu
 func (s Sample) line() string {
 	return fmt.Sprintf("%4ds %10.0f %5d %9.1f %8.1f %14.1f %14.1f %9d %6d %11d",
 		int(s.Elapsed.Seconds()), s.EvalsPerSec, s.Errors,
-		float64(s.P50)/1e3, float64(s.P99)/1e3,
-		float64(s.HeapAlloc)/(1<<20), float64(s.HeapInuse)/(1<<20), s.HeapObjects, s.NumGC, s.Goroutines)
+		float64(s.P50)/nsPerUs, float64(s.P99)/nsPerUs,
+		float64(s.HeapAlloc)/mib, float64(s.HeapInuse)/mib, s.HeapObjects, s.NumGC, s.Goroutines)
 }
 
 // warmupCount is the number of leading samples ignored by the verdict and the window.
@@ -330,7 +356,7 @@ func warmupCount(n int, o Options) int {
 		return o.WarmupIntervals
 	}
 
-	return max(2, n/5)
+	return max(minWarmupIntervals, n/warmupDivisor)
 }
 
 // flagsPerCall returns the number of flags one call of the target evaluates.
@@ -360,7 +386,19 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 	}
 	w.CallsPerSec /= float64(w.Samples)
 	w.FlagsPerSec = w.CallsPerSec * float64(perCall)
-	w.P50, w.P95, w.P99 = quantile(merged, total, 0.50), quantile(merged, total, 0.95), quantile(merged, total, 0.99)
+	w.P50, w.P95, w.P99 = quantile(
+		merged,
+		total,
+		quantileMedian,
+	), quantile(
+		merged,
+		total,
+		quantileP95,
+	), quantile(
+		merged,
+		total,
+		quantileP99,
+	)
 
 	return w
 }
@@ -382,7 +420,7 @@ func judge(r *Report, o Options) {
 	}
 	n := len(r.Samples)
 	warm := warmupCount(n, o)
-	if n-warm < 3 {
+	if n-warm < minMeasuredSamples {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
 			"insufficient samples: %d samples, %d warm-up, need at least 3 measured (increase -duration)", n, warm))
@@ -395,17 +433,17 @@ func judge(r *Report, o Options) {
 	// sampling interval beat against each other. We compare the median of the first half of the
 	// measured window with the median of the last half: a leak raises the median, a bounded sawtooth
 	// does not.
-	half := max(1, len(m)/2)
+	half := max(1, len(m)/halves)
 	median := func(ss []Sample) float64 {
 		heaps := make([]float64, len(ss))
 		for i, s := range ss {
 			heaps[i] = float64(s.HeapInuse)
 		}
 		slices.Sort(heaps)
-		if mid := len(heaps) / 2; len(heaps)%2 == 1 {
+		if mid := len(heaps) / halves; len(heaps)%2 == 1 {
 			return heaps[mid]
 		} else {
-			return (heaps[mid-1] + heaps[mid]) / 2
+			return (heaps[mid-1] + heaps[mid]) / halves
 		}
 	}
 	first, last := median(m[:half]), median(m[len(m)-half:])
@@ -415,7 +453,7 @@ func judge(r *Report, o Options) {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
 			"median HeapInuse grows from %.1f MiB (first half) to %.1f MiB (last half), allowed +%.1f MiB",
-			first/(1<<20), last/(1<<20), allowed/(1<<20)))
+			first/mib, last/mib, allowed/mib))
 	}
 	// the baseline is the last warm-up sample, so growth between it and the first measured
 	// sample is counted.
@@ -446,7 +484,7 @@ func (r Report) Summary(w io.Writer) {
 	}
 	_, _ = fmt.Fprintf(w,
 		"\n%s: %s memory-stable (mean %.0f evals/s, %d evals, %d errors, heap growth over window %+.1f MiB)\n",
-		r.Name, verdict, avg, r.TotalEval, r.TotalErr, r.HeapGrowthBytes/(1<<20))
+		r.Name, verdict, avg, r.TotalEval, r.TotalErr, r.HeapGrowthBytes/mib)
 	for _, reason := range r.Reasons {
 		_, _ = fmt.Fprintf(w, "  - %s\n", reason)
 	}
@@ -454,7 +492,7 @@ func (r Report) Summary(w io.Writer) {
 		_, _ = fmt.Fprintf(w, "  window (%d samples after warm-up): %.0f calls/s, %.0f flags/s (%d per call), "+
 			"%d errors, latency p50 %.1fus p95 %.1fus p99 %.1fus\n",
 			r.Window.Samples, r.Window.CallsPerSec, r.Window.FlagsPerSec, r.Window.FlagsPerCall, r.Window.Errors,
-			float64(r.Window.P50)/1e3, float64(r.Window.P95)/1e3, float64(r.Window.P99)/1e3)
+			float64(r.Window.P50)/nsPerUs, float64(r.Window.P95)/nsPerUs, float64(r.Window.P99)/nsPerUs)
 	}
 	if len(r.Extra) > 0 {
 		keys := make([]string, 0, len(r.Extra))
@@ -462,7 +500,7 @@ func (r Report) Summary(w io.Writer) {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
-		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		tw := tabwriter.NewWriter(w, 0, 0, tabPadding, ' ', 0)
 		parts := make([]string, 0, len(keys))
 		for _, k := range keys {
 			parts = append(parts, fmt.Sprintf("%s=%d", k, r.Extra[k]))

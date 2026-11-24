@@ -31,6 +31,14 @@ import (
 )
 
 const (
+	// Timeouts of the gopherstack container and the longest prefix of the generated names.
+	startupTimeout = 60 * time.Second
+	probeTimeout   = 5 * time.Second
+	probeInterval  = 200 * time.Millisecond
+	maxNameBase    = 30
+)
+
+const (
 	// Image is the pinned gopherstack image (sha256:3683df48d7ed91df17214e3b6169609420d0d3a59b21a26f808b556be4cd8f78).
 	Image = "ghcr.io/blackbirdworks/gopherstack:1.9.1"
 	// Port is the port gopherstack listens on in the container.
@@ -77,7 +85,7 @@ func Start(ctx context.Context) (*Server, error) {
 		ExposedPorts: []string{Port},
 		WaitingFor: wait.ForHTTP(HealthPath).
 			WithPort(Port).
-			WithStartupTimeout(60 * time.Second),
+			WithStartupTimeout(startupTimeout),
 		Started: true,
 	})
 	if err != nil {
@@ -108,9 +116,9 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func waitHealthy(ctx context.Context, endpoint string) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: probeTimeout}
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
@@ -127,7 +135,7 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("gopherstack at %s is not healthy: %w", endpoint, ctx.Err())
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(probeInterval):
 		}
 	}
 }
@@ -226,8 +234,8 @@ var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)
 func UniqueName(t testing.TB, prefix string) string {
 	t.Helper()
 	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(t.Name()), "-"), "-")
-	if len(base) > 30 {
-		base = strings.Trim(base[:30], "-")
+	if len(base) > maxNameBase {
+		base = strings.Trim(base[:maxNameBase], "-")
 	}
 	suffix := fmt.Sprintf("%08x", randUint32())
 

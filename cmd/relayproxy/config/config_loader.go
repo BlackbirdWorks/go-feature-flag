@@ -24,6 +24,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+const (
+	// defaultPollingIntervalMillis is the polling interval, in milliseconds, when none is configured.
+	defaultPollingIntervalMillis = 60000
+)
+
 var (
 	errImpossibleToFindConfig     = errors.New("impossible to find config file")
 	errImpossibleToFindConfigFile = errors.New("impossible to find config file in the default locations")
@@ -128,7 +133,7 @@ func NewConfigLoader(
 func (c *ConfigLoader) loadConfig() {
 	_ = c.k.Load(confmap.Provider(map[string]any{
 		"fileFormat":      "yaml",
-		"pollingInterval": 60000,
+		"pollingInterval": defaultPollingIntervalMillis,
 		"logLevel":        DefaultLogLevel,
 	}, "."), nil)
 

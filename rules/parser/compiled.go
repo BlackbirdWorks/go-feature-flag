@@ -11,6 +11,11 @@ import (
 	"github.com/blang/semver/v4"
 )
 
+const (
+	// versionDots is the number of dots of a semantic version: the last number has no dot after it.
+	versionDots = 2
+)
+
 type nodeKind int
 
 // inSetMinLen is the list length from which IN uses a hash set instead of a
@@ -535,7 +540,7 @@ func parsePlainVersion(s string) (semver.Version, bool) {
 	var nums [3]uint64
 	for i := range nums {
 		end := len(core)
-		if i < 2 {
+		if i < versionDots {
 			end = strings.IndexByte(core, '.')
 			if end < 0 {
 				return v, false
@@ -546,7 +551,7 @@ func parsePlainVersion(s string) (semver.Version, bool) {
 			return v, false
 		}
 		nums[i] = n
-		if i < 2 {
+		if i < versionDots {
 			core = core[end+1:]
 		}
 	}

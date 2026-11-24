@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	// jitterFraction is the share of the polling interval that the jitter can add or remove.
+	jitterFraction = 0.1
+)
+
 // backgroundUpdater contains what is needed to manage the
 // background update of the flags.
 type backgroundUpdater struct {
@@ -17,7 +22,7 @@ func newBackgroundUpdater(pollingInterval time.Duration, useJitter bool) backgro
 	tickerDuration := pollingInterval
 	if useJitter {
 		// we accept a deviation of maximum 10% of the polling interval
-		maxJitter := float64(pollingInterval) * 0.1
+		maxJitter := float64(pollingInterval) * jitterFraction
 		jitter := time.Duration(0)
 		if int64(maxJitter) > 0 {
 			jitter = time.Duration(rand.Int64N(int64(maxJitter))) //nolint:gosec // jitter, not security sensitive

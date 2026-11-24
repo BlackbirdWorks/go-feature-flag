@@ -277,8 +277,11 @@ func (j *JsonQueryVisitorImpl) VisitNull(ctx *NullContext) any {
 	return nil
 }
 
+// quoteChars is the number of characters of the quotes around a string literal.
+const quoteChars = 2
+
 func getString(s string) string {
-	if len(s) > 2 {
+	if len(s) > quoteChars {
 		return s[1 : len(s)-1]
 	}
 

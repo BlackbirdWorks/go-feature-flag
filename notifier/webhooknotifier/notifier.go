@@ -157,7 +157,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		return fmt.Errorf("error: while calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
+	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w = %d", errErrorWhileCallingWebhook, response.StatusCode)
 	}
 
