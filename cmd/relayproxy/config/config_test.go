@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -2022,6 +2023,99 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 				return
 			}
 			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
+	t.Helper()
+	configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
+	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	flagSet.String("config", "", "Location of your config file")
+	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
+	got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+	require.NoError(t, err)
+	return got
+}
+
+func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		content      string
+		want         time.Duration
+		wantFlagSets []time.Duration
+	}{
+		{name: "unset keeps the zero value", content: "logLevel: info\n", want: 0},
+		{name: "set in the config file", content: "exporterCleanQueueInterval: 30s\n", want: 30 * time.Second},
+		{
+			name: "set at flagset level",
+			content: "exporterCleanQueueInterval: 30s\nflagsets:\n" +
+				"  - name: a\n    apiKeys: [key-a]\n    exporterCleanQueueInterval: 5s\n" +
+				"  - name: b\n    apiKeys: [key-b]\n",
+			want:         30 * time.Second,
+			wantFlagSets: []time.Duration{5 * time.Second, 0},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := parseCleanQueueConfig(t, tt.content)
+			assert.Equal(t, tt.want, got.ExporterCleanQueueInterval)
+			for i, want := range tt.wantFlagSets {
+				assert.Equal(t, want, got.FlagSets[i].ExporterCleanQueueInterval)
+			}
+		})
+	}
+}
+
+// Not parallel: t.Setenv changes the process environment.
+func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
+	t.Setenv("EXPORTERCLEANQUEUEINTERVAL", "2m")
+	got := parseCleanQueueConfig(t, "logLevel: info\n")
+	assert.Equal(t, 2*time.Minute, got.ExporterCleanQueueInterval)
+}
+
+func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
+	t.Parallel()
+	retriever := &retrieverconf.RetrieverConf{Kind: retrieverconf.HTTPRetriever, URL: "https://example.com/flags.yaml"}
+	tests := []struct {
+		name    string
+		cfg     *config.Config
+		wantErr string
+	}{
+		{name: "unset", cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{Retriever: retriever}}},
+		{
+			name: "positive",
+			cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{
+				Retriever: retriever, ExporterCleanQueueInterval: time.Second}},
+		},
+		{
+			name: "negative",
+			cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{
+				Retriever: retriever, ExporterCleanQueueInterval: -time.Second}},
+			wantErr: "exporterCleanQueueInterval must not be negative",
+		},
+		{
+			name: "negative in a flagset",
+			cfg: &config.Config{FlagSets: []config.FlagSet{{
+				Name: "a", APIKeys: []string{"k"},
+				CommonFlagSet: config.CommonFlagSet{Retriever: retriever, ExporterCleanQueueInterval: -time.Second},
+			}}},
+			wantErr: "flagset a: exporterCleanQueueInterval must not be negative",
+		},
+	}
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := tt.cfg.IsValid()
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.wantErr)
 		})
 	}
 }

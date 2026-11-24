@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/thomaspoignant/go-feature-flag/cmdhelpers/retrieverconf"
 )
@@ -71,6 +72,12 @@ type CommonFlagSet struct {
 	// The minimum possible is 1 second
 	// Default: 60 seconds
 	PollingInterval int `mapstructure:"pollingInterval" koanf:"pollinginterval"`
+
+	// ExporterCleanQueueInterval (optional) is the duration between each cleaning of the queue by the thread in charge
+	// of removing the old events. It must not be negative, 0 means the default.
+	// In flagset mode the top-level value is used by the flagsets that do not set their own.
+	// Default: 1 minute
+	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"` //nolint: lll
 
 	// StartWithRetrieverError (optional) If true, the relay proxy will start even if we did not get any flags from
 	// the retriever. It will serve only default values until the retriever returns the flags.

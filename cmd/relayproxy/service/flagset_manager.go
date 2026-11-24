@@ -95,6 +95,9 @@ type flagsetManagerImpl struct {
 
 	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
 	sharedRegistry *sharedBucketRegistry
+
+	// clientOptions are extra options for the clients created at runtime (nil outside the tests).
+	clientOptions []clientOption
 }
 
 // NewFlagsetManager is creating a new FlagsetManager.
@@ -137,6 +140,7 @@ func newFlagsetManagerWithDefaultConfig(
 			Exporters:                       c.Exporters,
 			FileFormat:                      c.FileFormat,
 			PollingInterval:                 c.PollingInterval,
+			ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
 			StartWithRetrieverError:         c.StartWithRetrieverError,
 			EnablePollingJitter:             c.EnablePollingJitter,
 			DisableNotifierOnInit:           c.DisableNotifierOnInit,
@@ -197,7 +201,8 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
 		client, err := newGoFeatureFlagClient(
-			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry))
+			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry),
+			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.Error(
 				"failed to create goff client for flagset",
@@ -404,7 +409,7 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	m.sharedRegistry.preRegisterAll(added)
 	defer m.sharedRegistry.releasePending()
 	for _, newFlagset := range added {
-		m.addFlagset(newFlagset)
+		m.addFlagset(newFlagset, newConfig.ExporterCleanQueueInterval)
 	}
 
 	// 3. Reconcile the flagsets that are present in both configurations: only their API keys
@@ -447,11 +452,15 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 }
 
 // addFlagset creates a new GoFeatureFlag client for the given flagset and registers it so it
-// can serve evaluations immediately.
-func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet) {
+// can serve evaluations immediately. defaultCleanQueueInterval is the top-level exporterCleanQueueInterval of the
+// configuration being applied, used when the flagset does not set its own.
+func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueueInterval time.Duration) {
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
-	client, err := newGoFeatureFlagClient(
-		&flagset, m.logger, allNotifiers, withSharedBucketRegistry(m.sharedRegistry))
+	opts := append([]clientOption{
+		withSharedBucketRegistry(m.sharedRegistry),
+		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
+	}, m.clientOptions...)
+	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
 		m.logger.Error(
 			"failed to create the flagset added at runtime, it will not be available until the "+
