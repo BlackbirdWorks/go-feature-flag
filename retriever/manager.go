@@ -280,6 +280,15 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 	return m.cacheManager.AllFlags()
 }
 
+// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
+// callers inside the module that only read them (evaluation of all the flags).
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, fmt.Errorf("cache is not initialized")
+	}
+	return m.cacheManager.AllFlagsReadOnly()
+}
+
 func (m *Manager) ForceRefresh(ctx context.Context) bool {
 	err := m.retrieveFlagsAndUpdateCache(ctx, false)
 	if err != nil {

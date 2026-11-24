@@ -52,7 +52,8 @@ func (c *cacheMock) Close() {}
 func (c *cacheMock) GetFlag(_ string) (flag.Flag, error) {
 	return c.flag, c.err
 }
-func (c *cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, nil }
+func (c *cacheMock) AllFlags() (map[string]flag.Flag, error)         { return nil, nil }
+func (c *cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, nil }
 
 // assertExpectedLog waits for the async logger to flush and asserts that a log
 // message containing expectedLog was emitted. It is a no-op when expectedLog is

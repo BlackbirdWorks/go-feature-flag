@@ -65,7 +65,8 @@ func (g *GoFeatureFlag) GetFlagStates(
 	}
 
 	// Evaluate all the flags
-	flags, err := g.GetFlagsFromCache()
+	// the flags are only read to be evaluated, so they are not copied.
+	flags, err := g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
 	if err != nil {
 		return flagstate.AllFlags{}
 	}
