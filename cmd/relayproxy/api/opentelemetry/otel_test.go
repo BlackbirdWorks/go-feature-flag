@@ -279,6 +279,7 @@ func TestExportEnvironment(t *testing.T) {
 	tests := []struct {
 		name         string
 		endpoint     string
+		otlpEndpoint string
 		wantEnv      string
 		wantEndpoint string
 	}{
@@ -288,12 +289,19 @@ func TestExportEnvironment(t *testing.T) {
 			wantEnv:      "https://example.com:4318",
 			wantEndpoint: "https://example.com:4318",
 		},
+		{
+			name:         "the OTLP exporter endpoint is exported when the environment has none",
+			otlpEndpoint: "https://otlp.example.com:4318",
+			wantEnv:      "https://otlp.example.com:4318",
+			wantEndpoint: "https://otlp.example.com:4318",
+		},
 		{name: "no endpoint exports nothing", endpoint: "", wantEnv: "", wantEndpoint: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
 			conf := &config.Config{OpenTelemetryOtlpEndpoint: tt.endpoint}
+			conf.OtelConfig.Exporter.Otlp.Endpoint = tt.otlpEndpoint
 			ExportEnvironment(conf)
 			assert.Equal(t, tt.wantEnv, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 			assert.Equal(t, tt.wantEndpoint, conf.OtelConfig.Exporter.Otlp.Endpoint)

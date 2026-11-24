@@ -115,3 +115,33 @@ func TestLegacyWarner(t *testing.T) {
 		})
 	}
 }
+
+func TestOutput_Add(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		lines []helper.OutputLine
+	}{
+		{name: "no line", lines: nil},
+		{
+			name: "lines are kept in order",
+			lines: []helper.OutputLine{
+				{Text: "first", Level: helper.InfoLevel},
+				{Text: "second", Level: helper.ErrorLevel},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var o helper.Output
+			for _, l := range tt.lines {
+				o.Add(l.Text, l.Level)
+			}
+
+			assert.Equal(t, tt.lines, o.Lines)
+		})
+	}
+}
