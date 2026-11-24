@@ -1,9 +1,10 @@
 # Releasing Semaphore
 
-A release is made by pushing one tag (`vMAJOR.MINOR.PATCH`, optionally with a pre-release
-suffix `-alpha.N`, `-beta.N` or `-rc.N`, for example `v0.1.0-rc.1`; other suffixes are refused). The `Release` workflow (`.github/workflows/release.yml`) does
-the rest. It uses the repository `GITHUB_TOKEN` only: no other secret, no other registry,
-nothing is pushed to a branch or to another repository.
+A release is cut from the GitHub UI: run the `Release` workflow (`.github/workflows/release.yml`) on `main`
+and choose the bump (`patch`, `minor` or `major`). The workflow finds the latest stable tag, computes
+the next version, creates and pushes the annotated tag, then builds and publishes that tag in the same run.
+Nobody types a version or a tag by hand. It uses the repository `GITHUB_TOKEN` only: no other secret,
+no other registry, nothing is pushed to a branch or to another repository.
 
 Nothing has been released yet. Everything below is "available after the first release".
 
@@ -31,18 +32,41 @@ chart (the Helm chart of the original project was not carried over: the owner do
 
 ## Cut a release
 
-1. Decide the version (see "First version" below) and make sure `main` is green.
-2. Nothing else carries the version: it is taken from the tag (the binaries get it through the
-   `-X main.version` linker flag). The workflow rejects a tag that is not `vMAJOR.MINOR.PATCH` with an optional `-alpha.N`, `-beta.N` or `-rc.N` suffix.
-3. Run the dry run first (next section) on the commit you are about to tag.
-4. Tag that commit and push the tag: `git tag -s v0.1.0 -m "v0.1.0" && git push origin v0.1.0`.
-5. Push one tag at a time and watch the `Release` run to its end before pushing the next: a second tag pushed
-   while one run is active and another is pending replaces the pending run (one pending run per concurrency group).
-   Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
-6. The first push to `ghcr.io` creates the packages as private: in the organization package
+1. Make sure `main` is green.
+2. Actions, "Release", Run workflow, "Use workflow from": `main`. Leave `dry_run` checked and pick the `bump`:
+   the run prints the next version in its summary and builds everything without publishing (see "Dry run").
+3. Run it again with `dry_run` unchecked. The `plan` job computes the version, `create tag` pushes the annotated
+   tag (made by `github-actions[bot]`, not signed: the project has no signing key) on the commit the run started
+   on, and `release` publishes it. The release job runs in the same workflow run: a tag pushed with
+   `GITHUB_TOKEN` does not start another run, which is why the tag is not a separate trigger here.
+4. Watch the run to its end before starting another: a second run started while one is active and another is
+   pending replaces the pending run (one pending run per concurrency group). Runs are serialised, and each
+   computes its version after the previous one finished.
+5. The first push to `ghcr.io` creates the packages as private: in the organization package
    settings, link them to this repository and make them public. There are two: `semaphore`
    and `semaphore-cli`.
-7. Verify the artifacts (below).
+6. Verify the artifacts (below).
+
+Version rules:
+
+| Latest stable tag | `patch` | `minor` | `major` |
+|---|---|---|---|
+| none (first release) | `v0.1.0` | `v0.1.0` | `v0.1.0` |
+| `v0.1.0` | `v0.1.1` | `v0.2.0` | `v1.0.0` |
+| `v1.2.3` | `v1.2.4` | `v1.3.0` | refused (`v2.0.0`) |
+
+- Only stable tags (`vMAJOR.MINOR.PATCH`) count as "latest"; pre-release tags are ignored.
+- The first release is always `v0.1.0` whatever the bump (see "First version").
+- A bump that would give major 2 or more is refused: the Go module path has no `/vN` suffix, so such a tag would be
+  invisible to the Go module proxy. Changing that is a deliberate module path change, not a button.
+- The release run starts only from `main` (a dry run may start from any ref). The workflow also refuses to
+  overwrite an existing tag.
+- The version is taken from the tag (the binaries get it through the `-X main.version` linker flag); nothing else carries it.
+
+Pre-releases (`-alpha.N`, `-beta.N`, `-rc.N`, for example `v0.2.0-rc.1`) are not offered by the bump selector. An owner
+can still push such a tag by hand (`git tag -s v0.2.0-rc.1 -m v0.2.0-rc.1 && git push origin v0.2.0-rc.1`): a
+pushed `v*` tag runs the release job directly. Any other suffix is refused. A pre-release creates a GitHub
+pre-release; its images get only the exact `v0.2.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags.
 
 The first release has no previous tag, so the workflow writes a short fixed release note instead
 of a changelog (the git history also holds the commits of the project this one derives from).
@@ -50,7 +74,8 @@ Later releases get the generated changelog between tags.
 
 ## Dry run
 
-Actions, "Release", Run workflow, keep `dry_run` checked (the default). It builds the snapshot
+Actions, "Release", Run workflow, keep `dry_run` checked (the default) and pick a `bump`. It computes and prints
+the next version (job summary of `plan`), creates no tag, and builds the snapshot
 archives for every platform, the SBOMs, all image variants for all platforms (QEMU), and publishes nothing; the archives are kept three days as the `dry-run-release` workflow
 artifact. Every pull request also runs `goreleaser check` and a snapshot build of the FIPS binary for the current
 platform as part of `ci-ok`.
@@ -96,15 +121,18 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   bad one.
 - Images: delete the bad version tags in the package settings (or `gh api -X DELETE
   /orgs/BlackbirdWorks/packages/container/semaphore/versions/<id>`), and re-point `latest` by
-  re-running the workflow of the previous good tag (`workflow_dispatch` on that tag with
+  re-running the workflow of the previous good tag (`workflow_dispatch` with `release_tag` set to that tag and
   `dry_run` unchecked republishes it, tags included).
 - A failed run that stopped half-way (images pushed, release not created): fix the cause and
-  re-run the failed job, or run `workflow_dispatch` on the same tag with `dry_run` unchecked.
+  re-run the failed job, or run the workflow with `release_tag` set to the same tag and `dry_run` unchecked (the `bump` input is
+  ignored; the tag is never created or moved; if the run had already created the tag, do not run a bump again, it would
+  make the next version).
   GoReleaser replaces existing release files.
 
 ## First version
 
-Decided by the owner: the first release is `v0.1.0`.
+Decided by the owner: the first release is `v0.1.0`. When the repository has no stable `vMAJOR.MINOR.PATCH` tag, the
+workflow produces `v0.1.0` for any bump, so the first run can be launched with the default choice.
 
 Reasons: Semaphore is a different project with a different surface (renamed binary, image, metrics,
 config files), so reusing upstream's `1.x` numbers would suggest a drop-in successor; `0.x` states
@@ -119,7 +147,8 @@ Supported platforms are 64-bit only (amd64 and arm64); there are no 32-bit archi
 This repository (GitHub) has no tags. A clone of the original project, or a local clone that fetched its
 tags, has hundreds (`v1.59.1` and the like). GoReleaser derives the version of a snapshot from the
 nearest tag, so such a clone builds `1.59.2-next` while a clean checkout without tags builds `0.0.1-next`.
-Neither matters for a release: a release uses the pushed tag itself (`v0.1.0` gives `0.1.0`, image tags
+The release workflow reads only the tags of this repository's checkout, so a repository with no tags starts at
+`v0.1.0`. Neither matters for a release: a release uses the tag itself (`v0.1.0` gives `0.1.0`, image tags
 `v0.1.0`, `v0.1`, `v0` and `latest`). The previous-tag lookup finds none on this repository, which is why the
 workflow writes a fixed note for the first release instead of a changelog (the history contains the
 commits of the original project). Do not push or fetch the original project's tags into this repository.
@@ -127,6 +156,7 @@ commits of the original project). Do not push or fetch the original project's ta
 ## Secrets and permissions
 
 The workflow references `secrets.GITHUB_TOKEN` only. Jobs: `plan` and `dry-run` have `contents: read`;
+`create tag` has `contents: write` (push the tag; the token is passed to that one `git push` and not stored in the checkout);
 `release` has `contents: write` (create the release), `packages: write` (push images),
 `id-token: write` and `attestations: write` (provenance attestations). `ci.yml` has no secret
 other than the optional `CODECOV_TOKEN`.
