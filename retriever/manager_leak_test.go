@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
@@ -104,7 +105,7 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 				gotRefresh = manager.ForceRefresh(ctx)
 			})
 			// The refresh returned on the first error, not because the deadline released the slow retrievers.
-			assert.NoError(t, refreshCtx.Err())
+			require.NoError(t, refreshCtx.Err())
 			// The slow retrievers answer after the refresh already returned its error.
 			close(gate)
 			// Every slow retriever has returned its flags: the only thing left for its goroutine is to hand
