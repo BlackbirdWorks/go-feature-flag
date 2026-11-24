@@ -56,6 +56,7 @@ type node struct {
 // compareNode is a present or compare node.
 type compareNode struct {
 	node
+
 	listOp  Operand // lists: the parsed list ([]int, []float64 or []string)
 	rightOp Operand // valueConst: operand set for the rule value
 	valErr  error   // valueConst: error set on eval (invalid integer)

@@ -23,7 +23,7 @@ func Test_evaluate(t *testing.T) {
 		flagKey         string
 		expectedType    string
 	}
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		errAssertion assert.ErrorAssertionFunc
 		args         args
 		name         string

@@ -419,10 +419,6 @@ linters:
       # Disable analyzers by name.
       # Run `GL_DEBUG=govet golangci-lint run --enable=govet` to see default, all available analyzers, and enabled analyzers.
       # Default: []
-      # TEMPORARY (enabled in a follow-up PR): 461 fieldalignment findings; it reorders struct fields,
-      # which changes serialized key order, public struct layout and breaks unkeyed literals.
-      disable:
-        - fieldalignment
       settings:
         shadow:
           strict: true

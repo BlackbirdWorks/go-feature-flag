@@ -20,7 +20,8 @@ type Config struct {
 	// if in the evaluation context you have a field with the same name,
 	// it will be overridden by the evaluationContextEnrichment.
 	// Default: nil
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"`
 	// logger is the logger for the relay proxy
 	logger *zap.Logger
 	// configLoader is the service in charge of loading the configuration.
@@ -30,7 +31,8 @@ type Config struct {
 	//
 	// By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here,
 	// you ensure that Semaphore will always start with a configuration but which can be out-dated.
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"`
 	// Version is the version of the relay-proxy
 	Version string `mapstructure:"version" koanf:"version"`
 	// EnvVariablePrefix (optional) is the prefix we are using to load the environment variables
@@ -92,6 +94,7 @@ type Config struct {
 	// Server is the server configuration, including host, port, and unix socket
 	Server Server `mapstructure:"server" koanf:"server"`
 	// CommonFlagSet is the common flag set for the relay proxy
+	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
 	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
 	// Endpoints (optional) configures the endpoints of the relay proxy.
 	Endpoints Endpoints `mapstructure:"endpoints" koanf:"endpoints"`

@@ -48,7 +48,7 @@ func NewFeatureEvent(
 
 // FeatureEvent represent an Event that we store in the data storage
 //
-//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+//nolint:lll,govet // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped; fieldalignment: field order is the column order of the CSV and Parquet exports and the key order of the JSON export
 type FeatureEvent struct {
 	// Kind for a feature event is feature.
 	// A feature event will only be generated if the trackEvents attribute of the flag is set to true.

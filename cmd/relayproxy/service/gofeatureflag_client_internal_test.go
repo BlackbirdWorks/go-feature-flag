@@ -62,6 +62,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 
 	sharedValid := s3FlagSet("a", "b1", "p/a.yaml")
 	sharedFolder := s3FlagSet("a", "b1", "")
+	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
 		name       string
 		retrievers *[]retrieverconf.RetrieverConf
@@ -195,6 +196,7 @@ func shutdownReleasing(t *testing.T, r []retriever.Retriever) {
 func Test_initExporters(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
 		name      string
 		exporters *[]config.ExporterConf
@@ -285,6 +287,7 @@ func Test_initExporters(t *testing.T) {
 func Test_initExporter(t *testing.T) {
 	t.Parallel()
 
+	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
 		name                   string
 		conf                   *config.ExporterConf
@@ -602,6 +605,7 @@ func Test_initNotifier(t *testing.T) {
 	type args struct {
 		c []config.NotifierConf
 	}
+	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
 		name    string
 		args    args
@@ -683,16 +687,19 @@ func TestSetKafkaConfig(t *testing.T) {
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
 				Config: &sarama.Config{
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 					Net: struct {
 						MaxOpenRequests                  int
 						DialTimeout                      time.Duration
 						ReadTimeout                      time.Duration
 						WriteTimeout                     time.Duration
 						ResolveCanonicalBootstrapServers bool
-						TLS                              struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						TLS struct {
 							Enable bool
 							Config *tls.Config
 						}
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 						SASL struct {
 							Enable                   bool
 							Mechanism                sarama.SASLMechanism
@@ -708,23 +715,32 @@ func TestSetKafkaConfig(t *testing.T) {
 						}
 						KeepAlive time.Duration
 						LocalAddr net.Addr
-						Proxy     struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						Proxy struct {
 							Enable bool
 							Dialer proxy.Dialer
 						}
-					}{SASL: struct {
-						Enable                   bool
-						Mechanism                sarama.SASLMechanism
-						Version                  int16
-						Handshake                bool
-						AuthIdentity             string
-						User                     string
-						Password                 string
-						SCRAMAuthzID             string
-						SCRAMClientGeneratorFunc func() sarama.SCRAMClient
-						TokenProvider            sarama.AccessTokenProvider
-						GSSAPI                   sarama.GSSAPIConfig
-					}{Enable: true, Mechanism: "SCRAM-SHA-512", User: "TODO", Password: "TODO"}},
+					}{
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						SASL: struct {
+							Enable                   bool
+							Mechanism                sarama.SASLMechanism
+							Version                  int16
+							Handshake                bool
+							AuthIdentity             string
+							User                     string
+							Password                 string
+							SCRAMAuthzID             string
+							SCRAMClientGeneratorFunc func() sarama.SCRAMClient
+							TokenProvider            sarama.AccessTokenProvider
+							GSSAPI                   sarama.GSSAPIConfig
+						}{
+							Enable:    true,
+							Mechanism: "SCRAM-SHA-512",
+							User:      "TODO",
+							Password:  "TODO",
+						},
+					},
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
@@ -746,16 +762,19 @@ func TestSetKafkaConfig(t *testing.T) {
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
 				Config: &sarama.Config{
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 					Net: struct {
 						MaxOpenRequests                  int
 						DialTimeout                      time.Duration
 						ReadTimeout                      time.Duration
 						WriteTimeout                     time.Duration
 						ResolveCanonicalBootstrapServers bool
-						TLS                              struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						TLS struct {
 							Enable bool
 							Config *tls.Config
 						}
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 						SASL struct {
 							Enable                   bool
 							Mechanism                sarama.SASLMechanism
@@ -771,23 +790,32 @@ func TestSetKafkaConfig(t *testing.T) {
 						}
 						KeepAlive time.Duration
 						LocalAddr net.Addr
-						Proxy     struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						Proxy struct {
 							Enable bool
 							Dialer proxy.Dialer
 						}
-					}{SASL: struct {
-						Enable                   bool
-						Mechanism                sarama.SASLMechanism
-						Version                  int16
-						Handshake                bool
-						AuthIdentity             string
-						User                     string
-						Password                 string
-						SCRAMAuthzID             string
-						SCRAMClientGeneratorFunc func() sarama.SCRAMClient
-						TokenProvider            sarama.AccessTokenProvider
-						GSSAPI                   sarama.GSSAPIConfig
-					}{Enable: true, Mechanism: "SCRAM-SHA-256", User: "TODO", Password: "TODO"}},
+					}{
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						SASL: struct {
+							Enable                   bool
+							Mechanism                sarama.SASLMechanism
+							Version                  int16
+							Handshake                bool
+							AuthIdentity             string
+							User                     string
+							Password                 string
+							SCRAMAuthzID             string
+							SCRAMClientGeneratorFunc func() sarama.SCRAMClient
+							TokenProvider            sarama.AccessTokenProvider
+							GSSAPI                   sarama.GSSAPIConfig
+						}{
+							Enable:    true,
+							Mechanism: "SCRAM-SHA-256",
+							User:      "TODO",
+							Password:  "TODO",
+						},
+					},
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
@@ -809,16 +837,19 @@ func TestSetKafkaConfig(t *testing.T) {
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
 				Config: &sarama.Config{
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 					Net: struct {
 						MaxOpenRequests                  int
 						DialTimeout                      time.Duration
 						ReadTimeout                      time.Duration
 						WriteTimeout                     time.Duration
 						ResolveCanonicalBootstrapServers bool
-						TLS                              struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						TLS struct {
 							Enable bool
 							Config *tls.Config
 						}
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 						SASL struct {
 							Enable                   bool
 							Mechanism                sarama.SASLMechanism
@@ -834,23 +865,32 @@ func TestSetKafkaConfig(t *testing.T) {
 						}
 						KeepAlive time.Duration
 						LocalAddr net.Addr
-						Proxy     struct {
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						Proxy struct {
 							Enable bool
 							Dialer proxy.Dialer
 						}
-					}{SASL: struct {
-						Enable                   bool
-						Mechanism                sarama.SASLMechanism
-						Version                  int16
-						Handshake                bool
-						AuthIdentity             string
-						User                     string
-						Password                 string
-						SCRAMAuthzID             string
-						SCRAMClientGeneratorFunc func() sarama.SCRAMClient
-						TokenProvider            sarama.AccessTokenProvider
-						GSSAPI                   sarama.GSSAPIConfig
-					}{Enable: true, Mechanism: "UNKNONW-MECHANISM", User: "TODO", Password: "TODO"}},
+					}{
+						//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+						SASL: struct {
+							Enable                   bool
+							Mechanism                sarama.SASLMechanism
+							Version                  int16
+							Handshake                bool
+							AuthIdentity             string
+							User                     string
+							Password                 string
+							SCRAMAuthzID             string
+							SCRAMClientGeneratorFunc func() sarama.SCRAMClient
+							TokenProvider            sarama.AccessTokenProvider
+							GSSAPI                   sarama.GSSAPIConfig
+						}{
+							Enable:    true,
+							Mechanism: "UNKNONW-MECHANISM",
+							User:      "TODO",
+							Password:  "TODO",
+						},
+					},
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
@@ -887,6 +927,7 @@ func TestSetKafkaConfig(t *testing.T) {
 		t.Parallel()
 
 		defaults := sarama.NewConfig()
+		//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 		tests := []struct {
 			name string
 			user func(c *sarama.Config)
@@ -977,16 +1018,19 @@ func TestSetKafkaConfig(t *testing.T) {
 			Topic:     "my-kafka-topic",
 			Addresses: []string{"addr1", "addr2"},
 			Config: &sarama.Config{
+				//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 				Net: struct {
 					MaxOpenRequests                  int
 					DialTimeout                      time.Duration
 					ReadTimeout                      time.Duration
 					WriteTimeout                     time.Duration
 					ResolveCanonicalBootstrapServers bool
-					TLS                              struct {
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+					TLS struct {
 						Enable bool
 						Config *tls.Config
 					}
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 					SASL struct {
 						Enable                   bool
 						Mechanism                sarama.SASLMechanism
@@ -1002,23 +1046,32 @@ func TestSetKafkaConfig(t *testing.T) {
 					}
 					KeepAlive time.Duration
 					LocalAddr net.Addr
-					Proxy     struct {
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+					Proxy struct {
 						Enable bool
 						Dialer proxy.Dialer
 					}
-				}{SASL: struct {
-					Enable                   bool
-					Mechanism                sarama.SASLMechanism
-					Version                  int16
-					Handshake                bool
-					AuthIdentity             string
-					User                     string
-					Password                 string
-					SCRAMAuthzID             string
-					SCRAMClientGeneratorFunc func() sarama.SCRAMClient
-					TokenProvider            sarama.AccessTokenProvider
-					GSSAPI                   sarama.GSSAPIConfig
-				}{Enable: true, Mechanism: "SCRAM-SHA-512", User: "TODO", Password: "TODO"}},
+				}{
+					//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+					SASL: struct {
+						Enable                   bool
+						Mechanism                sarama.SASLMechanism
+						Version                  int16
+						Handshake                bool
+						AuthIdentity             string
+						User                     string
+						Password                 string
+						SCRAMAuthzID             string
+						SCRAMClientGeneratorFunc func() sarama.SCRAMClient
+						TokenProvider            sarama.AccessTokenProvider
+						GSSAPI                   sarama.GSSAPIConfig
+					}{
+						Enable:    true,
+						Mechanism: "SCRAM-SHA-512",
+						User:      "TODO",
+						Password:  "TODO",
+					},
+				},
 			},
 		}
 		// We expect am error because the settings are nil
@@ -1141,6 +1194,7 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 
 func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testing.T) {
 	t.Parallel()
+	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
 		name       string
 		s3         *fakeS3

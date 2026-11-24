@@ -122,6 +122,7 @@ func TestNewFlagsetManager(t *testing.T) {
 // fakeSSEService records the flagset name of every broadcast.
 type fakeSSEService struct {
 	stream.SSEService
+
 	streams []string
 	mu      sync.Mutex
 }

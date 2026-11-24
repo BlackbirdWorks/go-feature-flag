@@ -33,7 +33,7 @@ func createQueue(t *testing.T, client *sqs.Client) string {
 	return aws.ToString(out.QueueUrl)
 }
 
-type received struct {
+type received struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 	emitter string
 	event   exporter.FeatureEvent
 }

@@ -31,13 +31,15 @@ type FlagSet struct {
 	// APIKeys is the api keys for the flag set.
 	// This will add a new API keys to the list of authorizedKeys.evaluation keys.
 	// This property is madatory for every flagset, we will use it to filter the flag available.
-	APIKeys       []string `mapstructure:"apiKeys" koanf:"apikeys"`
-	CommonFlagSet `         mapstructure:",inline" koanf:",squash"`
+	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"`
+	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
+	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
 }
 
 type CommonFlagSet struct {
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"`
 	// Retriever is the configuration on how to retrieve the file
 	Retriever *retrieverconf.RetrieverConf `mapstructure:"retriever" koanf:"retriever"`
 	// Exporter is the configuration on how to export data
@@ -57,7 +59,8 @@ type CommonFlagSet struct {
 	// Environment is the environment of the flag set.
 	Environment string `mapstructure:"environment" koanf:"environment"`
 	// PersistentFlagConfigurationFile is the flag to enable the persistent flag configuration file.
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"`
 	// Notifiers is the configuration on where to notify a flag change
 	Notifiers []NotifierConf `mapstructure:"notifiers" koanf:"notifiers"`
 	// FixNotifiers, Before version v1.46.0, the notifier was called "notifier" instead of "notifiers".
@@ -70,7 +73,7 @@ type CommonFlagSet struct {
 	// of removing the old events. It must not be negative, 0 means the default.
 	// In flagset mode the top-level value is used by the flagsets that do not set their own.
 	// Default: 1 minute
-	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"`
 	// PollingInterval (optional) Poll every X time
 	// The minimum possible is 1 second
 	// Default: 60 seconds

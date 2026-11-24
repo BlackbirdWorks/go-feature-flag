@@ -200,7 +200,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 func TestRawVarResultJSONSerialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		name     string
 		wantJSON string
 		result   model.RawVarResult
@@ -369,7 +369,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 func TestVariationResultJSONDeserialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		name    string
 		jsonStr string
 		want    model.VariationResult[string]

@@ -23,7 +23,7 @@ func TestNewFeatureEvent(t *testing.T) {
 		source           string
 		failed           bool
 	}
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		name string
 		args args
 		want exporter.FeatureEvent

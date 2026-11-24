@@ -158,7 +158,7 @@ func TestFormatEventInCSV(t *testing.T) {
 		csvTemplate *template.Template
 		event       exporter.FeatureEvent
 	}
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		wantErr assert.ErrorAssertionFunc
 		name    string
 		want    string
@@ -218,7 +218,7 @@ func TestFormatEventInJSON(t *testing.T) {
 	type args struct {
 		event exporter.FeatureEvent
 	}
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		wantErr assert.ErrorAssertionFunc
 		name    string
 		want    string
