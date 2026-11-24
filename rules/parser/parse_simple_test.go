@@ -5,27 +5,31 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type testCase struct {
 	rule  string
-	input map[string]interface{}
+	input map[string]any
 
 	result   bool
 	hasError bool
 }
 
-type obj map[string]interface{}
+type obj map[string]any
 
-func eval(t *testing.T, rule string, input obj) (bool, error) {
+func eval(rule string, input obj) (bool, error) {
 	ev, err := NewEvaluator(rule)
 	if err != nil {
 		return false, err
 	}
+
 	return ev.Process(input)
 }
 
 func TestInvalidRule(t *testing.T) {
+	t.Parallel()
+
 	invalidRules := []string{
 		`x eq 1 and y ~ 1`,
 		`y ~ 1`,
@@ -33,14 +37,19 @@ func TestInvalidRule(t *testing.T) {
 	}
 
 	for _, rule := range invalidRules {
-		result, err := eval(t, rule, obj{"x": 1})
-		assert.Error(t, err, rule)
-		assert.False(t, result)
+		t.Run(rule, func(t *testing.T) {
+			t.Parallel()
 
+			result, err := eval(rule, obj{"x": 1})
+			require.Error(t, err, rule)
+			assert.False(t, result)
+		})
 	}
 }
 
 func TestVersions(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x EQ 1.0.0`,
@@ -397,20 +406,26 @@ func TestVersions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		result, err := eval(t, tt.rule, tt.input)
-		if tt.hasError {
-			assert.Error(t, err)
-			continue
-		} else {
-			assert.NoError(t, err)
-			assert.Equal(t, result, tt.result, fmt.Sprintf("rule :%s, input :%v", tt.rule, tt.input))
-		}
-		assert.Equal(t, false, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := eval(tt.rule, tt.input)
+			if tt.hasError {
+				assert.Error(t, err)
+
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
+			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
 	}
 }
 
 func TestListOfStrings(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x IN ["abc", "cde", "fgh"]`,
@@ -458,13 +473,18 @@ func TestListOfStrings(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-	}
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
+	}
 }
 
 func TestListOfDoubles(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x IN [1.1, 2.2, 3.3]`,
@@ -512,14 +532,19 @@ func TestListOfDoubles(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, false, Evaluate(tt.rule, obj{"x": "abc"}), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-	}
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": "abc"}), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
+	}
 }
 
 func TestListOfInts(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x IN [1, 2, 3]`,
@@ -567,14 +592,19 @@ func TestListOfInts(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, false, Evaluate(tt.rule, obj{"x": "123"}), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-	}
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": "123"}), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
+	}
 }
 
 func TestPresent(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x pr`,
@@ -609,13 +639,18 @@ func TestPresent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-	}
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
 
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
+	}
 }
 
 func TestNull(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq null`,
@@ -658,12 +693,18 @@ func TestNull(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
 	}
 }
 
 func TestNullInvalids(t *testing.T) {
+	t.Parallel()
+
 	badRules := []string{
 		`x lt null`,
 		`x le null`,
@@ -675,14 +716,20 @@ func TestNullInvalids(t *testing.T) {
 		`x in null`,
 	}
 	for _, rule := range badRules {
-		_, err := eval(t, rule, obj{
-			"x": nil,
+		t.Run(rule, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := eval(rule, obj{
+				"x": nil,
+			})
+			assert.Error(t, err)
 		})
-		assert.Error(t, err)
 	}
 }
 
 func TestBool(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq true`,
@@ -735,12 +782,18 @@ func TestBool(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input))
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input))
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
 	}
 }
 
 func TestBoolInvalids(t *testing.T) {
+	t.Parallel()
+
 	badRules := []string{
 		`x le true`,
 		`x ge true`,
@@ -754,15 +807,21 @@ func TestBoolInvalids(t *testing.T) {
 	}
 
 	for _, rule := range badRules {
-		result, err := eval(t, rule, obj{
-			"x": true,
+		t.Run(rule, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := eval(rule, obj{
+				"x": true,
+			})
+			require.Error(t, err)
+			assert.False(t, result)
 		})
-		assert.Error(t, err)
-		assert.False(t, result)
 	}
 }
 
 func TestIntInvalids(t *testing.T) {
+	t.Parallel()
+
 	badRules := []string{
 		`x co 1`,
 		`x sw 1`,
@@ -770,15 +829,21 @@ func TestIntInvalids(t *testing.T) {
 	}
 
 	for _, rule := range badRules {
-		result, err := eval(t, rule, obj{
-			"x": 2,
+		t.Run(rule, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := eval(rule, obj{
+				"x": 2,
+			})
+			require.Error(t, err)
+			assert.False(t, result)
 		})
-		assert.Error(t, err)
-		assert.False(t, result)
 	}
 }
 
 func TestInt(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq 1`,
@@ -1055,12 +1120,18 @@ func TestInt(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
 	}
 }
 
 func TestFloat(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq 1.0`,
@@ -1185,13 +1256,19 @@ func TestFloat(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-		assert.Equal(t, false, Evaluate(tt.rule, obj{"x": "2.4"}), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": "2.4"}), tt.rule)
+		})
 	}
 }
 
 func TestString(t *testing.T) {
+	t.Parallel()
+
 	tests := []testCase{
 		{
 			`x eq ""`,
@@ -1386,8 +1463,12 @@ func TestString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-		assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-		assert.Equal(t, false, Evaluate(tt.rule, obj{"x": 3}), tt.rule)
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": 3}), tt.rule)
+		})
 	}
 }

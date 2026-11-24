@@ -3,22 +3,19 @@ package parser
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 )
 
-type ErrVals map[string]interface{}
+type ErrVals map[string]any
 
 func (e ErrVals) Dupe() ErrVals {
 	ret := make(ErrVals)
-	for k, v := range e {
-		ret[k] = v
-	}
-	return ret
+	maps.Copy(ret, e)
 
+	return ret
 }
 func (e ErrVals) Merge(vals ErrVals) {
-	for k, v := range vals {
-		e[k] = v
-	}
+	maps.Copy(e, vals)
 }
 
 type NestedError struct {
@@ -28,12 +25,12 @@ type NestedError struct {
 }
 
 func (e *NestedError) Original() error {
-	switch val := e.Err.(type) {
-	case *NestedError:
-		return val.Original()
-	default:
-		return e.Err
+	// Exact type, not errors.As: an error that merely wraps a NestedError is the original.
+	if nested, ok := e.Err.(*NestedError); ok { //nolint:errorlint // see above
+		return nested.Original()
 	}
+
+	return e.Err
 }
 
 // Error renders Vals plus "err" and "msg" as JSON. It marshals a copy so
@@ -46,6 +43,7 @@ func (e *NestedError) Error() string {
 	if err != nil {
 		return fmt.Sprintf("%s: %s", e.Msg, e.Err.Error())
 	}
+
 	return string(data)
 }
 
@@ -54,6 +52,7 @@ func (e *NestedError) Set(vals ErrVals) *NestedError {
 		e.Vals = make(ErrVals)
 	}
 	e.Vals.Merge(vals.Dupe())
+
 	return e
 }
 

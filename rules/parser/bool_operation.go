@@ -10,12 +10,13 @@ func (o *BoolOperation) get(left Operand, right Operand) (bool, bool, error) {
 	}
 	leftVal, ok := left.(bool)
 	if !ok {
-		return false, false, newErrInvalidOperand(left, leftVal)
+		return false, false, newInvalidOperandError(left, leftVal)
 	}
 	rightVal, ok := right.(bool)
 	if !ok {
-		return false, false, newErrInvalidOperand(right, rightVal)
+		return false, false, newInvalidOperandError(right, rightVal)
 	}
+
 	return leftVal, rightVal, nil
 }
 
@@ -24,6 +25,7 @@ func (o *BoolOperation) EQ(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l == r, nil
 }
 
@@ -32,5 +34,6 @@ func (o *BoolOperation) NE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l != r, nil
 }

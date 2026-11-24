@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
-	"github.com/nikunjy/rules/parser"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 type QueryFormat = string

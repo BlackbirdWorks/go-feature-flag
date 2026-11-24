@@ -25,7 +25,7 @@ Rules enforced by CI and review:
 ## Development setup
 
 Everything is driven by the [`Makefile`](Makefile) (`make help` lists the targets). The repository is a
-two-module Go repository (root module, which includes `modules/core`, and `rules`) that CI builds with the Go workspace
+single-module Go repository (`modules/core` and `rules` are directories of the root module) that CI builds with the Go workspace
 disabled, so export `GOWORK=off` when you do not use a `go.work` file:
 
 ```shell
@@ -39,9 +39,9 @@ make tidy-check       # go.mod / go.sum must be tidy
 make swagger          # regenerate cmd/relayproxy/docs after changing API annotations
 ```
 
-If you created a `go.work` with `make workspace-init` before `modules/core` was folded into the root module, run
-`go work edit -dropuse=./modules/core` once from the repository root (or delete `go.work` and run `make workspace-init`
-again); otherwise Go fails reading the removed go.mod of `modules/core`.
+If you created a `go.work` with `make workspace-init` before `modules/core` and `rules` were folded into the root module,
+run `go work edit -dropuse=./modules/core -dropuse=./rules` once from the repository root (or delete `go.work` and run
+`make workspace-init` again); otherwise Go fails reading the removed go.mod files.
 
 Optional: `pre-commit install` runs `gofumpt` and the import-order linter before each commit.
 

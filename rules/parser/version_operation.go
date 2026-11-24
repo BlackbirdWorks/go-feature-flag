@@ -12,11 +12,11 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 	var leftVer, rightVer semver.Version
 	leftVal, ok := left.(string)
 	if !ok {
-		return leftVer, rightVer, newErrInvalidOperand(left, leftVal)
+		return leftVer, rightVer, newInvalidOperandError(left, leftVal)
 	}
 	rightVal, ok := right.(string)
 	if !ok {
-		return leftVer, rightVer, newErrInvalidOperand(right, rightVal)
+		return leftVer, rightVer, newInvalidOperandError(right, rightVal)
 	}
 	var err error
 	leftVer, err = semver.Make(leftVal)
@@ -24,6 +24,7 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 		return leftVer, rightVer, err
 	}
 	rightVer, err = semver.Make(rightVal)
+
 	return leftVer, rightVer, err
 }
 
@@ -32,6 +33,7 @@ func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.EQ(rightVer), nil
 }
 
@@ -40,6 +42,7 @@ func (v *VersionOperation) NE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.NE(rightVer), nil
 }
 
@@ -48,6 +51,7 @@ func (v *VersionOperation) LT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.LT(rightVer), nil
 }
 
@@ -56,6 +60,7 @@ func (v *VersionOperation) GT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.GT(rightVer), nil
 }
 
@@ -64,6 +69,7 @@ func (v *VersionOperation) LE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.LE(rightVer), nil
 }
 
@@ -72,5 +78,6 @@ func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return leftVer.GE(rightVer), nil
 }

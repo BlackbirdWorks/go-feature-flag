@@ -17,9 +17,8 @@ Standard library only; no third-party converter to pin.
 
 Merging: a block (file, range, statement count) present in several profiles is
 covered when ANY profile covers it (OR), and counted once. Profile paths are Go
-import paths; the two Go modules of the repository (root, rules; modules/core is a
-directory of the root module)
-are mapped to repository-relative files through their go.mod `module` lines.
+import paths; the Go module of the repository (modules/core and rules are directories
+of it) is mapped to repository-relative files through its go.mod `module` line.
 
 Line coverage follows the semantics of the usual Go -> Cobertura converter
 (gocover-cobertura): every line spanned by a coverage block is an instrumented
@@ -83,7 +82,7 @@ def compile_patterns(pats):
 
 def module_map(root):
     mods = {}
-    for d in (".", "rules"):
+    for d in (".",):
         gomod = os.path.join(root, d, "go.mod")
         with open(gomod, encoding="utf-8") as fh:
             m = re.search(r"^module\s+(\S+)", fh.read(), re.M)
@@ -102,12 +101,6 @@ def to_repo_path(name, mods):
     rel = name[len(best):].lstrip("/")
     d = mods[best]
     return rel if d == "." else d + "/" + rel
-
-
-def module_of(path):
-    if path.startswith("rules/"):
-        return "rules"
-    return "root"
 
 
 def read_profiles(paths, mods):
@@ -319,7 +312,6 @@ def main(argv=None):
           % (line_pct, lines_c, lines_t, stm_pct, stm_c, stm_t,
              "" if a.no_exclude else " | %d files excluded (see `.github/ci-scripts/coverage-exclude.txt`)" % len(excluded)),
           "", "Covered lines still needed for 90.0%%: **%d**" % need90, "",
-          table("Per module", agg(lambda f: module_of(f)), first="Module"),
           table("Per package%s" % (" (top %d by uncovered lines)" % a.top if a.top else ""), agg(pkg), a.top, "Package")]
     text = "\n".join(md)
     if generated_unlisted:

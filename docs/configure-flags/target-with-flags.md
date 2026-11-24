@@ -43,7 +43,7 @@ If you have more advanced needs you can also have a percentage repartition or ha
 
 | Field                                                       | Description                                                                                                                                                                                                                                                                                                                                                                         |
 |-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **query** <br/><sup><sup>⚠️ mandatory</sup></sup>                                                  | <p>**This field is mandatory in every rule used in the targeting field.** <br/> Query represents the condition to apply the rule.</p><p>Semaphore supports 2 different types of query format:<br/>&nbsp;&nbsp;- `nikunjy/rules` format<br/>&nbsp;&nbsp;- `JsonLogic` format</p><p>ℹ️ See [query formats section](#query-formats) to have the syntaxes.</p>                    |
+| **query** <br/><sup><sup>⚠️ mandatory</sup></sup>                                                  | <p>**This field is mandatory in every rule used in the targeting field.** <br/> Query represents the condition to apply the rule.</p><p>Semaphore supports 2 different types of query format:<br/>&nbsp;&nbsp;- rules format<br/>&nbsp;&nbsp;- `JsonLogic` format</p><p>ℹ️ See [query formats section](#query-formats) to have the syntaxes.</p>                    |
 | **disabled** <br/><sup><sup>optional</sup></sup>           | <p>Set to <code>true</code> if you want to disable the rule.</p><p><b>Default:</b> <code>true</code>.</p>                                                                                                                                                                                                                                                                           |
 | **name** <br/><sup><sup>optional</sup></sup>               | Name of your rule. This is needed when your are updating a rule using a [scheduled rollout](rollout-strategies/scheduled.md).                                                                                                                                                                                                                                                                   |
 | **percentage** <br/><sup><sup>optional</sup></sup>         | <p>Represents the percentage we should give to each variation.</p><pre>percentage:<br/>  variationA: 10.59<br/>  variationB: 9.41<br/>  variationC: 80</pre><p>The format is the name of the variation and the percentage for this one.</p>                                                                                                                                         |
@@ -59,9 +59,9 @@ If you have more advanced needs you can also have a percentage repartition or ha
 
 ## Query formats
 
-### nikunjy/rules format
+### Rules format
 
-Semaphore supports the [`nikunjy/rules`](https://github.com/nikunjy/rules) rule format, based on the GO library.
+Semaphore supports a rule query format whose engine lives in the `rules/` directory of the repository. It is derived from the Go library [`nikunjy/rules`](https://github.com/nikunjy/rules) (see `NOTICE`).
 
 All the operations can be written in capitalized or lowercase characters (ex: `eq` or `EQ` can be used).
 Logical Operations supported are `AND` & `OR`.

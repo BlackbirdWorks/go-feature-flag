@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -74,13 +75,14 @@ func newCompareNode(kind nodeKind, path []string) *compareNode {
 	c := &compareNode{path: path}
 	c.kind = kind
 	c.cmp = c
+
 	return c
 }
 
 // evalState mirrors the mutable state the visitor keeps while walking a
 // rule, including its quirks (stale leftOp/rightOp, the attribute stack).
 type evalState struct {
-	item map[string]interface{}
+	item map[string]any
 
 	stack attrStack
 
@@ -98,13 +100,13 @@ type evalState struct {
 // evalState to the heap.
 type attrStack struct {
 	n      int
-	inline [attrStackInline]interface{}
-	more   []interface{}
+	inline [attrStackInline]any
+	more   []any
 }
 
 const attrStackInline = 4
 
-func (s *attrStack) push(v interface{}) {
+func (s *attrStack) push(v any) {
 	if s.n < attrStackInline {
 		s.inline[s.n] = v
 	} else {
@@ -114,10 +116,11 @@ func (s *attrStack) push(v interface{}) {
 }
 
 // top returns the last pushed entry; s must not be empty.
-func (s *attrStack) top() interface{} {
+func (s *attrStack) top() any {
 	if s.n <= attrStackInline {
 		return s.inline[s.n-1]
 	}
+
 	return s.more[s.n-1-attrStackInline]
 }
 
@@ -137,7 +140,7 @@ func (s *attrStack) clear() {
 func (st *evalState) resolve(path []string) {
 	last := len(path) - 1
 	for _, name := range path[:last] {
-		var item interface{}
+		var item any
 		if st.stack.n > 0 {
 			item = st.stack.top()
 		} else {
@@ -146,10 +149,10 @@ func (st *evalState) resolve(path []string) {
 		if item == nil {
 			return
 		}
-		m := item.(map[string]interface{})
+		m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
 		st.stack.push(m[name])
 	}
-	var item interface{}
+	var item any
 	if st.stack.n > 0 {
 		item = st.stack.top()
 		st.stack.pop()
@@ -159,7 +162,7 @@ func (st *evalState) resolve(path []string) {
 	if item == nil {
 		return
 	}
-	m := item.(map[string]interface{})
+	m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -171,6 +174,7 @@ func (n *node) eval(st *evalState) bool {
 		if n.not {
 			return !result
 		}
+
 		return result
 	case nodeLogical:
 		left := n.left.eval(st)
@@ -178,14 +182,17 @@ func (n *node) eval(st *evalState) bool {
 			if left {
 				return left
 			}
+
 			return n.right.eval(st)
 		}
 		if !left {
 			return left
 		}
+
 		return n.right.eval(st)
 	case nodePresent:
 		st.resolve(n.cmp.path)
+
 		return st.leftOp != nil
 	case nodeCompare:
 		return n.cmp.evalCompare(st)
@@ -197,6 +204,7 @@ func (n *node) eval(st *evalState) bool {
 func (n *compareNode) setRight(st *evalState) {
 	if n.valKind != valueConst && n.listErr == nil && st.rightOp == nil {
 		st.rightOp = n.listValue()
+
 		return
 	}
 	switch n.valKind {
@@ -205,9 +213,9 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []int{}
 		} else {
-			list = st.rightOp.([]int)
+			list = st.rightOp.([]int) //nolint:errcheck // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]int)...)
+		st.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -216,9 +224,9 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []float64{}
 		} else {
-			list = st.rightOp.([]float64)
+			list = st.rightOp.([]float64) //nolint:errcheck // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]float64)...)
+		st.rightOp = append(list, n.listOp.([]float64)...) //nolint:errcheck,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -227,9 +235,9 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []string{}
 		} else {
-			list = st.rightOp.([]string)
+			list = st.rightOp.([]string) //nolint:errcheck // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listValue().([]string)...)
+		st.rightOp = append(list, n.listValue().([]string)...) //nolint:errcheck,gocritic // stale operand
 	default:
 		st.rightOp = n.rightOp
 		if n.valErr != nil {
@@ -257,7 +265,9 @@ func (n *compareNode) evalCompare(st *evalState) bool {
 		ret, err = n.apply(st.leftOp, st.rightOp)
 	}
 	if err != nil {
-		if eio, ok := err.(*ErrInvalidOperand); ok && n.valKind != valueConst {
+		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
+		// the evaluation path (measured), and this block is inlined on purpose.
+		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst { //nolint:errorlint // see setDebugErr
 			// the operand may be the shared compiled list
 			c := *eio
 			c.Val = copyOperand(c.Val)
@@ -268,6 +278,7 @@ func (n *compareNode) evalCompare(st *evalState) bool {
 		ret = false
 	}
 	st.rightOp = nil
+
 	return ret
 }
 
@@ -278,6 +289,7 @@ func (n *compareNode) listValue() Operand {
 	if n.strSet != nil {
 		return n.strSet.slice()
 	}
+
 	return n.listOp
 }
 
@@ -298,43 +310,48 @@ func (n *compareNode) setIN(st *evalState) (bool, bool) {
 		if err != nil {
 			return false, false
 		}
+
 		return n.strSet.has(left), true
 	case n.intSet != nil:
 		left, ok := st.leftOp.(int)
 		if !ok {
 			return false, false
 		}
+
 		return n.intSet.has(left), true
 	}
+
 	return false, false
 }
 
 func (n *compareNode) setDebugErr(st *evalState, err error) {
+	// Operations return these sentinels and *InvalidOperandError unwrapped; the exact comparisons are kept
+	// because the wrapping-aware forms measurably slow the evaluation path.
 	switch err {
-	case ErrInvalidOperation:
+	case ErrInvalidOperation: //nolint:errorlint // see above
 		// in case of invalid operation lets rather
 		// be conservative and return false because the rule doesn't even make
 		// sense. It can be argued that it would be false positive if we were
 		// to return true
 		st.err = err
 		st.debugErr = newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
-			"operation":           n.opType,
-			"object_path_operand": st.leftOp,
-			"rule_operand":        copyOperand(st.rightOp),
+			errValOperation:     n.opType,
+			errValObjectOperand: st.leftOp,
+			errValRuleOperand:   copyOperand(st.rightOp),
 		})
-	case ErrEvalOperandMissing:
+	case ErrEvalOperandMissing: //nolint:errorlint // see above
 		st.debugErr = newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
-			"attr_path": n.attrPath,
+			errValAttrPath: n.attrPath,
 		})
 	default:
 		msg := "unknown error"
-		if _, ok := err.(*ErrInvalidOperand); ok {
+		if _, ok := err.(*InvalidOperandError); ok { //nolint:errorlint // see above
 			msg = "operands are not the right value type"
 		}
 		st.debugErr = newNestedError(err, msg).Set(ErrVals{
-			"attr_path":           n.attrPath,
-			"object_path_operand": st.leftOp,
-			"rule_operand":        copyOperand(st.rightOp),
+			errValAttrPath:      n.attrPath,
+			errValObjectOperand: st.leftOp,
+			errValRuleOperand:   copyOperand(st.rightOp),
 		})
 	}
 }
@@ -350,16 +367,19 @@ func copyOperand(op Operand) Operand {
 	case []string:
 		return append(make([]string, 0, len(val)), val...)
 	}
+
 	return op
 }
 
 // cloneErr returns a fresh copy of a pre-computed parse error so each call
 // surfaces its own error value.
 func cloneErr(err error) error {
-	if ne, ok := err.(*strconv.NumError); ok {
+	if ne, ok := err.(*strconv.NumError); ok { //nolint:errorlint // returned unwrapped by strconv
 		c := *ne
+
 		return &c
 	}
+
 	return err
 }
 
@@ -390,8 +410,10 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 			panic(fmt.Sprintf("no operation for operator token %d", n.opType))
 		}
 		if _, ok := op.(*VersionOperation); ok {
-			n.version = compileVersionCompare(n.rightOp.(string), n.opType)
+			ruleVersion := n.rightOp.(string) //nolint:errcheck // panics on mismatch, as before
+			n.version = compileVersionCompare(ruleVersion, n.opType)
 		}
+
 		return &n.node
 	default:
 		// unreachable with the grammar; compile recovers and falls back to
@@ -435,6 +457,7 @@ func applyFor(op Operation, opType int) func(Operand, Operand) (bool, error) {
 	case JsonQueryParserIN:
 		return op.IN
 	}
+
 	return nil
 }
 
@@ -472,6 +495,7 @@ func compileVersionCompare(right string, opType int) *versionCompare {
 	if err != nil {
 		return nil
 	}
+
 	return &versionCompare{right: ver, want: want}
 }
 
@@ -480,7 +504,7 @@ func compileVersionCompare(right string, opType int) *versionCompare {
 func (c *versionCompare) compare(left Operand) (bool, error) {
 	leftVal, ok := left.(string)
 	if !ok {
-		return false, newErrInvalidOperand(left, leftVal)
+		return false, newInvalidOperandError(left, leftVal)
 	}
 	leftVer, ok := parsePlainVersion(leftVal)
 	if !ok {
@@ -489,6 +513,7 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 			return false, err
 		}
 	}
+
 	return c.want(leftVer.Compare(c.right)), nil
 }
 
@@ -500,7 +525,8 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 func parsePlainVersion(s string) (semver.Version, bool) {
 	var v semver.Version
 	core := s
-	if i := strings.IndexByte(s, '+'); i >= 0 {
+	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
+	if i := strings.IndexByte(s, '+'); i >= 0 { //nolint:modernize // see above
 		if !validBuild(s[i+1:]) {
 			return v, false
 		}
@@ -525,6 +551,7 @@ func parsePlainVersion(s string) (semver.Version, bool) {
 		}
 	}
 	v.Major, v.Minor, v.Patch = nums[0], nums[1], nums[2]
+
 	return v, true
 }
 
@@ -534,12 +561,13 @@ func parseVersionNumber(s string) (uint64, bool) {
 	if s == "" || (len(s) > 1 && s[0] == '0') {
 		return 0, false
 	}
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if s[i] < '0' || s[i] > '9' {
 			return 0, false
 		}
 	}
 	n, err := strconv.ParseUint(s, 10, 64)
+
 	return n, err == nil
 }
 
@@ -553,13 +581,16 @@ func validBuild(s string) bool {
 				return false
 			}
 			start = i + 1
+
 			continue
 		}
 		c := s[i]
-		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-') {
+		valid := c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '-'
+		if !valid {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -570,20 +601,24 @@ func compileValue(n *compareNode, v IValueContext, src *sourceText) Operation {
 	case *BooleanContext:
 		// the BOOLEAN token only matches true or false, so this cannot fail
 		n.rightOp = ctx.GetText() == "true"
+
 		return &BoolOperation{}
 	case *NullContext:
 		return &NullOperation{}
 	case *StringContext:
 		n.rightOp = getString(ctx.GetText())
+
 		return &StringOperation{}
 	case *DoubleContext:
 		// an unparsable double leaves the operand nil without an error
-		if val, err := strconv.ParseFloat(ctx.GetText(), 10); err == nil {
+		if val, err := strconv.ParseFloat(ctx.GetText(), 64); err == nil {
 			n.rightOp = val
 		}
+
 		return &FloatOperation{}
 	case *VersionContext:
 		n.rightOp = ctx.VERSION().GetText()
+
 		return &VersionOperation{}
 	case *LongContext:
 		val, err := strconv.Atoi(ctx.GetText())
@@ -592,69 +627,96 @@ func compileValue(n *compareNode, v IValueContext, src *sourceText) Operation {
 		} else {
 			n.rightOp = val
 		}
+
 		return &IntOperation{}
 	case *ListOfIntsContext:
-		n.valKind = valueInts
-		ints := []int{}
-		for sub := ctx.ListInts().SubListOfInts(); ; {
-			val, err := strconv.Atoi(sub.INT().GetText())
-			if err != nil {
-				n.listErr = err
-				break
-			}
-			ints = append(ints, val)
-			next := sub.SubListOfInts()
-			if next == nil || next.IsEmpty() {
-				break
-			}
-			sub = next
-		}
-		n.listOp = ints[:len(ints):len(ints)]
-		if len(ints) >= inSetMinLen && len(ints) < math.MaxUint32 {
-			n.intSet = newIntSet(n.listOp.([]int))
-		}
+		n.compileInts(ctx)
+
 		return &IntOperation{}
 	case *ListOfDoublesContext:
-		n.valKind = valueDoubles
-		doubles := []float64{}
-		for sub := ctx.ListDoubles().SubListOfDoubles(); ; {
-			val, err := strconv.ParseFloat(sub.DOUBLE().GetText(), 10)
-			if err != nil {
-				n.listErr = err
-				break
-			}
-			doubles = append(doubles, val)
-			next := sub.SubListOfDoubles()
-			if next == nil || next.IsEmpty() {
-				break
-			}
-			sub = next
-		}
-		n.listOp = doubles[:len(doubles):len(doubles)]
+		n.compileDoubles(ctx)
+
 		return &FloatOperation{}
 	case *ListOfStringsContext:
-		n.valKind = valueStrings
-		var tokens []antlr.Token
-		for sub := ctx.ListStrings().SubListOfStrings(); ; {
-			tokens = append(tokens, sub.STRING().GetSymbol())
-			next := sub.SubListOfStrings()
-			if next == nil || next.IsEmpty() {
-				break
-			}
-			sub = next
-		}
-		if len(tokens) >= inSetMinLen {
-			if set := newStrSet(tokens, src); set != nil {
-				n.strSet = set
-				return &StringOperation{}
-			}
-		}
-		strs := make([]string, len(tokens))
-		for i, t := range tokens {
-			strs[i] = getString(t.GetText())
-		}
-		n.listOp = strs[:len(strs):len(strs)]
+		n.compileStrings(ctx, src)
+
 		return &StringOperation{}
 	}
+
 	return &NullOperation{}
+}
+
+// compileInts pre-parses an int list into n, with a hash index when it is long.
+// A bad element stops the list and is kept as the list error.
+func (n *compareNode) compileInts(ctx *ListOfIntsContext) {
+	n.valKind = valueInts
+	ints := []int{}
+	for sub := ctx.ListInts().SubListOfInts(); ; {
+		val, err := strconv.Atoi(sub.INT().GetText())
+		if err != nil {
+			n.listErr = err
+
+			break
+		}
+		ints = append(ints, val)
+		next := sub.SubListOfInts()
+		if next == nil || next.IsEmpty() {
+			break
+		}
+		sub = next
+	}
+	capped := slices.Clip(ints)
+	n.listOp = capped
+	if len(ints) >= inSetMinLen && len(ints) < math.MaxUint32 {
+		n.intSet = newIntSet(capped)
+	}
+}
+
+// compileDoubles pre-parses a float list into n. A bad element stops the list and
+// is kept as the list error.
+func (n *compareNode) compileDoubles(ctx *ListOfDoublesContext) {
+	n.valKind = valueDoubles
+	doubles := []float64{}
+	for sub := ctx.ListDoubles().SubListOfDoubles(); ; {
+		val, err := strconv.ParseFloat(sub.DOUBLE().GetText(), 64)
+		if err != nil {
+			n.listErr = err
+
+			break
+		}
+		doubles = append(doubles, val)
+		next := sub.SubListOfDoubles()
+		if next == nil || next.IsEmpty() {
+			break
+		}
+		sub = next
+	}
+	n.listOp = slices.Clip(doubles)
+}
+
+// compileStrings pre-parses a string list into n, packed with a hash index when it
+// is long enough.
+func (n *compareNode) compileStrings(ctx *ListOfStringsContext, src *sourceText) {
+	n.valKind = valueStrings
+	var tokens []antlr.Token
+	for sub := ctx.ListStrings().SubListOfStrings(); ; {
+		tokens = append(tokens, sub.STRING().GetSymbol())
+		next := sub.SubListOfStrings()
+		if next == nil || next.IsEmpty() {
+			break
+		}
+		sub = next
+	}
+	if len(tokens) >= inSetMinLen {
+		if set := newStrSet(tokens, src); set != nil {
+			n.strSet = set
+
+			return
+		}
+	}
+	strs := make([]string, len(tokens))
+	for i, t := range tokens {
+		strs[i] = getString(t.GetText())
+	}
+	n.listOp = slices.Clip(strs)
 }

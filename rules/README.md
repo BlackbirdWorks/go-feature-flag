@@ -1,14 +1,11 @@
 > Vendored copy of github.com/go-feature-flag/rules at commit 3baa4ca8fb5ee47aca90ff6d3227fd4b0be5523b (pull request #2, "perf: hash index for large IN lists"), which is the previously pinned commit e9704fa7a06c plus that PR.
 >
 > Local changes: integer literals (single values and `in` lists) are parsed with `strconv.Atoi` instead of `strconv.ParseInt(..., 64)` followed by an `int(...)` conversion, so an out-of-range literal is rejected with an error on every platform instead of being narrowed (CodeQL `go/incorrect-integer-conversion`). `LICENSE` is unchanged.
+>
+> Origin and licence: derived from `github.com/nikunjy/rules` (MIT, Copyright (c) 2019 Nikunj Yadav; see `LICENSE` in this directory and the root `NOTICE`), through the maintained fork `github.com/go-feature-flag/rules`. The directory is part of the root Go module of this repository (import path `github.com/blackbirdworks/semaphore/rules`); it has no `go.mod` of its own, and it is linted and tested with the rest of the repository. Only the antlr-generated parser files (`parser/jsonquery_lexer.go`, `parser/jsonquery_parser.go`, `parser/jsonquery_visitor.go`) are excluded from lint and coverage.
+>
+> Further local changes: the import path above; the string hash seed of long `in` lists belongs to each compiled set instead of a package variable; lint fixes (no change of results); `ErrInvalidOperand` is named `InvalidOperandError`.
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/nikunjy/rules?style=flat-square)](https://goreportcard.com/report/github.com/nikunjy/rules)
-[![PkgGoDev](https://pkg.go.dev/badge/github.com/github.com/nikunjy/rules)](https://pkg.go.dev/github.com/nikunjy/rules)
-[![Release](https://img.shields.io/github/v/release/nikunjy/rules?sort=semver&style=flat-square)](https://github.com/nikunjy/rules/releases/latest)
-[![Release](https://img.shields.io/github/go-mod/go-version/nikunjy/rules?style=flat-square)](https://github.com/nikunjy/rules/releases/latest)
-[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=flat-square)](https://github.com/nikunjy/rules/commits)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/nikunjy/rules?style=flat-square&label=Star&maxAge=2592000)](https://github.com/nikunjy/rules/stargazers/)
 
 # Golang Rules Engine
 
@@ -74,10 +71,10 @@ Compare Expression and their definitions
 
 ## How to use it
 
-Use your dependency manager to import `github.com/nikunjy/rules/parser`. This will let you parse a rule and keep the parsed representation around.
-Alternatively, you can also use `github.com/nikunjy/rules` directly to call the root `Evaluate(string, map[string]interface{})` method.
+Use your dependency manager to import `github.com/blackbirdworks/semaphore/rules/parser`. This will let you parse a rule and keep the parsed representation around.
+Alternatively, you can also use `github.com/blackbirdworks/semaphore/rules` directly to call the root `Evaluate(string, map[string]interface{})` method.
 
-I would recommend importing `github.com/nikunjy/rules/parser`
+I would recommend importing `github.com/blackbirdworks/semaphore/rules/parser`
 
 ## How to extend the grammar
 
@@ -86,5 +83,3 @@ I would recommend importing `github.com/nikunjy/rules/parser`
 2. After taking a look at the antlr tutorial, you can extend the [JsonQuery.g4 file](https://github.com/nikunjy/rules/blob/master/parser/JsonQuery.g4).
 3. Compile the parser `antlr4 -Dlanguage=Go -visitor -no-listener JsonQuery.g4 -o ./` (Note: `-o` is the output directory, make sure all the stuff it generates is in the `parser` directory of the root repo folder)
 
-[ci-img]: https://api.travis-ci.org/nikunjy/rules.svg?branch=master
-[ci]: https://travis-ci.org/nikunjy/rules

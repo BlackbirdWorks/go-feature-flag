@@ -16,8 +16,8 @@ func (o *IntOperation) get(left Operand, right Operand) (int, int, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	return leftVal, rightVal, nil
 
+	return leftVal, rightVal, nil
 }
 
 func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
@@ -25,6 +25,7 @@ func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l == r, nil
 }
 
@@ -33,6 +34,7 @@ func (o *IntOperation) NE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l != r, nil
 }
 
@@ -41,6 +43,7 @@ func (o *IntOperation) GT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l > r, nil
 }
 
@@ -49,6 +52,7 @@ func (o *IntOperation) LT(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l < r, nil
 }
 
@@ -57,6 +61,7 @@ func (o *IntOperation) GE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l >= r, nil
 }
 
@@ -65,22 +70,25 @@ func (o *IntOperation) LE(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return l <= r, nil
 }
 
 func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
 	leftVal, ok := left.(int)
 	if !ok {
-		return false, newErrInvalidOperand(left, leftVal)
+		return false, newInvalidOperandError(left, leftVal)
 	}
 	rightVal, ok := right.([]int)
 	if !ok {
-		return false, newErrInvalidOperand(right, rightVal)
+		return false, newInvalidOperandError(right, rightVal)
 	}
-	for _, num := range rightVal {
+	// an explicit loop: slices.Contains is measurably slower on this evaluation path
+	for _, num := range rightVal { //nolint:modernize // see above
 		if num == leftVal {
 			return true, nil
 		}
 	}
+
 	return false, nil
 }

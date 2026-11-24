@@ -14,7 +14,8 @@ func toFloat(op Operand) (float64, error) {
 		return val, nil
 	}
 	var exp float64
-	return 0, newErrInvalidOperand(op, exp)
+
+	return 0, newInvalidOperandError(op, exp)
 }
 
 func toInt(op Operand) (int, error) {
@@ -29,29 +30,40 @@ func toInt(op Operand) (int, error) {
 		return int(val), nil
 	}
 	var exp int
-	return 0, newErrInvalidOperand(op, exp)
+
+	return 0, newInvalidOperandError(op, exp)
 }
 
-type Operand interface{}
+type Operand any
 
+// The error text is observable by callers (it is wrapped into the query validation error and logged),
+// so it keeps its original capitalization.
 var (
-	ErrInvalidOperation   = errors.New("Invalid operation on the type")
+	ErrInvalidOperation   = errors.New("Invalid operation on the type") //nolint:staticcheck // ST1005: observable text
 	ErrEvalOperandMissing = errors.New("Operand not present")
 )
 
-type ErrInvalidOperand struct {
-	Val     interface{}
-	typeObj interface{}
+// Keys of the values attached to a NestedError by the evaluators.
+const (
+	errValOperation     = "operation"
+	errValObjectOperand = "object_path_operand"
+	errValRuleOperand   = "rule_operand"
+	errValAttrPath      = "attr_path"
+)
+
+type InvalidOperandError struct {
+	Val     any
+	typeObj any
 }
 
-func newErrInvalidOperand(val Operand, typeObj interface{}) *ErrInvalidOperand {
-	return &ErrInvalidOperand{
+func newInvalidOperandError(val Operand, typeObj any) *InvalidOperandError {
+	return &InvalidOperandError{
 		Val:     val,
 		typeObj: typeObj,
 	}
 }
 
-func (e *ErrInvalidOperand) Error() string {
+func (e *InvalidOperandError) Error() string {
 	return fmt.Sprintf("Operand %v is not the correct type. Expected: %s, Actual: %s",
 		e.Val,
 		reflect.TypeOf(e.typeObj).String(),
