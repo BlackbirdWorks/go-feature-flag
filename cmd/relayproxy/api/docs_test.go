@@ -137,6 +137,58 @@ func Test_Swagger(t *testing.T) {
 	}
 }
 
+// watchedListener hands out connections that record the read deadlines the server sets on them.
+type watchedListener struct {
+	net.Listener
+
+	deadlines []watchedDeadline
+	mu        sync.Mutex
+}
+
+// watchedDeadline is a read deadline and the time it was set.
+type watchedDeadline struct {
+	setAt    time.Time
+	deadline time.Time
+}
+
+func (l *watchedListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err //nolint:wrapcheck // transparent
+	}
+
+	return &watchedConn{Conn: conn, listener: l}, nil
+}
+
+// armed returns the number of read deadlines that bound a read: in the future when they were set (the zero time clears
+// the deadline, and net/http sets a deadline in the past to abort the background read of a finished request).
+func (l *watchedListener) armed() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, d := range l.deadlines {
+		if d.deadline.After(d.setAt) {
+			n++
+		}
+	}
+
+	return n
+}
+
+type watchedConn struct {
+	net.Conn
+
+	listener *watchedListener
+}
+
+func (c *watchedConn) SetReadDeadline(t time.Time) error {
+	c.listener.mu.Lock()
+	c.listener.deadlines = append(c.listener.deadlines, watchedDeadline{setAt: time.Now(), deadline: t})
+	c.listener.mu.Unlock()
+
+	return c.Conn.SetReadDeadline(t) //nolint:wrapcheck // transparent
+}
+
 // deadlineRecorder is a response writer that records the read deadlines that are set on the connection (huma sets
 // them through the writer, following Unwrap): it shows what the registered routes ask of the server.
 type deadlineRecorder struct {
@@ -215,6 +267,29 @@ func Test_Upload(t *testing.T) {
 			} else {
 				assert.True(t, first.IsZero(), "the deadline is cleared: no bound on the read, got %v", first)
 			}
+
+			// the listener of the server: its connections get a read deadline only when the server has a read timeout
+			// (a request of a client that does not stall is served in both cases)
+			var watched *watchedListener
+			base := startWrappedServer(t, testConfig(t), func(ln net.Listener) net.Listener {
+				watched = &watchedListener{Listener: ln}
+
+				return watched
+			}, api.WithReadTimeout(tt.timeout))
+			resp, err := http.Post(
+				base+tt.path,
+				"application/json",
+				strings.NewReader(`{"events":[]}`),
+			)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+			assert.Equal(
+				t,
+				tt.wantDeadline,
+				watched.armed() > 0,
+				"the connections of the server are armed with a read deadline only with a read timeout",
+			)
+
 			if !tt.wantEnded {
 				return
 			}

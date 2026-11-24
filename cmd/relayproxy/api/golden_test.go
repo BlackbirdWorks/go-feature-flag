@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -718,7 +719,18 @@ func runGoldenCases(t *testing.T, conf *config.Config, variant string, cases []g
 // startGoldenServer is startTestServer with the streaming services, so that the stream routes serve.
 func startGoldenServer(t *testing.T, conf *config.Config, opts ...api.Option) string {
 	t.Helper()
+
+	return startWrappedServer(t, conf, func(ln net.Listener) net.Listener { return ln }, opts...)
+}
+
+// startWrappedServer is startGoldenServer with the listener of the server wrapped by wrap: a test can watch what the
+// server does to its connections.
+func startWrappedServer(
+	t *testing.T, conf *config.Config, wrap func(net.Listener) net.Listener, opts ...api.Option,
+) string {
+	t.Helper()
 	ln, port := testutils.ListenLocal(t)
+	ln = wrap(ln)
 	conf.Server.Port = port
 	log := newTestLogger(t)
 
