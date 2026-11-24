@@ -3,9 +3,11 @@ package config_test
 import (
 	"context"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -14,9 +16,6 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -25,6 +24,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 const (
@@ -93,8 +93,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
-			logger, err := zap.NewDevelopment()
-			require.NoError(t, err)
+			logger := slog.New(slog.DiscardHandler)
 			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
@@ -198,8 +197,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
-			logger, err := zap.NewDevelopment()
-			require.NoError(t, err)
+			logger := slog.New(slog.DiscardHandler)
 			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
@@ -283,8 +281,8 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
-			core, observedLogs := observer.New(zapcore.ErrorLevel)
-			observedLogger := zap.New(core)
+			core, observedLogs := slogutil.NewObserver(slog.LevelError)
+			observedLogger := core
 			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
@@ -380,8 +378,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
 			callbackCalled := make(chan bool, 1)
-			logger, err := zap.NewDevelopment()
-			require.NoError(t, err)
+			logger := slog.New(slog.DiscardHandler)
 			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
@@ -424,8 +421,8 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
 	testutils.ReplaceInFile(t, configFile, "1031", port)
 	callbackCalled := make(chan bool, 1)
-	core, observedLogs := observer.New(zapcore.ErrorLevel)
-	observedLogger := zap.New(core)
+	core, observedLogs := slogutil.NewObserver(slog.LevelError)
+	observedLogger := core
 	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 		callbackCalled <- true
 	})
@@ -473,7 +470,7 @@ func newAPIServerWithLogger(
 	t *testing.T,
 	ln net.Listener,
 	configFile *os.File,
-	logger *zap.Logger,
+	logger *slog.Logger,
 	callback func(newConfig *config.Config),
 ) (api.Server, *config.Config) {
 	t.Helper()
@@ -497,7 +494,12 @@ func newAPIServerWithLogger(
 
 	c.AttachConfigChangeCallback(callback)
 
-	s := api.New(c, services, logger, api.WithListener(ln))
+	// a fatal error of the server fails the test and ends the goroutine of the server instead of the process.
+	exit := func() {
+		assert.Fail(t, "the server exited with a fatal error")
+		runtime.Goexit()
+	}
+	s := api.New(c, services, logger, api.WithExit(exit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, c

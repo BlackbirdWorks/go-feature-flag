@@ -122,13 +122,13 @@ func Start(opts Options) (_ *Relay, err error) {
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
 
-	logger := log.InitLogger()
+	logger := log.NewDefault()
 	metrics, err := metric.NewMetrics()
 	if err != nil {
 		return nil, err
 	}
 	r.wsSvc = stream.NewWebsocketService()
-	fm, err := service.NewFlagsetManager(conf, logger.ZapLogger,
+	fm, err := service.NewFlagsetManager(conf, logger.Slog,
 		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, r.wsSvc)
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func Start(opts Options) (_ *Relay, err error) {
 		Metrics:           metrics,
 	}
 	if opts.Listen {
-		s := api.New(conf, r.Services, logger.ZapLogger, api.WithListener(listener))
+		s := api.New(conf, r.Services, logger.Slog, api.WithListener(listener))
 		r.server = &s
 		go s.StartWithContext(context.Background())
 		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.

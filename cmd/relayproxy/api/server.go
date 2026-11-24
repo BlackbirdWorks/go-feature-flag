@@ -1,8 +1,10 @@
 package api
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 
 	echootel "github.com/labstack/echo-otel/v5"
@@ -10,7 +12,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -35,14 +36,15 @@ const (
 // New is used to create a new instance of the API server.
 func New(config *config.Config,
 	services service.Services,
-	zapLog *zap.Logger,
+	logger *slog.Logger,
 	opts ...Option,
 ) Server {
 	stopRequested := make(chan struct{})
 	s := Server{
 		config:        config,
 		services:      services,
-		zapLog:        zapLog,
+		logger:        logger,
+		exit:          func() { os.Exit(1) },
 		otelService:   opentelemetry.NewOtelService(),
 		stopRequested: stopRequested,
 		stop:          sync.OnceFunc(func() { close(stopRequested) }),
@@ -52,6 +54,8 @@ func New(config *config.Config,
 		opt(&s)
 	}
 	s.apiEcho = echo.New()
+	// what the framework logs itself (failed error handler, ...) goes through the same logger.
+	s.apiEcho.Logger = logger
 	s.initRoutes()
 
 	return s
@@ -75,6 +79,12 @@ func WithMonitoringListener(l net.Listener) Option {
 	return func(s *Server) { s.monitoringListener = l }
 }
 
+// WithExit sets what the server does after it logged a fatal error (a failed bind, ...). The default exits the
+// process with the status 1, a test replaces it to end the goroutine of the server only.
+func WithExit(exit func()) Option {
+	return func(s *Server) { s.exit = exit }
+}
+
 // WithGlobalTelemetry makes the server install its OpenTelemetry tracer provider, error handler and
 // propagator as the process-wide ones when it starts. Only the startup wiring (main) asks for it: the
 // OpenTelemetry API has no other way to give a provider to the instrumented libraries.
@@ -92,7 +102,9 @@ type Server struct {
 	config             *config.Config
 	apiEcho            *echo.Echo
 	monitoringEcho     *echo.Echo
-	zapLog             *zap.Logger
+	logger             *slog.Logger
+	// exit is called after a fatal error was logged, see WithExit.
+	exit func()
 	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
 	// the servers started by StartWithContext.
 	stopRequested chan struct{}
@@ -108,10 +120,10 @@ type Server struct {
 func (s *Server) initRoutes() {
 	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
 	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))
-	s.apiEcho.Use(helpermiddleware.ZapLogger(s.zapLog, s.config.IsDebugEnabled()))
+	s.apiEcho.Use(helpermiddleware.RequestLogger(s.logger, s.config.IsDebugEnabled()))
 	s.apiEcho.Use(middleware.BodyDumpWithConfig(middleware.BodyDumpConfig{
-		Skipper: bodyDumpSkipper(s.zapLog),
-		Handler: bodyDumpHandler(s.zapLog),
+		Skipper: bodyDumpSkipper(s.logger),
+		Handler: bodyDumpHandler(s.logger),
 	}))
 	if s.services.Metrics != (metric.Metrics{}) {
 		s.apiEcho.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
@@ -148,11 +160,11 @@ func (s *Server) initRoutes() {
 		s.config.OfrepEventStream,
 		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
 	)
-	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.zapLog)
+	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.logger)
 	cEvalDataCollector := controller.NewCollectEvalData(
 		s.services.FlagsetManager,
 		s.services.Metrics,
-		s.zapLog,
+		s.logger,
 	)
 	cRetrieverRefresh := controller.NewForceFlagsRefresh(
 		s.services.FlagsetManager,

@@ -268,6 +268,16 @@ linters:
               desc: Use github.com/google/uuid instead, satori's package is not maintained
             - pkg: github.com/gofrs/uuid$
               desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+        "no zap":
+          files:
+            - "$all"
+          deny:
+            - pkg: go.uber.org/zap
+              desc: Use log/slog, the logger is built by cmdhelpers/log (zap was removed, see issue #36)
+            - pkg: github.com/jsternberg/zap-logfmt
+              desc: Use log/slog, cmdhelpers/log writes the logfmt format itself
+            - pkg: github.com/samber/slog-zap
+              desc: Use log/slog, there is no zap logger to bridge to
         "non-test files":
           files:
             - "!$test"
@@ -512,6 +522,11 @@ linters:
       # https://github.com/go-simpler/sloglint?tab=readme-ov-file#context-only
       # Default: ""
       context: scope
+      # Only typed attributes (slog.String, slog.Int, ...) as arguments of a log call, never alternating
+      # keys and values. The attribute keys themselves are not forced to one case (key-naming-case): they are
+      # part of the log output that pipelines parse (camelCase and snake_case both exist), and renaming one is a
+      # compatibility break, see docs for the logging output.
+      attr-only: true
 
     staticcheck:
       # SAxxxx checks in https://staticcheck.dev/docs/configuration/options/#checks

@@ -1,11 +1,11 @@
 package api
 
 import (
+	"log/slog"
 	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -58,7 +58,7 @@ func TestNew_Options(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := New(&config.Config{}, service.Services{}, zap.NewNop(), tt.opts...)
+			s := New(&config.Config{}, service.Services{}, slog.New(slog.DiscardHandler), tt.opts...)
 
 			assert.Equal(t, tt.want.globalTelemetry, s.installGlobalTelemetry)
 			assertSameListener(t, tt.want.listener, s.listener)

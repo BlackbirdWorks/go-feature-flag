@@ -1,8 +1,6 @@
 package config
 
-import (
-	"go.uber.org/zap"
-)
+import "log/slog"
 
 const (
 	// DefaultServerPort is the port the relay proxy listens on when none is configured.
@@ -60,7 +58,7 @@ type Server struct {
 
 // EffectiveMonitoringPort returns the monitoring port, checking first the top-level config
 // and then the server config.
-func (c *Config) EffectiveMonitoringPort(logger *zap.Logger) int {
+func (c *Config) EffectiveMonitoringPort(logger *slog.Logger) int {
 	if c.Server.MonitoringPort != 0 {
 		return c.Server.MonitoringPort
 	}
@@ -87,7 +85,7 @@ func (c *Config) ServerHost() string {
 
 // ServerPort returns the server port, checking first the server config
 // and then the top-level config, defaulting to 1031 if not set.
-func (c *Config) ServerPort(logger *zap.Logger) int {
+func (c *Config) ServerPort(logger *slog.Logger) int {
 	if c.Server.Port != 0 {
 		return c.Server.Port
 	}
@@ -107,7 +105,7 @@ func (c *Config) ServerPort(logger *zap.Logger) int {
 
 // ServerMode returns the server mode, checking first the server config
 // and then the top-level config, defaulting to HTTP if not set.
-func (c *Config) ServerMode(logger *zap.Logger) ServerMode {
+func (c *Config) ServerMode(logger *slog.Logger) ServerMode {
 	if c.Server.Mode != "" {
 		return c.Server.Mode
 	}
@@ -126,7 +124,7 @@ func (c *Config) ServerMode(logger *zap.Logger) ServerMode {
 
 // LambdaAdapter returns the lambda adapter, checking first the server config
 // and then the top-level config, defaulting to APIGatewayV2 if not set.
-func (c *Config) LambdaAdapter(logger *zap.Logger) LambdaAdapter {
+func (c *Config) LambdaAdapter(logger *slog.Logger) LambdaAdapter {
 	if c.Server.LambdaAdapter != "" {
 		return c.Server.LambdaAdapter
 	}
@@ -145,7 +143,7 @@ func (c *Config) LambdaAdapter(logger *zap.Logger) LambdaAdapter {
 
 // EffectiveAwsAPIGatewayBasePath returns the AWS API Gateway base path, checking first the server config
 // and then the top-level config, defaulting to empty string if not set.
-func (c *Config) EffectiveAwsAPIGatewayBasePath(logger *zap.Logger) string {
+func (c *Config) EffectiveAwsAPIGatewayBasePath(logger *slog.Logger) string {
 	if c.Server.AwsAPIGatewayBasePath != "" {
 		return c.Server.AwsAPIGatewayBasePath
 	}

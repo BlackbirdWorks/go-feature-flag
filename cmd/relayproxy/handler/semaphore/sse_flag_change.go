@@ -1,10 +1,11 @@
 package controller
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -16,7 +17,7 @@ import (
 func NewSSEFlagChange(
 	sseService stream.SSEService,
 	flagsetManager service.FlagsetManager,
-	logger *zap.Logger,
+	logger *slog.Logger,
 ) Controller {
 	return &sseFlagChange{
 		sseService:     sseService,
@@ -28,7 +29,7 @@ func NewSSEFlagChange(
 type sseFlagChange struct {
 	sseService     stream.SSEService
 	flagsetManager service.FlagsetManager
-	logger         *zap.Logger
+	logger         *slog.Logger
 }
 
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
@@ -56,7 +57,12 @@ func (h *sseFlagChange) Handler(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	h.logger.Debug("SSE client connecting", zap.String("flagset", flagsetName))
+	h.logger.LogAttrs(
+		context.Background(),
+		slog.LevelDebug,
+		"SSE client connecting",
+		slog.String("flagset", flagsetName),
+	)
 
 	// r3labs/sse routes by the "stream" query parameter.
 	// We need to set the "stream" query parameter to the flagset name.

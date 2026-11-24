@@ -5,11 +5,11 @@ import (
 	"crypto/fips140"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"time"
 
 	"github.com/spf13/pflag"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -99,25 +99,24 @@ func main() {
 	_ = f.Parse(os.Args[1:])
 
 	// Init logger
-	logger := log.InitLogger()
-	defer func() { _ = logger.ZapLogger.Sync() }()
+	logger := log.NewDefault()
 
 	// Loading the configuration in viper
-	proxyConf, err := config.New(f, logger.ZapLogger, version)
+	proxyConf, err := config.New(f, logger.Slog, version)
 	if err != nil {
-		logger.ZapLogger.Fatal("error while reading configuration", zap.Error(err))
+		fatal(logger.Slog, "error while reading configuration", log.Err(err))
 	}
 	defer func() {
 		if stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher(); stopConfigChangeWatcherErr != nil {
-			logger.ZapLogger.Error(
+			logger.Slog.LogAttrs(context.Background(), slog.LevelError,
 				"error while stopping the configuration watcher",
-				zap.Error(stopConfigChangeWatcherErr),
+				log.Err(stopConfigChangeWatcherErr),
 			)
 		}
 	}()
 
 	if isValidErr := proxyConf.IsValid(); isValidErr != nil {
-		logger.ZapLogger.Fatal("configuration error", zap.Error(isValidErr))
+		fatal(logger.Slog, "configuration error", log.Err(isValidErr))
 	}
 
 	if !proxyConf.HideBanner {
@@ -125,15 +124,17 @@ func main() {
 	}
 
 	// Update the logger's format and level from the config
-	logger.Update(proxyConf.LogFormat, proxyConf.ZapLogLevel())
+	if updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel); updateErr != nil {
+		fatal(logger.Slog, "configuration error", log.Err(updateErr))
+	}
 
 	// Surface whether the binary is running with FIPS 140-3 validated crypto.
 	// True only for builds produced with GOFIPS140 (see `make build-relayproxy-fips`).
-	logger.ZapLogger.Info("crypto mode", zap.Bool("fips140", fips140.Enabled()))
+	logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "crypto mode", slog.Bool("fips140", fips140.Enabled()))
 
 	// Init swagger
 	docs.SwaggerInfo.Version = proxyConf.Version
-	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", proxyConf.SwaggerHost(), proxyConf.ServerPort(logger.ZapLogger))
+	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", proxyConf.SwaggerHost(), proxyConf.ServerPort(logger.Slog))
 
 	// Initialize metrics
 	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{
@@ -141,7 +142,12 @@ func main() {
 		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,
 	})
 	if err != nil {
-		logger.ZapLogger.Error("impossible to initialize prometheus metrics", zap.Error(err))
+		logger.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to initialize prometheus metrics",
+			log.Err(err),
+		)
 	}
 
 	// Init services
@@ -149,19 +155,24 @@ func main() {
 	sseService := stream.NewSSEService()
 	prometheusNotifier := metric.NewPrometheusNotifier(metricsV2)
 
-	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger.ZapLogger, []notifier.Notifier{
+	flagsetManager, err := service.NewFlagsetManager(proxyConf, logger.Slog, []notifier.Notifier{
 		prometheusNotifier,
 	}, sseService, wsService)
 	if err != nil {
-		logger.ZapLogger.Error(
+		logger.Slog.LogAttrs(context.Background(), slog.LevelError,
 			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
-			zap.Error(err),
+			log.Err(err),
 		)
 
 		return
 	}
 	if registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager); registerFlagLoadedErr != nil {
-		logger.ZapLogger.Error("impossible to register the flag_loaded metric", zap.Error(registerFlagLoadedErr))
+		logger.Slog.LogAttrs(
+			context.Background(),
+			slog.LevelError,
+			"impossible to register the flag_loaded metric",
+			log.Err(registerFlagLoadedErr),
+		)
 	}
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
@@ -173,16 +184,22 @@ func main() {
 	// Init API server
 	// The OpenTelemetry endpoint and the global tracer provider are process-wide: they are set here only.
 	opentelemetry.ExportEnvironment(proxyConf)
-	apiServer := api.New(proxyConf, services, logger.ZapLogger, api.WithGlobalTelemetry())
+	apiServer := api.New(proxyConf, services, logger.Slog, api.WithGlobalTelemetry())
 
-	defer shutdown(logger.ZapLogger, &apiServer, wsService, sseService, flagsetManager)
+	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
 	apiServer.StartWithContext(context.Background())
+}
+
+// fatal logs the message at the fatal level and exits the process.
+func fatal(logger *slog.Logger, msg string, attrs ...slog.Attr) {
+	logger.LogAttrs(context.Background(), log.LevelFatal, msg, attrs...)
+	os.Exit(1)
 }
 
 // shutdown stops the relay proxy: streaming clients disconnect first, then the HTTP server stops,
 // and finally the flagsets are closed.
 func shutdown(
-	logger *zap.Logger,
+	logger *slog.Logger,
 	apiServer interface{ Stop(ctx context.Context) },
 	wsService stream.WebsocketService,
 	sseService stream.SSEService,

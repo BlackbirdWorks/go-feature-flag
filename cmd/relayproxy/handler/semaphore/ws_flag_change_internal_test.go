@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
@@ -107,7 +107,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 		}
 	}()
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil, zap.NewNop())
+	f := NewWsFlagChange(stream.NewWebsocketService(), nil, slog.New(slog.DiscardHandler))
 	f.pingInterval = 10 * time.Millisecond
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -140,7 +140,7 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 	_ = client.Close()
 	_ = server.Close()
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil, zap.NewNop())
+	f := NewWsFlagChange(stream.NewWebsocketService(), nil, slog.New(slog.DiscardHandler))
 	f.pingInterval = 5 * time.Millisecond
 
 	done := make(chan struct{})
@@ -165,7 +165,7 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 
 	server, _ := newWSConnPair(t)
 
-	f := NewWsFlagChange(stream.NewWebsocketService(), nil, zap.NewNop())
+	f := NewWsFlagChange(stream.NewWebsocketService(), nil, slog.New(slog.DiscardHandler))
 	f.pingInterval = 0 // force the fallback branch
 
 	ctx, cancel := context.WithCancel(context.Background())

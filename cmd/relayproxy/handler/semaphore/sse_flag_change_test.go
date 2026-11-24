@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,7 +16,6 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -136,7 +136,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				isDefault:   true,
 			}
 
-			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, zap.NewNop())
+			ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
 
 			e := echo.New()
 			e.GET("/stream/v1/sse/flag/change", ctrl.Handler)
@@ -195,7 +195,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 		isDefault:   false,
 	}
 
-	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, zap.NewNop())
+	ctrl := controller.NewSSEFlagChange(sseService, flagsetMgr, slog.New(slog.DiscardHandler))
 
 	e := echo.New()
 	e.GET("/stream/v1/sse/flag/change", ctrl.Handler)
@@ -295,7 +295,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 
-			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr, zap.NewNop())
+			ctrl := controller.NewSSEFlagChange(sseService, tt.flagsetMgr, slog.New(slog.DiscardHandler))
 
 			e := echo.New()
 			e.GET("/stream/v1/sse/flag/change", ctrl.Handler)

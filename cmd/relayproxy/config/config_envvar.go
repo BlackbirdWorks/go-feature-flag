@@ -1,8 +1,10 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	maps0 "maps"
 	"net/netip"
 	"os"
@@ -13,7 +15,8 @@ import (
 
 	"github.com/knadh/koanf/maps"
 	"github.com/knadh/koanf/v2"
-	"go.uber.org/zap"
+
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 const (
@@ -130,12 +133,17 @@ func isServiceLinkURL(value string) bool {
 	return false
 }
 
-func (c *Loader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
+func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) koanf.Provider {
 	return &environProvider{prefix: prefix, environ: c.environ(),
 		skip: func(key, value string) bool { return prefix != "" && isServiceLink(key, value) },
 		skipped: func(names []string) {
 			// only the names are logged, the values may be anything.
-			log.Debug("config: ignoring Kubernetes service link variables", zap.Strings("names", names))
+			log.LogAttrs(
+				context.Background(),
+				slog.LevelDebug,
+				"config: ignoring Kubernetes service link variables",
+				slog.Any("names", names),
+			)
 		},
 		cb: func(key, v string) (string, any) {
 			key = strings.TrimPrefix(key, prefix)
@@ -148,12 +156,12 @@ func (c *Loader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.P
 				configMap := c.k.Raw()
 				modifiedConfigMap, err := loadArrayEnv(key, v, configMap)
 				if err != nil {
-					log.Error(
+					log.LogAttrs(context.Background(), slog.LevelError,
 						"config: error loading array env",
-						zap.String("key", key),
+						slog.String("key", key),
 						// the value of the variable may be a secret (API key, token, ...): only log its size.
-						zap.Int("valueLength", len(v)),
-						zap.Error(err),
+						slog.Int("valueLength", len(v)),
+						cmdlog.Err(err),
 					)
 
 					return key, v
@@ -382,7 +390,7 @@ func expandArray(configArray []any, index int) []any {
 // parseOtelResourceAttributes parses the OTEL_RESOURCE_ATTRIBUTES environment variable
 // and sets the attributes in the koanf configuration.
 // The expected format is "key1=value1,key2=value2,...".
-func (c *Loader) parseOtelResourceAttributes(attributes string, log *zap.Logger) {
+func (c *Loader) parseOtelResourceAttributes(attributes string, log *slog.Logger) {
 	configMap := c.k.Raw()
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {
@@ -405,8 +413,12 @@ func (c *Loader) parseOtelResourceAttributes(attributes string, log *zap.Logger)
 	for i, attr := range strings.Split(attributes, ",") {
 		k, v, found := strings.Cut(attr, "=")
 		if !found {
-			log.Error("config: error loading OTEL_RESOURCE_ATTRIBUTES - incorrect format",
-				zap.Int("position", i))
+			log.LogAttrs(
+				context.Background(),
+				slog.LevelError,
+				"config: error loading OTEL_RESOURCE_ATTRIBUTES - incorrect format",
+				slog.Int("position", i),
+			)
 
 			continue
 		}

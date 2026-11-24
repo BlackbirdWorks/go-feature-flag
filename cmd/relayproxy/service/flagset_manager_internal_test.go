@@ -6,6 +6,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -14,12 +15,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 func Test_flagsetManagerImpl_sharedPollerPerBucket(t *testing.T) {
@@ -50,7 +50,7 @@ func testSharedPollerManager(t *testing.T) {
 		s3FlagSet("u2", "flags", "p/b.yaml"),
 		nonShared,
 	}}
-	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(cfg, zap.NewNop(), nil, nil, nil, reg)
+	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(cfg, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
 	require.NoError(t, err)
 
 	// two shared-poller flagsets on the same bucket share one group, the non shared-poller one does not use any
@@ -85,7 +85,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 		reg := newFakeRegistry(t, &fakeS3{content: content}, &atomic.Int32{})
 		first := s3FlagSet("u1", "flags", "p/a.yaml")
 		mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
-			&config.Config{FlagSets: []config.FlagSet{first}}, zap.NewNop(), nil, nil, nil, reg)
+			&config.Config{FlagSets: []config.FlagSet{first}}, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
 		require.NoError(t, err)
 
 		// the flagset name is already in the configuration: the new client is closed and released
@@ -110,7 +110,7 @@ func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 		}
 		reg := newFakeRegistry(t, f, &atomic.Int32{})
 		mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
-			&config.Config{FlagSets: flagsets[:1]}, zap.NewNop(), nil, nil, nil, reg)
+			&config.Config{FlagSets: flagsets[:1]}, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, f.lists.Load())
 
@@ -126,7 +126,7 @@ func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 }
 
 func newPollingManager(
-	t *testing.T, f *fakeS3, interval time.Duration, logger *zap.Logger,
+	t *testing.T, f *fakeS3, interval time.Duration, logger *slog.Logger,
 ) (*flagsetManagerImpl, *sharedBucketRegistry) {
 	t.Helper()
 	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
@@ -146,7 +146,7 @@ func Test_flagsetManagerImpl_sharedPoller(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		f := &fakeS3{}
-		mgr, reg := newPollingManager(t, f, 10*time.Second, zap.NewNop())
+		mgr, reg := newPollingManager(t, f, 10*time.Second, slog.New(slog.DiscardHandler))
 		require.EqualValues(t, 1, f.lists.Load())
 		require.EqualValues(t, 2, f.gets.Load())
 
@@ -172,9 +172,9 @@ func Test_flagsetManagerImpl_sharedPoller(t *testing.T) {
 func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		core, logs := observer.New(zap.InfoLevel)
+		core, logs := slogutil.NewObserver(slog.LevelInfo)
 		f := &fakeS3{}
-		mgr, reg := newPollingManager(t, f, 10*time.Second, zap.New(core))
+		mgr, reg := newPollingManager(t, f, 10*time.Second, core)
 		// a new top-level pollingInterval is applied to the running poller, the flagsets are not rebuilt
 		a, b := s3FlagSet("u1", "flags", "p/a.yaml"), s3FlagSet("u2", "flags", "p/b.yaml")
 		a.PollingInterval, b.PollingInterval = 0, 0
@@ -253,7 +253,7 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 				FlagSets:                   []config.FlagSet{existing},
 				ExporterCleanQueueInterval: tt.startupTop,
 			}
-			m, err := NewFlagsetManager(cfg, zap.NewNop(), nil, nil, nil)
+			m, err := NewFlagsetManager(cfg, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(m.Close)
 

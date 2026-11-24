@@ -1,6 +1,7 @@
 package service_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,8 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -20,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
@@ -29,7 +29,7 @@ func TestNewFlagsetManager(t *testing.T) {
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	tests := []struct {
 		config      *config.Config
-		logger      *zap.Logger
+		logger      *slog.Logger
 		name        string
 		expectedErr string
 		notifiers   []notifier.Notifier
@@ -38,7 +38,7 @@ func TestNewFlagsetManager(t *testing.T) {
 		{
 			name:        "nil config should return error",
 			config:      nil,
-			logger:      zap.NewNop(),
+			logger:      slog.New(slog.DiscardHandler),
 			notifiers:   []notifier.Notifier{},
 			wantErr:     true,
 			expectedErr: "configuration is nil",
@@ -52,7 +52,7 @@ func TestNewFlagsetManager(t *testing.T) {
 					Path: flagConfig,
 				},
 			},
-			logger:    zap.NewNop(),
+			logger:    slog.New(slog.DiscardHandler),
 			notifiers: []notifier.Notifier{},
 			wantErr:   false,
 		},
@@ -70,7 +70,7 @@ func TestNewFlagsetManager(t *testing.T) {
 					},
 				},
 			},
-			logger:    zap.NewNop(),
+			logger:    slog.New(slog.DiscardHandler),
 			notifiers: []notifier.Notifier{},
 			wantErr:   false,
 		},
@@ -92,7 +92,7 @@ func TestNewFlagsetManager(t *testing.T) {
 					Path: flagConfig,
 				},
 			},
-			logger:    zap.NewNop(),
+			logger:    slog.New(slog.DiscardHandler),
 			notifiers: []notifier.Notifier{},
 			wantErr:   true,
 		},
@@ -159,7 +159,7 @@ func newStreamManager(
 ) (service.FlagsetManager, *fakeSSEService, *fakeWebsocketService) {
 	t.Helper()
 	sse, ws := &fakeSSEService{}, &fakeWebsocketService{}
-	manager, err := service.NewFlagsetManager(cfg, zap.NewNop(), nil, sse, ws)
+	manager, err := service.NewFlagsetManager(cfg, slog.New(slog.DiscardHandler), nil, sse, ws)
 	require.NoError(t, err)
 	t.Cleanup(func() { manager.Close() })
 
@@ -281,7 +281,13 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			manager, err := service.NewFlagsetManager(tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
+			manager, err := service.NewFlagsetManager(
+				tt.config,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
 			require.NoError(t, err, "failed to create FlagsetManager")
 			defer manager.Close()
 
@@ -323,7 +329,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -366,7 +372,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 				Path: flagConfig,
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -412,7 +418,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -449,7 +455,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -474,7 +480,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 				Path: flagConfig,
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -504,7 +510,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 				Path: flagConfig,
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -533,7 +539,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -561,7 +567,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 				Path: flagConfig,
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -587,7 +593,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -616,7 +622,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 			},
 			Exporter: bufferedFileExporter(outputDir),
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -645,7 +651,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 				},
 			},
 		}
-		logger := zap.NewNop()
+		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
 		require.NoError(t, err, "failed to create FlagsetManager")
@@ -684,10 +690,10 @@ func assertFlushedOnClose(t *testing.T, manager service.FlagsetManager, outputDi
 }
 
 // setupManager is a helper function to create a manager and capture log messages.
-func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *observer.ObservedLogs) {
+func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *slogutil.ObservedLogs) {
 	t.Helper()
-	obs, logs := observer.New(zap.ErrorLevel)
-	logger := zap.New(obs)
+	obs, logs := slogutil.NewObserver(slog.LevelError)
+	logger := obs
 	manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { manager.Close() })
@@ -733,7 +739,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Verify that the error log was displayed
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
-		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
+		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(
 			t,
 			logEntry.Message,
@@ -775,7 +781,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Verify that the error log was displayed
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
-		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
+		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(
 			t,
 			logEntry.Message,
@@ -918,7 +924,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Verify that the error log was displayed
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
-		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
+		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
 
 		// Verify the original config was not changed
@@ -965,7 +971,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Verify that the error log was displayed
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
-		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
+		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
 
 		// Verify the original config was not changed
@@ -1029,7 +1035,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		// Verify that the error log was displayed
 		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
 		logEntry := logs.All()[0]
-		assert.Equal(t, zap.ErrorLevel, logEntry.Level)
+		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
 
 		// Verify the original config was not changed
@@ -1318,8 +1324,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				},
 			},
 		}
-		obs, logs := observer.New(zap.InfoLevel)
-		logger := zap.New(obs)
+		obs, logs := slogutil.NewObserver(slog.LevelInfo)
+		logger := obs
 		manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { manager.Close() })
@@ -1366,8 +1372,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				},
 			},
 		}
-		obs, logs := observer.New(zap.WarnLevel)
-		logger := zap.New(obs)
+		obs, logs := slogutil.NewObserver(slog.LevelWarn)
+		logger := obs
 		manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { manager.Close() })
@@ -1419,8 +1425,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				},
 			},
 		}
-		obs, logs := observer.New(zap.WarnLevel)
-		logger := zap.New(obs)
+		obs, logs := slogutil.NewObserver(slog.LevelWarn)
+		logger := obs
 		manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { manager.Close() })
@@ -1544,7 +1550,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		wsService := stream.NewWebsocketService()
 		manager, err := service.NewFlagsetManager(
-			&config.Config{FlagSets: []config.FlagSet{existing}}, zap.NewNop(), nil, nil, wsService)
+			&config.Config{FlagSets: []config.FlagSet{existing}}, slog.New(slog.DiscardHandler), nil, nil, wsService)
 		require.NoError(t, err)
 		t.Cleanup(func() { manager.Close() })
 
@@ -1841,8 +1847,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				},
 			},
 		}
-		obs, logs := observer.New(zap.WarnLevel)
-		logger := zap.New(obs)
+		obs, logs := slogutil.NewObserver(slog.LevelWarn)
+		logger := obs
 		manager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() { manager.Close() })

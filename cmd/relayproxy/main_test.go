@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
@@ -30,7 +30,7 @@ func TestShutdown(t *testing.T) {
 
 	var calls []string
 	shutdown(
-		zap.NewNop(),
+		slog.New(slog.DiscardHandler),
 		recordingAPIServer{calls: &calls},
 		stream.NewWebsocketService(),
 		stream.NewSSEService(),

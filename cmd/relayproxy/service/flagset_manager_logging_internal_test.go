@@ -6,10 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
@@ -36,9 +35,9 @@ func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *te
 	require.Error(t, invalid.IsValid())
 
 	var buf bytes.Buffer
-	encCfg := zap.NewProductionEncoderConfig()
-	logger := zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(encCfg), zapcore.AddSync(&buf), zap.DebugLevel))
-	mgr := &flagsetManagerImpl{logger: logger}
+	logger, err := cmdlog.New("json", "debug", cmdlog.WithWriter(&buf))
+	require.NoError(t, err)
+	mgr := &flagsetManagerImpl{logger: logger.Slog}
 
 	mgr.OnConfigChange(invalid)
 

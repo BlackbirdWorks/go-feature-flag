@@ -51,17 +51,17 @@ func TestServerEnableH2C(t *testing.T) {
 			require.NoError(t, err)
 			ws := stream.NewWebsocketService()
 			defer ws.Close()
-			fm, err := service.NewFlagsetManager(conf, log.ZapLogger,
+			fm, err := service.NewFlagsetManager(conf, log.Slog,
 				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, ws)
 			require.NoError(t, err)
-			s := api.New(conf, service.Services{
+			s := newTestServer(t, conf, service.Services{
 				MonitoringService: service.NewMonitoring(
 					fm,
 				),
 				WebsocketService: ws,
 				FlagsetManager:   fm,
 				Metrics:          metrics,
-			}, log.ZapLogger, api.WithListener(ln))
+			}, log.Slog, api.WithListener(ln))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 

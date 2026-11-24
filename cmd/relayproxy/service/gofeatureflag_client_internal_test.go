@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -21,8 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go/parquet"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/net/proxy"
 
 	ffclient "github.com/blackbirdworks/semaphore"
@@ -647,7 +646,7 @@ func Test_initNotifier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := initNotifier(tt.args.c, zap.NewNop())
+			got, err := initNotifier(tt.args.c, slog.New(slog.DiscardHandler))
 			if !tt.wantErr(t, err, fmt.Sprintf("initNotifier(%v)", tt.args.c)) {
 				return
 			}
@@ -660,7 +659,7 @@ func TestNewGoFeatureFlagClient_ProxyConfNil(t *testing.T) {
 	t.Parallel()
 
 	// Create a logger for testing
-	logger := zap.NewNop()
+	logger := slog.New(slog.DiscardHandler)
 
 	// Call NewGoFeatureFlagClient with nil proxyConf
 	goff, err := NewGoFeatureFlagClient(nil, logger, nil)
@@ -1167,23 +1166,21 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 				// Create a buffer to capture log output
 				var logBuffer bytes.Buffer
 
-				// Create a zap logger that writes to our buffer
-				encoderCfg := zap.NewProductionEncoderConfig()
-				encoderCfg.TimeKey = ""
-				encoderCfg.LevelKey = ""
-				encoderCfg.CallerKey = ""
-				core := zapcore.NewCore(
-					zapcore.NewJSONEncoder(encoderCfg),
-					zapcore.AddSync(&logBuffer),
-					zapcore.InfoLevel,
-				)
-				zapLogger := zap.New(core)
+				// a logger that writes the message and the attributes only, to our buffer
+				baseLogger := slog.New(slog.NewJSONHandler(&logBuffer, &slog.HandlerOptions{
+					ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+						if len(groups) == 0 && (a.Key == slog.TimeKey || a.Key == slog.LevelKey) {
+							return slog.Attr{}
+						}
 
-				slogLogger := initLeveledLogger(flagset, zapLogger)
+						return a
+					},
+				}))
+
+				slogLogger := initLeveledLogger(flagset, baseLogger)
 				assert.NotNil(t, slogLogger, "initLeveledLogger should return a non-nil logger")
 
 				slogLogger.Info("test message")
-				_ = zapLogger.Sync()
 				logOutput := logBuffer.String()
 
 				assert.Equal(t, tt.wantLog, logOutput)
@@ -1223,7 +1220,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 				reg := newFakeRegistry(t, tt.s3, &atomic.Int32{})
 				fs := s3FlagSet("a", "b1", "p/a.yaml")
 				tt.mod(&fs)
-				_, err := newGoFeatureFlagClient(&fs, zap.NewNop(), nil, withSharedBucketRegistry(reg))
+				_, err := newGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil, withSharedBucketRegistry(reg))
 				require.Error(t, err)
 				assert.Equal(t, tt.wantGroups, reg.groupCount(), "the retriever must have left its group")
 			})
@@ -1276,7 +1273,7 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
 	fs := s3FlagSet("a", "b1", "p/a.yaml")
 	fs.PollingInterval, fs.EnablePollingJitter = 5000, true
-	got, err := NewGoFeatureFlagClient(&fs, zap.NewNop(), nil)
+	got, err := NewGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil)
 	assert.Nil(t, got)
 	require.ErrorContains(t, err, `unable to list S3 bucket "b1"`)
 }
@@ -1329,7 +1326,7 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 			fs := &config.FlagSet{Name: "fs",
 				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}
 			var got time.Duration
-			client, err := newGoFeatureFlagClient(fs, zap.NewNop(), nil,
+			client, err := newGoFeatureFlagClient(fs, slog.New(slog.DiscardHandler), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),
 				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					got = c.ExporterCleanQueueInterval

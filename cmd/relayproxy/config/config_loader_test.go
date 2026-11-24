@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -8,12 +9,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
@@ -122,7 +121,7 @@ loglevel: error`,
 			require.NoError(t, err)
 
 			// Create ConfigLoader with watchChanges enabled
-			logger := zap.NewNop()
+			logger := slog.New(slog.DiscardHandler)
 			loader := config.NewConfigLoader(f, logger, "1.0.0", true)
 			defer loader.StopWatchChanges()
 
@@ -211,7 +210,7 @@ loglevel: info`)
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges disabled
-	logger := zap.NewNop()
+	logger := slog.New(slog.DiscardHandler)
 	loader := config.NewConfigLoader(f, logger, "1.0.0", false)
 
 	// Setup callback
@@ -254,8 +253,8 @@ loglevel: info`)
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges enabled and observer logger to capture logs
-	core, logs := observer.New(zapcore.ErrorLevel)
-	logger := zap.New(core)
+	core, logs := slogutil.NewObserver(slog.LevelError)
+	logger := core
 	loader := config.NewConfigLoader(f, logger, "1.0.0", true)
 
 	// Setup callback
