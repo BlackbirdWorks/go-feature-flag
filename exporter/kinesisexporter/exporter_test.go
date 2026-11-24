@@ -114,7 +114,7 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 		[]exporter.ExportableEvent{NewFeatureEvent()},
 	)
 
-	assert.Error(t, err)
+	assert.EqualError(t, err, "send: no StreamName or StreamArn provided")
 }
 
 func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
@@ -172,7 +172,7 @@ func TestExporter_ExportSenderError(t *testing.T) {
 		},
 	)
 
-	assert.Error(t, err)
+	assert.EqualError(t, err, "send: failure to send message: datacenter on fire")
 }
 
 func TestExporterSettingsCreation(t *testing.T) {

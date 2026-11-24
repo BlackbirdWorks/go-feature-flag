@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"io/fs"
 	"math/big"
 	"net/http"
 	"os"
@@ -157,7 +158,7 @@ func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
 	}
 
 	_, err := retriever.getHTTPClient()
-	require.Error(t, err)
+	require.EqualError(t, err, "tls: failed to find any PEM data in key input")
 }
 
 func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {
@@ -168,7 +169,7 @@ func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {
 	}
 
 	_, err := retriever.getHTTPClient()
-	require.Error(t, err)
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func TestRetriever_getHTTPClient_WithInvalidCACertificate(t *testing.T) {

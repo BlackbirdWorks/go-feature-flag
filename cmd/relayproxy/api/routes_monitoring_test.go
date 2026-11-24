@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"testing"
 
@@ -24,10 +25,10 @@ func TestPprofEndpointsStarts(t *testing.T) {
 	t.Parallel()
 
 	type test struct {
-		name               string
-		MonitoringPort     int
-		EnablePprof        bool
-		expectedStatusCode int
+		name                string
+		dedicatedMonitoring bool
+		EnablePprof         bool
+		expectedStatusCode  int
 	}
 	tests := []test{
 		{
@@ -36,10 +37,10 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:               "pprof available in monitoring port",
-			EnablePprof:        true,
-			MonitoringPort:     1032,
-			expectedStatusCode: http.StatusOK,
+			name:                "pprof available in monitoring port",
+			EnablePprof:         true,
+			dedicatedMonitoring: true,
+			expectedStatusCode:  http.StatusOK,
 		},
 	}
 
@@ -49,6 +50,14 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 			z, err := zap.NewProduction()
 			require.NoError(t, err)
+			ln, port := testutils.ListenLocal(t)
+			opts := []api.Option{api.WithListener(ln)}
+			monitoringPort := 0
+			if tt.dedicatedMonitoring {
+				var monitoringLn net.Listener
+				monitoringLn, monitoringPort = testutils.ListenLocal(t)
+				opts = append(opts, api.WithMonitoringListener(monitoringLn))
+			}
 			c := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
@@ -58,9 +67,9 @@ func TestPprofEndpointsStarts(t *testing.T) {
 				},
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
-					Port: testutils.GetFreePort(t),
+					Port: port,
 				},
-				MonitoringPort: tt.MonitoringPort,
+				MonitoringPort: monitoringPort,
 				EnablePprof:    tt.EnablePprof,
 			}
 
@@ -71,11 +80,11 @@ func TestPprofEndpointsStarts(t *testing.T) {
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,
 				Metrics:           metric.Metrics{},
-			}, z)
+			}, z, opts...)
 
-			portToCheck := c.ServerPort(z)
-			if tt.MonitoringPort != 0 {
-				portToCheck = tt.MonitoringPort
+			portToCheck := port
+			if tt.dedicatedMonitoring {
+				portToCheck = monitoringPort
 			}
 
 			go apiServer.StartWithContext(context.Background())
@@ -119,9 +128,7 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			conf := testConfig(t)
 			conf.Version = "1.2.3"
 			conf.DisableVersionHeader = tt.disableVersionHeader
-			conf.Server.MonitoringPort = testutils.GetFreePort(t)
-			baseURL := startTestServer(t, conf)
-			monitoringURL := fmt.Sprintf("http://localhost:%d", conf.Server.MonitoringPort)
+			baseURL, monitoringURL := startTestServer(t, conf, true)
 
 			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+"/health", nil)
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)

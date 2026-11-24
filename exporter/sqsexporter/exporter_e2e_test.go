@@ -93,13 +93,14 @@ func TestE2E_Export(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name     string
-		nbEvents int
-		nbCalls  int
+		name         string
+		nbEvents     int
+		nbCalls      int
+		wantReceived int
 	}{
-		{name: "one event", nbEvents: 1, nbCalls: 1},
-		{name: "25 events in one call (more than one receive)", nbEvents: 25, nbCalls: 1},
-		{name: "25 events in five calls", nbEvents: 25, nbCalls: 5},
+		{name: "one event", nbEvents: 1, nbCalls: 1, wantReceived: 1},
+		{name: "25 events in one call (more than one receive)", nbEvents: 25, nbCalls: 1, wantReceived: 25},
+		{name: "25 events in five calls", nbEvents: 25, nbCalls: 5, wantReceived: 25},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +117,7 @@ func TestE2E_Export(t *testing.T) {
 			}
 
 			got := receiveAll(t, client, queueURL, tt.nbEvents)
-			require.Len(t, got, tt.nbEvents)
+			require.Len(t, got, tt.wantReceived)
 			sort.Slice(got, func(i, j int) bool { return got[i].event.UserKey < got[j].event.UserKey })
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.event.UserKey)
@@ -136,13 +137,19 @@ func TestE2E_Export_Errors(t *testing.T) {
 	tests := []struct {
 		name     string
 		queueURL func(t *testing.T) string
+		wantErr  string
 	}{
-		{name: "empty queue url", queueURL: func(*testing.T) string { return "" }},
+		{
+			name:     "empty queue url",
+			queueURL: func(*testing.T) string { return "" },
+			wantErr:  "impossible to init SQS exporter: QueueURL is a mandatory parameter",
+		},
 		{
 			name: "unknown queue",
 			queueURL: func(t *testing.T) string {
 				return srv.Endpoint + "/000000000000/" + gopherstack.UniqueName(t, "noqueue")
 			},
+			wantErr: "AWS.SimpleQueueService.NonExistentQueue: The specified queue does not exist.",
 		},
 	}
 	for _, tt := range tests {
@@ -150,7 +157,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &sqsexporter.Exporter{QueueURL: tt.queueURL(t), AwsConfig: &cfg}
-			require.Error(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)))
+			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)), tt.wantErr)
 		})
 	}
 }
@@ -168,5 +175,6 @@ func TestE2E_Export_FifoQueue(t *testing.T) {
 	// The exporter sets neither MessageGroupId nor deduplication id: AWS rejects such messages on a
 	// FIFO queue (MissingParameter), so FIFO queues are not supported by this exporter.
 	e := &sqsexporter.Exporter{QueueURL: aws.ToString(out.QueueUrl), AwsConfig: &cfg}
-	require.Error(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)))
+	require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)),
+		"InvalidParameterValue: The request must contain the parameter MessageGroupId.")
 }

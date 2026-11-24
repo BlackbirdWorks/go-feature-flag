@@ -17,29 +17,44 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 		value func() any
 		// mutate changes the copied value in place.
 		mutate func(v any)
+		// wantOriginalUnchanged is whether the original equals what it was built as after the copy was mutated
+		wantOriginalUnchanged bool
 	}{
-		{name: "nil", value: func() any { return nil }, mutate: func(any) {}},
-		{name: "scalar", value: func() any { return "a" }, mutate: func(any) {}},
-		{name: "map of any", value: func() any { return map[string]any{"a": []any{1}} }, mutate: func(v any) {
-			v.(map[string]any)["a"].([]any)[0] = 2
-		}},
+		{name: "nil", wantOriginalUnchanged: true, value: func() any { return nil }, mutate: func(any) {}},
+		{name: "scalar", wantOriginalUnchanged: true, value: func() any { return "a" }, mutate: func(any) {}},
 		{
-			name:   "typed slice",
-			value:  func() any { return []string{"a"} },
-			mutate: func(v any) { v.([]string)[0] = "b" },
+			name:                  "map of any",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return map[string]any{"a": []any{1}} },
+			mutate: func(v any) {
+				v.(map[string]any)["a"].([]any)[0] = 2
+			},
 		},
 		{
-			name:   "typed map",
-			value:  func() any { return map[string]string{"a": "a"} },
-			mutate: func(v any) { v.(map[string]string)["a"] = "b" },
+			name:                  "typed slice",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return []string{"a"} },
+			mutate:                func(v any) { v.([]string)[0] = "b" },
 		},
-		{name: "typed map of slices", value: func() any { return map[string][]int{"a": {1}} }, mutate: func(v any) {
-			v.(map[string][]int)["a"][0] = 2
-		}},
 		{
-			name:   "nil map and slice",
-			value:  func() any { return map[string]any{"m": map[string]string(nil), "s": []int(nil), "n": nil} },
-			mutate: func(any) {},
+			name:                  "typed map",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return map[string]string{"a": "a"} },
+			mutate:                func(v any) { v.(map[string]string)["a"] = "b" },
+		},
+		{
+			name:                  "typed map of slices",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return map[string][]int{"a": {1}} },
+			mutate: func(v any) {
+				v.(map[string][]int)["a"][0] = 2
+			},
+		},
+		{
+			name:                  "nil map and slice",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return map[string]any{"m": map[string]string(nil), "s": []int(nil), "n": nil} },
+			mutate:                func(any) {},
 		},
 	}
 	for _, tt := range tests {
@@ -56,7 +71,12 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 			assert.Equal(t, orig, cp)
 			tt.mutate(*(*cp.Variations)["A"])
 			tt.mutate((*cp.Metadata)["m"])
-			assert.Equal(t, build(), orig, "changing the copy must not change the original")
+			assert.Equal(
+				t,
+				tt.wantOriginalUnchanged,
+				assert.ObjectsAreEqual(build(), orig),
+				"changing the copy must not change the original",
+			)
 		})
 	}
 	var nilFlag *flag.InternalFlag

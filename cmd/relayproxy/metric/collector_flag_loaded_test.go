@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -220,14 +221,20 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		source FlagsetSource
+		name       string
+		source     FlagsetSource
+		wantSeries int
 	}{
-		{name: "source error", source: fakeFlagsetSource{err: errors.New("no flagsets configured")}},
-		{name: "nil flagset", source: fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}}},
+		{name: "source error", source: fakeFlagsetSource{err: errors.New("no flagsets configured")}, wantSeries: 0},
 		{
-			name:   "cache not initialized",
-			source: fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": {}}},
+			name:       "nil flagset",
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": nil}},
+			wantSeries: 0,
+		},
+		{
+			name:       "cache not initialized",
+			source:     fakeFlagsetSource{flagsets: map[string]*ffclient.GoFeatureFlag{"default": {}}},
+			wantSeries: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -239,7 +246,7 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
 			count, err := testutil.GatherAndCount(m.Registry, "semaphore_flag_loaded")
 			require.NoError(t, err)
-			assert.Equal(t, 0, count)
+			assert.Equal(t, tt.wantSeries, count)
 		})
 	}
 }
@@ -262,10 +269,50 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
 	t.Parallel()
 
-	require.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
-	m, err := NewMetrics()
+	tests := []struct {
+		name           string
+		withRegistry   bool
+		source         FlagsetSource
+		wantErr        error
+		wantRegistered bool
+	}{
+		{name: "no registry", withRegistry: false, source: fakeFlagsetSource{}, wantErr: nil},
+		{name: "no source", withRegistry: true, source: nil, wantErr: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			m := &Metrics{}
+			if tt.withRegistry {
+				created, err := NewMetrics()
+				require.NoError(t, err)
+				m = &created
+			}
+			before := metricFamilyNames(t, m)
+
+			assert.Equal(t, tt.wantErr, m.RegisterFlagLoaded(tt.source))
+			assert.Equal(t, before, metricFamilyNames(t, m), "nothing must be registered")
+			assert.Equal(t, tt.wantRegistered, slices.Contains(metricFamilyNames(t, m), "semaphore_flag_loaded"))
+		})
+	}
+}
+
+// metricFamilyNames returns the sorted names of the metric families gathered from the registry of m.
+func metricFamilyNames(t *testing.T, m *Metrics) []string {
+	t.Helper()
+	if m.Registry == nil {
+		return nil
+	}
+	families, err := m.Registry.Gather()
 	require.NoError(t, err)
-	assert.NoError(t, m.RegisterFlagLoaded(nil))
+	var names []string
+	for _, f := range families {
+		names = append(names, f.GetName())
+	}
+	slices.Sort(names)
+
+	return names
 }
 
 func TestFlagLoaded_SkipsSeriesWithInvalidLabelValues(t *testing.T) {

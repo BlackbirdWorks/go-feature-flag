@@ -8,6 +8,7 @@ import (
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -21,10 +22,11 @@ func TestStreamAuthorizer(t *testing.T) {
 		urlAPIKey  string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    int
-		wantErr assert.ErrorAssertionFunc
+		name       string
+		args       args
+		wantStatus int
+		wantBody   string
+		wantErr    error
 	}{
 		{
 			name: "valid apiKey",
@@ -32,8 +34,8 @@ func TestStreamAuthorizer(t *testing.T) {
 				confAPIKey: "valid-api-key",
 				urlAPIKey:  "valid-api-key",
 			},
-			want:    http.StatusOK,
-			wantErr: assert.NoError,
+			wantStatus: http.StatusOK,
+			wantBody:   "Authorized",
 		},
 		{
 			name: "invalid apiKey",
@@ -41,8 +43,8 @@ func TestStreamAuthorizer(t *testing.T) {
 				confAPIKey: "valid-api-key",
 				urlAPIKey:  "invalid-api-key",
 			},
-			want:    http.StatusUnauthorized,
-			wantErr: assert.Error,
+			wantStatus: http.StatusUnauthorized,
+			wantErr:    echo.ErrUnauthorized,
 		},
 	}
 
@@ -71,7 +73,16 @@ func TestStreamAuthorizer(t *testing.T) {
 			})
 
 			err := handler(c)
-			tt.wantErr(t, err)
+
+			assert.Equal(t, tt.wantErr, err)
+			if tt.wantErr != nil {
+				var coder echo.HTTPStatusCoder
+				require.ErrorAs(t, err, &coder)
+				assert.Equal(t, tt.wantStatus, coder.StatusCode())
+			} else {
+				assert.Equal(t, tt.wantStatus, rec.Code)
+			}
+			assert.Equal(t, tt.wantBody, rec.Body.String())
 		})
 	}
 }

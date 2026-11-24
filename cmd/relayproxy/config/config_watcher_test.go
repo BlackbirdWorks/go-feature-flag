@@ -99,7 +99,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 	tests := []struct {
 		name        string
 		setupConfig func(*testing.T) *config.Config
-		wantErr     bool
+		wantErr     error
 	}{
 		{
 			name: "Successfully stop watcher when configLoader is initialized",
@@ -111,14 +111,14 @@ loglevel: info`)
 
 				return cfg
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 		{
 			name: "Stop watcher when configLoader is nil - should return nil",
 			setupConfig: func(t *testing.T) *config.Config {
 				return &config.Config{}
 			},
-			wantErr: false,
+			wantErr: nil,
 		},
 	}
 
@@ -129,11 +129,7 @@ loglevel: info`)
 			cfg := tt.setupConfig(t)
 			err := cfg.StopConfigChangeWatcher()
 
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+			assert.Equal(t, tt.wantErr, err)
 		})
 	}
 }

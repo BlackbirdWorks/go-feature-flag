@@ -13,6 +13,8 @@ func TestClose(t *testing.T) {
 	tests := []struct {
 		name              string
 		backgroundUpdater backgroundUpdater
+		// wantSignalClosed is true when closing must end the wait of the goroutines that read updaterChan.
+		wantSignalClosed bool
 	}{
 		{
 			name: "Close nil background updater",
@@ -24,10 +26,12 @@ func TestClose(t *testing.T) {
 		{
 			name:              "Close new background updater",
 			backgroundUpdater: newBackgroundUpdater(500*time.Millisecond, false),
+			wantSignalClosed:  true,
 		},
 		{
 			name:              "Close new background updater with jitter",
 			backgroundUpdater: newBackgroundUpdater(500*time.Millisecond, true),
+			wantSignalClosed:  true,
 		},
 	}
 	for _, tt := range tests {
@@ -37,6 +41,16 @@ func TestClose(t *testing.T) {
 			assert.NotPanics(t, func() {
 				tt.backgroundUpdater.close()
 			})
+
+			closed := false
+			if tt.backgroundUpdater.updaterChan != nil {
+				select {
+				case <-tt.backgroundUpdater.updaterChan:
+					closed = true
+				default:
+				}
+			}
+			assert.Equal(t, tt.wantSignalClosed, closed, "updaterChan is closed")
 		})
 	}
 }

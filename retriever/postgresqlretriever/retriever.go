@@ -88,6 +88,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 		r.Pools.ReleasePool(ctx, r.URI)
 		r.pool = nil
 	}
+	r.status = retriever.RetrieverNotReady
 
 	return nil
 }

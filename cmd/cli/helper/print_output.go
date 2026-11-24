@@ -72,7 +72,13 @@ func PrintFatal(printer *pterm.PrefixPrinter, exit func(int), err error) {
 // LegacyWarner returns the Warner of a CLI command: the use of a legacy name is logged once, through
 // the default logger of the process.
 func LegacyWarner() *legacy.Warner {
+	return LegacyWarnerTo(slog.Default)
+}
+
+// LegacyWarnerTo is LegacyWarner with the logger it writes to: logger is called for every warning, so a
+// default logger replaced after the warner was built is still honoured.
+func LegacyWarnerTo(logger func() *slog.Logger) *legacy.Warner {
 	return legacy.NewWarner(func(kind, message string) {
-		slog.Default().Warn(message, slog.String("legacyName", kind))
+		logger().Warn(message, slog.String("legacyName", kind))
 	})
 }

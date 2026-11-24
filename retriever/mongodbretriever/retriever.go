@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,7 +21,10 @@ type Retriever struct {
 	// Mongodb database where flags collection is
 	Database string
 	// Mongodb collection where flag definitions are stored
-	Collection   string
+	Collection string
+
+	// mu guards the connection: Shutdown can run while a Retrieve (a forced refresh) is still in flight.
+	mu           sync.RWMutex
 	dbConnection *mongo.Database
 	dbClient     *mongo.Client
 	status       string
@@ -29,6 +33,8 @@ type Retriever struct {
 
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.logger = logger
 	if r.dbConnection == nil {
 		r.status = retriever.RetrieverNotReady
@@ -49,7 +55,12 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 
 // Status returns the current status of the retriever.
 func (r *Retriever) Status() retriever.Status {
-	if r == nil || r.status == "" {
+	if r == nil {
+		return retriever.RetrieverNotReady
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.status == "" {
 		return retriever.RetrieverNotReady
 	}
 
@@ -58,20 +69,36 @@ func (r *Retriever) Status() retriever.Status {
 
 // Shutdown disconnects the retriever from Mongodb instance.
 func (r *Retriever) Shutdown(ctx context.Context) error {
-	return r.dbClient.Disconnect(ctx)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.dbClient == nil {
+		r.status = retriever.RetrieverNotReady
+
+		return nil
+	}
+	err := r.dbClient.Disconnect(ctx)
+	// the client is dropped whatever the outcome of the disconnection: the retriever can not be used anymore
+	r.dbClient = nil
+	r.dbConnection = nil
+	r.status = retriever.RetrieverNotReady
+
+	return err
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
 // if a document does not comply with the specification it will be ignored.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
-	if r.dbConnection == nil {
+	r.mu.RLock()
+	dbConnection := r.dbConnection
+	r.mu.RUnlock()
+	if dbConnection == nil {
 		return nil, errors.New("database connection is not initialized")
 	}
 
 	opt := options.CollectionOptions{}
 	opt.SetBSONOptions(&options.BSONOptions{OmitZeroStruct: true})
 
-	coll := r.dbConnection.Collection(r.Collection, &opt)
+	coll := dbConnection.Collection(r.Collection, &opt)
 
 	cursor, err := coll.Find(ctx, bson.D{})
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 )
 
 // the relay of the soak must only be reachable through the loopback interface.
+// Observable outcome: the relay answers on 127.0.0.1 and refuses connections on every other local address.
 func TestStart_ListensOnLoopbackOnly(t *testing.T) {
 	t.Parallel()
 	addrs, err := net.InterfaceAddrs()

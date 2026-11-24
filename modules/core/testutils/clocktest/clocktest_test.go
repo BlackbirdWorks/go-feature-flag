@@ -35,9 +35,11 @@ func TestFreezeStepping_ClockIsStrictlyIncreasingAndUnique(t *testing.T) {
 		name       string
 		goroutines int
 		calls      int
+		// wantInstants is the number of distinct instants the calls return: one per call
+		wantInstants int
 	}{
-		{name: "one goroutine", goroutines: 1, calls: 100},
-		{name: "concurrent goroutines", goroutines: 8, calls: 100},
+		{name: "one goroutine", goroutines: 1, calls: 100, wantInstants: 100},
+		{name: "concurrent goroutines", goroutines: 8, calls: 100, wantInstants: 800},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -61,7 +63,7 @@ func TestFreezeStepping_ClockIsStrictlyIncreasingAndUnique(t *testing.T) {
 			}
 			wg.Wait()
 
-			assert.Len(t, seen, tt.goroutines*tt.calls, "no two calls return the same instant")
+			assert.Len(t, seen, tt.wantInstants, "no two calls return the same instant")
 			for now := range seen {
 				assert.Zero(
 					t,

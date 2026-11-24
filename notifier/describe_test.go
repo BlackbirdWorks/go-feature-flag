@@ -691,10 +691,26 @@ func TestDescribeChanges_unsupportedFlag(t *testing.T) {
 	tests := []struct {
 		name          string
 		before, after flag.Flag
+		wantErr       string
 	}{
-		{name: "should refuse another flag type before", before: otherFlag{}, after: &flag.InternalFlag{}},
-		{name: "should refuse another flag type after", before: &flag.InternalFlag{}, after: otherFlag{}},
-		{name: "should refuse a nil flag", before: (*flag.InternalFlag)(nil), after: &flag.InternalFlag{}},
+		{
+			name:    "should refuse another flag type before",
+			before:  otherFlag{},
+			after:   &flag.InternalFlag{},
+			wantErr: "impossible to describe changes",
+		},
+		{
+			name:    "should refuse another flag type after",
+			before:  &flag.InternalFlag{},
+			after:   otherFlag{},
+			wantErr: "impossible to describe changes",
+		},
+		{
+			name:    "should refuse a nil flag",
+			before:  (*flag.InternalFlag)(nil),
+			after:   &flag.InternalFlag{},
+			wantErr: "impossible to describe changes",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -702,7 +718,7 @@ func TestDescribeChanges_unsupportedFlag(t *testing.T) {
 
 			got, err := notifier.DescribeChanges(tt.before, tt.after)
 			assert.Nil(t, got)
-			assert.ErrorContains(t, err, "impossible to describe changes")
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -713,20 +729,20 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		typ     reflect.Type
-		handled []string
+		name        string
+		typ         reflect.Type
+		wantHandled []string
 	}{
 		{
 			name: "flag",
 			typ:  reflect.TypeFor[flag.InternalFlag](),
-			handled: []string{"BucketingKey", "DefaultRule", "Disable", "Experimentation", "Metadata",
+			wantHandled: []string{"BucketingKey", "DefaultRule", "Disable", "Experimentation", "Metadata",
 				"Rules", "Scheduled", "TrackEvents", "Variations", "Version"},
 		},
 		{
 			name: "rule",
 			typ:  reflect.TypeFor[flag.Rule](),
-			handled: []string{
+			wantHandled: []string{
 				"Disable",
 				"Name",
 				"Percentages",
@@ -737,21 +753,25 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 			},
 		},
 		{
-			name:    "progressive rollout",
-			typ:     reflect.TypeFor[flag.ProgressiveRollout](),
-			handled: []string{"End", "Initial"},
+			name:        "progressive rollout",
+			typ:         reflect.TypeFor[flag.ProgressiveRollout](),
+			wantHandled: []string{"End", "Initial"},
 		},
 		{
-			name:    "progressive rollout step",
-			typ:     reflect.TypeFor[flag.ProgressiveRolloutStep](),
-			handled: []string{"Date", "Percentage", "Variation"},
+			name:        "progressive rollout step",
+			typ:         reflect.TypeFor[flag.ProgressiveRolloutStep](),
+			wantHandled: []string{"Date", "Percentage", "Variation"},
 		},
 		{
-			name:    "experimentation",
-			typ:     reflect.TypeFor[flag.ExperimentationRollout](),
-			handled: []string{"End", "Start"},
+			name:        "experimentation",
+			typ:         reflect.TypeFor[flag.ExperimentationRollout](),
+			wantHandled: []string{"End", "Start"},
 		},
-		{name: "scheduled step", typ: reflect.TypeFor[flag.ScheduledStep](), handled: []string{"Date", "InternalFlag"}},
+		{
+			name:        "scheduled step",
+			typ:         reflect.TypeFor[flag.ScheduledStep](),
+			wantHandled: []string{"Date", "InternalFlag"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -763,7 +783,7 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 					fields = append(fields, field.Name)
 				}
 			}
-			assert.ElementsMatch(t, tt.handled, fields)
+			assert.ElementsMatch(t, tt.wantHandled, fields)
 		})
 	}
 }

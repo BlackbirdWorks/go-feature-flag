@@ -328,7 +328,13 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 			},
 		},
 	)
-	assert.Error(t, err, "Export should error when the upload fails")
+	hostname, _ := os.Hostname()
+	assert.EqualError(
+		t,
+		err,
+		"error: [GCP Exporter] impossible to copy the file from flag-variation-"+hostname+
+			"-1749988800.json to bucket test: googleapi: Error 500: boom",
+	)
 }
 
 func TestGoogleCloudStorage_IsBulk(t *testing.T) {

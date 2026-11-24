@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -23,15 +24,17 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 	t.Parallel()
 
 	type test struct {
-		name    string
-		mode    string
-		request any
+		name       string
+		mode       string
+		request    any
+		wantStatus int
 	}
 
 	tests := []test{
 		{
-			name: "APIGatewayV2 event handler",
-			mode: "APIGatewayV2",
+			name:       "APIGatewayV2 event handler",
+			mode:       "APIGatewayV2",
+			wantStatus: http.StatusOK,
 			request: events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
@@ -46,8 +49,9 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			},
 		},
 		{
-			name: "APIGatewayV1 event handler",
-			mode: "APIGatewayV1",
+			name:       "APIGatewayV1 event handler",
+			mode:       "APIGatewayV1",
+			wantStatus: http.StatusOK,
 			request: events.APIGatewayProxyRequest{
 				HTTPMethod: "GET",
 				Path:       "/health",
@@ -62,8 +66,9 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			},
 		},
 		{
-			name: "ALB event handler",
-			mode: "ALB",
+			name:       "ALB event handler",
+			mode:       "ALB",
+			wantStatus: http.StatusOK,
 			request: events.ALBTargetGroupRequest{
 				HTTPMethod: "GET",
 				Path:       "/health",
@@ -115,17 +120,17 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 				var res events.APIGatewayV2HTTPResponse
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
-				require.Equal(t, 200, res.StatusCode)
+				require.Equal(t, tt.wantStatus, res.StatusCode)
 			case "apigatewayv1":
 				var res events.APIGatewayProxyResponse
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
-				require.Equal(t, 200, res.StatusCode)
+				require.Equal(t, tt.wantStatus, res.StatusCode)
 			case "alb":
 				var res events.ALBTargetGroupResponse
 				err = json.Unmarshal(response, &res)
 				require.NoError(t, err)
-				require.Equal(t, 200, res.StatusCode)
+				require.Equal(t, tt.wantStatus, res.StatusCode)
 			default:
 				require.Fail(t, "not implemented")
 			}

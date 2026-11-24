@@ -32,7 +32,6 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 		next              config.APIKeys
 		wantAdmin         []string
 		wantNotAdmin      []string
-		wantEvaluation    []string
 		wantNotEvaluation []string
 	}{
 		{
@@ -64,6 +63,19 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 			wantNotAdmin: []string{"unknown"},
 		},
 		{
+			// flag sets route an evaluation request by the key of its flag set: evaluation keys are never accepted
+			name:              "an added evaluation key is not accepted in flag set mode",
+			current:           config.APIKeys{Evaluation: []string{"eval-1"}},
+			next:              config.APIKeys{Evaluation: []string{"eval-1", "eval-2"}},
+			wantNotEvaluation: []string{"eval-1", "eval-2"},
+		},
+		{
+			name:              "a removed evaluation key stays rejected in flag set mode",
+			current:           config.APIKeys{Evaluation: []string{"eval-1", "eval-2"}},
+			next:              config.APIKeys{Evaluation: []string{"eval-1"}},
+			wantNotEvaluation: []string{"eval-1", "eval-2"},
+		},
+		{
 			name:         "all the admin keys can be removed",
 			current:      config.APIKeys{Admin: []string{"admin-old"}},
 			next:         config.APIKeys{},
@@ -93,7 +105,11 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 			for _, key := range tt.wantNotAdmin {
 				assert.Falsef(t, cfg.APIKeysAdminExists(key), "admin key %q must be rejected", key)
 			}
+			for _, key := range tt.wantNotEvaluation {
+				assert.Falsef(t, cfg.APIKeyExists(key), "evaluation key %q must be rejected in flag set mode", key)
+			}
 			assert.Equal(t, tt.next.Admin, cfg.GetAuthorizedKeys().Admin)
+			assert.Equal(t, tt.next.Evaluation, cfg.GetAuthorizedKeys().Evaluation)
 			assert.True(t, cfg.APIKeyExists("flagset-key"), "the flagset key must stay accepted")
 		})
 	}

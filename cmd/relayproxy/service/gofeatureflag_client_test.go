@@ -6,6 +6,8 @@ package service
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -25,6 +27,7 @@ import (
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -723,7 +726,10 @@ func TestSetKafkaConfig(t *testing.T) {
 			kafkaConfig, err := setKafkaConfig(settings)
 			require.NoError(t, err)
 
-			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
+			require.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
+			client, ok := kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc().(*kafka.XDGSCRAMClient)
+			require.True(t, ok)
+			assert.Equal(t, sha512.Size, client.HashGeneratorFcn().Size())
 		},
 	)
 
@@ -783,7 +789,10 @@ func TestSetKafkaConfig(t *testing.T) {
 			kafkaConfig, err := setKafkaConfig(settings)
 			require.NoError(t, err)
 
-			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
+			require.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
+			client, ok := kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc().(*kafka.XDGSCRAMClient)
+			require.True(t, ok)
+			assert.Equal(t, sha256.Size, client.HashGeneratorFcn().Size())
 		},
 	)
 
@@ -860,10 +869,100 @@ func TestSetKafkaConfig(t *testing.T) {
 		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
-		assert.NoError(t, kafkaConfig.Config.Validate())
+		require.NoError(t, kafkaConfig.Config.Validate())
+		assert.Equal(t, "my-kafka-topic", kafkaConfig.Topic)
+		assert.Equal(t, []string{"addr1", "addr2"}, kafkaConfig.Addresses)
+		assert.True(t, kafkaConfig.Config.Producer.Return.Successes)
+		assert.True(t, kafkaConfig.Config.Producer.Return.Errors)
+	})
+
+	t.Run("settings of the operator win over the defaults of sarama", func(t *testing.T) {
+		t.Parallel()
+
+		defaults := sarama.NewConfig()
+		tests := []struct {
+			name string
+			user func(c *sarama.Config)
+			// got reads the setting from the merged configuration, want is its expected value.
+			got  func(c *sarama.Config) any
+			want any
+		}{
+			{
+				name: "DialTimeout", user: func(c *sarama.Config) { c.Net.DialTimeout = 5 * time.Second },
+				got: func(c *sarama.Config) any { return c.Net.DialTimeout }, want: 5 * time.Second,
+			},
+			{
+				name: "ReadTimeout", user: func(c *sarama.Config) { c.Net.ReadTimeout = 6 * time.Second },
+				got: func(c *sarama.Config) any { return c.Net.ReadTimeout }, want: 6 * time.Second,
+			},
+			{
+				name: "Producer.Retry.Max", user: func(c *sarama.Config) { c.Producer.Retry.Max = 7 },
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Max }, want: 7,
+			},
+			{
+				name: "Producer.Retry.Backoff", user: func(c *sarama.Config) { c.Producer.Retry.Backoff = time.Second },
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Backoff }, want: time.Second,
+			},
+			{
+				name: "Producer.Flush.Messages", user: func(c *sarama.Config) { c.Producer.Flush.Messages = 9 },
+				got: func(c *sarama.Config) any { return c.Producer.Flush.Messages }, want: 9,
+			},
+			{
+				name: "Producer.MaxMessageBytes", user: func(c *sarama.Config) { c.Producer.MaxMessageBytes = 2048 },
+				got: func(c *sarama.Config) any { return c.Producer.MaxMessageBytes }, want: 2048,
+			},
+			{
+				name: "Producer.RequiredAcks",
+				user: func(c *sarama.Config) { c.Producer.RequiredAcks = sarama.WaitForLocal },
+				got:  func(c *sarama.Config) any { return c.Producer.RequiredAcks },
+				want: sarama.WaitForLocal,
+			},
+			{
+				name: "ClientID", user: func(c *sarama.Config) { c.ClientID = "mine" },
+				got: func(c *sarama.Config) any { return c.ClientID }, want: "mine",
+			},
+			{
+				name: "Version", user: func(c *sarama.Config) { c.Version = sarama.V2_1_0_0 },
+				got: func(c *sarama.Config) any { return c.Version }, want: sarama.V2_1_0_0,
+			},
+			{
+				name: "Metadata.Retry.Max", user: func(c *sarama.Config) { c.Metadata.Retry.Max = 11 },
+				got: func(c *sarama.Config) any { return c.Metadata.Retry.Max }, want: 11,
+			},
+			{
+				// a zero value cannot be told from an unset one: the default of sarama is kept
+				name: "an unset ClientID keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.ClientID }, want: defaults.ClientID,
+			},
+			{
+				name: "an unset DialTimeout keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Net.DialTimeout }, want: defaults.Net.DialTimeout,
+			},
+			{
+				name: "an unset Version keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Version }, want: defaults.Version,
+			},
+			{
+				name: "an unset Producer.Retry.Max keeps the default", user: func(c *sarama.Config) {},
+				got: func(c *sarama.Config) any { return c.Producer.Retry.Max }, want: defaults.Producer.Retry.Max,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				userConfig := &sarama.Config{}
+				tt.user(userConfig)
+
+				kafkaConfig, err := setKafkaConfig(kafkaexporter.Settings{Topic: "t", Config: userConfig})
+				require.NoError(t, err)
+
+				assert.Equal(t, tt.want, tt.got(kafkaConfig.Config))
+			})
+		}
 	})
 
 	t.Run("should return a valid sarama.Config with specific settings set and value should be"+
@@ -922,13 +1021,18 @@ func TestSetKafkaConfig(t *testing.T) {
 		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
-		assert.NoError(t, kafkaConfig.Config.Validate())
-		assert.True(t, settings.Config.Net.SASL.Enable)
-		assert.Equal(t, "TODO", settings.Config.Net.SASL.User)
-		assert.Equal(t, "TODO", settings.Config.Net.SASL.Password)
+		require.NoError(t, kafkaConfig.Config.Validate())
+		assert.Equal(t, "my-kafka-topic", kafkaConfig.Topic)
+		assert.Equal(t, []string{"addr1", "addr2"}, kafkaConfig.Addresses)
+		assert.True(t, kafkaConfig.Config.Producer.Return.Successes)
+		assert.True(t, kafkaConfig.Config.Producer.Return.Errors)
+		assert.True(t, kafkaConfig.Config.Net.SASL.Enable)
+		assert.Equal(t, sarama.SASLMechanism("SCRAM-SHA-512"), kafkaConfig.Config.Net.SASL.Mechanism)
+		assert.Equal(t, "TODO", kafkaConfig.Config.Net.SASL.User)
+		assert.Equal(t, "TODO", kafkaConfig.Config.Net.SASL.Password)
 	})
 
 	t.Run("should return a nil config", func(t *testing.T) {
@@ -970,29 +1074,29 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 
 		// Test the logic directly by checking the conditions
 		tests := []struct {
-			name          string
-			flagsetName   string
-			shouldAddAttr bool
+			name        string
+			flagsetName string
+			wantLog     string
 		}{
 			{
-				name:          "default flagset name should not add attribute",
-				flagsetName:   utils.DefaultFlagSetName,
-				shouldAddAttr: false,
+				name:        "default flagset name should not add attribute",
+				flagsetName: utils.DefaultFlagSetName,
+				wantLog:     "{\"msg\":\"test message\"}\n",
 			},
 			{
-				name:          "empty flagset name should not add attribute",
-				flagsetName:   "",
-				shouldAddAttr: false,
+				name:        "empty flagset name should not add attribute",
+				flagsetName: "",
+				wantLog:     "{\"msg\":\"test message\"}\n",
 			},
 			{
-				name:          "custom flagset name should add attribute",
-				flagsetName:   "my-custom-flagset",
-				shouldAddAttr: true,
+				name:        "custom flagset name should add attribute",
+				flagsetName: "my-custom-flagset",
+				wantLog:     "{\"msg\":\"test message\",\"flagset\":\"my-custom-flagset\"}\n",
 			},
 			{
-				name:          "another custom flagset name should add attribute",
-				flagsetName:   "production-flags",
-				shouldAddAttr: true,
+				name:        "another custom flagset name should add attribute",
+				flagsetName: "production-flags",
+				wantLog:     "{\"msg\":\"test message\",\"flagset\":\"production-flags\"}\n",
 			},
 		}
 
@@ -1025,17 +1129,7 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 				_ = zapLogger.Sync()
 				logOutput := logBuffer.String()
 
-				if tt.shouldAddAttr {
-					assert.Contains(t, logOutput, `"flagset"`, "log output should contain flagset attribute")
-					assert.Contains(t, logOutput, tt.flagsetName, "log output should contain the flagset name")
-				} else {
-					assert.NotContains(
-						t,
-						logOutput,
-						`"flagset"`,
-						"log output should not contain flagset attribute for default flagset",
-					)
-				}
+				assert.Equal(t, tt.wantLog, logOutput)
 			})
 		}
 	})
@@ -1044,9 +1138,10 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		s3   *fakeS3
-		mod  func(fs *config.FlagSet)
+		name       string
+		s3         *fakeS3
+		mod        func(fs *config.FlagSet)
+		wantGroups int
 	}{
 		{
 			name: "invalid exporter",
@@ -1054,11 +1149,13 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 			mod: func(fs *config.FlagSet) {
 				fs.Exporter = &config.ExporterConf{Kind: "unknown"}
 			},
+			wantGroups: 0,
 		},
 		{
-			name: "first retrieve fails",
-			s3:   &fakeS3{listErr: errors.New("AccessDenied")},
-			mod:  func(*config.FlagSet) {},
+			name:       "first retrieve fails",
+			s3:         &fakeS3{listErr: errors.New("AccessDenied")},
+			mod:        func(*config.FlagSet) {},
+			wantGroups: 0,
 		},
 	}
 	for _, tt := range tests {
@@ -1070,7 +1167,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 				tt.mod(&fs)
 				_, err := newGoFeatureFlagClient(&fs, zap.NewNop(), nil, withSharedBucketRegistry(reg))
 				require.Error(t, err)
-				assert.Equal(t, 0, reg.groupCount(), "the retriever must have left its group")
+				assert.Equal(t, tt.wantGroups, reg.groupCount(), "the retriever must have left its group")
 			})
 		})
 	}
@@ -1121,8 +1218,9 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
 	fs := s3FlagSet("a", "b1", "p/a.yaml")
 	fs.PollingInterval, fs.EnablePollingJitter = 5000, true
-	_, err := NewGoFeatureFlagClient(&fs, zap.NewNop(), nil)
-	assert.Error(t, err)
+	got, err := NewGoFeatureFlagClient(&fs, zap.NewNop(), nil)
+	assert.Nil(t, got)
+	require.ErrorContains(t, err, `unable to list S3 bucket "b1"`)
 }
 
 func Test_exporterCleanQueueInterval(t *testing.T) {
@@ -1191,12 +1289,14 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		uris []string
+		name            string
+		uris            []string
+		wantSharedPools bool
 	}{
 		{
-			name: "two retrievers on the same database",
-			uris: []string{"postgres://localhost/db", "postgres://localhost/db"},
+			name:            "two retrievers on the same database",
+			uris:            []string{"postgres://localhost/db", "postgres://localhost/db"},
+			wantSharedPools: true,
 		},
 	}
 	for _, tt := range tests {
@@ -1224,7 +1324,12 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 			second, ok := got[1].(*postgresqlretriever.Retriever)
 			require.True(t, ok)
 			require.NotNil(t, first.Pools)
-			assert.Same(t, first.Pools, second.Pools, "retrievers of one client share their pools")
+			assert.Equal(
+				t,
+				tt.wantSharedPools,
+				first.Pools == second.Pools,
+				"retrievers of one client share their pools",
+			)
 		})
 	}
 }

@@ -131,8 +131,7 @@ loglevel: error`,
 			require.NoError(t, err)
 			assert.Equal(t, 1031, initialConfig.Server.Port)
 
-			// Wait a bit to ensure watcher is set up
-			time.Sleep(100 * time.Millisecond)
+			// the watch of the file is registered when NewConfigLoader returns: no need to wait for it
 
 			// Update config file to trigger callback
 			_ = testutils.CopyContentToExistingTempFile(t, tt.updatedConfig, configFile)

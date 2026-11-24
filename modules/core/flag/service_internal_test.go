@@ -70,6 +70,7 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 	}
 }
 
+// Observable outcome: Close on a nil *Service returns without panicking.
 func TestService_CloseOfNilServiceIsANoop(t *testing.T) {
 	t.Parallel()
 
@@ -166,14 +167,19 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 		cleanup func(c *nikunjyEvaluatorCache, epoch uint64)
 		// count is what the cleanup would remove: the evaluator entries or the keys.
 		count func(c *nikunjyEvaluatorCache) int
+		// wantAfterEarlierEpoch and wantAfterCurrentEpoch are the count after the cleanup of the earlier and of
+		// the current epoch
+		wantAfterEarlierEpoch, wantAfterCurrentEpoch int
 	}{
 		{
-			name:    "the queries of the evaluator cache",
+			name:                  "the queries of the evaluator cache",
+			wantAfterEarlierEpoch: 1, wantAfterCurrentEpoch: 0,
 			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) { c.releaseAt(epoch, []string{query}) },
 			count:   func(c *nikunjyEvaluatorCache) int { return countEntries(&c.entries) },
 		},
 		{
-			name: "the keys of the index",
+			name:                  "the keys of the index",
+			wantAfterEarlierEpoch: 1, wantAfterCurrentEpoch: 0,
 			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) {
 				var keys []uint64
 				c.byKey.Range(func(k, _ any) bool {
@@ -201,10 +207,15 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 			require.Equal(t, 1, tt.count(c), "the rebuilt rule list is cached")
 
 			tt.cleanup(c, oldEpoch)
-			assert.Equal(t, 1, tt.count(c), "the cleanup of the rule list of the earlier epoch must not evict anything")
+			assert.Equal(
+				t,
+				tt.wantAfterEarlierEpoch,
+				tt.count(c),
+				"the cleanup of the rule list of the earlier epoch must not evict anything",
+			)
 
 			tt.cleanup(c, c.epoch.Load())
-			assert.Equal(t, 0, tt.count(c), "the cleanup of the current epoch does release")
+			assert.Equal(t, tt.wantAfterCurrentEpoch, tt.count(c), "the cleanup of the current epoch does release")
 			runtime.KeepAlive(first)
 			runtime.KeepAlive(rebuilt)
 		})

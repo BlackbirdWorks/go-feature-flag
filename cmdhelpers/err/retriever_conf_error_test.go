@@ -11,24 +11,32 @@ func TestNewRetrieverConfError(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		property string
-		kind     string
+		name         string
+		property     string
+		kind         string
+		wantProperty string
+		wantKind     string
 	}{
 		{
-			name:     "simple property and kind",
-			property: "bucket",
-			kind:     "s3",
+			name:         "simple property and kind",
+			property:     "bucket",
+			kind:         "s3",
+			wantProperty: "bucket",
+			wantKind:     "s3",
 		},
 		{
-			name:     "camelCase property",
-			property: "bucketName",
-			kind:     "s3",
+			name:         "camelCase property",
+			property:     "bucketName",
+			kind:         "s3",
+			wantProperty: "bucketName",
+			wantKind:     "s3",
 		},
 		{
-			name:     "empty strings",
-			property: "",
-			kind:     "",
+			name:         "empty strings",
+			property:     "",
+			kind:         "",
+			wantProperty: "",
+			wantKind:     "",
 		},
 	}
 
@@ -38,8 +46,8 @@ func TestNewRetrieverConfError(t *testing.T) {
 
 			err := NewRetrieverConfError(tt.property, tt.kind)
 			require.NotNil(t, err, "expected non-nil error")
-			assert.Equal(t, tt.property, err.property, "property should match")
-			assert.Equal(t, tt.kind, err.kind, "kind should match")
+			assert.Equal(t, tt.wantProperty, err.property, "property should match")
+			assert.Equal(t, tt.wantKind, err.kind, "kind should match")
 		})
 	}
 }

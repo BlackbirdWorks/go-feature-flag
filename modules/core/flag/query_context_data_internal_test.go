@@ -44,6 +44,8 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 	tests := []struct {
 		name   string
 		custom map[string]any
+		// wantErr is whether the JSON round trip, and so the fast path, must fail for these attributes
+		wantErr bool
 	}{
 		{name: "nil map", custom: map[string]any{"p": map[string]any(nil)}},
 		{name: "nil slice", custom: map[string]any{"p": []any(nil)}},
@@ -64,10 +66,10 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		{name: "time.Time", custom: map[string]any{"t": time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)}},
 		{name: "[]byte", custom: map[string]any{"b": []byte("hello")}},
 		{name: "custom MarshalJSON", custom: map[string]any{"m": marshalerValue{n: 3}}},
-		{name: "MarshalJSON error", custom: map[string]any{"m": unmarshalableValue{}}},
-		{name: "NaN", custom: map[string]any{"f": math.NaN()}},
-		{name: "+Inf", custom: map[string]any{"f": math.Inf(1)}},
-		{name: "-Inf nested", custom: map[string]any{"f": []any{math.Inf(-1)}}},
+		{name: "MarshalJSON error", wantErr: true, custom: map[string]any{"m": unmarshalableValue{}}},
+		{name: "NaN", wantErr: true, custom: map[string]any{"f": math.NaN()}},
+		{name: "+Inf", wantErr: true, custom: map[string]any{"f": math.Inf(1)}},
+		{name: "-Inf nested", wantErr: true, custom: map[string]any{"f": []any{math.Inf(-1)}}},
 		{name: "float32", custom: map[string]any{"f": float32(0.1), "g": float32(16777217)}},
 		{
 			name:   "int64 above 2^53",
@@ -77,15 +79,15 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		{name: "negative zero and extremes", custom: map[string]any{
 			"z": math.Copysign(0, -1), "max": math.MaxFloat64, "min": math.SmallestNonzeroFloat64}},
 		{name: "map with int keys", custom: map[string]any{"m": map[int]string{2: "b", 1: "a"}}},
-		{name: "map with non string keys that can not be encoded", custom: map[string]any{"m": map[any]any{"a": 1}}},
+		{name: "map with interface keys", custom: map[string]any{"m": map[any]any{"a": 1}}},
 		{name: "map[string]string", custom: map[string]any{"m": map[string]string{"a": "b"}}},
 		{name: "named map type", custom: map[string]any{"m": namedMap{"a": 1}}},
 		{name: "invalid UTF-8 in a string", custom: map[string]any{"s": "a\xffb"}},
 		{name: "invalid UTF-8 in a key", custom: map[string]any{"m": map[string]any{"a\xffb": 1}}},
 		{name: "unicode and html characters", custom: map[string]any{"s": "é <>&\"\\ \x00"}},
-		{name: "channel", custom: map[string]any{"c": make(chan int)}},
-		{name: "cyclic map", custom: map[string]any{"c": cyclicMap}},
-		{name: "cyclic slice", custom: map[string]any{"c": cyclicSlice}},
+		{name: "channel", wantErr: true, custom: map[string]any{"c": make(chan int)}},
+		{name: "cyclic map", wantErr: true, custom: map[string]any{"c": cyclicMap}},
+		{name: "cyclic slice", wantErr: true, custom: map[string]any{"c": cyclicSlice}},
 		{name: "very deep slice", custom: map[string]any{"d": deep}},
 	}
 	for _, tt := range tests {
@@ -104,6 +106,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 			if wantErr == nil {
 				wantErr = json.Unmarshal(raw, &want)
 			}
+			assert.Equal(t, tt.wantErr, wantErr != nil, "the round trip of the attributes")
 			if wantErr != nil {
 				assert.Error(t, gotErr, "the round trip fails, so must the fast path")
 

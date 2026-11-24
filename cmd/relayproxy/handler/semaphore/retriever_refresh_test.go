@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
@@ -56,11 +55,7 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 	defaultFlagset := flagsetManager.Default()
 	previousRefresh := defaultFlagset.GetCacheRefreshDate()
 
-	// Ensure the forced refresh lands on a strictly later timestamp even on
-	// platforms with a coarse monotonic clock (Windows timer granularity ~15ms),
-	// otherwise the initial load and the forced refresh can share the same instant.
-	time.Sleep(50 * time.Millisecond)
-
+	// the stepping clock of TestMain makes the forced refresh land on a strictly later instant
 	ctrl := controller.NewForceFlagsRefresh(flagsetManager, metric.Metrics{})
 	e := echo.New()
 	rec := httptest.NewRecorder()

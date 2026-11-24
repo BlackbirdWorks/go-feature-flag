@@ -227,30 +227,30 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 		name string
 		n    int
 		// listA and listB differ in exactly one id (or in one more id).
-		listB func(n int) string
-		idA   string // only in A
-		idB   string // only in B
+		listB     func(n int) string
+		wantOnlyA string // only in A
+		wantOnlyB string // only in B
 	}{
 		{
-			name:  "300k ids, one id differs, same length",
-			n:     300000,
-			listB: func(n int) string { return idList(n, n/2, "usex-0150000") },
-			idA:   "user-0150000",
-			idB:   "usex-0150000",
+			name:      "300k ids, one id differs, same length",
+			n:         300000,
+			listB:     func(n int) string { return idList(n, n/2, "usex-0150000") },
+			wantOnlyA: "user-0150000",
+			wantOnlyB: "usex-0150000",
 		},
 		{
-			name:  "20k ids, the last id differs, same length",
-			n:     20000,
-			listB: func(n int) string { return idList(n, n-1, "usex-0019999") },
-			idA:   "user-0019999",
-			idB:   "usex-0019999",
+			name:      "20k ids, the last id differs, same length",
+			n:         20000,
+			listB:     func(n int) string { return idList(n, n-1, "usex-0019999") },
+			wantOnlyA: "user-0019999",
+			wantOnlyB: "usex-0019999",
 		},
 		{
-			name:  "ids, one id is longer, different length",
-			n:     20000,
-			listB: func(n int) string { return idList(n, n/2, "user-0010000-longer") },
-			idA:   "user-0010000",
-			idB:   "user-0010000-longer",
+			name:      "ids, one id is longer, different length",
+			n:         20000,
+			listB:     func(n int) string { return idList(n, n/2, "user-0010000-longer") },
+			wantOnlyA: "user-0010000",
+			wantOnlyB: "user-0010000-longer",
 		},
 	}
 	for _, tt := range tests {
@@ -275,7 +275,7 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 			assertListsHaveOwnEvaluators(t, c, rulesA, rulesB)
 
 			check := func(t assert.TestingT) {
-				assertListsApply(t, svc, rulesA, rulesB, tt.idA, tt.idB)
+				assertListsApply(t, svc, rulesA, rulesB, tt.wantOnlyA, tt.wantOnlyB)
 			}
 			check(t)
 			t.Run("interleaved and concurrent evaluations", func(t *testing.T) {
@@ -297,14 +297,14 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 		mutate func(r *Rule) *Rule
 		// wantIndexed is whether the rule can still be found by its hash.
 		wantIndexed bool
-		// matches and doesNotMatch are keys that must (not) apply to the rule afterwards.
-		matches, doesNotMatch string
+		// matches and wantNoMatch are keys that must (not) apply to the rule afterwards.
+		wantMatches, wantNoMatch string
 	}{
 		{
 			name:        "unchanged rule",
 			mutate:      func(r *Rule) *Rule { return r },
 			wantIndexed: true,
-			matches:     "a", doesNotMatch: "b",
+			wantMatches: "a", wantNoMatch: "b",
 		},
 		{
 			name: "copy of the rule keeps the hash",
@@ -314,7 +314,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return &c
 			},
 			wantIndexed: true,
-			matches:     "a", doesNotMatch: "b",
+			wantMatches: "a", wantNoMatch: "b",
 		},
 		{
 			name: "query rewritten through its pointer is never evaluated with the old evaluator",
@@ -324,7 +324,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return r
 			},
 			wantIndexed: false,
-			matches:     "b", doesNotMatch: "a",
+			wantMatches: "b", wantNoMatch: "a",
 		},
 		{
 			name: "another query with the hash of the old one",
@@ -336,7 +336,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return &c
 			},
 			wantIndexed: false,
-			matches:     "b", doesNotMatch: "a",
+			wantMatches: "b", wantNoMatch: "a",
 		},
 		{
 			name: "same text in another string keeps the evaluator",
@@ -348,7 +348,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return &c
 			},
 			wantIndexed: true,
-			matches:     "a", doesNotMatch: "b",
+			wantMatches: "a", wantNoMatch: "b",
 		},
 		{
 			name: "merging a query resets the hash",
@@ -359,7 +359,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return r
 			},
 			wantIndexed: false,
-			matches:     "b", doesNotMatch: "a",
+			wantMatches: "b", wantNoMatch: "a",
 		},
 		{
 			name: "hash that is not the one of any query",
@@ -370,7 +370,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				return &c
 			},
 			wantIndexed: false,
-			matches:     "a", doesNotMatch: "b",
+			wantMatches: "a", wantNoMatch: "b",
 		},
 	}
 	for _, tt := range tests {
@@ -383,8 +383,8 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			require.NotZero(t, (*f.Rules)[0].QueryHash)
 			r := tt.mutate(&(*f.Rules)[0])
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
-			assert.True(t, applies(svc, r, tt.matches))
-			assert.False(t, applies(svc, r, tt.doesNotMatch))
+			assert.True(t, applies(svc, r, tt.wantMatches))
+			assert.False(t, applies(svc, r, tt.wantNoMatch))
 			runtime.KeepAlive(f)
 		})
 	}
@@ -439,11 +439,17 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 	tests := []struct {
 		name string
 		hash func(string) uint64
+		// wantQueries is the number of distinct queries that must each get their own text and evaluator
+		wantQueries int
 	}{
-		{name: "every query has the same hash", hash: func(string) uint64 { return 42 }},
-		{name: "every query hashes to zero, the key of rules without a hash", hash: func(string) uint64 { return 0 }},
-		{name: "every query hashes to the last key", hash: func(string) uint64 { return ^uint64(0) }},
-		{name: "queries collide in pairs", hash: func(q string) uint64 { return uint64(len(q) % 2) }},
+		{name: "every query has the same hash", wantQueries: 10, hash: func(string) uint64 { return 42 }},
+		{
+			name:        "every query hashes to zero, the key of rules without a hash",
+			wantQueries: 10,
+			hash:        func(string) uint64 { return 0 },
+		},
+		{name: "every query hashes to the last key", wantQueries: 10, hash: func(string) uint64 { return ^uint64(0) }},
+		{name: "queries collide in pairs", wantQueries: 10, hash: func(q string) uint64 { return uint64(len(q) % 2) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -452,8 +458,8 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			svc := newIndexingService()
 			c := svc.nikunjy
 			c.hash = tt.hash
-			queries := make([]string, 0, 10)
-			for i := range 10 {
+			queries := make([]string, 0, tt.wantQueries)
+			for i := range tt.wantQueries {
 				queries = append(queries, fmt.Sprintf(`key eq "collide-%d"`, i))
 			}
 			// A second flag with the same texts, in another order and in other strings.
@@ -529,28 +535,28 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 		name  string
 		query string
 		// valid is whether the flag is valid.
-		valid        bool
-		matches      string
-		doesNotMatch string
+		wantValid   bool
+		wantMatches string
+		wantNoMatch string
 	}{
 		{
-			name:         "jsonlogic query",
-			query:        `{"==": [{"var": "key"}, "a"]}`,
-			valid:        true,
-			matches:      "a",
-			doesNotMatch: "b",
+			name:        "jsonlogic query",
+			query:       `{"==": [{"var": "key"}, "a"]}`,
+			wantValid:   true,
+			wantMatches: "a",
+			wantNoMatch: "b",
 		},
 		{
-			name:         "multi-line nikunjy query is indexed by its text before trimming",
-			query:        "key eq \n    \"a\"",
-			valid:        true,
-			matches:      "a",
-			doesNotMatch: "b",
+			name:        "multi-line nikunjy query is indexed by its text before trimming",
+			query:       "key eq \n    \"a\"",
+			wantValid:   true,
+			wantMatches: "a",
+			wantNoMatch: "b",
 		},
 		{
-			name:  "invalid query",
-			query: `key eq`,
-			valid: false,
+			name:      "invalid query",
+			query:     `key eq`,
+			wantValid: false,
 		},
 	}
 	for _, tt := range tests {
@@ -561,7 +567,7 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			c := svc.nikunjy
 			f := newFlagWithQueries(tt.query)
 			err := f.IsValid(svc)
-			if !tt.valid {
+			if !tt.wantValid {
 				require.Error(t, err)
 				assert.Zero(t, indexSize(c), "an invalid flag must not index its queries")
 
@@ -570,8 +576,8 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			require.NoError(t, err)
 			r := &(*f.Rules)[0]
 			assert.Equal(t, strings.Contains(tt.query, "eq"), indexedEvaluator(c, r) != nil)
-			assert.True(t, applies(svc, r, tt.matches))
-			assert.False(t, applies(svc, r, tt.doesNotMatch))
+			assert.True(t, applies(svc, r, tt.wantMatches))
+			assert.False(t, applies(svc, r, tt.wantNoMatch))
 			runtime.KeepAlive(f)
 		})
 	}
@@ -757,9 +763,11 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 	tests := []struct {
 		name        string
 		validations int
+		// wantRefs is the number of key references the validations take: one per rule and validation
+		wantRefs int
 	}{
-		{name: "validated once", validations: 1},
-		{name: "validated again, as the linter or a copy of a cache does", validations: 3},
+		{name: "validated once", validations: 1, wantRefs: 2},
+		{name: "validated again, as the linter or a copy of a cache does", validations: 3, wantRefs: 6},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -774,7 +782,7 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 			hashes := []uint64{(*f.Rules)[0].QueryHash, (*f.Rules)[1].QueryHash}
 			assert.NotZero(t, hashes[0])
 			assert.NotEqual(t, hashes[0], hashes[1])
-			assert.Equal(t, 2*tt.validations, c.keyRefsTotal(), "one reference per rule and validation")
+			assert.Equal(t, tt.wantRefs, c.keyRefsTotal(), "one reference per rule and validation")
 			assert.Equal(t, 2, indexSize(c))
 			assert.True(t, applies(svc, &(*f.Rules)[0], "a"))
 			assert.False(t, applies(svc, &(*f.Rules)[1], "a"))
@@ -949,14 +957,20 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 		name string
 		// invalid makes the flag that carries the known query fail its validation.
 		invalid func(f *InternalFlag)
+		// wantRefsWhileInvalid is the number of key references while the invalid flag lives, wantRefsAfter once
+		// it is collected
+		wantRefsWhileInvalid, wantRefsAfter int
 	}{
 		{
-			name:    "a rule of the flag without variation",
-			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: new(`key eq "x"`)}) },
+			name:                 "a rule of the flag without variation",
+			invalid:              func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: new(`key eq "x"`)}) },
+			wantRefsWhileInvalid: 2, wantRefsAfter: 1,
 		},
 		{
-			name:    "a rule of the flag with a query that does not parse",
-			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, *newFlagWithQueries(`key eq`).Rules...) },
+			name:                 "a rule of the flag with a query that does not parse",
+			invalid:              func(f *InternalFlag) { *f.Rules = append(*f.Rules, *newFlagWithQueries(`key eq`).Rules...) },
+			wantRefsWhileInvalid: 2,
+			wantRefsAfter:        1,
 		},
 	}
 	for _, tt := range tests {
@@ -971,11 +985,20 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 			invalid := newFlagWithQueries(strings.Clone(query))
 			tt.invalid(invalid)
 			require.Error(t, invalid.IsValid(svc))
-			assert.Equal(t, 2, c.keyRefsTotal(), "the reference taken by the invalid flag is released with it")
+			assert.Equal(
+				t,
+				tt.wantRefsWhileInvalid,
+				c.keyRefsTotal(),
+				"the reference taken by the invalid flag is released with it",
+			)
 
 			runtime.KeepAlive(invalid)
 			*invalid = InternalFlag{} // drop the rules
-			gcUntil(t, func() bool { return c.keyRefsTotal() == 1 }, "the invalid flag must release its reference once")
+			gcUntil(
+				t,
+				func() bool { return c.keyRefsTotal() == tt.wantRefsAfter },
+				"the invalid flag must release its reference once",
+			)
 			assert.True(t, applies(svc, &(*valid.Rules)[0], "user-0000199"), "the query is still evaluated")
 			runtime.KeepAlive(valid)
 		})

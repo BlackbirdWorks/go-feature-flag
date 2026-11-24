@@ -57,6 +57,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 	tests := []struct {
 		name       string
 		flagChange notifier.DiffCache
+		wantEvent  string
 	}{
 		{
 			name: "update single flag",
@@ -80,6 +81,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 					},
 				},
 			},
+			wantEvent: model.OFREPSSEEventTypeRefetchEvaluation,
 		},
 		{
 			name: "add and delete flags at the same time",
@@ -101,6 +103,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 					},
 				},
 			},
+			wantEvent: model.OFREPSSEEventTypeRefetchEvaluation,
 		},
 	}
 
@@ -158,7 +161,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			assert.Equal(t, "message", event["event"])
 			var got model.OFREPSSEEvent
 			require.NoError(t, json.Unmarshal([]byte(event["data"]), &got))
-			assert.Equal(t, model.OFREPSSEEventTypeRefetchEvaluation, got.Type)
+			assert.Equal(t, tt.wantEvent, got.Type)
 			assert.GreaterOrEqual(t, got.LastModified, before)
 		})
 	}

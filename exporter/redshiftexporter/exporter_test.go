@@ -391,12 +391,16 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 	tests := []struct {
 		name     string
 		oversize func(*exporter.FeatureEvent)
+		// wantRows is the number of rows exported, wantSkipped the number of rows reported as skipped
+		wantRows    int
+		wantSkipped string
 	}{
 		{
 			name: "JSON value larger than a VARCHAR",
 			oversize: func(e *exporter.FeatureEvent) {
 				e.Value = strings.Repeat("a", maxSuperBytes)
 			},
+			wantRows: 2, wantSkipped: "count=1",
 		},
 		{
 			name: "row larger than a statement",
@@ -404,6 +408,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 				e.Value = strings.Repeat("a", 60000)
 				e.Metadata = map[string]any{"big": strings.Repeat("b", 60000)}
 			},
+			wantRows: 2, wantSkipped: "count=1",
 		},
 	}
 	for _, tt := range tests {
@@ -424,13 +429,13 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Len(t, client.executed, 1)
-			assert.Equal(t, 2, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
+			assert.Equal(t, tt.wantRows, strings.Count(client.executed[0].Sqls[0], "JSON_PARSE(:p")/2)
 			assert.NotContains(t, strings.Join(client.executed[0].Sqls, ""), "big-flag")
 			for _, p := range client.executed[0].Parameters {
 				assert.NotEqual(t, "big-flag", aws.ToString(p.Value))
 			}
 			assert.Contains(t, logs.String(), "level=WARN")
-			assert.Contains(t, logs.String(), "count=1")
+			assert.Contains(t, logs.String(), tt.wantSkipped)
 			assert.Contains(t, logs.String(), "big-flag")
 			assert.NotContains(t, logs.String(), "secret-user")
 		})
@@ -883,11 +888,12 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		events []exporter.ExportableEvent
+		name           string
+		events         []exporter.ExportableEvent
+		wantStatements int
 	}{
-		{name: "empty event list", events: []exporter.ExportableEvent{}},
-		{name: "unsupported event type", events: []exporter.ExportableEvent{unsupportedEvent{}}},
+		{name: "empty event list", events: []exporter.ExportableEvent{}, wantStatements: 0},
+		{name: "unsupported event type", events: []exporter.ExportableEvent{unsupportedEvent{}}, wantStatements: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -898,7 +904,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			e := &Exporter{client: client}
 
 			require.NoError(t, e.Export(context.TODO(), nil, tt.events))
-			assert.Empty(t, client.executed)
+			assert.Len(t, client.executed, tt.wantStatements)
 		})
 	}
 }

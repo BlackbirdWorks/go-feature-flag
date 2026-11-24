@@ -67,7 +67,7 @@ func waitForServer(t *testing.T, baseURL string) {
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -101,7 +101,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -127,8 +127,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
-	monitoringPort := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
+	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -163,7 +163,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln), api.WithMonitoringListener(monitoringLn))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -206,7 +206,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 func Test_CheckOFREPAPIExists(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -244,7 +244,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -288,7 +288,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -317,7 +317,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -334,7 +334,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 func Test_VersionHeader_Disabled(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -364,7 +364,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -476,7 +476,7 @@ func runAuthMiddlewareTests(
 	t.Helper()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			port := testutils.GetFreePort(t)
+			ln, port := testutils.ListenLocal(t)
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
@@ -511,7 +511,7 @@ func runAuthMiddlewareTests(
 				Metrics:           metricsV2,
 			}
 
-			s := api.New(proxyConf, services, log.ZapLogger)
+			s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 
@@ -639,7 +639,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	t.Parallel()
 
 	skipUnixSocketOnWindows(t)
-	monitoringPort := testutils.GetFreePort(t)
+	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	// Create a temporary directory for the socket
 	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
 	require.NoError(t, err)
@@ -681,7 +681,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithMonitoringListener(monitoringLn))
 	go func() { s.StartWithContext(context.Background()) }()
 	defer s.Stop(context.Background())
 
@@ -1098,7 +1098,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
@@ -1134,7 +1134,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 		Metrics:           metricsV2,
 	}
 
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(ctx) }()
 	defer s.Stop(ctx)
 
@@ -1208,11 +1208,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 func Test_PortFreedAfterShutdown(t *testing.T) {
 	t.Parallel()
 
-	// Pick a free port.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	// The server serves on a listener that stays bound from the start: the server closing it is what frees the port.
+	ln, port := testutils.ListenLocal(t)
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -1240,7 +1237,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 		FlagsetManager:    flagsetManager,
 	}
 
-	s := api.New(proxyConf, services, l.ZapLogger)
+	s := api.New(proxyConf, services, l.ZapLogger, api.WithListener(ln))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -1339,28 +1336,4 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server never served and it closed the listener it owns: closing it again fails.
 	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
-}
-
-func Test_New_Options(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		opts []api.Option
-	}{
-		{name: "no option", opts: nil},
-		{
-			name: "global telemetry (only installed when the server starts)",
-			opts: []api.Option{api.WithGlobalTelemetry()},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			s := api.New(&config.Config{}, service.Services{}, zap.NewNop(), tt.opts...)
-
-			assert.NotNil(t, s)
-		})
-	}
 }

@@ -36,7 +36,7 @@ func TestServerEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			port := testutils.GetFreePort(t)
+			ln, port := testutils.ListenLocal(t)
 			conf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
 				Server: config.Server{
@@ -61,7 +61,7 @@ func TestServerEnableH2C(t *testing.T) {
 				WebsocketService: ws,
 				FlagsetManager:   fm,
 				Metrics:          metrics,
-			}, log.ZapLogger)
+			}, log.ZapLogger, api.WithListener(ln))
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
 

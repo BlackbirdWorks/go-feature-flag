@@ -30,13 +30,14 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	z, err := zap.NewProduction()
 	require.NoError(t, err)
 
+	ln, port := testutils.ListenLocal(t)
 	c := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
-			Port: testutils.GetFreePort(t),
+			Port: port,
 		},
 	}
 
@@ -51,7 +52,7 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, z)
+	}, z, api.WithListener(ln))
 
 	go apiServer.StartWithContext(context.Background())
 	defer apiServer.Stop(context.Background())
@@ -134,6 +135,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			PollingInterval: 200,
 		}
 	}
+	ln, port := testutils.ListenLocal(t)
 	c := &config.Config{
 		FlagSets: []config.FlagSet{
 			flagset("tenant-a", "tenant-A-api-key", tenantAFile),
@@ -142,7 +144,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		AuthorizedKeys: config.APIKeys{Admin: []string{"admin-api-key"}},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
-			Port: testutils.GetFreePort(t),
+			Port: port,
 		},
 	}
 	c.ForceReloadAPIKeys()
@@ -159,7 +161,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, z)
+	}, z, api.WithListener(ln))
 	go apiServer.StartWithContext(context.Background())
 	t.Cleanup(func() { apiServer.Stop(context.Background()) })
 	waitForServer(t, fmt.Sprintf("http://localhost:%d", c.ServerPort(z)))

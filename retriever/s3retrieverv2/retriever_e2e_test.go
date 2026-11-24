@@ -53,15 +53,22 @@ func TestE2E_SingleItem(t *testing.T) {
 		content     []byte
 		itemToRead  string // defaults to key
 		useMissing  bool   // read from a bucket that does not exist
-		wantContent bool
+		wantContent []byte
 		wantErr     string
 	}{
-		{name: "small json item", key: "flags.json", content: flagJSON("f1", "v1"), wantContent: true},
-		{name: "nested key", key: "a/b/c/flags.yaml", content: flagYAML("f1", "v1"), wantContent: true},
-		{name: "empty object", key: "empty.json", content: []byte{}, wantContent: true},
+		{
+			name: "small json item", key: "flags.json",
+			content: flagJSON("f1", "v1"), wantContent: flagJSON("f1", "v1"),
+		},
+		{
+			name: "nested key", key: "a/b/c/flags.yaml",
+			content: flagYAML("f1", "v1"), wantContent: flagYAML("f1", "v1"),
+		},
+		{name: "empty object", key: "empty.json", content: []byte{}, wantContent: []byte{}},
 		{
 			name: "larger object over several MB (multipart ranges)", key: "big.json",
-			content: bytes.Repeat([]byte("0123456789abcdef"), 6*1024*1024/16), wantContent: true,
+			content:     bytes.Repeat([]byte("0123456789abcdef"), 6*1024*1024/16),
+			wantContent: bytes.Repeat([]byte("0123456789abcdef"), 6*1024*1024/16),
 		},
 		{
 			name:       "missing object",
@@ -106,9 +113,9 @@ func TestE2E_SingleItem(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(
 				t,
-				bytes.Equal(tt.content, got),
+				bytes.Equal(tt.wantContent, got),
 				"content mismatch: want %d bytes, got %d",
-				len(tt.content),
+				len(tt.wantContent),
 				len(got),
 			)
 		})
@@ -122,22 +129,29 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 	cfg := srv.MustAwsConfig(t)
 
 	steps := []struct {
-		name    string
-		content []byte
+		name string
+		put  []byte
+		want []byte
 	}{
-		{name: "first version", content: flagJSON("f1", "v1")},
-		{name: "second version, other size", content: flagJSON("f1", "a-much-longer-value-v2")},
-		{name: "third version, replaced by other flag", content: flagJSON("f2", "v3")},
+		{name: "first version", put: flagJSON("f1", "v1"), want: flagJSON("f1", "v1")},
+		{
+			name: "second version, other size",
+			put:  flagJSON("f1", "a-much-longer-value-v2"), want: flagJSON("f1", "a-much-longer-value-v2"),
+		},
+		{
+			name: "third version, replaced by other flag",
+			put:  flagJSON("f2", "v3"), want: flagJSON("f2", "v3"),
+		},
 	}
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: "flags.json", AwsConfig: &cfg}
 	require.NoError(t, r.Init(context.Background(), nil))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 	// steps are sequential by nature: each one depends on the previous object version.
 	for _, s := range steps {
-		srv.PutObject(t, bucket, "flags.json", s.content)
+		srv.PutObject(t, bucket, "flags.json", s.put)
 		got, err := r.Retrieve(context.Background())
 		require.NoError(t, err, s.name)
-		assert.Equal(t, string(s.content), string(got), s.name)
+		assert.Equal(t, string(s.want), string(got), s.name)
 	}
 }
 
@@ -301,13 +315,32 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name      string
-		prefixA   string
-		prefixB   string
-		wantEmpty bool
+		name           string
+		prefixA        string
+		prefixB        string
+		wantA          string
+		wantB          string
+		wantBUpdated   string
+		wantRefreshedA int32
 	}{
-		{name: "same folder", prefixA: "flags/", prefixB: "flags/"},
-		{name: "different folders", prefixA: "team-a/", prefixB: "team-b/"},
+		{
+			name:           "same folder",
+			prefixA:        "flags/",
+			prefixB:        "flags/",
+			wantA:          string(flagJSON("flag-a", "a1")),
+			wantB:          string(flagJSON("flag-b", "b1")),
+			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			wantRefreshedA: 0,
+		},
+		{
+			name:           "different folders",
+			prefixA:        "team-a/",
+			prefixB:        "team-b/",
+			wantA:          string(flagJSON("flag-a", "a1")),
+			wantB:          string(flagJSON("flag-b", "b1")),
+			wantBUpdated:   string(flagJSON("flag-b", "b2")),
+			wantRefreshedA: 0,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -336,8 +369,8 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			require.NoError(t, err)
 			gotB, err := rb.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-a", "a1")), string(gotA))
-			assert.Equal(t, string(flagJSON("flag-b", "b1")), string(gotB))
+			assert.Equal(t, tt.wantA, string(gotA))
+			assert.Equal(t, tt.wantB, string(gotB))
 
 			// the poller refreshes only the item whose object changed
 			var refreshedA, refreshedB atomic.Int32
@@ -359,14 +392,14 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 
 			srv.PutObject(t, bucket, keyB, flagJSON("flag-b", "b2"))
 			require.Eventually(t, func() bool { return refreshedB.Load() >= 1 }, 15*time.Second, 100*time.Millisecond)
-			assert.Zero(t, refreshedA.Load(), "unchanged item must not be refreshed")
+			assert.Equal(t, tt.wantRefreshedA, refreshedA.Load(), "unchanged item must not be refreshed")
 
 			gotB, err = rb.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-b", "b2")), string(gotB))
+			assert.Equal(t, tt.wantBUpdated, string(gotB))
 			gotA, err = ra.Retrieve(context.Background())
 			require.NoError(t, err)
-			assert.Equal(t, string(flagJSON("flag-a", "a1")), string(gotA))
+			assert.Equal(t, tt.wantA, string(gotA))
 		})
 	}
 }
@@ -376,19 +409,22 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 	srv := gopherstack.Connect(t)
 
 	tests := []struct {
-		name   string
-		bucket func(t *testing.T) string
-		item   string
+		name    string
+		bucket  func(t *testing.T) string
+		item    string
+		wantErr string
 	}{
 		{
-			name:   "missing object",
-			bucket: func(t *testing.T) string { return srv.CreateBucket(t, "sherr") },
-			item:   "nope/flags.json",
+			name:    "missing object",
+			bucket:  func(t *testing.T) string { return srv.CreateBucket(t, "sherr") },
+			item:    "nope/flags.json",
+			wantErr: `item "nope/flags.json" not found in S3 bucket "sherr-`,
 		},
 		{
-			name:   "missing bucket",
-			bucket: func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
-			item:   "nope/flags.json",
+			name:    "missing bucket",
+			bucket:  func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			item:    "nope/flags.json",
+			wantErr: `NoSuchBucket: The specified bucket does not exist.`,
 		},
 	}
 	for _, tt := range tests {
@@ -402,8 +438,9 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 			r := group.Retriever(tt.item)
 			require.NoError(t, r.Init(context.Background(), nil))
 			t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
-			_, err = r.Retrieve(context.Background())
-			require.Error(t, err)
+			got, err := r.Retrieve(context.Background())
+			assert.Nil(t, got)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }

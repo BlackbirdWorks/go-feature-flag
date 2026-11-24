@@ -28,9 +28,9 @@ func TestParseEndpoint(t *testing.T) {
 func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		ep     relay.Endpoint
-		path   string
-		events bool
+		ep         relay.Endpoint
+		wantPath   string
+		wantEvents bool
 	}{
 		{relay.SemaphoreEval, "/v1/feature/k/eval", true},
 		{relay.SemaphoreAllFlags, "/v1/allflags", false},
@@ -41,16 +41,16 @@ func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.ep), func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.path, tt.ep.Path("k"))
-			assert.Equal(t, tt.events, tt.ep.EmitsEvents())
+			assert.Equal(t, tt.wantPath, tt.ep.Path("k"))
+			assert.Equal(t, tt.wantEvents, tt.ep.EmitsEvents())
 			req, err := tt.ep.NewRequest("http://x", "k", 1)
-			if tt.path == "" {
+			if tt.wantPath == "" {
 				require.Error(t, err)
 
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, "http://x"+tt.path, req.URL.String())
+			assert.Equal(t, "http://x"+tt.wantPath, req.URL.String())
 			assert.NotEmpty(t, tt.ep.Body(1))
 		})
 	}
@@ -59,18 +59,59 @@ func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name string
-		ep   relay.Endpoint
-		mode loadtest.ExporterMode
+		name    string
+		ep      relay.Endpoint
+		mode    loadtest.ExporterMode
+		wantErr string
 	}{
-		{"unknown endpoint", relay.Endpoint("nope"), loadtest.ExporterDiscard},
-		{"unknown exporter", relay.SemaphoreEval, loadtest.ExporterMode("flaky")},
-		{"slow exporter on semaphore bulk", relay.SemaphoreAllFlags, loadtest.ExporterSlow},
-		{"failing exporter on semaphore bulk", relay.SemaphoreAllFlags, loadtest.ExporterFailing},
-		{"slow exporter on ofrep bulk", relay.OFREPBulk, loadtest.ExporterSlow},
-		{"failing exporter on ofrep bulk", relay.OFREPBulk, loadtest.ExporterFailing},
-		{"slow exporter on an untracked flag", relay.SemaphoreEval, loadtest.ExporterSlow},
-		{"failing exporter on an untracked flag", relay.OFREPEval, loadtest.ExporterFailing},
+		{
+			name:    "unknown endpoint",
+			ep:      relay.Endpoint("nope"),
+			mode:    loadtest.ExporterDiscard,
+			wantErr: `unknown endpoint "nope" (want one of [semaphore-eval semaphore-allflags ofrep-eval ofrep-bulk])`,
+		},
+		{
+			name:    "unknown exporter",
+			ep:      relay.SemaphoreEval,
+			mode:    loadtest.ExporterMode("flaky"),
+			wantErr: `unknown exporter "flaky" (want discard | slow | failing)`,
+		},
+		{
+			name:    "slow exporter on semaphore bulk",
+			ep:      relay.SemaphoreAllFlags,
+			mode:    loadtest.ExporterSlow,
+			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "slow" would never be exercised: use semaphore-eval or ofrep-eval`,
+		},
+		{
+			name:    "failing exporter on semaphore bulk",
+			ep:      relay.SemaphoreAllFlags,
+			mode:    loadtest.ExporterFailing,
+			wantErr: `endpoint "semaphore-allflags" does not emit events, so exporter "failing" would never be exercised: use semaphore-eval or ofrep-eval`,
+		},
+		{
+			name:    "slow exporter on ofrep bulk",
+			ep:      relay.OFREPBulk,
+			mode:    loadtest.ExporterSlow,
+			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "slow" would never be exercised: use semaphore-eval or ofrep-eval`,
+		},
+		{
+			name:    "failing exporter on ofrep bulk",
+			ep:      relay.OFREPBulk,
+			mode:    loadtest.ExporterFailing,
+			wantErr: `endpoint "ofrep-bulk" does not emit events, so exporter "failing" would never be exercised: use semaphore-eval or ofrep-eval`,
+		},
+		{
+			name:    "slow exporter on an untracked flag",
+			ep:      relay.SemaphoreEval,
+			mode:    loadtest.ExporterSlow,
+			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "slow" would never be exercised: choose a flag with tracking on`,
+		},
+		{
+			name:    "failing exporter on an untracked flag",
+			ep:      relay.OFREPEval,
+			mode:    loadtest.ExporterFailing,
+			wantErr: `flag "rule-bool-notrack" has trackEvents disabled, so exporter "failing" would never be exercised: choose a flag with tracking on`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -81,7 +122,7 @@ func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 			}
 			tg, err := relay.NewTarget(relay.Options{FlagsYAML: loadtest.FlagsYAML(), ExporterMode: tt.mode},
 				tt.ep, flagKey, 1)
-			require.Error(t, err)
+			require.EqualError(t, err, tt.wantErr)
 			assert.Nil(t, tg)
 		})
 	}

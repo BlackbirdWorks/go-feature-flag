@@ -18,13 +18,14 @@ import (
 func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name  string
-		flags int
-		close bool
+		name      string
+		flags     int
+		close     bool
+		wantFlags int
 	}{
-		{name: "10 flags", flags: 10},
-		{name: "200 flags", flags: 200},
-		{name: "readers racing with Close", flags: 10, close: true},
+		{name: "10 flags", flags: 10, wantFlags: 10},
+		{name: "200 flags", flags: 200, wantFlags: 200},
+		{name: "readers racing with Close", flags: 10, close: true, wantFlags: 10},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -48,7 +49,7 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 						}
 						all, err := m.AllFlags()
 						if err == nil {
-							assert.Len(t, all, tt.flags)
+							assert.Len(t, all, tt.wantFlags)
 						} else if !tt.close {
 							assert.NoError(t, err)
 						}

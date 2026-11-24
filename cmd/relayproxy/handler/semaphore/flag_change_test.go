@@ -1,9 +1,11 @@
 package controller_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -24,9 +26,11 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		config config.Config
-		apiKey string
+		name          string
+		config        config.Config
+		apiKey        string
+		wantFile      string
+		wantAfterFile string
 	}{
 		{
 			name: "default mode",
@@ -41,6 +45,8 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 					},
 				},
 			},
+			wantFile:      "flag_change_with_config_change.json",
+			wantAfterFile: "flag_change_after_config_change.json",
 		},
 		{
 			name: "flagset mode",
@@ -58,7 +64,9 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 					},
 				},
 			},
-			apiKey: "test",
+			apiKey:        "test",
+			wantFile:      "flag_change_with_config_change.json",
+			wantAfterFile: "flag_change_after_config_change.json",
 		},
 	}
 
@@ -112,7 +120,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			handlerErr := ctrl.Handler(c)
 			require.NoError(t, handlerErr)
 
-			want, _ := os.ReadFile(testdataDir + "/flag_change/flag_change_with_config_change.json")
+			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
 			assert.JSONEq(t, string(want), rec.Body.String())
 			assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -122,14 +130,22 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			errWF = os.WriteFile(file.Name(), content, 0644)
 			require.NoError(t, errWF)
 
-			time.Sleep(1500 * time.Millisecond)
+			// the poller of the retriever picks the new file up: wait for the answer to change
+			wantAfter, err := os.ReadFile(testdataDir + "/flag_change/" + tt.wantAfterFile)
+			require.NoError(t, err)
+			var after string
+			require.Eventually(t, func() bool {
+				rec2 := httptest.NewRecorder()
+				c2 := e.NewContext(req, rec2)
+				c2.SetPath("/v1/flag/change")
+				if handlerErr2 := ctrl.Handler(c2); handlerErr2 != nil {
+					return false
+				}
+				after = rec2.Body.String()
 
-			rec2 := httptest.NewRecorder()
-			c2 := e.NewContext(req, rec2)
-			c2.SetPath("/v1/flag/change")
-			handlerErr2 := ctrl.Handler(c2)
-			require.NoError(t, handlerErr2)
-			assert.NotEqual(t, want, rec2.Body.String())
+				return rec2.Code == http.StatusOK && !jsonEqual(after, string(want))
+			}, 30*time.Second, 50*time.Millisecond, "the answer never changed after the configuration change")
+			assert.JSONEq(t, string(wantAfter), after)
 		})
 	}
 }
@@ -138,9 +154,10 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		config config.Config
-		apiKey string
+		name     string
+		config   config.Config
+		apiKey   string
+		wantFile string
 	}{
 		{
 			name: "default mode",
@@ -155,6 +172,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 					},
 				},
 			},
+			wantFile: "flag_change_without_config_change.json",
 		},
 		{
 			name: "flagset mode",
@@ -172,7 +190,8 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 					},
 				},
 			},
-			apiKey: "test",
+			apiKey:   "test",
+			wantFile: "flag_change_without_config_change.json",
 		},
 	}
 
@@ -227,7 +246,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
-				testdataDir + "/flag_change/flag_change_without_config_change.json",
+				testdataDir + "/flag_change/" + tt.wantFile,
 			)
 			assert.JSONEq(t, string(want), rec.Body.String())
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -242,4 +261,14 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			assert.JSONEq(t, string(want), rec2.Body.String())
 		})
 	}
+}
+
+// jsonEqual reports whether a and b are the same JSON document.
+func jsonEqual(a, b string) bool {
+	var x, y any
+	if json.Unmarshal([]byte(a), &x) != nil || json.Unmarshal([]byte(b), &y) != nil {
+		return false
+	}
+
+	return reflect.DeepEqual(x, y)
 }

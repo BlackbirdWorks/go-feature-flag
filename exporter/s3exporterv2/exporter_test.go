@@ -359,7 +359,7 @@ func Test_errSDK(t *testing.T) {
 		&fflog.FFLogger{LeveledLogger: slog.Default()},
 		[]exporter.ExportableEvent{},
 	)
-	assert.Error(t, err, "Empty AWS config should failed")
+	assert.ErrorContains(t, err, "resolve endpoint: endpoint rule error, Invalid region")
 }
 
 // TestS3_Export_LogsThroughParameterLogger ensures the exporter logs through the

@@ -47,11 +47,12 @@ func (g *gatedSink) WithGroup(string) slog.Handler        { return g }
 func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name  string
-		async bool
+		name         string
+		async        bool
+		wantDropping bool
 	}{
-		{name: "AddEvent"},
-		{name: "QueueEvents", async: true},
+		{name: "AddEvent", wantDropping: true},
+		{name: "QueueEvents", async: true, wantDropping: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -87,7 +88,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			case <-time.After(time.Minute):
 				require.Fail(t, "adding events is blocked by the log sink")
 			}
-			assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			assert.Equal(t, tt.wantDropping, m.(exporter.DroppedEventsCounter).DroppedEvents() > 0)
 			// the warning is still written, by another goroutine
 			select {
 			case <-sink.entered:

@@ -30,8 +30,9 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 			)
 			eventStore.AddConsumer("consumer1")
 			defer eventStore.Stop()
-			_, err := eventStore.GetPendingEventCount("wrong name")
-			assert.Error(t, err)
+			count, err := eventStore.GetPendingEventCount("wrong name")
+			assert.Equal(t, int64(0), count)
+			assert.EqualError(t, err, "consumer with name wrong name not found")
 		},
 	)
 	t.Run(
@@ -48,7 +49,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 				"wrong name",
 				func(ctx context.Context, events []testutils.ExportableMockEvent) error { return nil },
 			)
-			assert.Error(t, err)
+			assert.EqualError(t, err, "consumer with name wrong name not found")
 		},
 	)
 }
@@ -314,12 +315,17 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	}
 
 	processingStarted := make(chan struct{})
+	release := make(chan struct{})
 	processingDone := make(chan struct{})
+	var processedBatch []string
 	go func() {
 		_ = eventStore.ProcessPendingEvents(consumerName,
 			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+				for _, e := range events {
+					processedBatch = append(processedBatch, e.GetUserKey())
+				}
 				close(processingStarted)
-				time.Sleep(200 * time.Millisecond)
+				<-release
 
 				return nil
 			})
@@ -328,6 +334,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 
 	<-processingStarted
 
+	// the exporter is still running: Add must not wait for it
 	addDone := make(chan struct{})
 	go func() {
 		eventStore.Add(testutils.NewExportableMockEvent("during-export"))
@@ -336,11 +343,19 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 
 	select {
 	case <-addDone:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Second): // only bounds a failure, the exporter is blocked until release
 		require.Fail(t, "Add() was blocked while ProcessPendingEvents was running a slow exporter")
 	}
 
+	close(release)
 	<-processingDone
+
+	// the exporter got the 10 events that were pending when it started, the one added meanwhile still is
+	assert.Equal(t, []string{"init", "init", "init", "init", "init", "init", "init", "init", "init", "init"},
+		processedBatch)
+	pending, err := eventStore.GetPendingEventCount(consumerName)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), pending)
 }
 
 func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.T) {
@@ -360,13 +375,20 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	processingStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	secondCallStarted := make(chan struct{})
-	var wg sync.WaitGroup
+	var (
+		wg         sync.WaitGroup
+		batchesMu  sync.Mutex
+		batchSizes []int
+	)
 
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, _ []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+				batchesMu.Lock()
+				batchSizes = append(batchSizes, len(events))
+				batchesMu.Unlock()
 				select {
 				case <-processingStarted:
 				default:
@@ -384,7 +406,10 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	go func() {
 		close(secondCallStarted)
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
-			func(_ context.Context, _ []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testutils.ExportableMockEvent) error {
+				batchesMu.Lock()
+				batchSizes = append(batchSizes, len(events))
+				batchesMu.Unlock()
 				select {
 				case <-processingStarted:
 				default:
@@ -409,12 +434,21 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 
 	select {
 	case <-addDone:
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(10 * time.Second): // only bounds a failure, the first call is blocked until releaseFirst
 		require.Fail(t, "Add() was blocked while a same-consumer ProcessPendingEvents call was queued")
 	}
 
 	close(releaseFirst)
 	wg.Wait()
+
+	// the first call took the 10 events that were pending, the queued one runs after it and takes the one
+	// added while it waited
+	batchesMu.Lock()
+	defer batchesMu.Unlock()
+	assert.Equal(t, []int{10, 1}, batchSizes)
+	pending, err := eventStore.GetPendingEventCount(consumerName)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), pending)
 }
 
 func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *testing.T) {

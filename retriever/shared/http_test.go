@@ -22,25 +22,42 @@ func (failingClient) Do(req *http.Request) (*http.Response, error) {
 func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
-		url    string
-		client failingClient
-		method string
+		name    string
+		url     string
+		client  failingClient
+		method  string
+		wantErr string
 	}{
 		{
-			name:   "transport error",
-			url:    "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER",
-			method: http.MethodGet,
+			name:    "transport error",
+			url:     "https://user:SECRETMARKER@flags.example.com/f?token=SECRETMARKER",
+			method:  http.MethodGet,
+			wantErr: `Get "[REDACTED]": connection refused`,
 		},
-		{name: "unparsable url (invalid port)", url: "https://user:SECRETMARKER", method: http.MethodGet},
-		{name: "unparsable url (invalid escape)", url: "https://u:p@h/%zzSECRETMARKER", method: http.MethodGet},
-		{name: "unparsable url (control character)", url: "https://h/\x7fSECRETMARKER", method: http.MethodGet},
+		{
+			name:    "unparsable url (invalid port)",
+			url:     "https://user:SECRETMARKER",
+			method:  http.MethodGet,
+			wantErr: `parse "[REDACTED]": invalid URL`,
+		},
+		{
+			name:    "unparsable url (invalid escape)",
+			url:     "https://u:p@h/%zzSECRETMARKER",
+			method:  http.MethodGet,
+			wantErr: `parse "[REDACTED]": invalid URL`,
+		},
+		{
+			name:    "unparsable url (control character)",
+			url:     "https://h/\x7fSECRETMARKER",
+			method:  http.MethodGet,
+			wantErr: `parse "[REDACTED]": invalid URL`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := shared.CallHTTPAPI(context.Background(), tt.url, tt.method, "", 0, nil, tt.client)
-			require.Error(t, err)
+			require.EqualError(t, err, tt.wantErr)
 			assert.NotContains(t, err.Error(), "SECRETMARKER")
 		})
 	}

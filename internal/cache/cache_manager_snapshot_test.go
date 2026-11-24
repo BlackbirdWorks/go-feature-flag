@@ -138,21 +138,23 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	tests := []struct {
 		name   string
 		mutate func(f *flag.InternalFlag)
+		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
+		wantLiveChanged bool
 	}{
-		{name: "variation value", mutate: func(f *flag.InternalFlag) {
+		{name: "variation value", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
 			v := *(*f.Variations)["A"]
 			v.(map[string]any)["k"].([]any)[2].(map[string]any)["deep"] = "hacked"
 			v.(map[string]any)["k"].([]any)[0] = "hacked"
 		}},
-		{name: "variation replaced", mutate: func(f *flag.InternalFlag) {
+		{name: "variation replaced", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
 			x := any("hacked")
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
-		{name: "metadata", mutate: func(f *flag.InternalFlag) {
+		{name: "metadata", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
 			(*f.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
 		}},
-		{name: "targeting rule", mutate: func(f *flag.InternalFlag) {
+		{name: "targeting rule", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
 			r := &(*f.Rules)[0]
 			*r.Query = "hacked"
 			*r.VariationResult = "hacked"
@@ -161,12 +163,16 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			*r.ProgressiveRollout.End.Variation = "hacked"
 			*r.Name = "hacked"
 		}},
-		{name: "default rule", mutate: func(f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 }},
 		{
-			name:   "experimentation",
+			name:            "default rule",
+			wantLiveChanged: false,
+			mutate:          func(f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
+		},
+		{
+			name: "experimentation", wantLiveChanged: false,
 			mutate: func(f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
 		},
-		{name: "scheduled rollout", mutate: func(f *flag.InternalFlag) {
+		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
 			step := &(*f.Scheduled)[0]
 			(*step.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
 			(*step.Variations)["A"] = nil
@@ -193,7 +199,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)
-			assert.JSONEq(t, string(before), string(after))
+			assert.Equal(
+				t,
+				tt.wantLiveChanged,
+				string(before) != string(after),
+				"the live flag is not changed through the snapshot",
+			)
 		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -48,16 +49,29 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 		name   string
 		broken func() *gatedExporter
 		async  bool
+		// wantHealthy is the number of events the healthy exporter receives, wantDropping tells that the broken
+		// one loses events once its backlog is full
+		wantHealthy  int64
+		wantDropping bool
 	}{
-		{name: "failing exporter, AddEvent", broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
 		{
-			name:   "failing exporter, QueueEvents",
-			async:  true,
-			broken: func() *gatedExporter { return &gatedExporter{fail: true} },
+			name:        "failing exporter, AddEvent",
+			broken:      func() *gatedExporter { return &gatedExporter{fail: true} },
+			wantHealthy: 500, wantDropping: true,
 		},
-		{name: "blocked exporter, QueueEvents", async: true, broken: func() *gatedExporter {
-			return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
-		}},
+		{
+			name:        "failing exporter, QueueEvents",
+			async:       true,
+			broken:      func() *gatedExporter { return &gatedExporter{fail: true} },
+			wantHealthy: 500, wantDropping: true,
+		},
+		{
+			name: "blocked exporter, QueueEvents", async: true,
+			broken: func() *gatedExporter {
+				return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
+			},
+			wantHealthy: 500, wantDropping: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,8 +110,8 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 			}
 			release()
 			m.Stop()
-			assert.Equal(t, int64(batches*perBatch), healthy.events.Load(), "the healthy exporter receives everything")
-			assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents(),
+			assert.Equal(t, tt.wantHealthy, healthy.events.Load(), "the healthy exporter receives everything")
+			assert.Equal(t, tt.wantDropping, m.(exporter.DroppedEventsCounter).DroppedEvents() > 0,
 				"the broken exporter loses events once its backlog is full, and they are counted")
 		})
 	}
@@ -135,27 +149,28 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 	}
 }
 
-// a successful flush (held open while other events arrive) must not be taken for a failure.
+// a successful flush (held open while other events arrive) must not be taken for a failure. The test runs on the
+// fake time of a synctest bubble: once the workers are idle, no time has passed, so a backoff scheduled by the
+// successful flush (one second) would still be running and the third batch would not have been exported.
 func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	t.Parallel()
 	const threshold = 10
-	exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
-	m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
-		Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
-	}}, time.Hour, nil)
-	am := m.(exporter.AsyncManager[exporter.FeatureEvent])
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	<-exp.started
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs
-	close(exp.gate)
-	require.Eventually(t, func() bool { return exp.events.Load() == 2*threshold }, 10*time.Second, time.Millisecond)
-	// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
-	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	assert.Eventually(
-		t,
-		func() bool { return exp.events.Load() == 3*threshold },
-		500*time.Millisecond,
-		time.Millisecond,
-	)
-	m.Stop()
+	synctest.Test(t, func(t *testing.T) {
+		exp := &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
+		m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
+		}}, time.Hour, nil)
+		defer m.Stop() // also when an assertion fails: the bubble waits for the workers
+		am := m.(exporter.AsyncManager[exporter.FeatureEvent])
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		<-exp.started
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs
+		close(exp.gate)
+		synctest.Wait()
+		require.Equal(t, int64(2*threshold), exp.events.Load())
+		// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
+		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
+		synctest.Wait()
+		assert.Equal(t, int64(3*threshold), exp.events.Load())
+	})
 }
