@@ -208,34 +208,59 @@ func TestInit(t *testing.T) {
 		assert.NotNil(t, svc.otelTraceProvider)
 		assert.Equal(t, before, otel.GetTracerProvider(), "Init must not change the global provider")
 	})
+}
 
-	t.Run("error handler logs to zap", func(t *testing.T) {
-		obs, logs := observer.New(zap.InfoLevel)
-		testLogger := zap.New(obs)
+func TestNewErrorHandler(t *testing.T) {
+	t.Parallel()
 
-		expectedErr := errors.New("test error")
+	tests := []struct {
+		name    string
+		err     error
+		wantLog []observer.LoggedEntry
+	}{
+		{
+			name: "the error is logged to zap",
+			err:  errors.New("test error"),
+			wantLog: []observer.LoggedEntry{{
+				Entry:   zapcore.Entry{Level: zap.ErrorLevel, Message: "OTel error"},
+				Context: []zapcore.Field{zap.Error(errors.New("test error"))},
+			}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
-		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		c, errC := config.New(f, zap.NewNop(), "1.X.X")
-		require.NoError(t, errC)
-		c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
-		svc := NewOtelService()
-		err := svc.Init(context.Background(), c)
-		require.NoError(t, err)
-		defer func() { _ = svc.Stop(context.Background()) }()
-		svc.Install(testLogger) // the OpenTelemetry API only has a process-wide registry
-		otel.GetErrorHandler().Handle(expectedErr)
+			obs, logs := observer.New(zap.InfoLevel)
+			newErrorHandler(zap.New(obs)).Handle(tt.err)
 
-		require.Len(t, logs.All(), 1)
+			assert.Equal(t, tt.wantLog, logs.AllUntimed())
+		})
+	}
+}
 
-		want := []observer.LoggedEntry{{
-			Level: zap.ErrorLevel, Message: "OTel error",
-			Context: []zapcore.Field{zap.Error(expectedErr)},
-		}}
+func TestNewPropagator(t *testing.T) {
+	t.Parallel()
 
-		assert.Equal(t, want, logs.AllUntimed())
-	})
+	assert.ElementsMatch(t, []string{"traceparent", "tracestate", "baggage"}, newPropagator().Fields())
+}
+
+//nolint:paralleltest,tparallel // Install registers the provider in the process-wide OpenTelemetry registry, which every test of the package that starts a span reads
+func TestInstall(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+	previous := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(previous) })
+
+	svc := NewOtelService()
+	require.NoError(
+		t,
+		svc.Init(context.Background(), &config.Config{OpenTelemetryOtlpEndpoint: "https://example.com:4318"}),
+	)
+	defer func() { _ = svc.Stop(context.Background()) }()
+
+	svc.Install(zap.NewNop())
+
+	assert.Same(t, svc.otelTraceProvider, otel.GetTracerProvider())
 }
 
 //nolint:paralleltest,tparallel // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads

@@ -106,17 +106,23 @@ func (s *OtelService) Install(zapLog *zap.Logger) {
 		return
 	}
 	otel.SetTracerProvider(s.otelTraceProvider)
+	otel.SetErrorHandler(newErrorHandler(zapLog))
+	otel.SetTextMapPropagator(newPropagator())
+}
 
-	// log OTel errors to zap rather than the default log package
-	otel.SetErrorHandler(otelErrHandler(func(err error) {
+// newErrorHandler logs the OTel errors to zap rather than the default log package.
+func newErrorHandler(zapLog *zap.Logger) otel.ErrorHandler {
+	return otelErrHandler(func(err error) {
 		zapLog.Error("OTel error", zap.Error(err))
-	}))
+	})
+}
 
-	propagator := propagation.NewCompositeTextMapPropagator(
+// newPropagator is the propagator of the relay proxy: W3C trace context and baggage.
+func newPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
-	otel.SetTextMapPropagator(propagator)
 }
 
 type otelErrHandler func(err error)

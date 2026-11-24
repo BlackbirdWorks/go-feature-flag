@@ -184,14 +184,18 @@ func (r *Relay) Close() {
 	}
 }
 
+// healthRequestTimeout bounds one health request.
+const healthRequestTimeout = 5 * time.Second
+
 // waitHealthy polls the relay proxy health endpoint until it answers or 15s elapse.
 func waitHealthy(baseURL string) error {
+	client := &http.Client{Timeout: healthRequestTimeout}
 	deadline := time.Now().Add(15 * time.Second)
 	for {
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
 		if err == nil {
-			resp, err = http.DefaultClient.Do(req)
+			resp, err = client.Do(req)
 		}
 		if err == nil {
 			_ = resp.Body.Close()

@@ -110,13 +110,14 @@ func Start(ctx context.Context) (*Server, error) {
 func waitHealthy(ctx context.Context, endpoint string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+	client := &http.Client{Timeout: 5 * time.Second}
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
 		if err != nil {
 			return err
 		}
-		resp, err := http.DefaultClient.Do(req) //nolint:gosec // same endpoint
+		resp, err := client.Do(req) //nolint:gosec // same endpoint
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

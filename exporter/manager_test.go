@@ -1,12 +1,16 @@
 package exporter_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -517,43 +521,86 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 	}
 }
 
+// goroutinesLabeled counts the goroutines that carry the pprof label key=value. The goroutines started by
+// code that runs under pprof.Do inherit its labels, so the count is scoped to what one test started
+// and does not depend on the other tests running in parallel.
+func goroutinesLabeled(key, value string) int {
+	var buf bytes.Buffer
+	if err := pprof.Lookup("goroutine").WriteTo(&buf, 1); err != nil {
+		return -1
+	}
+	want := fmt.Sprintf("%q:%q", key, value)
+	total, current := 0, 0
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if n, _, ok := strings.Cut(line, " @ "); ok {
+			if v, err := strconv.Atoi(n); err == nil {
+				current = v
+			}
+
+			continue
+		}
+		if strings.HasPrefix(line, "# labels:") && strings.Contains(line, want) {
+			total += current
+		}
+	}
+
+	return total
+}
+
 // TestDataExporterManager_StopReleasesEverything checks the two things Stop() has to guarantee:
 // it is safe to call several times, since callers are free to Close() a client twice, and it
 // releases every goroutine it started, including the event store cleaner. Forgetting the store
 // leaks one goroutine and the events it retains per client, which is unbounded for the relay
-// proxy since it builds a client per flagset on every hot reload.
-//
-//nolint:paralleltest,tparallel // asserts on the process-wide runtime.NumGoroutine count, which other parallel tests change
+// proxy since it builds a client per flagset on every hot reload. The goroutines are counted by
+// pprof label, so only the ones of the managers of the test are looked at.
 func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
-	const nbManagers = 50
-	goroutinesBefore := runtime.NumGoroutine()
+	t.Parallel()
 
-	for range nbManagers {
-		dc := exporter.NewManager[exporter.FeatureEvent](
-			[]exporter.Config{
-				{
-					FlushInterval:    10 * time.Millisecond,
-					MaxEventInMemory: 100,
-					Exporter:         &mock.Exporter{Bulk: true},
-				},
-			},
-			10*time.Millisecond,
-			nil,
-		)
-		dc.Start()
-		dc.AddEvent(exporter.NewFeatureEvent(
-			ffcontext.NewEvaluationContextBuilder("ABCD").Build(),
-			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
-		dc.Stop()
-		// Close() can legitimately be called twice, and Stop() used to panic with
-		// "close of closed channel" on the second call.
-		assert.NotPanics(t, dc.Stop)
+	tests := []struct {
+		name          string
+		nbManagers    int
+		wantRunning   int
+		wantStopTwice bool
+	}{
+		{name: "one manager", nbManagers: 1, wantRunning: 0, wantStopTwice: true},
+		{name: "many managers", nbManagers: 50, wantRunning: 0, wantStopTwice: true},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Eventually(t, func() bool {
-		// A small tolerance, other tests in this package leak goroutines of their own.
-		return runtime.NumGoroutine() <= goroutinesBefore+5
-	}, 10*time.Second, 20*time.Millisecond,
-		"Stop() leaked goroutines: %d before creating %d managers, %d after stopping them all",
-		goroutinesBefore, nbManagers, runtime.NumGoroutine())
+			label := t.Name()
+			started := 0
+			pprof.Do(t.Context(), pprof.Labels("leakcheck", label), func(context.Context) {
+				for range tt.nbManagers {
+					dc := exporter.NewManager[exporter.FeatureEvent](
+						[]exporter.Config{
+							{
+								FlushInterval:    10 * time.Millisecond,
+								MaxEventInMemory: 100,
+								Exporter:         &mock.Exporter{Bulk: true},
+							},
+						},
+						10*time.Millisecond,
+						nil,
+					)
+					dc.Start()
+					dc.AddEvent(exporter.NewFeatureEvent(
+						ffcontext.NewEvaluationContextBuilder("ABCD").Build(),
+						"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
+					started = max(started, goroutinesLabeled("leakcheck", label))
+					dc.Stop()
+					// Close() can legitimately be called twice, and Stop() used to panic with
+					// "close of closed channel" on the second call.
+					assert.NotPanics(t, dc.Stop)
+				}
+			})
+
+			assert.Positive(t, started, "the managers must have started goroutines, or the check proves nothing")
+			require.Eventually(t, func() bool {
+				return goroutinesLabeled("leakcheck", label) == tt.wantRunning
+			}, 10*time.Second, 20*time.Millisecond,
+				"Stop() leaked goroutines of the %d managers of the test", tt.nbManagers)
+		})
+	}
 }
