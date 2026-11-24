@@ -253,6 +253,12 @@ func (d *describer) targeting(before, after []flag.Rule) {
 			d.addf("%s added: %s", label, d.describeRule(newRule))
 		}
 	}
+	d.removedRules(b, a, renamed)
+	d.reorderedRules(b, a)
+}
+
+// removedRules describes the rules of b that a does not have any more, and that were not renamed.
+func (d *describer) removedRules(b, a indexedRules, renamed map[ruleKey]ruleKey) {
 	renamedFrom := make(map[ruleKey]bool, len(renamed))
 	for _, oldKey := range renamed {
 		renamedFrom[oldKey] = true
@@ -267,7 +273,10 @@ func (d *describer) targeting(before, after []flag.Rule) {
 			d.addf("Targeting rule %s removed", d.ruleLabel(key))
 		}
 	}
+}
 
+// reorderedRules describes a new order of the rules that both b and a have.
+func (d *describer) reorderedRules(b, a indexedRules) {
 	// Rules are evaluated in order, and steps append new rules in order, so a new order can change the result.
 	keptBefore, keptAfter := keptKeys(b.order, a.rules), keptKeys(a.order, b.rules)
 	if !slices.Equal(keptBefore, keptAfter) {

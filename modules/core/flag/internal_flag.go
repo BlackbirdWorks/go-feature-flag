@@ -279,7 +279,6 @@ func isStepDue(step *ScheduledStep, evaluationDate time.Time) bool {
 }
 
 // buildScheduledFlag applies the due steps on a deep copy of the flag.
-// nolint: gocognit
 func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFlag, error) {
 	dueSteps := make([]ScheduledStep, 0, len(*f.Scheduled))
 	for _, step := range *f.Scheduled {
@@ -288,23 +287,9 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 		}
 	}
 
-	// We are doing a deep copy the flag to avoid modifying the original flag.
-	// The deep copy is done to fix this issue https://github.com/thomaspoignant/go-feature-flag/issues/2256
-	data, err := json.Marshal(f)
+	flagCopy, err := f.deepCopy()
 	if err != nil {
 		return &InternalFlag{}, err
-	}
-	var flagCopy *InternalFlag
-	if unmarshalErr := json.Unmarshal(data, &flagCopy); unmarshalErr != nil {
-		return &InternalFlag{}, unmarshalErr
-	}
-
-	// the json copy loses the hash of the queries (see Rule.QueryHash): the rules have the
-	// same queries as the ones of f at this point, so the hashes are still right.
-	if f.Rules != nil && flagCopy.Rules != nil && len(*f.Rules) == len(*flagCopy.Rules) {
-		for i := range *f.Rules {
-			(*flagCopy.Rules)[i].QueryHash = (*f.Rules)[i].QueryHash
-		}
 	}
 
 	// We apply the steps in chronological order (oldest first) so that, when
@@ -318,41 +303,69 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 
 	// We apply the scheduled rollout
 	for _, steps := range dueSteps {
-		flagCopy.Rules = MergeSetOfRules(flagCopy.GetRules(), steps.GetRules())
-		if steps.Disable != nil {
-			flagCopy.Disable = steps.Disable
-		}
+		flagCopy.applyScheduledStep(&steps)
+	}
 
-		if steps.TrackEvents != nil {
-			flagCopy.TrackEvents = steps.TrackEvents
-		}
+	return flagCopy, nil
+}
 
-		if steps.DefaultRule != nil {
-			flagCopy.DefaultRule.MergeRules(*steps.DefaultRule)
-		}
+// deepCopy copies the flag through its JSON form, so that modifying the copy never modifies the original flag.
+// The deep copy is done to fix this issue https://github.com/thomaspoignant/go-feature-flag/issues/2256
+func (f *InternalFlag) deepCopy() (*InternalFlag, error) {
+	data, err := json.Marshal(f)
+	if err != nil {
+		return nil, err
+	}
+	var flagCopy *InternalFlag
+	if unmarshalErr := json.Unmarshal(data, &flagCopy); unmarshalErr != nil {
+		return nil, unmarshalErr
+	}
 
-		if steps.Variations != nil {
-			maps.Copy(flagCopy.GetVariations(), steps.GetVariations())
-		}
-
-		if steps.Version != nil {
-			flagCopy.Version = steps.Version
-		}
-
-		if steps.Experimentation != nil {
-			if flagCopy.Experimentation == nil {
-				flagCopy.Experimentation = &ExperimentationRollout{}
-			}
-			if steps.Experimentation.Start != nil {
-				flagCopy.Experimentation.Start = steps.Experimentation.Start
-			}
-			if steps.Experimentation.End != nil {
-				flagCopy.Experimentation.End = steps.Experimentation.End
-			}
+	// the json copy loses the hash of the queries (see Rule.QueryHash): the rules have the
+	// same queries as the ones of f at this point, so the hashes are still right.
+	if f.Rules != nil && flagCopy.Rules != nil && len(*f.Rules) == len(*flagCopy.Rules) {
+		for i := range *f.Rules {
+			(*flagCopy.Rules)[i].QueryHash = (*f.Rules)[i].QueryHash
 		}
 	}
 
 	return flagCopy, nil
+}
+
+// applyScheduledStep merges the fields that steps sets into the flag.
+func (f *InternalFlag) applyScheduledStep(steps *ScheduledStep) {
+	f.Rules = MergeSetOfRules(f.GetRules(), steps.GetRules())
+	if steps.Disable != nil {
+		f.Disable = steps.Disable
+	}
+
+	if steps.TrackEvents != nil {
+		f.TrackEvents = steps.TrackEvents
+	}
+
+	if steps.DefaultRule != nil {
+		f.DefaultRule.MergeRules(*steps.DefaultRule)
+	}
+
+	if steps.Variations != nil {
+		maps.Copy(f.GetVariations(), steps.GetVariations())
+	}
+
+	if steps.Version != nil {
+		f.Version = steps.Version
+	}
+
+	if steps.Experimentation != nil {
+		if f.Experimentation == nil {
+			f.Experimentation = &ExperimentationRollout{}
+		}
+		if steps.Experimentation.Start != nil {
+			f.Experimentation.Start = steps.Experimentation.Start
+		}
+		if steps.Experimentation.End != nil {
+			f.Experimentation.End = steps.Experimentation.End
+		}
+	}
 }
 
 // isExperimentationOver checks if we are in an experimentation or not.
@@ -360,6 +373,31 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 	return f.Experimentation != nil &&
 		((f.Experimentation.Start != nil && evaluationDate.Before(*f.Experimentation.Start)) ||
 			(f.Experimentation.End != nil && evaluationDate.After(*f.Experimentation.End)))
+}
+
+// validateVariationTypes checks that all the variations have a value and the same type.
+func validateVariationTypes(variations map[string]*any) error {
+	expectedVarType := ""
+	for _, name := range slices.Sorted(maps.Keys(variations)) {
+		value := variations[name]
+		if value == nil {
+			return fmt.Errorf("nil value for variation: %s", name)
+		}
+		currentType, err := utils.JSONTypeExtractor(*value)
+		if err != nil {
+			return err
+		}
+		if expectedVarType == "" {
+			expectedVarType = currentType
+
+			continue
+		}
+		if currentType != expectedVarType {
+			return errors.New("all variations should have the same type")
+		}
+	}
+
+	return nil
 }
 
 // IsValid is checking if the current flag is valid.
@@ -371,29 +409,8 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return errors.New("no variation available")
 	}
 
-	// Check that all variation has the same types
-	expectedVarType := ""
-	variations := f.GetVariations()
-	for _, name := range slices.Sorted(maps.Keys(variations)) {
-		value := variations[name]
-		if value == nil {
-			return fmt.Errorf("nil value for variation: %s", name)
-		}
-		if expectedVarType != "" {
-			currentType, err := utils.JSONTypeExtractor(*value)
-			if err != nil {
-				return err
-			}
-			if currentType != expectedVarType {
-				return errors.New("all variations should have the same type")
-			}
-		} else {
-			var err error
-			expectedVarType, err = utils.JSONTypeExtractor(*value)
-			if err != nil {
-				return err
-			}
-		}
+	if err := validateVariationTypes(f.GetVariations()); err != nil {
+		return err
 	}
 
 	// Validate that we have a default Rule
@@ -412,6 +429,21 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return err
 	}
 
+	evaluators, err := f.validateRules(svc, known)
+	if err != nil {
+		return err
+	}
+
+	// The queries are parsed now: index them to evaluate the rules without hashing them.
+	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
+
+	return nil
+}
+
+// validateRules validates the rules (not the default one) and returns the evaluator of their nikunjy
+// queries, known being the evaluators that were validated before (nil if there is none).
+func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([]*parser.Evaluator, error) {
+	const isDefaultRule = false
 	ruleNames := map[string]any{}
 	rules := f.GetRules()
 	evaluators := make([]*parser.Evaluator, len(rules))
@@ -422,22 +454,19 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		if known != nil {
 			knownEvaluator = known[i].evaluator
 		}
-		if evaluators[i], err = rule.validate(svc, !isDefaultRule, f.GetVariations(), knownEvaluator); err != nil {
-			return err
+		if evaluators[i], err = rule.validate(svc, isDefaultRule, f.GetVariations(), knownEvaluator); err != nil {
+			return nil, err
 		}
 
 		// Check if we have duplicated rule name
 		if _, ok := ruleNames[rule.GetName()]; ok && rule.GetName() != "" {
-			return fmt.Errorf("duplicated rule name: %s", rule.GetName())
+			return nil, fmt.Errorf("duplicated rule name: %s", rule.GetName())
 		} else if rule.GetName() != "" {
 			ruleNames[rule.GetName()] = nil
 		}
 	}
 
-	// The queries are parsed now: index them to evaluate the rules without hashing them.
-	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
-
-	return nil
+	return evaluators, nil
 }
 
 // GetVariations is the getter of the field Variations.

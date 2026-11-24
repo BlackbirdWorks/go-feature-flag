@@ -82,46 +82,58 @@ type RetrieverConf struct {
 }
 
 // IsValid validate the configuration of the retriever
-//
-//nolint:gocognit
 func (c *RetrieverConf) IsValid() error {
 	if err := c.Kind.IsValid(); err != nil {
 		return err
 	}
-	if c.Kind == PostgreSQLRetriever {
+
+	switch c.Kind {
+	case PostgreSQLRetriever:
 		return c.validatePostgreSQLRetriever()
-	}
-	if c.Kind == GitHubRetriever || c.Kind == GitlabRetriever || c.Kind == BitbucketRetriever {
+	case GitHubRetriever, GitlabRetriever, BitbucketRetriever:
 		return c.validateGitRetriever()
+	case S3Retriever, GoogleStorageRetriever, FileRetriever:
+		return c.validateStorageRetriever()
+	case HTTPRetriever:
+		return c.validateHTTPRetriever()
+	case KubernetesRetriever:
+		return c.validateKubernetesRetriever()
+	case MongoDBRetriever:
+		return c.validateMongoDBRetriever()
+	case RedisRetriever:
+		return c.validateRedisRetriever()
+	case AzBlobStorageRetriever:
+		return c.validateAzBlobStorageRetriever()
+	default:
+		// the other kinds have no setting to validate
 	}
-	if c.Kind == S3Retriever {
+
+	return nil
+}
+
+// validateStorageRetriever validates the retrievers of a bucket or of a file.
+func (c *RetrieverConf) validateStorageRetriever() error {
+	switch c.Kind {
+	case S3Retriever:
 		if err := c.validateS3Retriever(); err != nil {
 			return err
 		}
-	}
-	if c.Kind == HTTPRetriever {
-		return c.validateHTTPRetriever()
-	}
-	if c.Kind == GoogleStorageRetriever && c.Object == "" {
-		return err.NewRetrieverConfError("object", string(c.Kind))
-	}
-	if c.Kind == FileRetriever && c.Path == "" {
-		return err.NewRetrieverConfError("path", string(c.Kind))
-	}
-	if (c.Kind == S3Retriever || c.Kind == GoogleStorageRetriever) && c.Bucket == "" {
-		return err.NewRetrieverConfError("bucket", string(c.Kind))
-	}
-	if c.Kind == KubernetesRetriever {
-		return c.validateKubernetesRetriever()
-	}
-	if c.Kind == MongoDBRetriever {
-		return c.validateMongoDBRetriever()
-	}
-	if c.Kind == RedisRetriever {
-		return c.validateRedisRetriever()
-	}
-	if c.Kind == AzBlobStorageRetriever {
-		return c.validateAzBlobStorageRetriever()
+		if c.Bucket == "" {
+			return err.NewRetrieverConfError("bucket", string(c.Kind))
+		}
+	case GoogleStorageRetriever:
+		if c.Object == "" {
+			return err.NewRetrieverConfError("object", string(c.Kind))
+		}
+		if c.Bucket == "" {
+			return err.NewRetrieverConfError("bucket", string(c.Kind))
+		}
+	case FileRetriever:
+		if c.Path == "" {
+			return err.NewRetrieverConfError("path", string(c.Kind))
+		}
+	default:
+		// not a storage retriever
 	}
 
 	return nil

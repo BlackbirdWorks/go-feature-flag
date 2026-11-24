@@ -12,14 +12,33 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 	if variations == nil {
 		return "", errors.New("impossible to find type, no variations found")
 	}
+	variationTypes := collectVariationTypes(variations)
+
+	// we found the type and return it
+	if len(variationTypes) == 1 {
+		for key := range variationTypes {
+			return key, nil
+		}
+	}
+	_, okFloat := variationTypes[model.FlagTypeFloat]
+	_, okInteger := variationTypes[model.FlagTypeInteger]
+	if len(variationTypes) == 2 && okInteger && okFloat {
+		// we need to check if it is a float or an integer
+		return numberFlagType(variations)
+	}
+
+	return "", errors.New("impossible to find type")
+}
+
+// collectVariationTypes returns the set of the flag types of the variations that have a known type.
+func collectVariationTypes(variations map[string]*any) map[model.FlagType]any {
 	variationTypes := make(map[model.FlagType]any, len(variations))
 	for _, val := range variations {
 		if val == nil {
 			// we skip if value is nil
 			continue
 		}
-		vv := *val
-		switch vv.(type) {
+		switch (*val).(type) {
 		case bool:
 			variationTypes[model.FlagTypeBoolean] = any(nil)
 		case string:
@@ -36,34 +55,26 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 		}
 	}
 
-	// we found the type and return it
-	if len(variationTypes) == 1 {
-		for key := range variationTypes {
-			return key, nil
+	return variationTypes
+}
+
+// numberFlagType is float if one of the variations is a float, integer otherwise.
+func numberFlagType(variations map[string]*any) (model.FlagType, error) {
+	for _, v := range variations {
+		if v == nil {
+			// we skip if value is nil
+			continue
+		}
+		kind, err := numberType(*v)
+		if err != nil {
+			return "", err
+		}
+		if kind == "float" {
+			return model.FlagTypeFloat, nil
 		}
 	}
-	_, okFloat := variationTypes[model.FlagTypeFloat]
-	_, okInteger := variationTypes[model.FlagTypeInteger]
-	if len(variationTypes) == 2 && okInteger && okFloat {
-		// we need to check if it is a float or an integer
-		for _, v := range variations {
-			if v == nil {
-				// we skip if value is nil
-				continue
-			}
-			numberType, err := numberType(*v)
-			if err != nil {
-				return "", err
-			}
-			if numberType == "float" {
-				return model.FlagTypeFloat, nil
-			}
-		}
 
-		return model.FlagTypeInteger, nil
-	}
-
-	return "", errors.New("impossible to find type")
+	return model.FlagTypeInteger, nil
 }
 
 func numberType(value any) (string, error) {

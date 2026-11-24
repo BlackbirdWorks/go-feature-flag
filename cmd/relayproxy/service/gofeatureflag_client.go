@@ -352,27 +352,36 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 	return dataExp, nil
 }
 
-// nolint: funlen
+// exporterDefaults are the settings shared by the file based exporters, with their default values.
+type exporterDefaults struct {
+	format                  string
+	filename                string
+	csvTemplate             string
+	parquetCompressionCodec string
+}
+
+func newExporterDefaults(c *config.ExporterConf) exporterDefaults {
+	def := config.DefaultExporter()
+
+	return exporterDefaults{
+		format:                  valueOrDefault(c.Format, def.Format),
+		filename:                valueOrDefault(c.Filename, def.FileName),
+		csvTemplate:             valueOrDefault(c.CsvTemplate, def.CsvFormat),
+		parquetCompressionCodec: valueOrDefault(c.ParquetCompressionCodec, def.ParquetCompressionCodec),
+	}
+}
+
+func valueOrDefault(value, def string) string {
+	if value != "" {
+		return value
+	}
+
+	return def
+}
+
+//nolint:funlen // one case per exporter kind
 func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
-	format := config.DefaultExporter().Format
-	if c.Format != "" {
-		format = c.Format
-	}
-
-	filename := config.DefaultExporter().FileName
-	if c.Filename != "" {
-		filename = c.Filename
-	}
-
-	csvTemplate := config.DefaultExporter().CsvFormat
-	if c.CsvTemplate != "" {
-		csvTemplate = c.CsvTemplate
-	}
-
-	parquetCompressionCodec := config.DefaultExporter().ParquetCompressionCodec
-	if c.ParquetCompressionCodec != "" {
-		parquetCompressionCodec = c.ParquetCompressionCodec
-	}
+	d := newExporterDefaults(c)
 
 	switch c.Kind {
 	case config.WebhookExporter:
@@ -384,69 +393,24 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		}, nil
 	case config.FileExporter:
 		return &fileexporter.Exporter{
-			Format:                  format,
+			Format:                  d.format,
 			OutputDir:               c.OutputDir,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
 		}, nil
 	case config.LogExporter:
-		return &logsexporter.Exporter{
-			LogFormat: func() string {
-				if c.LogFormat != "" {
-					return c.LogFormat
-				}
-
-				return config.DefaultExporter().LogFormat
-			}(),
-		}, nil
-	case config.S3Exporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &s3exporterv2.Exporter{
-			Bucket:                  c.Bucket,
-			Format:                  format,
-			S3Path:                  c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
-			AwsConfig:               &awsConfig,
-		}, nil
-	case config.KinesisExporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &kinesisexporter.Exporter{
-			Format:    format,
-			AwsConfig: &awsConfig,
-			Settings: kinesisexporter.NewSettings(
-				kinesisexporter.WithStreamArn(c.StreamArn),
-				kinesisexporter.WithStreamName(c.StreamName),
-			),
-		}, nil
+		return &logsexporter.Exporter{LogFormat: valueOrDefault(c.LogFormat, config.DefaultExporter().LogFormat)}, nil
+	case config.S3Exporter, config.KinesisExporter, config.SQSExporter, config.RedshiftExporter:
+		return createAWSExporter(c, d)
 	case config.GoogleStorageExporter:
 		return &gcstorageexporter.Exporter{
 			Bucket:                  c.Bucket,
-			Format:                  format,
+			Format:                  d.format,
 			Path:                    c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
-		}, nil
-	case config.SQSExporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &sqsexporter.Exporter{
-			QueueURL:  c.QueueURL,
-			AwsConfig: &awsConfig,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
 		}, nil
 	case config.KafkaExporter:
 		settings, err := setKafkaConfig(c.Kafka)
@@ -455,7 +419,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		}
 
 		return &kafkaexporter.Exporter{
-			Format:   format,
+			Format:   d.format,
 			Settings: settings,
 		}, nil
 	case config.PubSubExporter:
@@ -471,16 +435,63 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 			GoogleCredentials: []byte(c.GoogleCredentials),
 			AutoMigrate:       c.AutoMigrate,
 		}, nil
-	case config.RedshiftExporter:
-		var awsOpts []func(*awsConf.LoadOptions) error
-		if c.AwsRegion != "" {
-			awsOpts = append(awsOpts, awsConf.WithRegion(c.AwsRegion))
-		}
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
-		if err != nil {
-			return nil, err
-		}
+	case config.AzureExporter:
+		return &azureexporter.Exporter{
+			Container:               c.Container,
+			Format:                  d.format,
+			Path:                    c.Path,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
+			AccountKey:              c.AccountKey,
+			AccountName:             c.AccountName,
+		}, nil
+	case config.OpenTelemetryExporter:
+		return &opentelemetryexporter.Exporter{
+			TracerName: c.TracerName,
+		}, nil
+	default:
+		return nil, fmt.Errorf("invalid exporter: kind \"%s\" is not supported", c.Kind)
+	}
+}
 
+// createAWSExporter builds the exporters that load the default AWS configuration.
+func createAWSExporter(c *config.ExporterConf, d exporterDefaults) (exporter.CommonExporter, error) {
+	var awsOpts []func(*awsConf.LoadOptions) error
+	if c.Kind == config.RedshiftExporter && c.AwsRegion != "" {
+		awsOpts = append(awsOpts, awsConf.WithRegion(c.AwsRegion))
+	}
+	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	switch c.Kind {
+	case config.S3Exporter:
+		return &s3exporterv2.Exporter{
+			Bucket:                  c.Bucket,
+			Format:                  d.format,
+			S3Path:                  c.Path,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
+			AwsConfig:               &awsConfig,
+		}, nil
+	case config.KinesisExporter:
+		return &kinesisexporter.Exporter{
+			Format:    d.format,
+			AwsConfig: &awsConfig,
+			Settings: kinesisexporter.NewSettings(
+				kinesisexporter.WithStreamArn(c.StreamArn),
+				kinesisexporter.WithStreamName(c.StreamName),
+			),
+		}, nil
+	case config.SQSExporter:
+		return &sqsexporter.Exporter{
+			QueueURL:  c.QueueURL,
+			AwsConfig: &awsConfig,
+		}, nil
+	default: // config.RedshiftExporter, the only other kind routed here
 		return &redshiftexporter.Exporter{
 			ClusterIdentifier: c.ClusterIdentifier,
 			WorkgroupName:     c.WorkgroupName,
@@ -491,23 +502,6 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 			AwsConfig:         &awsConfig,
 			AutoMigrate:       c.AutoMigrate,
 		}, nil
-	case config.AzureExporter:
-		return &azureexporter.Exporter{
-			Container:               c.Container,
-			Format:                  format,
-			Path:                    c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
-			AccountKey:              c.AccountKey,
-			AccountName:             c.AccountName,
-		}, nil
-	case config.OpenTelemetryExporter:
-		return &opentelemetryexporter.Exporter{
-			TracerName: c.TracerName,
-		}, nil
-	default:
-		return nil, fmt.Errorf("invalid exporter: kind \"%s\" is not supported", c.Kind)
 	}
 }
 
