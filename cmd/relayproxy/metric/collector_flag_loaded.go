@@ -10,7 +10,7 @@ import (
 	prom "github.com/prometheus/client_golang/prometheus"
 )
 
-const flagLoadedEvaluationKey = "gofeatureflag-flag-loaded-metric"
+const flagLoadedEvaluationKey = "semaphore-flag-loaded-metric"
 
 // FlagsetSource gives access to the flagsets currently loaded by the relay proxy.
 type FlagsetSource interface {

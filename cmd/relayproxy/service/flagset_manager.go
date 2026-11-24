@@ -205,7 +205,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
 		if err != nil {
 			logger.Error(
-				"failed to create goff client for flagset",
+				"failed to create the Semaphore client for the flagset",
 				zap.Int("flagset_index", index),
 				zap.String("flagset", flagset.Name),
 				zap.Error(err),
