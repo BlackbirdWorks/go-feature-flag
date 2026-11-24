@@ -36,12 +36,22 @@ func versionText() string {
 		buildinfo.Read(), fips140.Enabled())
 }
 
+// newConfigFlagSet declares the command line flags. config is declared so that its value is
+// consumed as a value even when it starts with a dash; unknown flags (--version, -v) are skipped
+// instead of stopping the parse and losing --config.
+func newConfigFlagSet() *pflag.FlagSet {
+	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	f.String("config", "", "Location of your config file")
+	f.ParseErrorsAllowlist.UnknownFlags = true
+
+	return f
+}
+
 // versionRequested reports whether args ask for --version / -v. It uses a flag set of its
 // own so that the flag never reaches the configuration loader.
 func versionRequested(args []string) bool {
-	f := pflag.NewFlagSet("version", pflag.ContinueOnError)
+	f := newConfigFlagSet()
 	f.SetOutput(io.Discard)
-	f.ParseErrorsAllowlist.UnknownFlags = true
 	show := f.BoolP("version", "v", false, "Print the version and exit")
 	_ = f.Parse(args)
 
@@ -80,8 +90,7 @@ func main() {
 	}
 
 	// Init pFlag for config file
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
+	f := newConfigFlagSet()
 	_ = f.Parse(os.Args[1:])
 
 	// Init logger

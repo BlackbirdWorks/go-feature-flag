@@ -42,10 +42,20 @@ svc="$(kubectl get svc -l app.kubernetes.io/instance="$release" -o jsonpath='{.i
 kubectl port-forward "svc/$svc" "$port:1031" >/dev/null 2>&1 &
 pf_pid=$!
 base="http://127.0.0.1:$port"
+ready=false
 for _ in $(seq 1 30); do
-  curl -fsS "$base/health" >/dev/null 2>&1 && break
+  if ! kill -0 "$pf_pid" 2>/dev/null; then
+    echo "::error::kubectl port-forward exited early" >&2
+    break
+  fi
+  if curl -fsS "$base/health" >/dev/null 2>&1; then ready=true; break; fi
   sleep 1
 done
+if [[ "$ready" != true ]]; then
+  echo "::error::/health not reachable through the port-forward" >&2
+  kubectl logs -l app.kubernetes.io/instance="$release" --tail=100 || true
+  exit 1
+fi
 
 code="$(curl -sS -o /dev/null -w '%{http_code}' "$base/health")"
 [[ "$code" == 200 ]] || { echo "::error::/health returned $code" >&2; exit 1; }

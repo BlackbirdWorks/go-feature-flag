@@ -26,9 +26,10 @@ on:
 
 permissions: {}
 
-# One release at a time; a release in progress is never cancelled.
+# One publishing run at a time; a run in progress is never cancelled. Dry runs get a group
+# of their own per run so they can neither wait behind nor displace a pending release.
 concurrency:
-  group: release
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && github.run_id || 'publish' }}
   cancel-in-progress: false
 
 env:
@@ -72,9 +73,10 @@ jobs:
           fi
           echo "dry-run=$dry" >> "$GITHUB_OUTPUT"
           if [[ "$dry" == false ]]; then
-            # vMAJOR.MINOR.PATCH with an optional pre-release suffix (v0.1.0-rc.1).
-            if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$ ]]; then
-              echo "::error::$REF_NAME is not a release version (vMAJOR.MINOR.PATCH[-prerelease])"
+            # vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N suffix. Other
+            # suffixes are refused: they could collide with the -fips/-bookworm/-trixie image tags.
+            if ! [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+              echo "::error::$REF_NAME is not a release version (vMAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N])"
               exit 1
             fi
             chart_app=$(sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' cmd/relayproxy/helm-charts/relay-proxy/Chart.yaml)

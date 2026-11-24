@@ -613,6 +613,9 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: build --snapshot --clean --single-target
+      - name: Compile the AWS Lambda target (linux/arm64)
+        # --single-target only builds for the runner, which excludes the arm64-only Lambda build.
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/relayproxy
       - name: Check the version baked into the binary
         run: |
           bin=$(ls release/semaphore_linux_amd64*/semaphore)

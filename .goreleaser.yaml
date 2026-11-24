@@ -146,10 +146,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -178,10 +178,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "fips"
-      - "v{{ .RawVersion }}-fips"
-      - "v{{ .Major }}-fips"
-      - "v{{ .Major }}.{{ .Minor }}-fips"
+      - "{{ if not .Prerelease }}fips{{ end }}"
+      - "v{{ .Version }}-fips"
+      - "{{ if not .Prerelease }}v{{ .Major }}-fips{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-fips{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -208,10 +208,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "bookworm"
-      - "v{{ .RawVersion }}-bookworm"
-      - "v{{ .Major }}-bookworm"
-      - "v{{ .Major }}.{{ .Minor }}-bookworm"
+      - "{{ if not .Prerelease }}bookworm{{ end }}"
+      - "v{{ .Version }}-bookworm"
+      - "{{ if not .Prerelease }}v{{ .Major }}-bookworm{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-bookworm{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -238,10 +238,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore
     tags:
-      - "trixie"
-      - "v{{ .RawVersion }}-trixie"
-      - "v{{ .Major }}-trixie"
-      - "v{{ .Major }}.{{ .Minor }}-trixie"
+      - "{{ if not .Prerelease }}trixie{{ end }}"
+      - "v{{ .Version }}-trixie"
+      - "{{ if not .Prerelease }}v{{ .Major }}-trixie{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}-trixie{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64
@@ -268,10 +268,10 @@ dockers_v2:
     images:
       - ghcr.io/blackbirdworks/semaphore-cli
     tags:
-      - "latest"
-      - "v{{ .RawVersion }}"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+      - "v{{ .Version }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}v{{ .Major }}.{{ .Minor }}{{ end }}"
     platforms:
       - linux/amd64
       - linux/arm64

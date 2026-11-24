@@ -1,7 +1,7 @@
 # Releasing Semaphore
 
 A release is made by pushing one tag (`vMAJOR.MINOR.PATCH`, optionally with a pre-release
-suffix such as `v0.1.0-rc.1`). The `Release` workflow (`.github/workflows/release.yml`) does
+suffix `-alpha.N`, `-beta.N` or `-rc.N`, for example `v0.1.0-rc.1`; other suffixes are refused). The `Release` workflow (`.github/workflows/release.yml`) does
 the rest. It uses the repository `GITHUB_TOKEN` only: no other secret, no other registry,
 nothing is pushed to a branch or to another repository.
 
@@ -19,7 +19,7 @@ Nothing has been released yet. Everything below is "available after the first re
 | SBOMs | one SPDX JSON per archive (`*.sbom.json`, made with syft) | GitHub Release |
 | Helm chart | `relay-proxy-<chart version>.tgz` | GitHub Release (no Helm repository, no OCI registry) |
 | Build provenance | GitHub attestation for every file listed in `checksums.txt` | GitHub attestation store of this repository |
-| Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>`, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
+| Relay proxy images | `ghcr.io/blackbirdworks/semaphore:v<version>` and, for stable releases only, `:v<major>.<minor>`, `:v<major>`, `:latest` (distroless, linux/amd64, arm64); suffix `-bookworm`, `-trixie` (Debian slim) and `-fips` (amd64, arm64) for the variants | GitHub Container Registry |
 | CLI image | `ghcr.io/blackbirdworks/semaphore-cli:v<version>` (+ `v<major>.<minor>`, `v<major>`, `latest`) | GitHub Container Registry |
 
 All images run as uid 65532, have `/usr/local/bin/semaphore` as command (the CLI image has
@@ -39,7 +39,7 @@ repository. No GPG signature either (the project has no signing key); use the at
    mismatch.
 3. Run the dry run first (next section) on the commit you are about to tag.
 4. Tag that commit and push the tag: `git tag -s v0.1.0 -m "v0.1.0" && git push origin v0.1.0`.
-5. Watch the `Release` run. A tag with a pre-release suffix creates a GitHub pre-release.
+5. Watch the `Release` run. A tag with a pre-release suffix (`-rc.1`) creates a GitHub pre-release; its images get only the exact `v0.1.0-rc.1` tags (plus variant suffixes), never `latest` or the rolling tags. The chart `appVersion` must then carry the same suffix.
 6. The first push to `ghcr.io` creates the packages as private: in the organization package
    settings, link them to this repository and make them public.
 7. Verify the artifacts (below).
