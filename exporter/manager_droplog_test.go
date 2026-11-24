@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -84,14 +85,14 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			select {
 			case <-done:
 			case <-time.After(time.Minute):
-				t.Fatal("adding events is blocked by the log sink")
+				require.Fail(t, "adding events is blocked by the log sink")
 			}
 			assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
 			// the warning is still written, by another goroutine
 			select {
 			case <-sink.entered:
 			case <-time.After(time.Minute):
-				t.Fatal("the drop warning was not written")
+				require.Fail(t, "the drop warning was not written")
 			}
 			release()
 			m.Stop()

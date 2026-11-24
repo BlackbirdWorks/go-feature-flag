@@ -1201,7 +1201,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
-		t.Fatal("server did not stop within 10 seconds")
+		require.Fail(t, "server did not stop within 10 seconds")
 	}
 
 	// Verify the port is free by binding to it again.
@@ -1252,7 +1252,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	select {
 	case <-stopReturned:
 	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not return after its context was done")
+		require.Fail(t, "Stop did not return after its context was done")
 	}
 
 	// A server stopped before it started must return immediately without serving.
@@ -1264,7 +1264,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("StartWithContext did not return for a server already stopped")
+		require.Fail(t, "StartWithContext did not return for a server already stopped")
 	}
 
 	ln2, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))

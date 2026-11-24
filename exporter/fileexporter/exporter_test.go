@@ -24,9 +24,7 @@ import (
 func TestFile_Export(t *testing.T) {
 	// Create a temporary directory for test file operations
 	tempDir, err := os.MkdirTemp("", "fileexporter-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
+	require.NoError(t, err, "Failed to create temp dir")
 	defer os.RemoveAll(tempDir) // Clean up after tests
 
 	hostname, _ := os.Hostname()

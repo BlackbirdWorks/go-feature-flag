@@ -6,6 +6,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
@@ -34,9 +37,7 @@ func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
 `, i, i)...)
 	}
 	var flags map[string]dto.DTO
-	if err := yaml.Unmarshal(sb, &flags); err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, yaml.Unmarshal(sb, &flags))
 
 	return flags
 }
@@ -52,7 +53,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ResetTimer()
 			for range b.N {
 				if _, err := m.GetFlag("flag-5"); err != nil {
-					b.Fatal(err)
+					require.NoError(b, err)
 				}
 			}
 		})
@@ -64,7 +65,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
 					if _, err := m.GetFlag("flag-5"); err != nil {
-						b.Error(err)
+						assert.NoError(b, err)
 
 						return
 					}
@@ -88,7 +89,7 @@ func BenchmarkGetFlag(b *testing.B) {
 				for pb.Next() {
 					var err error
 					if f, err = m.GetFlag("flag-5"); err != nil {
-						b.Error(err)
+						assert.NoError(b, err)
 
 						return
 					}

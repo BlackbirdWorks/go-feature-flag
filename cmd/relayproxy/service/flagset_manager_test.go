@@ -240,9 +240,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -281,9 +279,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -315,9 +311,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -352,9 +346,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -394,9 +386,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -431,9 +421,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -456,9 +444,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -484,9 +470,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -511,9 +495,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -537,9 +519,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -563,9 +543,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 		defer manager.Close()
 
@@ -590,9 +568,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 
 		_, _ = manager.Default().BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
@@ -618,9 +594,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		logger := zap.NewNop()
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		if err != nil {
-			t.Fatalf("failed to create FlagsetManager: %v", err)
-		}
+		require.NoError(t, err, "failed to create FlagsetManager")
 		assert.NotNil(t, manager)
 
 		flagset, err := manager.FlagSet("test-api-key")

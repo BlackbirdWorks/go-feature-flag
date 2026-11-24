@@ -189,6 +189,10 @@ linters:
       forbid:
         # Preserve forbidigo's upstream default (no stray fmt.Print debugging).
         - pattern: '^(fmt\.Print(|f|ln)|print|println)$'
+        # Tests use testify only: require (stops the test, replaces Fatal) and assert
+        # (continues, replaces Error).
+        - pattern: '^(testing\.(T|B|F|TB)\.(Fatal|Fatalf|Error|Errorf)|\*testing\.(T|B|F)\.(Fatal|Fatalf|Error|Errorf))$'
+          msg: use testify require (instead of Fatal) or assert (instead of Error)
       analyze-types: true
 
     cyclop:

@@ -137,9 +137,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 			time.Sleep(time.Duration(i+1) * time.Second)
 		}
 	}
-	if err != nil {
-		t.Fatalf("Failed to connect to database after %d retries: %v", maxRetries, err)
-	}
+	require.NoError(t, err, "Failed to connect to database after %d retries", maxRetries)
 	defer func() {
 		if conn != nil {
 			conn.Close(ctx)
@@ -161,9 +159,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 func stopPostgreSQL(t *testing.T, testName string) {
 	postgreSQLContainer := postgreSQLContainerList[testName]
 	if postgreSQLContainer != nil {
-		if err := postgreSQLContainer.Terminate(context.TODO()); err != nil {
-			assert.NoError(t, err)
-		}
+		assert.NoError(t, postgreSQLContainer.Terminate(context.TODO()))
 	}
 }
 

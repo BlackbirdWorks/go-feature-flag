@@ -111,7 +111,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			select {
 			case <-reached:
 			case <-time.After(time.Minute):
-				t.Fatal("the evaluation did not reach the event")
+				require.Fail(t, "the evaluation did not reach the event")
 			}
 
 			// 3. the client closes; its final flush releases the evaluation.

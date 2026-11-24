@@ -319,7 +319,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	select {
 	case <-addDone:
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Add() was blocked while ProcessPendingEvents was running a slow exporter")
+		require.Fail(t, "Add() was blocked while ProcessPendingEvents was running a slow exporter")
 	}
 
 	<-processingDone
@@ -390,7 +390,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	select {
 	case <-addDone:
 	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Add() was blocked while a same-consumer ProcessPendingEvents call was queued")
+		require.Fail(t, "Add() was blocked while a same-consumer ProcessPendingEvents call was queued")
 	}
 
 	close(releaseFirst)

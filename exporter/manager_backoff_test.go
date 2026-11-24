@@ -68,7 +68,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			select {
 			case <-exp.started:
 			case <-time.After(time.Minute):
-				t.Fatal("the export did not start")
+				require.Fail(t, "the export did not start")
 			}
 			// the export is blocked: the next batch asks for another flush
 			am.QueueEvents(make([]exporter.FeatureEvent, tt.queued))

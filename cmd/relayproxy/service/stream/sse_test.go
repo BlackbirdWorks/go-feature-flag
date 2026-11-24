@@ -89,7 +89,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			select {
 			case <-subscribed:
 			case <-ctx.Done():
-				t.Fatal("timed out waiting for SSE client to subscribe")
+				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
 			before := time.Now()
 			require.NoError(t, sseService.BroadcastFlagChanges(tt.broadcastFlagset, tt.diff))

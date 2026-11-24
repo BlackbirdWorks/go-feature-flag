@@ -240,7 +240,7 @@ func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 		assert.False(t, rep.Pass, "no measured sample: no verdict")
 		assert.Positive(t, rep.TotalEval)
 	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not stop after the context was cancelled")
+		require.Fail(t, "Run did not stop after the context was cancelled")
 	}
 }
 

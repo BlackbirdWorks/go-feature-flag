@@ -111,9 +111,7 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 			VariationResult: new("on"),
 			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
-		if err := r.IsValid(false, variations); err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, r.IsValid(false, variations))
 		_, _ = r.Evaluate("user-1", ctx, "test-flag", false)
 	}
 }

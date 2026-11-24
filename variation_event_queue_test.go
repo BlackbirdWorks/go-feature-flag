@@ -134,7 +134,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			case <-done:
 			case <-time.After(time.Minute):
 				release()
-				t.Fatal("evaluations are blocked by the exporter")
+				require.Fail(t, "evaluations are blocked by the exporter")
 			}
 			if exp.block != nil {
 				// the exporter is still blocked: parked goroutines are still alive.

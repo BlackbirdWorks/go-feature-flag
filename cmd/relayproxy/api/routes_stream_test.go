@@ -109,7 +109,7 @@ func changeFlagUntilFrame(t *testing.T, path, flagName string, frames <-chan str
 
 			return frame
 		case <-deadline:
-			t.Fatalf("no websocket frame received after changing %s", flagName)
+			require.Failf(t, "no websocket frame received", "after changing %s", flagName)
 		case <-time.After(3 * time.Second):
 		}
 	}

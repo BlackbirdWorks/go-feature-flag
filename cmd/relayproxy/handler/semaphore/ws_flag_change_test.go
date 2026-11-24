@@ -121,7 +121,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				websocketService.Close()
 				// Wait for cleanup to complete to avoid leaking goroutines in tests.
 				if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-					t.Errorf("websocket service cleanup failed: %v", err)
+					assert.NoError(t, err, "websocket service cleanup failed")
 				}
 			}()
 
@@ -140,9 +140,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				HandshakeTimeout: 10 * time.Second,
 			}
 			ws, _, err := dialer.DialContext(ctx, url, nil)
-			if err != nil {
-				t.Fatalf("Failed to connect to WebSocket: %v", err)
-			}
+			require.NoError(t, err, "Failed to connect to WebSocket")
 			defer func() {
 				ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				_ = ws.Close()
@@ -190,7 +188,7 @@ func broadcastUntilRegistered(
 		case <-firstMsg:
 			return
 		case <-deadline:
-			t.Fatal("connection never registered: no broadcast reached the client")
+			require.Fail(t, "connection never registered: no broadcast reached the client")
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
@@ -209,7 +207,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	defer func() {
 		websocketService.Close()
 		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			t.Errorf("websocket service cleanup failed: %v", err)
+			assert.NoError(t, err, "websocket service cleanup failed")
 		}
 	}()
 
@@ -224,9 +222,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	ws, _, err := dialer.DialContext(ctx, url, nil)
-	if err != nil {
-		t.Fatalf("Failed to connect to WebSocket: %v", err)
-	}
+	require.NoError(t, err, "Failed to connect to WebSocket")
 	defer func() {
 		_ = ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		_ = ws.Close()
@@ -287,7 +283,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	select {
 	case <-clientDone:
 	case <-time.After(5 * time.Second):
-		t.Fatal("client read loop did not stop")
+		require.Fail(t, "client read loop did not stop")
 	}
 }
 
@@ -301,7 +297,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	defer func() {
 		websocketService.Close()
 		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			t.Errorf("websocket service cleanup failed: %v", err)
+			assert.NoError(t, err, "websocket service cleanup failed")
 		}
 	}()
 
@@ -315,9 +311,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws/v1/flag/change"
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	ws, _, err := dialer.DialContext(ctx, url, nil)
-	if err != nil {
-		t.Fatalf("Failed to connect to WebSocket: %v", err)
-	}
+	require.NoError(t, err, "Failed to connect to WebSocket")
 	defer func() { _ = ws.Close() }()
 	require.NoError(t, ws.SetReadDeadline(time.Now().Add(10*time.Second)))
 
@@ -406,7 +400,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 				case <-msgs:
 					registered = true
 				case <-deadline:
-					t.Fatal("connection never registered: no broadcast reached the client")
+					require.Fail(t, "connection never registered: no broadcast reached the client")
 				case <-time.After(20 * time.Millisecond):
 				}
 			}
@@ -424,7 +418,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 						return
 					}
 				case <-deadline:
-					t.Fatal("the flagsetA broadcast never reached the client")
+					require.Fail(t, "the flagsetA broadcast never reached the client")
 				}
 			}
 		})

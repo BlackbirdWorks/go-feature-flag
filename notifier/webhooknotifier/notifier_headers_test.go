@@ -62,9 +62,9 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				case req := <-requests:
 					captured = append(captured, req)
 				case err := <-results:
-					t.Fatalf("notification returned before sending a request: %v", err)
+					require.Fail(t, "notification returned before sending a request", "err: %v", err)
 				case <-ctx.Done():
-					t.Fatal(ctx.Err())
+					require.Fail(t, "context done before the notification", ctx.Err().Error())
 				}
 			}
 			for _, req := range captured {
@@ -80,7 +80,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				case err := <-results:
 					require.NoError(t, err)
 				case <-ctx.Done():
-					t.Fatal(ctx.Err())
+					require.Fail(t, "context done before the notification", ctx.Err().Error())
 				}
 			}
 		})

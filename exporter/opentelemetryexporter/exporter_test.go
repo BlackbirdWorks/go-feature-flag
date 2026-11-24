@@ -149,17 +149,10 @@ func assertAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expec
 	t.Helper()
 	for _, attr := range attrs {
 		if string(attr.Key) == key {
-			if attr.Value.AsInterface() != expected {
-				t.Fatalf(
-					"attribute %s mismatch: expected=%v got=%v",
-					key,
-					expected,
-					attr.Value.AsInterface(),
-				)
-			}
+			require.Equal(t, expected, attr.Value.AsInterface(), "attribute %s mismatch", key)
 
 			return
 		}
 	}
-	t.Fatalf("attribute %s not found", key)
+	require.Failf(t, "attribute not found", "attribute %s not found", key)
 }

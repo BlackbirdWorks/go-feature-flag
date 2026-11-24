@@ -3,6 +3,8 @@ package utils_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
@@ -35,9 +37,7 @@ func TestContains(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := utils.Contains(tt.args.s, tt.args.str); got != tt.want {
-				t.Errorf("Contains() = %v, want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.want, utils.Contains(tt.args.s, tt.args.str), "Contains()")
 		})
 	}
 }

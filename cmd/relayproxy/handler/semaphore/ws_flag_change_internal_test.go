@@ -72,7 +72,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
-		t.Fatal("client never received the ping")
+		require.Fail(t, "client never received the ping")
 	}
 
 	// Error path: writing to a closed connection returns an error.
@@ -113,14 +113,14 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop never sent a ping")
+		require.Fail(t, "ping loop never sent a ping")
 	}
 
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not stop when the context was cancelled")
+		require.Fail(t, "ping loop did not stop when the context was cancelled")
 	}
 }
 
@@ -142,7 +142,7 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not stop after a write error")
+		require.Fail(t, "ping loop did not stop after a write error")
 	}
 }
 
@@ -165,6 +165,6 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not start/stop with a zero interval")
+		require.Fail(t, "ping loop did not start/stop with a zero interval")
 	}
 }

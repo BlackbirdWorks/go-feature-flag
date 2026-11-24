@@ -141,7 +141,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			val, err := tt.featureEvent.ConvertValueForParquet()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("FeatureEvent.MarshalInterface() error = %v, wantErr %v", err, tt.wantErr)
+				assert.Failf(t, "unexpected error", "FeatureEvent.MarshalInterface() error = %v, wantErr %v", err, tt.wantErr)
 
 				return
 			}

@@ -117,7 +117,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 			select {
 			case <-sink.entered:
 			case <-time.After(time.Minute):
-				t.Fatal("the drop warning was not written")
+				require.Fail(t, "the drop warning was not written")
 			}
 		})
 	}

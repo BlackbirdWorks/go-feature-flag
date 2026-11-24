@@ -80,7 +80,7 @@ func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	case v := <-ch:
 		return v
 	case <-time.After(5 * time.Second):
-		t.Fatal(msg)
+		require.Fail(t, msg)
 		var zero T
 
 		return zero

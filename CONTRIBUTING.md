@@ -47,7 +47,7 @@ Every change needs tests. The style used here is:
 
 - table-driven tests, run in parallel (`t.Parallel()` on the test and its sub-tests);
 - no `export_test.go` files: test through the public API, or in the package under test;
-- `testify/assert` for assertions.
+- testify only: `require` (stops the test, replaces `t.Fatal`) and `assert` (continues, replaces `t.Error`); never `t.Fatal*`/`t.Error*` (forbidigo enforces it). Never call `require` from a goroutine other than the test's: use `assert`.
 
 ## License
 

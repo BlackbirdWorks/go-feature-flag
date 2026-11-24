@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
@@ -46,9 +48,7 @@ func newValidatedFlag(b *testing.B, query string) *flag.InternalFlag {
 		}},
 		DefaultRule: &flag.Rule{VariationResult: new("off")},
 	}
-	if err := f.IsValid(); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, f.IsValid())
 
 	return f
 }
@@ -159,9 +159,7 @@ func benchReload(b *testing.B, ids int) {
 		}
 		b.StartTimer()
 		for _, f := range next {
-			if err := f.IsValid(); err != nil {
-				b.Fatal(err)
-			}
+			require.NoError(b, f.IsValid())
 		}
 		previous = next
 	}
@@ -241,9 +239,7 @@ func benchLoad(b *testing.B, n int) {
 		}
 		b.StartTimer()
 		for _, f := range flags {
-			if err := f.IsValid(); err != nil {
-				b.Fatal(err)
-			}
+			require.NoError(b, f.IsValid())
 		}
 		keep = flags
 	}
@@ -260,9 +256,7 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 	flags := make([]*flag.InternalFlag, len(queries))
 	for i := range flags {
 		flags[i] = newSmallFlag(i, queries[i])
-		if err := flags[i].IsValid(); err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, flags[i].IsValid())
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
@@ -274,9 +268,7 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 
 func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 	f := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
-	if err := f.IsValid(); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, f.IsValid())
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -289,9 +281,7 @@ func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 
 func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 	f := newSmallFlag(0, "")
-	if err := f.IsValid(); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, f.IsValid())
 	ctx := ffcontext.NewEvaluationContext("user-1")
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -302,9 +292,7 @@ func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 
 func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	f := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
-	if err := f.IsValid(); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, f.IsValid())
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -340,9 +328,7 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 		}},
 		Date: &past,
 	}}
-	if err := f.IsValid(); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, f.IsValid())
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -371,9 +357,7 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 			flags := make([]*flag.InternalFlag, 1000)
 			for j := range flags {
 				flags[j] = newSmallFlag(j, fmt.Sprintf(`key eq "user-%d-%d" and plan eq "pro"`, generation, j))
-				if err := flags[j].IsValid(); err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, flags[j].IsValid())
 				flags[j].Value("flag", ctx, flag.Context{})
 			}
 

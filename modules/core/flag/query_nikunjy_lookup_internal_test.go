@@ -685,9 +685,8 @@ func TestHashNikunjyQuery(t *testing.T) {
 		for n := range 101 {
 			h := hashNikunjyQuery(strings.Repeat("a", n))
 			assert.Equal(t, h, hashNikunjyQuery(strings.Repeat("a", n)))
-			if other, ok := seen[h]; ok {
-				t.Errorf("lengths %d and %d have the same hash", other, n)
-			}
+			other, collided := seen[h]
+			assert.False(t, collided, "lengths %d and %d have the same hash", other, n)
 			seen[h] = n
 		}
 	})

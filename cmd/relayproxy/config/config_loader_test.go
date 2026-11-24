@@ -141,7 +141,7 @@ loglevel: error`,
 			for {
 				select {
 				case <-timeout:
-					t.Fatal("Timeout waiting for callback to be triggered")
+					require.Fail(t, "Timeout waiting for callback to be triggered")
 				case <-ticker.C:
 					mu.Lock()
 					callbackCount := len(*receivedConfigs)

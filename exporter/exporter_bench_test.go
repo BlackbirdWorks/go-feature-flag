@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
@@ -28,7 +31,7 @@ func resetStore(b *testing.B, s exporter.EventStore[exporter.FeatureEvent]) {
 	if err := s.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
 		return nil
 	}); err != nil {
-		b.Error(err)
+		assert.NoError(b, err)
 	}
 	if c, ok := s.(interface{ CleanQueue() }); ok {
 		c.CleanQueue()
@@ -90,7 +93,7 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 				if err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
 					return nil
 				}); err != nil {
-					b.Fatal(err)
+					require.NoError(b, err)
 				}
 			}
 			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/event")

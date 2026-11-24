@@ -143,7 +143,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			select {
 			case <-subscribed:
 			case <-ctx.Done():
-				t.Fatal("timed out waiting for SSE client to subscribe")
+				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
 			before := time.Now().Unix()
 			require.NoError(t, sseService.BroadcastFlagChanges("default", tt.flagChange))
@@ -198,7 +198,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	select {
 	case <-subscribed:
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for SSE client to subscribe")
+		require.Fail(t, "timed out waiting for SSE client to subscribe")
 	}
 
 	// Broadcast to flagsetB -- the client on flagsetA should NOT receive it.
