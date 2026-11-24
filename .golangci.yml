@@ -180,6 +180,38 @@ linters:
     #- wsl # [too strict and mostly code is not more readable] whitespace linter forces you to use empty lines
     #- wsl_v5 # [too strict and mostly code is not more readable] add or remove empty lines
 
+  # TEMPORARY, enabled in follow-up PRs: these linters still report findings that are not
+  # cleaned up yet (the rest of this file is enforced). Each follow-up PR removes the
+  # linters it cleans from this list; the last one deletes the block. Nothing is dropped
+  # for good. Counts at the time of the adoption are in the PR description.
+  disable:
+    - canonicalheader # 3 findings (header constants spelled in upper case)
+    - cyclop # 4 functions over the complexity limit
+    - depguard # 9: log -> log/slog, math/rand -> math/rand/v2
+    - err113 # 318: dynamic errors, needs sentinel errors
+    - errcheck # 18: unchecked type assertions
+    - exhaustive # 3
+    - gochecknoglobals # 55
+    - gochecknoinits # 1
+    - gocognit # 3
+    - gocritic # 2
+    - gosec # 1
+    - lll # 109 long lines in tests (golines wraps what it can)
+    - mnd # 107 magic numbers
+    - nestif # 2
+    - nilnil # 14
+    - nolintlint # 153 (explanations, unused directives)
+    - nonamedreturns # 13
+    - prealloc # 8
+    - promlinter # 5 (renaming a metric breaks dashboards: needs a decision)
+    - reassign # 6 (tests swap os.Stderr, http.DefaultTransport, version vars)
+    - revive # 62
+    - sloglint # 12
+    - staticcheck # 77
+    - testpackage # 54 (white-box tests)
+    - thelper # 126
+    - usetesting # 12
+
   # All settings can be found here https://github.com/golangci/golangci-lint/blob/HEAD/.golangci.reference.yml
   settings:
     forbidigo:
@@ -381,12 +413,13 @@ linters:
       # which changes serialized key order, public struct layout and breaks unkeyed literals.
       disable:
         - fieldalignment
+        # TEMPORARY (enabled in a follow-up PR): 140 shadowed variables.
+        - shadow
       # Settings per analyzer.
-      settings:
-        shadow:
-          # Whether to be strict about shadowing; can be noisy.
-          # Default: false
-          strict: true
+      # TEMPORARY: restore together with the shadow analyzer (enabled in a follow-up PR):
+      #   settings:
+      #     shadow:
+      #       strict: true
 
     inamedparam:
       # Skips check for interface methods with only a single parameter.

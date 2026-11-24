@@ -13,7 +13,6 @@ import (
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_RequiresBucketing(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		flag     flag.InternalFlag
@@ -225,7 +224,6 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			result := tt.flag.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})

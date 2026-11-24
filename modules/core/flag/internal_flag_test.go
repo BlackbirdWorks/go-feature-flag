@@ -14,7 +14,6 @@ import (
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_Value(t *testing.T) {
-
 	type args struct {
 		flagName    string
 		user        ffcontext.Context
@@ -2179,7 +2178,6 @@ func TestInternalFlag_Value(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			got, got1 := tt.flag.Value(tt.args.flagName, tt.args.user, tt.args.flagContext)
 			assert.Equalf(t, tt.want, got, "not expected value: %s", cmp.Diff(tt.want, got))
 			assert.Equalf(t, tt.want1, got1, "not expected value: %s", cmp.Diff(tt.want1, got1))
@@ -2604,7 +2602,6 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestInternalFlag_IsValid(t *testing.T) {
-
 	type fields struct {
 		Variations      *map[string]*any
 		Rules           *[]flag.Rule
@@ -3151,7 +3148,6 @@ func TestInternalFlag_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			f := &flag.InternalFlag{
 				Variations:      tt.fields.Variations,
 				Rules:           tt.fields.Rules,

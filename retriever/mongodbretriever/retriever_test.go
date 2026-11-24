@@ -94,6 +94,7 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverReady, mdb.Status())
 
 			got, err := mdb.Retrieve(context.Background())
+			require.NoError(t, err)
 			if tt.want == nil {
 				assert.Nil(t, got)
 			} else {

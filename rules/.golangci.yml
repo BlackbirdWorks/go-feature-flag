@@ -1,6 +1,7 @@
-# The vendored rules engine (this module) keeps the relaxed linter set it had
-# before the repository adopted the gopherstack rules (see ../.golangci.yml).
-# make lint-run picks this file for MODULE=rules. Out of scope of that change.
+# The vendored rules engine (this module) keeps the lint handling it had before the
+# repository adopted the gopherstack rules (see ../.golangci.yml): the previous root
+# config excluded rules/ entirely, so this module is not linted. make lint-run picks this
+# file for MODULE=rules (paths are relative to this file, hence the catch-all below).
 version: "2"
 linters:
   enable:
@@ -134,7 +135,7 @@ linters:
     paths:
       - (^|/)bin($|/)
       - (^|/)docs($|/)
-      - (^|/)rules($|/)
+      - .*
       # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
       - (^|/)internal/koanfhttpprovider($|/)
     rules:
@@ -202,7 +203,7 @@ formatters:
     paths:
       - (^|/)bin($|/)
       - (^|/)docs($|/)
-      - (^|/)rules($|/)
+      - .*
 issues:
   # See the dedicated "issues" documentation section.
   max-issues-per-linter: 0

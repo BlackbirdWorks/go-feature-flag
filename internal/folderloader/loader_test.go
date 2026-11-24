@@ -862,20 +862,24 @@ func TestReuse(t *testing.T) {
 		{name: "same options", opts: func(o folderloader.Options) folderloader.Options { return o }, wantSame: true},
 		{name: "prefix changed", opts: func(o folderloader.Options) folderloader.Options {
 			o.Prefix = "g/"
+
 			return o
 		}},
 		{name: "pattern changed", opts: func(o folderloader.Options) folderloader.Options {
 			o.Pattern = "*.yaml"
+
 			return o
 		}},
 		{name: "recursive changed", opts: func(o folderloader.Options) folderloader.Options {
 			o.Recursive = false
+
 			return o
 		}},
 		{
 			name: "logger changed",
 			opts: func(o folderloader.Options) folderloader.Options {
 				o.Logger = &fflog.FFLogger{}
+
 				return o
 			},
 		},

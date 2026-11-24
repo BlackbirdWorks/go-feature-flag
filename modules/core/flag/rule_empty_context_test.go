@@ -12,7 +12,6 @@ import (
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_RequiresBucketing(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		rule     flag.Rule
@@ -64,7 +63,6 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			result := tt.rule.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -73,7 +71,6 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestRule_Evaluate_EmptyKey(t *testing.T) {
-
 	tests := []struct {
 		name          string
 		rule          flag.Rule
@@ -162,7 +159,6 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			result, err := tt.rule.Evaluate(tt.key, tt.ctx, "test-flag", false)
 
 			if tt.expectedError {

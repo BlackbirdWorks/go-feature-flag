@@ -107,9 +107,6 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	}
 }
 
-//go:fix inline
-func ptr(s string) *string { return new(s) }
-
 func TestManagerForceRefresh(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

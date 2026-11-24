@@ -158,7 +158,7 @@ func redactStruct(v reflect.Value, depth int) map[string]any {
 	t := v.Type()
 	typeName := t.String()
 	out := make(map[string]any, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		f := t.Field(i)
 		if !f.IsExported() {
 			continue
@@ -215,7 +215,7 @@ func redactValue(v reflect.Value, depth int) any {
 		return redactStruct(v, depth)
 	case reflect.Slice, reflect.Array:
 		out := make([]any, 0, v.Len())
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			out = append(out, redactValue(v.Index(i), depth+1))
 		}
 

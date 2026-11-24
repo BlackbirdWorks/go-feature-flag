@@ -39,7 +39,7 @@ func main() {
 		log.Fatal("impossible to prettify jsonschema", err)
 	}
 
-	fmt.Println("Writing jsonschema to", opts.SchemaLocation)
+	fmt.Println("Writing jsonschema to", opts.SchemaLocation) //nolint:forbidigo // command line output
 	err = os.WriteFile(opts.SchemaLocation, prettyJSONSchema, 0600)
 	if err != nil {
 		log.Fatalf("impossible to write jsonschema file to %s: %s", opts.SchemaLocation, err)

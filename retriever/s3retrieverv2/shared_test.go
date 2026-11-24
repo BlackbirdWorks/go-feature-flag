@@ -1307,6 +1307,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 				var otherCalls atomic.Int32
 				pc.g.SetRefresh(other, func() bool {
 					otherCalls.Add(1)
+
 					return true
 				})
 

@@ -24,6 +24,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(true)
+
 					return &v
 				}(),
 			},
@@ -35,6 +36,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any("test")
+
 					return &v
 				}(),
 			},
@@ -46,6 +48,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(42)
+
 					return &v
 				}(),
 			},
@@ -57,6 +60,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(42.0)
+
 					return &v
 				}(),
 			},
@@ -68,6 +72,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(map[string]any{"key": "value"})
+
 					return &v
 				}(),
 			},
@@ -88,10 +93,12 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(42)
+
 					return &v
 				}(),
 				"var2": func() *any {
 					v := any(42.0)
+
 					return &v
 				}(),
 			},
@@ -103,10 +110,12 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any(42)
+
 					return &v
 				}(),
 				"var2": func() *any {
 					v := any(42.2)
+
 					return &v
 				}(),
 			},
@@ -118,6 +127,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 			variations: map[string]*any{
 				"var1": func() *any {
 					v := any([]int{1, 2, 3})
+
 					return &v
 				}(),
 			},

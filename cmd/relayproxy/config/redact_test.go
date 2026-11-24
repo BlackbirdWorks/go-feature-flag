@@ -88,7 +88,7 @@ func fillLeaves(v reflect.Value, n *int) {
 		fillLeaves(val, n)
 		v.SetMapIndex(key, val)
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
+		for i := range v.NumField() {
 			if v.Type().Field(i).IsExported() {
 				fillLeaves(v.Field(i), n)
 			}
@@ -114,7 +114,7 @@ func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
 	if v.Kind() != reflect.Struct || !isOwnType(v.Type()) {
 		return
 	}
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		f := v.Type().Field(i)
 		if !f.IsExported() {
 			continue

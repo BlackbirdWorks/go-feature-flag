@@ -79,7 +79,7 @@ func main() {
 	}
 
 	if !proxyConf.HideBanner {
-		fmt.Printf(banner+"\n", version)
+		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
 	}
 
 	// Update the logger's format and level from the config

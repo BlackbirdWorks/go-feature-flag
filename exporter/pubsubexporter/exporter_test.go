@@ -197,9 +197,9 @@ func TestExporter_Export(t *testing.T) {
 			t.Parallel()
 
 			server, client := newTestClient(t, ctx, projectID, topic)
-			newClientFunc := clientFactory(func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
+			var newClientFunc clientFactory = func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
 				return client, nil
-			})
+			}
 			if tt.fields.newClientFunc != nil {
 				newClientFunc = tt.fields.newClientFunc(client)
 			}

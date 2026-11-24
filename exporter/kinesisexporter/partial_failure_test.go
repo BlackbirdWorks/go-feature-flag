@@ -116,6 +116,7 @@ func TestExporter_PutRecordsFailures(t *testing.T) {
 		var sleeps []time.Duration
 		sleep := func(_ context.Context, d time.Duration) error {
 			sleeps = append(sleeps, d)
+
 			return nil
 		}
 		err := newTestExporter(s, sleep).Export(context.Background(), logger, testEvents(4))

@@ -101,8 +101,3 @@ func Test_ConstructMetadata(t *testing.T) {
 		})
 	}
 }
-
-//go:fix inline
-func stringToPointer(s string) *string {
-	return new(s)
-}

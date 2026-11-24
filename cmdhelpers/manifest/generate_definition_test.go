@@ -48,9 +48,6 @@ func installCaptureLogger(t *testing.T) *captureHandler {
 	return h
 }
 
-//go:fix inline
-func ptrString(v string) *string { return new(v) }
-
 // variationsPtr builds the *map[string]*any value expected by InternalFlag.Variations
 // from a plain map[string]any literal.
 func variationsPtr(values map[string]any) *map[string]*any {

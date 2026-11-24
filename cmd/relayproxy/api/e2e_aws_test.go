@@ -29,8 +29,6 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 )
 
-const e2ePollingMs = 1000
-
 // e2eFlags returns the flag file of a flag set. The same flag keys are used by every flag set with
 // values prefixed by tag, so a response proves which flag set served it.
 func e2eFlags(tag, ruleOnValue string, extraFlags ...string) []byte {

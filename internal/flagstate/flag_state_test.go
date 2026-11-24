@@ -9,12 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 )
 
 //nolint:paralleltest,tparallel // builds wall-clock relative fixtures (time.Now) before its subtests, which run later and would see a shifted clock
 func TestFromFlagEvaluation(t *testing.T) {
-
 	tests := []struct {
 		name          string
 		key           string
@@ -49,8 +47,8 @@ func TestFromFlagEvaluation(t *testing.T) {
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(1),
-					"var2": testconvert.Interface(2),
+					"var1": new(any(1)),
+					"var2": new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -77,8 +75,8 @@ func TestFromFlagEvaluation(t *testing.T) {
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(1),
-					"var2": testconvert.Interface(2),
+					"var1": new(any(1)),
+					"var2": new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("var1"),
@@ -102,12 +100,12 @@ func TestFromFlagEvaluation(t *testing.T) {
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(
-						map[bool]*any{true: testconvert.Interface(1)},
-					),
-					"var2": testconvert.Interface(
-						map[bool]*any{true: testconvert.Interface(2)},
-					),
+					"var1": new(any(
+						map[bool]*any{true: new(any(1))},
+					)),
+					"var2": new(any(
+						map[bool]*any{true: new(any(2))},
+					)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new("var1"),
@@ -127,7 +125,6 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			got := flagstate.FromFlagEvaluation(
 				tt.key,
 				tt.evaluationCtx,

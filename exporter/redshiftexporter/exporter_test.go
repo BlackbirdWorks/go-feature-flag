@@ -284,7 +284,7 @@ func TestBuildBatches_LimitsStatementsPerBatch(t *testing.T) {
 
 	values := []string{"tracking", "", "", "0", "k", "null", "null"}
 	rows := make([]row, 0, maxRowsPerStatement*maxStatementsPerBatch+1)
-	for i := 0; i < cap(rows); i++ {
+	for range cap(rows) {
 		// a tiny size, so only the statements limit applies
 		rows = append(rows, row{key: "k", values: values, size: 1})
 	}
