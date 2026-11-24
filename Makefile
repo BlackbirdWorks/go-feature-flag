@@ -227,7 +227,7 @@ lint: lint-install ## Use golintci-lint on all the modules of the project
 	@rc=0; for module in $(ALL_GO_MOD_DIRS); do \
 		$(MAKE) --no-print-directory lint-run MODULE=$$module || rc=1; \
 	done; \
-	go vet -vettool=$$(go tool -n mulint-vet) ./... || rc=1; \
+	mulint=$$(go tool -n mulint-vet) && go vet -vettool=$$mulint -tags=docker,bench ./... || rc=1; \
 	exit $$rc
 
 vuln-check: ## Run govulncheck on all modules in the workspace

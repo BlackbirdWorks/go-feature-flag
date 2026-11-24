@@ -554,7 +554,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir := t.TempDir()
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -640,7 +640,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	skipUnixSocketOnWindows(t)
 	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	// Create a temporary directory for the socket
-	tempDir := t.TempDir()
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -726,7 +726,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir := t.TempDir()
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
@@ -902,8 +902,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 	}
 
-	// Short path: the sub-test names would push a unix socket path over the OS limit.
-	tempDir := t.TempDir()
+	// Short path: t.TempDir() embeds the test name and would push a unix socket path over the OS limit.
+	tempDir := shortSocketDir(t)
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1011,8 +1011,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 		},
 	}
 
-	// Short path: the sub-test names would push a unix socket path over the OS limit.
-	tempDir := t.TempDir()
+	// Short path: t.TempDir() embeds the test name and would push a unix socket path over the OS limit.
+	tempDir := shortSocketDir(t)
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1331,4 +1331,17 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server never served and it closed the listener it owns: closing it again fails.
 	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
+}
+
+// shortSocketDir returns a directory whose path is short enough for a unix socket (about 104 bytes at most).
+func shortSocketDir(tb testing.TB) string {
+	tb.Helper()
+
+	// t.TempDir() embeds the test name: too long for a socket path.
+	//nolint:usetesting // see above
+	dir, err := os.MkdirTemp("", "sock")
+	require.NoError(tb, err)
+	tb.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return dir
 }

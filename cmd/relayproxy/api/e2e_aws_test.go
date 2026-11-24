@@ -712,7 +712,11 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
 		t.Helper()
 		var got []sinkEvent
-		require.Eventually(t, func() bool {
+		// polled on the test goroutine: read uses require, which must not run off it.
+		ticker := time.NewTicker(300 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.After(30 * time.Second)
+		for {
 			got = read(t)
 			users := map[string]bool{}
 			for _, e := range got {
@@ -720,9 +724,15 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 					users[e.UserKey] = true
 				}
 			}
-
-			return len(users) >= len(wantUsers)
-		}, 30*time.Second, 300*time.Millisecond, "events received: %d", len(got))
+			if len(users) >= len(wantUsers) {
+				break
+			}
+			select {
+			case <-deadline:
+				require.Fail(t, "not every evaluation reached the sink", "events received: %d", len(got))
+			case <-ticker.C:
+			}
+		}
 		seen := map[string]sinkEvent{}
 		for _, e := range got {
 			if e.Key == "rule-flag" {
