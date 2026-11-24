@@ -103,6 +103,8 @@ func TestManager_ForceRefresh_ErrorDoesNotLeakGoroutines(t *testing.T) {
 			pprof.Do(refreshCtx, pprof.Labels("leakcheck", label), func(ctx context.Context) {
 				gotRefresh = manager.ForceRefresh(ctx)
 			})
+			// The refresh returned on the first error, not because the deadline released the slow retrievers.
+			assert.NoError(t, refreshCtx.Err())
 			// The slow retrievers answer after the refresh already returned its error.
 			close(gate)
 			// Every slow retriever has returned its flags: the only thing left for its goroutine is to hand
