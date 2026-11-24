@@ -9,6 +9,16 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 )
 
+const (
+	// The open addressing table of an int set has at most 2/3 of its slots used, and at least minTableSize slots.
+	loadNumerator   = 3
+	loadDenominator = 2
+	minTableSize    = 8
+	// fibonacciMultiplier is 2^64 / golden ratio, the multiplier of the multiplicative (Fibonacci) hash.
+	fibonacciMultiplier = 0x9E3779B97F4A7C15
+	wordBits            = 64
+)
+
 // Both sets use open addressing with linear probing over a power of two
 // table holding uint32 element indexes (index+1, so 0 means empty). The table
 // is sized to between 1.5 and 3 slots per element (load factor 1/3 to 2/3),
@@ -27,10 +37,10 @@ import (
 // random seed, so lookups cannot be steered into long probe chains by crafted
 // keys; the seed is state of the set, not of the package.
 type strSet struct {
-	seed maphash.Seed
 	data string   // all elements, concatenated
 	ends []uint32 // len n+1: element i is data[ends[i]:ends[i+1]], ends[0] = 0
 	tab  []uint32 // open addressing slots: element index + 1, 0 = empty
+	seed maphash.Seed
 	mask uint64
 }
 
@@ -59,9 +69,9 @@ func (s *strSet) slice() []string {
 }
 
 func tableSize(n int) int {
-	size := 1 << bits.Len(uint(n*3/2))
+	size := 1 << bits.Len(uint(n*loadNumerator/loadDenominator))
 
-	return max(size, 8)
+	return max(size, minTableSize)
 }
 
 // newStrSet packs the STRING tokens (quotes stripped like getString), or
@@ -121,8 +131,8 @@ func newStrSet(tokens []antlr.Token, src *sourceText) *strSet {
 
 // sourceText gives the rule text the lexer read, once per compile.
 type sourceText struct {
-	done    bool
 	text    string
+	done    bool
 	isASCII bool
 }
 
@@ -142,7 +152,7 @@ func (s *sourceText) ascii(t antlr.Token) (string, bool) {
 
 // intSet is a hash index over a long []int, which the node keeps anyway.
 // Slots come from Fibonacci hashing (multiply by 2^64/phi, keep the top bits).
-// Callers must ensure len(ints) < math.MaxUint32.
+// Callers must ensure len(ints) < [math.MaxUint32].
 type intSet struct {
 	ints  []int
 	tab   []uint32 // element index + 1, 0 = empty
@@ -151,7 +161,7 @@ type intSet struct {
 
 func (s *intSet) slot(v int) uint64 {
 	// uint64(v) reinterprets the bits of v for hashing; wrapping of negative values is the intent.
-	return (uint64(v) * 0x9E3779B97F4A7C15) >> s.shift //nolint:gosec // G115: bit reinterpretation
+	return (uint64(v) * fibonacciMultiplier) >> s.shift //nolint:gosec // G115: bit reinterpretation
 }
 
 func (s *intSet) has(v int) bool {
@@ -169,7 +179,7 @@ func (s *intSet) has(v int) bool {
 
 func newIntSet(ints []int) *intSet {
 	size := tableSize(len(ints))
-	s := &intSet{ints: ints, tab: make([]uint32, size), shift: uint(64 - bits.Len(uint(size-1)))}
+	s := &intSet{ints: ints, tab: make([]uint32, size), shift: uint(wordBits - bits.Len(uint(size-1)))}
 	mask := uint64(size - 1) //nolint:gosec // G115: size >= 8 (tableSize), so size-1 >= 7
 	for i, v := range ints {
 		j := s.slot(v)

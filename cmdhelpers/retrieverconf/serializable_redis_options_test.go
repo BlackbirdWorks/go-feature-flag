@@ -17,10 +17,10 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
 		input *retrieverconf.SerializableRedisOptions
 		// want is the whole expected configuration of the redis client
 		want *redis.Options
+		name string
 	}{
 		{
 			name: "basic configuration with addr and password",
@@ -144,10 +144,10 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
 		opts *retrieverconf.SerializableRedisOptions
 		// wantDecoded is what decoding the JSON of opts gives back: every option survives the round trip
 		wantDecoded *retrieverconf.SerializableRedisOptions
+		name        string
 	}{
 		{name: "basic options", opts: basic, wantDecoded: basic},
 		{name: "full options", opts: full, wantDecoded: full},

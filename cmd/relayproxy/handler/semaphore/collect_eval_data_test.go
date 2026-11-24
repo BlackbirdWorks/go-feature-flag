@@ -30,12 +30,12 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode          int
 		bodyFile          string
-		handlerErr        bool
 		errorMsg          string
-		errorCode         int
 		collectedDataFile string
+		httpCode          int
+		errorCode         int
+		handlerErr        bool
 	}
 	type args struct {
 		bodyFile string
@@ -43,9 +43,9 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 	tests := []struct {
 		name   string
 		args   args
+		apiKey string
 		want   want
 		config config.Config
-		apiKey string
 	}{
 		{
 			name: "valid usecase",
@@ -259,8 +259,8 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -349,7 +349,8 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, zap.NewNop())
 
 	// large payload with 20,000 events to ensure processing takes time
-	event := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"f","variation":"v","value":"true","default":false,"version":"1","source":"PROVIDER_CACHE"}`
+	event := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"f","variation":"` +
+		`v","value":"true","default":false,"version":"1","source":"PROVIDER_CACHE"}`
 	body := `{"events":[` + strings.Repeat(event+",", 19999) + event + `]}`
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -377,8 +378,14 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 }
 
 const (
-	wantEvalEvent     = "{\"kind\":\"feature\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246000,\"key\":\"my-feature-flag\",\"variation\":\"admin-variation\",\"value\":\"string\",\"default\":false,\"version\":\"v1.0.0\",\"source\":\"PROVIDER_CACHE\",\"metadata\":{\"environment\":\"production\",\"sdkVersion\":\"v1.0.0\",\"source\":\"my-source\",\"timestamp\":1680246000}}\n"
-	wantTrackingEvent = "{\"kind\":\"tracking\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b569345\",\"creationDate\":1680246020,\"key\":\"my-feature-flag\",\"evaluationContext\":{\"admin\":true,\"name\":\"john doe\",\"targetingKey\":\"94a25909-20d8-40cc-8500-fee99b569345\"},\"trackingEventDetails\":{\"value\":\"string\",\"version\":\"v1.0.0\"}}\n"
+	wantEvalEvent = "{\"kind\":\"feature\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99b" +
+		"569345\",\"creationDate\":1680246000,\"key\":\"my-feature-flag\",\"variation\":\"admin-variation\",\"value\":" +
+		"\"string\",\"default\":false,\"version\":\"v1.0.0\",\"source\":\"PROVIDER_CACHE\",\"metadata\":{\"environment" +
+		"\":\"production\",\"sdkVersion\":\"v1.0.0\",\"source\":\"my-source\",\"timestamp\":1680246000}}\n"
+	wantTrackingEvent = "{\"kind\":\"tracking\",\"contextKind\":\"user\",\"userKey\":\"94a25909-20d8-40cc-8500-fee99" +
+		"b569345\",\"creationDate\":1680246020,\"key\":\"my-feature-flag\",\"evaluationContext\":{\"admin\":true,\"name" +
+		"\":\"john doe\",\"targetingKey\":\"94a25909-20d8-40cc-8500-fee99b569345\"},\"trackingEventDetails\":{\"value\"" +
+		":\"string\",\"version\":\"v1.0.0\"}}\n"
 )
 
 func Test_collect_tracking_and_evaluation_events(t *testing.T) {
@@ -386,10 +393,10 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		config       config.Config
 		apiKey       string
 		wantEval     string
 		wantTracking string
+		config       config.Config
 	}{
 		{
 			name: "default mode",

@@ -11,12 +11,12 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		key       string
 		config    map[string]any
 		want      map[string]any
-		wantErr   bool
+		name      string
+		key       string
 		wantErrIn string
+		wantErr   bool
 	}{
 		{
 			name:   "map entry: the field is set on it",

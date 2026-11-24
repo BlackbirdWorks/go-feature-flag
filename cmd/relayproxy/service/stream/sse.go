@@ -55,9 +55,9 @@ type sseServiceImpl struct {
 	server *sse.Server
 	// activeStreams counts the connected clients per stream, used to send the heartbeats.
 	activeStreams   map[string]int
-	muActiveStreams sync.Mutex
 	done            chan struct{}
 	closeOnce       sync.Once
+	muActiveStreams sync.Mutex
 }
 
 // BroadcastFlagChanges only notifies that the flags changed, the diff is not sent:
@@ -139,6 +139,7 @@ func (s *sseServiceImpl) sendHeartbeats(interval time.Duration) {
 // bytes of the body are received: without it, clients stay "connecting" until the first event.
 type connectedCommentWriter struct {
 	http.ResponseWriter
+
 	flusher http.Flusher
 	status  int
 	sent    bool

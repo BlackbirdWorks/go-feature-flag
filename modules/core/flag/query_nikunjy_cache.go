@@ -14,6 +14,20 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	// Rotation and shift distances of the query hash (xxhash like mixing).
+	rotate0     = 29
+	rotate1     = 31
+	rotate2     = 33
+	rotate3     = 37
+	mixRotate1  = 11
+	mixRotate2  = 23
+	mixRotate3  = 47
+	tailRotate  = 13
+	finalShift1 = 32
+	finalShift2 = 29
+)
+
 // nikunjyEvaluatorCache keeps one parsed *parser.Evaluator per query string. Parsing the
 // query via ANTLR is the dominant cost of a nikunjy rule evaluation. An evaluator compiles
 // its rule on the first Process and is then safe for concurrent use, so one evaluator per
@@ -31,23 +45,15 @@ import (
 // once and the hash is saved in the rule (Rule.QueryHash); byKey maps that hash to the
 // evaluator, and evaluating the rule only reads byKey (see lookup).
 type nikunjyEvaluatorCache struct {
-	entries sync.Map // map[string]*parser.Evaluator
-	refsMu  sync.Mutex
-	refs    map[string]int
-
+	refs map[string]int
 	// hash is the hash saved in the rules. It is a field so that tests can force collisions.
-	hash func(string) uint64
+	hash    func(string) uint64
+	keyRefs map[uint64]int // the validated rule lists that use each key, protected by keysMu
+	entries sync.Map       // map[string]*parser.Evaluator
 	// byKey maps a rule's QueryHash to the evaluator of the rule's query text. A key is
 	// shared by the rules that have the same text, and is never shared by two different
 	// texts: intern gives the second text of a hash another key.
-	byKey   sync.Map // map[uint64]*nikunjyKeyedEvaluator
-	keysMu  sync.Mutex
-	keyRefs map[uint64]int // the validated rule lists that use each key, protected by keysMu
-
-	// keysEnabled is whether index saves keys. It is not when the keys could not be released: the
-	// rules are then evaluated through get, as rules that are not validated. It is a field so that
-	// tests can run that case.
-	keysEnabled bool
+	byKey sync.Map // map[uint64]*nikunjyKeyedEvaluator
 	// epoch counts the resets. The cleanups of the rule lists that were retained before a reset must not
 	// release anything from what was rebuilt after it, so each one remembers the epoch it was registered in.
 	epoch atomic.Uint64
@@ -56,6 +62,12 @@ type nikunjyEvaluatorCache struct {
 	// make loading slower and keep its evaluator in memory. It is a field so that tests can give
 	// keys to short queries.
 	keysMinQueryLen int
+	refsMu          sync.Mutex
+	keysMu          sync.Mutex
+	// keysEnabled is whether index saves keys. It is not when the keys could not be released: the
+	// rules are then evaluated through get, as rules that are not validated. It is a field so that
+	// tests can run that case.
+	keysEnabled bool
 }
 
 // defaultNikunjyKeysMinQueryLen is the default length from which a nikunjy query is given a key.
@@ -64,15 +76,15 @@ const defaultNikunjyKeysMinQueryLen = 1024
 // nikunjyKeyedEvaluator is the evaluator of a query text. Its key is only used for rules
 // whose query is that text: lookup compares the text.
 type nikunjyKeyedEvaluator struct {
-	query     string
 	evaluator *parser.Evaluator
+	query     string
 }
 
 // nikunjyRuleQuery is the query of rule number rule of the retained rules.
 type nikunjyRuleQuery struct {
-	rule    int
 	raw     string
 	trimmed string
+	rule    int
 	// hash is the hash of raw if known computed it already.
 	hash   uint64
 	hashed bool
@@ -96,24 +108,27 @@ func hashNikunjyQuery(query string) uint64 {
 		prime2 = 0xC2B2AE3D27D4EB4F
 		prime3 = 0x165667B19E3779F9
 	)
-	b := unsafe.Slice(unsafe.StringData(query), len(query)) //nolint: gosec
+	b := unsafe.Slice(
+		unsafe.StringData(query),
+		len(query),
+	)
 	h0, h1, h2, h3 := uint64(len(query))*prime3, uint64(prime1), uint64(prime2), uint64(prime3)
 	for ; len(b) >= 32; b = b[32:] {
-		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, 29)
-		h1 = bits.RotateLeft64((h1^binary.LittleEndian.Uint64(b[8:]))*prime2, 31)
-		h2 = bits.RotateLeft64((h2^binary.LittleEndian.Uint64(b[16:]))*prime3, 33)
-		h3 = bits.RotateLeft64((h3^binary.LittleEndian.Uint64(b[24:]))*prime1, 37)
+		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, rotate0)
+		h1 = bits.RotateLeft64((h1^binary.LittleEndian.Uint64(b[8:]))*prime2, rotate1)
+		h2 = bits.RotateLeft64((h2^binary.LittleEndian.Uint64(b[16:]))*prime3, rotate2)
+		h3 = bits.RotateLeft64((h3^binary.LittleEndian.Uint64(b[24:]))*prime1, rotate3)
 	}
-	h := h0 ^ bits.RotateLeft64(h1, 11) ^ bits.RotateLeft64(h2, 23) ^ bits.RotateLeft64(h3, 47)
+	h := h0 ^ bits.RotateLeft64(h1, mixRotate1) ^ bits.RotateLeft64(h2, mixRotate2) ^ bits.RotateLeft64(h3, mixRotate3)
 	for ; len(b) >= 8; b = b[8:] {
-		h = bits.RotateLeft64((h^binary.LittleEndian.Uint64(b))*prime2, 31)
+		h = bits.RotateLeft64((h^binary.LittleEndian.Uint64(b))*prime2, rotate1)
 	}
 	for _, c := range b {
-		h = bits.RotateLeft64((h^uint64(c))*prime1, 13)
+		h = bits.RotateLeft64((h^uint64(c))*prime1, tailRotate)
 	}
-	h ^= h >> 32
+	h ^= h >> finalShift1
 	h *= prime2
-	h ^= h >> 29
+	h ^= h >> finalShift2
 
 	return h
 }
@@ -156,8 +171,8 @@ func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluat
 	if err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
-	if _, err := ev.Process(map[string]any{}); err != nil {
-		return nil, fmt.Errorf("invalid query: %w", err)
+	if _, processErr := ev.Process(map[string]any{}); processErr != nil {
+		return nil, fmt.Errorf("invalid query: %w", processErr)
 	}
 
 	return ev, nil
@@ -247,7 +262,11 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 		found[i].evaluator = entry.evaluator
 		keys = append(keys, key)
 		// The rule shares the bytes of the text of its key: see index.
-		if unsafe.StringData(*r.Query) != unsafe.StringData(entry.query) { //nolint: gosec
+		if unsafe.StringData(
+			*r.Query,
+		) != unsafe.StringData(
+			entry.query,
+		) {
 			*r.Query = entry.query
 		}
 	}
@@ -269,14 +288,15 @@ func (c *nikunjyEvaluatorCache) qualifiesForKnown(r *Rule) bool {
 // text already. Otherwise the query is hashed, the hash is returned so that index does not hash
 // it again, and the key is saved in r if the query has one. It returns a nil entry if the query
 // has no key.
-func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (key uint64, entry *nikunjyKeyedEvaluator, hash uint64) {
+func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (uint64, *nikunjyKeyedEvaluator, uint64) {
 	raw := *r.Query
-	key = r.QueryHash
-	if entry = c.referenceEntry(key, raw); entry != nil {
+	key := r.QueryHash
+	if entry := c.referenceEntry(key, raw); entry != nil {
 		return key, entry, 0
 	}
-	hash = c.hash(raw)
-	if key, entry = c.find(hash, raw); entry != nil {
+	hash := c.hash(raw)
+	key, entry := c.find(hash, raw)
+	if entry != nil {
 		r.QueryHash = key
 	}
 
@@ -312,7 +332,11 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 		// The rule shares the bytes of the text of its key. The text is the same, but the
 		// evaluation of the rule recognizes it without reading its bytes, and the memory of the
 		// copies that every flag holds is released.
-		if unsafe.StringData(q.raw) != unsafe.StringData(entry.query) { //nolint: gosec
+		if unsafe.StringData(
+			q.raw,
+		) != unsafe.StringData(
+			entry.query,
+		) {
 			*r.Query = entry.query
 		}
 	}
@@ -351,7 +375,8 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 		if !ok {
 			return 0, nil
 		}
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw { //nolint:errcheck // the maps only ever store this type
+		//nolint:errcheck // the maps only ever store this type
+		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -379,7 +404,8 @@ func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evalu
 
 			return key, entry
 		}
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw { //nolint:errcheck // the maps only ever store this type
+		//nolint:errcheck // the maps only ever store this type
+		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry

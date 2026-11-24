@@ -19,11 +19,11 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 
 	type fields struct {
 		httpClient mock.HTTP
+		context    context.Context
+		header     http.Header
 		url        string
 		method     string
 		body       string
-		header     http.Header
-		context    context.Context
 	}
 	tests := []struct {
 		name    string

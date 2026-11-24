@@ -113,7 +113,7 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 	}
 
 	// we set a nil value to the default value to avoid the default value to be used.
-	var defaultValue any = nil
+	var defaultValue any
 	flagValue, _ := flagset.RawVariation(flagKey, evalCtx, defaultValue)
 	if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()

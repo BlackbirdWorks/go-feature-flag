@@ -1,6 +1,7 @@
 package notifier
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+)
+
+const (
+	// maxRuleParts and maxPatchParts are the numbers of parts of the description of a rule and of a patch.
+	maxRuleParts  = 5
+	maxPatchParts = 3
+)
+
+var (
+	errImpossibleToDescribeChanges = errors.New("impossible to describe changes between flags of type")
 )
 
 // DescribeChanges returns one sentence per change between two versions of a flag,
@@ -52,7 +63,7 @@ func describeChanges(before, after flag.Flag, code func(string) string) ([]strin
 	b, okBefore := before.(*flag.InternalFlag)
 	a, okAfter := after.(*flag.InternalFlag)
 	if !okBefore || !okAfter || b == nil || a == nil {
-		return nil, fmt.Errorf("impossible to describe changes between flags of type %T and %T", before, after)
+		return nil, fmt.Errorf("%w %T and %T", errImpossibleToDescribeChanges, before, after)
 	}
 	d := &describer{code: code}
 	d.flag(b, a)
@@ -127,9 +138,9 @@ func ChangeList(changes []string, bullet string, maxLength int) string {
 const notAppliedInStep = " (not applied by scheduled steps)"
 
 type describer struct {
-	lines []string
 	// code formats a name or a value.
-	code func(string) string
+	code  func(string) string
+	lines []string
 	// inStep is true when describing a scheduled rollout step. A step is a partial update:
 	// it only changes the fields it sets, and rules are merged field by field.
 	inStep bool
@@ -253,6 +264,12 @@ func (d *describer) targeting(before, after []flag.Rule) {
 			d.addf("%s added: %s", label, d.describeRule(newRule))
 		}
 	}
+	d.removedRules(b, a, renamed)
+	d.reorderedRules(b, a)
+}
+
+// removedRules describes the rules of b that a does not have any more, and that were not renamed.
+func (d *describer) removedRules(b, a indexedRules, renamed map[ruleKey]ruleKey) {
 	renamedFrom := make(map[ruleKey]bool, len(renamed))
 	for _, oldKey := range renamed {
 		renamedFrom[oldKey] = true
@@ -267,7 +284,10 @@ func (d *describer) targeting(before, after []flag.Rule) {
 			d.addf("Targeting rule %s removed", d.ruleLabel(key))
 		}
 	}
+}
 
+// reorderedRules describes a new order of the rules that both b and a have.
+func (d *describer) reorderedRules(b, a indexedRules) {
 	// Rules are evaluated in order, and steps append new rules in order, so a new order can change the result.
 	keptBefore, keptAfter := keptKeys(b.order, a.rules), keptKeys(a.order, b.rules)
 	if !slices.Equal(keptBefore, keptAfter) {
@@ -518,7 +538,7 @@ func (d *describer) describeServe(rule *flag.Rule) string {
 
 // describePatch lists the fields a scheduled step sets on a rule, as Rule.MergeRules applies them.
 func (d *describer) describePatch(rule flag.Rule) string {
-	parts := make([]string, 0, 5)
+	parts := make([]string, 0, maxRuleParts)
 	if rule.Query != nil {
 		parts = append(parts, "query "+d.code(*rule.Query))
 	}
@@ -559,7 +579,7 @@ func (d *describer) describeProgressive(rollout *flag.ProgressiveRollout) string
 		if s == nil {
 			return "an unset step"
 		}
-		parts := make([]string, 0, 3)
+		parts := make([]string, 0, maxPatchParts)
 		if s.Variation != nil {
 			parts = append(parts, d.code(*s.Variation))
 		}
@@ -627,8 +647,8 @@ func (d *describer) ruleLabel(key ruleKey) string {
 }
 
 type indexedRules struct {
-	order []ruleKey
 	rules map[ruleKey]flag.Rule
+	order []ruleKey
 }
 
 func indexRules(rules []flag.Rule) indexedRules {

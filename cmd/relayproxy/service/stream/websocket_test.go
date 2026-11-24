@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errErrorWebsocketConnection = errors.New("error websocket connection")
+)
+
 type mockConn struct {
 	writeJSONFunc func(v any) error
 	throwError    bool
@@ -20,7 +24,7 @@ type mockConn struct {
 
 func (m *mockConn) WriteJSON(v any) error {
 	if m.throwError {
-		return errors.New("error websocket connection")
+		return errErrorWebsocketConnection
 	}
 	if m.writeJSONFunc != nil {
 		return m.writeJSONFunc(v)
@@ -65,9 +69,9 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 	diff := sensitiveDiffCache()
 	tests := []struct {
+		expected any
 		name     string
 		options  []stream.Option
-		expected any
 	}{
 		{
 			name:     "includes flag details by default",
@@ -131,13 +135,13 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	conn2WriteJSONCalled := false
 
 	// Set the function to be executed when WriteJSON is called on the connections
-	conn1.writeJSONFunc = func(v any) error {
+	conn1.writeJSONFunc = func(_ any) error {
 		conn1WriteJSONCalled = true
 
 		return nil
 	}
 
-	conn2.writeJSONFunc = func(v any) error {
+	conn2.writeJSONFunc = func(_ any) error {
 		conn2WriteJSONCalled = true
 
 		return nil
@@ -157,9 +161,9 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		want             map[string]bool
 		name             string
 		broadcastFlagset string
-		want             map[string]bool
 	}{
 		{
 			name:             "broadcast on flagset-a only reaches flagset-a clients",
@@ -212,7 +216,7 @@ func TestDeregister(t *testing.T) {
 
 	// Set the function to be executed when WriteJSON is called on the connections
 	conn1WriteJSONCalled := false
-	conn.writeJSONFunc = func(v any) error {
+	conn.writeJSONFunc = func(_ any) error {
 		conn1WriteJSONCalled = true
 
 		return nil
@@ -249,13 +253,13 @@ func TestClose(t *testing.T) {
 	conn2WriteJSONCalled := false
 
 	// Set the function to be executed when WriteJSON is called on the connections
-	conn1.writeJSONFunc = func(v any) error {
+	conn1.writeJSONFunc = func(_ any) error {
 		conn1WriteJSONCalled = true
 
 		return nil
 	}
 
-	conn2.writeJSONFunc = func(v any) error {
+	conn2.writeJSONFunc = func(_ any) error {
 		conn2WriteJSONCalled = true
 
 		return nil
@@ -294,7 +298,7 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 	websocketService.Register(conn1, "default")
 	websocketService.Register(conn2, "default")
 	conn1WriteJSONCalled := false
-	conn1.writeJSONFunc = func(v any) error {
+	conn1.writeJSONFunc = func(_ any) error {
 		conn1WriteJSONCalled = true
 
 		return nil

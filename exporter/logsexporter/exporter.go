@@ -14,19 +14,17 @@ var _ exporter.Exporter = &Exporter{}
 const defaultLoggerFormat = "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\""
 
 type Exporter struct {
+	logTemplate *template.Template
 	// Format is the template configuration of the output format of your log.
 	// You can use all the key from the exporter.FeatureEvent + a key called FormattedDate that represent the date with
 	// the RFC 3339 Format
 	// Default: [{{ .FormattedDate}}] user="{{ .UserKey}}", flag="{{ .Key}}", value="{{ .Value}}"
 	Format string // Deprecated: use LogFormat instead.
-
 	// Format is the template configuration of the output format of your log.
 	// You can use all the key from the exporter.FeatureEvent + a key called FormattedDate that represent the date with
 	// the RFC 3339 Format
 	// Default: [{{ .FormattedDate}}] user="{{ .UserKey}}", flag="{{ .Key}}", value="{{ .Value}}"
-	LogFormat string
-
-	logTemplate   *template.Template
+	LogFormat     string
 	initTemplates sync.Once
 }
 

@@ -33,9 +33,9 @@ func createQueue(t *testing.T, client *sqs.Client) string {
 	return aws.ToString(out.QueueUrl)
 }
 
-type received struct {
-	event   exporter.FeatureEvent
+type received struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 	emitter string
+	event   exporter.FeatureEvent
 }
 
 func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []received {
@@ -57,11 +57,11 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 			got = append(got, r)
-			_, err := client.DeleteMessage(
+			_, deleteMessageErr := client.DeleteMessage(
 				t.Context(),
 				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
 			)
-			require.NoError(t, err)
+			require.NoError(t, deleteMessageErr)
 		}
 
 		return len(got) >= want
@@ -147,6 +147,8 @@ func TestE2E_Export_Errors(t *testing.T) {
 		{
 			name: "unknown queue",
 			queueURL: func(t *testing.T) string {
+				t.Helper()
+
 				return srv.Endpoint + "/000000000000/" + gopherstack.UniqueName(t, "noqueue")
 			},
 			wantErr: "AWS.SimpleQueueService.NonExistentQueue: The specified queue does not exist.",

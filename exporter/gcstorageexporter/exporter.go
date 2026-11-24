@@ -2,6 +2,7 @@ package gcstorageexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,29 +17,29 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	//nolint:staticcheck,revive // ST1005: the text is observable
+	errYouShouldSpecifyA = errors.New(
+		"you should specify a bucket.",
+	)
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
 	// Bucket is the name of your S3 Bucket.
 	Bucket string
-
-	// Options are Google Cloud Api options to connect to Google Storage SDK
-	Options []option.ClientOption
-
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV, and Parquet.
 	// Default: JSON
 	Format string
-
 	// Path allows you to specify in which directory you want to export your data.
 	Path string
-
 	// Filename is the name of your output file
 	// You can use a templated config to define the name of your export files.
 	// Available replacement are {{ .Hostname}}, {{ .Timestamp}} and {{ .Format}}
 	// Default: "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}"
 	Filename string
-
 	// CsvTemplate is used if your output format is CSV.
 	// This field will be ignored if you are using another format than CSV.
 	// You can decide which fields you want in your CSV line with a go-template syntax,
@@ -46,11 +47,12 @@ type Exporter struct {
 	// Default:
 	// {{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};{{ .Default}}\n
 	CsvTemplate string
-
 	// ParquetCompressionCodec is the parquet compression codec for better space efficiency.
 	// Available options https://github.com/apache/parquet-format/blob/master/Compression.md
 	// Default: SNAPPY
 	ParquetCompressionCodec string
+	// Options are Google Cloud Api options to connect to Google Storage SDK
+	Options []option.ClientOption
 }
 
 func (f *Exporter) IsBulk() bool {
@@ -71,7 +73,7 @@ func (f *Exporter) Export(
 	defer func() { _ = client.Close() }()
 
 	if f.Bucket == "" {
-		return fmt.Errorf("you should specify a bucket. %v is invalid", f.Bucket)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyA, f.Bucket)
 	}
 
 	// Create a temp directory to store the file we will produce
@@ -102,15 +104,15 @@ func (f *Exporter) Export(
 	}
 
 	for _, file := range files {
-		of, err := os.Open(path.Clean(outputDir + "/" + file.Name()))
-		if err != nil {
+		of, openErr := os.Open(path.Clean(outputDir + "/" + file.Name()))
+		if openErr != nil {
 			logger.Error("[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
 
 			continue
 		}
-		if err := f.uploadFile(ctx, client, of, file.Name()); err != nil {
-			return err
+		if uploadFileErr := f.uploadFile(ctx, client, of, file.Name()); uploadFileErr != nil {
+			return uploadFileErr
 		}
 	}
 

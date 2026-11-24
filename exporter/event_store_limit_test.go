@@ -18,11 +18,19 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBoom          = errors.New("boom")
+	errAlwaysFailing = errors.New("always failing")
+)
+
 type droppedCounter interface{ DroppedEvents() int64 }
 
 func Test_EventStoreWithLimit(t *testing.T) {
 	t.Parallel()
-	process := func(out *[]testutils.ExportableMockEvent, err error) func(context.Context, []testutils.ExportableMockEvent) error {
+	process := func(
+		out *[]testutils.ExportableMockEvent,
+		err error,
+	) func(context.Context, []testutils.ExportableMockEvent) error {
 		return func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			if err != nil {
 				return err
@@ -34,24 +42,24 @@ func Test_EventStoreWithLimit(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
-		// steps are executed in order against a store limited to limit events
-		limit          int64
-		adds           int
-		consume        bool // consume everything after the adds
 		consumeErr     error
+		name           string
 		wantConsumeErr string
-		addsAfter      int
-		wantStored     int64
-		wantDropped    int64
 		wantOut        []string // events exported by the (successful) consume, in order
+		// steps are executed in order against a store limited to limit events
+		limit       int64
+		adds        int
+		addsAfter   int
+		wantStored  int64
+		wantDropped int64
+		consume     bool // consume everything after the adds
 	}{
 		{name: "no limit keeps everything", limit: 0, adds: 50, wantStored: 50},
 		{name: "under the limit", limit: 10, adds: 10, wantStored: 10},
 		{name: "over the limit drops the newest", limit: 10, adds: 25, wantStored: 10, wantDropped: 15},
 		{
 			name: "failing consumer never grows the store", limit: 10, adds: 25,
-			consume: true, consumeErr: errors.New("boom"), addsAfter: 25, wantStored: 10, wantDropped: 40,
+			consume: true, consumeErr: errBoom, addsAfter: 25, wantStored: 10, wantDropped: 40,
 			wantConsumeErr: "boom",
 		},
 		{
@@ -197,7 +205,7 @@ func (f *failingExporter) IsBulk() bool { return true }
 func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
 
-	return errors.New("always failing")
+	return errAlwaysFailing
 }
 
 type queueCleaner interface{ CleanQueue() }

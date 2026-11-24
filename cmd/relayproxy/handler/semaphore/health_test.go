@@ -22,8 +22,8 @@ func Test_health_Handler(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
+		httpCode   int
 		handlerErr bool
 	}
 

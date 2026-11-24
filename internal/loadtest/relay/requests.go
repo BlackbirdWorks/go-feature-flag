@@ -1,8 +1,18 @@
 package relay
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+)
+
+const (
+	// distinctUsers is the number of distinct users of the generated evaluation contexts.
+	distinctUsers = 1000
+)
+
+var (
+	errUnknownEndpoint = errors.New("unknown endpoint")
 )
 
 // Endpoint is one of the relay proxy evaluation endpoints.
@@ -39,7 +49,7 @@ func ParseEndpoint(s string) (Endpoint, error) {
 		}
 	}
 
-	return "", fmt.Errorf("unknown endpoint %q (want one of %v)", s, Endpoints())
+	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, s, Endpoints())
 }
 
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the
@@ -66,7 +76,7 @@ func (e Endpoint) Path(flagKey string) string {
 
 // Body returns a request body with a realistic evaluation context (10 attributes) for the user i.
 func (e Endpoint) Body(i int) string {
-	user := i % 1000
+	user := i % distinctUsers
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
 	switch e {
@@ -82,7 +92,7 @@ func (e Endpoint) Body(i int) string {
 // NewRequest builds the HTTP request (without a URL host) for the endpoint.
 func (e Endpoint) NewRequest(baseURL, flagKey string, i int) (*http.Request, error) {
 	if e.Path(flagKey) == "" {
-		return nil, fmt.Errorf("unknown endpoint %q", string(e))
+		return nil, fmt.Errorf("%w %q", errUnknownEndpoint, string(e))
 	}
 
 	return newJSONRequest(baseURL+e.Path(flagKey), e.Body(i))

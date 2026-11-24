@@ -29,16 +29,22 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+var (
+	errFlagsetNotFoundFor  = errors.New("flagset not found for API key")
+	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
+)
+
 // routingLostManager is a flag set manager whose routing table does not know the keys of lostKeys anymore,
 // as right after a reload removed them, while everything else is delegated to the real manager.
 type routingLostManager struct {
 	service.FlagsetManager
+
 	lostKeys map[string]bool
 }
 
 func (m routingLostManager) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
 	if m.lostKeys[apiKey] {
-		return nil, errors.New("flagset not found for API key")
+		return nil, errFlagsetNotFoundFor
 	}
 
 	return m.FlagsetManager.FlagSet(apiKey)
@@ -46,7 +52,7 @@ func (m routingLostManager) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, err
 
 func (m routingLostManager) FlagSetName(apiKey string) (string, error) {
 	if m.lostKeys[apiKey] {
-		return "", errors.New("no flag set associated to the API key")
+		return "", errNoFlagSetAssociated
 	}
 
 	return m.FlagsetManager.FlagSetName(apiKey)
@@ -129,17 +135,22 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 				if ep.keyInQuery {
 					target += "?apiKey=" + url.QueryEscape(k.key)
 				}
-				req, err := http.NewRequestWithContext(t.Context(), ep.method, target, strings.NewReader(ep.body))
-				require.NoError(t, err)
+				req, requestWithContextErr := http.NewRequestWithContext(
+					t.Context(),
+					ep.method,
+					target,
+					strings.NewReader(ep.body),
+				)
+				require.NoError(t, requestWithContextErr)
 				req.Header.Set("Content-Type", "application/json")
 				if !ep.keyInQuery {
-					req.Header.Set("X-API-Key", k.key)
+					req.Header.Set("X-Api-Key", k.key)
 				}
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
+				resp, requestWithContextErr := http.DefaultClient.Do(req)
+				require.NoError(t, requestWithContextErr)
 				defer func() { _ = resp.Body.Close() }()
-				body, err := io.ReadAll(resp.Body)
-				require.NoError(t, err)
+				body, requestWithContextErr := io.ReadAll(resp.Body)
+				require.NoError(t, requestWithContextErr)
 
 				assert.Equal(t, k.want, resp.StatusCode, string(body))
 			})
@@ -219,17 +230,17 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 					return
 				default:
 				}
-				req, err := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
+				req, requestErr := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
 					strings.NewReader(`{"context":{"targetingKey":"user-1"}}`))
-				if err != nil {
+				if requestErr != nil {
 					unexpected.Add(1)
 
 					return
 				}
-				req.Header.Set("X-API-Key", key)
+				req.Header.Set("X-Api-Key", key)
 				req.Header.Set("Content-Type", "application/json")
-				resp, err := client.Do(req)
-				if err != nil {
+				resp, requestErr := client.Do(req)
+				if requestErr != nil {
 					unexpected.Add(1)
 
 					return
@@ -268,8 +279,8 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	_, errOld := manager.FlagSet("old-key")
 	_, errNew := manager.FlagSet("new-key")
 	nameRotating, errRotating := manager.FlagSetName("rotating-key")
-	assert.Error(t, errOld)        //nolint:testifylint
-	assert.NoError(t, errNew)      //nolint:testifylint
-	assert.NoError(t, errRotating) //nolint:testifylint
+	assert.Error(t, errOld) //nolint:testifylint // assert on purpose: the three results are checked together
+	assert.NoError(t, errNew)
+	assert.NoError(t, errRotating)
 	assert.Equal(t, "b", nameRotating)
 }

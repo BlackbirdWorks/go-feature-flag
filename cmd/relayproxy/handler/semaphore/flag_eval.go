@@ -17,6 +17,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+var (
+	errImpossibleToFindThe = errors.New("impossible to find the flag key in the URL")
+)
+
 type flagEval struct {
 	flagsetMngr service.FlagsetManager
 	metrics     metric.Metrics
@@ -55,7 +59,7 @@ func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) Con
 func (h *flagEval) Handler(c *echo.Context) error {
 	flagKey := helper.FlagKey(c)
 	if flagKey == "" {
-		return errors.New("impossible to find the flag key in the URL")
+		return errImpossibleToFindThe
 	}
 
 	reqBody := new(model.EvalFlagRequest)
@@ -101,7 +105,7 @@ func (h *flagEval) Handler(c *echo.Context) error {
 		attribute.String("flagEvaluation.value", fmt.Sprintf("%v", flagValue.Value)),
 	)
 
-	if flagsetName, err := h.flagsetMngr.FlagSetName(helper.APIKey(c)); err == nil {
+	if flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(c)); flagSetNameErr == nil {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 

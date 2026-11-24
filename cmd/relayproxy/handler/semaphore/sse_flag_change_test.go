@@ -27,10 +27,15 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errAPIKeyIsRequiredWhen = errors.New("apiKey is required when using flagsets")
+	errUnknownAPIKey        = errors.New("unknown api key")
+)
+
 type mockFlagsetManagerSSE struct {
+	err         error
 	flagsetName string
 	isDefault   bool
-	err         error
 }
 
 func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
@@ -43,9 +48,10 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
+//nolint:nilnil // mock: the SSE handler tests never reach a flagset
 func (m *mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) { return nil, nil }
 func (m *mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
-	return nil, nil
+	return nil, nil //nolint:nilnil // mock: the SSE handler tests never list flagsets
 }
 func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
 func (m *mockFlagsetManagerSSE) Close()                           {}
@@ -257,9 +263,9 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		flagsetMgr     *mockFlagsetManagerSSE
 		name           string
 		apiKey         string
-		flagsetMgr     *mockFlagsetManagerSSE
 		expectedStatus int
 	}{
 		{
@@ -267,7 +273,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("apiKey is required when using flagsets"),
+				err:       errAPIKeyIsRequiredWhen,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -276,7 +282,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "unknown-key",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("unknown api key"),
+				err:       errUnknownAPIKey,
 			},
 			expectedStatus: http.StatusBadRequest,
 		},

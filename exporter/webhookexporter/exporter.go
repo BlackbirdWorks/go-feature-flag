@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errErrorWhileCallingThe = errors.New("error while calling the webhook, HTTP Code")
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -39,17 +44,16 @@ var _ exporter.Exporter = &Exporter{}
 //	   ]
 //	 }
 type Exporter struct {
-	// EndpointURL of your webhook
-	EndpointURL string
-	// Secret used to sign your request body.
-	Secret string //nolint:gosec // G117
+	httpClient internal.HTTPClient
 	// Meta information that you want to send to your webhook (not mandatory)
 	Meta map[string]string
 	// Headers (optional) the list of Headers to send to the endpoint
 	Headers map[string][]string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	// EndpointURL of your webhook
+	EndpointURL string
+	// Secret used to sign your request body.
+	Secret string
+	init   sync.Once
 }
 
 // webhookPayload contains the body of the webhook.
@@ -114,9 +118,8 @@ func (f *Exporter) Export(
 		return internal.RedactURLError(err)
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
-		return fmt.Errorf(
-			"error while calling the webhook, HTTP Code %d received, response: %v",
+	if response.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("%w %d received, response: %v", errErrorWhileCallingThe,
 			response.StatusCode,
 			response.Body,
 		)

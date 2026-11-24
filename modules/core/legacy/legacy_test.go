@@ -60,8 +60,8 @@ func TestWarnerConcurrentUse(t *testing.T) {
 func TestWarnerWithoutDestination(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		warner *legacy.Warner
+		name   string
 		// wantPanics is whether warning through this warner panics: neither of them does, the warning is dropped
 		wantPanics bool
 	}{
@@ -89,9 +89,13 @@ func TestWarnersDoNotShareState(t *testing.T) {
 }
 
 // panics reports whether f panics.
-func panics(f func()) (panicked bool) {
-	defer func() { panicked = recover() != nil }()
-	f()
+func panics(f func()) bool {
+	panicked := true
+	func() {
+		defer func() { _ = recover() }()
+		f()
+		panicked = false
+	}()
 
-	return false
+	return panicked
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // FlagState represents the state of an individual feature flag, with regard to a specific user, when it was called.
-type FlagState struct {
+type FlagState struct { //nolint:govet // fieldalignment: field order is the key order of the CLI and API output
 	Value         any                   `json:"value"`
 	Timestamp     int64                 `json:"timestamp"`
 	VariationType string                `json:"variationType"`

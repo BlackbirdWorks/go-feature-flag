@@ -11,6 +11,14 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
+const (
+	// distinctUsers is the number of distinct users of the evaluation contexts, userStride spreads the workers over them.
+	distinctUsers = 1000
+	userStride    = 7919
+	// sampleAge is the value of the custom "age" attribute of the evaluation contexts.
+	sampleAge = 34
+)
+
 // LibraryTarget evaluates a bool flag through the embedded library with event tracking.
 type LibraryTarget struct {
 	client   *ffclient.GoFeatureFlag
@@ -34,8 +42,8 @@ func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 		return nil, err
 	}
 	path := filepath.Join(dir, "flags.yaml")
-	if err := os.WriteFile(path, []byte(FlagsYAML()), 0o600); err != nil {
-		return nil, err
+	if writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600); writeFileErr != nil {
+		return nil, writeFileErr
 	}
 	if o.FlushInterval == 0 {
 		o.FlushInterval = time.Second
@@ -62,11 +70,11 @@ func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 
 // Eval implements Target.
 func (l *LibraryTarget) Eval(worker, i int) error {
-	u := (worker*7919 + i) % 1000
+	u := (worker*userStride + i) % distinctUsers
 	ctx := ffcontext.NewEvaluationContextBuilder(fmt.Sprintf("user-%d", u)).
 		AddCustom("email", "user@example.com").
 		AddCustom("country", "FR").
-		AddCustom("age", 34).
+		AddCustom("age", sampleAge).
 		AddCustom("plan", "pro").
 		AddCustom("region", "eu-west-1").
 		AddCustom("beta", true).

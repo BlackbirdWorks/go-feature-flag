@@ -21,18 +21,18 @@ import (
 // neither contend on each other nor evict each other's entries. A Service is safe for concurrent
 // use. Its caches are released when it is garbage collected; Close releases them earlier.
 type Service struct {
-	nikunjy   *nikunjyEvaluatorCache
-	scheduled scheduledMemo
-	// compiled memoizes the compiled form of the queries, see compiledQuery.
-	compiled sync.Map // map[string]*compiledQuery
 	// queryMaps recycles the maps of the queryContexts: a map is only read by the query engines
 	// during an evaluation and never retained, so it is cleared and reused by the next evaluation.
 	queryMaps sync.Pool
+	nikunjy   *nikunjyEvaluatorCache
 	// logger receives the errors of the evaluation (a query that does not parse or panics, ...).
 	logger *slog.Logger
 	// legacy reports, once, the use of a legacy name that the evaluation reads (the legacy
 	// evaluation context attribute).
-	legacy *legacy.Warner
+	legacy    *legacy.Warner
+	scheduled scheduledMemo
+	// compiled memoizes the compiled form of the queries, see compiledQuery.
+	compiled sync.Map // map[string]*compiledQuery
 }
 
 // ServiceOption customizes the Service that NewService creates.

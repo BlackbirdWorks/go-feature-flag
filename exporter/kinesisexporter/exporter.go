@@ -20,6 +20,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errSendNoStreamNameOr = errors.New("send: no StreamName or StreamArn provided")
+	errSend               = errors.New("send")
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 const (
@@ -61,30 +66,24 @@ func (k *DefaultKinesisSender) SendMessages(
 }
 
 type Exporter struct {
+	sender MessageSender
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
-
+	Settings  *Settings
+	// sleep replaces the real backoff wait, it is only set by tests.
+	sleep func(ctx context.Context, d time.Duration) error
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV and Parquet.
 	// Default: JSON
 	Format string
-
 	// kinesis.Options is a list of functional options to configure the Kinesis client.
 	// Provide additional functional options to further configure the behavior of the client,
 	// such as changing the client's endpoint or adding custom middleware behavior.
 	// For more information about the options, please check:
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/kinesis#Options
 	KinesisOptions []func(*kinesis.Options)
-
-	Settings *Settings
-
-	init sync.Once
-
-	sender MessageSender
-
-	// sleep replaces the real backoff wait, it is only set by tests.
-	sleep func(ctx context.Context, d time.Duration) error
+	init           sync.Once
 }
 
 type PartitionKeyFunc = func(context.Context, exporter.ExportableEvent) string
@@ -188,10 +187,10 @@ func (e *Exporter) Export(
 	records := make([]types.PutRecordsRequestEntry, 0, len(featureEvents))
 
 	for _, event := range featureEvents {
-		formattedEvent, err := e.formatMessage(event)
+		formattedEvent, formatMessageErr := e.formatMessage(event)
 
-		if err != nil {
-			return fmt.Errorf("format: %w", err)
+		if formatMessageErr != nil {
+			return fmt.Errorf("format: %w", formatMessageErr)
 		}
 
 		if len(formattedEvent) >= Mb {
@@ -217,7 +216,7 @@ func (e *Exporter) Export(
 	case e.Settings.StreamName != nil:
 		input.StreamName = e.Settings.StreamName
 	default:
-		return errors.New("send: no StreamName or StreamArn provided")
+		return errSendNoStreamNameOr
 	}
 
 	if len(records) == 0 {
@@ -229,11 +228,11 @@ func (e *Exporter) Export(
 	for _, chunk := range chunkRecords(records) {
 		chunkInput := *input
 		chunkInput.Records = chunk
-		if err := e.sendChunk(ctx, logger, &chunkInput); err != nil {
+		if sendChunkErr := e.sendChunk(ctx, logger, &chunkInput); sendChunkErr != nil {
 			if ctx.Err() != nil {
-				return err
+				return sendChunkErr
 			}
-			errs = append(errs, err)
+			errs = append(errs, sendChunkErr)
 		}
 	}
 
@@ -301,13 +300,13 @@ func (e *Exporter) sendChunk(
 			"failed", len(retry), "total", total, "attempt", attempt)
 
 		if attempt >= maxAttempts {
-			return fmt.Errorf("send: %d of %d records failed after %d attempts (error codes: %s)",
+			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
 				len(retry), total, attempt, distinctCodes(failures))
 		}
 		pending = retry
-		if err := e.wait(ctx, backoff(attempt)); err != nil {
+		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
 			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
-				len(retry), total, err)
+				len(retry), total, waitErr)
 		}
 	}
 }

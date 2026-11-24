@@ -158,7 +158,7 @@ func deepCopyValue(v any) any {
 		return out
 	}
 	rv := reflect.ValueOf(v)
-	switch rv.Kind() { //nolint:exhaustive // only the containers have to be copied
+	switch rv.Kind() {
 	case reflect.Map:
 		if rv.IsNil() {
 			return v

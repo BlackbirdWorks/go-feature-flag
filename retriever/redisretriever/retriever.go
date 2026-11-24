@@ -13,18 +13,20 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRedisClientIsNot = errors.New("redis client is not initialized")
+)
+
 // Retriever is the interface to fetch the flags from Redis.
 type Retriever struct {
 	// Options to connect to Redis
 	Options *redis.Options
-
+	client  *redis.Client
 	// Prefix is the prefix of the keys in Redis, it is used to filter
 	// the keys to retrieve in redis. If empty, no prefix is used.
 	// Your flag names will be returned without the prefix.
 	Prefix string
-
 	status retriever.Status
-	client *redis.Client
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
@@ -81,7 +83,7 @@ func (r *Retriever) Shutdown(_ context.Context) error {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.client == nil {
-		return nil, errors.New("redis client is not initialized")
+		return nil, errRedisClientIsNot
 	}
 
 	var flagsData = make(map[string]any)
@@ -95,8 +97,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		}
 
 		var flagData any
-		if err := json.Unmarshal([]byte(value), &flagData); err != nil {
-			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, err)
+		if unmarshalErr := json.Unmarshal([]byte(value), &flagData); unmarshalErr != nil {
+			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, unmarshalErr)
 		}
 
 		flagsData[keyWithoutPrefix] = flagData

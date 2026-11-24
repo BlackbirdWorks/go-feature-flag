@@ -12,7 +12,7 @@ import (
 )
 
 // newAwsLambdaHandlerManager is creating a new awsLambdaHandler struct with the httpadapter
-// to proxy all lambda event to echo (*echo.Echo is an http.Handler).
+// to proxy all lambda event to echo (*echo.Echo is an [http.Handler]).
 func newAwsLambdaHandlerManager(echoInstance *echo.Echo, basePath string) awsLambdaHandler {
 	adapterAPIGtwV2 := httpadapter.NewV2(echoInstance)
 	adapterALB := httpadapter.NewALB(echoInstance)

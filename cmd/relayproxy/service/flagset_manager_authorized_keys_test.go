@@ -215,7 +215,7 @@ func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
 			manager, err := service.NewFlagsetManager(&config.Config{
 				FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
 				AuthorizedKeys: tt.keys,
-				APIKeys:        tt.apiKeys,
+				APIKeys:        tt.apiKeys, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			}, zap.New(obs), nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(manager.Close)

@@ -16,12 +16,11 @@ import (
 // firstFailsExporter blocks its first Export until release is closed, then fails it; the following
 // calls succeed. It records when each call starts and when the first one ended.
 type firstFailsExporter struct {
-	release chan struct{}
-	started chan struct{}
-
-	mu       sync.Mutex
-	starts   []time.Time
 	firstEnd time.Time
+	release  chan struct{}
+	started  chan struct{}
+	starts   []time.Time
+	mu       sync.Mutex
 }
 
 func (e *firstFailsExporter) IsBulk() bool { return true }

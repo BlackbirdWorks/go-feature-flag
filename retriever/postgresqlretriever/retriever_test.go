@@ -22,13 +22,13 @@ func TestPostgreSQLRetriever(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		files     []string
-		tableName string
 		columns   map[string]string
-		flagset   string
 		assertErr assert.ErrorAssertionFunc
+		name      string
+		tableName string
+		flagset   string
 		want      string
+		files     []string
 	}{
 		{
 			name: "valid set of flag",
@@ -119,6 +119,7 @@ func TestPostgreSQLRetriever(t *testing.T) {
 
 // startPostgreSQLAndAddData starts a PostgreSQL container, removed when the test ends, and loads the files in it.
 func startPostgreSQLAndAddData(t *testing.T, files []string) string {
+	t.Helper()
 	ctx := context.TODO()
 	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
 	require.NoError(t, err)
@@ -147,12 +148,12 @@ func startPostgreSQLAndAddData(t *testing.T, files []string) string {
 	}()
 
 	for _, file := range files {
-		content, err := os.ReadFile(filepath.Join("testdata", file))
-		require.NoError(t, err)
+		content, readFileErr := os.ReadFile(filepath.Join("testdata", file))
+		require.NoError(t, readFileErr)
 
 		// Execute the SQL content
-		_, err = conn.Exec(ctx, string(content))
-		assert.NoError(t, err)
+		_, readFileErr = conn.Exec(ctx, string(content))
+		assert.NoError(t, readFileErr)
 	}
 
 	return connectionString
@@ -359,15 +360,15 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 			Table: "go_feature_flag",
 		}
 
-		err := r.Init(context.Background(), nil, nil)
-		require.NoError(t, err)
+		initErr := r.Init(context.Background(), nil, nil)
+		require.NoError(t, initErr)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		// This should handle the data gracefully
-		result, err := r.Retrieve(context.Background())
-		require.NoError(t, err)
+		result, initErr := r.Retrieve(context.Background())
+		require.NoError(t, initErr)
 
 		// Should contain both flags since the JSON is valid
 		assert.Contains(t, string(result), "valid_flag")
@@ -382,21 +383,21 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 			Table: "go_feature_flag",
 		}
 
-		err := r.Init(context.Background(), nil, nil)
-		require.NoError(t, err)
+		initErr := r.Init(context.Background(), nil, nil)
+		require.NoError(t, initErr)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		// Create a context with a very short timeout to cause timeout errors
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
+		shortCtx, cancel := context.WithTimeout(context.Background(), 1*time.Microsecond)
 		defer cancel()
 
 		// This should cause a timeout error during query execution
-		_, err = r.Retrieve(ctx)
+		_, initErr = r.Retrieve(shortCtx)
 		// We expect either success (if query completes quickly) or timeout error
-		if err != nil {
-			assert.Contains(t, err.Error(), "failed to execute query")
+		if initErr != nil {
+			assert.Contains(t, initErr.Error(), "failed to execute query")
 		}
 	})
 }
@@ -624,13 +625,13 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name            string
 		shutdown        *postgresqlretriever.Retriever
-		release         bool // the test releases its own reference after the shutdown
 		other           *postgresqlretriever.Retriever
+		name            string
 		wantStatus      retriever.Status
 		wantOtherStatus retriever.Status
 		wantOtherErr    string
+		release         bool // the test releases its own reference after the shutdown
 		wantPoolOpen    bool
 	}{
 		{
@@ -658,13 +659,13 @@ func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 		assert.Equal(t, tt.wantOtherStatus, tt.other.Status(), tt.name)
 		assert.Equal(t, tt.wantPoolOpen, pool.Ping(context.Background()) == nil, tt.name)
 
-		got, err := tt.other.Retrieve(context.Background())
+		got, retrieveErr := tt.other.Retrieve(context.Background())
 		if tt.wantOtherErr != "" {
-			require.EqualError(t, err, tt.wantOtherErr, tt.name)
+			require.EqualError(t, retrieveErr, tt.wantOtherErr, tt.name)
 
 			continue
 		}
-		require.NoError(t, err, tt.name)
+		require.NoError(t, retrieveErr, tt.name)
 		assert.JSONEq(t, string(want), string(got), tt.name)
 	}
 }

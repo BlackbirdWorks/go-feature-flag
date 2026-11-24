@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDatabaseConnectionPoolIs = errors.New("database connection pool is not initialized")
+)
+
 // defaultColumns returns the names of the columns when the configuration does not set them.
 func defaultColumns() map[string]string {
 	return map[string]string{
@@ -26,19 +30,18 @@ func defaultColumns() map[string]string {
 }
 
 type Retriever struct {
-	URI     string
-	Table   string
 	Columns map[string]string
 	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
 	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
 	// creates one of its own at Init.
-	Pools *PoolRegistry
-
+	Pools   *PoolRegistry
 	logger  *fflog.FFLogger
-	status  retriever.Status
 	columns map[string]string
 	pool    *pgxpool.Pool
 	flagset *string
+	URI     string
+	Table   string
+	status  retriever.Status
 }
 
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {
@@ -96,7 +99,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 // Retrieve fetches flag configuration from PostgreSQL.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.pool == nil {
-		return nil, errors.New("database connection pool is not initialized")
+		return nil, errDatabaseConnectionPoolIs
 	}
 
 	// Build the query using the configured table and column names
@@ -123,16 +126,16 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		var flagName string
 		var configData []byte
 
-		if err := rows.Scan(&flagName, &configData); err != nil {
-			r.logger.Error("Failed to scan row", "error", err)
+		if scanErr := rows.Scan(&flagName, &configData); scanErr != nil {
+			r.logger.Error("Failed to scan row", "error", scanErr)
 
 			continue
 		}
 
 		// Parse the JSON config data into a map
 		var config map[string]any
-		if err := json.Unmarshal(configData, &config); err != nil {
-			r.logger.Error("Failed to unmarshal config data", "error", err, "flagName", flagName)
+		if unmarshalErr := json.Unmarshal(configData, &config); unmarshalErr != nil {
+			r.logger.Error("Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
 
 			continue
 		}
@@ -140,8 +143,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	// Check for any errors that occurred during row iteration
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+	if errErr := rows.Err(); errErr != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", errErr)
 	}
 
 	// If no flags found, return empty JSON object

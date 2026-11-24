@@ -29,17 +29,20 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+var (
+	errNoAWS = errors.New("no AWS")
+)
+
 // fakeS3 serves the same flag file for every key and counts the requests.
 type fakeS3 struct {
-	content []byte
-	listErr error
-	keys    []string
-	lists   atomic.Int32
-	gets    atomic.Int32
-
-	mu        sync.Mutex
+	listErr   error
 	etags     map[string]string // key -> ETag, "x" by default
 	getsByKey map[string]int
+	content   []byte
+	keys      []string
+	mu        sync.Mutex
+	lists     atomic.Int32
+	gets      atomic.Int32
 }
 
 func (f *fakeS3) setETag(key, etag string) {
@@ -158,6 +161,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 		want []int
 	}{
 		{name: "same bucket shares a group, other bucket has its own", run: func(t *testing.T) []int {
+			t.Helper()
 			var created atomic.Int32
 			reg := newFakeRegistry(t, &fakeS3{}, &created)
 			fs1, fs2, fs3 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml"),
@@ -178,6 +182,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return append(got, reg.groupCount())
 		}, want: []int{2, 2, 2}},
 		{name: "group is dropped after the last shutdown", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "p/b.yaml")
 			r1, err := reg.retrieverFor(&fs1)
@@ -192,6 +197,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return append(got, reg.groupCount())
 		}, want: []int{1, 0}},
 		{name: "unsupported configurations", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			folder := s3FlagSet("a", "b1", "")
 			other := s3FlagSet("a", "b1", "x")
@@ -206,6 +212,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
+			t.Helper()
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
@@ -214,6 +221,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "concurrent callers build the group once", run: func(t *testing.T) []int {
+			t.Helper()
 			const callers = 4
 			var building sync.WaitGroup
 			building.Add(callers)
@@ -271,6 +279,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 	}{
 		{name: "claimed retrievers are the pre-registered ones, the unclaimed ones are released",
 			run: func(t *testing.T) []int {
+				t.Helper()
 				var created atomic.Int32
 				reg := newFakeRegistry(t, &fakeS3{}, &created)
 				fs1, fs2 := s3FlagSet("a", "b1", "p/a.yaml"), s3FlagSet("b", "b1", "q/b.yaml")
@@ -290,6 +299,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 				return append(got, reg.groupCount())
 			}, want: []int{1, 1, 0}},
 		{name: "invalid configuration", run: func(t *testing.T) []int {
+			t.Helper()
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			bad := s3FlagSet("c", "b1", "")
 			require.Error(t, reg.preRegister(&bad))
@@ -297,6 +307,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 			return []int{reg.groupCount()}
 		}, want: []int{0}},
 		{name: "factory error", run: func(t *testing.T) []int {
+			t.Helper()
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
@@ -314,7 +325,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 
 func failingRegistry(logger *zap.Logger) *sharedBucketRegistry {
 	return newSharedBucketRegistry(func(context.Context, string) (*s3retrieverv2.SharedItems, error) {
-		return nil, errors.New("no AWS")
+		return nil, errNoAWS
 	}, 0, false, logger)
 }
 
@@ -324,8 +335,8 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 	plain := s3FlagSet("plain", "b1", "p/b.yaml")
 	plain.EnableSharedPollerPerBucket = false
 	tests := []struct {
-		name       string
 		reg        func(logger *zap.Logger) *sharedBucketRegistry
+		name       string
 		wantGroups int
 		wantWarn   int
 	}{
@@ -352,12 +363,12 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 
 // Not parallel: the subtests use t.Setenv.
 //
-//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
+// T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func Test_defaultSharedItemsFactory(t *testing.T) {
 	tests := []struct {
-		name    string
 		env     map[string]string
 		wantErr assert.ErrorAssertionFunc
+		name    string
 	}{
 		{name: "default AWS config", wantErr: assert.NoError},
 		{
@@ -385,11 +396,11 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name        string
-		parent      time.Duration
-		parentJit   bool
-		polling     int
-		jitter      bool
 		wantMessage []string
+		parent      time.Duration
+		polling     int
+		parentJit   bool
+		jitter      bool
 	}{
 		{name: "unset values follow the parent", parent: 10 * time.Second},
 		{name: "same values", parent: time.Minute, polling: 60000},

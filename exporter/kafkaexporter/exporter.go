@@ -24,26 +24,25 @@ type MessageSender interface {
 
 // Settings contains Kafka-specific configurations needed for message creation.
 type Settings struct {
+	*sarama.Config
+
 	Topic     string   `json:"topic"`
 	Addresses []string `json:"addresses"`
-	*sarama.Config
 }
 
 // Exporter sends events to a Kafka topic using a synchronous producer.
 type Exporter struct {
-	// Format is the output format for the message value.
-	// The only available format right now is JSON, and this field provided for future usage.
-	// Default: JSON
-	Format string
-
-	// Settings contains the Kafka producer's configuration. The Topic and Addresses fields are required. If
-	// no sarama.Config is provided a sensible default will be used.
-	Settings Settings
-
 	sender MessageSender
 	// dialer will create the producer. This field is added for dependency injection during testing as sarama
 	// has the annoying tendency to dial as soon as a producer is created.
 	dialer func(addrs []string, config *sarama.Config) (MessageSender, error)
+	// Format is the output format for the message value.
+	// The only available format right now is JSON, and this field provided for future usage.
+	// Default: JSON
+	Format string
+	// Settings contains the Kafka producer's configuration. The Topic and Addresses fields are required. If
+	// no sarama.Config is provided a sensible default will be used.
+	Settings Settings
 }
 
 // Export will produce a message to the Kafka topic. The message's value will contain the event encoded in the

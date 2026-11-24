@@ -12,17 +12,17 @@ func TestNotifierConf_IsValid(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
+		Meta        map[string]string
 		Kind        string
 		WebhookURL  string
 		EndpointURL string
 		Secret      string
-		Meta        map[string]string
 	}
 	tests := []struct {
-		name     string
 		fields   fields
-		wantErr  bool
+		name     string
 		errValue string
+		wantErr  bool
 	}{
 		{
 			name: "Invalid kind",

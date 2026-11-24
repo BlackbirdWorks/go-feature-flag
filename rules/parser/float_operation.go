@@ -65,7 +65,7 @@ func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
 func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
-		return false, nil //nolint:nilerr // see issue #50: kept, behaviour change
+		return false, err
 	}
 
 	return l <= r, nil

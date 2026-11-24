@@ -18,8 +18,8 @@ type poolEntry struct {
 // the relay (Retriever.Pools), so that flag sets on one database do not each open their own pool; a
 // retriever without a registry gets one of its own, and shares nothing.
 type PoolRegistry struct {
-	mu    sync.Mutex
 	pools map[string]*poolEntry
+	mu    sync.Mutex
 }
 
 // NewPoolRegistry creates an empty registry.
@@ -44,10 +44,10 @@ func (p *PoolRegistry) GetPool(ctx context.Context, uri string) (*pgxpool.Pool, 
 	if err != nil {
 		return nil, err
 	}
-	if err := pool.Ping(ctx); err != nil {
+	if pingErr := pool.Ping(ctx); pingErr != nil {
 		pool.Close()
 
-		return nil, err
+		return nil, pingErr
 	}
 
 	p.pools[uri] = &poolEntry{

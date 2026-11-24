@@ -19,6 +19,7 @@ func (s recordingAPIServer) Stop(_ context.Context) { *s.calls = append(*s.calls
 
 type recordingFlagsetManager struct {
 	service.FlagsetManager
+
 	calls *[]string
 }
 
@@ -76,8 +77,8 @@ func TestConfigFlagSet(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		args        []string
 		wantConfig  string
+		args        []string
 		wantVersion bool
 	}{
 		{name: "config only", args: []string{"--config=/x.yaml"}, wantConfig: "/x.yaml"},

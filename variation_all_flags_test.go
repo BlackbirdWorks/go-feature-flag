@@ -88,9 +88,9 @@ func TestAllFlagsState(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		wantJSONFile string
 		config       ffclient.Config
 		wantValid    bool
-		wantJSONFile string
 		initModule   bool
 	}{
 		{
@@ -133,7 +133,7 @@ func TestAllFlagsState(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			exportDir, _ := os.MkdirTemp("", "export")
+			exportDir := t.TempDir()
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
 				MaxEventInMemory: 1,
@@ -172,12 +172,12 @@ func TestGetFlagStates(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		evaluationContext ffcontext.EvaluationContext
 		name              string
+		wantJSONFile      string
 		config            ffclient.Config
 		wantValid         bool
-		wantJSONFile      string
 		initModule        bool
-		evaluationContext ffcontext.EvaluationContext
 	}{
 		{
 			name: "Valid multiple flags",
@@ -212,7 +212,7 @@ func TestGetFlagStates(t *testing.T) {
 				Build(),
 		},
 		{
-			name: "no field in context context",
+			name: "no field in the context",
 			config: ffclient.Config{
 				Retriever: &fileretriever.Retriever{
 					Path: "./testdata/ffclient/get_flagstates/config_flag/flag-config-all-flags.yaml",
@@ -241,7 +241,7 @@ func TestGetFlagStates(t *testing.T) {
 			t.Parallel()
 
 			// init logger
-			exportDir, _ := os.MkdirTemp("", "export")
+			exportDir := t.TempDir()
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
 				MaxEventInMemory: 1,
@@ -282,11 +282,11 @@ func TestAllFlagsFromCache(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr    assert.ErrorAssertionFunc
 		name       string
 		config     ffclient.Config
-		initModule bool
 		wantFlags  int
-		wantErr    assert.ErrorAssertionFunc
+		initModule bool
 	}{
 		{
 			name: "Valid multiple types",
@@ -332,8 +332,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 				require.NoError(t, err)
 				defer goff.Close()
 
-				flags, err := goff.GetFlagsFromCache()
-				tt.wantErr(t, err)
+				flags, getFlagsFromCacheErr := goff.GetFlagsFromCache()
+				tt.wantErr(t, getFlagsFromCacheErr)
 
 				assert.Len(t, flags, tt.wantFlags)
 			} else {
@@ -341,8 +341,8 @@ func TestAllFlagsFromCache(t *testing.T) {
 				goff, _ = ffclient.New(tt.config)
 				goff.Close()
 
-				_, err := goff.GetFlagsFromCache()
-				assert.Error(t, err)
+				_, getFlagsFromCacheErr := goff.GetFlagsFromCache()
+				assert.Error(t, getFlagsFromCacheErr)
 			}
 		})
 	}

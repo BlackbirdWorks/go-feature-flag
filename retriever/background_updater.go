@@ -1,8 +1,13 @@
 package retriever
 
 import (
-	"math/rand"
+	"math/rand/v2"
 	"time"
+)
+
+const (
+	// jitterFraction is the share of the polling interval that the jitter can add or remove.
+	jitterFraction = 0.1
 )
 
 // backgroundUpdater contains what is needed to manage the
@@ -17,10 +22,10 @@ func newBackgroundUpdater(pollingInterval time.Duration, useJitter bool) backgro
 	tickerDuration := pollingInterval
 	if useJitter {
 		// we accept a deviation of maximum 10% of the polling interval
-		maxJitter := float64(pollingInterval) * 0.1
+		maxJitter := float64(pollingInterval) * jitterFraction
 		jitter := time.Duration(0)
 		if int64(maxJitter) > 0 {
-			jitter = time.Duration(rand.Int63n(int64(maxJitter))) //nolint: gosec
+			jitter = time.Duration(rand.Int64N(int64(maxJitter))) //nolint:gosec // jitter, not security sensitive
 		}
 		if jitter%2 == 0 {
 			tickerDuration = pollingInterval + jitter

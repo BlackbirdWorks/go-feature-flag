@@ -41,6 +41,7 @@ func flagSetNames(c *config.Config) []string {
 
 // newStudioServer serves body when the Authorization header matches, it is down when body is empty.
 func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeader {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -255,8 +256,8 @@ studio:
 		name         string
 		newBody      string // new content served by the server
 		newFile      string // new content of the configuration file
-		wantPort     int
 		wantFlagSets []string
+		wantPort     int
 	}{
 		{
 			name:         "the URL changes",
@@ -383,14 +384,14 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		body   string
-		status int
+		name string
+		body string
 		// wantRetryETag is the ETag the failed updates keep sending, wantCached the cache file after them and
 		// wantFlagSets the flagsets after the recovery.
 		wantRetryETag string
 		wantCached    string
 		wantFlagSets  []string
+		status        int
 	}{
 		{
 			name: "HTTP error", status: http.StatusServiceUnavailable,
@@ -449,7 +450,6 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			}
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
-			//nolint:testifylint // the cached bytes must match exactly, not just semantically
 			assert.Equal(t, tt.wantCached, string(cached))
 			mu.Lock()
 			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
@@ -464,7 +464,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}
 }
 
-func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.ConfigLoader {
+func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	t.Helper()
 	fileConfig := "studio:\n  url: " + url + "/flagsets.yaml\n  pollingInterval: 150\n"
 	if cacheFile != "" {

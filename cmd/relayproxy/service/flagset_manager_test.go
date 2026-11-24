@@ -28,12 +28,12 @@ func TestNewFlagsetManager(t *testing.T) {
 
 	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
 	tests := []struct {
-		name        string
 		config      *config.Config
 		logger      *zap.Logger
+		name        string
+		expectedErr string
 		notifiers   []notifier.Notifier
 		wantErr     bool
-		expectedErr string
 	}{
 		{
 			name:        "nil config should return error",
@@ -122,8 +122,9 @@ func TestNewFlagsetManager(t *testing.T) {
 // fakeSSEService records the flagset name of every broadcast.
 type fakeSSEService struct {
 	stream.SSEService
-	mu      sync.Mutex
+
 	streams []string
+	mu      sync.Mutex
 }
 
 func (f *fakeSSEService) BroadcastFlagChanges(flagsetName string, _ notifier.DiffCache) error {
@@ -144,6 +145,7 @@ func (f *fakeSSEService) Streams() []string {
 // fakeWebsocketService counts the broadcasts.
 type fakeWebsocketService struct {
 	stream.WebsocketService
+
 	broadcasts atomic.Int32
 }
 
@@ -331,25 +333,25 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("test-api-key")
-			require.NoError(t, err)
+			name, flagSetNameErr := manager.FlagSetName("test-api-key")
+			require.NoError(t, flagSetNameErr)
 			assert.Equal(t, "test-flagset", name)
 		})
 		t.Run("non-existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("invalid-key")
-			require.Error(t, err)
+			name, flagSetNameErr := manager.FlagSetName("invalid-key")
+			require.Error(t, flagSetNameErr)
 			assert.Empty(t, name)
-			assert.Equal(t, "no flag set associated to the API key", err.Error())
+			assert.Equal(t, "no flag set associated to the API key", flagSetNameErr.Error())
 		})
 		t.Run("empty api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("")
-			require.Error(t, err)
+			name, flagSetNameErr := manager.FlagSetName("")
+			require.Error(t, flagSetNameErr)
 			assert.Empty(t, name)
-			assert.Equal(t, "apiKey is required when using flagsets", err.Error())
+			assert.Equal(t, "apiKey is required when using flagsets", flagSetNameErr.Error())
 		})
 	})
 
@@ -374,8 +376,8 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("empty api key should return default", func(t *testing.T) {
 			t.Parallel()
 
-			name, err := manager.FlagSetName("")
-			require.NoError(t, err)
+			name, flagSetNameErr := manager.FlagSetName("")
+			require.NoError(t, flagSetNameErr)
 			assert.Equal(t, "default", name)
 		})
 	})
@@ -826,7 +828,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -837,7 +839,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"new-api-key"},
+			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
@@ -860,7 +862,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-authorized-key"},
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -874,7 +876,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-authorized-key"},
 			},
-			APIKeys: []string{"new-api-key"},
+			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
@@ -896,7 +898,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: "file",
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"},
+			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		// Preload API keys to initialize the internal API key set
 		cfg.ForceReloadAPIKeys()
@@ -906,7 +908,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets:  []config.FlagSet{},
 			Retriever: nil,
-			APIKeys:   []string{"new-api-key"},
+			APIKeys:   []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		assert.NotPanics(t, func() {

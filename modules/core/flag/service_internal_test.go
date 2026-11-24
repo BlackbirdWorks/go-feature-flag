@@ -83,8 +83,8 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		evaluations  int
 		attribute    string
+		evaluations  int
 		wantWarnings int
 	}{
 		{
@@ -130,8 +130,8 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
 		logger     *slog.Logger
+		name       string
 		wantLogged bool
 	}{
 		{name: "with a logger", logger: nil, wantLogged: true},
@@ -162,11 +162,11 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 
 	const query = `plan eq "kept-after-close"`
 	tests := []struct {
-		name string
 		// cleanup runs the cleanup of the rule list validated before the reset, for the epoch given.
 		cleanup func(c *nikunjyEvaluatorCache, epoch uint64)
 		// count is what the cleanup would remove: the evaluator entries or the keys.
 		count func(c *nikunjyEvaluatorCache) int
+		name  string
 		// wantAfterEarlierEpoch and wantAfterCurrentEpoch are the count after the cleanup of the earlier and of
 		// the current epoch
 		wantAfterEarlierEpoch, wantAfterCurrentEpoch int

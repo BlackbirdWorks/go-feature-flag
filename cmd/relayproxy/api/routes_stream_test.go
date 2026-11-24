@@ -180,8 +180,8 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Parallel()
 
 			dial := func(apiKey string) <-chan string {
-				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+tt.path+"?apiKey="+apiKey, nil)
-				require.NoError(t, err)
+				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+tt.path+"?apiKey="+apiKey, nil)
+				require.NoError(t, dialErr)
 				_ = resp.Body.Close()
 				t.Cleanup(func() { _ = ws.Close() })
 
@@ -216,11 +216,11 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 			t.Run(endpoint.name+": "+tt.name+" is rejected before the upgrade", func(t *testing.T) {
 				t.Parallel()
 
-				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+endpoint.path+"?apiKey="+tt.apiKey, nil)
+				ws, resp, dialErr := websocket.DefaultDialer.Dial(wsURL+endpoint.path+"?apiKey="+tt.apiKey, nil)
 				if ws != nil {
 					_ = ws.Close()
 				}
-				require.ErrorIs(t, err, websocket.ErrBadHandshake)
+				require.ErrorIs(t, dialErr, websocket.ErrBadHandshake)
 				defer func() { _ = resp.Body.Close() }()
 				assert.Equal(t, tt.want, resp.StatusCode)
 			})

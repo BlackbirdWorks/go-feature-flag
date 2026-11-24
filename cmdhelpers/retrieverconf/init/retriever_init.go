@@ -2,6 +2,7 @@ package init
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,6 +24,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
+)
+
+var (
+	errInvalidRetrieverKind = errors.New("invalid retriever: kind")
 )
 
 // retrieverFactory defines the signature for retriever factory functions.
@@ -74,8 +79,8 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 	return func(o *options) { o.postgresPools = pools }
 }
 
-// InitRetriever initialize the retriever based on the configuration.
-func InitRetriever(
+// Retriever initialize the retriever based on the configuration.
+func Retriever(
 	c *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
 	var o options
 	for _, opt := range opts {
@@ -87,7 +92,7 @@ func InitRetriever(
 	}
 	factory, exists := factoryFor(c.Kind)
 	if !exists {
-		return nil, fmt.Errorf("invalid retriever: kind \"%s\" is not supported", c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidRetrieverKind, c.Kind)
 	}
 	r, err := factory(c, retrieverTimeout)
 	if err != nil {
@@ -104,8 +109,8 @@ func InitRetriever(
 func createGitHubRetriever(
 	c *retrieverconf.RetrieverConf, timeout time.Duration) (retriever.Retriever, error) {
 	token := c.AuthToken
-	if token == "" && c.GithubToken != "" { //nolint: staticcheck
-		token = c.GithubToken //nolint: staticcheck
+	if token == "" && c.GithubToken != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
+		token = c.GithubToken //nolint:staticcheck // SA1019: the deprecated setting is still supported
 	}
 
 	return &githubretriever.Retriever{

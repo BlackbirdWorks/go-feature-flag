@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -10,6 +11,11 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+)
+
+const (
+	// logFieldsCapacity is the number of fields of a request log line.
+	logFieldsCapacity = 8
 )
 
 // DefaultSkipper is what we use as a default.
@@ -51,7 +57,7 @@ func ZapLogger(log *zap.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
 				size = r.Size
 			}
 
-			fields := make([]zapcore.Field, 0, 8)
+			fields := make([]zapcore.Field, 0, logFieldsCapacity)
 			fields = append(fields,
 				zap.String("remote_ip", c.RealIP()),
 				zap.String("latency", time.Since(v.StartTime).String()),
@@ -70,11 +76,11 @@ func ZapLogger(log *zap.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
 
 			n := status
 			switch {
-			case n >= 500:
+			case n >= http.StatusInternalServerError:
 				log.With(zap.Error(v.Error)).Error("Server error", fields...)
-			case n >= 400:
+			case n >= http.StatusBadRequest:
 				log.With(zap.Error(v.Error)).Warn("Client error", fields...)
-			case n >= 300:
+			case n >= http.StatusMultipleChoices:
 				log.Debug("Redirection", fields...)
 			default:
 				log.Debug("Success", fields...)

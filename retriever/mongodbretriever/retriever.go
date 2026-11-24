@@ -14,21 +14,24 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errDatabaseConnectionIsNot = errors.New("database connection is not initialized")
+)
+
 // Retriever is a configuration struct for a MongoDB connection and Collection.
 type Retriever struct {
+	dbConnection *mongo.Database
+	dbClient     *mongo.Client
+	logger       *fflog.FFLogger
 	// MongoDB connection URI
 	URI string
 	// Mongodb database where flags collection is
 	Database string
 	// Mongodb collection where flag definitions are stored
 	Collection string
-
+	status     string
 	// mu guards the connection: Shutdown can run while a Retrieve (a forced refresh) is still in flight.
-	mu           sync.RWMutex
-	dbConnection *mongo.Database
-	dbClient     *mongo.Client
-	status       string
-	logger       *fflog.FFLogger
+	mu sync.RWMutex
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
@@ -92,7 +95,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	dbConnection := r.dbConnection
 	r.mu.RUnlock()
 	if dbConnection == nil {
-		return nil, errors.New("database connection is not initialized")
+		return nil, errDatabaseConnectionIsNot
 	}
 
 	opt := options.CollectionOptions{}
@@ -111,13 +114,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	for cursor.Next(ctx) {
 		var doc bson.M
 
-		if err := cursor.Decode(&doc); err != nil {
-			return nil, err
+		if decodeErr := cursor.Decode(&doc); decodeErr != nil {
+			return nil, decodeErr
 		}
 
 		if val, ok := doc["flag"]; ok {
 			delete(doc, "flag")
-			if str, ok := val.(string); ok {
+			if str, isString := val.(string); isString {
 				ffDocs[str] = doc
 			} else {
 				r.logger.Error("flag key does not have a string as value")

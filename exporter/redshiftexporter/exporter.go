@@ -25,6 +25,28 @@ import (
 )
 
 const (
+	// Sizes, in bytes, of the text columns of the events table.
+	maxKindBytes      = 50
+	maxUserKeyBytes   = 512
+	maxKeyBytes       = 256
+	maxShortTextBytes = 64
+)
+
+var errRedshiftExporter = errors.New("redshift exporter")
+
+var (
+	errRedshiftExporterInvalidTable = errors.New("redshift exporter: invalid table name")
+	errRedshiftExporterDatabaseIs   = errors.New("redshift exporter: Database is required")
+	errRedshiftExporterOneOf        = errors.New(
+		"redshift exporter: one of ClusterIdentifier or WorkgroupName is required",
+	)
+	errRedshiftExporterClusterIdentifierAnd = errors.New(
+		"redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive",
+	)
+	errRedshiftExporterReceivedMixed = errors.New("redshift exporter received mixed event types")
+)
+
+const (
 	defaultFeatureTableName  = "feature_flag_evaluations"
 	defaultTrackingTableName = "tracking_events"
 
@@ -122,27 +144,27 @@ func textCol(name string, maxBytes int) column {
 
 func featureEventColumns() []column {
 	return []column{
-		textCol("kind", 50),
-		textCol("context_kind", 50),
-		textCol("user_key", 512),
+		textCol("kind", maxKindBytes),
+		textCol("context_kind", maxKindBytes),
+		textCol("user_key", maxUserKeyBytes),
 		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-		textCol("key", 256),
-		textCol("variation", 256),
+		textCol("key", maxKeyBytes),
+		textCol("variation", maxKeyBytes),
 		{name: "value", sqlType: sqlTypeSuper, kind: superColumn},
 		{name: "default", sqlType: sqlTypeBoolean, kind: booleanColumn},
-		textCol("version", 64),
-		textCol("source", 64),
+		textCol("version", maxShortTextBytes),
+		textCol("source", maxShortTextBytes),
 		{name: "metadata", sqlType: sqlTypeSuper, kind: superColumn},
 	}
 }
 
 func trackingEventColumns() []column {
 	return []column{
-		textCol("kind", 50),
-		textCol("context_kind", 50),
-		textCol("user_key", 512),
+		textCol("kind", maxKindBytes),
+		textCol("context_kind", maxKindBytes),
+		textCol("user_key", maxUserKeyBytes),
 		{name: "creation_date", sqlType: sqlTypeBigint, kind: bigintColumn},
-		textCol("key", 256),
+		textCol("key", maxKeyBytes),
 		{name: "tracking_details", sqlType: sqlTypeSuper, kind: superColumn},
 		{name: "evaluation_context", sqlType: sqlTypeSuper, kind: superColumn},
 	}
@@ -150,48 +172,37 @@ func trackingEventColumns() []column {
 
 // Exporter inserts events in an AWS Redshift table using the Redshift Data API.
 type Exporter struct {
-	// ClusterIdentifier is the identifier of a provisioned Redshift cluster.
-	// Set either ClusterIdentifier or WorkgroupName.
-	ClusterIdentifier string
-
-	// WorkgroupName is the name or ARN of a Redshift Serverless workgroup.
-	// Set either ClusterIdentifier or WorkgroupName.
-	WorkgroupName string
-
-	// Database is the name of the database receiving the events.
-	Database string
-
-	// DbUser is the database user, used with ClusterIdentifier to get temporary credentials.
-	// If DbUser and SecretArn are empty, the database user is derived from the IAM identity.
-	DbUser string
-
-	// SecretArn is the ARN of an AWS Secrets Manager secret containing the database credentials.
-	SecretArn string
-
-	// TableName is the table receiving events for this exporter instance, it can be prefixed by a schema.
-	// Default: feature_flag_evaluations for feature events, tracking_events for tracking events.
-	TableName string
-
+	initErr error
+	// client is the Redshift Data API client, it can be set for testing purposes.
+	client redshiftDataClient
 	// AwsConfig is the AWS SDK configuration used to call the Redshift Data API.
 	// If nil, the default AWS configuration is loaded.
 	AwsConfig *aws.Config
-
-	// AutoMigrate creates the table with the expected schema if it does not exist.
-	AutoMigrate bool
-
-	// client is the Redshift Data API client, it can be set for testing purposes.
-	client redshiftDataClient
-
-	initOnce sync.Once
-	initErr  error
-
-	migrateMutex sync.Mutex
-	migrated     bool
-
+	// SecretArn is the ARN of an AWS Secrets Manager secret containing the database credentials.
+	SecretArn string
+	// ClusterIdentifier is the identifier of a provisioned Redshift cluster.
+	// Set either ClusterIdentifier or WorkgroupName.
+	ClusterIdentifier string
+	// TableName is the table receiving events for this exporter instance, it can be prefixed by a schema.
+	// Default: feature_flag_evaluations for feature events, tracking_events for tracking events.
+	TableName string
+	// DBUser is the database user, used with ClusterIdentifier to get temporary credentials.
+	// If DBUser and SecretArn are empty, the database user is derived from the IAM identity.
+	DBUser string
+	// Database is the name of the database receiving the events.
+	Database string
+	// WorkgroupName is the name or ARN of a Redshift Serverless workgroup.
+	// Set either ClusterIdentifier or WorkgroupName.
+	WorkgroupName string
 	// pollInterval, statementTimeout and cancelTimeout can be overridden for testing purposes.
 	pollInterval     time.Duration
 	statementTimeout time.Duration
 	cancelTimeout    time.Duration
+	initOnce         sync.Once
+	migrateMutex     sync.Mutex
+	// AutoMigrate creates the table with the expected schema if it does not exist.
+	AutoMigrate bool
+	migrated    bool
 }
 
 // row is a row ready to be inserted, values are in the order of the table columns.
@@ -233,12 +244,12 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.validate(); err != nil {
-		return err
+	if validateErr := e.validate(); validateErr != nil {
+		return validateErr
 	}
 	table, columns := e.tableName(eventType), columnsForEventType(eventType)
 	if !IsValidTableName(table) {
-		return fmt.Errorf("redshift exporter: invalid table name %q", table)
+		return fmt.Errorf("%w %q", errRedshiftExporterInvalidTable, table)
 	}
 
 	rows, skippedKeys := prepareRows(columns, rows, len(insertPrefix(table, columns)))
@@ -250,15 +261,15 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.initClient(ctx); err != nil {
-		return err
+	if initClientErr := e.initClient(ctx); initClientErr != nil {
+		return initClientErr
 	}
-	if err := e.migrate(ctx, table, columns); err != nil {
-		return err
+	if migrateErr := e.migrate(ctx, table, columns); migrateErr != nil {
+		return migrateErr
 	}
 	for _, b := range buildBatches(table, columns, rows) {
-		if err := e.run(ctx, b.sqls, b.params); err != nil {
-			return err
+		if runErr := e.run(ctx, b.sqls, b.params); runErr != nil {
+			return runErr
 		}
 	}
 
@@ -272,13 +283,13 @@ func (e *Exporter) IsBulk() bool {
 
 func (e *Exporter) validate() error {
 	if e.Database == "" {
-		return errors.New("redshift exporter: Database is required")
+		return errRedshiftExporterDatabaseIs
 	}
 	if e.ClusterIdentifier == "" && e.WorkgroupName == "" {
-		return errors.New("redshift exporter: one of ClusterIdentifier or WorkgroupName is required")
+		return errRedshiftExporterOneOf
 	}
 	if e.ClusterIdentifier != "" && e.WorkgroupName != "" {
-		return errors.New("redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive")
+		return errRedshiftExporterClusterIdentifierAnd
 	}
 
 	return nil
@@ -363,8 +374,8 @@ func (e *Exporter) run(ctx context.Context, sqls []string, params []types.SqlPar
 	if e.WorkgroupName != "" {
 		input.WorkgroupName = aws.String(e.WorkgroupName)
 	}
-	if e.DbUser != "" {
-		input.DbUser = aws.String(e.DbUser)
+	if e.DBUser != "" {
+		input.DbUser = aws.String(e.DBUser)
 	}
 	if e.SecretArn != "" {
 		input.SecretArn = aws.String(e.SecretArn)
@@ -396,8 +407,8 @@ func (e *Exporter) waitForStatement(ctx context.Context, id *string) error {
 				return fmt.Errorf("redshift exporter: describe statement %s: %w", aws.ToString(id), err)
 			}
 			lastErr = err
-		} else if done, err := statementResult(id, output); done {
-			return err
+		} else if done, statementResultErr := statementResult(id, output); done {
+			return statementResultErr
 		}
 
 		select {
@@ -481,12 +492,12 @@ func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (
 	case types.StatusStringFinished:
 		return true, nil
 	case types.StatusStringFailed, types.StatusStringAborted:
-		msg := fmt.Sprintf("redshift exporter: statement %s %s", aws.ToString(id), output.Status)
+		stmtErr := fmt.Errorf("%w: statement %s %s", errRedshiftExporter, aws.ToString(id), output.Status)
 		if detail := statementError(output); detail != "" {
-			msg += ": " + detail
+			stmtErr = fmt.Errorf("%w: %s", stmtErr, detail)
 		}
 
-		return true, errors.New(msg)
+		return true, stmtErr
 	default:
 		return false, nil
 	}
@@ -533,7 +544,7 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 			eventType = rowType
 		}
 		if eventType != rowType {
-			return nil, "", errors.New("redshift exporter received mixed event types")
+			return nil, "", errRedshiftExporterReceivedMixed
 		}
 		if err != nil {
 			skippedKeys = append(skippedKeys, event.GetKey())
@@ -621,6 +632,8 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 				r.values[i] = truncateUTF8(r.values[i], c.maxBytes)
 			case superColumn:
 				tooLarge = tooLarge || len(r.values[i]) > maxSuperBytes
+			default:
+				// fixed-size values: nothing to truncate or to check
 			}
 		}
 		var params []types.SqlParameter

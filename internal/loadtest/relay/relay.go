@@ -24,6 +24,12 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	// readyTimeout is how long the relay proxy has to answer the health check, polled every readyPollInterval.
+	readyTimeout      = 15 * time.Second
+	readyPollInterval = 20 * time.Millisecond
+)
+
 // Options configures Start.
 type Options struct {
 	// FlagsYAML is the flag configuration (see loadtest.FlagsYAML).
@@ -31,12 +37,12 @@ type Options struct {
 	// ExporterMode is the behaviour of the webhook sink the relay proxy exports to.
 	// An empty value disables the exporter.
 	ExporterMode loadtest.ExporterMode
+	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
+	TempDir string
 	// FlushIntervalMs is the flush interval of the exporter (default 1000).
 	FlushIntervalMs int64
 	// MaxEventInMemory is the flush trigger of the exporter (default 100000).
 	MaxEventInMemory int64
-	// TempDir is the directory the flag file directory is created in (default: os.TempDir()).
-	TempDir string
 	// H2C makes the relay proxy accept HTTP/2 over cleartext (server.enableH2C); only with Listen.
 	H2C bool
 	// Listen enables the real HTTP server on a free loopback port (needed for the soak).
@@ -45,19 +51,18 @@ type Options struct {
 
 // Relay is a running relay proxy.
 type Relay struct {
+	wsSvc  stream.WebsocketService
+	sink   *httptest.Server
+	server *api.Server
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
+	dir     string
 	// Services are the relay proxy services, usable to build handlers in-process.
 	Services service.Services
 	// SinkRequests counts the requests received by the webhook sink.
 	SinkRequests atomic.Int64
 	// SinkBytes counts the bytes received by the webhook sink.
 	SinkBytes atomic.Int64
-
-	sink   *httptest.Server
-	server *api.Server
-	wsSvc  stream.WebsocketService
-	dir    string
 }
 
 // Start starts a relay proxy.
@@ -141,8 +146,8 @@ func Start(opts Options) (_ *Relay, err error) {
 		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
 		listener = nil
 		r.BaseURL = baseURL
-		if err := waitHealthy(baseURL); err != nil {
-			return nil, err
+		if waitHealthyErr := waitHealthy(baseURL); waitHealthyErr != nil {
+			return nil, waitHealthyErr
 		}
 	}
 
@@ -199,7 +204,7 @@ const healthRequestTimeout = 5 * time.Second
 // waitHealthy polls the relay proxy health endpoint until it answers or 15s elapse.
 func waitHealthy(baseURL string) error {
 	client := &http.Client{Timeout: healthRequestTimeout}
-	deadline := time.Now().Add(15 * time.Second)
+	deadline := time.Now().Add(readyTimeout)
 	for {
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
@@ -214,6 +219,6 @@ func waitHealthy(baseURL string) error {
 		if time.Now().After(deadline) {
 			return fmt.Errorf("relay proxy did not start: %w", err)
 		}
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(readyPollInterval)
 	}
 }

@@ -58,8 +58,8 @@ func TestMetrics_Gatherer(t *testing.T) {
 
 // countingCollector exposes a gauge that increases at every collection, like a collector with a side effect.
 type countingCollector struct {
-	calls atomic.Int64
 	desc  *prom.Desc
+	calls atomic.Int64
 }
 
 func (c *countingCollector) Describe(ch chan<- *prom.Desc) { ch <- c.desc }
@@ -102,6 +102,72 @@ func TestMetrics_GathererCollectsOnce(t *testing.T) {
 			if tt.exposeLegacy {
 				assert.InDelta(t, 1.0, values["gofeatureflag_counting"], 0, "both names carry the same collection")
 			}
+		})
+	}
+}
+
+func TestMetrics_RenamedMetricsKeepTheirLegacyNames(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		inc          func(m *metric.Metrics)
+		wantName     string
+		wantLegacy   string
+		wantNotNamed string
+	}{
+		{
+			name:         "per flag update",
+			inc:          func(m *metric.Metrics) { m.IncFlagUpdated("f") },
+			wantName:     "semaphore_flag_update_by_flag_total",
+			wantLegacy:   "gofeatureflag_flag_update",
+			wantNotNamed: "semaphore_flag_update",
+		},
+		{
+			name:         "per flag delete",
+			inc:          func(m *metric.Metrics) { m.IncFlagDeleted("f") },
+			wantName:     "semaphore_flag_delete_by_flag_total",
+			wantLegacy:   "gofeatureflag_flag_delete",
+			wantNotNamed: "semaphore_flag_delete",
+		},
+		{
+			name:         "per flag create",
+			inc:          func(m *metric.Metrics) { m.IncFlagCreated("f") },
+			wantName:     "semaphore_flag_create_by_flag_total",
+			wantLegacy:   "gofeatureflag_flag_create",
+			wantNotNamed: "semaphore_flag_create",
+		},
+		{
+			name:         "force refresh",
+			inc:          func(m *metric.Metrics) { m.IncForceRefresh() },
+			wantName:     "semaphore_force_refresh_total",
+			wantLegacy:   "gofeatureflag_force_refresh",
+			wantNotNamed: "semaphore_force_refresh",
+		},
+		{
+			name:         "bulk evaluations with flag names",
+			inc:          func(m *metric.Metrics) { m.IncAllFlag("f") },
+			wantName:     "semaphore_all_flags_evaluations_with_flag_total",
+			wantLegacy:   "gofeatureflag_all_flags_evaluations_total_with_flag",
+			wantNotNamed: "semaphore_all_flags_evaluations_total_with_flag",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			m, err := metric.NewMetrics(metric.MetricsOpts{EnableBulkMetricFlagNames: true})
+			require.NoError(t, err)
+			tt.inc(&m)
+
+			families, err := m.Gatherer(true).Gather()
+			require.NoError(t, err)
+			names := map[string]bool{}
+			for _, f := range families {
+				names[f.GetName()] = true
+			}
+
+			assert.True(t, names[tt.wantName], tt.wantName)
+			assert.True(t, names[tt.wantLegacy], tt.wantLegacy)
+			assert.False(t, names[tt.wantNotNamed], tt.wantNotNamed)
 		})
 	}
 }

@@ -3,7 +3,7 @@ package gcstorageretriever
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint: gosec
+	"crypto/md5" //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	"fmt"
 	"io"
 
@@ -13,24 +13,19 @@ import (
 
 // Retriever is a configuration struct for a Google Cloud Storage retriever.
 type Retriever struct {
+	// Internal field used to fetch metadata of the file.
+	obj *storage.ObjectHandle
 	// Bucket is the name of your Google Cloud Storage Bucket.
 	Bucket string
-
 	// Object is the name of your file in your bucket.
 	Object string
-
 	// Options are Google Cloud Api options needed for downloading
 	// your feature flag configuration file.
 	Options []option.ClientOption
-
 	// Internal field used to cache the file data.
 	cache []byte
-
 	// Internal MD5 hash of cache
 	md5 []byte
-
-	// Internal field used to fetch metadata of the file.
-	obj *storage.ObjectHandle
 }
 
 func (retriever *Retriever) SetOptions(options []option.ClientOption) {
@@ -38,7 +33,7 @@ func (retriever *Retriever) SetOptions(options []option.ClientOption) {
 }
 
 // Retrieve is the function in charge of fetching the flag configuration.
-func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err error) {
+func (retriever *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if retriever.obj == nil {
 		// Create GC Storage Client.
 		client, err := storage.NewClient(ctx, retriever.Options...)
@@ -69,7 +64,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err e
 	defer func() { _ = reader.Close() }()
 
 	// Read all contents from the Reader.
-	content, err = io.ReadAll(reader)
+	content, err := io.ReadAll(reader)
 	if err != nil {
 		return nil,
 			fmt.Errorf(
@@ -82,7 +77,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err e
 
 	// Update Cache along with its hash.
 	retriever.cache = content
-	md5Hash := md5.Sum(content) //nolint: gosec
+	md5Hash := md5.Sum(content) //nolint:gosec // md5 is the checksum the GCS API reports, not a security use
 	retriever.md5 = md5Hash[:]
 
 	return content, nil

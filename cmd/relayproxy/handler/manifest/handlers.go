@@ -24,18 +24,18 @@ const (
 )
 
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *zap.Logger) ManifestCtrl {
-	return ManifestCtrl{
+	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *zap.Logger) Ctrl {
+	return Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 		logger:         logger,
 	}
 }
 
-type ManifestCtrl struct {
+type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
 	logger         *zap.Logger
+	metrics        metric.Metrics
 }
 
 // GetManifest is a GET endpoint to return the flags configured in Semaphore as a OpenFeature flag manifest.
@@ -51,7 +51,7 @@ type ManifestCtrl struct {
 // @Failure      403 {object}  model.ManifestError "Forbidden"
 // @Failure      500 {object}  model.ManifestError "Internal server error"
 // @Router       /openfeature/v0/manifest [GET]
-func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
+func (m *Ctrl) GetManifest(c *echo.Context) error {
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 	_, span := tracer.Start(c.Request().Context(), "getManifest")
 	defer span.End()

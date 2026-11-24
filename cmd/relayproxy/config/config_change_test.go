@@ -42,9 +42,9 @@ const (
 // httpRequestCheck defines a check to perform on an HTTP request.
 type httpRequestCheck struct {
 	apiKey          string   // API key to use in the request (empty means no API key header)
-	expectedStatus  int      // expected HTTP status code
 	bodyContains    []string // strings that should be in the response body (optional)
 	bodyNotContains []string // strings that should NOT be in the response body (optional)
+	expectedStatus  int      // expected HTTP status code
 }
 
 func TestConfigChangeDefaultMode(t *testing.T) {
@@ -95,7 +95,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -200,7 +200,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -285,7 +285,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			// Create observed logger to capture error logs
 			core, observedLogs := observer.New(zapcore.ErrorLevel)
 			observedLogger := zap.New(core)
-			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 
@@ -382,7 +382,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -426,7 +426,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := observer.New(zapcore.ErrorLevel)
 	observedLogger := zap.New(core)
-	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
+	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 		callbackCalled <- true
 	})
 	defer func() {
@@ -476,6 +476,7 @@ func newAPIServerWithLogger(
 	logger *zap.Logger,
 	callback func(newConfig *config.Config),
 ) (api.Server, *config.Config) {
+	t.Helper()
 	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	f.String("config", "", "Location of your config file")
 	err := f.Parse([]string{"--config=" + configFile.Name()})
@@ -521,8 +522,8 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 
 	// Check body content if needed
 	if len(check.bodyContains) > 0 || len(check.bodyNotContains) > 0 {
-		responseBody, err := io.ReadAll(response.Body)
-		require.NoError(t, err)
+		responseBody, readAllErr := io.ReadAll(response.Body)
+		require.NoError(t, readAllErr)
 		bodyStr := string(responseBody)
 
 		for _, expected := range check.bodyContains {
@@ -541,7 +542,7 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 func waitForHealth(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + "/health") //nolint:noctx // bounded by Eventually
+		resp, err := http.Get(baseURL + "/health")
 		if err != nil {
 			return false
 		}

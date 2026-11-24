@@ -4,6 +4,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// DefaultServerPort is the port the relay proxy listens on when none is configured.
+	DefaultServerPort = 1031
+)
+
 type ServerMode = string
 
 const (
@@ -27,37 +32,30 @@ type Server struct {
 	// Mode is the server mode.
 	// default: http
 	Mode ServerMode `mapstructure:"mode" koanf:"mode"`
-
 	// Host is the server host.
 	// default: 0.0.0.0
 	Host string `mapstructure:"host" koanf:"host"`
-
-	// Port is the server port.
-	// default: 1031
-	Port int `mapstructure:"port" koanf:"port"`
-
-	// MonitoringPort is the monitoring port. It can be specified only if the server mode is HTTP.
-	// default: none, it will use the same as server port.
-	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
-
 	// UnixSocket is the server unix socket path.
 	UnixSocketPath string `mapstructure:"unixSocketPath" koanf:"unixsocketpath"`
-
-	// EnableH2C makes the HTTP server also accept HTTP/2 over cleartext TCP (h2c, prior knowledge), next to HTTP/1.1.
-	// It is only used in http mode and is off by default.
-	EnableH2C bool `mapstructure:"enableH2C" koanf:"enableh2c"`
-
 	// AWS Lambda configuration
 	// LambdaAdapter is the adapter to use when the relay proxy is started as an AWS Lambda.
 	// default: APIGatewayV2
 	LambdaAdapter LambdaAdapter `mapstructure:"awsLambdaAdapter" koanf:"awsLambdaAdapter"`
-
-	// AwsApiGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
+	// AwsAPIGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
 	// This is useful when deploying behind a non-root path like "/api" or "/dev/feature-flags".
 	// The relay proxy will strip this base path from incoming requests before processing.
 	// Example: if set to "/api/feature-flags", requests to "/api/feature-flags/health" will be processed as "/health"
 	// Default: ""
-	AwsApiGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	AwsAPIGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	// Port is the server port.
+	// default: 1031
+	Port int `mapstructure:"port" koanf:"port"`
+	// MonitoringPort is the monitoring port. It can be specified only if the server mode is HTTP.
+	// default: none, it will use the same as server port.
+	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
+	// EnableH2C makes the HTTP server also accept HTTP/2 over cleartext TCP (h2c, prior knowledge), next to HTTP/1.1.
+	// It is only used in http mode and is off by default.
+	EnableH2C bool `mapstructure:"enableH2C" koanf:"enableh2c"`
 }
 
 // EffectiveMonitoringPort returns the monitoring port, checking first the top-level config
@@ -104,7 +102,7 @@ func (c *Config) ServerPort(logger *zap.Logger) int {
 		return c.ListenPort
 	}
 
-	return 1031
+	return DefaultServerPort
 }
 
 // ServerMode returns the server mode, checking first the server config
@@ -145,20 +143,20 @@ func (c *Config) LambdaAdapter(logger *zap.Logger) LambdaAdapter {
 	return LambdaAdapterAPIGatewayV2
 }
 
-// EffectiveAwsApiGatewayBasePath returns the AWS API Gateway base path, checking first the server config
+// EffectiveAwsAPIGatewayBasePath returns the AWS API Gateway base path, checking first the server config
 // and then the top-level config, defaulting to empty string if not set.
-func (c *Config) EffectiveAwsApiGatewayBasePath(logger *zap.Logger) string {
-	if c.Server.AwsApiGatewayBasePath != "" {
-		return c.Server.AwsApiGatewayBasePath
+func (c *Config) EffectiveAwsAPIGatewayBasePath(logger *zap.Logger) string {
+	if c.Server.AwsAPIGatewayBasePath != "" {
+		return c.Server.AwsAPIGatewayBasePath
 	}
 
-	if c.AwsApiGatewayBasePath != "" {
+	if c.AwsAPIGatewayBasePath != "" {
 		if logger != nil {
 			logger.Warn("The AWS API Gateway base path is set using `awsApiGatewayBasePath`, " +
 				"this option is deprecated, please migrate to `server.awsApiGatewayBasePath`")
 		}
 
-		return c.AwsApiGatewayBasePath
+		return c.AwsAPIGatewayBasePath
 	}
 
 	return ""

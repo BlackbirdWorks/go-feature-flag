@@ -25,49 +25,67 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// maxErrorBodyBytes is how much of an error response is read to build the error message.
+	maxErrorBodyBytes = 512
+)
+
+var errRequestTo = errors.New("request to")
+
+var (
+	errGithubAppGithubTokenAnd = errors.New(
+		"github app: GithubToken and GitHub App fields are mutually exclusive",
+	)
+	errGithubAppAppIDInstallationID = errors.New(
+		"github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required",
+	)
+	errMissingMandatoryInformationFilePath = errors.New("missing mandatory information filePath")
+	errGithubAppAccessTokens               = errors.New("github app: access_tokens endpoint returned")
+	errGithubAppTokenResponse              = errors.New("github app: token response contained no token")
+	errGithubAppTokenResponseContained     = errors.New("github app: token response contained no expires_at")
+	errGithubAppFailedTo                   = errors.New("github app: failed to decode PEM block from private key")
+	errRateLimitExceededNext               = errors.New("rate limit exceeded. Next call will be after")
+	errFilepathMustNotContain              = errors.New("filepath must not contain '..'")
+	errRepositorySlugMustNot               = errors.New("repository slug must not contain '..'")
+)
+
 // Retriever is a configuration struct for a GitHub retriever.
 type Retriever struct {
-	RepositorySlug string
+	rateLimitReset time.Time
+	tokenExpiresAt time.Time
+	// httpClient is the http.Client if you want to override it.
+	httpClient     internal.HTTPClient
 	Branch         string // default is main
 	FilePath       string
 	GithubToken    string
-	Timeout        time.Duration // default is 10 seconds
-
+	RepositorySlug string
 	// BaseURL is the base URL for the GitHub API.
 	// If not specified, it defaults to "https://api.github.com" for GitHub.com.
 	// For GitHub Enterprise instances, specify your instance URL (e.g., "https://github.acme.com/api/v3").
 	BaseURL string
-
+	// cached installation token state (GitHub App auth only)
+	cachedToken    string
+	PrivateKey     string // PEM-encoded RSA private key
+	PrivateKeyFile string // path to a PEM file; takes precedence over PrivateKey if both are set
+	status         retriever.Status
+	Timeout        time.Duration // default is 10 seconds
+	// rate limit fields
+	rateLimitRemaining int
+	InstallationID     int64
 	// GitHub App authentication fields.
 	// AppID and InstallationID are required together with either
 	// PrivateKey (PEM string) or PrivateKeyFile (path to a PEM file).
 	// Mutually exclusive with GithubToken / AuthToken.
-	AppID          int64
-	InstallationID int64
-	PrivateKey     string // PEM-encoded RSA private key
-	PrivateKeyFile string // path to a PEM file; takes precedence over PrivateKey if both are set
-
-	// httpClient is the http.Client if you want to override it.
-	httpClient internal.HTTPClient
-	status     retriever.Status
-
+	AppID int64
 	// mu guards the rate limit fields and the cached installation token,
 	// so concurrent Retrieve calls mint the token only once.
 	mu sync.Mutex
-
-	// rate limit fields
-	rateLimitRemaining int
-	rateLimitReset     time.Time
-
-	// cached installation token state (GitHub App auth only)
-	cachedToken    string
-	tokenExpiresAt time.Time
 }
 
 // installationTokenResponse is the JSON body returned by the access_tokens endpoint.
 type installationTokenResponse struct {
-	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
+	Token     string    `json:"token"`
 }
 
 // Init validates the authentication configuration.
@@ -107,10 +125,10 @@ func (r *Retriever) validateAppAuth() error {
 		return nil
 	}
 	if r.GithubToken != "" {
-		return errors.New("github app: GithubToken and GitHub App fields are mutually exclusive")
+		return errGithubAppGithubTokenAnd
 	}
 	if !r.isAppAuth() {
-		return errors.New("github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required")
+		return errGithubAppAppIDInstallationID
 	}
 	_, err := r.loadPrivateKey()
 
@@ -120,8 +138,7 @@ func (r *Retriever) validateAppAuth() error {
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information filePath=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationFilePath,
 			r.FilePath,
 			r.RepositorySlug,
 		)
@@ -138,8 +155,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := r.checkRateLimit(); err != nil {
-		return nil, err
+	if checkRateLimitErr := r.checkRateLimit(); checkRateLimitErr != nil {
+		return nil, checkRateLimitErr
 	}
 
 	requestURL, err := r.buildURL(branch)
@@ -167,8 +184,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if err := r.checkResponseError(resp, requestURL); err != nil {
-		return nil, err
+	if checkResponseErrorErr := r.checkResponseError(resp, requestURL); checkResponseErrorErr != nil {
+		return nil, checkResponseErrorErr
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -268,10 +285,9 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 	if resp.StatusCode != http.StatusCreated {
 		// GitHub explains the failure in the body (bad app id, suspended installation, clock skew...).
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
 
-		return "", time.Time{}, fmt.Errorf(
-			"github app: access_tokens endpoint returned %d for installation %d: %s",
+		return "", time.Time{}, fmt.Errorf("%w %d for installation %d: %s", errGithubAppAccessTokens,
 			resp.StatusCode, r.InstallationID, strings.TrimSpace(string(msg)),
 		)
 	}
@@ -282,14 +298,14 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	}
 
 	var result installationTokenResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", err)
+	if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
+		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
 	if result.Token == "" {
-		return "", time.Time{}, errors.New("github app: token response contained no token")
+		return "", time.Time{}, errGithubAppTokenResponse
 	}
 	if result.ExpiresAt.IsZero() {
-		return "", time.Time{}, errors.New("github app: token response contained no expires_at")
+		return "", time.Time{}, errGithubAppTokenResponseContained
 	}
 
 	return result.Token, result.ExpiresAt, nil
@@ -301,7 +317,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 	var err error
 
 	if r.PrivateKeyFile != "" {
-		pemBytes, err = os.ReadFile(r.PrivateKeyFile) //nolint:gosec // path is operator-supplied config
+		pemBytes, err = os.ReadFile(r.PrivateKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("github app: failed to read private key file %s: %w", r.PrivateKeyFile, err)
 		}
@@ -311,7 +327,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, errors.New("github app: failed to decode PEM block from private key")
+		return nil, errGithubAppFailedTo
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -339,7 +355,7 @@ func (r *Retriever) checkRateLimit() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.rateLimitRemaining <= 0 && clock.Now().Before(r.rateLimitReset) {
-		return fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
+		return fmt.Errorf("%w %s", errRateLimitExceededNext, r.rateLimitReset)
 	}
 
 	return nil
@@ -349,10 +365,10 @@ func (r *Retriever) checkRateLimit() error {
 func (r *Retriever) buildURL(branch string) (string, error) {
 	// Validate inputs to prevent path traversal attacks
 	if strings.Contains(r.FilePath, "..") {
-		return "", errors.New("filepath must not contain '..'")
+		return "", errFilepathMustNotContain
 	}
 	if strings.Contains(r.RepositorySlug, "..") {
-		return "", errors.New("repository slug must not contain '..'")
+		return "", errRepositorySlugMustNot
 	}
 
 	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
@@ -385,7 +401,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
 func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
-	if resp.StatusCode > 399 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
 		for name := range resp.Header {
@@ -394,14 +410,14 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 			}
 		}
 
-		return fmt.Errorf("request to %s failed with code %d."+
-			" GitHub Headers: %v", url, resp.StatusCode, ghHeaders)
+		return fmt.Errorf("%w %s failed with code %d. GitHub Headers: %v",
+			errRequestTo, url, resp.StatusCode, ghHeaders)
 	}
 
 	return nil
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client

@@ -169,9 +169,9 @@ func TestTime(t *testing.T) {
 	fixedTime := time.Date(2023, 1, 15, 10, 30, 0, 0, time.UTC)
 
 	tests := []struct {
-		name  string
 		input time.Time
 		want  time.Time
+		name  string
 	}{
 		{
 			name:  "current time",
@@ -205,9 +205,9 @@ func TestInterface(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
 		input any
 		want  any
+		name  string
 	}{
 		{
 			name:  "string value",

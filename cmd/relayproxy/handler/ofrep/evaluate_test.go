@@ -31,11 +31,11 @@ func Test_Bulk_Evaluation(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode   int
 		bodyFile   string
-		handlerErr bool
 		errorMsg   string
+		httpCode   int
 		errorCode  int
+		handlerErr bool
 	}
 
 	type args struct {
@@ -144,8 +144,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -183,8 +183,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		eventStream config.OfrepEventStream
 		headers     map[string]string
+		eventStream config.OfrepEventStream
 	}
 
 	tests := []struct {
@@ -283,8 +283,8 @@ func Test_Evaluate(t *testing.T) {
 	t.Parallel()
 
 	type want struct {
-		httpCode int
 		bodyFile string
+		httpCode int
 	}
 
 	type args struct {
@@ -437,8 +437,8 @@ func Test_Evaluate(t *testing.T) {
 			// read wantBody request file
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
-				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
@@ -462,9 +462,9 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		flagKeys []string
 		bodyFile string
 		want     string
+		flagKeys []string
 	}{
 		{
 			name:     "should use the flag key as label if the flag exists",

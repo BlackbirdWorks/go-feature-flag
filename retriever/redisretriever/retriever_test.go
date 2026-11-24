@@ -23,11 +23,10 @@ func Test_Redis_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr     assert.ErrorAssertionFunc
 		name        string
 		prefix      string
 		flagsToLoad []string
-
-		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name:        "flags with prefix",
@@ -63,8 +62,8 @@ func Test_Redis_Retrieve(t *testing.T) {
 			err := retriever.Init(context.TODO(), nil)
 			require.NoError(t, err)
 			defer func() {
-				err := retriever.Shutdown(context.TODO())
-				assert.NoError(t, err)
+				shutdownErr := retriever.Shutdown(context.TODO())
+				assert.NoError(t, shutdownErr)
 			}()
 			got, err := retriever.Retrieve(context.Background())
 			tt.wantErr(t, err)
@@ -89,9 +88,12 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 // startRedisAndAddData starts a Redis container, terminated when the test ends, and seeds it with the flag files.
 func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Options {
+	t.Helper()
 	ctx := context.TODO()
 
-	redisContainer, err := testcontainerRedis.RunContainer(ctx,
+	//nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
+	redisContainer, err := testcontainerRedis.RunContainer(
+		ctx,
 		testcontainers.WithImage("docker.io/redis:7"),
 		testcontainerRedis.WithSnapshotting(10, 1),
 		testcontainerRedis.WithLogLevel(testcontainerRedis.LogLevelVerbose),
@@ -274,6 +276,7 @@ func Test_Redis_OutputFormat(t *testing.T) {
 }
 
 func readFile(t *testing.T, file string) (string, []byte) {
+	t.Helper()
 	content, err := os.ReadFile(filepath.Join("testdata", file))
 	if err != nil {
 		return "", nil

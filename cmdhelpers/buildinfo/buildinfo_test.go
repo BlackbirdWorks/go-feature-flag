@@ -13,11 +13,11 @@ func TestText(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		linked buildinfo.Linked
 		bi     *debug.BuildInfo
-		fips   bool
+		linked buildinfo.Linked
+		name   string
 		want   string
+		fips   bool
 	}{
 		{
 			name:   "release build uses the link flags",

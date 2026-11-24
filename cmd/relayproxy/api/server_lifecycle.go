@@ -77,8 +77,8 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 
 	// Clean up the old socket file if it exists (important for graceful restarts)
 	if _, err := os.Stat(socketPath); err == nil {
-		if err := os.Remove(socketPath); err != nil {
-			s.zapLog.Fatal("Could not remove old socket file", zap.String("path", socketPath), zap.Error(err))
+		if removeErr := os.Remove(socketPath); removeErr != nil {
+			s.zapLog.Fatal("Could not remove old socket file", zap.String("path", socketPath), zap.Error(removeErr))
 		}
 	}
 
@@ -97,8 +97,8 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 
 	defer func() {
 		// the graceful shutdown already closes the listener
-		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			s.zapLog.Error("error closing unix socket listener", zap.Error(err))
+		if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+			s.zapLog.Error("error closing unix socket listener", zap.Error(closeErr))
 		}
 	}()
 
@@ -192,7 +192,7 @@ func (s *Server) startAwsLambda() {
 // We need a dedicated function because it is called from tests as well, this is the
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
-	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsApiGatewayBasePath(s.zapLog))
+	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsAPIGatewayBasePath(s.zapLog))
 
 	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.zapLog))
 }

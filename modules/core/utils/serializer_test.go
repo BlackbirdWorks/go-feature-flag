@@ -13,9 +13,9 @@ func TestUserToMap(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		u    ffcontext.Context
 		want map[string]any
+		name string
 	}{
 		{
 			name: "complete user",

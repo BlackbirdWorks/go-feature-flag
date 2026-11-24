@@ -151,7 +151,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			warner, warnings := recordingWarner()
-			c := &ConfigLoader{
+			c := &Loader{
 				log:         zap.NewNop(),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },
@@ -172,7 +172,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 
 func TestLoadEnvVariablesSemaphoreArrays(t *testing.T) {
 	t.Parallel()
-	c := &ConfigLoader{
+	c := &Loader{
 		log: zap.NewNop(),
 		k:   koanf.New("."),
 		environFunc: func() []string {
@@ -215,7 +215,7 @@ func TestLegacyCompatibilityOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &ConfigLoader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &Loader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestLoadEnvVariablesEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c := &ConfigLoader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &Loader{log: zap.NewNop(), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			core, logs := observer.New(zap.DebugLevel)
-			c := &ConfigLoader{
+			c := &Loader{
 				log:         zap.New(core),
 				k:           koanf.New("."),
 				environFunc: func() []string { return tt.environ },

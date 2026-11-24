@@ -8,6 +8,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
+var (
+	errInvalidSemaphoreConfiguration = errors.New("invalid Semaphore configuration")
+)
+
 func NewLintCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
 	var lintFlagFormat string
@@ -40,7 +44,7 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 		}
 		output.PrintLines(cmd)
 
-		return errors.New("invalid Semaphore configuration")
+		return errInvalidSemaphoreConfiguration
 	}
 
 	output.Add("Valid Semaphore configuration", helper.InfoLevel)

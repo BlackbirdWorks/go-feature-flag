@@ -25,8 +25,8 @@ func NewAPIFlagChange(flagsetManager service.FlagsetManager, metrics metric.Metr
 }
 
 type FlagChangeResponse struct {
-	Hash  uint32            `json:"hash"`
 	Flags map[string]uint32 `json:"flags"`
+	Hash  uint32            `json:"hash"`
 }
 
 // Handler is the endpoint to poll if you want to know if there is a configuration change in the flags

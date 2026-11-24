@@ -16,6 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var errNoWebhookURL = errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
+	"SlackWebhookURL provided for the slack notifier")
+
+var (
+	errErrorSlackNotifierWhile = errors.New("error: (Slack Notifier) while calling slack webhook, statusCode")
+)
+
 var _ notifier.Notifier = &Notifier{}
 
 const (
@@ -33,17 +40,15 @@ func escapeSlack(s string) string {
 
 // Notifier is the component in charge of sending flag changes to Slack.
 type Notifier struct {
+	httpClient      internal.HTTPClient
 	SlackWebhookURL string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	init            sync.Once
 }
 
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.SlackWebhookURL == "" {
-		return errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
-			"SlackWebhookURL provided for the slack notifier")
+		return errNoWebhookURL
 	}
 
 	// init the notifier
@@ -76,8 +81,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
-		return fmt.Errorf("error: (Slack Notifier) while calling slack webhook, statusCode = %d",
+	if response.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("%w = %d", errErrorSlackNotifierWhile,
 			response.StatusCode)
 	}
 
@@ -157,10 +162,10 @@ type attachment struct {
 	Color      string   `json:"color"`
 	Title      string   `json:"title"`
 	Text       string   `json:"text,omitempty"`
-	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
-	Fields     []Field  `json:"fields"`
 	FooterIcon string   `json:"footer_icon,omitempty"`
 	Footer     string   `json:"footer,omitempty"`
+	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
+	Fields     []Field  `json:"fields"`
 }
 
 // Field is the representation of a field in a slack message.

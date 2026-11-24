@@ -26,10 +26,10 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		retriever azblobretriever.Retriever
 		name      string
 		want      string
 		wantErr   bool
-		retriever azblobretriever.Retriever
 	}{
 		{
 			name:    "File on Container",
@@ -87,14 +87,14 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 			err = tt.retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
 			require.NoError(t, err)
 			defer func() {
-				err := tt.retriever.Shutdown(context.Background())
-				assert.NoError(t, err)
+				shutdownErr := tt.retriever.Shutdown(context.Background())
+				assert.NoError(t, shutdownErr)
 			}()
 			got, err := tt.retriever.Retrieve(context.Background())
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
 			if err == nil {
-				want, err := os.ReadFile(tt.want)
-				require.NoError(t, err)
+				want, readFileErr := os.ReadFile(tt.want)
+				require.NoError(t, readFileErr)
 				assert.Equal(t, string(want), string(got), "retrieve() got = %v, want %v", string(want), string(got))
 			}
 		})
@@ -132,6 +132,7 @@ func TestInit(t *testing.T) {
 }
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
+	t.Helper()
 	ctx := context.Background()
 	azuriteContainer, err := azurite.Run(
 		ctx,
@@ -173,6 +174,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 }
 
 func tearDown(t *testing.T, container *azurite.Container) {
+	t.Helper()
 	err := testcontainers.TerminateContainer(container)
 	require.NoError(t, err)
 }

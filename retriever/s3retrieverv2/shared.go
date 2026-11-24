@@ -22,6 +22,22 @@ import (
 )
 
 const (
+	// listingTTLDivisor divides the polling interval to get the listing TTL; pollJitter is the share of the interval
+	// that a poll can be early or late.
+	listingTTLDivisor = 2
+	pollJitter        = 0.1
+)
+
+var (
+	errImpossibleToInitShared   = errors.New("impossible to init shared S3 items: bucket is empty")
+	errItemIsNotRegistered      = errors.New("item is not registered in the shared listing")
+	errTheListingOfPrefix       = errors.New("the listing of prefix")
+	errItem                     = errors.New("item")
+	errImpossibleToInitSharedS3 = errors.New("impossible to init shared S3 retriever: item is empty")
+	errSharedS3RetrieverIs      = errors.New("shared S3 retriever is not initialized")
+)
+
+const (
 	// DefaultSharedPollingInterval is the polling interval assumed for an item registered without one.
 	DefaultSharedPollingInterval = 60 * time.Second
 	// minSharedListingTTL is the lowest listing TTL.
@@ -39,16 +55,16 @@ const (
 
 // SharedItemsOptions configures a SharedItems group.
 type SharedItemsOptions struct {
-	// Bucket is the name of the S3 bucket shared by all the items.
-	Bucket string
-	// AwsConfig is the AWS SDK configuration, the default one is loaded if nil.
-	AwsConfig *aws.Config
-	// S3ClientOptions are functional options of the S3 client.
-	S3ClientOptions []func(*s3.Options)
 	// Lister overrides the S3 lister (for tests), built from AwsConfig if nil.
 	Lister ListerAPI
 	// Downloader overrides the S3 downloader (for tests), built from AwsConfig if nil.
 	Downloader DownloaderAPI
+	// AwsConfig is the AWS SDK configuration, the default one is loaded if nil.
+	AwsConfig *aws.Config
+	// Bucket is the name of the S3 bucket shared by all the items.
+	Bucket string
+	// S3ClientOptions are functional options of the S3 client.
+	S3ClientOptions []func(*s3.Options)
 }
 
 // SharedItems lets several single-file S3 retrievers of the same bucket share their storage
@@ -66,90 +82,97 @@ type SharedItemsOptions struct {
 // Listing errors are served for min(that window, 10s) so that an outage causes one failing
 // listing per window, not one per item.
 type SharedItems struct {
-	bucket     string
+	listStart time.Time // start of the listing
+	listedAt  time.Time // end of the listing
+	// base is the context of the requests of the group, it is cancelled when the last item leaves.
+	base       context.Context // NOSONAR lifecycle context of the group, intentionally detached from callers
 	lister     ListerAPI
 	downloader DownloaderAPI
-
-	// mu protects everything below.
-	mu       sync.Mutex
-	items    map[*SharedItemRetriever]struct{}
-	keyRefs  map[string]int
-	seq      uint64            // incremented each time a new key is registered
-	keySeq   map[string]uint64 // key -> seq of its registration
-	listSeq  uint64            // seq at the start of the current listing
-	prefix   string            // listing prefix of the registered items
-	ttl      time.Duration     // listing TTL, derived from the polling interval
-	contents map[string]*sharedContent
-	// base is the context of the requests of the group, it is cancelled when the last item leaves.
-	base   context.Context // NOSONAR lifecycle context of the group, intentionally detached from callers
-	cancel context.CancelFunc
+	listErr    error
 	// sem bounds the concurrent downloads.
-	sem chan struct{}
-
-	listing      map[string]string // registered key -> normalized ETag
-	listedPrefix string
-	listErr      error
-	listedAt     time.Time // end of the listing
-	listStart    time.Time // start of the listing
-	listed       bool
+	sem          chan struct{}
+	cancel       context.CancelFunc
+	wake         chan struct{} // tells the poller that the interval changed
+	logger       *slog.Logger
+	stopPoller   context.CancelFunc // stops the poller, nil if it is not running
+	contents     map[string]*sharedContent
+	keySeq       map[string]uint64 // key -> seq of its registration
 	inflight     *sharedListing
-
+	items        map[*SharedItemRetriever]struct{}
+	listing      map[string]string // registered key -> normalized ETag
+	keyRefs      map[string]int
+	listedPrefix string
+	bucket       string
+	prefix       string // listing prefix of the registered items
+	seq          uint64 // incremented each time a new key is registered
 	// poller configuration and state.
 	interval   time.Duration
-	jitter     bool
-	logger     *slog.Logger
-	refreshers int                // number of items with a refresh function
-	stopPoller context.CancelFunc // stops the poller, nil if it is not running
-	wake       chan struct{}      // tells the poller that the interval changed
+	refreshers int           // number of items with a refresh function
+	ttl        time.Duration // listing TTL, derived from the polling interval
+	listSeq    uint64        // seq at the start of the current listing
+	// mu protects everything below.
+	mu     sync.Mutex
+	listed bool
+	jitter bool
 }
 
 // sharedListing is a listing in progress, shared by all the callers waiting for it.
 type sharedListing struct {
-	done    chan struct{}
 	start   time.Time
+	err     error
+	done    chan struct{}
+	listing map[string]string
 	prefix  string
 	seq     uint64
-	listing map[string]string
-	err     error
 }
 
 // sharedContent is the cached content of one object.
 type sharedContent struct {
-	mu   sync.Mutex
-	etag string
-	data []byte
 	// fetchedAt is the start of the download of data.
 	fetchedAt time.Time
 	dl        *sharedDownload // download in progress
+	etag      string
+	data      []byte
+	mu        sync.Mutex
 }
 
 // sharedDownload is a download in progress, shared by all the callers waiting for it.
 type sharedDownload struct {
-	done chan struct{}
-	data []byte
-	etag string
 	err  error
+	done chan struct{}
+	etag string
+	data []byte
+}
+
+// newS3Client builds the S3 client of the shared items from the AWS configuration of opts, or from
+// the default AWS configuration chain.
+func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, error) {
+	cfg := opts.AwsConfig
+	if cfg == nil {
+		loaded, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("impossible to init shared S3 items: %w", err)
+		}
+		cfg = &loaded
+	}
+
+	return s3.NewFromConfig(*cfg, opts.S3ClientOptions...), nil
 }
 
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
 func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
-		return nil, errors.New("impossible to init shared S3 items: bucket is empty")
+		return nil, errImpossibleToInitShared
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	lister, downloader := opts.Lister, opts.Downloader
 	if lister == nil || downloader == nil {
-		cfg := opts.AwsConfig
-		if cfg == nil {
-			loaded, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("impossible to init shared S3 items: %w", err)
-			}
-			cfg = &loaded
+		client, err := newS3Client(ctx, opts)
+		if err != nil {
+			return nil, err
 		}
-		client := s3.NewFromConfig(*cfg, opts.S3ClientOptions...)
 		if lister == nil {
 			lister = client
 		}
@@ -274,7 +297,7 @@ func (g *SharedItems) recompute() {
 
 // listingTTL is the window during which a listing is served without listing again.
 func listingTTL(interval time.Duration) time.Duration {
-	return max(minSharedListingTTL, interval/2)
+	return max(minSharedListingTTL, interval/listingTTLDivisor)
 }
 
 // listingPrefix is the longest common prefix of the keys, cut after its last "/" ("" if there is
@@ -323,10 +346,10 @@ func (g *SharedItems) freshLocked(key string) bool {
 
 // listedItem is the result of a lookup in the listing.
 type listedItem struct {
-	etag  string
-	found bool
 	// start is the start of the listing that returned it.
 	start time.Time
+	etag  string
+	found bool
 }
 
 // etagOf returns the ETag of the key in a listing no older than the TTL, listing if needed.
@@ -361,7 +384,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 		}
 	}
 
-	return listedItem{}, errors.New("item is not registered in the shared listing")
+	return listedItem{}, errItemIsNotRegistered
 }
 
 // listingLocked returns the listing in progress, and starts one if there is none. The caller must
@@ -417,7 +440,7 @@ func (g *SharedItems) list(
 	truncated := false
 	for pages := 0; paginator.HasMorePages(); pages++ {
 		if pages >= maxSharedListPages {
-			return nil, fmt.Errorf("the listing of prefix %q has more than %d pages", prefix, maxSharedListPages)
+			return nil, fmt.Errorf("%w %q has more than %d pages", errTheListingOfPrefix, prefix, maxSharedListPages)
 		}
 		page, err := g.listPage(base, paginator)
 		if err != nil {
@@ -432,7 +455,7 @@ func (g *SharedItems) list(
 	}
 	if truncated {
 		// no (new) continuation token: the end of the listing was not reached
-		return nil, fmt.Errorf("the listing of prefix %q is incomplete", prefix)
+		return nil, fmt.Errorf("%w %q is incomplete", errTheListingOfPrefix, prefix)
 	}
 
 	return res, nil
@@ -453,7 +476,7 @@ func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, erro
 		return nil, "", fmt.Errorf("unable to list S3 bucket %q, %w", g.bucket, err)
 	}
 	if !listed.found {
-		return nil, "", fmt.Errorf("item %q not found in S3 bucket %q", key, g.bucket)
+		return nil, "", fmt.Errorf("%w %q not found in S3 bucket %q", errItem, key, g.bucket)
 	}
 
 	g.mu.Lock()
@@ -546,20 +569,19 @@ var (
 
 // SharedItemRetriever is the retriever of one item of a SharedItems group.
 type SharedItemRetriever struct {
-	group  *SharedItems
-	item   string
 	status atomic.Value // retriever.Status
-
+	group  *SharedItems
 	// refresh, retry, delivered, hasDelivered and inflight are protected by group.mu.
 	refresh func() bool // called by the poller when the object changed
-	retry   bool        // the last refresh failed, it must be tried again
+	// inflight is closed when the refresh in progress is over, nil if there is none.
+	inflight chan struct{}
+	item     string
 	// delivered is the ETag of the last content returned by Retrieve (hasDelivered is false until
 	// then). It is per retriever, not per object: another retriever of the same object loading a
 	// new version in the shared cache must not hide it from this one.
 	delivered    string
+	retry        bool // the last refresh failed, it must be tried again
 	hasDelivered bool
-	// inflight is closed when the refresh in progress is over, nil if there is none.
-	inflight chan struct{}
 }
 
 // Init registers the item in the group.
@@ -567,7 +589,7 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if r.item == "" {
 		r.status.Store(retriever.RetrieverError)
 
-		return errors.New("impossible to init shared S3 retriever: item is empty")
+		return errImpossibleToInitSharedS3
 	}
 	r.group.register(r)
 	r.status.Store(retriever.RetrieverReady)
@@ -602,7 +624,7 @@ func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 		ctx = context.Background()
 	}
 	if r.Status() != retriever.RetrieverReady {
-		return nil, errors.New("shared S3 retriever is not initialized")
+		return nil, errSharedS3RetrieverIs
 	}
 	data, etag, err := r.group.get(ctx, r.item)
 	if err != nil {
@@ -621,13 +643,13 @@ func (r *SharedItemRetriever) OutputFormat() string { return "" }
 
 // PollerConfig configures the poller of a SharedItems group.
 type PollerConfig struct {
+	// Logger receives the poller errors, nothing is logged if it is nil.
+	Logger *slog.Logger
 	// Interval is the time between two listings, 0 means the default one (60s) and the minimum
 	// is 1s.
 	Interval time.Duration
 	// Jitter randomizes each wait by +/-10%.
 	Jitter bool
-	// Logger receives the poller errors, nothing is logged if it is nil.
-	Logger *slog.Logger
 }
 
 // SetPoller sets the configuration of the poller, it is applied to a running poller too.
@@ -695,7 +717,8 @@ func (g *SharedItems) nextDelay() time.Duration {
 		return g.interval
 	}
 	// not security sensitive: the jitter only spreads the requests
-	delay := g.interval + time.Duration((rand.Float64()*0.2-0.1)*float64(g.interval)) //nolint:gosec
+	jitter := rand.Float64()*2*pollJitter - pollJitter //nolint:gosec // G404: jitter, not security sensitive
+	delay := g.interval + time.Duration(jitter*float64(g.interval))
 	// the jitter must not go below the minimum interval
 	return max(delay, minSharedListingTTL)
 }

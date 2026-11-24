@@ -2,6 +2,7 @@ package azureexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,6 +14,17 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	//nolint:staticcheck,revive // ST1005: the text is observable
+	errYouShouldSpecifyAn = errors.New(
+		"you should specify an AccountName.",
+	)
+	//nolint:staticcheck,revive // ST1005: the text is observable
+	errYouShouldSpecifyA = errors.New(
+		"you should specify a container.",
+	)
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -64,7 +76,7 @@ func (f *Exporter) Export(
 	featureEvents []exporter.ExportableEvent,
 ) error {
 	if f.AccountName == "" {
-		return fmt.Errorf("you should specify an AccountName. %v is invalid", f.AccountName)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyAn, f.AccountName)
 	}
 
 	client, err := f.initializeAzureClient()
@@ -73,7 +85,7 @@ func (f *Exporter) Export(
 	}
 
 	if f.Container == "" {
-		return fmt.Errorf("you should specify a container. %v is invalid", f.Container)
+		return fmt.Errorf("%w %v is invalid", errYouShouldSpecifyA, f.Container)
 	}
 
 	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")
@@ -101,8 +113,8 @@ func (f *Exporter) Export(
 
 	for _, file := range files {
 		fileName := file.Name()
-		of, err := os.Open(path.Clean(outputDir + "/" + fileName))
-		if err != nil {
+		of, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
+		if openErr != nil {
 			logger.Error(
 				"[Azure Exporter] impossible to open file",
 				slog.String("path", outputDir+"/"+fileName),
@@ -110,8 +122,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if err := f.uploadFile(ctx, client, logger, of, outputDir, fileName); err != nil {
-			return err
+		if uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName); uploadFileErr != nil {
+			return uploadFileErr
 		}
 	}
 

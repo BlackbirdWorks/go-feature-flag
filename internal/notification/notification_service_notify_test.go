@@ -15,6 +15,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBoom = errors.New("boom")
+)
+
 func TestNotificationServiceNotify(t *testing.T) {
 	t.Parallel()
 	yo := func() map[string]flag.Flag {
@@ -22,16 +26,16 @@ func TestNotificationServiceNotify(t *testing.T) {
 	}
 	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
 	tests := []struct {
-		name         string
+		notifierErr  error
 		oldCache     map[string]flag.Flag
 		newCache     map[string]flag.Flag
-		notifierErr  error
+		name         string
 		wantCalls    int32
 		wantLogError bool
 	}{
 		{name: "a difference calls the notifier", oldCache: yo(), newCache: yoNew, wantCalls: 1},
 		{name: "no difference does not call the notifier", oldCache: yo(), newCache: yo(), wantCalls: 0},
-		{name: "a notifier error is logged", oldCache: yo(), newCache: yoNew, notifierErr: errors.New("boom"),
+		{name: "a notifier error is logged", oldCache: yo(), newCache: yoNew, notifierErr: errBoom,
 			wantCalls: 1, wantLogError: true},
 	}
 	for _, tt := range tests {

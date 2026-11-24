@@ -17,11 +17,11 @@ func TestLoadConfigFile(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		expected           map[string]dto.DTO
 		name               string
 		inputFilePath      string
 		configFormat       string
 		defaultLocations   []string
-		expected           map[string]dto.DTO
 		expectErr          bool
 		useDefaultLocation bool
 	}{
@@ -260,8 +260,8 @@ func TestParseConfig(t *testing.T) {
 		name      string
 		data      string
 		format    string
-		wantFlags []string
 		wantErr   string
+		wantFlags []string
 	}{
 		{name: "json", data: `{"f":{"variations":{"a":1}}}`, format: "json", wantFlags: []string{"f"}},
 		{name: "yaml", data: "f:\n  variations:\n    a: 1\n", format: "yaml", wantFlags: []string{"f"}},
@@ -299,8 +299,8 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 	content := "my-flag:\n  variations:\n    a: true\n    b: false\n  defaultRule:\n    variation: a\n"
 	tests := []struct {
 		name      string
-		files     []string
 		wantFlag  string
+		files     []string
 		wantError bool
 	}{
 		{name: "flags.semaphore", files: []string{"flags.semaphore.yaml"}, wantFlag: "my-flag"},
@@ -331,5 +331,5 @@ func TestConfigFileDefaultLocations(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t,
 		[]string{"./", "/semaphore/", "/etc/opt/semaphore/", "/goff/", "/etc/opt/goff/"},
-		configfile.ConfigFileDefaultLocations())
+		configfile.DefaultLocations())
 }

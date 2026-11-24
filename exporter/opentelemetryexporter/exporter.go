@@ -17,6 +17,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// fixedAttributes is the number of attributes that every event has.
+	fixedAttributes = 8
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 const (
@@ -25,15 +30,13 @@ const (
 )
 
 type Exporter struct {
+	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
+	tracerProvider trace.TracerProvider
+	tracer         trace.Tracer
 	// TracerName allows overriding the OpenTelemetry tracer name.
 	// Default: semaphore
 	TracerName string
-
-	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
-	tracerProvider trace.TracerProvider
-
-	tracer trace.Tracer
-	once   sync.Once
+	once       sync.Once
 }
 
 func (e *Exporter) init() {
@@ -85,7 +88,7 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 	defer span.End()
 
 	// Collect all attributes into a single slice, then set them once on the span.
-	attributes := make([]attribute.KeyValue, 0, 8+len(f.Metadata))
+	attributes := make([]attribute.KeyValue, 0, fixedAttributes+len(f.Metadata))
 	attributes = append(attributes,
 		attribute.String("feature_flag.key", f.Key),
 		attribute.String("feature_flag.user_key", f.UserKey),

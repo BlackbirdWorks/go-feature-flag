@@ -1,0 +1,183 @@
+package k8sretriever
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
+	restclient "k8s.io/client-go/rest"
+)
+
+var (
+	errKeyINVALIDNotExisting = errors.New("key INVALID not existing in config map ConfigMap1.Namespace")
+	errUnableToReadFrom      = errors.New(
+		"unable to read from config map NotExisting.WrongNamespace, error: configmaps \"NotExisting\" not found",
+	)
+	errUnableToReadFromConfig = errors.New(
+		"unable to read from config map ConfigMap1.Namespace, error: configmaps \"ConfigMap1\" not found",
+	)
+)
+
+const expectedContent = `
+test-flag:
+  variations:
+    true_var: true
+    false_var: false
+  targeting:
+    - query: key eq "random-key"
+      percentage:
+        true_var: 0
+        false_var: 100
+  defaultRule:
+    variation: false_var	
+  trackEvents: false
+
+test-flag2:
+  variations:
+    true_var: true
+    false_var: false
+  targeting:
+    - query: key eq "not-a-key"
+      percentage:
+        true_var: 0
+        false_var: 100
+  defaultRule:
+    variation: false_var	
+  trackEvents: false
+`
+
+func Test_kubernetesRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
+	kubeClientProviderFactory := func(object ...runtime.Object) func(*restclient.Config) (kubernetes.Interface, error) {
+		return func(_ *restclient.Config) (kubernetes.Interface, error) {
+			return fake.NewSimpleClientset(object...), nil
+		}
+	}
+
+	type fields struct {
+		object        runtime.Object
+		context       context.Context
+		namespace     string
+		configMapName string
+		key           string
+		setClient     bool
+	}
+	tests := []struct {
+		wantErr error
+		fields  fields
+		name    string
+		want    []byte
+	}{
+		{
+			name: "ConfigMap existing",
+			fields: fields{
+				object: &api.ConfigMap{
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
+				},
+				namespace:     "Namespace",
+				configMapName: "ConfigMap1",
+				key:           "valid",
+			},
+			want:    []byte(expectedContent),
+			wantErr: nil,
+		},
+		{
+			name: "Key not existing",
+			fields: fields{
+				object: &api.ConfigMap{
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
+				},
+				namespace:     "Namespace",
+				configMapName: "ConfigMap1",
+				key:           "INVALID",
+			},
+			wantErr: errKeyINVALIDNotExisting,
+		},
+		{
+			name: "Config Map not existing",
+			fields: fields{
+				object: &api.ConfigMap{
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
+				},
+				namespace:     "WrongNamespace",
+				configMapName: "NotExisting",
+			},
+			wantErr: errUnableToReadFrom,
+		},
+		{
+			name: "Client already there",
+			fields: fields{
+				object: &api.ConfigMap{
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
+				},
+				namespace:     "Namespace",
+				configMapName: "ConfigMap1",
+				key:           "valid",
+				setClient:     true,
+			},
+			wantErr: errUnableToReadFromConfig,
+		},
+		{
+			name: "k8s client is nil",
+			fields: fields{
+				object: &api.ConfigMap{
+					Name: "ConfigMap1", Namespace: "Namespace",
+					Data: map[string]string{"valid": expectedContent},
+				},
+				namespace:     "Namespace",
+				configMapName: "ConfigMap1",
+				key:           "valid",
+			},
+			wantErr: errK8sClientIsNil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			newClient := kubeClientProviderFactory(tt.fields.object)
+			if tt.name == "k8s client is nil" {
+				// mocking the client factory
+				newClient = func(_ *restclient.Config) (kubernetes.Interface, error) {
+					return nil, nil //nolint:nilnil // the test simulates a factory that returns no client
+				}
+			}
+			s := Retriever{
+				ConfigMapName: tt.fields.configMapName,
+				Key:           tt.fields.key,
+				Namespace:     tt.fields.namespace,
+				newClient:     newClient,
+			}
+			if tt.fields.setClient {
+				s.client = fake.NewSimpleClientset()
+			}
+			got, err := s.Retrieve(tt.fields.context)
+			if tt.wantErr != nil {
+				require.EqualError(t, err, tt.wantErr.Error(), "retrieve() error")
+			} else {
+				require.NoError(t, err, "retrieve() error")
+			}
+			if err == nil {
+				assert.Equal(
+					t,
+					tt.want,
+					got,
+					"retrieve() got = %v, want %v",
+					string(got),
+					string(tt.want),
+				)
+			}
+		})
+	}
+}

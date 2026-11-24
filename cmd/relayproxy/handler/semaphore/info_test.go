@@ -22,6 +22,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errFlagsetManagerIsNot = errors.New("flagset manager is not initialized")
+	errFailedToGetFlagsets = errors.New("failed to get flagsets")
+)
+
 func Test_info_Handler(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +37,8 @@ func Test_info_Handler(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		want   want
 		config config.Config
+		want   want
 	}{
 		{
 			name: "valid info default mode",
@@ -117,16 +122,16 @@ func Test_info_Handler(t *testing.T) {
 			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
 
 			if tt.config.FlagSets != nil {
-				flagsets, exists := response["flagsets"]
-				assert.True(t, exists, "Response should contain flagsets field")
+				flagsets, hasFlagsets := response["flagsets"]
+				assert.True(t, hasFlagsets, "Response should contain flagsets field")
 				assert.Len(t, flagsets.(map[string]any), len(tt.config.FlagSets), "Number of flagsets should match")
 				for _, flagset := range tt.config.FlagSets {
 					flagsetName := flagset.Name
-					flagsetRefreshDateStr, exists := flagsets.(map[string]any)[flagsetName]
-					assert.True(t, exists, "Response should contain flagset %s field", flagsetName)
+					flagsetRefreshDateStr, hasFlagset := flagsets.(map[string]any)[flagsetName]
+					assert.True(t, hasFlagset, "Response should contain flagset %s field", flagsetName)
 
-					flagsetRefreshDate, err := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
-					require.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
+					flagsetRefreshDate, parseErr := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
+					require.NoError(t, parseErr, "flagsetRefreshDate should be a valid RFC3339 timestamp")
 					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
 				}
 			}
@@ -145,7 +150,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
 			InfoResponse:   model.InfoResponse{},
-			InfoError:      errors.New("flagset manager is not initialized"),
+			InfoError:      errFlagsetManagerIsNot,
 		}
 
 		infoCtrl := controller.NewInfo(mockMonitoring)
@@ -175,7 +180,7 @@ func Test_info_Handler_Error(t *testing.T) {
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
 			InfoResponse:   model.InfoResponse{},
-			InfoError:      errors.New("failed to get flagsets"),
+			InfoError:      errFailedToGetFlagsets,
 		}
 
 		infoCtrl := controller.NewInfo(mockMonitoring)

@@ -68,13 +68,13 @@ const defaultPingInterval = 1 * time.Second
 type WSFlagChange struct {
 	websocketService stream.WebsocketService
 	flagsetManager   service.FlagsetManager
-	upgrader         websocket.Upgrader
 	logger           *zap.Logger
+	upgrader         websocket.Upgrader
 	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
 	pingInterval time.Duration
 }
 
-// Handler is the entry point for the websocket endpoint to get notified when a flag has been edited
+// LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited
 // @Summary      Websocket endpoint to be notified about flag changes
 // @Tags         Semaphore Evaluation Stream API
 // @Deprecated
@@ -150,10 +150,10 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 	_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
 	for {
 		// ReadMessage is needed to process control messages like pongs and close messages.
-		if _, _, err := conn.ReadMessage(); err != nil {
+		if _, _, readMessageErr := conn.ReadMessage(); readMessageErr != nil {
 			f.logger.Debug(
 				"closing websocket connection",
-				zap.Error(err),
+				zap.Error(readMessageErr),
 				zap.Any("connection", conn),
 			)
 

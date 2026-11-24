@@ -17,6 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errErrorDiscordNotifierInvalid = errors.New(
+		"error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided",
+	)
+	errErrorDiscordNotifierWebhook = errors.New("error: (Discord Notifier) webhook call failed with statusCode")
+)
+
 var _ notifier.Notifier = &Notifier{}
 
 const (
@@ -32,16 +39,15 @@ const (
 
 // Notifier is the component in charge of sending flag changes to Discord.
 type Notifier struct {
+	httpClient        internal.HTTPClient
 	DiscordWebhookURL string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	init              sync.Once
 }
 
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.DiscordWebhookURL == "" {
-		return errors.New("error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided")
+		return errErrorDiscordNotifierInvalid
 	}
 
 	// init the notifier
@@ -76,9 +82,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		return fmt.Errorf("error: (Discord Notifier) error calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
-		return fmt.Errorf(
-			"error: (Discord Notifier) webhook call failed with statusCode = %d",
+	if response.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("%w = %d", errErrorDiscordNotifierWebhook,
 			response.StatusCode,
 		)
 	}
@@ -163,11 +168,10 @@ type discordMessage struct {
 
 type embed struct {
 	Title       string `json:"title"`
-	Color       int    `json:"color"`
 	Description string `json:"description,omitempty"`
-
 	// changes are the changes listed in Description, kept to shorten the list if the message is too long.
 	changes []string
+	Color   int `json:"color"`
 }
 
 // fitTotalLength shortens change lists so all embeds fit in the characters Discord accepts

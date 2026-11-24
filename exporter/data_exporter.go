@@ -12,6 +12,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errTryingToSendUnknown       = errors.New("trying to send unknown object to the exporter (deprecated)")
+	errTryingToSendUnknownObject = errors.New("trying to send unknown object to the exporter")
+	errThisIsNotA                = errors.New("this is not a valid exporter")
+)
+
 const (
 	defaultFlushInterval    = 60 * time.Second
 	defaultMaxEventInMemory = int64(100000)
@@ -42,13 +48,12 @@ type Config struct {
 }
 
 type dataExporterImpl[T ExportableEvent] struct {
-	consumerID string
 	eventStore EventStore[T]
 	logger     *fflog.FFLogger
-	exporter   Config
-
 	daemonChan chan struct{}
 	ticker     *time.Ticker
+	consumerID string
+	exporter   Config
 	// stopOnce guarantees that we stop the daemon only once: Close() can be called several times
 	// on a Semaphore client, and closing an already closed channel panics.
 	stopOnce sync.Once
@@ -171,7 +176,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 				return fmt.Errorf("error while exporting data (deprecated): %w", err)
 			}
 		default:
-			return errors.New("trying to send unknown object to the exporter (deprecated)")
+			return errTryingToSendUnknown
 		}
 	case DeprecatedExporterV2:
 		switch events := any(events).(type) {
@@ -181,7 +186,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 				return fmt.Errorf("error while exporting data: %w", err)
 			}
 		default:
-			return errors.New("trying to send unknown object to the exporter")
+			return errTryingToSendUnknownObject
 		}
 	case Exporter:
 		exportableEvents := make([]ExportableEvent, len(events))
@@ -193,7 +198,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 			return fmt.Errorf("error while exporting data: %w", err)
 		}
 	default:
-		return errors.New("this is not a valid exporter")
+		return errThisIsNotA
 	}
 
 	return nil

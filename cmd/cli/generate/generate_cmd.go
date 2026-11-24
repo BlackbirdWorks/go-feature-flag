@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
+var (
+	errNoSubcommandProvided = errors.New("no subcommand provided")
+)
+
 func NewGenerateCmd() *cobra.Command {
 	g := &cobra.Command{
 		Use:   "generate",
@@ -19,7 +23,7 @@ func NewGenerateCmd() *cobra.Command {
 			output.Add("you must specify a subcommand (e.g., manifest)", helper.ErrorLevel)
 			output.PrintLines(cmd)
 
-			return errors.New("no subcommand provided")
+			return errNoSubcommandProvided
 		},
 		SilenceErrors: true,
 		SilenceUsage:  true,

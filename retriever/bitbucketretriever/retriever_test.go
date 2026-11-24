@@ -44,11 +44,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 		branch         string
 	}
 	tests := []struct {
-		name    string
 		fields  fields
+		name    string
+		errMsg  string
 		want    []byte
 		wantErr bool
-		errMsg  string
 	}{
 		{
 			name: "Success",
@@ -106,7 +106,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				filePath:       "flags/config.goff.yaml",
 			},
 			wantErr: true,
-			errMsg: "request to https://api.bitbucket.org/2.0/repositories/gofeatureflag/config-repo/src/main/flags/config.goff.yaml failed with code 429. Bitbucket Headers: map[X-Content-Type-Options:nosniff X-Frame-Options:deny X-Github-Media-Type:github.v3; format=json X-Github-Request-Id:F82D:37B98C:232EF263:235C93BD:6650BDC6 X-Ratelimit-Limit:60 X-Ratelimit-Remaining:0 X-Ratelimit-Reset:" + strconv.FormatInt(
+			errMsg: "request to https://api.bitbucket.org/2.0/repositories/gofeatureflag/config-repo/src/main/flags/config" +
+				".goff.yaml failed with code 429. Bitbucket Headers: map[X-Content-Type-Options:nosniff " +
+				"X-Frame-Options:deny X-Github-Media-Type:github.v3; format=json X-Github-Request-Id:F82" +
+				"D:37B98C:232EF263:235C93BD:6650BDC6 X-Ratelimit-Limit:60 X-Ratelimit-Remaining:0 X-Rate" +
+				"limit-Reset:" + strconv.FormatInt(
 				endRatelimit.Unix(),
 				10,
 			) + " X-Ratelimit-Resource:core X-Ratelimit-Used:60 X-Xss-Protection:1; mode=block]",

@@ -19,11 +19,15 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errFailing = errors.New("failing")
+)
+
 type queueTestExporter struct {
-	bulk   bool
 	block  chan struct{} // when not nil, Export blocks until it is closed
-	fail   bool
 	events atomic.Int64
+	bulk   bool
+	fail   bool
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
@@ -32,7 +36,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 		<-e.block
 	}
 	if e.fail {
-		return errors.New("failing")
+		return errFailing
 	}
 	e.events.Add(int64(len(ev)))
 
@@ -42,7 +46,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 // Test_EvaluationEventsAreQueuedNotSpawned checks that tracked evaluations are handed to a bounded
 // queue drained by a small worker pool, instead of one goroutine per evaluation.
 //
-// runtime.NumGoroutine is process-wide and the other parallel tests of the package start clients,
+// [runtime.NumGoroutine] is process-wide and the other parallel tests of the package start clients,
 // pollers and exporters, so it can only be used with a margin that dwarfs that noise (tens of
 // goroutines). The exporter of the blocked cases never returns until the test releases it, so
 // a goroutine-per-evaluation design would leave one parked goroutine per evaluation (thousands),
@@ -55,8 +59,8 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
 	tests := []struct {
-		name        string
 		exp         func() *queueTestExporter
+		name        string
 		queueSize   int
 		evals       int
 		maxQueued   int64

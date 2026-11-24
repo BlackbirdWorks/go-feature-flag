@@ -26,8 +26,8 @@ func NewService(notifiers []notifier.Notifier) Service {
 }
 
 type notificationService struct {
-	Notifiers []notifier.Notifier
 	waitGroup *sync.WaitGroup
+	Notifiers []notifier.Notifier
 }
 
 // Notify is sending the notification to the notifiers.

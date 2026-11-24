@@ -22,11 +22,13 @@ func TestMetrics_BuildInfo(t *testing.T) {
 	metricSrv, err := metric.NewMetrics(metric.MetricsOpts{Version: version})
 	require.NoError(t, err)
 
+	helpText := "A metric with a constant '1' value labeled by version, revision, branch, goversion " +
+		"from which semaphore was built, and the goos and goarch for the build."
 	expected := fmt.Sprintf(`
-		# HELP semaphore_build_info A metric with a constant '1' value labeled by version, revision, branch, goversion from which semaphore was built, and the goos and goarch for the build.
+		# HELP semaphore_build_info %s
 		# TYPE semaphore_build_info gauge
 		semaphore_build_info{branch="",goarch="%s",goos="%s",goversion="%s",revision="unknown",tags="docker",version="%s"} 1
-	`, runtime.GOARCH, runtime.GOOS, runtime.Version(), version)
+	`, helpText, runtime.GOARCH, runtime.GOOS, runtime.Version(), version)
 
 	require.NoError(
 		t,

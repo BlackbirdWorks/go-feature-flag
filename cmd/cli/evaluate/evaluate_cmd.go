@@ -19,6 +19,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	// keyValueParts is the number of parts of a "key:value" or "key=value" argument.
+	keyValueParts = 2
+)
+
 //nolint:funlen
 func NewEvaluateCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
@@ -150,7 +155,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 			if err != nil {
 				rcErr := &rerr.RetrieverConfError{}
 				if errors.As(err, &rcErr) {
-					return errors.New(rcErr.CliErrorMessage())
+					return cliMessageError(rcErr.CliErrorMessage())
 				}
 
 				return err
@@ -247,19 +252,28 @@ func runEvaluate(
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverInit.InitRetriever(&retrieverConf)
+	r, err := retrieverInit.Retriever(&retrieverConf)
 	if err != nil {
 		return err
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 
-	if err := tryInitializeStandard(context.Background(), r, logger); err != nil {
-		return err
+	if tryInitializeStandardErr := tryInitializeStandard(
+		context.Background(),
+		r,
+		logger,
+	); tryInitializeStandardErr != nil {
+		return tryInitializeStandardErr
 	}
 
-	if err := tryInitializeWithFlagset(context.Background(), r, logger, utils.DefaultFlagSetName); err != nil {
-		return err
+	if tryInitializeWithFlagsetErr := tryInitializeWithFlagset(
+		context.Background(),
+		r,
+		logger,
+		utils.DefaultFlagSetName,
+	); tryInitializeWithFlagsetErr != nil {
+		return tryInitializeWithFlagsetErr
 	}
 
 	e := evaluate{
@@ -326,11 +340,11 @@ func tryInitializeWithFlagset(
 func parseHTTPHeaders(headers []string) map[string][]string {
 	result := make(map[string][]string)
 	for _, h := range headers {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) != 2 {
-			parts = strings.SplitN(h, "=", 2)
+		parts := strings.SplitN(h, ":", keyValueParts)
+		if len(parts) != keyValueParts {
+			parts = strings.SplitN(h, "=", keyValueParts)
 		}
-		if len(parts) != 2 {
+		if len(parts) != keyValueParts {
 			continue
 		}
 		key := strings.TrimSpace(parts[0])
@@ -344,8 +358,8 @@ func parseHTTPHeaders(headers []string) map[string][]string {
 func parsePostgresColumns(columns []string) map[string]string {
 	result := make(map[string]string)
 	for _, c := range columns {
-		parts := strings.SplitN(c, ":", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(c, ":", keyValueParts)
+		if len(parts) != keyValueParts {
 			continue
 		}
 		key := strings.TrimSpace(parts[0])
@@ -355,3 +369,8 @@ func parsePostgresColumns(columns []string) map[string]string {
 
 	return result
 }
+
+// cliMessageError is an error whose text is the message to show on the command line.
+type cliMessageError string
+
+func (e cliMessageError) Error() string { return string(e) }

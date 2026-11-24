@@ -10,37 +10,39 @@ import (
 	"github.com/antlr4-go/antlr/v4"
 )
 
+var (
+	errInvalidRule  = errors.New("invalid rule")
+	errInvalidRule2 = errors.New("Invalid rule") //nolint:staticcheck // ST1005: the text is observable
+)
+
 // Evaluator evaluates a single parsed rule against attribute maps.
 //
 // It is safe for concurrent Process calls. It must not be copied after first
-// use: it holds a sync.Once and an atomic.Pointer, and go vet's copylocks
+// use: it holds a [sync.Once] and an [atomic.Pointer], and go vet's copylocks
 // check flags copies. Each call clears LastDebugErr on entry; once calls
 // quiesce it holds the error of the last call to finish (nil if that call was
 // clean or panicked). Reset clears it.
 type Evaluator struct {
-	// lastDebugErr is atomic so concurrent Process calls do not race on it;
-	// with concurrent callers it holds the error of whichever call finished last.
-	lastDebugErr atomic.Pointer[error]
-
-	rule string
-
 	// tree is kept until the first Process compiles it into root, after
 	// which it is dropped. If compiling fails, tree stays and Process falls
 	// back to walking it with the visitor.
 	tree antlr.ParseTree
-	once sync.Once
-	root *node
-
+	// lastDebugErr is atomic so concurrent Process calls do not race on it;
+	// with concurrent callers it holds the error of whichever call finished last.
+	lastDebugErr  atomic.Pointer[error]
+	root          *node
 	testHookPanic func()
+	rule          string
+	once          sync.Once
 }
 
-func NewEvaluator(rule string) (ret *Evaluator, retErr error) {
+func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamedreturns // recover sets the result
 	// antlr lib has panics for exceptions so we have to put a recover here
 	// in the unlikely case there is an exception
 	defer func() {
 		info := recover()
 		if info != nil {
-			retErr = fmt.Errorf("%q", info)
+			retErr = recoveredPanicError{info: info}
 		}
 	}()
 	tree, err := parseRule(rule)
@@ -66,11 +68,11 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	p.AddErrorListener(errListener)
 	tree := p.Query()
 	if len(errListener.errs) > 0 {
-		return nil, fmt.Errorf("invalid rule %q: %s", rule, strings.Join(errListener.errs, "; "))
+		return nil, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
 	}
 	consumeTrailingWhitespace(tokens)
 	if tokens.LA(1) != antlr.TokenEOF {
-		return nil, fmt.Errorf("invalid rule %q: unexpected input %q", rule, tokens.LT(1).GetText())
+		return nil, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
 	}
 
 	return tree, nil
@@ -125,6 +127,8 @@ func (e *Evaluator) compile() {
 }
 
 // Process evaluates items against the rule. The rule is compiled on first use.
+//
+//nolint:nonamedreturns // recover sets the result
 func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	e.setDebugErr(nil)
 	// antlr lib has panics for exceptions so we have to put a recover here
@@ -132,7 +136,7 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	defer func() {
 		info := recover()
 		if info != nil {
-			retErr = fmt.Errorf("%q", info)
+			retErr = recoveredPanicError{info: info}
 			ret = false
 			// a call that panics has no debug error, even if an overlapping
 			// call stored its own after this one started
@@ -152,7 +156,7 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	case e.tree != nil:
 		result, err = e.visit(items)
 	default:
-		err = errors.New("Invalid rule") //nolint:staticcheck // ST1005: text is observable, kept
+		err = errInvalidRule2
 	}
 	if e.testHookPanic != nil {
 		defer e.testHookPanic()
@@ -165,7 +169,7 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 }
 
 func (e *Evaluator) visit(items map[string]any) (bool, error) {
-	visitor := NewJsonQueryVisitorImpl(items)
+	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(e.tree)
 	e.setDebugErr(visitor.debugErr)
 	if result == nil || visitor.err != nil {
@@ -184,3 +188,8 @@ func Evaluate(rule string, items map[string]any) bool {
 
 	return result
 }
+
+// recoveredPanicError is the error of a panic that the antlr runtime raised, in place of an error.
+type recoveredPanicError struct{ info any }
+
+func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }

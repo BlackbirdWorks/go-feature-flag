@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -20,6 +21,11 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errDuplicateFlag    = errors.New("duplicate flag")
+	errAllTheFilesUnder = errors.New("all the files under the prefix must have the same format")
 )
 
 // Entry is an object found by Store.List.
@@ -48,15 +54,13 @@ type Store interface {
 
 // Options are the settings of a Loader.
 type Options struct {
+	// Logger is used for the warnings, it can be nil.
+	Logger *fflog.FFLogger
 	// Prefix is the folder to load. Leading "/" are trimmed and a trailing "/" is added if missing.
 	// "" and "/" are the root.
 	Prefix string
 	// Pattern is an optional glob (see path.Match) matched against the file name only.
 	Pattern string
-	// Recursive also loads the "sub folders" of Prefix.
-	Recursive bool
-	// Logger is used for the warnings, it can be nil.
-	Logger *fflog.FFLogger
 	// Location is the name of the bucket / container, used in the logs.
 	Location string
 	// LocationKey is the log field holding Location (ex: "bucket"), "location" if empty.
@@ -64,24 +68,26 @@ type Options struct {
 	// Provider is the name of the provider used in the logs and the errors (ex: "S3"). If empty,
 	// the wording is provider-neutral.
 	Provider string
+	// Recursive also loads the "sub folders" of Prefix.
+	Recursive bool
 }
 
 // cachedFile is the last parsed version of a file.
 type cachedFile struct {
-	version string
 	flags   map[string]dto.DTO
+	version string
 }
 
 // Loader loads and merges the flag files of a folder.
 // A Loader is not safe for concurrent use: the caller must serialize the calls.
 type Loader struct {
-	store  Store
-	opts   Options
-	prefix string
+	store Store
 	// format is the format of the last Load, read by OutputFormat.
 	format  atomic.Value
 	cache   map[string]cachedFile
 	skipped map[string]struct{}
+	prefix  string
+	opts    Options
 }
 
 // New creates a Loader reading the files from store.
@@ -177,15 +183,15 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
 	keys := sortedKeys(files)
-	if err := checkFormats(keys); err != nil {
-		return nil, err
+	if checkFormatsErr := checkFormats(keys); checkFormatsErr != nil {
+		return nil, checkFormatsErr
 	}
 	if len(keys) == 0 {
 		l.opts.Logger.Warn(l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
-	if err := l.refreshCache(ctx, keys, files); err != nil {
-		return nil, err
+	if refreshCacheErr := l.refreshCache(ctx, keys, files); refreshCacheErr != nil {
+		return nil, refreshCacheErr
 	}
 
 	merged, err := l.mergeFlags(keys)
@@ -255,8 +261,7 @@ func (l *Loader) mergeFlags(keys []string) (map[string]dto.DTO, error) {
 	for _, key := range keys {
 		for flagKey, flag := range l.cache[key].flags {
 			if prev, dup := origin[flagKey]; dup {
-				return nil, fmt.Errorf(
-					"duplicate flag %q found in files %q and %q", flagKey, prev, key)
+				return nil, fmt.Errorf("%w %q found in files %q and %q", errDuplicateFlag, flagKey, prev, key)
 			}
 			origin[flagKey] = key
 			merged[flagKey] = flag
@@ -366,8 +371,7 @@ func checkFormats(keys []string) error {
 			continue
 		}
 		if f != firstFormat {
-			return fmt.Errorf(
-				"all the files under the prefix must have the same format: %q is %s but %q is %s",
+			return fmt.Errorf("%w: %q is %s but %q is %s", errAllTheFilesUnder,
 				firstKey, firstFormat, key, f)
 		}
 	}

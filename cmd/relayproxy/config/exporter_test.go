@@ -34,14 +34,14 @@ func TestExporterConf_IsValid(t *testing.T) {
 		ClusterIdentifier       string
 		WorkgroupName           string
 		TableName               string
-		DbUser                  string
+		DBUser                  string
 		SecretArn               string
 	}
 	tests := []struct {
-		name     string
 		fields   fields
-		wantErr  bool
+		name     string
 		errValue string
+		wantErr  bool
 	}{
 		{
 			name:     "no fields",
@@ -298,8 +298,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				ClusterIdentifier: "my-cluster",
 				TableName:         "events; DROP TABLE users",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: \"tableName\" \"events; DROP TABLE users\" is not a valid table name for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: \"tableName\" \"events; DROP TABLE users\" is not a valid table name for kind \"r" +
+				"edshift\"",
 		},
 		{
 			name: "kind Redshift without database",
@@ -316,8 +317,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				Kind:     "redshift",
 				Database: "analytics",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
+				"redshift\"",
 		},
 		{
 			name: "kind Redshift with both cluster and workgroup",
@@ -327,8 +329,9 @@ func TestExporterConf_IsValid(t *testing.T) {
 				ClusterIdentifier: "my-cluster",
 				WorkgroupName:     "my-workgroup",
 			},
-			wantErr:  true,
-			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"redshift\"",
+			wantErr: true,
+			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
+				"redshift\"",
 		},
 		{
 			name: "kind Redshift valid with cluster and dbUser",
@@ -336,7 +339,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 				Kind:              "redshift",
 				Database:          "analytics",
 				ClusterIdentifier: "my-cluster",
-				DbUser:            "goff_writer",
+				DBUser:            "goff_writer",
 			},
 			wantErr: false,
 		},
@@ -356,7 +359,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 				Kind:          "redshift",
 				Database:      "analytics",
 				WorkgroupName: "my-workgroup",
-				DbUser:        "goff_writer",
+				DBUser:        "goff_writer",
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"dbUser\" cannot be used with \"workgroupName\" for kind \"redshift\"",
@@ -367,7 +370,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 				Kind:              "redshift",
 				Database:          "analytics",
 				ClusterIdentifier: "my-cluster",
-				DbUser:            "goff_writer",
+				DBUser:            "goff_writer",
 				SecretArn:         "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
 			},
 			wantErr:  true,
@@ -401,7 +404,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 				ClusterIdentifier:       tt.fields.ClusterIdentifier,
 				WorkgroupName:           tt.fields.WorkgroupName,
 				TableName:               tt.fields.TableName,
-				DbUser:                  tt.fields.DbUser,
+				DBUser:                  tt.fields.DBUser,
 				SecretArn:               tt.fields.SecretArn,
 			}
 			err := c.IsValid()

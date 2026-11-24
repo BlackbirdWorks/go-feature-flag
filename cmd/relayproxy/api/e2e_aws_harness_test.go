@@ -83,28 +83,28 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 
 // apiResponse is a decoded HTTP response.
 type apiResponse struct {
-	Status int
 	Body   map[string]any
 	Raw    string
+	Status int
 }
 
 // postJSON sends a JSON body and decodes the JSON object of the response.
-func postJSON(t testing.TB, url, apiKey string, body any) apiResponse {
-	t.Helper()
+func postJSON(tb testing.TB, url, apiKey string, body any) apiResponse {
+	tb.Helper()
 	b, err := json.Marshal(body)
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(b))
-	require.NoError(t, err)
+	require.NoError(tb, err)
+	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, url, bytes.NewReader(b))
+	require.NoError(tb, err)
 	req.Header.Set("Content-Type", "application/json")
 	if apiKey != "" {
 		req.Header.Set("X-Api-Key", apiKey)
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
+	require.NoError(tb, err)
 	res := apiResponse{Status: resp.StatusCode, Raw: string(raw)}
 	_ = json.Unmarshal(raw, &res.Body) // not JSON for some errors, Body stays nil
 

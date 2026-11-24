@@ -19,9 +19,9 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		wantErr    assert.ErrorAssertionFunc
 		name       string
 		query      string
-		wantErr    assert.ErrorAssertionFunc
 		wantCached bool
 	}{
 		{
@@ -79,8 +79,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 		go func() {
 			defer wg.Done()
 			for i := range 200 {
-				shared, err := c.get(query)
-				if !assert.NoError(t, err) {
+				shared, getErr := c.get(query)
+				if !assert.NoError(t, getErr) {
 					return
 				}
 				assert.Same(t, ev, shared, "every evaluation must share the cached evaluator")
@@ -89,8 +89,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 				if wantMatch {
 					group = "match"
 				}
-				ok, err := shared.Process(map[string]any{"group": group})
-				assert.NoError(t, err)
+				ok, getErr := shared.Process(map[string]any{"group": group})
+				assert.NoError(t, getErr)
 				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", g, i)
 			}
 		}()

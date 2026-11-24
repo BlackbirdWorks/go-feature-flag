@@ -7,8 +7,9 @@ import (
 )
 
 type OFREPEvaluateResponseError struct {
-	OFREPCommonResponseError `       json:",inline" yaml:",inline" toml:",inline"`
-	Key                      string `json:"key"`
+	OFREPCommonResponseError `json:",inline" yaml:",inline" toml:",inline"`
+
+	Key string `json:"key"`
 }
 
 type OFREPCommonResponseError struct {

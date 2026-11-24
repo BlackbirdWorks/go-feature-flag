@@ -82,10 +82,10 @@ func TestComputeFilename(t *testing.T) {
 		format   string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		want    string
 		wantErr assert.ErrorAssertionFunc
+		args    args
+		name    string
+		want    string
 	}{
 		{
 			name: "Nothing to template",
@@ -158,11 +158,11 @@ func TestFormatEventInCSV(t *testing.T) {
 		csvTemplate *template.Template
 		event       exporter.FeatureEvent
 	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		wantErr assert.ErrorAssertionFunc
+		name    string
+		want    string
+		args    args
 	}{
 		{
 			name: "valid",
@@ -218,11 +218,11 @@ func TestFormatEventInJSON(t *testing.T) {
 	type args struct {
 		event exporter.FeatureEvent
 	}
-	tests := []struct {
-		name    string
-		args    args
-		want    string
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		wantErr assert.ErrorAssertionFunc
+		name    string
+		want    string
+		args    args
 	}{
 		{
 			name: "valid",
@@ -237,7 +237,9 @@ func TestFormatEventInJSON(t *testing.T) {
 				Default:      false,
 				Source:       "SERVER",
 			}},
-			want:    "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":1617970547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\",\"source\":\"SERVER\"}\n",
+			want: "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":161797" +
+				"0547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\"," +
+				"\"source\":\"SERVER\"}\n",
 			wantErr: assert.NoError,
 		},
 	}

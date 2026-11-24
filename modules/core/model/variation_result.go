@@ -12,6 +12,8 @@ type JSONType interface {
 }
 
 // VariationResult contains all the field available in a flag variation result.
+//
+//nolint:govet // fieldalignment: field order is the key order of the CLI and API output
 type VariationResult[T JSONType] struct {
 	TrackEvents   bool                  `json:"trackEvents"`
 	VariationType string                `json:"variationType"`
@@ -25,8 +27,8 @@ type VariationResult[T JSONType] struct {
 	Metadata      map[string]any        `json:"metadata,omitempty"`
 }
 
-// ToJsonStr converts the VariationResult to a JSON string.
-func (v VariationResult[T]) ToJsonStr() string {
+// ToJSONStr converts the VariationResult to a JSON string.
+func (v VariationResult[T]) ToJSONStr() string {
 	content, _ := json.Marshal(v)
 
 	return string(content)
@@ -34,7 +36,7 @@ func (v VariationResult[T]) ToJsonStr() string {
 
 // RawVarResult is the result of the raw variation call.
 // This is used by ffclient.RawVariation functions, this should be used only by internal calls.
-type RawVarResult struct {
+type RawVarResult struct { //nolint:govet // fieldalignment: field order is the key order of the CLI and API output
 	TrackEvents   bool                  `json:"trackEvents"`
 	VariationType string                `json:"variationType"`
 	Failed        bool                  `json:"failed"`

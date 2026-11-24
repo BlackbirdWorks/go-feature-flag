@@ -12,11 +12,15 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+var (
+	errHTTPError = errors.New("http error")
+)
+
 type HTTP struct {
 	Req           http.Request
+	EndRatelimit  time.Time
 	RateLimit     bool
 	HasBeenCalled bool
-	EndRatelimit  time.Time
 }
 
 func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
@@ -72,7 +76,7 @@ func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
 	}
 
 	if strings.Contains(req.URL.String(), "error") {
-		return nil, errors.New("http error")
+		return nil, errHTTPError
 	} else if strings.HasSuffix(req.URL.String(), "httpError") {
 		return errorResponse, nil
 	}

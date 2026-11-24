@@ -15,8 +15,8 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		flag     flag.InternalFlag
+		name     string
 		expected bool
 	}{
 		{
@@ -237,14 +237,14 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
 		flag              flag.InternalFlag
 		evaluationCtx     ffcontext.Context
 		expectedValue     any
+		name              string
 		expectedErrorCode string
 		expectedReason    string
-		shouldSucceed     bool
 		description       string
+		shouldSucceed     bool
 	}{
 		{
 			name: "Should succeed with empty context for static flag",
@@ -357,14 +357,14 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
 		flag              flag.InternalFlag
 		evaluationCtx     ffcontext.Context
 		expectedValue     any
+		name              string
 		expectedErrorCode string
 		expectedReason    string
-		shouldSucceed     bool
 		description       string
+		shouldSucceed     bool
 	}{
 		{
 			name: "Should succeed with nil context for static flag",
@@ -453,12 +453,12 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		flag          flag.InternalFlag
 		evaluationCtx ffcontext.Context
+		name          string
 		expectedKey   string
-		expectedError bool
 		description   string
+		expectedError bool
 	}{
 		{
 			name: "Should allow empty key for non-bucketing flag",

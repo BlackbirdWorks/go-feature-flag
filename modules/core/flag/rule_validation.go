@@ -11,6 +11,26 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+var (
+	errRolloutInitialNotLowerThanEnd = errors.New(
+		"invalid progressive rollout, initial percentage should be lower than end percentage",
+	)
+	errImpossibleToReturnValue          = errors.New("impossible to return value")
+	errInvalidPercentagesShouldNot      = errors.New("invalid percentages: should not be empty")
+	errInvalidPercentageVariation       = errors.New("invalid percentage: variation")
+	errInvalidPercentagesShouldNotBe    = errors.New("invalid percentages: should not be equal to 0")
+	errInvalidPercentagesTheSum         = errors.New("invalid percentages: the sum")
+	errInvalidPercentage                = errors.New("invalid percentage")
+	errInvalidProgressiveRolloutInitial = errors.New(
+		"invalid progressive rollout, initial and end steps are required",
+	)
+	errInvalidProgressiveRolloutEnd              = errors.New("invalid progressive rollout, end variation")
+	errInvalidProgressiveRolloutInitialVariation = errors.New("invalid progressive rollout, initial variation")
+	errInvalidVariation                          = errors.New("invalid variation")
+	errEachTargetingShouldHave                   = errors.New("each targeting should have a query")
+	errInvalidJsonlogicQuery                     = errors.New("invalid jsonlogic query")
+)
+
 // IsValid is checking if the rule is valid.
 func (r *Rule) IsValid(svc *Service, defaultRule bool, variations map[string]*any) error {
 	_, err := r.validate(svc, defaultRule, variations, nil)
@@ -28,11 +48,12 @@ func (r *Rule) validate(
 	svc *Service, defaultRule bool, variations map[string]*any, known *parser.Evaluator,
 ) (*parser.Evaluator, error) {
 	if !defaultRule && r.IsDisable() {
+		//nolint:nilnil // a nil evaluator means the rule has no nikunjy query to validate (documented on validate)
 		return nil, nil
 	}
 
 	if r.Percentages == nil && r.ProgressiveRollout == nil && r.VariationResult == nil {
-		return nil, errors.New("impossible to return value")
+		return nil, errImpossibleToReturnValue
 	}
 
 	ev := known
@@ -69,7 +90,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 
 	percentages := r.GetPercentages()
 	if len(percentages) == 0 {
-		return errors.New("invalid percentages: should not be empty")
+		return errInvalidPercentagesShouldNot
 	}
 
 	count := float64(0)
@@ -79,17 +100,17 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 		}
 		count += p
 		if _, ok := variations[k]; !ok {
-			return fmt.Errorf("invalid percentage: variation %s does not exist", k)
+			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, k)
 		}
 	}
 
 	if count == 0 {
-		return errors.New("invalid percentages: should not be equal to 0")
+		return errInvalidPercentagesShouldNotBe
 	}
 
 	// the buckets are scaled by PercentageMultiplier and stored as uint32.
 	if count*PercentageMultiplier > math.MaxUint32 {
-		return fmt.Errorf("invalid percentages: the sum (%v) is too large", count)
+		return fmt.Errorf("%w (%v) is too large", errInvalidPercentagesTheSum, count)
 	}
 
 	return nil
@@ -98,8 +119,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 // validateSinglePercentage validates a single percentage.
 func (r *Rule) validateSinglePercentage(p float64, errCtx string) error {
 	if p < 0 || math.IsNaN(p) || math.IsInf(p, 0) {
-		return fmt.Errorf(
-			"invalid percentage: %s has a negative or non-finite percentage (%v)", errCtx, p)
+		return fmt.Errorf("%w: %s has a negative or non-finite percentage (%v)", errInvalidPercentage, errCtx, p)
 	}
 
 	return nil
@@ -115,7 +135,7 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 
 	progRollout := r.GetProgressiveRollout()
 	if progRollout.Initial == nil || progRollout.End == nil {
-		return errors.New("invalid progressive rollout, initial and end steps are required")
+		return errInvalidProgressiveRolloutInitial
 	}
 
 	initialPct := progRollout.Initial.getPercentage()
@@ -129,26 +149,19 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 	}
 
 	if endPct < initialPct {
-		return fmt.Errorf(
-			"invalid progressive rollout, initial percentage should be lower "+
-				"than end percentage: %v/%v",
-			initialPct,
-			endPct,
-		)
+		return fmt.Errorf("%w: %v/%v", errRolloutInitialNotLowerThanEnd, initialPct, endPct)
 	}
 
 	endVar := progRollout.End.getVariation()
 	if _, ok := variations[endVar]; !ok {
-		return fmt.Errorf(
-			"invalid progressive rollout, end variation %s does not exist",
+		return fmt.Errorf("%w %s does not exist", errInvalidProgressiveRolloutEnd,
 			endVar,
 		)
 	}
 
 	initialVar := progRollout.Initial.getVariation()
 	if _, ok := variations[initialVar]; !ok {
-		return fmt.Errorf(
-			"invalid progressive rollout, initial variation %s does not exist",
+		return fmt.Errorf("%w %s does not exist", errInvalidProgressiveRolloutInitialVariation,
 			initialVar,
 		)
 	}
@@ -166,7 +179,7 @@ func (r *Rule) validateVariationResult(variations map[string]*any) error {
 	}
 
 	if _, ok := variations[r.GetVariationResult()]; !ok {
-		return fmt.Errorf("invalid variation: %s does not exist", r.GetVariationResult())
+		return fmt.Errorf("%w: %s does not exist", errInvalidVariation, r.GetVariationResult())
 	}
 
 	return nil
@@ -184,21 +197,21 @@ func (r *Rule) isQueryValid(svc *Service, defaultRule bool) error {
 // validateQuery is isQueryValid. It also returns the evaluator of a nikunjy query.
 func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator, error) {
 	if defaultRule {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil evaluator means there is no nikunjy query to validate (default rule)
 	}
 
 	if r.Query == nil {
-		return nil, errors.New("each targeting should have a query")
+		return nil, errEachTargetingShouldHave
 	}
 
 	// Validate the query with the parser
 	switch r.GetQueryFormat() {
 	case JSONLogicQueryFormat:
 		if !jsonlogic.IsValid(strings.NewReader(r.GetQuery())) {
-			return nil, errors.New("invalid jsonlogic query")
+			return nil, errInvalidJsonlogicQuery
 		}
 
-		return nil, nil
+		return nil, nil //nolint:nilnil // a nil evaluator means the query is JSONLogic, not nikunjy
 	default:
 		return svc.nikunjy.validateEvaluator(r.GetTrimmedQuery())
 	}

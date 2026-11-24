@@ -50,11 +50,11 @@ func TestE2E_SingleItem(t *testing.T) {
 	tests := []struct {
 		name        string
 		key         string
-		content     []byte
 		itemToRead  string // defaults to key
-		useMissing  bool   // read from a bucket that does not exist
-		wantContent []byte
 		wantErr     string
+		content     []byte
+		wantContent []byte
+		useMissing  bool // read from a bucket that does not exist
 	}{
 		{
 			name: "small json item", key: "flags.json",
@@ -189,9 +189,9 @@ func TestE2E_FolderMode(t *testing.T) {
 		name      string
 		prefix    string
 		pattern   string
-		recursive bool
-		wantKeys  []string
 		wantErr   string
+		wantKeys  []string
+		recursive bool
 	}{
 		{name: "prefix direct children only", prefix: "flags/", wantKeys: []string{"flag-a", "flag-b"}},
 		{name: "prefix without trailing slash", prefix: "flags", wantKeys: []string{"flag-a", "flag-b"}},
@@ -378,7 +378,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 				Retrieve(context.Context) ([]byte, error)
 			}, n *atomic.Int32) func() bool {
 				return func() bool {
-					if _, err := r.Retrieve(context.Background()); err != nil {
+					if _, retrieveErr := r.Retrieve(context.Background()); retrieveErr != nil {
 						return false
 					}
 					n.Add(1)
@@ -415,14 +415,22 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "missing object",
-			bucket:  func(t *testing.T) string { return srv.CreateBucket(t, "sherr") },
+			name: "missing object",
+			bucket: func(t *testing.T) string {
+				t.Helper()
+
+				return srv.CreateBucket(t, "sherr")
+			},
 			item:    "nope/flags.json",
 			wantErr: `item "nope/flags.json" not found in S3 bucket "sherr-`,
 		},
 		{
-			name:    "missing bucket",
-			bucket:  func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			name: "missing bucket",
+			bucket: func(t *testing.T) string {
+				t.Helper()
+
+				return gopherstack.UniqueName(t, "nobucket")
+			},
 			item:    "nope/flags.json",
 			wantErr: `NoSuchBucket: The specified bucket does not exist.`,
 		},

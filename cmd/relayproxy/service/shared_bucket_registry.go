@@ -18,6 +18,12 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+var (
+	errEnableSharedPollerPerBucketRequiresASingle = errors.New(
+		"enableSharedPollerPerBucket requires a single s3 retriever with item set",
+	)
+)
+
 // sharedItemsFactory builds the shared group of a bucket.
 type sharedItemsFactory func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error)
 
@@ -39,14 +45,13 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 type sharedBucketRegistry struct {
 	factory sharedItemsFactory
 	logger  *zap.Logger
-
-	mu sync.Mutex
-	// polling is the polling configuration of the relay proxy (top-level pollingInterval and
-	// enablePollingJitter), shared by all the groups.
-	polling s3retrieverv2.PollerConfig
 	groups  map[string]*registryGroup
 	// pending are the retrievers created by preRegister and not claimed yet.
 	pending map[string][]*releasingRetriever
+	// polling is the polling configuration of the relay proxy (top-level pollingInterval and
+	// enablePollingJitter), shared by all the groups.
+	polling s3retrieverv2.PollerConfig
+	mu      sync.Mutex
 }
 
 type registryGroup struct {
@@ -151,7 +156,7 @@ func (r *sharedBucketRegistry) releasePending() {
 func checkSharedPollerFlagSet(fs *config.FlagSet) error {
 	rc := fs.Retriever
 	if fs.Retrievers != nil || rc == nil || rc.Kind != retrieverconf.S3Retriever || rc.Item == "" {
-		return errors.New("enableSharedPollerPerBucket requires a single s3 retriever with item set")
+		return errEnableSharedPollerPerBucketRequiresASingle
 	}
 
 	return nil
@@ -284,6 +289,7 @@ func (r *sharedBucketRegistry) release(bucket string, g *registryGroup) {
 // releasingRetriever releases its reference on the group the first time it is shut down.
 type releasingRetriever struct {
 	*s3retrieverv2.SharedItemRetriever
+
 	release     func()
 	group       *s3retrieverv2.SharedItems
 	releaseOnce sync.Once

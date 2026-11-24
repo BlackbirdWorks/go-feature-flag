@@ -25,12 +25,12 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                    string
-		retrievers              []retriever.Retriever
-		expectError             bool
 		expectedInitCalls       map[string]bool
 		expectedStatusCalls     map[string]bool
 		expectedShutdownCalls   map[string]bool
+		name                    string
+		retrievers              []retriever.Retriever
+		expectError             bool
 		startWithRetrieverError bool
 	}{
 		{
@@ -125,7 +125,8 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				mockretriever.NewInitializableRetrieverWithFlagset("flagset"),
 			},
 			startWithRetrieverError: true,
-			expectError:             true, // Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
+			// Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
+			expectError: true,
 			expectedInitCalls: map[string]bool{
 				"standard": true,
 				"flagset":  true,
@@ -184,7 +185,7 @@ func findRetrieverByName(retrievers []retriever.Retriever, name string) retrieve
 
 // initCalled reports whether Init was recorded as called on a mock retriever.
 // The second return value is false when r is not an initializable mock type.
-func initCalled(r retriever.Retriever) (called bool, ok bool) {
+func initCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.InitCalled, true
@@ -198,7 +199,7 @@ func initCalled(r retriever.Retriever) (called bool, ok bool) {
 }
 
 // statusCalled reports whether Status was recorded as called on a mock retriever.
-func statusCalled(r retriever.Retriever) (called bool, ok bool) {
+func statusCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.StatusCalled, true
@@ -212,7 +213,7 @@ func statusCalled(r retriever.Retriever) (called bool, ok bool) {
 }
 
 // shutdownCalled reports whether Shutdown was recorded as called on a mock retriever.
-func shutdownCalled(r retriever.Retriever) (called bool, ok bool) {
+func shutdownCalled(r retriever.Retriever) (bool, bool) {
 	switch v := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
 		return v.ShutdownCalled, true
@@ -309,7 +310,8 @@ variation = "A"
 			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat: "",
 			globalFmt:  "yaml",
-			wantErr:    "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
+			wantErr: "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  lin" +
+				"e 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 

@@ -22,6 +22,7 @@ const (
 )
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
+	t.Helper()
 	configFile := testutils.CopyContentToNewTempFile(t, configContent)
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String(configFlagName, "", configFlagUsage)
@@ -97,13 +98,14 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		setupConfig func(*testing.T) *config.Config
 		wantErr     error
+		setupConfig func(*testing.T) *config.Config
+		name        string
 	}{
 		{
 			name: "Successfully stop watcher when configLoader is initialized",
 			setupConfig: func(t *testing.T) *config.Config {
+				t.Helper()
 				cfg, _ := createTestConfig(t, `server:
   port: 1031
 pollingInterval: 1000
@@ -116,6 +118,8 @@ loglevel: info`)
 		{
 			name: "Stop watcher when configLoader is nil - should return nil",
 			setupConfig: func(t *testing.T) *config.Config {
+				t.Helper()
+
 				return &config.Config{}
 			},
 			wantErr: nil,
@@ -152,13 +156,13 @@ loglevel: error`
 	var mu sync.Mutex
 	var callback1Called, callback2Called bool
 
-	callback1 := func(newConfig *config.Config) {
+	callback1 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
 		callback1Called = true
 	}
 
-	callback2 := func(newConfig *config.Config) {
+	callback2 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
 		callback2Called = true

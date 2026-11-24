@@ -102,11 +102,11 @@ trackEvents = false
 		loadedFlags []byte
 	}
 	tests := []struct {
-		name       string
-		args       args
 		expected   map[string]flag.InternalFlag
-		wantErr    bool
+		name       string
 		flagFormat string
+		args       args
+		wantErr    bool
 	}{
 		{
 			name:       "Yaml valid",
@@ -289,7 +289,11 @@ variation = "false_var"
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
 				got, _ := fCache.GetFlag(key)
-				assert.Equal(t, &expected, got) // nolint
+				assert.Equal(
+					t,
+					&expected,
+					got,
+				)
 			}
 			fCache.Close()
 		})
@@ -317,11 +321,11 @@ test-flag:
 		loadedFlags []byte
 	}
 	tests := []struct {
-		name       string
-		args       args
 		expected   map[string]flag.InternalFlag
-		wantErr    bool
+		name       string
 		flagFormat string
+		args       args
+		wantErr    bool
 	}{
 		{
 			name:       "Yaml valid",
@@ -462,7 +466,11 @@ test-flag2:
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
 				got := allFlags[key]
-				assert.Equal(t, &expected, got) //nolint: gosec
+				assert.Equal(
+					t,
+					&expected,
+					got,
+				)
 			}
 			fCache.Close()
 		})

@@ -16,8 +16,16 @@ import (
 )
 
 const (
-	errorFlagNotAvailable = "flag %v is not present or disabled"
+	// The number of workers is half the CPUs, at most maxWorkers.
+	maxWorkers     = 4
+	workersDivisor = 2
 )
+
+var (
+	errSemaphoreIsNotInitialised = errors.New("semaphore is not initialised, default value is used")
+)
+
+var errNotPresentOrDisabled = errors.New("is not present or disabled")
 
 // BoolVariation return the value of the flag in boolean.
 // An error is return if you don't have init the library before calling the function.
@@ -207,7 +215,7 @@ func (g *GoFeatureFlag) RawVariation(
 func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (flag.Flag, error) {
 	f, err := g.retrieverManager.GetFlag(flagKey)
 	if err != nil {
-		return f, fmt.Errorf(errorFlagNotAvailable, flagKey)
+		return f, fmt.Errorf("flag %v %w", flagKey, errNotPresentOrDisabled)
 	}
 
 	return f, nil
@@ -273,9 +281,7 @@ func notifyVariation[T model.JSONType](
 }
 
 // getVariation is the internal generic func that handle the logic of a variation the result will always
-// contain a valid model.VariationResult
-//
-//nolint:funlen
+// contain a valid model.VariationResult.
 func getVariation[T model.JSONType](
 	g *GoFeatureFlag,
 	flagKey string,
@@ -291,7 +297,7 @@ func getVariation[T model.JSONType](
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
 			Cacheable:     false,
-		}, errors.New("semaphore is not initialised, default value is used")
+		}, errSemaphoreIsNotInitialised
 	}
 	if g.config.Offline {
 		return model.VariationResult[T]{
@@ -347,7 +353,7 @@ func (g *GoFeatureFlag) startEventWorker() {
 	go g.reportDrops()
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
 	// per event): a few workers keep up with an evaluation rate of millions per second.
-	workers := max(1, min(4, runtime.GOMAXPROCS(0)/2))
+	workers := max(1, min(maxWorkers, runtime.GOMAXPROCS(0)/workersDivisor))
 	for range workers {
 		g.evalExporterWg.Add(1)
 		go g.runEventWorker()

@@ -32,8 +32,8 @@ type FlagValidationError struct {
 // FlagValidationResponse is the response of the validate flags endpoint.
 type FlagValidationResponse struct {
 	Version string                `json:"version" example:"v1.0.0"`
-	Valid   bool                  `json:"valid"`
 	Errors  []FlagValidationError `json:"errors"`
+	Valid   bool                  `json:"valid"`
 }
 
 // NewValidateFlags initializes the controller for the /admin/v1/flags/validate endpoint.
@@ -92,7 +92,7 @@ func (h *validateFlags) validate(c *echo.Context) (string, error) {
 	body := http.MaxBytesReader(c.Response(), c.Request().Body, maxSize)
 	data, err := io.ReadAll(body)
 	if err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		if _, isMaxBytes := errors.AsType[*http.MaxBytesError](err); isMaxBytes {
 			return outcomeError, echo.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
 		}
 

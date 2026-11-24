@@ -41,15 +41,24 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+var (
+	errProxyConfigIsEmpty                         = errors.New("proxy config is empty")
+	errEnableSharedPollerPerBucketRequiresAShared = errors.New(
+		"enableSharedPollerPerBucket requires a shared bucket registry",
+	)
+	errInvalidExporterKind = errors.New("invalid exporter: kind")
+	errInvalidNotifierKind = errors.New("invalid notifier: kind")
+)
+
 // clientOptions are the internal options of NewGoFeatureFlagClient.
 type clientOptions struct {
 	sharedRegistry *sharedBucketRegistry
 	// postgresPools shares the connection pools of the PostgreSQL retrievers of the clients created with it.
 	postgresPools *postgresqlretriever.PoolRegistry
-	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
-	defaultExporterCleanQueueInterval time.Duration
 	// newClient builds the engine client. It defaults to ffclient.New and is replaced only by tests.
 	newClient func(ffclient.Config) (*ffclient.GoFeatureFlag, error)
+	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
+	defaultExporterCleanQueueInterval time.Duration
 }
 
 // withClientFactory replaces the function building the engine client (tests observe the configuration it receives).
@@ -118,10 +127,10 @@ func newGoFeatureFlagClient(
 	logger *zap.Logger,
 	notifiers []notifier.Notifier,
 	opts ...clientOption,
-) (_ *ffclient.GoFeatureFlag, retErr error) {
+) (_ *ffclient.GoFeatureFlag, retErr error) { //nolint:nonamedreturns // the deferred cleanup reads the returned error
 	var err error
 	if cFlagSet == nil {
-		return nil, errors.New("proxy config is empty")
+		return nil, errProxyConfigIsEmpty
 	}
 	var o clientOptions
 	for _, opt := range opts {
@@ -155,8 +164,10 @@ func newGoFeatureFlagClient(
 
 	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
 	// fixed in version v1.46.0
-	if len(notif) == 0 && cFlagSet.FixNotifiers != nil { // nolint: staticcheck
-		notif, err = initNotifier(cFlagSet.FixNotifiers, logger) // nolint: staticcheck
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
+	fixNotifiers := cFlagSet.FixNotifiers
+	if len(notif) == 0 && fixNotifiers != nil {
+		notif, err = initNotifier(fixNotifiers, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -265,7 +276,7 @@ func initRetrieversWithRegistry(
 	retrievers := make([]retriever.Retriever, 0)
 	if proxyConf.EnableSharedPollerPerBucket {
 		if registry == nil {
-			return nil, errors.New("enableSharedPollerPerBucket requires a shared bucket registry")
+			return nil, errEnableSharedPollerPerBucketRequiresAShared
 		}
 		r, err := registry.retrieverFor(proxyConf)
 		if err != nil {
@@ -276,7 +287,7 @@ func initRetrieversWithRegistry(
 	}
 	// if the retriever is set, we add it to the retrievers
 	if proxyConf.Retriever != nil {
-		currentRetriever, err := retrieverInit.InitRetriever(proxyConf.Retriever, retrieverOpts...)
+		currentRetriever, err := retrieverInit.Retriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -285,7 +296,7 @@ func initRetrieversWithRegistry(
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
 		for _, r := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.InitRetriever(&r, retrieverOpts...)
+			currentRetriever, err := retrieverInit.Retriever(&r, retrieverOpts...)
 			if err != nil {
 				return nil, err
 			}
@@ -352,27 +363,35 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 	return dataExp, nil
 }
 
-// nolint: funlen
+// exporterDefaults are the settings shared by the file based exporters, with their default values.
+type exporterDefaults struct {
+	format                  string
+	filename                string
+	csvTemplate             string
+	parquetCompressionCodec string
+}
+
+func newExporterDefaults(c *config.ExporterConf) exporterDefaults {
+	def := config.DefaultExporter()
+
+	return exporterDefaults{
+		format:                  valueOrDefault(c.Format, def.Format),
+		filename:                valueOrDefault(c.Filename, def.FileName),
+		csvTemplate:             valueOrDefault(c.CsvTemplate, def.CsvFormat),
+		parquetCompressionCodec: valueOrDefault(c.ParquetCompressionCodec, def.ParquetCompressionCodec),
+	}
+}
+
+func valueOrDefault(value, def string) string {
+	if value != "" {
+		return value
+	}
+
+	return def
+}
+
 func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
-	format := config.DefaultExporter().Format
-	if c.Format != "" {
-		format = c.Format
-	}
-
-	filename := config.DefaultExporter().FileName
-	if c.Filename != "" {
-		filename = c.Filename
-	}
-
-	csvTemplate := config.DefaultExporter().CsvFormat
-	if c.CsvTemplate != "" {
-		csvTemplate = c.CsvTemplate
-	}
-
-	parquetCompressionCodec := config.DefaultExporter().ParquetCompressionCodec
-	if c.ParquetCompressionCodec != "" {
-		parquetCompressionCodec = c.ParquetCompressionCodec
-	}
+	d := newExporterDefaults(c)
 
 	switch c.Kind {
 	case config.WebhookExporter:
@@ -384,69 +403,24 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		}, nil
 	case config.FileExporter:
 		return &fileexporter.Exporter{
-			Format:                  format,
+			Format:                  d.format,
 			OutputDir:               c.OutputDir,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
 		}, nil
 	case config.LogExporter:
-		return &logsexporter.Exporter{
-			LogFormat: func() string {
-				if c.LogFormat != "" {
-					return c.LogFormat
-				}
-
-				return config.DefaultExporter().LogFormat
-			}(),
-		}, nil
-	case config.S3Exporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &s3exporterv2.Exporter{
-			Bucket:                  c.Bucket,
-			Format:                  format,
-			S3Path:                  c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
-			AwsConfig:               &awsConfig,
-		}, nil
-	case config.KinesisExporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &kinesisexporter.Exporter{
-			Format:    format,
-			AwsConfig: &awsConfig,
-			Settings: kinesisexporter.NewSettings(
-				kinesisexporter.WithStreamArn(c.StreamArn),
-				kinesisexporter.WithStreamName(c.StreamName),
-			),
-		}, nil
+		return &logsexporter.Exporter{LogFormat: valueOrDefault(c.LogFormat, config.DefaultExporter().LogFormat)}, nil
+	case config.S3Exporter, config.KinesisExporter, config.SQSExporter, config.RedshiftExporter:
+		return createAWSExporter(c, d)
 	case config.GoogleStorageExporter:
 		return &gcstorageexporter.Exporter{
 			Bucket:                  c.Bucket,
-			Format:                  format,
+			Format:                  d.format,
 			Path:                    c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
-		}, nil
-	case config.SQSExporter:
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
-		if err != nil {
-			return nil, err
-		}
-
-		return &sqsexporter.Exporter{
-			QueueURL:  c.QueueURL,
-			AwsConfig: &awsConfig,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
 		}, nil
 	case config.KafkaExporter:
 		settings, err := setKafkaConfig(c.Kafka)
@@ -455,7 +429,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		}
 
 		return &kafkaexporter.Exporter{
-			Format:   format,
+			Format:   d.format,
 			Settings: settings,
 		}, nil
 	case config.PubSubExporter:
@@ -471,34 +445,14 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 			GoogleCredentials: []byte(c.GoogleCredentials),
 			AutoMigrate:       c.AutoMigrate,
 		}, nil
-	case config.RedshiftExporter:
-		var awsOpts []func(*awsConf.LoadOptions) error
-		if c.AwsRegion != "" {
-			awsOpts = append(awsOpts, awsConf.WithRegion(c.AwsRegion))
-		}
-		awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
-		if err != nil {
-			return nil, err
-		}
-
-		return &redshiftexporter.Exporter{
-			ClusterIdentifier: c.ClusterIdentifier,
-			WorkgroupName:     c.WorkgroupName,
-			Database:          c.Database,
-			DbUser:            c.DbUser,
-			SecretArn:         c.SecretArn,
-			TableName:         c.TableName,
-			AwsConfig:         &awsConfig,
-			AutoMigrate:       c.AutoMigrate,
-		}, nil
 	case config.AzureExporter:
 		return &azureexporter.Exporter{
 			Container:               c.Container,
-			Format:                  format,
+			Format:                  d.format,
 			Path:                    c.Path,
-			Filename:                filename,
-			CsvTemplate:             csvTemplate,
-			ParquetCompressionCodec: parquetCompressionCodec,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
 			AccountKey:              c.AccountKey,
 			AccountName:             c.AccountName,
 		}, nil
@@ -507,7 +461,57 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 			TracerName: c.TracerName,
 		}, nil
 	default:
-		return nil, fmt.Errorf("invalid exporter: kind \"%s\" is not supported", c.Kind)
+		return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidExporterKind, c.Kind)
+	}
+}
+
+// createAWSExporter builds the exporters that load the default AWS configuration.
+func createAWSExporter(c *config.ExporterConf, d exporterDefaults) (exporter.CommonExporter, error) {
+	var awsOpts []func(*awsConf.LoadOptions) error
+	if c.Kind == config.RedshiftExporter && c.AwsRegion != "" {
+		awsOpts = append(awsOpts, awsConf.WithRegion(c.AwsRegion))
+	}
+	awsConfig, err := awsConf.LoadDefaultConfig(context.Background(), awsOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	switch c.Kind {
+	case config.S3Exporter:
+		return &s3exporterv2.Exporter{
+			Bucket:                  c.Bucket,
+			Format:                  d.format,
+			S3Path:                  c.Path,
+			Filename:                d.filename,
+			CsvTemplate:             d.csvTemplate,
+			ParquetCompressionCodec: d.parquetCompressionCodec,
+			AwsConfig:               &awsConfig,
+		}, nil
+	case config.KinesisExporter:
+		return &kinesisexporter.Exporter{
+			Format:    d.format,
+			AwsConfig: &awsConfig,
+			Settings: kinesisexporter.NewSettings(
+				kinesisexporter.WithStreamArn(c.StreamArn),
+				kinesisexporter.WithStreamName(c.StreamName),
+			),
+		}, nil
+	case config.SQSExporter:
+		return &sqsexporter.Exporter{
+			QueueURL:  c.QueueURL,
+			AwsConfig: &awsConfig,
+		}, nil
+	default: // config.RedshiftExporter, the only other kind routed here
+		return &redshiftexporter.Exporter{
+			ClusterIdentifier: c.ClusterIdentifier,
+			WorkgroupName:     c.WorkgroupName,
+			Database:          c.Database,
+			DBUser:            c.DBUser,
+			SecretArn:         c.SecretArn,
+			TableName:         c.TableName,
+			AwsConfig:         &awsConfig,
+			AutoMigrate:       c.AutoMigrate,
+		}, nil
 	}
 }
 
@@ -561,9 +565,10 @@ func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notif
 	for _, cNotif := range c {
 		switch cNotif.Kind {
 		case config.SlackNotifier:
-			if cNotif.WebhookURL == "" && cNotif.SlackWebhookURL != "" { // nolint
+			if cNotif.WebhookURL == "" &&
+				cNotif.SlackWebhookURL != "" { //nolint:staticcheck // SA1019: the deprecated setting is still supported
 				logger.Warn("slackWebhookURL field is deprecated, please use webhookURL instead")
-				cNotif.WebhookURL = cNotif.SlackWebhookURL // nolint
+				cNotif.WebhookURL = cNotif.SlackWebhookURL //nolint:staticcheck // SA1019: the deprecated setting is still supported
 			}
 			notifiers = append(
 				notifiers,
@@ -591,7 +596,7 @@ func initNotifier(c []config.NotifierConf, logger *zap.Logger) ([]notifier.Notif
 				&discordnotifier.Notifier{DiscordWebhookURL: cNotif.WebhookURL},
 			)
 		default:
-			return nil, fmt.Errorf("invalid notifier: kind \"%s\" is not supported", cNotif.Kind)
+			return nil, fmt.Errorf("%w \"%s\" is not supported", errInvalidNotifierKind, cNotif.Kind)
 		}
 	}
 

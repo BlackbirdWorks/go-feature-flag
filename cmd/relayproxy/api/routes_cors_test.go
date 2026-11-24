@@ -40,11 +40,12 @@ func testConfig(t *testing.T) *config.Config {
 // bound before the server started and are kept open, so no other test can take the ports. conf gets its ports
 // from them. The function waits for the monitoring server too, because it is started in its own goroutine and
 // serves the endpoints the API server no longer has.
-func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (baseURL, monitoringURL string) {
+func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (string, string) {
 	t.Helper()
 	ln, port := testutils.ListenLocal(t)
 	conf.Server.Port = port
 	opts := []api.Option{api.WithListener(ln)}
+	var monitoringURL string
 	if withMonitoring {
 		monitoringLn, monitoringPort := testutils.ListenLocal(t)
 		conf.Server.MonitoringPort = monitoringPort
@@ -69,7 +70,7 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (ba
 	go func() { s.StartWithContext(context.Background()) }()
 	t.Cleanup(func() { s.Stop(context.Background()) })
 
-	baseURL = fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	if withMonitoring {
 		waitForServer(t, monitoringURL)
 	}
@@ -104,8 +105,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 	tests := []struct {
 		name            string
 		endpoint        string
-		wantStatus      int
 		wantAllowOrigin string
+		wantStatus      int
 	}{
 		{name: "health endpoint", endpoint: "/health", wantStatus: http.StatusOK, wantAllowOrigin: "*"},
 		{name: "evaluation endpoint", endpoint: "/v1/flag/change", wantStatus: http.StatusOK, wantAllowOrigin: "*"},

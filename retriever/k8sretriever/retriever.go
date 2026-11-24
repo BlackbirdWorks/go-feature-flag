@@ -10,15 +10,20 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
+var (
+	errK8sClientIsNil = errors.New("k8s client is nil after initialization")
+	errKey            = errors.New("key")
+)
+
 // Retriever is a configuration struct for a Kubernetes retriever.
 type Retriever struct {
+	ClientConfig restclient.Config
+	client       kubernetes.Interface
+	// newClient creates the client from ClientConfig (kubernetes.NewForConfig when nil). The tests set it.
+	newClient     func(*restclient.Config) (kubernetes.Interface, error)
 	Namespace     string
 	ConfigMapName string
 	Key           string
-	ClientConfig  restclient.Config
-	client        kubernetes.Interface
-	// newClient creates the client from ClientConfig (kubernetes.NewForConfig when nil). The tests set it.
-	newClient func(*restclient.Config) (kubernetes.Interface, error)
 }
 
 // createClient creates the Kubernetes client of the retriever.
@@ -41,7 +46,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	if s.client == nil {
-		return nil, errors.New("k8s client is nil after initialization")
+		return nil, errK8sClientIsNil
 	}
 
 	configMap, err := s.client.CoreV1().
@@ -54,8 +59,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 	content, ok := configMap.Data[s.Key]
 	if !ok {
-		return nil, fmt.Errorf(
-			"key %s not existing in config map %s.%s",
+		return nil, fmt.Errorf("%w %s not existing in config map %s.%s", errKey,
 			s.Key,
 			s.ConfigMapName,
 			s.Namespace,

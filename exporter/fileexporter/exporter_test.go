@@ -25,9 +25,7 @@ func TestFile_Export(t *testing.T) {
 	t.Parallel()
 
 	// Create a temporary directory for test file operations
-	tempDir, err := os.MkdirTemp("", "fileexporter-test")
-	require.NoError(t, err, "Failed to create temp dir")
-	t.Cleanup(func() { os.RemoveAll(tempDir) })
+	tempDir := t.TempDir()
 
 	hostname, _ := os.Hostname()
 	type fields struct {
@@ -49,13 +47,13 @@ func TestFile_Export(t *testing.T) {
 		trackingEvents []exporter.TrackingEvent
 	}
 	tests := []struct {
-		name     string
-		fields   fields
-		args     args
-		wantErr  bool
-		expected expected
 		setup    func(t *testing.T, fields fields)
 		teardown func(t *testing.T, fields fields)
+		fields   fields
+		name     string
+		expected expected
+		args     args
+		wantErr  bool
 	}{
 		{
 			name:    "all default json",
@@ -522,6 +520,7 @@ func TestFile_Export(t *testing.T) {
 				},
 			},
 			setup: func(t *testing.T, fields fields) {
+				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
 				if runtime.GOOS == "windows" {
@@ -533,6 +532,7 @@ func TestFile_Export(t *testing.T) {
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
+				t.Helper()
 				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -560,6 +560,7 @@ func TestFile_Export(t *testing.T) {
 				},
 			},
 			setup: func(t *testing.T, fields fields) {
+				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
 				if runtime.GOOS == "windows" {
@@ -574,6 +575,7 @@ func TestFile_Export(t *testing.T) {
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
+				t.Helper()
 				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -624,8 +626,7 @@ func TestFile_Export(t *testing.T) {
 
 			outputDir := tt.fields.OutputDir
 			if tt.fields.OutputDir == "" {
-				outputDir, _ = os.MkdirTemp("", "fileExporter")
-				defer os.Remove(outputDir)
+				outputDir = t.TempDir()
 			}
 
 			if tt.setup != nil {
@@ -771,8 +772,8 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), filePrefix) {
 			countFileWithPrefix++
-			err := os.Remove(path.Clean(file.Name()))
-			require.NoError(t, err)
+			removeErr := os.Remove(path.Clean(file.Name()))
+			require.NoError(t, removeErr)
 		}
 	}
 	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")

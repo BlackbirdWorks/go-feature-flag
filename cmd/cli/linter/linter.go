@@ -16,7 +16,7 @@ func (l *Linter) Lint() []error {
 	flags, err := helper.LoadConfigFile(
 		l.InputFile,
 		l.InputFormat,
-		helper.ConfigFileDefaultLocations(),
+		helper.DefaultLocations(),
 		clihelper.LegacyWarner(),
 	)
 	if err != nil {

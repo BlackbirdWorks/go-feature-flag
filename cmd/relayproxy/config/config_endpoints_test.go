@@ -89,8 +89,8 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		in      config.ValidateFlagsEndpoint
 		wantErr string
+		in      config.ValidateFlagsEndpoint
 	}{
 		{name: "unset", in: config.ValidateFlagsEndpoint{}},
 		{name: "valid", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3}},
@@ -174,21 +174,23 @@ func TestEndpoints_Loading(t *testing.T) {
 
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
 	tests := []struct {
+		env         map[string]string
 		name        string
 		file        string
-		env         map[string]string
 		want        config.ValidateFlagsEndpoint
 		wantInvalid bool
 	}{
 		{name: "unset keeps zero values (defaults are applied by the handler)", file: base},
 		{
 			name: "integers in the file",
-			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2048\n    maxYAMLBodySize: 4096\n    maxTOMLBodySize: 8192\n",
+			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2048\n    maxYAMLBodySize: 4096\n    maxTOMLB" +
+				"odySize: 8192\n",
 			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048, MaxYAMLBodySize: 4096, MaxTOMLBodySize: 8192},
 		},
 		{
 			name: "strings in the file",
-			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOMLBodySize: \"256 KiB\"\n",
+			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOM" +
+				"LBodySize: \"256 KiB\"\n",
 			want: config.ValidateFlagsEndpoint{
 				MaxJSONBodySize: 2 << 20,
 				MaxYAMLBodySize: 128 << 10,

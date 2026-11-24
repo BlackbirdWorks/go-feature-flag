@@ -33,7 +33,8 @@ func TestStartWithoutRetriever(t *testing.T) {
 	assert.EqualError(
 		t,
 		err,
-		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, impossible to get the flags",
+		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, i"+
+			"mpossible to get the flags",
 	)
 }
 
@@ -142,9 +143,8 @@ func TestValidUseCaseToml(t *testing.T) {
 		LeveledLogger:   slog.Default(),
 		FileFormat:      "toml",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -162,9 +162,8 @@ func TestValidUseCaseJson(t *testing.T) {
 		LeveledLogger:   slog.Default(),
 		FileFormat:      "json",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -185,9 +184,8 @@ func TestValidUseCaseMultilineQueryJson(t *testing.T) {
 		LeveledLogger: slog.Default(),
 		FileFormat:    "json",
 	})
-	defer gffClient.Close()
-
 	require.NoError(t, err)
+	defer gffClient.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gffClient.BoolVariation("test-flag", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -204,6 +202,7 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 		LeveledLogger:   slog.Default(),
 	})
+	require.NoError(t, err)
 	defer gffClient1.Close()
 
 	gffClient2, err2 := ffclient.New(ffclient.Config{
@@ -211,11 +210,8 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/test-instance2.yaml"},
 		LeveledLogger:   slog.Default(),
 	})
+	require.NoError(t, err2)
 	defer gffClient2.Close()
-
-	// Init should be OK for both clients.
-	assert.NoError(t, err)
-	assert.NoError(t, err2)
 
 	user := ffcontext.NewEvaluationContext("random-key")
 
@@ -363,8 +359,7 @@ test-flag:
   defaultRule:
     variation: false_var`
 
-	tempDir, _ := os.MkdirTemp("", "")
-	defer os.Remove(tempDir)
+	tempDir := t.TempDir()
 
 	flagFilePath := tempDir + "_FlagFileUnreachable.yaml"
 	gff, err := ffclient.New(ffclient.Config{
@@ -373,9 +368,8 @@ test-flag:
 		LeveledLogger:           slog.Default(),
 		StartWithRetrieverError: true,
 	})
-	defer gff.Close()
-
 	require.NoError(t, err, "should not return any error even if we can't retrieve the file")
+	defer gff.Close()
 
 	flagValue, _ := gff.StringVariation(
 		"test-flag",
@@ -408,11 +402,12 @@ func TestInvalidConf(t *testing.T) {
 		Retriever:       &fileretriever.Retriever{Path: "testdata/invalid-flag-config.json"},
 		LeveledLogger:   slog.Default(),
 	})
-	defer gff.Close()
 	require.Error(t, err)
+	defer gff.Close()
 	assert.Equal(
 		t,
-		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, please check your configuration: yaml: line 43: did not find expected ',' or '}'",
+		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, pl"+
+			"ease check your configuration: yaml: line 43: did not find expected ',' or '}'",
 		err.Error(),
 	)
 }
@@ -451,9 +446,8 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config-big.yaml"},
 	})
-	defer gff.Close()
-
 	require.NoError(t, err)
+	defer gff.Close()
 	user := ffcontext.NewEvaluationContext("random-key")
 	hasTestFlag, _ := gff.BoolVariation("test-flag99", user, false)
 	assert.True(t, hasTestFlag, "User should have test flag")
@@ -688,12 +682,13 @@ func Test_ForceRefreshCache(t *testing.T) {
 // readPersistedFlags returns the content of the persistent flag configuration file and the
 // flags it contains. The library writes this file from a goroutine, so a read can catch a
 // partial write: in that case ok is false and the caller (a require.Eventually) just retries.
-func readPersistedFlags(path string) (content []byte, flags map[string]any, ok bool) {
+func readPersistedFlags(path string) ([]byte, map[string]any, bool) {
+	var flags map[string]any
 	content, err := os.ReadFile(path)
 	if err != nil || len(content) == 0 {
 		return nil, nil, false
 	}
-	if err := yaml.Unmarshal(content, &flags); err != nil || len(flags) == 0 {
+	if unmarshalErr := yaml.Unmarshal(content, &flags); unmarshalErr != nil || len(flags) == 0 {
 		return nil, nil, false
 	}
 
@@ -861,12 +856,12 @@ func TestUseCustomBucketingKey(t *testing.T) {
 	t.Run("should return the default value if the bucketing key is not found", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := gffClient.StringVariationDetails(
+		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
 			"my-flag",
 			ffcontext.NewEvaluationContext("random-key"),
 			"default",
 		)
-		require.NoError(t, err)
+		require.NoError(t, stringVariationDetailsErr)
 		want := model.VariationResult[string]{
 			Value:         "default",
 			TrackEvents:   true,
@@ -882,14 +877,14 @@ func TestUseCustomBucketingKey(t *testing.T) {
 	t.Run("should return the variation value if the bucketing key is found", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := gffClient.StringVariationDetails(
+		got, stringVariationDetailsErr := gffClient.StringVariationDetails(
 			"my-flag",
 			ffcontext.NewEvaluationContextBuilder("random-key").
 				AddCustom("teamId", "team-123").
 				Build(),
 			"default",
 		)
-		require.NoError(t, err)
+		require.NoError(t, stringVariationDetailsErr)
 		want := model.VariationResult[string]{
 			Value:         "value_A",
 			TrackEvents:   true,
@@ -906,8 +901,8 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                 string
 		config               *ffclient.Config
+		name                 string
 		disableNotification  bool
 		expectedNotifyCalled bool
 	}{
@@ -998,9 +993,9 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
 		enrichment     map[string]any
 		wantEnrichment map[string]any
+		name           string
 	}{
 		{
 			name:       "nil enrichment",

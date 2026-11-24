@@ -14,13 +14,10 @@ type AllFlags struct {
 type FlagState struct {
 	// Value is the flag value, it can be any JSON types.
 	Value any `json:"value"`
-
-	// Timestamp is the time when the flag was evaluated.
-	Timestamp int64 `json:"timestamp" example:"1652113076"`
-
 	// VariationType is the name of the variation used to have the flag value.
 	VariationType string `json:"variationType" example:"variation-A"`
-
+	// Timestamp is the time when the flag was evaluated.
+	Timestamp int64 `json:"timestamp" example:"1652113076"`
 	// TrackEvents this flag is trackable.
 	TrackEvents bool `json:"trackEvents" example:"false"`
 	Failed      bool `json:"-"`

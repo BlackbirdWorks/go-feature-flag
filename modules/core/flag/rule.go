@@ -17,6 +17,21 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	// maxPercentage is the percentage that selects every user.
+	maxPercentage = 100
+)
+
+var (
+	errEvaluateRuleNoKey           = errors.New("evaluate Rule: no key for bucketing-required rule")
+	errEvaluateRuleNoEvaluation    = errors.New("evaluate Rule: no evaluation context")
+	errProgressiveRolloutRequiresA = errors.New("progressive rollout requires a bucketing key")
+	errPercentageRolloutRequiresA  = errors.New("percentage rollout requires a bucketing key")
+	errErrorInTheConfiguration     = errors.New("error in the configuration, no variation available for this rule")
+	errErrorInTheProgressive       = errors.New("error in the progressive rollout, missing params")
+	errImpossibleToFindThe         = errors.New("impossible to find the variation")
+)
+
 type QueryFormat = string
 
 const (
@@ -28,27 +43,27 @@ const (
 type Rule struct {
 	// Name is the name of the rule, this field is mandatory if you want
 	// to update the rule during scheduled rollout
-	Name *string `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout."` //nolint: lll
+	Name *string `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Query represents the query used to target the audience of the flag.
-	Query *string `json:"query,omitempty" yaml:"query,omitempty" toml:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored."` //nolint: lll
+	Query *string `json:"query,omitempty" yaml:"query,omitempty" toml:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// VariationResult represents the variation name to use if the rule apply for the user.
 	// In case we have a percentage field in the config VariationResult is ignored
-	VariationResult *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored"` //nolint: lll
+	VariationResult *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Percentages represents the percentage we should give to each variation.
 	// example: variationA = 10%, variationB = 80%, variationC = 10%
-	Percentages *map[string]float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation."` //nolint: lll
+	Percentages *map[string]float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// ProgressiveRollout is your struct to configure a progressive rollout deployment of your flag.
 	// It will allow you to ramp up the percentage of your flag over time.
 	// You can decide at which percentage you starts with and at what percentage you ends with in your release ramp.
 	// Before the start date we will serve the initial percentage and, after we will serve the end percentage.
-	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty" toml:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag."` //nolint: lll
+	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty" toml:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Disable indicates that this rule is disabled.
-	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled."` //nolint: lll
+	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// QueryHash is the hash of Query that InternalFlag.IsValid computes once, when the flag is
 	// loaded, to find the evaluator of the query without hashing it for every evaluation.
@@ -100,12 +115,12 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	ctx := queryCtx.ctx
 	// Only require key if this rule needs bucketing
 	if key == "" && r.RequiresBucketing() {
-		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
+		return "", errEvaluateRuleNoKey
 	}
 
 	// check that we have an evaluation context
 	if ctx == nil {
-		return "", errors.New("evaluate Rule: no evaluation context")
+		return "", errEvaluateRuleNoEvaluation
 	}
 
 	// Check if the rule applies for this user
@@ -118,7 +133,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.ProgressiveRollout != nil {
 		if key == "" {
-			return "", errors.New("progressive rollout requires a bucketing key")
+			return "", errProgressiveRolloutRequiresA
 		}
 
 		// only the progressive rollout depends on the date: the clock is not read for the other rules.
@@ -126,7 +141,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
-			return "", errors.New("percentage rollout requires a bucketing key")
+			return "", errPercentageRolloutRequiresA
 		}
 
 		return r.EvaluatePercentageRollout(key, flagName)
@@ -135,7 +150,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return r.GetVariationResult(), nil
 	}
 
-	return "", errors.New("error in the configuration, no variation available for this rule")
+	return "", errErrorInTheConfiguration
 }
 
 // queryContext is the evaluation context as targeting queries read it. The map is built on
@@ -144,12 +159,12 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 // the query engines must only read the map, never modify it. The JSON form JsonLogic reads
 // is shared the same way.
 type queryContext struct {
+	ctx                 ffcontext.Context
+	parsedEvalCtxAsData any
 	// svc owns the caches and the pool that evaluating the queries uses.
 	svc                  *Service
-	ctx                  ffcontext.Context
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
-	parsedEvalCtxAsData  any
 	// pooled is true when parsedEvalCtxAsMap comes from the pool of svc (see release).
 	pooled bool
 }
@@ -200,8 +215,8 @@ func (q *queryContext) dataOnce() (any, error) {
 			return nil, err
 		}
 		var data any
-		if err := json.Unmarshal(raw, &data); err != nil {
-			return nil, err
+		if unmarshalErr := json.Unmarshal(raw, &data); unmarshalErr != nil {
+			return nil, unmarshalErr
 		}
 		q.parsedEvalCtxAsData = data
 	}
@@ -224,6 +239,8 @@ func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 }
 
 // evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
+//
+//nolint:nonamedreturns // recover sets the result
 func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext) (success bool) {
 	// Catch any panics that may occur during evaluation
 	defer func() {
@@ -251,6 +268,7 @@ func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, map
 	return ok
 }
 
+//nolint:nonamedreturns // recover sets the result
 func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool) {
 	query := compiled.trimmed
 	if query == "" {
@@ -310,7 +328,7 @@ func (r *Rule) EvaluateProgressiveRollout(
 	key, flagName string,
 	evaluationDate time.Time,
 ) (string, error) {
-	progressiveRolloutMaxPercentage := uint32(100 * PercentageMultiplier)
+	progressiveRolloutMaxPercentage := uint32(maxPercentage * PercentageMultiplier)
 	hashID := utils.BuildHash(flagName, key, progressiveRolloutMaxPercentage)
 	variation, err := r.getVariationFromProgressiveRollout(hashID, evaluationDate)
 	if err != nil {
@@ -355,7 +373,7 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 func (r *Rule) IsDynamic() bool {
 	hasPercentage100 := false
 	for _, percentage := range r.GetPercentages() {
-		if percentage == 100 {
+		if percentage == maxPercentage {
 			hasPercentage100 = true
 
 			break
@@ -379,44 +397,44 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		r.ProgressiveRollout.End.Variation != nil &&
 		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
 
-	if isRolloutValid {
-		if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
-			return *r.ProgressiveRollout.Initial.Variation, nil
-		}
-
-		// We are between initial and end
-		initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
-		// The rule is shared by all the evaluations of the flag (concurrently): it must never be
-		// written here, an end percentage outside of ]0, 100] means 100.
-		endPercentage := r.ProgressiveRollout.End.getPercentage()
-		if endPercentage == 0 || endPercentage > 100 {
-			endPercentage = 100
-		}
-		endPercentage *= PercentageMultiplier
-		nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-		percentage := endPercentage - initialPercentage
-		percentPerSec := percentage / float64(nbSec)
-
-		var currentPercentage float64
-		// Cap the percentage at endPercentage if evaluation date is at or after end date
-		if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
-			currentPercentage = endPercentage
-		} else {
-			c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-			currentPercentage = float64(c)*percentPerSec + initialPercentage
-		}
-
-		// The percentage represents how many users get the END variation
-		// Users with hash < currentPercentage get END variation
-		// Users with hash >= currentPercentage get INITIAL variation
-		if hash < uint32(currentPercentage) {
-			return r.ProgressiveRollout.End.getVariation(), nil
-		}
-
-		return r.ProgressiveRollout.Initial.getVariation(), nil
+	if !isRolloutValid {
+		return "", errErrorInTheProgressive
 	}
 
-	return "", errors.New("error in the progressive rollout, missing params")
+	if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
+		return *r.ProgressiveRollout.Initial.Variation, nil
+	}
+
+	// We are between initial and end
+	initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
+	// The rule is shared by all the evaluations of the flag (concurrently): it must never be
+	// written here, an end percentage outside of ]0, 100] means 100.
+	endPercentage := r.ProgressiveRollout.End.getPercentage()
+	if endPercentage == 0 || endPercentage > 100 {
+		endPercentage = 100
+	}
+	endPercentage *= PercentageMultiplier
+	nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+	percentage := endPercentage - initialPercentage
+	percentPerSec := percentage / float64(nbSec)
+
+	var currentPercentage float64
+	// Cap the percentage at endPercentage if evaluation date is at or after end date
+	if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
+		currentPercentage = endPercentage
+	} else {
+		c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+		currentPercentage = float64(c)*percentPerSec + initialPercentage
+	}
+
+	// The percentage represents how many users get the END variation
+	// Users with hash < currentPercentage get END variation
+	// Users with hash >= currentPercentage get INITIAL variation
+	if hash < uint32(currentPercentage) {
+		return r.ProgressiveRollout.End.getVariation(), nil
+	}
+
+	return r.ProgressiveRollout.Initial.getVariation(), nil
 }
 
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
@@ -438,7 +456,7 @@ func variationFromBuckets(percentage map[string]float64, names []string, hash ui
 		return last, nil
 	}
 
-	return "", errors.New("impossible to find the variation")
+	return "", errImpossibleToFindThe
 }
 
 // MergeRules is merging 2 rules.

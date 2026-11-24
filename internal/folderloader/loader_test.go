@@ -23,6 +23,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errNoSuchKey = errors.New("no such key")
+	errBoom      = errors.New("boom")
+	errKaboom    = errors.New("kaboom")
+)
+
 const (
 	yamlA = "flagA:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"
 	yamlB = "flagB:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: off\n"
@@ -32,25 +38,24 @@ const (
 
 // fakeStore is an in-memory Store. The version of a file is derived from its content.
 type fakeStore struct {
-	mu sync.Mutex
-	// files are the objects by key.
-	files map[string]string
-	// noVersion lists the files with an empty version, and Get returns an empty one too.
-	noVersion bool
-	// getNoVersion makes Get return an empty version, the listed one is used then.
-	getNoVersion bool
-	// listVersion / getVersion, if set, replace the version of every file in List / Get.
-	listVersion string
-	getVersion  string
-	listErr     error
-	getErr      error
-	getErrKeys  map[string]error
+	listErr error
+	getErr  error
 	// beforeGet is called at the start of Get, without the lock held.
 	beforeGet func(key string)
-
-	getCalls     map[string]int
+	// files are the objects by key.
+	files      map[string]string
+	getErrKeys map[string]error
+	getCalls   map[string]int
+	// listVersion / getVersion, if set, replace the version of every file in List / Get.
+	listVersion  string
+	getVersion   string
 	listPrefixes []string
 	listRecurse  []bool
+	mu           sync.Mutex
+	// getNoVersion makes Get return an empty version, the listed one is used then.
+	getNoVersion bool
+	// noVersion lists the files with an empty version, and Get returns an empty one too.
+	noVersion bool
 }
 
 func (f *fakeStore) put(key, content string) {
@@ -139,7 +144,7 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	}
 	c, ok := f.files[key]
 	if !ok {
-		return nil, "", fmt.Errorf("no such key: %s", key)
+		return nil, "", fmt.Errorf("%w: %s", errNoSuchKey, key)
 	}
 	if f.getNoVersion {
 		return []byte(c), "", nil
@@ -153,17 +158,17 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 
 type step struct {
 	mutate         func(s *fakeStore)
-	wantFlags      []string // flag names of the merged flag set, nil means not checked
-	wantFormat     string   // expected OutputFormat after the step, "" means not checked
-	wantLog        string
-	wantNoLog      string
-	wantLogCount   int
-	wantLogCountOf string
-	wantErr        string
-	wantSameAs     []string // local files whose decoding (merged) must equal the decoded result
 	check          func(t *testing.T, flags map[string]dto.DTO)
 	wantGets       map[string]int // cumulative number of Get per key
-	wantContent    string         // exact content expected for the flag file(s), "" means not checked
+	wantFormat     string         // expected OutputFormat after the step, "" means not checked
+	wantLog        string
+	wantNoLog      string
+	wantLogCountOf string
+	wantErr        string
+	wantContent    string   // exact content expected for the flag file(s), "" means not checked
+	wantFlags      []string // flag names of the merged flag set, nil means not checked
+	wantSameAs     []string // local files whose decoding (merged) must equal the decoded result
+	wantLogCount   int
 }
 
 type loadCase struct {
@@ -542,7 +547,7 @@ func TestLoader_Load(t *testing.T) {
 		},
 		{
 			name:  "list error",
-			setup: func(s *fakeStore) { s.listErr = errors.New("boom") },
+			setup: func(s *fakeStore) { s.listErr = errBoom },
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to list objects with prefix "f/", boom`}},
 		},
@@ -550,7 +555,7 @@ func TestLoader_Load(t *testing.T) {
 			name: "download error",
 			setup: func(s *fakeStore) {
 				s.put("f/a.yaml", yamlA)
-				s.getErr = errors.New("kaboom")
+				s.getErr = errKaboom
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to download item "f/a.yaml", kaboom`}},
@@ -560,7 +565,7 @@ func TestLoader_Load(t *testing.T) {
 			setup: func(s *fakeStore) {
 				s.put("f/a.yaml", yamlA)
 				s.put("f/b.yaml", yamlB)
-				s.setGetErrKey("f/b.yaml", errors.New("kaboom"))
+				s.setGetErrKey("f/b.yaml", errKaboom)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
@@ -743,11 +748,11 @@ func TestLoader_Load_Provider(t *testing.T) {
 			logs := &bytes.Buffer{}
 			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 
-			ls := &fakeStore{listErr: errors.New("boom")}
+			ls := &fakeStore{listErr: errBoom}
 			_, err := folderloader.New(ls, tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantList)
 
-			gs := &fakeStore{getErr: errors.New("kaboom")}
+			gs := &fakeStore{getErr: errKaboom}
 			gs.put("f/a.yaml", yamlA)
 			_, err = folderloader.New(gs, tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantGet)
@@ -769,8 +774,8 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 	tests := []struct {
 		name          string
 		prefix        string
-		recursive     bool
 		wantPrefix    string
+		recursive     bool
 		wantRecursive bool
 	}{
 		{name: "empty", prefix: "", wantPrefix: ""},
@@ -853,9 +858,9 @@ func TestReuse(t *testing.T) {
 	logger := &fflog.FFLogger{}
 	base := folderloader.Options{Prefix: "f/", Pattern: "a.*", Recursive: true, Logger: logger, Location: "b"}
 	tests := []struct {
+		opts      func(o folderloader.Options) folderloader.Options
 		name      string
 		nilLoader bool
-		opts      func(o folderloader.Options) folderloader.Options
 		wantSame  bool
 	}{
 		{name: "nil loader", nilLoader: true},

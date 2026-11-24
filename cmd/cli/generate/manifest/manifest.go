@@ -16,14 +16,18 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+var (
+	errFlagManifestDestinationIs = errors.New("--flag_manifest_destination is mandatory")
+)
+
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
-		return Manifest{}, errors.New("--flag_manifest_destination is mandatory")
+		return Manifest{}, errFlagManifestDestinationIs
 	}
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,
 		configFormat,
-		configHelper.ConfigFileDefaultLocations(),
+		configHelper.DefaultLocations(),
 		helper.LegacyWarner(),
 	)
 	if err != nil {
@@ -90,8 +94,8 @@ func (m *Manifest) storeManifest(definitionsJSON string) error {
 }
 
 type capturedRecord struct {
-	level   slog.Level
 	message string
+	level   slog.Level
 }
 
 // captureHandler records each slog record for replay into helper.Output.

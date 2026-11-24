@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+var (
+	errInvalidURL              = errors.New("invalid URL")
+	errInvalidLocationHeaderIn = errors.New("invalid Location header in the redirect response")
+)
+
 // RedactedURL replaces the URL of an error that must not leak it.
 const RedactedURL = "[REDACTED]"
 
@@ -29,16 +34,16 @@ func RedactURLError(err error) error {
 		// The causes of url.Parse quote a part of the raw input (for example `invalid port ":secret" after
 		// host` when the password of "https://user:secret" is read as a port), and the input can not be
 		// trusted to be free of credentials. The cause is dropped instead of being pattern matched.
-		return &url.Error{Op: urlErr.Op, URL: RedactedURL, Err: errors.New("invalid URL")}
+		return &url.Error{Op: urlErr.Op, URL: RedactedURL, Err: errInvalidURL}
 	}
 	if cause != nil {
 		msg := cause.Error()
 		switch {
 		case strings.Contains(msg, "Location header"):
 			// the redirect target is quoted, possibly without a scheme.
-			cause = errors.New("invalid Location header in the redirect response")
+			cause = errInvalidLocationHeaderIn
 		case embeddedURL.MatchString(msg):
-			cause = errors.New(embeddedURL.ReplaceAllString(msg, RedactedURL))
+			cause = redactedCauseError(embeddedURL.ReplaceAllString(msg, RedactedURL))
 		}
 	}
 
@@ -57,3 +62,8 @@ func RedactURL(raw string) string {
 
 	return (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
 }
+
+// redactedCauseError is the text of an error cause, once the URLs it embeds are replaced.
+type redactedCauseError string
+
+func (e redactedCauseError) Error() string { return string(e) }

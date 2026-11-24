@@ -18,6 +18,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
+var (
+	errReadFailure = errors.New("read failure")
+)
+
 const (
 	jsonBodyLimit = 1 << 20
 	yamlBodyLimit = 64 << 10
@@ -27,7 +31,7 @@ const (
 // failingReader is a request body that always fails to be read.
 type failingReader struct{}
 
-func (failingReader) Read([]byte) (int, error) { return 0, errors.New("read failure") }
+func (failingReader) Read([]byte) (int, error) { return 0, errReadFailure }
 
 // normalizeAltMessage replaces the single error message equal to alt by the expected one.
 func normalizeAltMessage(got []controller.FlagValidationError, alt string, want []controller.FlagValidationError) {
@@ -110,17 +114,17 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	oversizedJSON := padTo(validJSON, " ", jsonBodyLimit+1)
 
 	tests := []struct {
+		reader      io.Reader
 		name        string
 		contentType string
 		body        string
 		// altMessage is the message returned when modules/core validates the flag without panicking.
 		altMessage string
-		reader     io.Reader
-		chunked    bool
+		wantErrors []controller.FlagValidationError
 		limits     config.ValidateFlagsEndpoint
 		wantStatus int
+		chunked    bool
 		wantValid  bool
-		wantErrors []controller.FlagValidationError
 	}{
 		{
 			name:        "valid json",

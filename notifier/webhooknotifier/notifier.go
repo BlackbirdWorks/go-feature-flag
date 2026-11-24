@@ -16,6 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errInvalidNotifierConfigurationNo = errors.New(
+		"invalid notifier configuration, no endpointURL provided for the webhook notifier",
+	)
+	errErrorWhileCallingWebhook = errors.New("error: while calling webhook, statusCode")
+)
+
 var _ notifier.Notifier = &Notifier{}
 
 // webhookReqBody is the format we are sending to the webhook.
@@ -70,26 +77,22 @@ type webhookReqBody struct {
 //	  }
 //	}
 type Notifier struct {
-	// EndpointURL of your webhook
-	EndpointURL string
-
-	// Optional: Secret used to sign your request body.
-	Secret string //nolint:gosec // G117
-
+	httpClient internal.HTTPClient
 	// Meta (optional) information that you want to send to your webhook
 	Meta map[string]string
-
 	// Headers (optional) the list of Headers to send to the endpoint
 	Headers map[string][]string
-
-	httpClient internal.HTTPClient
-	init       sync.Once
+	// EndpointURL of your webhook
+	EndpointURL string
+	// Optional: Secret used to sign your request body.
+	Secret string
+	init   sync.Once
 }
 
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.EndpointURL == "" {
-		return errors.New("invalid notifier configuration, no endpointURL provided for the webhook notifier")
+		return errInvalidNotifierConfigurationNo
 	}
 
 	// init the notifier
@@ -150,8 +153,8 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		return fmt.Errorf("error: while calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode > 399 {
-		return fmt.Errorf("error: while calling webhook, statusCode = %d", response.StatusCode)
+	if response.StatusCode >= http.StatusBadRequest {
+		return fmt.Errorf("%w = %d", errErrorWhileCallingWebhook, response.StatusCode)
 	}
 
 	return nil

@@ -18,11 +18,11 @@ import (
 // gatedExporter counts what it exports; while gate is not nil its Export waits for it to be
 // closed (started is closed when the first Export begins), and it fails when fail is set.
 type gatedExporter struct {
-	events  atomic.Int64
-	fail    bool
 	gate    chan struct{}
 	started chan struct{}
+	events  atomic.Int64
 	once    sync.Once
+	fail    bool
 }
 
 func (g *gatedExporter) IsBulk() bool { return true }
@@ -46,12 +46,12 @@ func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []export
 func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		broken func() *gatedExporter
-		async  bool
+		name   string
 		// wantHealthy is the number of events the healthy exporter receives, wantDropping tells that the broken
 		// one loses events once its backlog is full
 		wantHealthy  int64
+		async        bool
 		wantDropping bool
 	}{
 		{

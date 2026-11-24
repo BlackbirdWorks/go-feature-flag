@@ -28,8 +28,8 @@ func TestLog_Export(t *testing.T) {
 	tests := []struct {
 		name        string
 		fields      fields
-		args        args
 		expectedLog string
+		args        args
 		wantErr     bool
 	}{
 		{

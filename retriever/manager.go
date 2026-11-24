@@ -17,25 +17,34 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var errPersistentFile = errors.New("impossible to use the persistent flag configuration file")
+
+var (
+	errErrorWhileInitializingThe = errors.New("error while initializing the retrievers")
+	errErrorWhileShuttingDown    = errors.New("error while shutting down the retrievers")
+	errNoPersistentFlagAvailable = errors.New("no persistent flag available")
+	errCacheIsNotInitialized     = errors.New("cache is not initialized")
+)
+
 // ManagerConfig is the configuration of the retriever manager.
 type ManagerConfig struct {
+	Name                            *string
 	FileFormat                      string
-	DisableNotifierOnInit           bool
 	PersistentFlagConfigurationFile string
+	PollingInterval                 time.Duration
+	DisableNotifierOnInit           bool
 	StartWithRetrieverError         bool
 	EnablePollingJitter             bool
-	PollingInterval                 time.Duration
-	Name                            *string
 }
 
 // Manager is a struct that managed the retrievers.
 type Manager struct {
+	cacheManager     cache.Manager
+	bgUpdater        backgroundUpdater
+	logger           *fflog.FFLogger
 	retrievers       []Retriever
 	onErrorRetriever []Retriever
-	logger           *fflog.FFLogger
-	cacheManager     cache.Manager
 	config           ManagerConfig
-	bgUpdater        backgroundUpdater
 	// pollingWg is done when the polling goroutine started by Init has returned.
 	pollingWg sync.WaitGroup
 	// stopPollingOnce guarantees that we close the background updater only once,
@@ -62,8 +71,8 @@ func (m *Manager) Init(ctx context.Context) error {
 		return err
 	}
 	if err := m.retrieveFlagsAndUpdateCache(ctx, true); err != nil {
-		if err := m.handleFirstRetrieverError(ctx, err); err != nil {
-			return err
+		if handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err); handleFirstRetrieverErrorErr != nil {
+			return handleFirstRetrieverErrorErr
 		}
 	}
 
@@ -160,7 +169,7 @@ func (m *Manager) tryInitializeWithFlagset(ctx context.Context, retriever Retrie
 // checkInitializationErrors returns an error if any retrievers failed to initialize.
 func (m *Manager) checkInitializationErrors() error {
 	if len(m.onErrorRetriever) > 0 {
-		return fmt.Errorf("error while initializing the retrievers: %v", m.onErrorRetriever)
+		return fmt.Errorf("%w: %v", errErrorWhileInitializingThe, m.onErrorRetriever)
 	}
 
 	return nil
@@ -184,7 +193,7 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		}
 	}
 	if len(onErrorRetriever) > 0 {
-		return fmt.Errorf("error while shutting down the retrievers: %v", onErrorRetriever)
+		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
 	}
 
 	m.cacheManager.Close()
@@ -228,8 +237,8 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 	case m.config.PersistentFlagConfigurationFile != "":
 		errPersist := m.retrievePersistentLocalDisk(ctx)
 		if errPersist != nil && !m.config.StartWithRetrieverError {
-			return fmt.Errorf("impossible to use the persistent flag configuration file: %v "+
-				"[original error: %v]", errPersist, err)
+			//nolint:errorlint // %v on purpose: wrapping the retriever errors would let errors.As callers (the CLI) match them
+			return fmt.Errorf("%w: %v [original error: %v]", errPersistentFile, errPersist, err)
 		}
 	case !m.config.StartWithRetrieverError:
 		return fmt.Errorf(
@@ -258,9 +267,9 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 		if _, err := os.Stat(m.config.PersistentFlagConfigurationFile); err == nil {
 			// we found the configuration file on the disk
 			r := &fileretriever.Retriever{Path: m.config.PersistentFlagConfigurationFile}
-			newFlags, err := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
-			if err != nil {
-				return err
+			newFlags, retrieveErr := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
+			if retrieveErr != nil {
+				return retrieveErr
 			}
 
 			return m.updateCacheWithRetriever(newFlags, true)
@@ -269,7 +278,7 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
 
-	return errors.New("no persistent flag available")
+	return errNoPersistentFlagAvailable
 }
 
 // GetCacheRefreshDate gives the last refresh date of the cache.
@@ -287,7 +296,7 @@ func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
 // error reporting this is returned.
 func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
 	if m == nil || m.cacheManager == nil {
-		return nil, errors.New("cache is not initialized")
+		return nil, errCacheIsNotInitialized
 	}
 
 	return m.cacheManager.AllFlags()
@@ -297,7 +306,7 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 // callers inside the module that only read them (evaluation of all the flags).
 func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
 	if m == nil || m.cacheManager == nil {
-		return nil, errors.New("cache is not initialized")
+		return nil, errCacheIsNotInitialized
 	}
 
 	return m.cacheManager.AllFlagsReadOnly()

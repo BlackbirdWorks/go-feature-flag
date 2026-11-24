@@ -8,6 +8,16 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 )
 
+var (
+	errOfrepEventStreamInactivityDelaySecMustBe = errors.New(
+		"ofrepEventStream.inactivityDelaySec must be positive, got",
+	)
+	errOfrepEventStreamBaseURLMustBe  = errors.New("ofrepEventStream.baseUrl must be an absolute http(s) URL")
+	errOfrepEventStreamBaseURLMustNot = errors.New(
+		"ofrepEventStream.baseUrl must not contain a query or a fragment",
+	)
+)
+
 // OfrepEventStream holds the configuration used to advertise the flag-change SSE
 // endpoint in the OFREP bulk evaluation response (OpenFeature ADR-0008).
 type OfrepEventStream struct {
@@ -30,7 +40,7 @@ func (o OfrepEventStream) IsEnabled() bool {
 // IsValid checks that the configuration is valid.
 func (o OfrepEventStream) IsValid() error {
 	if o.InactivityDelaySec < 0 {
-		return fmt.Errorf("ofrepEventStream.inactivityDelaySec must be positive, got %d", o.InactivityDelaySec)
+		return fmt.Errorf("%w %d", errOfrepEventStreamInactivityDelaySecMustBe, o.InactivityDelaySec)
 	}
 	if o.BaseURL == "" {
 		return nil
@@ -41,10 +51,10 @@ func (o OfrepEventStream) IsValid() error {
 		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
 	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return errors.New("ofrepEventStream.baseUrl must be an absolute http(s) URL")
+		return errOfrepEventStreamBaseURLMustBe
 	}
 	if u.RawQuery != "" || u.Fragment != "" {
-		return errors.New("ofrepEventStream.baseUrl must not contain a query or a fragment")
+		return errOfrepEventStreamBaseURLMustNot
 	}
 
 	return nil

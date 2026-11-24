@@ -10,61 +10,9 @@ import (
 )
 
 type Config struct {
-	// CommonFlagSet is the common flag set for the relay proxy
-	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
-
-	// Server is the server configuration, including host, port, and unix socket
-	Server Server `mapstructure:"server" koanf:"server"`
-
-	// Swagger is the swagger configuration
-	Swagger Swagger `mapstructure:"swagger" koanf:"swagger"`
-
-	// OfrepEventStream (optional) advertises the flag-change SSE endpoint in the OFREP bulk
-	// evaluation response so that providers can subscribe to changes instead of polling.
-	// It is enabled when OfrepEventStream.BaseURL is set.
-	OfrepEventStream OfrepEventStream `mapstructure:"ofrepEventStream" koanf:"ofrepeventstream"`
-
-	// HideBanner (optional) if true, we don't display the semaphore relay proxy banner
-	HideBanner bool `mapstructure:"hideBanner" koanf:"hidebanner"`
-
-	// EnablePprof (optional) if true, semaphore relay proxy will start
-	// the pprof endpoints on the same port as the monitoring.
-	// Default: false
-	EnablePprof bool `mapstructure:"enablePprof" koanf:"enablepprof"`
-
-	// LogLevel (optional) sets the verbosity for logging,
-	// Possible values: debug, info, warn, error, dpanic, panic, fatal
-	// If level debug semaphore relay proxy will run on debug mode, with more logs and custom responses
-	// Default: debug
-	LogLevel string `mapstructure:"logLevel" koanf:"loglevel"`
-
-	// LogFormat (optional) sets the log message format
-	// Possible values: json, logfmt
-	// Default: json
-	LogFormat string `mapstructure:"logFormat" koanf:"logformat"`
-
-	// Version is the version of the relay-proxy
-	Version string `mapstructure:"version" koanf:"version"`
-
-	// Disable the x-semaphore-version header, and its legacy name x-gofeatureflag-version, in the
-	// relay-proxy HTTP response
-	// Default: false
-	DisableVersionHeader bool `mapstructure:"disableVersionHeader" koanf:"disableversionheader"`
-
-	// ExposeLegacyMetrics (optional) also exposes every semaphore_* Prometheus series under its
-	// legacy gofeatureflag_* name, so dashboards and alerts written for GO Feature Flag keep working.
-	// Default: false
-	ExposeLegacyMetrics bool `mapstructure:"exposeLegacyMetrics" koanf:"exposelegacymetrics"`
-
-	// DisableSemaphoreMetadata (optional) stops adding semaphore_cacheable to the metadata of the OFREP
-	// evaluation responses, only the legacy gofeatureflag_cacheable is sent. It is for the clients that
-	// compare the metadata strictly.
-	// Default: false
-	DisableSemaphoreMetadata bool `mapstructure:"disableSemaphoreMetadata" koanf:"disablesemaphoremetadata"`
-
-	// AuthorizedKeys list of API keys that authorized to use endpoints
-	AuthorizedKeys APIKeys `mapstructure:"authorizedKeys" koanf:"authorizedkeys"`
-
+	// apiKeySet is the internal representation of an API keys list configured
+	// we store them in a set to be
+	apiKeysSet map[string]APIKeyType
 	// EvaluationContextEnrichment (optional) will be merged with the evaluation context sent during the evaluation.
 	// It is useful to add common attributes to all the evaluations, such as a server version, environment, ...
 	//
@@ -72,95 +20,95 @@ type Config struct {
 	// if in the evaluation context you have a field with the same name,
 	// it will be overridden by the evaluationContextEnrichment.
 	// Default: nil
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"` //nolint: lll
-
-	// OpenTelemetryOtlpEndpoint (optional) is the endpoint of the OpenTelemetry collector
-	// Default: ""
-	OpenTelemetryOtlpEndpoint string `mapstructure:"openTelemetryOtlpEndpoint" koanf:"opentelemetryotlpendpoint"`
-
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"`
+	// logger is the logger for the relay proxy
+	logger *zap.Logger
+	// configLoader is the service in charge of loading the configuration.
+	configLoader *Loader
 	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
 	//  to be able to serve the flags even if none of the retrievers is available during starting time.
 	//
 	// By default, the flag configuration is not persisted and stays on the retriever system. By setting a file here,
 	// you ensure that Semaphore will always start with a configuration but which can be out-dated.
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"` //nolint: lll
-
-	// OtelConfig is the configuration for the OpenTelemetry part of the relay proxy
-	OtelConfig OpenTelemetryConfiguration `mapstructure:"otel" koanf:"otel"`
-
-	// JaegerConfig is the configuration for the Jaeger sampling of the relay proxy
-	JaegerConfig JaegerSamplerConfiguration `mapstructure:"jaeger" koanf:"jaeger"`
-
+	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"`
+	// Version is the version of the relay-proxy
+	Version string `mapstructure:"version" koanf:"version"`
 	// EnvVariablePrefix (optional) is the prefix we are using to load the environment variables
 	// By default we have no prefix
 	EnvVariablePrefix string `mapstructure:"envVariablePrefix" koanf:"envvariableprefix"`
-
-	// EnableBulkMetricFlagNames (optional) enables per-flag metrics for bulk evaluation endpoints.
-	// This adds flag_name labels to the all_flags_evaluations_total_with_flag metric.
-	// Default: false
-	EnableBulkMetricFlagNames bool `mapstructure:"enableBulkMetricFlagNames" koanf:"enablebulkmetricflagnames"`
-
-	// DisableFlagDetailsInStream (optional) removes flag definitions from WebSocket change payloads.
-	// Default: false
-	DisableFlagDetailsInStream bool `mapstructure:"disableFlagDetailsInStream" koanf:"disableflagdetailsinstream"`
-
-	// FlagSets is the list of flag sets configured.
-	// A flag set is a group of flags that can be used to configure the relay proxy.
-	// Each flag set can have its own API key, retrievers, notifiers and exporters.
-	// There is no inheritance between flag sets.
-	FlagSets []FlagSet `mapstructure:"flagsets" koanf:"flagsets"`
-
-	// Studio (optional) loads the FlagSets from Semaphore Studio instead of the configuration file.
-	// It is enabled when Studio.URL is set.
-	Studio Studio `mapstructure:"studio" koanf:"studio"`
-
-	// Endpoints (optional) configures the endpoints of the relay proxy.
-	Endpoints Endpoints `mapstructure:"endpoints" koanf:"endpoints"`
-
-	// ---------- Deprecated fields ----------
-	// ListenPort (optional) is the port we are using to start the proxy
-	//
-	// Deprecated: use Server.Port instead
-	ListenPort int `mapstructure:"listen" koanf:"listen"`
-
-	// MonitoringPort (optional) is the port we are using to expose the metrics and healthchecks
-	// If not set we will use the same port as the proxy
-	//
-	// Deprecated: use Server.MonitoringPort instead
-	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
-
-	// Deprecated: use Swagger.Enabled instead
-	EnableSwagger bool `mapstructure:"enableSwagger" koanf:"enableswagger"`
-
+	// LogFormat (optional) sets the log message format
+	// Possible values: json, logfmt
+	// Default: json
+	LogFormat string `mapstructure:"logFormat" koanf:"logformat"`
 	// Deprecated: use Swagger.Host instead
 	Host string `mapstructure:"host" koanf:"host"`
-
-	// Deprecated: use AuthorizedKeys instead
-	// APIKeys list of API keys that authorized to use endpoints
-	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"` //nolint:gosec // G117
-
-	// StartAsAwsLambda (optional) if true, the relay proxy will start ready to be launched as AWS Lambda
-	//
-	// Deprecated: use `Server.Mode = lambda` instead
-	StartAsAwsLambda bool `mapstructure:"startAsAwsLambda" koanf:"startasawslambda"`
-
 	// AwsLambdaAdapter (optional) is the adapter to use when the relay proxy is started as an AWS Lambda.
 	// Possible values are "APIGatewayV1", "APIGatewayV2" and "ALB"
 	// Default: "APIGatewayV2"
 	//
 	// Deprecated: use `Server.LambdaAdapter` instead
 	AwsLambdaAdapter string `mapstructure:"awsLambdaAdapter" koanf:"awslambdaadapter"`
-
-	// AwsApiGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
+	// flagSetMode is where the flagSets come from.
+	flagSetMode flagSetMode
+	// AwsAPIGatewayBasePath (optional) is the base path prefix for AWS API Gateway deployments.
 	// This is useful when deploying behind a non-root path like "/api" or "/dev/feature-flags".
 	// The relay proxy will strip this base path from incoming requests before processing.
 	// Example: if set to "/api/feature-flags", requests to "/api/feature-flags/health" will be processed as "/health"
 	// Default: ""
 	//
-	// Deprecated: use `Server.AwsApiGatewayBasePath` instead
-	AwsApiGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	// Deprecated: use `Server.AwsAPIGatewayBasePath` instead
+	AwsAPIGatewayBasePath string `mapstructure:"awsApiGatewayBasePath" koanf:"awsapigatewaybasepath"`
+	// LogLevel (optional) sets the verbosity for logging,
+	// Possible values: debug, info, warn, error, dpanic, panic, fatal
+	// If level debug semaphore relay proxy will run on debug mode, with more logs and custom responses
+	// Default: debug
+	LogLevel string `mapstructure:"logLevel" koanf:"loglevel"`
+	// OpenTelemetryOtlpEndpoint (optional) is the endpoint of the OpenTelemetry collector
+	// Default: ""
+	OpenTelemetryOtlpEndpoint string `mapstructure:"openTelemetryOtlpEndpoint" koanf:"opentelemetryotlpendpoint"`
+	// OtelConfig is the configuration for the OpenTelemetry part of the relay proxy
+	OtelConfig OpenTelemetryConfiguration `mapstructure:"otel" koanf:"otel"`
+	// Studio (optional) loads the FlagSets from Semaphore Studio instead of the configuration file.
+	// It is enabled when Studio.URL is set.
+	Studio Studio `mapstructure:"studio" koanf:"studio"`
+	// AuthorizedKeys list of API keys that authorized to use endpoints
+	AuthorizedKeys APIKeys `mapstructure:"authorizedKeys" koanf:"authorizedkeys"`
+	// JaegerConfig is the configuration for the Jaeger sampling of the relay proxy
+	JaegerConfig JaegerSamplerConfiguration `mapstructure:"jaeger" koanf:"jaeger"`
+	// FlagSets is the list of flag sets configured.
+	// A flag set is a group of flags that can be used to configure the relay proxy.
+	// Each flag set can have its own API key, retrievers, notifiers and exporters.
+	// There is no inheritance between flag sets.
+	FlagSets []FlagSet `mapstructure:"flagsets" koanf:"flagsets"`
+	// Swagger is the swagger configuration
+	Swagger Swagger `mapstructure:"swagger" koanf:"swagger"`
+	// OfrepEventStream (optional) advertises the flag-change SSE endpoint in the OFREP bulk
+	// evaluation response so that providers can subscribe to changes instead of polling.
+	// It is enabled when OfrepEventStream.BaseURL is set.
+	OfrepEventStream OfrepEventStream `mapstructure:"ofrepEventStream" koanf:"ofrepeventstream"`
+	// Deprecated: use AuthorizedKeys instead
+	// APIKeys list of API keys that authorized to use endpoints
+	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"`
+	// Server is the server configuration, including host, port, and unix socket
+	Server Server `mapstructure:"server" koanf:"server"`
+	// CommonFlagSet is the common flag set for the relay proxy
+	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
+	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
+	// Endpoints (optional) configures the endpoints of the relay proxy.
+	Endpoints Endpoints `mapstructure:"endpoints" koanf:"endpoints"`
+	// MonitoringPort (optional) is the port we are using to expose the metrics and healthchecks
+	// If not set we will use the same port as the proxy
+	//
+	// Deprecated: use Server.MonitoringPort instead
+	MonitoringPort int `mapstructure:"monitoringPort" koanf:"monitoringport"`
+	// ---------- Deprecated fields ----------
+	// ListenPort (optional) is the port we are using to start the proxy
+	//
+	// Deprecated: use Server.Port instead
+	ListenPort int `mapstructure:"listen" koanf:"listen"`
 	// ---------- End of deprecated fields ----------
-
 	// ---------- Private fields ----------
 	// mutex is used to protect the configuration from concurrent access during runtime
 	// it applies to the following fields:
@@ -171,27 +119,44 @@ type Config struct {
 	// - forceAuthenticatedRequests
 	// - hadFlagSets
 	mutex sync.RWMutex
-
-	// apiKeySet is the internal representation of an API keys list configured
-	// we store them in a set to be
-	apiKeysSet map[string]ApiKeyType
-
+	// DisableSemaphoreMetadata (optional) stops adding semaphore_cacheable to the metadata of the OFREP
+	// evaluation responses, only the legacy gofeatureflag_cacheable is sent. It is for the clients that
+	// compare the metadata strictly.
+	// Default: false
+	DisableSemaphoreMetadata bool `mapstructure:"disableSemaphoreMetadata" koanf:"disablesemaphoremetadata"`
+	// StartAsAwsLambda (optional) if true, the relay proxy will start ready to be launched as AWS Lambda
+	//
+	// Deprecated: use `Server.Mode = lambda` instead
+	StartAsAwsLambda bool `mapstructure:"startAsAwsLambda" koanf:"startasawslambda"`
+	// Disable the x-semaphore-version header, and its legacy name x-gofeatureflag-version, in the
+	// relay-proxy HTTP response
+	// Default: false
+	DisableVersionHeader bool `mapstructure:"disableVersionHeader" koanf:"disableversionheader"`
+	// DisableFlagDetailsInStream (optional) removes flag definitions from WebSocket change payloads.
+	// Default: false
+	DisableFlagDetailsInStream bool `mapstructure:"disableFlagDetailsInStream" koanf:"disableflagdetailsinstream"`
+	// Deprecated: use Swagger.Enabled instead
+	EnableSwagger bool `mapstructure:"enableSwagger" koanf:"enableswagger"`
+	// EnablePprof (optional) if true, semaphore relay proxy will start
+	// the pprof endpoints on the same port as the monitoring.
+	// Default: false
+	EnablePprof bool `mapstructure:"enablePprof" koanf:"enablepprof"`
 	// hadFlagSets latches to true once the configuration has had a flag set: the relay proxy cannot switch
 	// between default and flag set mode at runtime, so a reload that leaves no running flag set (their
 	// replacement failed to start) must not turn the top-level evaluation keys valid again.
 	hadFlagSets bool
-
 	// forceAuthenticatedRequests is true if we have at least 1 AuthorizedKey.Evaluation key set.
 	forceAuthenticatedRequests bool
-
-	// configLoader is the service in charge of loading the configuration.
-	configLoader *ConfigLoader
-
-	// logger is the logger for the relay proxy
-	logger *zap.Logger
-
-	// flagSetMode is where the flagSets come from.
-	flagSetMode flagSetMode
+	// HideBanner (optional) if true, we don't display the semaphore relay proxy banner
+	HideBanner bool `mapstructure:"hideBanner" koanf:"hidebanner"`
+	// EnableBulkMetricFlagNames (optional) enables per-flag metrics for bulk evaluation endpoints.
+	// This adds flag_name labels to the all_flags_evaluations_with_flag_total metric.
+	// Default: false
+	EnableBulkMetricFlagNames bool `mapstructure:"enableBulkMetricFlagNames" koanf:"enablebulkmetricflagnames"`
+	// ExposeLegacyMetrics (optional) also exposes every semaphore_* Prometheus series under its
+	// legacy gofeatureflag_* name, so dashboards and alerts written for GO Feature Flag keep working.
+	// Default: false
+	ExposeLegacyMetrics bool `mapstructure:"exposeLegacyMetrics" koanf:"exposelegacymetrics"`
 	// ---------- End of private fields ----------
 }
 

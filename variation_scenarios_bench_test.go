@@ -20,8 +20,7 @@ import (
 
 func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFeatureFlag {
 	b.Helper()
-	dir, err := os.MkdirTemp("", "ffbench")
-	require.NoError(b, err)
+	dir := b.TempDir()
 	path := filepath.Join(dir, "flags.yaml")
 	require.NoError(b, os.WriteFile(path, []byte(yaml), 0o600))
 	cfg := ffclient.Config{

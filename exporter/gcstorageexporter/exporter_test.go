@@ -31,11 +31,11 @@ func TestGoogleStorage_Export(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
 		fields       fields
+		name         string
+		expectedName string
 		events       []exporter.ExportableEvent
 		wantErr      bool
-		expectedName string
 	}{
 		{
 			name: "All default test",
@@ -229,7 +229,7 @@ func TestGoogleStorage_Export(t *testing.T) {
 			httpclient := http.Client{
 				Transport: &http.Transport{
 					TLSClientConfig: &tls.Config{
-						InsecureSkipVerify: true, //nolint: gosec
+						InsecureSkipVerify: true,
 					},
 				},
 			}
@@ -287,7 +287,7 @@ func (g *GoogleCloudStorageHandler) handler() http.Handler {
 // TestGoogleStorage_Export_UploadError ensures that a failed upload is reported
 // instead of being silently swallowed. The GCS writer buffers the payload and
 // flushes it on Close, so the server error surfaces from wc.Close() rather than
-// io.Copy; Export must still return an error.
+// [io.Copy]; Export must still return an error.
 func TestGoogleStorage_Export_UploadError(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +298,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 	httpclient := http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint: gosec
+				InsecureSkipVerify: true,
 			},
 		},
 	}

@@ -121,7 +121,10 @@ flagsets:
       item: flags/b.yaml
 `
 
-//nolint:paralleltest,tparallel // sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy reads from the process environment; third-party code reads it
+// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
+// reads from the process environment; third-party code reads it.
+//
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -143,15 +146,15 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 
 			t.Run("single evaluation", func(t *testing.T) {
 				tests := []struct {
+					wantValue   any
+					body        map[string]any
 					name        string
 					path        string
 					apiKey      string
-					body        map[string]any
-					wantStatus  int
-					wantValue   any
 					wantVariant string
 					wantReason  string
 					wantErrCode string
+					wantStatus  int
 				}{
 					// OFREP
 					{
@@ -369,12 +372,12 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 
 			t.Run("bulk evaluation", func(t *testing.T) {
 				tests := []struct {
+					body       map[string]any
+					wantFlags  map[string]any // flag key -> value
 					name       string
 					path       string
 					apiKey     string
-					body       map[string]any
 					wantStatus int
-					wantFlags  map[string]any // flag key -> value
 				}{
 					{
 						name:       "ofrep bulk flag set a",
@@ -460,8 +463,8 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 								m := f.(map[string]any)
 								got[m["key"].(string)] = m["value"]
 							}
-						} else if flags, ok := res.Body["flags"].(map[string]any); ok { // GOFF: a map
-							for k, f := range flags {
+						} else if flagMap, isMap := res.Body["flags"].(map[string]any); isMap { // GOFF: a map
+							for k, f := range flagMap {
 								got[k] = f.(map[string]any)["value"]
 							}
 						}
@@ -498,16 +501,19 @@ brand-new:
     variation: v
 `))
 				require.Eventually(t, func() bool {
-					res := postJSON(t, url+"/ofrep/v1/evaluate/flags/brand-new", "key-b1", ofrepCtx("u1"))
+					brandNew := postJSON(t, url+"/ofrep/v1/evaluate/flags/brand-new", "key-b1", ofrepCtx("u1"))
 
-					return res.Status == 200 && res.Body["value"] == "new"
+					return brandNew.Status == 200 && brandNew.Body["value"] == "new"
 				}, 30*time.Second, 200*time.Millisecond, "new flag of flag set b never served")
 			})
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy reads from the process environment; third-party code reads it
+// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
+// reads from the process environment; third-party code reads it.
+//
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_TopLevelS3Retriever(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -638,11 +644,14 @@ flagsets:
 `
 
 type sinkEvent struct {
-	Key, UserKey, Variation string
 	Value                   any
+	Key, UserKey, Variation string
 }
 
-//nolint:paralleltest,tparallel // sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy reads from the process environment; third-party code reads it
+// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
+// reads from the process environment; third-party code reads it.
+//
+//nolint:paralleltest // see the comment above
 func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -660,9 +669,12 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		out, err := kc.DescribeStream(t.Context(), &kinesis.DescribeStreamInput{StreamName: aws.String(stream)})
+		out, describeStreamErr := kc.DescribeStream(
+			t.Context(),
+			&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
+		)
 
-		return err == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
+		return describeStreamErr == nil && out.StreamDescription.StreamStatus == kinesistypes.StreamStatusActive
 	}, 30*time.Second, 100*time.Millisecond)
 	sc := sqs.NewFromConfig(cfg)
 	q, err := sc.CreateQueue(
@@ -698,8 +710,13 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	// assertSink checks that the events read from a sink contain every evaluation made above.
 	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
+		t.Helper()
 		var got []sinkEvent
-		require.Eventually(t, func() bool {
+		// polled on the test goroutine: read uses require, which must not run off it.
+		ticker := time.NewTicker(300 * time.Millisecond)
+		defer ticker.Stop()
+		deadline := time.After(30 * time.Second)
+		for {
 			got = read(t)
 			users := map[string]bool{}
 			for _, e := range got {
@@ -707,9 +724,15 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 					users[e.UserKey] = true
 				}
 			}
-
-			return len(users) >= len(wantUsers)
-		}, 30*time.Second, 300*time.Millisecond, "events received: %d", len(got))
+			if len(users) >= len(wantUsers) {
+				break
+			}
+			select {
+			case <-deadline:
+				require.Fail(t, "not every evaluation reached the sink", "events received: %d", len(got))
+			case <-ticker.C:
+			}
+		}
 		seen := map[string]sinkEvent{}
 		for _, e := range got {
 			if e.Key == "rule-flag" {
@@ -727,13 +750,14 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 
 	sqsReceived := map[string]sinkEvent{} // only used by the sqs subtest
 	sinks := []struct {
-		name      string
 		read      func(t *testing.T) []sinkEvent
 		wantUsers map[string]string
+		name      string
 	}{
 		{
 			name: "s3 exporter",
 			read: func(t *testing.T) []sinkEvent {
+				t.Helper()
 				var res []sinkEvent
 				for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
 					require.True(t, strings.HasSuffix(k, ".json"), k)
@@ -749,26 +773,27 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "kinesis exporter",
 			read: func(t *testing.T) []sinkEvent {
-				desc, err := kc.DescribeStream(
+				t.Helper()
+				desc, describeStreamErr := kc.DescribeStream(
 					t.Context(),
 					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
 				)
-				require.NoError(t, err)
+				require.NoError(t, describeStreamErr)
 				var res []sinkEvent
 				for _, s := range desc.StreamDescription.Shards {
-					it, err := kc.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
+					it, getShardIteratorErr := kc.GetShardIterator(t.Context(), &kinesis.GetShardIteratorInput{
 						StreamName: aws.String(
 							stream,
 						),
 						ShardId:           s.ShardId,
 						ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
 					})
-					require.NoError(t, err)
-					out, err := kc.GetRecords(
+					require.NoError(t, getShardIteratorErr)
+					out, getShardIteratorErr := kc.GetRecords(
 						t.Context(),
 						&kinesis.GetRecordsInput{ShardIterator: it.ShardIterator, Limit: aws.Int32(1000)},
 					)
-					require.NoError(t, err)
+					require.NoError(t, getShardIteratorErr)
 					for _, r := range out.Records {
 						res = append(res, decodeFeatureEvent(t, r.Data))
 					}
@@ -781,6 +806,8 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		{
 			name: "sqs exporter",
 			read: func(t *testing.T) []sinkEvent {
+				t.Helper()
+
 				return receiveSQS(t, sc, aws.ToString(q.QueueUrl), sqsReceived)
 			},
 			wantUsers: wantUsers,
@@ -804,11 +831,11 @@ func receiveSQS(t *testing.T, sc *sqs.Client, queueURL string, acc map[string]si
 	for _, m := range out.Messages {
 		e := decodeFeatureEvent(t, []byte(aws.ToString(m.Body)))
 		acc[aws.ToString(m.MessageId)] = e
-		_, err := sc.DeleteMessage(
+		_, deleteMessageErr := sc.DeleteMessage(
 			t.Context(),
 			&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
 		)
-		require.NoError(t, err)
+		require.NoError(t, deleteMessageErr)
 	}
 	res := make([]sinkEvent, 0, len(acc))
 	for _, e := range acc {

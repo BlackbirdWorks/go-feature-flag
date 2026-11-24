@@ -14,14 +14,14 @@ func TestUser_AddCustomAttribute(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		name  string
 		value any
+		name  string
 	}
 	tests := []struct {
-		name string
-		user ffcontext.EvaluationContext
 		args args
+		user ffcontext.EvaluationContext
 		want map[string]any
+		name string
 	}{
 		{
 			name: "trying to add nil value",
@@ -253,9 +253,9 @@ func TestEvaluationContext_ToMap(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		context  ffcontext.EvaluationContext
 		expected map[string]any
+		name     string
 	}{
 		{
 			name:     "empty attributes",

@@ -1,6 +1,7 @@
 package configfile
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -10,8 +11,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
-// ConfigFileDefaultLocations returns the folders searched for the flag file when no path is given.
-func ConfigFileDefaultLocations() []string {
+var (
+	errImpossibleToFindConfig     = errors.New("impossible to find config file")
+	errImpossibleToFindConfigFile = errors.New("impossible to find config file in the default locations")
+)
+
+// DefaultLocations returns the folders searched for the flag file when no path is given.
+func DefaultLocations() []string {
 	return []string{
 		"./",
 		"/semaphore/",
@@ -35,7 +41,7 @@ func LoadConfigFile(
 	warner *legacy.Warner,
 ) (map[string]dto.DTO, error) {
 	if defaultLocations == nil {
-		defaultLocations = ConfigFileDefaultLocations()
+		defaultLocations = DefaultLocations()
 	}
 	fileNames := flagFileNames()
 	supportedExtensions := []string{
@@ -47,7 +53,7 @@ func LoadConfigFile(
 
 	if inputFilePath != "" {
 		if _, err := os.Stat(inputFilePath); err != nil {
-			return nil, fmt.Errorf("impossible to find config file %s", inputFilePath)
+			return nil, fmt.Errorf("%w %s", errImpossibleToFindConfig, inputFilePath)
 		}
 
 		return readConfigFile(inputFilePath, configFormat)
@@ -70,8 +76,7 @@ func LoadConfigFile(
 		}
 	}
 
-	return nil, fmt.Errorf(
-		"impossible to find config file in the default locations [%s]",
+	return nil, fmt.Errorf("%w [%s]", errImpossibleToFindConfigFile,
 		strings.Join(defaultLocations, ","),
 	)
 }

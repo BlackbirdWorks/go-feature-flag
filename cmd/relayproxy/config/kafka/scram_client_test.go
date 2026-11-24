@@ -14,8 +14,8 @@ func TestHashGenerators(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
 		newHash  func() []byte
+		name     string
 		wantSize int
 	}{
 		{name: "SHA256", newHash: func() []byte { return kafka.SHA256().Sum(nil) }, wantSize: sha256.Size},

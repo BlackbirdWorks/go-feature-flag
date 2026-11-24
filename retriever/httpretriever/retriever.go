@@ -17,45 +17,44 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRequestTo                  = errors.New("request to")
+	errHTTPDefaultTransportIs     = errors.New("http default transport is")
+	errClientCertificateAndClient = errors.New("client certificate and client key must be provided together")
+	errFailedToParseCA            = errors.New("failed to parse CA certificate")
+)
+
 // Retriever is a configuration struct for an HTTP endpoint retriever.
 type Retriever struct {
-	// URL of your endpoint
-	URL string
-
-	// HTTP Method we should use (default: GET)
-	Method string
-
-	// Body of the request if needed (default: empty body)
-	Body string
-
-	// Header added to the request
-	Header http.Header
-
-	// Timeout we should wait before failing (default: 10 seconds)
-	Timeout time.Duration
-
-	// ClientCertPath is the path to the client certificate file used for mTLS.
-	ClientCertPath string
-
-	// ClientKeyPath is the path to the client certificate key file used for mTLS.
-	ClientKeyPath string
-
-	// CACertPath is the path to the CA certificate file used to verify the server certificate.
-	CACertPath string
-
 	httpClient internal.HTTPClient
 	// baseTransport is the transport the TLS transport is cloned from (http.DefaultTransport when nil).
 	baseTransport http.RoundTripper
-	status        retriever.Status
+	// Header added to the request
+	Header http.Header
+	// URL of your endpoint
+	URL string
+	// HTTP Method we should use (default: GET)
+	Method string
+	// Body of the request if needed (default: empty body)
+	Body string
+	// ClientCertPath is the path to the client certificate file used for mTLS.
+	ClientCertPath string
+	// ClientKeyPath is the path to the client certificate key file used for mTLS.
+	ClientKeyPath string
+	// CACertPath is the path to the CA certificate file used to verify the server certificate.
+	CACertPath string
+	status     retriever.Status
+	// Timeout we should wait before failing (default: 10 seconds)
+	Timeout time.Duration
 }
 
 // SetBaseTransport sets the transport that the TLS transport (mTLS, custom CA) is cloned from, which
-// must be a *http.Transport. It is http.DefaultTransport by default.
+// must be a *[http.Transport]. It is [http.DefaultTransport] by default.
 func (r *Retriever) SetBaseTransport(transport http.RoundTripper) {
 	r.baseTransport = transport
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client
@@ -103,8 +102,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode > 399 {
-		return nil, fmt.Errorf("request to %s failed with code %d", internal.RedactURL(r.URL), resp.StatusCode)
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("%w %s failed with code %d", errRequestTo, internal.RedactURL(r.URL), resp.StatusCode)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -132,7 +131,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 		}
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", base)
+			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
 		}
 
 		tlsTransport := defaultTransport.Clone()
@@ -167,7 +166,7 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 
 func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
-		return nil, errors.New("client certificate and client key must be provided together")
+		return nil, errClientCertificateAndClient
 	}
 	if r.ClientCertPath == "" {
 		return nil, nil
@@ -183,6 +182,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 
 func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 	if r.CACertPath == "" {
+		//nolint:nilnil // a nil pool means no custom CA is configured, the transport then uses the system pool
 		return nil, nil
 	}
 
@@ -199,7 +199,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		return nil, err
 	}
 	if !rootCAs.AppendCertsFromPEM(caCert) {
-		return nil, errors.New("failed to parse CA certificate")
+		return nil, errFailedToParseCA
 	}
 
 	return rootCAs, nil

@@ -12,6 +12,7 @@ import (
 // be shared by concurrent evaluations.
 type enrichedContext struct {
 	ffcontext.Context
+
 	merged       ffcontext.EvaluationContext
 	hasProtected bool
 	// hasAnonymous is true when the enrichment sets the "anonymous" attribute.

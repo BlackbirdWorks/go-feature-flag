@@ -27,11 +27,11 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 
 	hostname, _ := os.Hostname()
 	tests := []struct {
-		name         string
-		exporter     azureexporter.Exporter
-		events       []exporter.ExportableEvent
 		wantErr      assert.ErrorAssertionFunc
+		exporter     azureexporter.Exporter
+		name         string
 		wantBlobName string
+		events       []exporter.ExportableEvent
 	}{
 		{
 			name: "Should insert 1 file in the root of the container",
@@ -255,18 +255,18 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 
 			container, client := setupTest(t)
 			defer tearDown(t, container)
-			blobServiceUrl, err := container.BlobServiceURL(context.Background())
+			blobServiceURL, err := container.BlobServiceURL(context.Background())
 			require.NoError(t, err)
 
-			tt.exporter.ServiceURL = fmt.Sprintf("%s/%s", blobServiceUrl, azurite.AccountName)
+			tt.exporter.ServiceURL = fmt.Sprintf("%s/%s", blobServiceURL, azurite.AccountName)
 			err = tt.exporter.Export(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()}, tt.events)
 			tt.wantErr(t, err, "Export() error")
 			if err == nil {
 				files := make([]string, 0)
 				pager := client.NewListBlobsFlatPager(containerName, nil)
 				for pager.More() {
-					page, err := pager.NextPage(context.Background())
-					require.NoError(t, err)
+					page, nextPageErr := pager.NextPage(context.Background())
+					require.NoError(t, nextPageErr)
 					for _, blob := range page.Segment.BlobItems {
 						files = append(files, *blob.Name)
 					}
@@ -286,6 +286,7 @@ func TestAzureBlobStorage_IsBulk(t *testing.T) {
 }
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
+	t.Helper()
 	ctx := context.Background()
 	azuriteContainer, err := azurite.Run(
 		ctx,
@@ -320,6 +321,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 }
 
 func tearDown(t *testing.T, container *azurite.Container) {
+	t.Helper()
 	err := testcontainers.TerminateContainer(container)
 	require.NoError(t, err)
 }

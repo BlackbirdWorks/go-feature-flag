@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"cloud.google.com/go/pubsub" //nolint:staticcheck
+	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: the v1 pubsub client is still used by the v1 exporter
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -19,27 +19,21 @@ var _ exporter.Exporter = &Exporter{}
 // cloud.google.com/go/pubsub v1 library. The v2 library provides improved performance
 // and additional features. This exporter will be removed in a future version.
 type Exporter struct {
-	// ProjectID is a project to which the PubSub topic belongs.
-	ProjectID string
-
-	// Topic is the name of a topic on which messages will be published.
-	Topic string
-
-	// Options are Google Cloud API options to connect to PubSub.
-	Options []option.ClientOption
-
 	// PublishSettings controls the bundling of published messages.
 	// If not set pubsub.DefaultPublishSettings are used.
 	PublishSettings *pubsub.PublishSettings
-
-	// EnableMessageOrdering enables the delivery of ordered keys.
-	EnableMessageOrdering bool
-
 	// newClientFunc is used only for unit testing purposes.
 	newClientFunc func(context.Context, string, ...option.ClientOption) (*pubsub.Client, error)
-
 	// publisher facilitates publishing messages on a PubSub topic.
 	publisher *pubsub.Topic
+	// ProjectID is a project to which the PubSub topic belongs.
+	ProjectID string
+	// Topic is the name of a topic on which messages will be published.
+	Topic string
+	// Options are Google Cloud API options to connect to PubSub.
+	Options []option.ClientOption
+	// EnableMessageOrdering enables the delivery of ordered keys.
+	EnableMessageOrdering bool
 }
 
 // Export publishes a PubSub message for each exporter.FeatureEvent received.

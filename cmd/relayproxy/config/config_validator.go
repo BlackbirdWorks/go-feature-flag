@@ -11,10 +11,38 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+var (
+	errEmptyConfig             = errors.New("empty config")
+	errFlagSetsAndStudioCannot = errors.New(
+		"flagSets and studio cannot be used together, remove flagSets from your configuration",
+	)
+	errEnableSharedPollerPerBucketIsOnlyAvailable = errors.New(
+		"enableSharedPollerPerBucket is only available inside a flagset",
+	)
+	errExporterCleanQueueIntervalMustNotBe = errors.New("exporterCleanQueueInterval must not be negative")
+	errUnixSocketPathMustBeSet             = errors.New(
+		"unixSocketPath must be set when server mode is unixsocket",
+	)
+	errInvalidLogFormat                  = errors.New("invalid log format")
+	errNoFlagsetsConfigured              = errors.New("no flagsets configured")
+	errFlagset                           = errors.New("flagset")
+	errAnAPIKeyIs                        = errors.New("an API key is used by multiple flagsets")
+	errNoRetrieverAvailableIn            = errors.New("no retriever available in the configuration")
+	errEnableSharedPollerPerBucketCanTBe = errors.New(
+		"enableSharedPollerPerBucket can't be used with retrievers, use a single retriever",
+	)
+	errEnableSharedPollerPerBucketIsOnlySupported = errors.New(
+		"enableSharedPollerPerBucket is only supported with a retriever of kind s3",
+	)
+	errEnableSharedPollerPerBucketRequiresTheS3 = errors.New(
+		"enableSharedPollerPerBucket requires the s3 retriever to set item (folder mode is not supported)",
+	)
+)
+
 // IsValid contains all the validation of the configuration.
 func (c *Config) IsValid() error {
 	if c == nil {
-		return errors.New("empty config")
+		return errEmptyConfig
 	}
 	if err := validateLogLevel(c.LogLevel); err != nil {
 		return err
@@ -35,10 +63,10 @@ func (c *Config) IsValid() error {
 		return err
 	}
 	if c.flagSetMode == flagSetModeLocal && c.Studio.URL != "" {
-		return errors.New("flagSets and studio cannot be used together, remove flagSets from your configuration")
+		return errFlagSetsAndStudioCannot
 	}
 	if c.EnableSharedPollerPerBucket {
-		return errors.New("enableSharedPollerPerBucket is only available inside a flagset")
+		return errEnableSharedPollerPerBucketIsOnlyAvailable
 	}
 	if len(c.FlagSets) > 0 {
 		return c.validateFlagSets()
@@ -50,7 +78,7 @@ func (c *Config) IsValid() error {
 // validateExporterCleanQueueInterval rejects a negative interval (a ticker can not be created with it).
 func validateExporterCleanQueueInterval(interval time.Duration) error {
 	if interval < 0 {
-		return errors.New("exporterCleanQueueInterval must not be negative")
+		return errExporterCleanQueueIntervalMustNotBe
 	}
 
 	return nil
@@ -61,7 +89,7 @@ func (c *Config) validateServerConfig() error {
 	mode := c.ServerMode(nil)
 	if mode == ServerModeUnixSocket {
 		if c.UnixSocketPath() == "" {
-			return errors.New("unixSocketPath must be set when server mode is unixsocket")
+			return errUnixSocketPathMustBeSet
 		}
 	}
 
@@ -74,7 +102,7 @@ func validateLogFormat(logFormat string) error {
 	case "json", "logfmt", "":
 		return nil
 	default:
-		return fmt.Errorf("invalid log format %s", logFormat)
+		return fmt.Errorf("%w %s", errInvalidLogFormat, logFormat)
 	}
 }
 
@@ -105,7 +133,7 @@ func (c *Config) validateDefaultMode() error {
 // validateFlagSets validates all configured flagsets.
 func (c *Config) validateFlagSets() error {
 	if len(c.FlagSets) == 0 {
-		return errors.New("no flagsets configured")
+		return errNoFlagsetsConfigured
 	}
 
 	// Track which flagset owns each credential to ensure no duplicates across flagsets.
@@ -115,13 +143,13 @@ func (c *Config) validateFlagSets() error {
 	for _, flagset := range c.FlagSets {
 		// Validate API keys
 		if len(flagset.APIKeys) == 0 {
-			return fmt.Errorf("flagset %s has no API keys", flagset.Name)
+			return fmt.Errorf("%w %s has no API keys", errFlagset, flagset.Name)
 		}
 
 		// Check for duplicate API keys across flagsets
 		for _, apiKey := range flagset.APIKeys {
 			if owner, exists := ownerByCredential[apiKey]; exists {
-				return fmt.Errorf("an API key is used by multiple flagsets: %s and %s", owner, flagset.Name)
+				return fmt.Errorf("%w: %s and %s", errAnAPIKeyIs, owner, flagset.Name)
 			}
 			ownerByCredential[apiKey] = flagset.Name
 		}
@@ -162,7 +190,7 @@ func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 // validateRetrievers validates the retrievers.
 func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]retrieverconf.RetrieverConf) error {
 	if retriever == nil && retrievers == nil {
-		return errors.New("no retriever available in the configuration")
+		return errNoRetrieverAvailableIn
 	}
 	if retriever != nil {
 		if err := retriever.IsValid(); err != nil {
@@ -219,16 +247,14 @@ func validateSharedPollerPerBucket(flagset *FlagSet) error {
 		return nil
 	}
 	if flagset.Retrievers != nil {
-		return errors.New("enableSharedPollerPerBucket can't be used with retrievers, use a single retriever")
+		return errEnableSharedPollerPerBucketCanTBe
 	}
 	r := flagset.Retriever
 	if r == nil || r.Kind != retrieverconf.S3Retriever {
-		return errors.New("enableSharedPollerPerBucket is only supported with a retriever of kind s3")
+		return errEnableSharedPollerPerBucketIsOnlySupported
 	}
 	if r.Item == "" {
-		return errors.New(
-			"enableSharedPollerPerBucket requires the s3 retriever to set item (folder mode is not supported)",
-		)
+		return errEnableSharedPollerPerBucketRequiresTheS3
 	}
 
 	return nil

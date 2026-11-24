@@ -23,6 +23,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+var (
+	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
+)
+
 // newDefaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 func newDefaultFlagsetMgr() *mockFlagsetManagerSSE {
 	return &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
@@ -64,7 +68,9 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
-			wantMessage: `{"added":null,"deleted":null,"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
+			wantMessage: `{"added":null,"deleted":null,"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false` +
+				`},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation` +
+				`":"B"}}}}}`,
 		},
 		{
 			name: "Update remove and add flag at the same time",
@@ -114,7 +120,10 @@ func Test_websocket_flag_change(t *testing.T) {
 					},
 				},
 			},
-			wantMessage: `{"added":{"flag-2":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"deleted":{"flag-1":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"updated":{"my-flag":{"old_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
+			wantMessage: `{"added":{"flag-2":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"deleted` +
+				`":{"flag-1":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}}},"updated":{"my-flag":{"old` +
+				`_value":{"variations":{"A":true,"B":false},"defaultRule":{"variation":"A"}},"new_value":{"variations":{"A":` +
+				`true,"B":false},"defaultRule":{"variation":"B"}}}}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -222,7 +231,8 @@ func broadcastUntilRegistered(
 // connection. Without synchronization gorilla/websocket panics with
 // "concurrent write to websocket connection" and crashes the relay proxy.
 // Run with -race to surface the data race if the writes are not serialized.
-// Observable outcome: no panic and no data race (race detector) while the ping loop and the broadcasts write the same connection.
+// Observable outcome: no panic and no data race (race detector) while the ping loop and the broadcasts write the same
+// connection.
 func Test_websocket_concurrent_writes(t *testing.T) {
 	t.Parallel()
 
@@ -262,7 +272,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		defer close(clientDone)
 		first := true
 		for {
-			if _, _, err := ws.ReadMessage(); err != nil {
+			if _, _, readMessageErr := ws.ReadMessage(); readMessageErr != nil {
 				return
 			}
 			if first {
@@ -415,8 +425,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			go func() {
 				defer close(msgs)
 				for {
-					_, msg, err := ws.ReadMessage()
-					if err != nil {
+					_, msg, readMessageErr := ws.ReadMessage()
+					if readMessageErr != nil {
 						return
 					}
 					msgs <- string(msg)
@@ -504,7 +514,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 
 			flagsetMgr := &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       errors.New("no flag set associated to the API key"),
+				err:       errNoFlagSetAssociated,
 			}
 			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, zap.NewNop())
 

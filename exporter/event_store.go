@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -10,31 +11,43 @@ import (
 	"time"
 )
 
+const (
+	// eventStoreGrowth is the room kept for the events added while the store is compacted (a factor).
+	eventStoreGrowth = 2
+	// minEventStoreCapacity is the smallest capacity given to a compacted store.
+	minEventStoreCapacity = 256
+)
+
+var (
+	errConsumerWithName    = errors.New("consumer with name")
+	errInvalidOffsetOffset = errors.New("invalid offset: offset")
+)
+
 const minOffset = int64(math.MinInt64)
 
 type eventStoreImpl[T ExportableEvent] struct {
-	// events is a list of events to store
-	events []EventStoreItem[T]
-	// mutex to protect the events and consumers
-	mutex sync.RWMutex
 	// consumers is a map of consumers with their name as key
 	consumers map[string]*consumer
-	// lastOffset is the last offset used for the Event store
-	lastOffset int64
 	// stopPeriodicCleaning is a channel to stop the periodic cleaning goroutine
 	stopPeriodicCleaning chan struct{}
-	// stopOnce guarantees that we close stopPeriodicCleaning only once, Stop() is reachable
-	// from the exporter manager and directly from the tests.
-	stopOnce sync.Once
+	// onDrop is called (outside of the lock) with the total number of dropped events, each time
+	// events have been dropped. It must be cheap and non-blocking.
+	onDrop func(totalDropped int64)
+	// events is a list of events to store
+	events []EventStoreItem[T]
+	// lastOffset is the last offset used for the Event store
+	lastOffset int64
 	// cleanQueueInterval is the duration between each cleaning
 	cleanQueueInterval time.Duration
 	// maxEvents is the hard limit of events kept in the store, 0 means unlimited.
 	maxEvents int64
 	// dropped is the number of events rejected because the store was full.
 	dropped atomic.Int64
-	// onDrop is called (outside of the lock) with the total number of dropped events, each time
-	// events have been dropped. It must be cheap and non-blocking.
-	onDrop func(totalDropped int64)
+	// mutex to protect the events and consumers
+	mutex sync.RWMutex
+	// stopOnce guarantees that we close stopPeriodicCleaning only once, Stop() is reachable
+	// from the exporter manager and directly from the tests.
+	stopOnce sync.Once
 }
 
 // NewEventStore creates an event store without any limit on the number of events it keeps.
@@ -105,8 +118,8 @@ type EventStore[T ExportableEvent] interface {
 }
 
 type EventStoreItem[T ExportableEvent] struct {
-	Offset int64
 	Data   T
+	Offset int64
 }
 
 // consumer serializes ProcessPendingEvents calls for a single consumer.
@@ -162,8 +175,8 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 		return nil
 	}
 
-	if err := processEventsFunc(context.Background(), eventList.Events); err != nil {
-		return err
+	if processEventsFuncErr := processEventsFunc(context.Background(), eventList.Events); processEventsFuncErr != nil {
+		return processEventsFuncErr
 	}
 
 	e.mutex.Lock()
@@ -340,7 +353,7 @@ func (e *eventStoreImpl[T]) fetchPendingEvents(currentConsumer *consumer) *Event
 func (e *eventStoreImpl[T]) getConsumer(consumerID string) (*consumer, error) {
 	currentConsumer, ok := e.consumers[consumerID]
 	if !ok {
-		return nil, fmt.Errorf("consumer with name %s not found", consumerID)
+		return nil, fmt.Errorf("%w %s not found", errConsumerWithName, consumerID)
 	}
 
 	return currentConsumer, nil
@@ -350,8 +363,7 @@ func (e *eventStoreImpl[T]) getConsumer(consumerID string) (*consumer, error) {
 // WARNING: please call this function only in a function that has locked the mutex first.
 func (e *eventStoreImpl[T]) updateConsumerOffset(currentConsumer *consumer, offset int64) error {
 	if offset > e.lastOffset {
-		return fmt.Errorf(
-			"invalid offset: offset %d is greater than the last offset %d",
+		return fmt.Errorf("%w %d is greater than the last offset %d", errInvalidOffsetOffset,
 			offset,
 			e.lastOffset,
 		)
@@ -407,7 +419,7 @@ func (e *eventStoreImpl[T]) cleanQueueLocked() {
 	// alive, so we release the removed events and copy the rest in a right-sized array when
 	// more than half of the array is waste.
 	if cap(e.events) > 1024 && remaining < cap(e.events)/2 {
-		kept := make([]EventStoreItem[T], remaining, max(remaining*2, 256))
+		kept := make([]EventStoreItem[T], remaining, max(remaining*eventStoreGrowth, minEventStoreCapacity))
 		copy(kept, e.events[removed:])
 		e.events = kept
 

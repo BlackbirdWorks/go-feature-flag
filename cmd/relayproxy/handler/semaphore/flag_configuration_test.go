@@ -110,8 +110,8 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
-				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				require.NoError(t, err)
+				wantBody, readFileErr := os.ReadFile(tt.want.bodyLocation)
+				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})
@@ -255,8 +255,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
-				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				require.NoError(t, err)
+				wantBody, readFileErr := os.ReadFile(tt.want.bodyLocation)
+				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})
@@ -326,11 +326,11 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			metrics, err := metric.NewMetrics()
-			require.NoError(t, err)
+			metrics, metricsErr := metric.NewMetrics()
+			require.NoError(t, metricsErr)
 
-			requestBody, err := os.ReadFile(tt.requestBody)
-			require.NoError(t, err)
+			requestBody, metricsErr := os.ReadFile(tt.requestBody)
+			require.NoError(t, metricsErr)
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
 			req := httptest.NewRequest(

@@ -15,15 +15,15 @@ func TestNewFeatureEvent(t *testing.T) {
 
 	type args struct {
 		user             ffcontext.Context
-		flagKey          string
 		value            any
+		exporterMetadata exporter.FeatureEventMetadata
+		flagKey          string
 		variation        string
-		failed           bool
 		version          string
 		source           string
-		exporterMetadata exporter.FeatureEventMetadata
+		failed           bool
 	}
-	tests := []struct {
+	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
 		name string
 		args args
 		want exporter.FeatureEvent
@@ -97,9 +97,9 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		featureEvent *exporter.FeatureEvent
 		want         *exporter.FeatureEvent
+		name         string
 		wantErr      bool
 	}{
 		{
@@ -186,10 +186,10 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		featureEvent *exporter.FeatureEvent
-		want         string
 		wantErr      assert.ErrorAssertionFunc
+		name         string
+		want         string
 	}{
 		{
 			name: "Should not return a metadata field if metadata is empty",
@@ -209,7 +209,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 				Default:  false,
 				Metadata: map[string]any{},
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":""}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -229,7 +231,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 				},
 				Default: false,
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":""}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -254,7 +258,9 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 					"metadata3": true,
 				},
 			},
-			want:    `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":false,"version":"","source":"","metadata":{"metadata1":"metadata1","metadata2":24,"metadata3":true}}`,
+			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
+				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+				`e,"version":"","source":"","metadata":{"metadata1":"metadata1","metadata2":24,"metadata3":true}}`,
 			wantErr: assert.NoError,
 		},
 	}

@@ -4,7 +4,6 @@ package s3retrieverv2
 // downloader and lister fields. Not parallel because the subtests use t.Setenv.
 
 import (
-	"context"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -15,21 +14,21 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
-//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
+// T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
 	tests := []struct {
+		r func() *Retriever
+		// env sets extra environment variables for the test.
+		env        map[string]string
 		name       string
-		r          func() *Retriever
-		awsConfig  bool // set an explicit AwsConfig in us-east-1
 		wantRegion string
+		awsConfig  bool // set an explicit AwsConfig in us-east-1
 		wantLister bool
 		// wantAccelerate is the expected UseAccelerate option of the built S3 client.
 		wantAccelerate bool
 		// nilCtx calls Init with a nil context.
 		nilCtx bool
-		// env sets extra environment variables for the test.
-		env map[string]string
 		// wantErr expects Init to fail while loading the default AWS configuration.
 		wantErr bool
 	}{
@@ -102,7 +101,7 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 		require.NoError(t, err)
 		r.AwsConfig = &cfg
 	}
-	var ctx context.Context = t.Context()
+	ctx := t.Context()
 	if nilCtx {
 		ctx = nil
 	}

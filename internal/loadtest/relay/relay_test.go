@@ -39,10 +39,10 @@ func TestStart_ListensOnLoopbackOnly(t *testing.T) {
 	require.NoError(t, err, "reachable through the loopback interface")
 	_ = loop.Close()
 	for _, ip := range external {
-		c, err := net.DialTimeout("tcp", net.JoinHostPort(ip, u.Port()), 5*time.Second)
-		if err == nil {
+		c, dialTimeoutErr := net.DialTimeout("tcp", net.JoinHostPort(ip, u.Port()), 5*time.Second)
+		if dialTimeoutErr == nil {
 			_ = c.Close()
 		}
-		assert.Error(t, err, "must not be reachable through %s", ip)
+		assert.Error(t, dialTimeoutErr, "must not be reachable through %s", ip)
 	}
 }

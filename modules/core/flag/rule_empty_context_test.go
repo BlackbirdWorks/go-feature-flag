@@ -76,13 +76,13 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		rule          flag.Rule
-		key           string
 		ctx           ffcontext.Context
-		expectedError bool
+		rule          flag.Rule
+		name          string
+		key           string
 		expectedValue string
 		description   string
+		expectedError bool
 	}{
 		{
 			name: "Should succeed with empty key for static variation",

@@ -60,10 +60,10 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		want         *config.Config
-		fileLocation string
 		wantErr      assert.ErrorAssertionFunc
+		name         string
+		fileLocation string
 	}{
 		{
 			name:         "Valid yaml file",
@@ -73,7 +73,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -106,7 +107,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -143,7 +145,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -180,7 +183,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporters: &[]config.ExporterConf{
 					{
@@ -219,7 +223,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -262,7 +267,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -290,7 +296,8 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -383,10 +390,10 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		want         *config.Config
-		fileLocation string
 		wantErr      assert.ErrorAssertionFunc
+		name         string
+		fileLocation string
 	}{
 		{
 			name:         "Valid file",
@@ -396,7 +403,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				FileFormat:      "yaml",
 				Retriever: &retrieverconf.RetrieverConf{
 					Kind: "http",
-					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-exa" +
+						"mple/flags.goff.yaml",
 				},
 				Exporter: &config.ExporterConf{
 					Kind: "log",
@@ -495,26 +503,26 @@ func TestConfig_IsValid(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		Server                  config.Server
-		HideBanner              bool
-		Swagger                 config.Swagger
-		PollingInterval         int
-		FileFormat              string
-		StartWithRetrieverError bool
 		Retriever               *retrieverconf.RetrieverConf
 		Retrievers              *[]retrieverconf.RetrieverConf
 		Exporter                *config.ExporterConf
-		Notifiers               []config.NotifierConf
 		LogLevel                string
-		Debug                   bool
+		FileFormat              string
 		LogFormat               string
 		FlagSets                []config.FlagSet
+		Swagger                 config.Swagger
+		Notifiers               []config.NotifierConf
 		OfrepEventStream        config.OfrepEventStream
+		Server                  config.Server
+		PollingInterval         int
+		StartWithRetrieverError bool
+		Debug                   bool
+		HideBanner              bool
 	}
 	tests := []struct {
+		wantErr assert.ErrorAssertionFunc
 		name    string
 		fields  fields
-		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name: "invalid ofrepEventStream",
@@ -971,8 +979,8 @@ func TestConfig_APIKeyExists(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config config.Config
 		apiKey string
+		config config.Config
 		want   bool
 	}{
 		{
@@ -1153,8 +1161,8 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		config config.Config
 		apiKey string
+		config config.Config
 		want   bool
 	}{
 		{
@@ -1262,11 +1270,11 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		want         *config.Config
-		fileLocation string
 		wantErr      assert.ErrorAssertionFunc
 		envVars      map[string]string
+		name         string
+		fileLocation string
 	}{
 		{
 			name:         "Valid file",
@@ -1283,7 +1291,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1361,7 +1370,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1433,7 +1443,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 						HTTPHeaders: map[string][]string{
 							"authorization": {
 								"test",
@@ -1511,7 +1522,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 					},
 					{
 						Kind: "file",
@@ -1562,7 +1574,8 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						URL: "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-ex" +
+							"ample/flags.goff.yaml",
 					},
 					{
 						Kind: "file",
@@ -1768,8 +1781,8 @@ func TestConfig_LogLevel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		config       *config.Config
+		name         string
 		wantDebug    bool
 		wantLogLevel zapcore.Level
 	}{
@@ -2010,8 +2023,8 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 	tests := []struct {
 		name         string
 		content      string
-		want         time.Duration
 		wantFlagSets []time.Duration
+		want         time.Duration
 	}{
 		{name: "unset keeps the zero value", content: "logLevel: info\n", want: 0},
 		{name: "set in the config file", content: "exporterCleanQueueInterval: 30s\n", want: 30 * time.Second},

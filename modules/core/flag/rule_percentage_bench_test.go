@@ -11,8 +11,8 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 	svc := flag.NewService()
 	const key = "3f1c1a52-8a5e-4c1e-9d0a-2b7f6c2e9a10"
 	tests := []struct {
-		name        string
 		percentages map[string]float64
+		name        string
 	}{
 		{
 			name:        "2 variations",

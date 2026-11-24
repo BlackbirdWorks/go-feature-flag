@@ -1,9 +1,7 @@
-// nolint: dupl
 package mockretriever
 
 import (
 	"context"
-	"errors"
 	"log"
 
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -11,13 +9,13 @@ import (
 
 // InitializableRetrieverLegacy implements the standard InitializableRetriever interface.
 type InitializableRetrieverLegacy struct {
+	ReceivedLogger *log.Logger
 	Name           string
 	InitShouldFail bool
 	RetrieveCalled bool
 	InitCalled     bool
 	ShutdownCalled bool
 	StatusCalled   bool
-	ReceivedLogger *log.Logger
 }
 
 func NewInitializableRetrieverLegacy(name string) *InitializableRetrieverLegacy {
@@ -34,7 +32,7 @@ func (m *InitializableRetrieverLegacy) Init(_ context.Context, logger *log.Logge
 	m.InitCalled = true
 	m.ReceivedLogger = logger
 	if m.InitShouldFail {
-		return errors.New("initialization failed")
+		return errInitializationFailed
 	}
 
 	return nil

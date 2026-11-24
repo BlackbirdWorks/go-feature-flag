@@ -15,6 +15,7 @@ type OFREPEventStream struct {
 
 type OFREPFlagBulkEvaluateSuccessResponse struct {
 	OFREPEvaluateSuccessResponse `json:",inline"`
-	ErrorCode                    string `json:"errorCode,omitempty"`
-	ErrorDetails                 string `json:"errorDetails,omitempty"`
+
+	ErrorCode    string `json:"errorCode,omitempty"`
+	ErrorDetails string `json:"errorDetails,omitempty"`
 }

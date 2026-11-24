@@ -16,19 +16,21 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errImpossibleToInitSQS = errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+)
+
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
-	// QueueURL is the URL of your SQS queue
-	// (mandatory)
-	QueueURL string
-
+	sqsService SQSSendMessageAPI
 	// AwsConfig is the AWS SDK configuration object we will use to
 	// upload your exported data files.
 	AwsConfig *aws.Config
-
-	init       sync.Once
-	sqsService SQSSendMessageAPI
+	// QueueURL is the URL of your SQS queue
+	// (mandatory)
+	QueueURL string
+	init     sync.Once
 }
 
 // Export is sending SQS event for each events received.
@@ -46,7 +48,7 @@ func (f *Exporter) Export(
 	}
 
 	if f.QueueURL == "" {
-		return errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+		return errImpossibleToInitSQS
 	}
 
 	if f.sqsService == nil {

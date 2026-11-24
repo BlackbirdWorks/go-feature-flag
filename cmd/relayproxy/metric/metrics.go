@@ -12,6 +12,11 @@ import (
 )
 
 const (
+	// metricsPerFamily is the expected number of metric families produced for a family (the legacy aliases).
+	metricsPerFamily = 2
+)
+
+const (
 	flagNameLabel = "flag_name"
 	outcomeLabel  = "outcome"
 )
@@ -30,11 +35,11 @@ const (
 const FlagNotFoundLabelValue = "FLAG_NOT_FOUND"
 
 type MetricsOpts struct {
-	// enables per-flag metrics for bulk evaluation endpoints
-	EnableBulkMetricFlagNames bool
 	// Version is the version that semaphore_build_info reports (the one of the binary, set at build
 	// time, when empty).
 	Version string
+	// enables per-flag metrics for bulk evaluation endpoints
+	EnableBulkMetricFlagNames bool
 }
 
 const (
@@ -75,7 +80,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 
 	// counts the number of bulk evaluations along with flag
 	allFlagCounterWithFlag := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "all_flags_evaluations_total_with_flag",
+		Name:      "all_flags_evaluations_with_flag_total",
 		Help:      "Counter events for all flags bulk evaluations with individual flag names",
 		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
@@ -117,28 +122,28 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 
 	// counts the number of update per flag
 	flagUpdateCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_update",
+		Name:      "flag_update_by_flag_total",
 		Help:      "Counter events for number of update per flag.",
 		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of delete per flag
 	flagDeleteCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_delete",
+		Name:      "flag_delete_by_flag_total",
 		Help:      "Counter events for number of delete per flag.",
 		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// flagCreateCounterVec counts the number of create per flag
 	flagCreateCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_create",
+		Name:      "flag_create_by_flag_total",
 		Help:      "Counter events for number of create per flag.",
 		Subsystem: SubSystem,
 	}, []string{flagNameLabel})
 
 	// counts the number of flag updated from your configuration
 	forceRefreshCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "force_refresh",
+		Name:      "force_refresh_total",
 		Help:      "Counter that counts the number of force refresh.",
 		Subsystem: SubSystem,
 	})
@@ -215,23 +220,23 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 
 // Metrics is a struct containing all custom prometheus metrics.
 type Metrics struct {
-	opts                     MetricsOpts
-	Registry                 *prom.Registry
-	flagEvaluationCounter    prom.CounterVec
+	flagConfigurationCounter prom.Counter
+	flagUpdateCounter        prom.Counter
+	getManifestCounter       prom.Counter
 	allFlagCounter           prom.Counter
-	allFlagCounterWithFlag   prom.CounterVec
+	flagDeleteCounter        prom.Counter
 	collectEvalDataCounter   prom.Counter
 	flagChange               prom.Counter
 	flagCreateCounter        prom.Counter
-	flagDeleteCounter        prom.Counter
-	flagUpdateCounter        prom.Counter
 	forceRefreshCounter      prom.Counter
+	Registry                 *prom.Registry
+	allFlagCounterWithFlag   prom.CounterVec
 	validateFlagsCounterVec  prom.CounterVec
-	flagConfigurationCounter prom.Counter
 	flagUpdateCounterVec     prom.CounterVec
 	flagDeleteCounterVec     prom.CounterVec
 	flagCreateCounterVec     prom.CounterVec
-	getManifestCounter       prom.Counter
+	flagEvaluationCounter    prom.CounterVec
+	opts                     MetricsOpts
 }
 
 func (m *Metrics) IncFlagEvaluation(flagName string) {
@@ -352,7 +357,7 @@ type legacyGatherer struct {
 func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	families, err := g.source.Gather()
 	prefix := SubSystem + "_"
-	out := make([]*dto.MetricFamily, 0, len(families)*2)
+	out := make([]*dto.MetricFamily, 0, len(families)*metricsPerFamily)
 	out = append(out, families...)
 	for _, family := range families {
 		name := family.GetName()
@@ -363,13 +368,33 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 		if !ok {
 			continue
 		}
-		clone.Name = new(LegacySubSystem + "_" + strings.TrimPrefix(name, prefix))
+		clone.Name = new(LegacySubSystem + "_" + legacyMetricName(strings.TrimPrefix(name, prefix)))
 		out = append(out, clone)
 	}
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
 
 	return out, err
+}
+
+// legacyMetricName is the name GO Feature Flag gave to the metric that Semaphore names name (without the
+// prefix). The five metrics that were renamed to follow the Prometheus naming conventions keep their historical
+// names under the legacy prefix, so the existing dashboards and alerts keep working.
+func legacyMetricName(name string) string {
+	switch name {
+	case "all_flags_evaluations_with_flag_total":
+		return "all_flags_evaluations_total_with_flag"
+	case "flag_update_by_flag_total":
+		return "flag_update"
+	case "flag_delete_by_flag_total":
+		return "flag_delete"
+	case "flag_create_by_flag_total":
+		return "flag_create"
+	case "force_refresh_total":
+		return "force_refresh"
+	default:
+		return name
+	}
 }
 
 // versionOptions overrides the version label of semaphore_build_info with version, if any.

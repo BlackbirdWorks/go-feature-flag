@@ -35,7 +35,7 @@ import (
 
 // newTestLogger returns a logger whose Fatal() terminates the calling goroutine instead of the
 // whole process. server.go reports a failed bind with zapLog.Fatal, and the default zap
-// behaviour is os.Exit(1): fired from the background goroutine that runs StartWithContext, it
+// behaviour is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
 // takes the test binary down and every remaining test in the package is silently skipped.
 // With this hook the server goroutine dies, the Fatal is still logged, and the test fails on
 // its own readiness assertion with a message that points at the right place.
@@ -447,6 +447,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
+				t.Helper()
 				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
 				require.NoError(t, err)
 				request.Header.Add("Content-Type", "application/json")
@@ -460,8 +461,8 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 }
 
 type authMiddlewareTestCase struct {
-	name          string
 	configAPIKeys *config.APIKeys
+	name          string
 	want          int // http status code
 }
 
@@ -553,9 +554,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -599,8 +598,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -641,9 +640,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	skipUnixSocketOnWindows(t)
 	monitoringLn, monitoringPort := testutils.ListenLocal(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
@@ -688,8 +685,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -729,9 +726,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
-	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	tempDir := shortSocketDir(t)
 
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
@@ -779,8 +774,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, err := net.Dial("unix", socketPath)
-		if err != nil {
+		conn, dialErr := net.Dial("unix", socketPath)
+		if dialErr != nil {
 			return false
 		}
 
@@ -907,14 +902,14 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		},
 	}
 
+	// Short path: t.TempDir() embeds the test name and would push a unix socket path over the OS limit.
+	tempDir := shortSocketDir(t)
+
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Create a temporary directory for the socket
-			tempDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-%d.sock", index))
 
@@ -958,8 +953,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, err := net.Dial("unix", socketPath)
-				if err != nil {
+				conn, dialErr := net.Dial("unix", socketPath)
+				if dialErr != nil {
 					return false
 				}
 
@@ -1016,14 +1011,14 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 		},
 	}
 
+	// Short path: t.TempDir() embeds the test name and would push a unix socket path over the OS limit.
+	tempDir := shortSocketDir(t)
+
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Create a temporary directory for the socket
-			tempDir, err := os.MkdirTemp("", "")
-			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
 
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 
@@ -1065,8 +1060,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, err := net.Dial("unix", socketPath)
-				if err != nil {
+				conn, dialErr := net.Dial("unix", socketPath)
+				if dialErr != nil {
 					return false
 				}
 
@@ -1169,11 +1164,11 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	reader := bufio.NewReader(resp.Body)
 	for {
 		var mf promdto.MetricFamily
-		err := protodelim.UnmarshalFrom(reader, &mf)
-		if errors.Is(err, io.EOF) {
+		unmarshalFromErr := protodelim.UnmarshalFrom(reader, &mf)
+		if errors.Is(unmarshalFromErr, io.EOF) {
 			break
 		}
-		require.NoError(t, err)
+		require.NoError(t, unmarshalFromErr)
 
 		// Only check histogram metric families from our subsystem
 		if mf.GetType() == promdto.MetricType_HISTOGRAM {
@@ -1248,8 +1243,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
-		if err != nil {
+		resp, getErr := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
+		if getErr != nil {
 			return false
 		}
 		_ = resp.Body.Close()
@@ -1336,4 +1331,17 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server never served and it closed the listener it owns: closing it again fails.
 	require.ErrorIs(t, ln.Close(), net.ErrClosed, "the listener of port %d must be closed by the server", port)
+}
+
+// shortSocketDir returns a directory whose path is short enough for a unix socket (about 104 bytes at most).
+func shortSocketDir(tb testing.TB) string {
+	tb.Helper()
+
+	// t.TempDir() embeds the test name: too long for a socket path.
+	//nolint:usetesting // see above
+	dir, err := os.MkdirTemp("", "sock")
+	require.NoError(tb, err)
+	tb.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return dir
 }

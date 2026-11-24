@@ -2,6 +2,7 @@ package gitlabretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,38 +13,36 @@ import (
 	httpretriever "github.com/blackbirdworks/semaphore/retriever/httpretriever"
 )
 
+var (
+	errMissingMandatoryInformationFilePath = errors.New("missing mandatory information filePath")
+)
+
 // Retriever is a configuration struct for a GitHub retriever.
 type Retriever struct {
+	// httpClient is the http.Client if you want to override it.
+	httpClient internal.HTTPClient
 	// Branch is the name of the GITLAB branch where to download the file
 	// default: main
 	Branch string // default is main
 	// FilePath is the location of your file in the repository
 	FilePath string
-
 	// GitlabToken is the token to use when downloading the file
 	GitlabToken string
-
 	// RepositorySlug is the name of your repository in your gitlab instance
 	// ex: thomaspoignant/go-feature-flag
 	RepositorySlug string
-
 	// BaseURL is the DNS of your GITLAB installation.
 	// default: https://gitlab.com
 	BaseURL string
-
 	// Timeout is the time before we timeout while retrieving the flag file.
 	// default: 10 seconds
 	Timeout time.Duration
-
-	// httpClient is the http.Client if you want to override it.
-	httpClient internal.HTTPClient
 }
 
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
-		return nil, fmt.Errorf(
-			"missing mandatory information filePath=%s, repositorySlug=%s",
+		return nil, fmt.Errorf("%w=%s, repositorySlug=%s", errMissingMandatoryInformationFilePath,
 			r.FilePath,
 			r.RepositorySlug,
 		)
@@ -91,13 +90,13 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 }
 
 // escapePathSegment encodes s as a single URL path segment, as expected by the GitLab API.
-// url.PathEscape leaves "+" as is, but some servers and proxies decode it as a space,
+// [url.PathEscape] leaves "+" as is, but some servers and proxies decode it as a space,
 // so we keep encoding it as "%2B".
 func escapePathSegment(s string) string {
 	return strings.ReplaceAll(url.PathEscape(s), "+", "%2B")
 }
 
-// SetHTTPClient is here if you want to override the default http.Client we are using.
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
 // It is also used for the tests.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client

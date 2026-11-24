@@ -27,10 +27,10 @@ func TestRun(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
-		args       []string
-		wantCode   int
-		wantStdout []string
 		wantStderr string
+		args       []string
+		wantStdout []string
+		wantCode   int
 	}{
 		{name: "help", args: []string{"-h"}, wantCode: 0, wantStderr: "Usage of soak"},
 		{name: "unknown flag", args: []string{"-nope"}, wantCode: 2, wantStderr: "flag provided but not defined"},

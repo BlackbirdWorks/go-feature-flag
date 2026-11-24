@@ -18,13 +18,13 @@ import (
 func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		environment string
-		enrichment  map[string]any
+		enrichment map[string]any
 		// wantCustom is the custom attributes of the evaluation context of the callers afterwards and
 		// wantEnrichment the configured enrichment afterwards: neither is modified
 		wantCustom     map[string]any
 		wantEnrichment map[string]any
+		name           string
+		environment    string
 	}{
 		{
 			name: "enrichment and environment", environment: "prod", enrichment: map[string]any{"team": "a"},

@@ -15,13 +15,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
+var (
+	errDBConnectionLost = errors.New("db connection lost")
+)
+
 func TestKeyAuthExtended(t *testing.T) {
 	t.Parallel()
 
 	validKey := "valid-api-key"
 	invalidKey := "invalid-api-key"
 
-	//nolint:unparam
+	//nolint:unparam // the signature is fixed by the middleware, the error is always nil here
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
@@ -30,8 +34,8 @@ func TestKeyAuthExtended(t *testing.T) {
 		name           string
 		xAPIKey        string
 		authorization  string
-		skipper        bool
 		expectedStatus int
+		skipper        bool
 		expectedError  bool
 	}{
 		{
@@ -144,7 +148,7 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 	validKey := "valid-api-key"
 
-	//nolint:unparam
+	//nolint:unparam // the signature is fixed by the middleware, the error is always nil here
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
@@ -415,7 +419,7 @@ func TestKeyAuthExtended_InvalidXAPIKey_NilErrorHandler(t *testing.T) {
 func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 	t.Parallel()
 
-	validatorErr := errors.New("db connection lost")
+	validatorErr := errDBConnectionLost
 	failingValidator := func(_ *echo.Context, _ string, _ middleware.ExtractorSource) (bool, error) {
 		return false, validatorErr
 	}

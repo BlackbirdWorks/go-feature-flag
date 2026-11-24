@@ -12,14 +12,14 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		key   string
 		value any
+		key   string
 	}
 	tests := []struct {
-		name                        string
-		EvaluationContextEnrichment map[string]any
 		args                        args
 		expected                    any
+		EvaluationContextEnrichment map[string]any
+		name                        string
 	}{
 		{
 			name:                        "Add a new key to a nil map",

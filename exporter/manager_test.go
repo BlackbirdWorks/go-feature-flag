@@ -26,12 +26,16 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errRandom = errors.New("random err")
+)
+
 func TestDataExporterManager_flushWithTime(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -105,8 +109,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -175,8 +179,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
 		mockExporter mock.ExporterMock
+		name         string
 		wantExported int
 	}{
 		{
@@ -242,7 +246,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	t.Parallel()
 
-	mockExporter := mock.Exporter{Err: errors.New("random err"), ExpectedNumberErr: 1, Bulk: true}
+	mockExporter := mock.Exporter{Err: errRandom, ExpectedNumberErr: 1, Bulk: true}
 	dataExporterMock := []exporter.Config{
 		{
 			FlushInterval:    10 * time.Minute,
@@ -314,9 +318,9 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
 		ctx  ffcontext.EvaluationContext
 		want map[string]any
+		name string
 	}{
 		{
 			name: "extract exporter metadata from context",
@@ -373,8 +377,6 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			switch val := mockExporter.GetExportedEvents()[0].(type) {
 			case exporter.FeatureEvent:
 				assert.Equal(t, tt.want, val.Metadata)
-
-				break
 			default:
 				assert.Fail(t, "The exported event is not a FeatureEvent")
 			}
@@ -540,7 +542,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 }
 
 // goroutinesLabeled counts the goroutines that carry the pprof label key=value. The goroutines started by
-// code that runs under pprof.Do inherit its labels, so the count is scoped to what one test started
+// code that runs under [pprof.Do] inherit its labels, so the count is scoped to what one test started
 // and does not depend on the other tests running in parallel.
 func goroutinesLabeled(key, value string) int {
 	var buf bytes.Buffer

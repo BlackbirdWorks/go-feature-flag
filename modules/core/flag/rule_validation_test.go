@@ -20,11 +20,11 @@ func TestRule_IsValid(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
+		defaultRule bool
 	}{
 		{
 			name: "valid rule with variation result",
@@ -190,12 +190,12 @@ func TestRule_validatePercentages(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
 		wantErrMsg  string
+		defaultRule bool
 	}{
 		{
 			name: "nil percentages should be valid",
@@ -378,12 +378,12 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
 		wantErrMsg  string
+		defaultRule bool
 	}{
 		{
 			name: "nil progressive rollout should be valid",
@@ -762,12 +762,12 @@ func TestRule_validateVariationResult(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
 		wantErrMsg  string
+		defaultRule bool
 	}{
 		{
 			name: "nil variation result should be valid when percentages exist",
@@ -891,12 +891,12 @@ func TestRule_isQueryValid(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
 		wantErrMsg  string
+		defaultRule bool
 	}{
 		{
 			name: "default rule should be valid without query",
@@ -1044,12 +1044,12 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		rule        flag.Rule
-		defaultRule bool
 		variations  map[string]*any
 		wantErr     assert.ErrorAssertionFunc
+		rule        flag.Rule
+		name        string
 		wantErrMsg  string
+		defaultRule bool
 	}{
 		{
 			name: "valid simple query",

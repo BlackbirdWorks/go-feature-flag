@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"cloud.google.com/go/bigquery"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
+)
+
+var (
+	errBigqueryExporterReceivedMixed = errors.New("bigquery exporter received mixed event types")
 )
 
 const (
@@ -70,31 +75,24 @@ func (r rowSaver) Save() (map[string]bigquery.Value, string, error) {
 
 // Exporter streams events to Google BigQuery.
 type Exporter struct {
+	// client is the initialized BigQuery client.
+	client  bigQueryClient
+	initErr error
+	// newClientFunc is used only for unit testing purposes.
+	newClientFunc func(context.Context, string, ...option.ClientOption) (bigQueryClient, error)
 	// ProjectID is the ID of the GCP project containing the BigQuery dataset.
 	ProjectID string
-
 	// DatasetID is the BigQuery dataset receiving the events.
 	DatasetID string
-
 	// TableName is the table receiving events for this exporter instance.
 	// Default: feature_flag_evaluations
 	TableName string
-
 	// GoogleCredentials is an optional Google credentials JSON.
 	// If empty, Application Default Credentials are used.
 	GoogleCredentials []byte
-
+	initOnce          sync.Once
 	// AutoMigrate creates the dataset and tables with the expected schema if they do not exist.
 	AutoMigrate bool
-
-	// newClientFunc is used only for unit testing purposes.
-	newClientFunc func(context.Context, string, ...option.ClientOption) (bigQueryClient, error)
-
-	// client is the initialized BigQuery client.
-	client bigQueryClient
-
-	initOnce sync.Once
-	initErr  error
 }
 
 // Export streams events to the configured BigQuery table.
@@ -111,8 +109,8 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if err := e.initClient(ctx); err != nil {
-		return err
+	if initClientErr := e.initClient(ctx); initClientErr != nil {
+		return initClientErr
 	}
 
 	return e.exportRows(ctx, e.tableName(), schema, rows)
@@ -173,7 +171,7 @@ func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, big
 			eventType = rowType
 		}
 		if eventType != rowType {
-			return nil, nil, errors.New("bigquery exporter received mixed event types")
+			return nil, nil, errBigqueryExporterReceivedMixed
 		}
 		rows = append(rows, row)
 	}
@@ -399,7 +397,7 @@ func (c *realBigQueryClient) Close() error {
 
 func isAlreadyExists(err error) bool {
 	if googleErr, ok := errors.AsType[*googleapi.Error](err); ok {
-		return googleErr.Code == 409
+		return googleErr.Code == http.StatusConflict
 	}
 
 	return false

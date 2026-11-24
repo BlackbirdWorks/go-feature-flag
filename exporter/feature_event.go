@@ -11,6 +11,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+var (
+	errNoValueToConvert = errors.New("no value to convert, returning empty string")
+)
+
 type FeatureEventMetadata = map[string]any
 
 func NewFeatureEvent(
@@ -44,7 +48,7 @@ func NewFeatureEvent(
 
 // FeatureEvent represent an Event that we store in the data storage
 //
-//nolint:lll
+//nolint:lll,govet // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped; fieldalignment: field order is the column order of the CSV and Parquet exports and the key order of the JSON export
 type FeatureEvent struct {
 	// Kind for a feature event is feature.
 	// A feature event will only be generated if the trackEvents attribute of the flag is set to true.
@@ -107,6 +111,7 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	var buf bytes.Buffer
 	err := csvTemplate.Execute(&buf, struct {
 		FeatureEvent
+
 		FormattedDate string
 	}{
 		FeatureEvent:  f,
@@ -129,7 +134,7 @@ func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
 func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
-		return "", errors.New("no value to convert, returning empty string")
+		return "", errNoValueToConvert
 	}
 	b, err := json.Marshal(f.Value)
 	if err != nil {

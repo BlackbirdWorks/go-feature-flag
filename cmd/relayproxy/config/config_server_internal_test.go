@@ -12,8 +12,8 @@ func TestValidateServerConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		server  Server
 		wantErr string
+		server  Server
 	}{
 		{name: "http mode needs nothing else", server: Server{Mode: ServerModeHTTP}},
 		{name: "h2c is an http option", server: Server{Mode: ServerModeHTTP, EnableH2C: true}},
@@ -72,14 +72,14 @@ func TestValidateExporters(t *testing.T) {
 func TestAttachConfigChangeCallback(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name   string
 		config *Config
+		name   string
 		wantN  int
 	}{
 		{name: "without a loader nothing is attached", config: &Config{logger: zap.NewNop()}},
 		{name: "without a loader and a logger it does not panic", config: &Config{}},
 		{name: "with a loader the callback is registered",
-			config: &Config{logger: zap.NewNop(), configLoader: &ConfigLoader{}}, wantN: 1},
+			config: &Config{logger: zap.NewNop(), configLoader: &Loader{}}, wantN: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

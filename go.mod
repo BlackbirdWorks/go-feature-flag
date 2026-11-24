@@ -223,6 +223,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/palkan/mulint v1.1.0 // indirect
 	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/pb33f/go-yaml v0.2.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.2 // indirect
@@ -308,3 +309,5 @@ require (
 // This change is needed to keep compatibility with AWS Athena v3 (Trino engine).
 // Check https://github.com/thomaspoignant/go-feature-flag/issues/4569 for more details.
 replace github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0.3
+
+tool github.com/palkan/mulint/cmd/mulint-vet

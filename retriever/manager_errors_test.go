@@ -17,6 +17,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errTheSourceIsDown = errors.New("the source is down")
+	errCannotClose     = errors.New("cannot close")
+	errNo              = errors.New("no")
+)
+
 const persistedFlags = `test-flag:
   variations:
     A: true
@@ -29,14 +35,14 @@ const persistedFlags = `test-flag:
 type failingRetriever struct{}
 
 func (failingRetriever) Retrieve(context.Context) ([]byte, error) {
-	return nil, errors.New("the source is down")
+	return nil, errTheSourceIsDown
 }
 
 // shutdownFailingRetriever retrieves flags but cannot be shut down.
 type shutdownFailingRetriever struct{ countingRetriever }
 
 func (*shutdownFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return nil }
-func (*shutdownFailingRetriever) Shutdown(context.Context) error              { return errors.New("cannot close") }
+func (*shutdownFailingRetriever) Shutdown(context.Context) error              { return errCannotClose }
 func (*shutdownFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverReady }
 
 func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retriever.Manager {
@@ -49,11 +55,11 @@ func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retri
 func TestManagerInit_FirstRetrieverError(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
 		persisted   *string // content of the persistent flag configuration file, nil when there is none
+		name        string
+		wantErr     string
 		withFile    bool
 		startAnyway bool
-		wantErr     string
 		wantFlag    bool
 	}{
 		{name: "no persistent file and no tolerance fails", wantErr: "impossible to retrieve the flags"},
@@ -95,8 +101,8 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 			if tt.wantFlag {
 				require.NoError(t, err)
 				assert.Contains(t, flags, "test-flag")
-				f, err := m.GetFlag("test-flag")
-				require.NoError(t, err)
+				f, getFlagErr := m.GetFlag("test-flag")
+				require.NoError(t, getFlagErr)
 				assert.NotNil(t, f)
 				assert.False(t, m.GetCacheRefreshDate().IsZero())
 			} else {
@@ -110,8 +116,8 @@ func TestManagerInit_FirstRetrieverError(t *testing.T) {
 func TestManagerForceRefresh(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
 		retriever retriever.Retriever
+		name      string
 		want      bool
 	}{
 		{name: "refreshes from a working retriever", retriever: &countingRetriever{}, want: true},
@@ -155,6 +161,6 @@ func TestManagerInitFailsWhenARetrieverCannotInitialise(t *testing.T) {
 
 type initFailingRetriever struct{ countingRetriever }
 
-func (*initFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return errors.New("no") }
+func (*initFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return errNo }
 func (*initFailingRetriever) Shutdown(context.Context) error              { return nil }
 func (*initFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverNotReady }

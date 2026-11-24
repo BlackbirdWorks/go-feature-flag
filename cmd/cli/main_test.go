@@ -14,8 +14,8 @@ func TestCmdExist(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    []string
 		wantOut string
+		args    []string
 	}{
 		{
 			name:    "lint command should exist",

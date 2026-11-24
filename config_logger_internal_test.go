@@ -14,12 +14,12 @@ func TestConfig_serviceLogger(t *testing.T) {
 
 	leveled := slog.New(slog.DiscardHandler)
 	tests := []struct {
-		name       string
-		legacy     bool
 		leveled    *slog.Logger
+		name       string
+		wantOutput string
+		legacy     bool
 		wantNil    bool
 		wantSame   bool
-		wantOutput string
 	}{
 		{name: "the leveled logger wins", legacy: true, leveled: leveled, wantSame: true},
 		{name: "no logger", wantNil: true},
@@ -56,11 +56,11 @@ func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
 	tests := []struct {
 		name         string
 		prefix       string
-		flags        int
-		redirect     bool
 		wantFirst    string
 		wantSecond   string
 		wantNotFirst string
+		flags        int
+		redirect     bool
 	}{
 		{name: "same output", prefix: "", flags: 0, wantFirst: "msg=one"},
 		{name: "the prefix of the legacy logger", prefix: "[legacy] ", flags: 0, wantFirst: "[legacy] "},

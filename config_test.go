@@ -18,13 +18,16 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
+// contextKey is the type of the keys of the values the tests put in a context.
+type contextKey string
+
 func TestConfig_Initialize(t *testing.T) {
 	t.Parallel()
 
 	t.Run("provided context", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := context.WithValue(t.Context(), "type", "custom")
+		ctx := context.WithValue(t.Context(), contextKey("type"), "custom")
 
 		c := ffClient.Config{
 			Context: ctx,
@@ -87,8 +90,8 @@ func TestConfig_GetRetrievers(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		PollingInterval time.Duration
 		Retriever       retriever.Retriever
+		PollingInterval time.Duration
 	}
 	tests := []struct {
 		name    string
@@ -196,13 +199,13 @@ func TestConfig_GetDataExporters(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		DataExporter  ffClient.DataExporter
 		DataExporters []ffClient.DataExporter
+		DataExporter  ffClient.DataExporter
 	}
 	tests := []struct {
 		name   string
-		fields fields
 		want   []ffClient.DataExporter
+		fields fields
 	}{
 		{
 			name:   "No data exporter",

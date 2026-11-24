@@ -12,10 +12,10 @@ func TestConfigIsSwaggerEnabled(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
 		config      *config.Config
-		want        bool
+		name        string
 		description string
+		want        bool
 	}{
 		{
 			name: "Swagger.Enabled is true",

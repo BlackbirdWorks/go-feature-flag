@@ -24,7 +24,7 @@ const (
 	// ReasonDefault The resolved value was the result of the flag being disabled in the management system.
 	ReasonDefault ResolutionReason = "DEFAULT"
 
-	// ReasonStatic	Indicates that the feature flag evaluated to a
+	// ReasonStatic indicates that the feature flag evaluated to a
 	// static value, for example, the default value for the flag
 	//
 	// Note: Typically means that no dynamic evaluation has been

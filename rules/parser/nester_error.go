@@ -20,8 +20,8 @@ func (e ErrVals) Merge(vals ErrVals) {
 
 type NestedError struct {
 	Err  error
-	Msg  string
 	Vals ErrVals
+	Msg  string
 }
 
 func (e *NestedError) Original() error {

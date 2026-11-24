@@ -16,11 +16,11 @@ func TestCmdEvaluate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		args           []string
 		wantErr        assert.ErrorAssertionFunc
+		name           string
 		expectedResult string
 		expectedErr    string
+		args           []string
 	}{
 		{
 			name: "should return an error if flag does not exists",
@@ -378,8 +378,9 @@ func TestCmdEvaluate(t *testing.T) {
 				"--format",
 				"yaml",
 			},
-			wantErr:     assert.Error,
-			expectedErr: "impossible to init flagset retriever: cannot parse `inv4lid`: failed to parse as keyword/value (invalid keyword/value)",
+			wantErr: assert.Error,
+			expectedErr: "impossible to init flagset retriever: cannot parse `inv4lid`: failed to parse as keyword/value (" +
+				"invalid keyword/value)",
 		},
 		{
 			name: "should return RetrieverConfError with CLI-friendly message when required property is missing",
@@ -447,10 +448,10 @@ func TestCmdEvaluate(t *testing.T) {
 			err = cmd.Execute()
 			tt.wantErr(t, err)
 			if tt.expectedResult != "" {
-				expectedContent, err := os.ReadFile(tt.expectedResult)
-				require.NoError(t, err)
-				gotContent, err := os.ReadFile(stdOut.Name())
-				require.NoError(t, err)
+				expectedContent, readFileErr := os.ReadFile(tt.expectedResult)
+				require.NoError(t, readFileErr)
+				gotContent, readFileErr := os.ReadFile(stdOut.Name())
+				require.NoError(t, readFileErr)
 				assert.JSONEq(t, string(expectedContent), string(gotContent))
 			}
 

@@ -41,7 +41,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
   experimentation: {start: 2026-01-01T00:00:00Z, end: 2026-03-01T00:00:00Z}
 `), uint8(0))
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.DiscardHandler)}
-	f.Fuzz(func(t *testing.T, data []byte, format uint8) {
+	f.Fuzz(func(_ *testing.T, data []byte, format uint8) {
 		flags, err := cache.ConvertToFlagStruct(data, formats[int(format)%len(formats)])
 		if err != nil || hasProgressiveRolloutWithoutStep(flags) {
 			return

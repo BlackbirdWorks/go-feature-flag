@@ -22,10 +22,11 @@ import (
 // is handed to the exporters, which lets a test hold an evaluation at that point.
 type gatedContext struct {
 	ffcontext.Context
+
 	calls   *atomic.Int64
-	blockAt int64
 	reached chan struct{}
 	gate    chan struct{}
+	blockAt int64
 }
 
 func (c gatedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecifics {
@@ -40,8 +41,8 @@ func (c gatedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecific
 // finalFlushHookExporter runs onFinalFlush the first time it is called: it is the first exporter of
 // the client and it only exports when the client is closed, after the event workers have exited.
 type finalFlushHookExporter struct {
-	once         sync.Once
 	onFinalFlush func()
+	once         sync.Once
 }
 
 func (e *finalFlushHookExporter) IsBulk() bool { return true }

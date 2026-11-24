@@ -23,6 +23,24 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+const (
+	// extraNotifiers is the room reserved for the notifiers the relay proxy adds to the configured ones.
+	extraNotifiers = 2
+)
+
+var (
+	errConfigurationIsNil         = errors.New("configuration is nil")
+	errNoFlagsetConfigured        = errors.New("no flagset configured")
+	errNoAPIKeyProvided           = errors.New("no API key provided")
+	errFlagsetNotFoundFor         = errors.New("flagset not found for API key")
+	errImpossibleToFindThe        = errors.New("impossible to find the flagset with the name")
+	errNoConfiguredFlagset        = errors.New("no configured flagset")
+	errAPIKeyIsRequiredWhen       = errors.New("apiKey is required when using flagsets")
+	errNoFlagSetAssociated        = errors.New("no flag set associated to the API key")
+	errNoFlagsetsConfigured       = errors.New("no flagsets configured")
+	errNoDefaultFlagsetConfigured = errors.New("no default flagset configured")
+)
+
 type flagsetManagerMode string
 
 const (
@@ -53,56 +71,44 @@ type FlagsetManager interface {
 
 // flagsetManagerImpl is the internal implementation of FlagsetManager.
 type flagsetManagerImpl struct {
-	// DefaultFlagSet is the flagset used when no API Key is provider.
-	// It is the legacy way to handle feature flags in Semaphore.
-	// This is used only if no flag set is configured in the configuration file.
-	DefaultFlagSet *ffclient.GoFeatureFlag
-
-	// FlagSets is a map that stores the different instances of GoFeatureFlag (one per flagset)
-	// It is used to retrieve the flagset linked to the API Key.
-	FlagSets map[string]*ffclient.GoFeatureFlag
-
+	// sseService is used to create a per-flagset SSE notifier when a flagset is added at
+	// runtime. It can be nil.
+	sseService stream.SSEService
+	// wsService is used to create a per-flagset websocket notifier when a flagset is added at
+	// runtime. It can be nil.
+	wsService stream.WebsocketService
+	// Logger is the logger for the flagset manager.
+	logger *zap.Logger
 	// FlagSetRouting routes a request credential to the NAME of the flagset it selects (the values are
 	// public flagset names, the keys are secrets and must never be logged).
 	// It is used to retrieve the flagset linked to the API Key.
 	FlagSetRouting map[string]string
-
-	// flagsetsMutex protects concurrent access to FlagSets and FlagSetRouting.
-	// Both maps can be mutated at runtime when flagsets are added or removed, so every
-	// read or write of these maps must be done while holding this lock.
-	flagsetsMutex sync.RWMutex
-
+	// FlagSets is a map that stores the different instances of GoFeatureFlag (one per flagset)
+	// It is used to retrieve the flagset linked to the API Key.
+	FlagSets map[string]*ffclient.GoFeatureFlag
+	// Config is the configuration of the relay proxy.
+	// It is used to retrieve the configuration of the relay proxy.
+	config *config.Config
+	// DefaultFlagSet is the flagset used when no API Key is provider.
+	// It is the legacy way to handle feature flags in Semaphore.
+	// This is used only if no flag set is configured in the configuration file.
+	DefaultFlagSet *ffclient.GoFeatureFlag
+	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
+	sharedRegistry *sharedBucketRegistry
+	// postgresPools shares the PostgreSQL connection pools between the flagsets that use the same database.
+	postgresPools *postgresqlretriever.PoolRegistry
+	// Mode is the mode of the flagset manager.
+	mode flagsetManagerMode
 	// notifiers are the relay-proxy level notifiers (e.g. prometheus) passed at
 	// construction time. They are stored so we can re-create a GoFeatureFlag client when a
 	// flagset is added at runtime.
 	notifiers []notifier.Notifier
-
-	// sseService is used to create a per-flagset SSE notifier when a flagset is added at
-	// runtime. It can be nil.
-	sseService stream.SSEService
-
-	// wsService is used to create a per-flagset websocket notifier when a flagset is added at
-	// runtime. It can be nil.
-	wsService stream.WebsocketService
-
-	// Config is the configuration of the relay proxy.
-	// It is used to retrieve the configuration of the relay proxy.
-	config *config.Config
-
-	// Mode is the mode of the flagset manager.
-	mode flagsetManagerMode
-
-	// Logger is the logger for the flagset manager.
-	logger *zap.Logger
-
-	// sharedRegistry shares the S3 requests of the flagsets using enableSharedPollerPerBucket.
-	sharedRegistry *sharedBucketRegistry
-
-	// postgresPools shares the PostgreSQL connection pools between the flagsets that use the same database.
-	postgresPools *postgresqlretriever.PoolRegistry
-
 	// clientOptions are extra options for the clients created at runtime (nil outside the tests).
 	clientOptions []clientOption
+	// flagsetsMutex protects concurrent access to FlagSets and FlagSetRouting.
+	// Both maps can be mutated at runtime when flagsets are added or removed, so every
+	// read or write of these maps must be done while holding this lock.
+	flagsetsMutex sync.RWMutex
 }
 
 // NewFlagsetManager is creating a new FlagsetManager.
@@ -114,7 +120,7 @@ func NewFlagsetManager(
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (FlagsetManager, error) {
 	if config == nil {
-		return nil, errors.New("configuration is nil")
+		return nil, errConfigurationIsNil
 	}
 
 	var flagsetMngr FlagsetManager
@@ -233,7 +239,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	}
 
 	if len(flagsets) == 0 {
-		return nil, errors.New("no flagset configured")
+		return nil, errNoFlagsetConfigured
 	}
 
 	return &flagsetManagerImpl{
@@ -255,7 +261,7 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
-			return nil, errors.New("no API key provided")
+			return nil, errNoAPIKeyProvided
 		}
 
 		m.flagsetsMutex.RLock()
@@ -263,16 +269,16 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		flagset, flagsetExists := m.FlagSets[flagsetName]
 		m.flagsetsMutex.RUnlock()
 		if !exists {
-			return nil, errors.New("flagset not found for API key")
+			return nil, errFlagsetNotFoundFor
 		}
 		if !flagsetExists {
-			return nil, fmt.Errorf("impossible to find the flagset with the name %s", flagsetName)
+			return nil, fmt.Errorf("%w %s", errImpossibleToFindThe, flagsetName)
 		}
 
 		return flagset, nil
 	default:
 		if m.DefaultFlagSet == nil {
-			return nil, errors.New("no configured flagset")
+			return nil, errNoConfiguredFlagset
 		}
 
 		return m.DefaultFlagSet, nil
@@ -284,7 +290,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
-			return "", errors.New("apiKey is required when using flagsets")
+			return "", errAPIKeyIsRequiredWhen
 		}
 		m.flagsetsMutex.RLock()
 		name, ok := m.FlagSetRouting[apiKey]
@@ -293,7 +299,7 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 			return name, nil
 		}
 
-		return "", errors.New("no flag set associated to the API key")
+		return "", errNoFlagSetAssociated
 	default:
 		return utils.DefaultFlagSetName, nil
 	}
@@ -306,7 +312,7 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		m.flagsetsMutex.RLock()
 		defer m.flagsetsMutex.RUnlock()
 		if len(m.FlagSets) == 0 {
-			return nil, errors.New("no flagsets configured")
+			return nil, errNoFlagsetsConfigured
 		}
 		// Return a shallow copy so callers can iterate safely even if flagsets are
 		// added or removed concurrently.
@@ -316,7 +322,7 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		return out, nil
 	default:
 		if m.DefaultFlagSet == nil {
-			return nil, errors.New("no default flagset configured")
+			return nil, errNoDefaultFlagsetConfigured
 		}
 
 		return map[string]*ffclient.GoFeatureFlag{
@@ -510,9 +516,9 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	// by rebuildNamedAPIKeysMapping, so a client that is not in the config would run without any
 	// routing (unreachable). If the config update fails, close the client and skip rather than
 	// leaving an orphan running flagset.
-	if err := m.config.AddFlagSet(flagset); err != nil {
+	if addFlagSetErr := m.config.AddFlagSet(flagset); addFlagSetErr != nil {
 		m.logger.Error("failed to register the new flagset in the configuration; it will not be started",
-			zap.String("flagset", flagset.Name), zap.Error(err))
+			zap.String("flagset", flagset.Name), zap.Error(addFlagSetErr))
 		client.Close()
 
 		return
@@ -672,9 +678,9 @@ func (m *flagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName m
 func resolveNamedAPIKeyRouting(
 	reconciled map[string]config.FlagSet,
 	running map[string]*ffclient.GoFeatureFlag,
-) (assigned map[string]string, collisions map[string][2]string) {
-	assigned = make(map[string]string)
-	collisions = make(map[string][2]string)
+) (map[string]string, map[string][2]string) {
+	assigned := make(map[string]string)
+	collisions := make(map[string][2]string)
 	for name, flagset := range reconciled {
 		if _, ok := running[name]; !ok {
 			continue
@@ -732,10 +738,10 @@ func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 		reloadAPIKeys = true
 	}
 
-	//nolint: staticcheck
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
 	if !cmp.Equal(currentAPIKeys, newAPIKeys) {
 		m.logger.Info("Configuration changed: reloading the APIKeys")
-		//nolint: staticcheck
+		//nolint:staticcheck // SA1019: the deprecated setting is still supported
 		m.config.SetAPIKeys(newAPIKeys)
 		reloadAPIKeys = true
 	}
@@ -751,7 +757,7 @@ func appendStreamNotifiers(
 	notifiers []notifier.Notifier, sseService stream.SSEService, wsService stream.WebsocketService,
 	flagsetName string,
 ) []notifier.Notifier {
-	out := make([]notifier.Notifier, len(notifiers), len(notifiers)+2)
+	out := make([]notifier.Notifier, len(notifiers), len(notifiers)+extraNotifiers)
 	copy(out, notifiers)
 	if sseService != nil {
 		out = append(out, proxynotifier.NewNotifierSSE(sseService, flagsetName))

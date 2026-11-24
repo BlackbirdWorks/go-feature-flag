@@ -17,24 +17,26 @@ func TestCmdLint(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
-		name              string
-		args              []string
 		wantErr           assert.ErrorAssertionFunc
+		name              string
 		expectedStderr    string
 		expectedErrString string
+		args              []string
 	}{
 		{
-			name:              "missing configuration file location",
-			args:              []string{"--format=json"},
-			wantErr:           assert.Error,
-			expectedStderr:    "ERROR: impossible to find config file in the default locations [./,/semaphore/,/etc/opt/semaphore/,/goff/,/etc/opt/goff/]\n",
+			name:    "missing configuration file location",
+			args:    []string{"--format=json"},
+			wantErr: assert.Error,
+			expectedStderr: "ERROR: impossible to find config file in the default locations [./,/semaphore/,/etc/opt/se" +
+				"maphore/,/goff/,/etc/opt/goff/]\n",
 			expectedErrString: "invalid Semaphore configuration",
 		},
 		{
-			name:              "invalid configuration",
-			args:              []string{"testdata/invalid.json", "--format=json"},
-			wantErr:           assert.Error,
-			expectedStderr:    "ERROR: testdata/invalid.json: could not parse file (json): invalid character ':' after top-level value\n",
+			name:    "invalid configuration",
+			args:    []string{"testdata/invalid.json", "--format=json"},
+			wantErr: assert.Error,
+			expectedStderr: "ERROR: testdata/invalid.json: could not parse file (json): invalid character ':' after top" +
+				"-level value\n",
 			expectedErrString: "invalid Semaphore configuration",
 		},
 		{

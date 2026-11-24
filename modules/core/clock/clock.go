@@ -7,7 +7,7 @@ package clock
 
 import "time"
 
-// Now returns the current time. It is time.Now unless a test package replaced it in its TestMain
+// Now returns the current time. It is [time.Now] unless a test package replaced it in its TestMain
 // (see the clocktest package): production code must not assign it.
 //
 // It is the only package-level variable that semaphore allows, on purpose: the alternative is to

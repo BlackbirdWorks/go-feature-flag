@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
+var (
+	errEchoKeyAuthExtended = errors.New("echo: key auth extended middleware requires a validator function")
+)
+
 // KeyAuthExtendedConfig defines the configuration for the extended key auth middleware.
 // It extends middleware.KeyAuthConfig to also check the X-API-Key header.
 type KeyAuthExtendedConfig struct {
@@ -35,7 +39,7 @@ type KeyAuthExtendedConfig struct {
 // setDefaults sets default values for the KeyAuthExtendedConfig.
 func setDefaults(config *KeyAuthExtendedConfig) error {
 	if config.Validator == nil {
-		return errors.New("echo: key auth extended middleware requires a validator function")
+		return errEchoKeyAuthExtended
 	}
 	if config.ErrorHandler == nil {
 		config.ErrorHandler = middleware.DefaultKeyAuthConfig.ErrorHandler
@@ -88,8 +92,8 @@ func KeyAuthExtended(config KeyAuthExtendedConfig) echo.MiddlewareFunc {
 	// Set default values
 	err := setDefaults(&config)
 	if err != nil {
-		return func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c *echo.Context) error {
+		return func(_ echo.HandlerFunc) echo.HandlerFunc {
+			return func(_ *echo.Context) error {
 				return err
 			}
 		}
@@ -111,9 +115,9 @@ func KeyAuthExtended(config KeyAuthExtendedConfig) echo.MiddlewareFunc {
 			}
 
 			// First, check X-API-Key header
-			handled, err := validateXAPIKey(c, config, next)
+			handled, validateXAPIKeyErr := validateXAPIKey(c, config, next)
 			if handled {
-				return err
+				return validateXAPIKeyErr
 			}
 
 			// If X-API-Key is not present, fall back to standard KeyAuth behavior

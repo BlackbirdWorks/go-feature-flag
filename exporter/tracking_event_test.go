@@ -14,11 +14,11 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		trackingEvent *exporter.TrackingEvent
+		wantErr       assert.ErrorAssertionFunc
+		name          string
 		template      string
 		want          string
-		wantErr       assert.ErrorAssertionFunc
 	}{
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
@@ -33,9 +33,10 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 					"event": "123",
 				},
 			},
-			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingDetails}}`,
-			want:     `tracking;anonymousUser;ABCD;1617970547;map[targetingKey:ABCD];map[event:123]`,
-			wantErr:  assert.NoError,
+			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
+				`etails}}`,
+			want:    `tracking;anonymousUser;ABCD;1617970547;map[targetingKey:ABCD];map[event:123]`,
+			wantErr: assert.NoError,
 		},
 		{
 			name: "Should return a marshalled JSON string of the tracking event with evaluation context attributes",
@@ -50,9 +51,10 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 					"event": "123",
 				},
 			},
-			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingDetails}}`,
-			want:     `tracking;anonymousUser;ABCD;1617970547;map[targetingKey:ABCD toto:123];map[event:123]`,
-			wantErr:  assert.NoError,
+			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
+				`etails}}`,
+			want:    `tracking;anonymousUser;ABCD;1617970547;map[targetingKey:ABCD toto:123];map[event:123]`,
+			wantErr: assert.NoError,
 		},
 	}
 	for _, tt := range tests {
@@ -74,10 +76,10 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		trackingEvent *exporter.TrackingEvent
-		want          string
 		wantErr       assert.ErrorAssertionFunc
+		name          string
+		want          string
 	}{
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
@@ -92,7 +94,8 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 					"event": "123",
 				},
 			},
-			want:    `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","evaluationContext":{"targetingKey":"ABCD"},"trackingEventDetails":{"event":"123"}}`,
+			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
+				`andom-key","evaluationContext":{"targetingKey":"ABCD"},"trackingEventDetails":{"event":"123"}}`,
 			wantErr: assert.NoError,
 		},
 		{
@@ -108,7 +111,8 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 					"event": "123",
 				},
 			},
-			want:    `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"random-key","evaluationContext":{"targetingKey":"ABCD","toto":123},"trackingEventDetails":{"event":"123"}}`,
+			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
+				`andom-key","evaluationContext":{"targetingKey":"ABCD","toto":123},"trackingEventDetails":{"event":"123"}}`,
 			wantErr: assert.NoError,
 		},
 	}

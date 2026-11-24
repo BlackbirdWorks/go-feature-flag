@@ -23,9 +23,9 @@ func TestServerEnableH2C(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name         string
+		wantProtoMaj int
 		enableH2C    bool
 		clientH2C    bool
-		wantProtoMaj int
 		wantErr      bool
 	}{
 		{name: "default server, HTTP/1.1 client", enableH2C: false, clientH2C: false, wantProtoMaj: 1},

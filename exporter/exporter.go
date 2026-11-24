@@ -13,17 +13,17 @@ import (
 type DeprecatedExporterV1 interface {
 	CommonExporter
 	// Export will send the data to the exporter.
-	Export(context.Context, *log.Logger, []FeatureEvent) error
+	Export(ctx context.Context, logger *log.Logger, events []FeatureEvent) error
 }
 
 type DeprecatedExporterV2 interface {
 	CommonExporter
-	Export(context.Context, *fflog.FFLogger, []FeatureEvent) error
+	Export(ctx context.Context, logger *fflog.FFLogger, events []FeatureEvent) error
 }
 
 type Exporter interface {
 	CommonExporter
-	Export(context.Context, *fflog.FFLogger, []ExportableEvent) error
+	Export(ctx context.Context, logger *fflog.FFLogger, events []ExportableEvent) error
 }
 type CommonExporter interface {
 	// IsBulk return false if we should directly send the data as soon as it is produce

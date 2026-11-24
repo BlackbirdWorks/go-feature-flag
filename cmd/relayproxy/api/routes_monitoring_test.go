@@ -69,7 +69,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 					Port: port,
 				},
-				MonitoringPort: monitoringPort,
+				MonitoringPort: monitoringPort, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 				EnablePprof:    tt.EnablePprof,
 			}
 
@@ -106,8 +106,8 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		disableVersionHeader bool
 		expectedVersion      string
+		disableVersionHeader bool
 	}{
 		{
 			name:                 "version header enabled",

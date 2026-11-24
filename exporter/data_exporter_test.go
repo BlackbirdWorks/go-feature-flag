@@ -20,6 +20,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errError = errors.New("error")
+)
+
 type slowExporter struct {
 	delay      time.Duration
 	exportCall atomic.Int32
@@ -125,13 +129,14 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 	}{
 		{
 			name:        "classic exporter",
-			exporter:    &mock.Exporter{Err: errors.New("error"), ExpectedNumberErr: 1},
+			exporter:    &mock.Exporter{Err: errError, ExpectedNumberErr: 1},
 			expectedLog: "error while exporting data: error\n",
 		},
 		{
-			name:        "deprecated exporter",
-			exporter:    &mock.ExporterDeprecated{Err: errors.New("error"), ExpectedNumberErr: 1},
-			expectedLog: "You are using an exporter with the old logger.Please update your custom exporter to comply to the new Exporter interface.\nerror while exporting data (deprecated): error\n",
+			name:     "deprecated exporter",
+			exporter: &mock.ExporterDeprecated{Err: errError, ExpectedNumberErr: 1},
+			expectedLog: "You are using an exporter with the old logger.Please update your custom exporter to comply to th" +
+				"e new Exporter interface.\nerror while exporting data (deprecated): error\n",
 		},
 	}
 

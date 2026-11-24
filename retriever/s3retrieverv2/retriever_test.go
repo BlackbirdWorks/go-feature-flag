@@ -23,6 +23,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+var (
+	errBoom   = errors.New("boom")
+	errKaboom = errors.New("kaboom")
+)
+
 const (
 	yamlA = "flagA:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"
 	yamlB = "flagB:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: off\n"
@@ -56,18 +61,18 @@ type retrieveCase struct {
 // step is one Retrieve call (or several concurrent ones), preceded by a mutation of the bucket.
 type step struct {
 	mutate         func(m *testutils.S3PrefixMock)
-	nilCtx         bool
-	concurrent     int      // number of concurrent Retrieve calls, 0 means one call
+	wantDownloads  map[string]int // cumulative number of downloads per key
+	wantLog        string         // substring expected in the logs
+	wantNoLog      string         // substring not expected in the logs
+	wantLogCountOf string         // substring counted by wantLogCount
+	wantErr        string
 	wantFlags      []string // flag names (prefix mode: parsed from JSON; item mode: substrings of the raw file)
 	wantContains   []string // substrings expected in the raw output
-	wantLog        string   // substring expected in the logs
-	wantNoLog      string   // substring not expected in the logs
-	wantLogCount   int      // number of times wantLogCountOf is expected in the logs so far (all steps included)
-	wantLogCountOf string   // substring counted by wantLogCount
-	wantErr        string
 	// wantSameAs lists local files whose item-mode decoding (merged) must equal the decoded result.
-	wantSameAs    []string
-	wantDownloads map[string]int // cumulative number of downloads per key
+	wantSameAs   []string
+	concurrent   int // number of concurrent Retrieve calls, 0 means one call
+	wantLogCount int // number of times wantLogCountOf is expected in the logs so far (all steps included)
+	nilCtx       bool
 }
 
 func TestRetriever_Retrieve(t *testing.T) {
@@ -85,13 +90,13 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "item mode download error",
-			setup: func(m *testutils.S3PrefixMock) {},
+			setup: func(_ *testutils.S3PrefixMock) {},
 			r:     cfg{Item: "missing.yaml"},
 			steps: []step{{wantErr: "unable to download item from S3 \"missing.yaml\""}},
 		},
 		{
 			name:  "not initialized",
-			setup: func(m *testutils.S3PrefixMock) {},
+			setup: func(_ *testutils.S3PrefixMock) {},
 			r:     cfg{Prefix: "f/", noLister: true},
 			steps: []step{{wantErr: "lister is not initialized"}},
 		},
@@ -231,7 +236,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "list error",
-			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errors.New("boom") },
+			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errBoom },
 			r:     cfg{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to list objects from S3 with prefix "f/", boom`}},
 		},
@@ -239,7 +244,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name: "download error",
 			setup: func(m *testutils.S3PrefixMock) {
 				m.Put("f/a.yaml", yamlA)
-				m.DownloadErr = errors.New("kaboom")
+				m.DownloadErr = errKaboom
 			},
 			r:     cfg{Prefix: "f/"},
 			steps: []step{{wantErr: `unable to download item from S3 "f/a.yaml", kaboom`}},
@@ -441,9 +446,9 @@ func TestRetriever_Init(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		r    cfg
 		// noDownloader skips SetDownloader, so Init must build a real client.
 		wantErr string
+		r       cfg
 		// wantAwsConfigNil: item mode with an injected downloader must not load the AWS config.
 		wantAwsConfigNil bool
 	}{
@@ -605,9 +610,9 @@ func TestRetriever_SetDownloader(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
-		r       cfg
 		wantErr string
 		want    string
+		r       cfg
 	}{
 		{name: "single file works without Init", r: cfg{Item: "a.yaml"}, want: yamlA},
 		{
@@ -640,8 +645,8 @@ func TestRetriever_OutputFormat(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		r    cfg
 		want string
+		r    cfg
 	}{
 		{name: "item mode keeps the global format", r: cfg{Item: "a.yaml"}, want: ""},
 		{name: "prefix mode without pattern is unknown before the first retrieve", r: cfg{Prefix: "f/"}, want: ""},

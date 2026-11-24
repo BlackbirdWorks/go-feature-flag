@@ -69,9 +69,9 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 	trimmed := `{"==": [{"var": "key"}, "abc"]}`
 	tests := []struct {
 		name           string
-		evaluate       bool
 		wantTrimmed    string
 		wantStoredSize int
+		evaluate       bool
 	}{
 		{name: "validation does not store the query", evaluate: false, wantTrimmed: trimmed, wantStoredSize: 0},
 		{name: "evaluation stores a multi-line query once", evaluate: true, wantTrimmed: trimmed, wantStoredSize: 1},

@@ -21,21 +21,20 @@ import (
 var _ exporter.Exporter = &Exporter{}
 
 type Exporter struct {
+	csvTemplate      *template.Template
+	filenameTemplate *template.Template
 	// Format is the output format you want in your exported file.
 	// Available format are JSON, CSV, and Parquet.
 	// Default: JSON
 	Format string
-
 	// OutputDir is the location of the directory where to store the exported files
 	// Default: the current directory
 	OutputDir string
-
 	// Filename is the name of your output file
 	// You can use a templated config to define the name of your export files.
 	// Available replacement are {{ .Hostname}}, {{ .Timestamp}} and {{ .Format}}
 	// Default: "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}"
 	Filename string
-
 	// CsvTemplate is used if your output format is CSV.
 	// This field will be ignored if you are using another format than CSV.
 	// You can decide which fields you want in your CSV line with a go-template syntax,
@@ -44,15 +43,11 @@ type Exporter struct {
 	// {{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};
 	// {{ .Default}};{{ .Source}}\n
 	CsvTemplate string
-
 	// ParquetCompressionCodec is the parquet compression codec for better space efficiency.
 	// Available options https://github.com/apache/parquet-format/blob/master/Compression.md
 	// Default: SNAPPY
 	ParquetCompressionCodec string
-
-	csvTemplate      *template.Template
-	filenameTemplate *template.Template
-	initTemplates    sync.Once
+	initTemplates           sync.Once
 }
 
 // Export is saving a collection of events in a file.
@@ -94,9 +89,9 @@ func (f *Exporter) Export(
 		filePath = filename
 	} else {
 		// Ensure OutputDir exists or create it
-		//nolint:gosec
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
-			return fmt.Errorf("failed to create output directory: %w", err)
+		//nolint:gosec // G302/G304: the path is chosen by the operator
+		if mkdirAllErr := os.MkdirAll(outputDir, 0755); mkdirAllErr != nil {
+			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
 		filePath = filepath.Join(outputDir, filename)
 	}
@@ -115,7 +110,7 @@ func (f *Exporter) IsBulk() bool {
 }
 
 func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent) error {
-	//nolint:gosec
+	//nolint:gosec // G302/G304: the path is chosen by the operator
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
@@ -123,21 +118,21 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 	defer func() { _ = file.Close() }()
 	for _, event := range events {
 		var line []byte
-		var err error
+		var innerErr error
 
 		// Convert the line in the right format
 		switch f.Format {
 		case "csv":
-			line, err = event.FormatInCSV(f.csvTemplate)
+			line, innerErr = event.FormatInCSV(f.csvTemplate)
 		case "json":
-			line, err = event.FormatInJSON()
+			line, innerErr = event.FormatInJSON()
 		default:
-			line, err = event.FormatInJSON()
+			line, innerErr = event.FormatInJSON()
 		}
 
 		// Handle error and write line into the file
-		if err != nil {
-			return fmt.Errorf("impossible to format the event in %s: %w", f.Format, err)
+		if innerErr != nil {
+			return fmt.Errorf("impossible to format the event in %s: %w", f.Format, innerErr)
 		}
 		_, errWrite := file.Write(line)
 		if errWrite != nil {
@@ -182,18 +177,20 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 	}
 
 	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, err := parquet.CompressionCodecFromString(f.ParquetCompressionCodec); err == nil {
+	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
+		f.ParquetCompressionCodec,
+	); compressionCodecFromStringErr == nil {
 		pw.CompressionType = ct
 	}
 
 	for _, event := range events {
-		eventValue, err := event.ConvertValueForParquet()
-		if err != nil {
-			return err
+		eventValue, convertValueForParquetErr := event.ConvertValueForParquet()
+		if convertValueForParquetErr != nil {
+			return convertValueForParquetErr
 		}
 		event.Value = eventValue
-		if err = pw.Write(event); err != nil {
-			return fmt.Errorf("error while writing the parquet export file: %w", err)
+		if convertValueForParquetErr = pw.Write(event); convertValueForParquetErr != nil {
+			return fmt.Errorf("error while writing the parquet export file: %w", convertValueForParquetErr)
 		}
 	}
 
@@ -217,7 +214,9 @@ func (f *Exporter) writeParquetTrackingEvent(
 	}
 
 	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, err := parquet.CompressionCodecFromString(f.ParquetCompressionCodec); err == nil {
+	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
+		f.ParquetCompressionCodec,
+	); compressionCodecFromStringErr == nil {
 		pw.CompressionType = ct
 	}
 

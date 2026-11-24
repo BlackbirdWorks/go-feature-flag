@@ -31,6 +31,14 @@ import (
 )
 
 const (
+	// Timeouts of the gopherstack container and the longest prefix of the generated names.
+	startupTimeout = 60 * time.Second
+	probeTimeout   = 5 * time.Second
+	probeInterval  = 200 * time.Millisecond
+	maxNameBase    = 30
+)
+
+const (
 	// Image is the pinned gopherstack image (sha256:3683df48d7ed91df17214e3b6169609420d0d3a59b21a26f808b556be4cd8f78).
 	Image = "ghcr.io/blackbirdworks/gopherstack:1.9.1"
 	// Port is the port gopherstack listens on in the container.
@@ -53,10 +61,10 @@ const (
 
 // Server is a running gopherstack instance.
 type Server struct {
+	container testcontainers.Container
 	// Endpoint is the base URL (ex: http://127.0.0.1:49153). An IP host makes the AWS SDK use
 	// path-style S3 addressing, so no DNS is needed.
-	Endpoint  string
-	container testcontainers.Container
+	Endpoint string
 }
 
 // Start starts a container (or attaches to GOPHERSTACK_ENDPOINT) and waits until it is healthy.
@@ -77,7 +85,7 @@ func Start(ctx context.Context) (*Server, error) {
 		ExposedPorts: []string{Port},
 		WaitingFor: wait.ForHTTP(HealthPath).
 			WithPort(Port).
-			WithStartupTimeout(60 * time.Second),
+			WithStartupTimeout(startupTimeout),
 		Started: true,
 	})
 	if err != nil {
@@ -108,9 +116,9 @@ func Start(ctx context.Context) (*Server, error) {
 }
 
 func waitHealthy(ctx context.Context, endpoint string) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: probeTimeout}
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
@@ -127,7 +135,7 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("gopherstack at %s is not healthy: %w", endpoint, ctx.Err())
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(probeInterval):
 		}
 	}
 }
@@ -151,10 +159,10 @@ func (s *Server) AwsConfig(ctx context.Context) (aws.Config, error) {
 }
 
 // MustAwsConfig is AwsConfig failing the test on error.
-func (s *Server) MustAwsConfig(t testing.TB) aws.Config {
-	t.Helper()
-	cfg, err := s.AwsConfig(t.Context())
-	require.NoError(t, err)
+func (s *Server) MustAwsConfig(tb testing.TB) aws.Config {
+	tb.Helper()
+	cfg, err := s.AwsConfig(tb.Context())
+	require.NoError(tb, err)
 
 	return cfg
 }
@@ -197,8 +205,8 @@ func Main(m *testing.M) int {
 			return 1
 		}
 		defer func() { _ = srv.Terminate() }()
-		if err := os.Setenv(EnvEndpoint, srv.Endpoint); err != nil {
-			fmt.Fprintln(os.Stderr, "gopherstack:", err)
+		if setenvErr := os.Setenv(EnvEndpoint, srv.Endpoint); setenvErr != nil {
+			fmt.Fprintln(os.Stderr, "gopherstack:", setenvErr)
 
 			return 1
 		}
@@ -209,11 +217,11 @@ func Main(m *testing.M) int {
 
 // Connect returns the emulator that Main started (or that GOPHERSTACK_ENDPOINT points to). The test is
 // skipped if there is none, because Docker is not available.
-func Connect(t testing.TB) *Server {
-	t.Helper()
+func Connect(tb testing.TB) *Server {
+	tb.Helper()
 	endpoint := strings.TrimRight(os.Getenv(EnvEndpoint), "/")
 	if endpoint == "" {
-		t.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
+		tb.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
 	}
 
 	return &Server{Endpoint: endpoint}
@@ -223,11 +231,11 @@ var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)
 
 // UniqueName returns a name unique to the test and the run (lowercase, DNS valid, <= 63 chars),
 // usable as bucket, queue or stream name.
-func UniqueName(t testing.TB, prefix string) string {
-	t.Helper()
-	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(t.Name()), "-"), "-")
-	if len(base) > 30 {
-		base = strings.Trim(base[:30], "-")
+func UniqueName(tb testing.TB, prefix string) string {
+	tb.Helper()
+	base := strings.Trim(nonDNS.ReplaceAllString(strings.ToLower(tb.Name()), "-"), "-")
+	if len(base) > maxNameBase {
+		base = strings.Trim(base[:maxNameBase], "-")
 	}
 	suffix := fmt.Sprintf("%08x", randUint32())
 

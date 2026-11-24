@@ -14,10 +14,10 @@ import (
 
 type generateCmdTestCase struct {
 	name          string
-	args          []string
-	wantErr       bool
 	expectedErr   string
 	expectedOut   string
+	args          []string
+	wantErr       bool
 	checkManifest bool
 }
 

@@ -30,13 +30,13 @@ type WebsocketService interface {
 
 // NewWebsocketService is a constructor to create a new WebsocketService.
 func NewWebsocketService(opts ...Option) WebsocketService {
-	options := newOptions(opts...)
+	o := newOptions(opts...)
 
 	return &websocketServiceImpl{
 		clients:            map[WebsocketConnector]string{},
 		mutex:              &sync.RWMutex{},
 		closed:             make(chan struct{}),
-		includeFlagDetails: options.includeFlagDetails,
+		includeFlagDetails: o.includeFlagDetails,
 	}
 }
 
