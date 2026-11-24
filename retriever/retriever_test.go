@@ -4,13 +4,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock/mockretriever"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {
+	t.Parallel()
+
 	simple := mockretriever.NewSimpleRetriever("simple")
 	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy("legacy")
 	initRetriever := mockretriever.NewInitializableRetriever("standard")
@@ -24,7 +28,7 @@ func TestMixLegacyTypesOfRetrievers(t *testing.T) {
 			intRetrieverFlagset,
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	goff.Close()
 
 	assert.True(t, simple.RetrieveCalled)

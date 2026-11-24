@@ -7,6 +7,10 @@ import (
 	"os"
 	"time"
 
+	promversion "github.com/prometheus/common/version"
+	"github.com/spf13/pflag"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/docs"
@@ -16,9 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/blackbirdworks/semaphore/notifier"
-	promversion "github.com/prometheus/common/version"
-	"github.com/spf13/pflag"
-	"go.uber.org/zap"
 )
 
 // version is overridden by GoReleaser during the build.
@@ -78,7 +79,7 @@ func main() {
 	}
 
 	if !proxyConf.HideBanner {
-		fmt.Printf(banner+"\n", version)
+		fmt.Printf(banner+"\n", version) //nolint:forbidigo // startup banner on stdout
 	}
 
 	// Update the logger's format and level from the config
@@ -115,6 +116,7 @@ func main() {
 			"impossible to start Semaphore, we are not able to initialize the retrieval of flags",
 			zap.Error(err),
 		)
+
 		return
 	}
 	if err := metricsV2.RegisterFlagLoaded(flagsetManager); err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -99,6 +100,7 @@ type Option = func(Settings) Settings
 func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 	return func(s Settings) Settings {
 		s.PartitionKey = partitionKey
+
 		return s
 	}
 }
@@ -106,6 +108,7 @@ func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 func WithExplicitHashKey(hashKey string) Option {
 	return func(s Settings) Settings {
 		s.ExplicitHashKey = &hashKey
+
 		return s
 	}
 }
@@ -117,6 +120,7 @@ func WithStreamName(streamName string) Option {
 		}
 		s.StreamArn = nil
 		s.StreamName = &streamName
+
 		return s
 	}
 }
@@ -128,6 +132,7 @@ func WithStreamArn(streamArn string) Option {
 		}
 		s.StreamArn = &streamArn
 		s.StreamName = nil
+
 		return s
 	}
 }
@@ -139,6 +144,7 @@ func NewSettings(options ...Option) *Settings {
 	for _, option := range options {
 		settings = option(settings)
 	}
+
 	return &settings
 }
 
@@ -153,6 +159,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
 				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
+
 				return
 			}
 			e.AwsConfig = &cfg
@@ -163,6 +170,7 @@ func (e *Exporter) initializeProducer(ctx context.Context) error {
 			}
 		}
 	})
+
 	return initErr
 }
 
@@ -187,6 +195,7 @@ func (e *Exporter) Export(
 
 		if len(formattedEvent) >= Mb {
 			logger.Error("format: Event is too large, skipping", "size", len(formattedEvent))
+
 			continue
 		}
 
@@ -207,7 +216,7 @@ func (e *Exporter) Export(
 	case e.Settings.StreamName != nil:
 		input.StreamName = e.Settings.StreamName
 	default:
-		return fmt.Errorf("send: no StreamName or StreamArn provided")
+		return errors.New("send: no StreamName or StreamArn provided")
 	}
 
 	if len(records) == 0 {
@@ -226,6 +235,7 @@ func (e *Exporter) Export(
 			errs = append(errs, err)
 		}
 	}
+
 	return errors.Join(errs...)
 }
 
@@ -250,6 +260,7 @@ func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRe
 	if len(current) > 0 {
 		chunks = append(chunks, current)
 	}
+
 	return chunks
 }
 
@@ -321,6 +332,7 @@ func rejectedRecords(
 		for i := range failures {
 			failures[i] = unknown
 		}
+
 		return pending, failures
 	}
 
@@ -333,6 +345,7 @@ func rejectedRecords(
 		retry = append(retry, pending[i])
 		failures = append(failures, res)
 	}
+
 	return retry, failures
 }
 
@@ -350,12 +363,14 @@ func distinctCodes(failures []types.PutRecordsResultEntry) string {
 		codes = append(codes, c)
 	}
 	sort.Strings(codes)
+
 	return strings.Join(codes, ", ")
 }
 
 // backoff returns an exponential delay with full jitter for the given attempt (1-based).
 func backoff(attempt int) time.Duration {
 	d := min(baseBackoff<<(attempt-1), maxBackoff)
+
 	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
 }
 

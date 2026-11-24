@@ -18,10 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
 // fakeBucket is a fake S3 bucket counting the requests it receives.
@@ -73,6 +74,7 @@ func (b *fakeBucket) put(key, etag, data string) {
 func (b *fakeBucket) getCount(key string) int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
 	return b.gets[key]
 }
 
@@ -83,6 +85,7 @@ func (b *fakeBucket) totalGets() int {
 	for _, n := range b.gets {
 		total += n
 	}
+
 	return total
 }
 
@@ -105,6 +108,7 @@ func (b *fakeBucket) ListObjectsV2(
 	}
 	if hang {
 		<-ctx.Done()
+
 		return nil, ctx.Err()
 	}
 	b.mu.Lock()
@@ -131,6 +135,7 @@ func (b *fakeBucket) ListObjectsV2(
 	for _, k := range keys {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(b.objects[k].etag)})
 	}
+
 	return out, nil
 }
 
@@ -166,6 +171,7 @@ func (b *fakeBucket) DownloadObject(
 	if b.downloadETag != "" {
 		return &transfermanager.DownloadObjectOutput{ETag: aws.String(b.downloadETag)}, nil
 	}
+
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(obj.etag)}, nil
 }
 
@@ -175,6 +181,7 @@ func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {
 		Bucket: "flags", Lister: b, Downloader: b,
 	})
 	require.NoError(t, err)
+
 	return g
 }
 
@@ -182,6 +189,7 @@ func initRetriever(t *testing.T, g *s3retrieverv2.SharedItems, item string) *s3r
 	t.Helper()
 	r := g.Retriever(item)
 	require.NoError(t, r.Init(t.Context(), nil))
+
 	return r
 }
 
@@ -200,7 +208,11 @@ func TestNewSharedItems(t *testing.T) {
 		{name: "default AWS config", opts: s3retrieverv2.SharedItemsOptions{Bucket: "b"}},
 		{
 			name: "fake clients",
-			opts: s3retrieverv2.SharedItemsOptions{Bucket: "b", Lister: newFakeBucket(nil), Downloader: newFakeBucket(nil)},
+			opts: s3retrieverv2.SharedItemsOptions{
+				Bucket:     "b",
+				Lister:     newFakeBucket(nil),
+				Downloader: newFakeBucket(nil),
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -209,6 +221,7 @@ func TestNewSharedItems(t *testing.T) {
 			g, err := s3retrieverv2.NewSharedItems(t.Context(), tt.opts)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)
@@ -234,8 +247,9 @@ func TestSharedItems_Retriever(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 			err := r.Init(t.Context(), nil)
 			if tt.wantErrMsg != "" {
-				assert.ErrorContains(t, err, tt.wantErrMsg)
+				require.ErrorContains(t, err, tt.wantErrMsg)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			assert.NoError(t, err)
@@ -253,8 +267,11 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		run   func(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever)
 	}{
 		{
-			name:  "N facades in one window do one list and no extra get",
-			items: map[string]time.Duration{"p1/dev/flags.yaml": 10 * time.Second, "p1/prod/flags.yaml": 10 * time.Second},
+			name: "N facades in one window do one list and no extra get",
+			items: map[string]time.Duration{
+				"p1/dev/flags.yaml":  10 * time.Second,
+				"p1/prod/flags.yaml": 10 * time.Second,
+			},
 			setup: func(b *fakeBucket) { b.pageSize = 1 },
 			run:   runSameWindow,
 		},
@@ -400,7 +417,7 @@ func TestSharedItemRetriever_Retrieve(t *testing.T) {
 		t.Parallel()
 		r := newGroup(t, newFakeBucket(baseObjects())).Retriever("p1/dev/flags.yaml")
 		_, err := r.Retrieve(t.Context())
-		assert.ErrorContains(t, err, "not initialized")
+		require.ErrorContains(t, err, "not initialized")
 		//nolint:staticcheck // a nil context is tolerated on purpose
 		_, err = r.Retrieve(nil)
 		assert.ErrorContains(t, err, "not initialized")
@@ -523,7 +540,7 @@ func runListError(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 	for range 3 {
 		for _, rr := range r {
 			_, err := rr.Retrieve(t.Context())
-			assert.ErrorContains(t, err, "AccessDenied")
+			require.ErrorContains(t, err, "AccessDenied")
 		}
 	}
 	// one failing list for the whole window, whatever the number of callers
@@ -561,16 +578,14 @@ func runNoDownloadETag(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.
 func runConcurrent(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	var wg sync.WaitGroup
 	for i := range 20 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			key := "p1/dev/flags.yaml"
 			if i%2 == 0 {
 				key = "p1/prod/flags.yaml"
 			}
 			_, err := r[key].Retrieve(t.Context())
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	wg.Wait()
 	assert.EqualValues(t, 1, b.lists.Load(), "one shared listing")
@@ -590,26 +605,24 @@ func runClone(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedIte
 func runHung(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	var wg sync.WaitGroup
 	var otherErr error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_, otherErr = r["p2/flags.yaml"].Retrieve(t.Context())
-	}()
+	})
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	start := time.Now()
 	_, err := r["p1/dev/flags.yaml"].Retrieve(ctx)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, time.Second, time.Since(start))
 
 	wg.Wait()
-	assert.ErrorContains(t, otherErr, "unable to list S3 bucket")
+	require.ErrorContains(t, otherErr, "unable to list S3 bucket")
 	assert.GreaterOrEqual(t, time.Since(start), 30*time.Second)
 
 	// the failure is cached from the end of the listing: no new listing inside the window
 	lists := b.lists.Load()
 	_, err = r["p1/dev/flags.yaml"].Retrieve(t.Context())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, lists, b.lists.Load())
 }
 
@@ -640,7 +653,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 			require.NoError(t, r2.Shutdown(t.Context()))
 			assert.Equal(t, retriever.RetrieverNotReady, r2.Status())
 			_, err = r2.Retrieve(t.Context())
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			time.Sleep(s3retrieverv2.DefaultSharedPollingInterval)
 			_, err = r1.Retrieve(t.Context())
@@ -747,7 +760,7 @@ func runLateMissing(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 	missing := initRetriever(t, g, "p1/dev/nope.yaml")
 	for range 2 {
 		_, err = missing.Retrieve(t.Context())
-		assert.ErrorContains(t, err, "not found")
+		require.ErrorContains(t, err, "not found")
 	}
 	assert.Equal(t, lists+1, b.lists.Load(), "one refresh, then the listing is fresh again")
 }
@@ -777,7 +790,7 @@ func runStuckDownload(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.S
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	_, err := r2.Retrieve(ctx)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
 
 	close(b.downloadGate)
 	assert.NoError(t, <-done)
@@ -806,6 +819,7 @@ func distinctItems(t *testing.T, b *fakeBucket, n int) []*s3retrieverv2.SharedIt
 		b.put(key, `"e"`, "x")
 		rs[i] = initRetriever(t, g, key)
 	}
+
 	return rs
 }
 
@@ -813,12 +827,10 @@ func runDownloadCap(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.Sha
 	rs := distinctItems(t, b, 100)
 	var wg sync.WaitGroup
 	for _, r := range rs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, err := r.Retrieve(t.Context())
 			assert.NoError(t, err)
-		}()
+		})
 	}
 	wg.Wait()
 	assert.EqualValues(t, s3retrieverv2.MaxConcurrentDownloads, b.maxGets.Load())
@@ -856,7 +868,7 @@ func runShutdownListing(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2
 	}()
 	time.Sleep(1500 * time.Millisecond)
 	require.NoError(t, r["p1/dev/flags.yaml"].Shutdown(t.Context()))
-	assert.Error(t, <-errs)
+	require.Error(t, <-errs)
 	lists := b.lists.Load()
 	time.Sleep(time.Minute)
 	assert.Equal(t, lists, b.lists.Load(), "no more page requests after the shutdown")
@@ -923,12 +935,14 @@ type lockedBuffer struct {
 func (l *lockedBuffer) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	return l.buf.Write(p)
 }
 
 func (l *lockedBuffer) String() string {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	return l.buf.String()
 }
 
@@ -948,6 +962,7 @@ func newPollCase(t *testing.T, cfg s3retrieverv2.PollerConfig, items ...string) 
 		pc.r[item] = r
 		pc.calls[item], pc.failing[item] = &atomic.Int32{}, &atomic.Bool{}
 	}
+
 	return pc
 }
 
@@ -958,6 +973,7 @@ func (pc *pollCase) start(t *testing.T) {
 		pc.g.SetRefresh(r, func() bool {
 			pc.calls[item].Add(1)
 			_, err := r.Retrieve(t.Context())
+
 			return err == nil && !pc.failing[item].Load()
 		})
 	}
@@ -967,6 +983,7 @@ func (pc *pollCase) start(t *testing.T) {
 func (pc *pollCase) start2(item string) {
 	pc.g.SetRefresh(pc.r[item], func() bool {
 		pc.calls[item].Add(1)
+
 		return true
 	})
 }
@@ -1007,6 +1024,7 @@ func testRefreshesAreBounded(t *testing.T, cfg s3retrieverv2.PollerConfig) {
 			defer running.Add(-1)
 			storeMax(&maxRunning, cur)
 			<-gate
+
 			return true
 		})
 		pc.b.put(key, `"b"`, "b")
@@ -1039,12 +1057,12 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pc.start(t)
 			lists := pc.b.lists.Load()
 			time.Sleep(9 * time.Second)
-			assert.EqualValues(t, lists, pc.b.lists.Load(), "no listing before the interval")
+			assert.Equal(t, lists, pc.b.lists.Load(), "no listing before the interval")
 
 			pc.b.put(dev, `"e1b"`, "dev2")
 			time.Sleep(time.Second)
 			synctest.Wait()
-			assert.EqualValues(t, lists+1, pc.b.lists.Load())
+			assert.Equal(t, lists+1, pc.b.lists.Load())
 			assert.Equal(t, 1, pc.count(dev))
 			assert.Equal(t, 0, pc.count(prod))
 			got, err := pc.r[dev].Retrieve(t.Context())
@@ -1187,6 +1205,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 					started[key] = true
 					mu.Unlock()
 					<-gate
+
 					return true
 				})
 				pc.b.put(key, `"b"`, "b")
@@ -1230,6 +1249,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			pc.g.SetRefresh(pc.r[dev], func() bool {
 				<-gate
 				returned.Store(true)
+
 				return true
 			})
 			pc.start2(prod)
@@ -1254,6 +1274,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 			gate := make(chan struct{})
 			pc.g.SetRefresh(pc.r[dev], func() bool {
 				<-gate
+
 				return true
 			})
 			pc.b.put(dev, `"e1b"`, "dev2")
@@ -1284,7 +1305,11 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 				_, err := other.Retrieve(t.Context())
 				require.NoError(t, err)
 				var otherCalls atomic.Int32
-				pc.g.SetRefresh(other, func() bool { otherCalls.Add(1); return true })
+				pc.g.SetRefresh(other, func() bool {
+					otherCalls.Add(1)
+
+					return true
+				})
 
 				pc.b.put(dev, `"e1b"`, "dev2")
 				time.Sleep(6 * time.Second) // the listing of the load below is fresh
@@ -1310,6 +1335,7 @@ func TestSharedItems_SetRefresh(t *testing.T) {
 
 func TestSharedItems_SetPoller(t *testing.T) {
 	t.Parallel()
+
 	const dev = "p1/dev/flags.yaml"
 	// polls returns the times of the polls of the first minutes, seen through a refresh function
 	// that always fails (so that it is called by every poll).
@@ -1324,6 +1350,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			mu.Lock()
 			defer mu.Unlock()
 			res = append(res, time.Since(start))
+
 			return false
 		})
 		if change != nil {
@@ -1334,6 +1361,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 		pc.shutdown(t)
 		mu.Lock()
 		defer mu.Unlock()
+
 		return slices.Clone(res)
 	}
 	tests := []struct {
@@ -1377,7 +1405,8 @@ func TestSharedItems_SetPoller(t *testing.T) {
 			},
 		},
 		{
-			name: "jitter randomizes the interval by 10%", cfg: s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
+			name: "jitter randomizes the interval by 10%",
+			cfg:  s3retrieverv2.PollerConfig{Interval: 10 * time.Second, Jitter: true},
 			check: func(t *testing.T, p []time.Duration) {
 				require.Greater(t, len(p), 50)
 				distinct := map[time.Duration]struct{}{}
@@ -1396,6 +1425,7 @@ func TestSharedItems_SetPoller(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			synctest.Test(t, func(t *testing.T) {
 				tt.check(t, polls(t, tt.cfg, tt.change))
 			})

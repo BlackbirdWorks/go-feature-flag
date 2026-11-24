@@ -10,13 +10,17 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestS3_Export(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	type fields struct {
 		Bucket          string
@@ -45,8 +49,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -60,8 +71,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -76,8 +94,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -92,8 +117,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.csv",
@@ -109,8 +141,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/custom_csv_format.csv",
@@ -126,8 +165,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -142,8 +188,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -157,8 +210,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			wantErr: true,
@@ -172,8 +232,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			wantErr: true,
@@ -187,8 +254,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			wantErr: true,
@@ -206,8 +280,15 @@ func TestS3_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			expectedFile: "./testdata/all_default.json",
@@ -216,6 +297,8 @@ func TestS3_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			s3ManagerMock := testutils.S3ManagerV2Mock{}
 			f := &Exporter{
 				Bucket:          tt.fields.Bucket,
@@ -245,14 +328,14 @@ func TestS3_Export(t *testing.T) {
 			)
 			if tt.wantErr {
 				assert.Error(t, err, "Export should error")
+
 				return
 			}
 
-			assert.NoError(t, err, "Export should not error")
-			assert.Equal(
+			require.NoError(t, err, "Export should not error")
+			assert.Len(
 				t,
-				1,
-				len(s3ManagerMock.S3ManagerMockFileSystem),
+				s3ManagerMock.S3ManagerMockFileSystem, 1,
 				"we should have 1 file in our mock",
 			)
 			expectedContent, _ := os.ReadFile(tt.expectedFile)
@@ -265,6 +348,8 @@ func TestS3_Export(t *testing.T) {
 }
 
 func Test_errSDK(t *testing.T) {
+	t.Parallel()
+
 	f := &Exporter{
 		Bucket:    "empty",
 		AwsConfig: &aws.Config{},
@@ -281,6 +366,8 @@ func Test_errSDK(t *testing.T) {
 // logger passed to Export() and not through an always-nil internal field.
 // See https://github.com/thomaspoignant/go-feature-flag/issues/5637.
 func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := &fflog.FFLogger{
 		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
@@ -297,13 +384,20 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 		logger,
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
-				Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-				Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+				Kind:         "feature",
+				ContextKind:  "anonymousUser",
+				UserKey:      "ABCD",
+				CreationDate: 1617970547,
+				Key:          "random-key",
+				Variation:    "Default",
+				Value:        "YO",
+				Default:      false,
+				Source:       "SERVER",
 			},
 		},
 	)
 
-	assert.NoError(t, err, "Export should not error")
+	require.NoError(t, err, "Export should not error")
 	assert.Contains(
 		t,
 		buf.String(),
@@ -318,6 +412,8 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 // inside the temp dir would leak on every export cycle.
 // See https://github.com/thomaspoignant/go-feature-flag/issues/5636.
 func TestS3_Export_RemovesTempDir(t *testing.T) {
+	t.Parallel()
+
 	tempPattern := filepath.Join(os.TempDir(), "go_feature_flag_s3_export*")
 	before, _ := filepath.Glob(tempPattern)
 
@@ -333,18 +429,19 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 			},
 		},
 	)
-	assert.NoError(t, err, "Export should not error")
+	require.NoError(t, err, "Export should not error")
 
 	after, _ := filepath.Glob(tempPattern)
-	assert.Equal(
+	assert.Len(
 		t,
-		len(before),
-		len(after),
+		after, len(before),
 		"Export() must remove its temp directory (os.RemoveAll)",
 	)
 }
 
 func TestS3_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }

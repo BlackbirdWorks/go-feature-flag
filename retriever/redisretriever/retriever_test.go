@@ -6,18 +6,22 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	ret "github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	testcontainerRedis "github.com/testcontainers/testcontainers-go/modules/redis"
+
+	ret "github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 )
 
 func Test_Redis_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		prefix      string
@@ -47,6 +51,8 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			options := startRedisAndAddData(t, tt.flagsToLoad, tt.prefix)
 
 			retriever := redisretriever.Retriever{
@@ -65,13 +71,15 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 			if err == nil {
 				flagStr := "{"
+				var flagStrSb69 strings.Builder
 				for index, file := range tt.flagsToLoad {
 					flagName, content := readFile(t, file)
-					flagStr += `"` + flagName + `":` + string(content)
+					flagStrSb69.WriteString(`"` + flagName + `":` + string(content))
 					if index < len(tt.flagsToLoad)-1 {
-						flagStr += ","
+						flagStrSb69.WriteString(",")
 					}
 				}
+				flagStr += flagStrSb69.String()
 				flagStr += "}"
 				assert.JSONEq(t, string(got), flagStr)
 			}
@@ -106,25 +114,36 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 		_, errAdd := rdb.Set(ctx, prefix+flagName, string(content), 0).Result()
 		require.NoError(t, errAdd)
 	}
+
 	return options
 }
 
 func TestRedisStatus(t *testing.T) {
+	t.Parallel()
+
 	t.Run("should return NotReady for nil receiver", func(t *testing.T) {
+		t.Parallel()
+
 		var retriever *redisretriever.Retriever
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should return NotReady for uninitialized retriever", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{}
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 }
 
 func TestRedisShutdown(t *testing.T) {
+	t.Parallel()
+
 	options := startRedisAndAddData(t, []string{"flag1.json"}, "")
 
 	t.Run("should close connection successfully", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -134,21 +153,25 @@ func TestRedisShutdown(t *testing.T) {
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should succeed when called before init", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
 
 		err := retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("allow multiple calls idempotently", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -159,32 +182,38 @@ func TestRedisShutdown(t *testing.T) {
 
 		// First shutdown
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 
 		// Second shutdown should also succeed
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should handle nil retriever gracefully", func(t *testing.T) {
+		t.Parallel()
+
 		var retriever *redisretriever.Retriever
 		err := retriever.Shutdown(context.TODO())
 		assert.NoError(t, err)
 	})
 
 	t.Run("should handle nil client gracefully", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
 
 		err := retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should handle shutdown when retriever is in error state", func(t *testing.T) {
+		t.Parallel()
+
 		// Create retriever with invalid options to force error state
 		badOptions := &redis.Options{
 			Addr: "invalid-address:6379",
@@ -195,16 +224,18 @@ func TestRedisShutdown(t *testing.T) {
 
 		// Init should fail and set error status
 		err := retriever.Init(context.TODO(), nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, ret.RetrieverError, retriever.Status())
 
 		// Shutdown should still work even in error state
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should verify status is set to not ready after shutdown", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := &redisretriever.Retriever{
 			Options: options,
 		}
@@ -214,12 +245,14 @@ func TestRedisShutdown(t *testing.T) {
 		assert.Equal(t, ret.RetrieverReady, retriever.Status())
 
 		err = retriever.Shutdown(context.TODO())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 }
 
 func Test_Redis_OutputFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -231,6 +264,8 @@ func Test_Redis_OutputFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := redisretriever.Retriever{}
 			assert.Equal(t, tt.want, r.OutputFormat())
 		})
@@ -242,7 +277,8 @@ func readFile(t *testing.T, file string) (string, []byte) {
 	if err != nil {
 		return "", nil
 	}
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	flagName := file[:len(file)-5]
+
 	return flagName, content
 }

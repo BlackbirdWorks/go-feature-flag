@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 const (
@@ -37,6 +38,7 @@ func VersionHeader(cfg VersionHeaderConfig) echo.MiddlewareFunc {
 
 			c.Response().Header().Set(VersionHeaderName, cfg.RelayProxyConfig.Version)
 			c.Response().Header().Set(LegacyVersionHeaderName, cfg.RelayProxyConfig.Version)
+
 			return next(c)
 		}
 	}

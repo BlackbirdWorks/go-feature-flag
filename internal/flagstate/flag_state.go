@@ -20,14 +20,21 @@ type FlagState struct {
 	Metadata      map[string]any        `json:"metadata,omitempty"`
 }
 
+// FromFlagEvaluation builds the state of a flag evaluated now.
 func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
+	flagCtx flag.Context, currentFlag flag.Flag) FlagState {
+	return FromFlagEvaluationAt(time.Now(), key, evaluationCtx, flagCtx, currentFlag)
+}
+
+// FromFlagEvaluationAt builds the state of a flag evaluated at the given instant.
+func FromFlagEvaluationAt(at time.Time, key string, evaluationCtx ffcontext.Context,
 	flagCtx flag.Context, currentFlag flag.Flag) FlagState {
 	flagValue, resolutionDetails := currentFlag.Value(key, evaluationCtx, flagCtx)
 
 	// if the flag is disabled, we are ignoring it.
 	if resolutionDetails.Reason == flag.ReasonDisabled {
 		return FlagState{
-			Timestamp:    time.Now().Unix(),
+			Timestamp:    at.Unix(),
 			TrackEvents:  currentFlag.IsTrackEvents(),
 			Failed:       resolutionDetails.ErrorCode != "",
 			ErrorCode:    resolutionDetails.ErrorCode,
@@ -39,7 +46,7 @@ func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 
 	if resolutionDetails.Reason == flag.ReasonError {
 		return FlagState{
-			Timestamp:    time.Now().Unix(),
+			Timestamp:    at.Unix(),
 			TrackEvents:  currentFlag.IsTrackEvents(),
 			Failed:       resolutionDetails.ErrorCode != "",
 			ErrorCode:    resolutionDetails.ErrorCode,
@@ -53,7 +60,7 @@ func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 	case int, float64, bool, string, []any, map[string]any:
 		return FlagState{
 			Value:         v,
-			Timestamp:     time.Now().Unix(),
+			Timestamp:     at.Unix(),
 			VariationType: resolutionDetails.Variant,
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        resolutionDetails.ErrorCode != "",
@@ -66,9 +73,10 @@ func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 	default:
 		defaultVariationName := flag.VariationSDKDefault
 		defaultVariationValue := currentFlag.GetVariationValue(defaultVariationName)
+
 		return FlagState{
 			Value:         defaultVariationValue,
-			Timestamp:     time.Now().Unix(),
+			Timestamp:     at.Unix(),
 			VariationType: defaultVariationName,
 			TrackEvents:   currentFlag.IsTrackEvents(),
 			Failed:        true,

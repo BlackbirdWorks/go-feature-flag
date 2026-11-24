@@ -34,6 +34,7 @@ func Init(config Config) error {
 			ff = tmpFF
 		}
 	})
+
 	return err
 }
 
@@ -69,7 +70,7 @@ type GoFeatureFlag struct {
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.
 const DefaultEventQueueSize = 65536
 
-// ff is the default object for semaphore
+// ff is the default object for semaphore.
 var (
 	ff     *GoFeatureFlag
 	onceFF sync.Once
@@ -88,13 +89,14 @@ func New(config Config) (*GoFeatureFlag, error) {
 	if config.Offline {
 		// in case we are in offline mode, we don't need to initialize the cache since we will not use it.
 		goFF.config.internalLogger.Info("Semaphore is in offline mode")
+
 		return goFF, nil
 	}
 
 	retrieverManager, err := initializeRetrieverManager(config)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
 		return nil, fmt.Errorf(
-			"impossible to initialize the retrievers, please check your configuration: %v",
+			"impossible to initialize the retrievers, please check your configuration: %w",
 			err,
 		)
 	}
@@ -103,17 +105,19 @@ func New(config Config) (*GoFeatureFlag, error) {
 		config, goFF.config.internalLogger)
 	goFF.startEventWorker()
 	config.internalLogger.Debug("Semaphore is initialized")
+
 	return goFF, nil
 }
 
-// initializeNotificationService is a function that will initialize the notification service with the notifiers
+// initializeNotificationService is a function that will initialize the notification service with the notifiers.
 func initializeNotificationService(config Config) notification.Service {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
+
 	return notification.NewService(notifiers)
 }
 
-// initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers
+// initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
@@ -139,6 +143,7 @@ func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
 	err = manager.Init(config.Context)
+
 	return manager, err
 }
 
@@ -158,6 +163,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
 				trackingEventExporterConfigs = append(trackingEventExporterConfigs, c)
+
 				continue
 			}
 			featureEventExporterConfigs = append(featureEventExporterConfigs, c)
@@ -177,6 +183,7 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 			featureEventExporterConfigs, config.ExporterCleanQueueInterval, logger)
 		featureEventManager.Start()
 	}
+
 	return featureEventManager, trackingEventManager
 }
 
@@ -209,15 +216,16 @@ func (g *GoFeatureFlag) Close() {
 	}
 }
 
-// GetCacheRefreshDate gives the last refresh date of the cache
+// GetCacheRefreshDate gives the last refresh date of the cache.
 func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	if g.IsOffline() {
 		return time.Time{}
 	}
+
 	return g.retrieverManager.GetCacheRefreshDate()
 }
 
-// GetEvaluationContextEnrichment returns the evaluation context enrichment
+// GetEvaluationContextEnrichment returns the evaluation context enrichment.
 func (g *GoFeatureFlag) GetEvaluationContextEnrichment() map[string]any {
 	return g.config.EvaluationContextEnrichment
 }
@@ -236,22 +244,22 @@ func (g *GoFeatureFlag) ForceRefreshWithContext(ctx context.Context) bool {
 	return g.retrieverManager.ForceRefresh(ctx)
 }
 
-// SetOffline updates the config Offline parameter
+// SetOffline updates the config Offline parameter.
 func (g *GoFeatureFlag) SetOffline(control bool) {
 	g.config.SetOffline(control)
 }
 
-// IsOffline allows knowing if the feature flag is in offline mode
+// IsOffline allows knowing if the feature flag is in offline mode.
 func (g *GoFeatureFlag) IsOffline() bool {
 	return g.config.IsOffline()
 }
 
-// GetPollingInterval is the polling interval between two refreshes of the cache
+// GetPollingInterval is the polling interval between two refreshes of the cache.
 func (g *GoFeatureFlag) GetPollingInterval() int64 {
 	return g.config.PollingInterval.Milliseconds()
 }
 
-// SetOffline updates the config Offline parameter
+// SetOffline updates the config Offline parameter.
 func SetOffline(control bool) {
 	SetOfflineWithContext(context.Background(), control)
 }
@@ -272,16 +280,17 @@ func SetOfflineWithContext(ctx context.Context, control bool) {
 	ff.SetOffline(control)
 }
 
-// IsOffline allows knowing if the feature flag is in offline mode
+// IsOffline allows knowing if the feature flag is in offline mode.
 func IsOffline() bool {
 	return ff.IsOffline()
 }
 
-// GetCacheRefreshDate gives the last refresh date of the cache
+// GetCacheRefreshDate gives the last refresh date of the cache.
 func GetCacheRefreshDate() time.Time {
 	if ff.IsOffline() {
 		return time.Time{}
 	}
+
 	return ff.GetCacheRefreshDate()
 }
 
@@ -292,6 +301,7 @@ func ForceRefresh() bool {
 	if ff.IsOffline() {
 		return false
 	}
+
 	return ff.ForceRefresh()
 }
 

@@ -4,18 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
 	"sync"
 	"time"
 
+	"github.com/diegoholiveira/jsonlogic/v3"
+	"github.com/nikunjy/rules/parser"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/diegoholiveira/jsonlogic/v3"
-	"github.com/nikunjy/rules/parser"
 )
 
 type QueryFormat = string
@@ -29,27 +29,27 @@ const (
 type Rule struct {
 	// Name is the name of the rule, this field is mandatory if you want
 	// to update the rule during scheduled rollout
-	Name *string `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout."` // nolint: lll
+	Name *string `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout."` //nolint: lll
 
 	// Query represents the query used to target the audience of the flag.
-	Query *string `json:"query,omitempty" yaml:"query,omitempty" toml:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored."` // nolint: lll
+	Query *string `json:"query,omitempty" yaml:"query,omitempty" toml:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored."` //nolint: lll
 
 	// VariationResult represents the variation name to use if the rule apply for the user.
 	// In case we have a percentage field in the config VariationResult is ignored
-	VariationResult *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored"` // nolint: lll
+	VariationResult *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored"` //nolint: lll
 
 	// Percentages represents the percentage we should give to each variation.
 	// example: variationA = 10%, variationB = 80%, variationC = 10%
-	Percentages *map[string]float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation."` // nolint: lll
+	Percentages *map[string]float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation."` //nolint: lll
 
 	// ProgressiveRollout is your struct to configure a progressive rollout deployment of your flag.
 	// It will allow you to ramp up the percentage of your flag over time.
 	// You can decide at which percentage you starts with and at what percentage you ends with in your release ramp.
 	// Before the start date we will serve the initial percentage and, after we will serve the end percentage.
-	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty" toml:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag."` // nolint: lll
+	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty" toml:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag."` //nolint: lll
 
 	// Disable indicates that this rule is disabled.
-	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled."` // nolint: lll
+	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled."` //nolint: lll
 
 	// QueryHash is the hash of Query that InternalFlag.IsValid computes once, when the flag is
 	// loaded, to find the evaluator of the query without hashing it for every evaluation.
@@ -59,7 +59,7 @@ type Rule struct {
 	QueryHash uint64 `json:"-" yaml:"-" toml:"-" jsonschema:"-"`
 }
 
-// RequiresBucketing checks if this rule requires a bucketing key for evaluation
+// RequiresBucketing checks if this rule requires a bucketing key for evaluation.
 func (r *Rule) RequiresBucketing() bool {
 	// Rules with percentages need bucketing for distribution
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
@@ -82,6 +82,7 @@ func (r *Rule) Evaluate(key string, ctx ffcontext.Context, flagName string, isDe
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
+
 	return v, err
 }
 
@@ -96,13 +97,13 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	ctx := queryCtx.ctx
 	// Only require key if this rule needs bucketing
 	if key == "" && r.RequiresBucketing() {
-		return "", fmt.Errorf("evaluate Rule: no key for bucketing-required rule")
+		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
 	}
 
 	evaluationDate := DateFromContextOrDefault(ctx, time.Now())
 	// check that we have an evaluation context
 	if ctx == nil {
-		return "", fmt.Errorf("evaluate Rule: no evaluation context")
+		return "", errors.New("evaluate Rule: no evaluation context")
 	}
 
 	// Check if the rule applies for this user
@@ -115,20 +116,23 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 	}
 	if r.ProgressiveRollout != nil {
 		if key == "" {
-			return "", fmt.Errorf("progressive rollout requires a bucketing key")
+			return "", errors.New("progressive rollout requires a bucketing key")
 		}
+
 		return r.EvaluateProgressiveRollout(key, flagName, evaluationDate)
 	}
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
 		if key == "" {
-			return "", fmt.Errorf("percentage rollout requires a bucketing key")
+			return "", errors.New("percentage rollout requires a bucketing key")
 		}
+
 		return r.EvaluatePercentageRollout(key, flagName)
 	}
 	if r.VariationResult != nil {
 		return r.GetVariationResult(), nil
 	}
-	return "", fmt.Errorf("error in the configuration, no variation available for this rule")
+
+	return "", errors.New("error in the configuration, no variation available for this rule")
 }
 
 // queryContext is the evaluation context as targeting queries read it. The map is built on
@@ -154,6 +158,7 @@ func (q *queryContext) mapOnce() map[string]any {
 		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
 		q.pooled = true
 	}
+
 	return q.parsedEvalCtxAsMap
 }
 
@@ -174,6 +179,7 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 			return nil, err
 		}
 	}
+
 	return q.parsedEvalCtxAsBytes, nil
 }
 
@@ -184,6 +190,7 @@ func (q *queryContext) dataOnce() (any, error) {
 		// produce is built directly (the result is the same, without marshalling and parsing).
 		if data, ok := asJSONData(q.mapOnce(), 0); ok {
 			q.parsedEvalCtxAsData = data
+
 			return data, nil
 		}
 		raw, err := q.jsonOnce()
@@ -196,6 +203,7 @@ func (q *queryContext) dataOnce() (any, error) {
 		}
 		q.parsedEvalCtxAsData = data
 	}
+
 	return q.parsedEvalCtxAsData, nil
 }
 
@@ -209,6 +217,7 @@ func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 			return evaluateNikunjy(ev, raw, queryCtx)
 		}
 	}
+
 	return evaluateRule(getCompiledQuery(r.GetQuery()), queryCtx)
 }
 
@@ -224,6 +233,7 @@ func evaluateNikunjy(ev *parser.Evaluator, query string, queryCtx *queryContext)
 			success = false
 		}
 	}()
+
 	return processNikunjy(ev, query, queryCtx.mapOnce())
 }
 
@@ -232,8 +242,10 @@ func processNikunjy(ev *parser.Evaluator, query string, mapCtx map[string]any) b
 	if err != nil {
 		slog.Error("error while evaluating the nikunjy query",
 			slog.String("query", query), slog.Any("error", err))
+
 		return false
 	}
+
 	return ok
 }
 
@@ -262,22 +274,27 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		if err != nil {
 			slog.ErrorContext(context.Background(), "error while marshalling the context for the jsonlogic query",
 				slog.Any("mapCtx", mapCtx), slog.Any("error", err.Error()))
+
 			return false
 		}
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
 			slog.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
 				slog.String("query", query), slog.Any("error", err.Error()))
+
 			return false
 		}
+
 		return isJSONLogicTruthy(result)
 	default:
 		ev, err := nikunjyEvaluators.get(query)
 		if err != nil {
 			slog.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))
+
 			return false
 		}
+
 		return processNikunjy(ev, query, mapCtx)
 	}
 }
@@ -293,6 +310,7 @@ func (r *Rule) EvaluateProgressiveRollout(
 	if err != nil {
 		return variation, err
 	}
+
 	return variation, nil
 }
 
@@ -319,10 +337,11 @@ func (r *Rule) EvaluatePercentageRollout(key, flagName string) (string, error) {
 	// HACK: we are iterating in reverse order to support the legacy format of the flags (before 1.0.0) and to be sure
 	// to always have "True" before "False"
 	sum := float64(0)
-	for i := len(names) - 1; i >= 0; i-- {
-		sum += percentage[names[i]]
+	for _, name := range slices.Backward(names) {
+		sum += percentage[name]
 	}
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
+
 	return variationFromBuckets(percentage, names, hash)
 }
 
@@ -332,9 +351,11 @@ func (r *Rule) IsDynamic() bool {
 	for _, percentage := range r.GetPercentages() {
 		if percentage == 100 {
 			hasPercentage100 = true
+
 			break
 		}
 	}
+
 	return r.ProgressiveRollout != nil ||
 		(r.Percentages != nil && len(r.GetPercentages()) > 0 && !hasPercentage100)
 }
@@ -385,22 +406,24 @@ func (r *Rule) getVariationFromProgressiveRollout(
 		if hash < uint32(currentPercentage) {
 			return r.ProgressiveRollout.End.getVariation(), nil
 		}
+
 		return r.ProgressiveRollout.Initial.getVariation(), nil
 	}
-	return "", fmt.Errorf("error in the progressive rollout, missing params")
+
+	return "", errors.New("error in the progressive rollout, missing params")
 }
 
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
 	last := ""
-	for i := len(names) - 1; i >= 0; i-- {
-		p := percentage[names[i]]
+	for _, name := range slices.Backward(names) {
+		p := percentage[name]
 		end := start + (p * PercentageMultiplier)
 		if uint32(start) <= hash && uint32(end) > hash {
-			return names[i], nil
+			return name, nil
 		}
 		if p > 0 {
-			last = names[i]
+			last = name
 		}
 		start = end
 	}
@@ -408,7 +431,8 @@ func variationFromBuckets(percentage map[string]float64, names []string, hash ui
 		// the hash is beyond the end of the last bucket: rounding of the modulus, the last bucket takes it.
 		return last, nil
 	}
-	return "", fmt.Errorf("impossible to find the variation")
+
+	return "", errors.New("impossible to find the variation")
 }
 
 // MergeRules is merging 2 rules.
@@ -446,6 +470,7 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 			// When you set a negative percentage we are not taking it in consideration.
 			if percentage < 0 {
 				delete(mergedPercentages, key)
+
 				continue
 			}
 			mergedPercentages[key] = percentage
@@ -454,12 +479,12 @@ func (r *Rule) MergeRules(updatedRule Rule) {
 	}
 }
 
-// GetTrimmedQuery is removing the break lines and return
+// GetTrimmedQuery is removing the break lines and return.
 func (r *Rule) GetTrimmedQuery() string {
 	return utils.StrTrim(r.GetQuery())
 }
 
-// GetQueryFormat is returning the format used for the query
+// GetQueryFormat is returning the format used for the query.
 func (r *Rule) GetQueryFormat() QueryFormat {
 	return queryFormatOf(r.GetTrimmedQuery())
 }
@@ -469,6 +494,7 @@ func queryFormatOf(trimmedQuery string) QueryFormat {
 	if utils.IsJSONObject(trimmedQuery) {
 		return JSONLogicQueryFormat
 	}
+
 	return NikunjyQueryFormat
 }
 
@@ -484,6 +510,7 @@ func (r *Rule) GetVariationResult() string {
 	if r.VariationResult == nil {
 		return ""
 	}
+
 	return *r.VariationResult
 }
 
@@ -491,6 +518,7 @@ func (r *Rule) GetName() string {
 	if r.Name == nil {
 		return ""
 	}
+
 	return *r.Name
 }
 
@@ -498,6 +526,7 @@ func (r *Rule) GetPercentages() map[string]float64 {
 	if r.Percentages == nil {
 		return map[string]float64{}
 	}
+
 	return *r.Percentages
 }
 
@@ -505,6 +534,7 @@ func (r *Rule) IsDisable() bool {
 	if r.Disable == nil {
 		return false
 	}
+
 	return *r.Disable
 }
 
@@ -515,6 +545,7 @@ func (r *Rule) GetProgressiveRollout() ProgressiveRollout {
 			End:     &ProgressiveRolloutStep{},
 		}
 	}
+
 	return *r.ProgressiveRollout
 }
 
@@ -571,5 +602,6 @@ func cloneRuleForMerge(r Rule) Rule {
 		}
 		r.ProgressiveRollout = &pr
 	}
+
 	return r
 }

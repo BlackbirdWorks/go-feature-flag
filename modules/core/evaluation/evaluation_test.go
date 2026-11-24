@@ -3,15 +3,18 @@ package evaluation_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_evaluate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flag            flag.Flag
 		flagKey         string
@@ -31,11 +34,11 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -63,7 +66,7 @@ func Test_evaluate(t *testing.T) {
 						"off": nil,
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -87,11 +90,11 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3)),
-						"off": testconvert.Interface(float64(0)),
+						"on":  new(any(float64(3))),
+						"off": new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -115,11 +118,11 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3)),
-						"off": testconvert.Interface(float64(0)),
+						"on":  new(any(float64(3))),
+						"off": new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -143,11 +146,11 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(float64(3.5)),
-						"off": testconvert.Interface(float64(0.3)),
+						"on":  new(any(float64(3.5))),
+						"off": new(any(float64(0.3))),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				},
 				flagKey:         "my-flag",
@@ -170,7 +173,16 @@ func Test_evaluate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := evaluation.Evaluate(tt.args.flag, tt.args.flagKey, tt.args.evaluationCtx, tt.args.flagCtx, tt.args.expectedType, tt.args.sdkDefaultValue)
+			t.Parallel()
+
+			got, err := evaluation.Evaluate(
+				tt.args.flag,
+				tt.args.flagKey,
+				tt.args.evaluationCtx,
+				tt.args.flagCtx,
+				tt.args.expectedType,
+				tt.args.sdkDefaultValue,
+			)
 			tt.errAssertion(t, err)
 			if err == nil {
 				assert.Equal(t, tt.want, got)
@@ -180,17 +192,26 @@ func Test_evaluate(t *testing.T) {
 }
 
 func Test_evaluate_typeMisMatch(t *testing.T) {
+	t.Parallel()
+
 	f := &flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on":  testconvert.Interface(true),
-			"off": testconvert.Interface(false),
+			"on":  new(any(true)),
+			"off": new(any(false)),
 		},
 		DefaultRule: &flag.Rule{
-			VariationResult: testconvert.String("on"),
+			VariationResult: new("on"),
 		},
 	}
-	got, err := evaluation.Evaluate[int](f, "my-flag", ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"), flag.Context{}, "int", 42)
-	assert.Error(t, err)
+	got, err := evaluation.Evaluate[int](
+		f,
+		"my-flag",
+		ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"),
+		flag.Context{},
+		"int",
+		42,
+	)
+	require.Error(t, err)
 	want := model.VariationResult[int]{
 		VariationType: flag.VariationSDKDefault,
 		Failed:        true,

@@ -4,13 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRule_RequiresBucketing(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		rule     flag.Rule
@@ -19,7 +21,7 @@ func TestRule_RequiresBucketing(t *testing.T) {
 		{
 			name: "Should not require bucketing - static variation",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("enabled"),
+				VariationResult: new("enabled"),
 			},
 			expected: false,
 		},
@@ -45,14 +47,14 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("disabled"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now()),
+						Variation:  new("disabled"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow()),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("enabled"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(time.Hour)),
+						Variation:  new("enabled"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(time.Hour)),
 					},
 				},
 			},
@@ -62,6 +64,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.rule.RequiresBucketing()
 			assert.Equal(t, tt.expected, result)
 		})
@@ -69,6 +73,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 }
 
 func TestRule_Evaluate_EmptyKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		rule          flag.Rule
@@ -81,7 +87,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for static variation",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("enabled"),
+				VariationResult: new("enabled"),
 			},
 			key:           "",
 			ctx:           ffcontext.NewEvaluationContext(""),
@@ -120,14 +126,14 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("disabled"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(-time.Hour)),
+						Variation:  new("disabled"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("enabled"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(time.Hour)),
+						Variation:  new("enabled"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(time.Hour)),
 					},
 				},
 			},
@@ -139,13 +145,14 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for query-only rule",
 			rule: flag.Rule{
-				Query:           testconvert.String("anonymous eq true"),
-				VariationResult: testconvert.String("enabled"),
+				Query:           new("anonymous eq true"),
+				VariationResult: new("enabled"),
 			},
 			key: "",
 			ctx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
 				ctx.AddCustomAttribute("anonymous", true)
+
 				return ctx
 			}(),
 			expectedError: false,
@@ -156,7 +163,9 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := tt.rule.Evaluate(tt.key, tt.ctx, "test-flag", false)
+			t.Parallel()
+
+			result, err := tt.rule.Evaluate(tt.key, atFixedNow(tt.ctx), "test-flag", false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

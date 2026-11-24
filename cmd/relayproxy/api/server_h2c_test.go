@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -14,8 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestServerEnableH2C(t *testing.T) {
@@ -37,10 +38,13 @@ func TestServerEnableH2C(t *testing.T) {
 			t.Parallel()
 			port := testutils.GetFreePort(t)
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
+				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
+				Server: config.Server{
+					Mode:      config.ServerModeHTTP,
+					Host:      "127.0.0.1",
+					Port:      port,
+					EnableH2C: tt.enableH2C,
 				},
-				Server: config.Server{Mode: config.ServerModeHTTP, Host: "127.0.0.1", Port: port, EnableH2C: tt.enableH2C},
 			}
 			log := newTestLogger(t)
 			metrics, err := metric.NewMetrics()
@@ -51,7 +55,12 @@ func TestServerEnableH2C(t *testing.T) {
 				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, ws)
 			require.NoError(t, err)
 			s := api.New(conf, service.Services{
-				MonitoringService: service.NewMonitoring(fm), WebsocketService: ws, FlagsetManager: fm, Metrics: metrics,
+				MonitoringService: service.NewMonitoring(
+					fm,
+				),
+				WebsocketService: ws,
+				FlagsetManager:   fm,
+				Metrics:          metrics,
 			}, log.ZapLogger)
 			go func() { s.StartWithContext(context.Background()) }()
 			defer s.Stop(context.Background())
@@ -76,6 +85,7 @@ func TestServerEnableH2C(t *testing.T) {
 					_ = resp.Body.Close()
 				}
 				assert.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)

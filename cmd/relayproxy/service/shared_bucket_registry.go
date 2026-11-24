@@ -2,18 +2,20 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	slogzap "github.com/samber/slog-zap/v2"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 )
 
 // sharedItemsFactory builds the shared group of a bucket.
@@ -24,6 +26,7 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 	if err != nil {
 		return nil, err
 	}
+
 	return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
 		Bucket:    bucket,
 		AwsConfig: &awsConfig,
@@ -62,6 +65,7 @@ func newSharedBucketRegistry(
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+
 	return &sharedBucketRegistry{
 		factory: factory,
 		logger:  logger,
@@ -74,6 +78,7 @@ func newSharedBucketRegistry(
 // pendingKey identifies the retrievers created by preRegister for an item of a bucket.
 func pendingKey(fs *config.FlagSet) string {
 	rc := fs.Retriever
+
 	return fmt.Sprintf("%s\x00%s", rc.Bucket, rc.Item)
 }
 
@@ -88,9 +93,11 @@ func (r *sharedBucketRegistry) retrieverFor(fs *config.FlagSet) (retriever.Retri
 	if p := r.pending[key]; len(p) > 0 {
 		r.pending[key] = p[1:]
 		r.mu.Unlock()
+
 		return p[0], nil
 	}
 	r.mu.Unlock()
+
 	return r.newRetriever(fs)
 }
 
@@ -109,6 +116,7 @@ func (r *sharedBucketRegistry) preRegister(fs *config.FlagSet) error {
 	defer r.mu.Unlock()
 	key := pendingKey(fs)
 	r.pending[key] = append(r.pending[key], rr)
+
 	return nil
 }
 
@@ -143,8 +151,9 @@ func (r *sharedBucketRegistry) releasePending() {
 func checkSharedPollerFlagSet(fs *config.FlagSet) error {
 	rc := fs.Retriever
 	if fs.Retrievers != nil || rc == nil || rc.Kind != retrieverconf.S3Retriever || rc.Item == "" {
-		return fmt.Errorf("enableSharedPollerPerBucket requires a single s3 retriever with item set")
+		return errors.New("enableSharedPollerPerBucket requires a single s3 retriever with item set")
 	}
+
 	return nil
 }
 
@@ -155,6 +164,7 @@ func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 	if g, ok := r.groups[bucket]; ok {
 		g.refs++
 		r.mu.Unlock()
+
 		return g, nil
 	}
 	r.mu.Unlock()
@@ -172,6 +182,7 @@ func (r *sharedBucketRegistry) acquire(bucket string) (*registryGroup, error) {
 		r.groups[bucket] = g
 	}
 	g.refs++
+
 	return g, nil
 }
 
@@ -183,6 +194,7 @@ func (r *sharedBucketRegistry) newRetriever(fs *config.FlagSet) (*releasingRetri
 		return nil, err
 	}
 	r.warnPollingMismatch(fs)
+
 	return &releasingRetriever{
 		SharedItemRetriever: g.items.Retriever(rc.Item),
 		group:               g.items,
@@ -195,6 +207,7 @@ func normalizePollingInterval(interval time.Duration) time.Duration {
 	if interval <= 0 {
 		return s3retrieverv2.DefaultSharedPollingInterval
 	}
+
 	return interval
 }
 
@@ -203,6 +216,7 @@ func (r *sharedBucketRegistry) pollerConfig(bucket string) s3retrieverv2.PollerC
 	cfg := r.polling
 	cfg.Logger = slog.New(slogzap.Option{Level: slog.LevelDebug, Logger: r.logger}.NewZapHandler()).
 		With(slog.String("component", "shared-poller-poller"), slog.String("bucket", bucket))
+
 	return cfg
 }
 
@@ -241,6 +255,7 @@ func (r *sharedBucketRegistry) setPolling(
 	r.mu.Lock()
 	if r.polling.Interval == interval && r.polling.Jitter == jitter {
 		r.mu.Unlock()
+
 		return
 	}
 	r.polling.Interval, r.polling.Jitter = interval, jitter
@@ -285,5 +300,6 @@ func (r *releasingRetriever) SetRefresh(refresh func() bool) {
 func (r *releasingRetriever) Shutdown(ctx context.Context) error {
 	err := r.SharedItemRetriever.Shutdown(ctx)
 	r.releaseOnce.Do(r.release)
+
 	return err
 }

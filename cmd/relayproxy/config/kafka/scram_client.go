@@ -25,6 +25,7 @@ func (x *XDGSCRAMClient) Begin(userName, password, authzID string) error {
 		return err
 	}
 	x.ClientConversation = x.NewConversation()
+
 	return nil
 }
 

@@ -5,13 +5,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestVersion(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -28,14 +32,16 @@ func TestVersion(t *testing.T) {
 	})
 
 	err := handler(c)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.VersionHeaderName))
 	assert.Equal(t, "1.0.0", rec.Header().Get(middleware2.LegacyVersionHeaderName))
-	assert.Equal(t, "1.0.0", rec.Header().Get("X-SEMAPHORE-VERSION"))
-	assert.Equal(t, "1.0.0", rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Equal(t, "1.0.0", rec.Header().Get("X-Semaphore-Version"))
+	assert.Equal(t, "1.0.0", rec.Header().Get("X-Gofeatureflag-Version"))
 }
 
 func TestNoVersion(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -56,7 +62,7 @@ func TestNoVersion(t *testing.T) {
 	})
 
 	err := handler(c)
-	assert.NoError(t, err)
-	assert.Empty(t, rec.Header().Get("X-GOFEATUREFLAG-VERSION"))
-	assert.Empty(t, rec.Header().Get("X-SEMAPHORE-VERSION"))
+	require.NoError(t, err)
+	assert.Empty(t, rec.Header().Get("X-Gofeatureflag-Version"))
+	assert.Empty(t, rec.Header().Get("X-Semaphore-Version"))
 }

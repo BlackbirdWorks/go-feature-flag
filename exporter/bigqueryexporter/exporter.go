@@ -8,10 +8,11 @@ import (
 	"sync"
 
 	"cloud.google.com/go/bigquery"
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -126,6 +127,7 @@ func (e *Exporter) tableName() string {
 	if e.TableName == "" {
 		return defaultTableName
 	}
+
 	return e.TableName
 }
 
@@ -142,11 +144,15 @@ func (e *Exporter) initClient(ctx context.Context) error {
 
 		var opts []option.ClientOption
 		if len(e.GoogleCredentials) > 0 {
-			opts = append(opts, option.WithAuthCredentialsJSON(credentialsType(e.GoogleCredentials), e.GoogleCredentials))
+			opts = append(
+				opts,
+				option.WithAuthCredentialsJSON(credentialsType(e.GoogleCredentials), e.GoogleCredentials),
+			)
 		}
 
 		e.client, e.initErr = newClientFunc(ctx, e.ProjectID, opts...)
 	})
+
 	return e.initErr
 }
 
@@ -182,9 +188,11 @@ func buildRow(event exporter.ExportableEvent) (rowSaver, string, error) {
 	switch evt := event.(type) {
 	case exporter.FeatureEvent:
 		row, err := featureEventRow(evt)
+
 		return row, featureEventType, err
 	case exporter.TrackingEvent:
 		row, err := trackingEventRow(evt)
+
 		return row, trackingEventType, err
 	default:
 		return rowSaver{}, "", nil
@@ -219,14 +227,12 @@ func (e *Exporter) exportRows(
 	ins := e.client.Inserter(e.DatasetID, table)
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
-		end := start + maxRowsPerInsert
-		if end > len(rows) {
-			end = len(rows)
-		}
+		end := min(start+maxRowsPerInsert, len(rows))
 		if err := ins.Put(ctx, rows[start:end]); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -293,6 +299,7 @@ func jsonString(value any) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
 	return string(b), nil
 }
 
@@ -356,6 +363,7 @@ func newBigQueryClient(
 	if err != nil {
 		return nil, err
 	}
+
 	return &realBigQueryClient{client: client}, nil
 }
 
@@ -381,6 +389,7 @@ func (c *realBigQueryClient) EnsureTable(
 	if err != nil && !isAlreadyExists(err) {
 		return err
 	}
+
 	return nil
 }
 
@@ -389,9 +398,9 @@ func (c *realBigQueryClient) Close() error {
 }
 
 func isAlreadyExists(err error) bool {
-	var googleErr *googleapi.Error
-	if errors.As(err, &googleErr) {
+	if googleErr, ok := errors.AsType[*googleapi.Error](err); ok {
 		return googleErr.Code == 409
 	}
+
 	return false
 }

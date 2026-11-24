@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // firstFailsExporter blocks its first Export until release is closed, then fails it; the following
@@ -35,8 +36,10 @@ func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []ex
 		e.mu.Lock()
 		e.firstEnd = time.Now()
 		e.mu.Unlock()
+
 		return assert.AnError
 	}
+
 	return nil
 }
 
@@ -65,7 +68,7 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			select {
 			case <-exp.started:
 			case <-time.After(time.Minute):
-				t.Fatal("the export did not start")
+				require.Fail(t, "the export did not start")
 			}
 			// the export is blocked: the next batch asks for another flush
 			am.QueueEvents(make([]exporter.FeatureEvent, tt.queued))
@@ -79,8 +82,10 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 				defer exp.mu.Unlock()
 				if len(exp.starts) >= 2 {
 					second = exp.starts[1]
+
 					return true
 				}
+
 				return false
 			}, time.Minute, 10*time.Millisecond)
 

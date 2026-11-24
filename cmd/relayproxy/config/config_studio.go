@@ -4,10 +4,11 @@ import (
 	"strings"
 	"time"
 
-	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/knadh/koanf/providers/confmap"
 	"github.com/knadh/koanf/v2"
 	"go.uber.org/zap"
+
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 )
 
 // Studio holds the configuration to load the flagSets from Semaphore Studio.
@@ -32,6 +33,7 @@ type Studio struct {
 // parser returns the parser matching the extension of the URL path.
 func (s Studio) parser() koanf.Parser {
 	path, _, _ := strings.Cut(s.URL, "?") // pre-signed URLs have a query string after the extension
+
 	return selectParserForFile(path)
 }
 
@@ -67,5 +69,6 @@ func validateStudioFlagSets(content []byte, parser koanf.Parser) error {
 	if err := k.Unmarshal("", &studioConf); err != nil {
 		return err
 	}
+
 	return (&Config{FlagSets: studioConf.FlagSets}).validateFlagSets()
 }

@@ -6,15 +6,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		xAPIKey        string
@@ -167,6 +171,8 @@ func TestAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a new Echo context
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -193,6 +199,8 @@ func TestAPIKey(t *testing.T) {
 }
 
 func TestFlagSet(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		flagsetManager service.FlagsetManager
@@ -215,10 +223,12 @@ func TestFlagSet(t *testing.T) {
 			wantMsg:        "error while getting flagset: flagset not found for API key",
 		},
 		{
-			name:           "successful flagset retrieval should return flagset",
-			flagsetManager: &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}}},
-			apiKey:         "valid-api-key",
-			wantError:      false,
+			name: "successful flagset retrieval should return flagset",
+			flagsetManager: &mock.MockFlagsetManager{
+				FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}},
+			},
+			apiKey:    "valid-api-key",
+			wantError: false,
 		},
 		{
 			name:           "empty api key with error should return bad request error",
@@ -231,9 +241,11 @@ func TestFlagSet(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagset, err := helper.FlagSet(tt.flagsetManager, tt.apiKey)
 			if tt.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, flagset)
 				if tt.wantMsg != "" {
 					assert.Contains(t, err.Message, tt.wantMsg)
@@ -250,16 +262,24 @@ func TestFlagSet(t *testing.T) {
 }
 
 func TestFlagSetIntegration(t *testing.T) {
+	t.Parallel()
+
 	t.Run("should handle specific error messages correctly", func(t *testing.T) {
+		t.Parallel()
+
 		mockManager := &mock.MockFlagsetManager{GetFlagSetsErr: errors.New("test error")}
 		flagset, err := helper.FlagSet(mockManager, "test-key")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Nil(t, flagset)
 		assert.Contains(t, err.Message, "error while getting flagset:")
 	})
 
 	t.Run("should return flagset when manager returns valid flagset", func(t *testing.T) {
-		mockManager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}}}
+		t.Parallel()
+
+		mockManager := &mock.MockFlagsetManager{
+			FlagSets: map[string]*ffclient.GoFeatureFlag{"valid-key": &ffclient.GoFeatureFlag{}},
+		}
 		flagset, err := helper.FlagSet(mockManager, "valid-key")
 		if err != nil || flagset == nil {
 			t.Logf("DEBUG: err=%v, flagset=%v", err, flagset)
@@ -270,6 +290,8 @@ func TestFlagSetIntegration(t *testing.T) {
 }
 
 func TestFlagKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		path string
@@ -284,10 +306,13 @@ func TestFlagKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var got string
 			e := echo.New()
 			e.POST("/flags/:flagKey", func(c *echo.Context) error {
 				got = helper.FlagKey(c)
+
 				return c.NoContent(http.StatusOK)
 			})
 			rec := httptest.NewRecorder()
@@ -298,6 +323,8 @@ func TestFlagKey(t *testing.T) {
 	}
 
 	t.Run("malformed escape returns the raw value", func(t *testing.T) {
+		t.Parallel()
+
 		// net/http rejects malformed escapes before routing, so build the context by hand.
 		req := httptest.NewRequest(http.MethodPost, "/flags/x", nil)
 		req.URL.RawPath = "/flags/a%zz"

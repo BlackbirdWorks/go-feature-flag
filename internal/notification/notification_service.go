@@ -4,10 +4,11 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/google/go-cmp/cmp"
 )
 
 var _ Service = (*notificationService)(nil)
@@ -67,6 +68,7 @@ func (c *notificationService) getDifferences(
 		oldFlag := oldCache[key]
 		if !inNewCache {
 			diff.Deleted[key] = oldFlag
+
 			continue
 		}
 
@@ -84,5 +86,6 @@ func (c *notificationService) getDifferences(
 			diff.Added[key] = f
 		}
 	}
+
 	return diff
 }

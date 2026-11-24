@@ -2,6 +2,7 @@ package k8sretriever
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,13 +28,13 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if s.client == nil {
 		client, clientErr := kubeClientProvider(&s.ClientConfig)
 		if clientErr != nil {
-			return nil, fmt.Errorf("unable to create client, error: %s", clientErr)
+			return nil, fmt.Errorf("unable to create client, error: %w", clientErr)
 		}
 		s.client = client
 	}
 
 	if s.client == nil {
-		return nil, fmt.Errorf("k8s client is nil after initialization")
+		return nil, errors.New("k8s client is nil after initialization")
 	}
 
 	configMap, err := s.client.CoreV1().
@@ -41,7 +42,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		Get(ctx, s.ConfigMapName, v1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf(
-			"unable to read from config map %s.%s, error: %s", s.ConfigMapName, s.Namespace, err,
+			"unable to read from config map %s.%s, error: %w", s.ConfigMapName, s.Namespace, err,
 		)
 	}
 	content, ok := configMap.Data[s.Key]
@@ -53,5 +54,6 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			s.Namespace,
 		)
 	}
+
 	return []byte(content), nil
 }

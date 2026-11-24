@@ -4,8 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func TestInternalFlag_DeepCopy(t *testing.T) {
@@ -22,13 +23,24 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 		{name: "map of any", value: func() any { return map[string]any{"a": []any{1}} }, mutate: func(v any) {
 			v.(map[string]any)["a"].([]any)[0] = 2
 		}},
-		{name: "typed slice", value: func() any { return []string{"a"} }, mutate: func(v any) { v.([]string)[0] = "b" }},
-		{name: "typed map", value: func() any { return map[string]string{"a": "a"} }, mutate: func(v any) { v.(map[string]string)["a"] = "b" }},
+		{
+			name:   "typed slice",
+			value:  func() any { return []string{"a"} },
+			mutate: func(v any) { v.([]string)[0] = "b" },
+		},
+		{
+			name:   "typed map",
+			value:  func() any { return map[string]string{"a": "a"} },
+			mutate: func(v any) { v.(map[string]string)["a"] = "b" },
+		},
 		{name: "typed map of slices", value: func() any { return map[string][]int{"a": {1}} }, mutate: func(v any) {
 			v.(map[string][]int)["a"][0] = 2
 		}},
-		{name: "nil map and slice", value: func() any { return map[string]any{"m": map[string]string(nil), "s": []int(nil), "n": nil} },
-			mutate: func(any) {}},
+		{
+			name:   "nil map and slice",
+			value:  func() any { return map[string]any{"m": map[string]string(nil), "s": []int(nil), "n": nil} },
+			mutate: func(any) {},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,6 +72,7 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	build := func() *flag.InternalFlag {
 		step := &flag.ProgressiveRolloutStep{Variation: str("A"), Percentage: flt(1), Date: &date}
 		d := date
+
 		return &flag.InternalFlag{
 			BucketingKey: str("k"), TrackEvents: boolean(true), Disable: boolean(false), Version: str("1"),
 			Rules: &[]flag.Rule{{
@@ -70,8 +83,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 			DefaultRule:     &flag.Rule{Percentages: &map[string]float64{"A": 1}},
 			Experimentation: &flag.ExperimentationRollout{Start: &d, End: &d},
 			Scheduled: &[]flag.ScheduledStep{{
-				InternalFlag: flag.InternalFlag{Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}}},
-				Date:         &d,
+				Version: str("2"), Metadata: &map[string]any{"a": []any{"b"}},
+				Date: &d,
 			}},
 		}
 	}

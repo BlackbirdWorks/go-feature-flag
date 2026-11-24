@@ -5,12 +5,15 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.Context
@@ -29,18 +32,27 @@ func TestQueryContext_MapOnce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: tt.ctx}
 
 			first := queryCtx.mapOnce()
 			second := queryCtx.mapOnce()
 
 			assert.Equal(t, tt.want, first)
-			assert.Equal(t, reflect.ValueOf(first).Pointer(), reflect.ValueOf(second).Pointer(), "the map must be built once")
+			assert.Equal(
+				t,
+				reflect.ValueOf(first).Pointer(),
+				reflect.ValueOf(second).Pointer(),
+				"the map must be built once",
+			)
 		})
 	}
 }
 
 func TestQueryContext_JSONOnce(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.Context
@@ -59,12 +71,14 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: tt.ctx}
 
 			first, err := queryCtx.jsonOnce()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			second, err := queryCtx.jsonOnce()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.JSONEq(t, tt.want, string(first))
 			assert.Same(t, &first[0], &second[0], "the JSON must be marshalled once")
@@ -73,17 +87,21 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 }
 
 func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
+	t.Parallel()
+
 	queryCtx := &queryContext{
 		ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("unsupported", make(chan int)).Build(),
 	}
 
 	_, err := queryCtx.jsonOnce()
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, queryCtx.parsedEvalCtxAsBytes)
 }
 
 func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value any
@@ -93,6 +111,8 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{
 				ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("bad", tt.value).Build(),
 			}
@@ -100,7 +120,7 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			_, err := queryCtx.dataOnce()
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, queryCtx.parsedEvalCtxAsData)
 			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "first rule")
 			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "later rules must not see partial data")
@@ -109,6 +129,8 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 }
 
 func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		rule       Rule
@@ -117,12 +139,12 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 	}{
 		{
 			name:       "rule with a query",
-			rule:       Rule{Query: testconvert.String(`key eq "user-1"`), VariationResult: testconvert.String("A")},
+			rule:       Rule{Query: new(`key eq "user-1"`), VariationResult: new("A")},
 			wantMapped: true,
 		},
 		{
 			name: "rule without a query",
-			rule: Rule{VariationResult: testconvert.String("A")},
+			rule: Rule{VariationResult: new("A")},
 		},
 		{
 			name: "percentage rollout without a query",
@@ -130,36 +152,40 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 		},
 		{
 			name:      "default rule with a query",
-			rule:      Rule{Query: testconvert.String(`key eq "user-1"`), VariationResult: testconvert.String("A")},
+			rule:      Rule{Query: new(`key eq "user-1"`), VariationResult: new("A")},
 			isDefault: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			queryCtx := &queryContext{ctx: ffcontext.NewEvaluationContext("user-1")}
 
 			_, err := tt.rule.evaluate("user-1", queryCtx, "my-flag", tt.isDefault)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.wantMapped, queryCtx.parsedEvalCtxAsMap != nil)
 		})
 	}
 }
 
 func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) {
+	t.Parallel()
+
 	f := InternalFlag{
 		Variations: &map[string]*any{
-			"nikunjy":     testconvert.Interface("nikunjy"),
-			"jsonlogic":   testconvert.Interface("jsonlogic"),
-			"jsonlogic-2": testconvert.Interface("jsonlogic-2"),
-			"default":     testconvert.Interface("default"),
+			"nikunjy":     new(any("nikunjy")),
+			"jsonlogic":   new(any("jsonlogic")),
+			"jsonlogic-2": new(any("jsonlogic-2")),
+			"default":     new(any("default")),
 		},
 		Rules: &[]Rule{
-			{Query: testconvert.String(`plan eq "free"`), VariationResult: testconvert.String("nikunjy")},
-			{Query: testconvert.String(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: testconvert.String("jsonlogic")},
-			{Query: testconvert.String(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: testconvert.String("jsonlogic-2")},
+			{Query: new(`plan eq "free"`), VariationResult: new("nikunjy")},
+			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new("jsonlogic")},
+			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new("jsonlogic-2")},
 		},
-		DefaultRule: &Rule{VariationResult: testconvert.String("default")},
+		DefaultRule: &Rule{VariationResult: new("default")},
 	}
 	tests := []struct {
 		name string
@@ -173,6 +199,8 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
 
 			value, details := f.Value("mixed-formats", ctx, Context{DefaultSdkValue: "sdk-default"})

@@ -3,7 +3,7 @@ package config
 import "fmt"
 
 type NotifierConf struct {
-	Kind NotifierKind `mapstructure:"kind"            koanf:"kind"`
+	Kind NotifierKind `mapstructure:"kind" koanf:"kind"`
 	// Deprecated: Use WebhookURL instead
 	SlackWebhookURL string              `mapstructure:"slackWebhookUrl" koanf:"slackwebhookurl"`
 	EndpointURL     string              `mapstructure:"endpointUrl"     koanf:"endpointurl"`
@@ -41,6 +41,7 @@ func (c *NotifierConf) IsValid() error {
 			c.Kind,
 		)
 	}
+
 	return nil
 }
 
@@ -53,11 +54,12 @@ const (
 	DiscordNotifier        NotifierKind = "discord"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r NotifierKind) IsValid() error {
 	switch r {
 	case SlackNotifier, WebhookNotifier, DiscordNotifier, MicrosoftTeamsNotifier:
 		return nil
 	}
+
 	return fmt.Errorf("invalid notifier: kind \"%s\" is not supported", r)
 }

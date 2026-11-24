@@ -3,10 +3,10 @@ package flag
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 // The map given to the query engines is recycled between evaluations: an attribute of an
@@ -15,11 +15,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 	t.Parallel()
 	f := &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"),
-			"B": testconvert.Interface("b"),
+			"A": new(any("a")),
+			"B": new(any("b")),
 		},
-		Rules:       &[]Rule{{Query: testconvert.String(`secret eq "x"`), VariationResult: testconvert.String("A")}},
-		DefaultRule: &Rule{VariationResult: testconvert.String("B")},
+		Rules:       &[]Rule{{Query: new(`secret eq "x"`), VariationResult: new("A")}},
+		DefaultRule: &Rule{VariationResult: new("B")},
 	}
 	require.NoError(t, f.IsValid())
 
@@ -40,7 +40,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 			t.Parallel()
 			runParallel(300, func(int) {
 				// interleave with a matching context to recycle a map holding the attribute
-				_, _ = f.Value("flag", ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(), Context{})
+				_, _ = f.Value(
+					"flag",
+					ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(),
+					Context{},
+				)
 				v, _ := f.Value("flag", tt.ctx, Context{})
 				assert.Equal(t, tt.want, v)
 			})

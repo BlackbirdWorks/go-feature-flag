@@ -16,6 +16,13 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/xitongsys/parquet-go/parquet"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/proxy"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -40,15 +47,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/xitongsys/parquet-go/parquet"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/net/proxy"
 )
 
 func Test_initRetrieversWithRegistry(t *testing.T) {
+	t.Parallel()
+
 	sharedValid := s3FlagSet("a", "b1", "p/a.yaml")
 	sharedFolder := s3FlagSet("a", "b1", "")
 	tests := []struct {
@@ -143,10 +146,10 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			proxyConf := config.FlagSet{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: tt.retrievers,
-				},
+				Retrievers: tt.retrievers,
 			}
 			if tt.shared != nil {
 				proxyConf = *tt.shared
@@ -182,6 +185,8 @@ func shutdownReleasing(t *testing.T, r []retriever.Retriever) {
 }
 
 func Test_initExporters(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		exporters *[]config.ExporterConf
@@ -248,10 +253,10 @@ func Test_initExporters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			proxyConf := config.FlagSet{
-				CommonFlagSet: config.CommonFlagSet{
-					Exporters: tt.exporters,
-				},
+				Exporters: tt.exporters,
 			}
 			r, err := initDataExporters(&proxyConf)
 			tt.wantErr(t, err)
@@ -270,6 +275,8 @@ func Test_initExporters(t *testing.T) {
 }
 
 func Test_initExporter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		conf                   *config.ExporterConf
@@ -516,6 +523,8 @@ func Test_initExporter(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := initDataExporter(tt.conf)
 			tt.wantErr(t, err)
 			assert.IsType(t, tt.wantType, got.Exporter)
@@ -527,6 +536,8 @@ func Test_initExporter(t *testing.T) {
 }
 
 func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
+	t.Parallel()
+
 	credentials := `{"type":"service_account","project_id":"fake-project-id"}`
 
 	got, err := initDataExporter(&config.ExporterConf{
@@ -539,7 +550,7 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 		ExporterEventType: ffclient.TrackingEventExporter,
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, ffclient.TrackingEventExporter, got.ExporterEventType)
 	bigQueryExporter, ok := got.Exporter.(*bigqueryexporter.Exporter)
 	assert.True(t, ok)
@@ -551,6 +562,8 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 }
 
 func Test_initExporter_Redshift(t *testing.T) {
+	t.Parallel()
+
 	got, err := initDataExporter(&config.ExporterConf{
 		Kind:              config.RedshiftExporter,
 		WorkgroupName:     "my-workgroup",
@@ -576,6 +589,8 @@ func Test_initExporter_Redshift(t *testing.T) {
 }
 
 func Test_initNotifier(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		c []config.NotifierConf
 	}
@@ -618,6 +633,8 @@ func Test_initNotifier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := initNotifier(tt.args.c)
 			if !tt.wantErr(t, err, fmt.Sprintf("initNotifier(%v)", tt.args.c)) {
 				return
@@ -628,6 +645,8 @@ func Test_initNotifier(t *testing.T) {
 }
 
 func TestNewGoFeatureFlagClient_ProxyConfNil(t *testing.T) {
+	t.Parallel()
+
 	// Create a logger for testing
 	logger := zap.NewNop()
 
@@ -645,9 +664,13 @@ func TestNewGoFeatureFlagClient_ProxyConfNil(t *testing.T) {
 }
 
 func TestSetKafkaConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run(
 		"should have a SCRAMClientGeneratorFunc if SCRAM is enabled and use SCRAM-SHA-512 mechanism",
 		func(t *testing.T) {
+			t.Parallel()
+
 			settings := kafkaexporter.Settings{
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
@@ -697,7 +720,7 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
@@ -706,6 +729,8 @@ func TestSetKafkaConfig(t *testing.T) {
 	t.Run(
 		"should have a SCRAMClientGeneratorFunc if SCRAM is enabled and use SCRAM-SHA-256 mechanism",
 		func(t *testing.T) {
+			t.Parallel()
+
 			settings := kafkaexporter.Settings{
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
@@ -755,7 +780,7 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			assert.NotNil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
@@ -764,6 +789,8 @@ func TestSetKafkaConfig(t *testing.T) {
 	t.Run(
 		"should not have a SCRAMClientGeneratorFunc if SCRAM is enabled and use an unknown mechanism",
 		func(t *testing.T) {
+			t.Parallel()
+
 			settings := kafkaexporter.Settings{
 				Topic:     "my-kafka-topic",
 				Addresses: []string{"addr1", "addr2"},
@@ -813,12 +840,14 @@ func TestSetKafkaConfig(t *testing.T) {
 				},
 			}
 			kafkaConfig, err := setKafkaConfig(settings)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Nil(t, kafkaConfig.Net.SASL.SCRAMClientGeneratorFunc)
 		},
 	)
 
 	t.Run("should return a valid sarama.Config if settings are nil", func(t *testing.T) {
+		t.Parallel()
+
 		settings := kafkaexporter.Settings{
 			Topic:     "my-kafka-topic",
 			Addresses: []string{"addr1", "addr2"},
@@ -827,7 +856,7 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		// We expect am error because the settings are nil
-		assert.Error(t, settings.Config.Validate())
+		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
 		assert.NoError(t, err)
@@ -838,6 +867,8 @@ func TestSetKafkaConfig(t *testing.T) {
 
 	t.Run("should return a valid sarama.Config with specific settings set and value should be"+
 		" merged with default kafka config", func(t *testing.T) {
+		t.Parallel()
+
 		settings := kafkaexporter.Settings{
 			Topic:     "my-kafka-topic",
 			Addresses: []string{"addr1", "addr2"},
@@ -887,29 +918,33 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		// We expect am error because the settings are nil
-		assert.Error(t, settings.Config.Validate())
+		require.Error(t, settings.Config.Validate())
 
 		kafkaConfig, err := setKafkaConfig(settings)
 		assert.NoError(t, err)
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
 		assert.NoError(t, kafkaConfig.Config.Validate())
-		assert.Equal(t, true, settings.Config.Net.SASL.Enable)
+		assert.True(t, settings.Config.Net.SASL.Enable)
 		assert.Equal(t, "TODO", settings.Config.Net.SASL.User)
 		assert.Equal(t, "TODO", settings.Config.Net.SASL.Password)
 	})
 
 	t.Run("should return a nil config", func(t *testing.T) {
+		t.Parallel()
+
 		settings := kafkaexporter.Settings{
 			Topic:     "my-kafka-topic",
 			Addresses: []string{"addr1", "addr2"},
 		}
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Nil(t, kafkaConfig.Config)
 	})
 
 	t.Run("should return a config usable by a sync producer if a custom config is set", func(t *testing.T) {
+		t.Parallel()
+
 		settings := kafkaexporter.Settings{
 			Topic:     "my-kafka-topic",
 			Addresses: []string{"addr1", "addr2"},
@@ -918,7 +953,7 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 		}
 		kafkaConfig, err := setKafkaConfig(settings)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// the kafka exporter is using a sarama.SyncProducer, and it refuses to start if one of those is false.
 		assert.True(t, kafkaConfig.Producer.Return.Errors)
@@ -927,7 +962,11 @@ func TestSetKafkaConfig(t *testing.T) {
 }
 
 func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
+	t.Parallel()
+
 	t.Run("verify flagset attribute logic", func(t *testing.T) {
+		t.Parallel()
+
 		// Test the logic directly by checking the conditions
 		tests := []struct {
 			name          string
@@ -958,6 +997,8 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
 				flagset := &config.FlagSet{
 					Name: tt.flagsetName,
 				}
@@ -987,7 +1028,12 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 					assert.Contains(t, logOutput, `"flagset"`, "log output should contain flagset attribute")
 					assert.Contains(t, logOutput, tt.flagsetName, "log output should contain the flagset name")
 				} else {
-					assert.NotContains(t, logOutput, `"flagset"`, "log output should not contain flagset attribute for default flagset")
+					assert.NotContains(
+						t,
+						logOutput,
+						`"flagset"`,
+						"log output should not contain flagset attribute for default flagset",
+					)
 				}
 			})
 		}
@@ -1060,6 +1106,8 @@ func Test_firstSharedRetriever(t *testing.T) {
 }
 
 // Not parallel: the test uses t.Setenv.
+//
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	// no S3 is reachable: the point is that the flagset gets a private registry and releases it
 	t.Setenv("AWS_REGION", "us-east-1")
@@ -1087,12 +1135,17 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 		{name: "unset everywhere lets the engine use its default", want: 0},
 		{name: "flagset value", flagset: 5 * time.Second, want: 5 * time.Second},
 		{name: "top-level fallback", fallback: 30 * time.Second, want: 30 * time.Second},
-		{name: "flagset overrides the fallback", flagset: 5 * time.Second, fallback: 30 * time.Second, want: 5 * time.Second},
+		{
+			name:     "flagset overrides the fallback",
+			flagset:  5 * time.Second,
+			fallback: 30 * time.Second,
+			want:     5 * time.Second,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fs := &config.FlagSet{CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.flagset}}
+			fs := &config.FlagSet{ExporterCleanQueueInterval: tt.flagset}
 			var o clientOptions
 			withDefaultExporterCleanQueueInterval(tt.fallback)(&o)
 			assert.Equal(t, tt.want, exporterCleanQueueInterval(fs, &o))
@@ -1116,13 +1169,14 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fs := &config.FlagSet{Name: "fs", CommonFlagSet: config.CommonFlagSet{
-				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}}
+			fs := &config.FlagSet{Name: "fs",
+				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}
 			var got time.Duration
 			client, err := newGoFeatureFlagClient(fs, zap.NewNop(), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),
 				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					got = c.ExporterCleanQueueInterval
+
 					return ffclient.New(c)
 				}))
 			require.NoError(t, err)

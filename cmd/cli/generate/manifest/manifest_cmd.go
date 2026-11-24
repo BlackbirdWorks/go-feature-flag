@@ -4,13 +4,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	manifestFlagFormat      string
-	manifestConfigFile      string
-	flagManifestDestination string
-)
-
 func NewManifestCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var (
+		manifestFlagFormat      string
+		manifestConfigFile      string
+		flagManifestDestination string
+	)
+
 	manifestCmd := &cobra.Command{
 		Use:   "manifest",
 		Short: "📄 (experimental) Generate an OpenFeature flag manifest based on your flags configuration.",
@@ -25,9 +26,11 @@ func NewManifestCmd() *cobra.Command {
 			output, err := m.Generate()
 			if err != nil {
 				cmd.SilenceUsage = true
+
 				return err
 			}
 			output.PrintLines(cmd)
+
 			return nil
 		},
 		SilenceUsage:  true,
@@ -41,5 +44,6 @@ func NewManifestCmd() *cobra.Command {
 		"flag_manifest_destination", "", "Destination of your flag manifest file. "+
 			"If not provided, the manifest will be printed to the console.")
 	_ = manifestCmd.MarkFlagRequired("flag_manifest_destination")
+
 	return manifestCmd
 }

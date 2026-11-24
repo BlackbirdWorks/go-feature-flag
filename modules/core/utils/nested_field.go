@@ -27,5 +27,6 @@ func GetNestedFieldValue(ctx map[string]any, bucketingKey string) (any, error) {
 			return nil, &internalerror.NestedKeyNotFoundError{Key: bucketingKey}
 		}
 	}
+
 	return current, nil
 }

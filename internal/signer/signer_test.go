@@ -3,11 +3,14 @@ package signer_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/internal/signer"
 )
 
 func TestSign(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		payloadBody []byte
 		secretToken []byte
@@ -28,6 +31,8 @@ func TestSign(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := signer.Sign(tt.args.payloadBody, tt.args.secretToken)
 			assert.Equal(t, tt.want, got)
 		})

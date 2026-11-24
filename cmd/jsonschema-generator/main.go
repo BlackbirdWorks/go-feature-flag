@@ -7,9 +7,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/invopop/jsonschema"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/blackbirdworks/semaphore/model/dto"
 )
 
 func main() {
@@ -38,18 +39,19 @@ func main() {
 		log.Fatal("impossible to prettify jsonschema", err)
 	}
 
-	fmt.Println("Writing jsonschema to", opts.SchemaLocation)
+	fmt.Println("Writing jsonschema to", opts.SchemaLocation) //nolint:forbidigo // command line output
 	err = os.WriteFile(opts.SchemaLocation, prettyJSONSchema, 0600)
 	if err != nil {
 		log.Fatalf("impossible to write jsonschema file to %s: %s", opts.SchemaLocation, err)
 	}
 }
 
-// PrettyString will prettify the JSON string
+// PrettyString will prettify the JSON string.
 func PrettyString(str string) ([]byte, error) {
 	var prettyJSON bytes.Buffer
 	if err := json.Indent(&prettyJSON, []byte(str), "", "    "); err != nil {
 		return []byte(""), err
 	}
+
 	return prettyJSON.Bytes(), nil
 }

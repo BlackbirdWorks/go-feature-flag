@@ -12,16 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSSEService_BroadcastAndReceive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		subscribeFlagset string
@@ -37,9 +39,9 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
 			},
@@ -60,6 +62,8 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -81,7 +85,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 				}
 			})
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -89,7 +93,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			select {
 			case <-subscribed:
 			case <-ctx.Done():
-				t.Fatal("timed out waiting for SSE client to subscribe")
+				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
 			before := time.Now()
 			require.NoError(t, sseService.BroadcastFlagChanges(tt.broadcastFlagset, tt.diff))
@@ -133,11 +137,15 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 }
 
 func TestSSEService_Close(t *testing.T) {
+	t.Parallel()
+
 	sseService := stream.NewSSEService()
 	sseService.Close()
 }
 
 func TestSSEService_Comments(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		query             string
@@ -182,6 +190,8 @@ func TestSSEService_Comments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// The body is read until this timeout, it leaves time for several heartbeats.
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
@@ -192,7 +202,7 @@ func TestSSEService_Comments(t *testing.T) {
 			defer srv.Close()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, tt.wantStatus, resp.StatusCode)
@@ -237,5 +247,6 @@ func countLine(lines []string, want string) int {
 			count++
 		}
 	}
+
 	return count
 }

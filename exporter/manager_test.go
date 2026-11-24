@@ -10,18 +10,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thejerf/slogassert"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/thejerf/slogassert"
 )
 
 func TestDataExporterManager_flushWithTime(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -41,6 +44,8 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    10 * time.Millisecond,
@@ -85,6 +90,8 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 }
 
 func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -104,6 +111,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    10 * time.Millisecond,
@@ -121,7 +130,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 
 			// Initialize inputEvents slice
 			var inputEvents []exporter.FeatureEvent
-			for i := 0; i <= 100; i++ {
+			for range 101 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
 						AddCustom("anonymous", true).
@@ -146,6 +155,8 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 }
 
 func TestDataExporterManager_defaultFlush(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		mockExporter mock.ExporterMock
@@ -166,6 +177,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			dataExporterMock := []exporter.Config{
 				{
 					FlushInterval:    0,
@@ -180,7 +193,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 
 			// Initialize inputEvents slice
 			var inputEvents []exporter.FeatureEvent
-			for i := 0; i <= 100000; i++ {
+			for range 100001 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 					ffcontext.NewEvaluationContextBuilder("ABCD").
 						AddCustom("anonymous", true).
@@ -205,6 +218,8 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 }
 
 func TestDataExporterManager_exporterReturnError(t *testing.T) {
+	t.Parallel()
+
 	mockExporter := mock.Exporter{Err: errors.New("random err"), ExpectedNumberErr: 1, Bulk: true}
 	dataExporterMock := []exporter.Config{
 		{
@@ -213,7 +228,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 			Exporter:         &mockExporter,
 		},
 	}
-	file, _ := os.CreateTemp("", "log")
+	file, _ := os.CreateTemp(t.TempDir(), "log")
 	defer func() { _ = file.Close() }()
 	defer func() { _ = os.Remove(file.Name()) }()
 	handler := slogassert.New(t, slog.LevelInfo, nil)
@@ -225,7 +240,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i <= 200; i++ {
+	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -241,6 +256,8 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 }
 
 func TestDataExporterManager_nonBulkExporter(t *testing.T) {
+	t.Parallel()
+
 	mockExporter := mock.Exporter{Bulk: false}
 	dataExporterMock := []exporter.Config{
 		{
@@ -255,7 +272,7 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -272,6 +289,8 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 }
 
 func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.EvaluationContext
@@ -305,6 +324,8 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockExporter := &mock.Exporter{}
 			config := ffclient.Config{
 				Retriever: &fileretriever.Retriever{Path: "../testdata/flag-config.yaml"},
@@ -318,7 +339,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			defer goff.Close()
 
 			_, err = goff.BoolVariation("test-flag", tt.ctx, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// The event is collected in a goroutine and exported by the flush ticker, so we
 			// can't rely on a fixed sleep: a loaded CI runner can stall past the tick.
@@ -330,6 +351,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			switch val := mockExporter.GetExportedEvents()[0].(type) {
 			case exporter.FeatureEvent:
 				assert.Equal(t, tt.want, val.Metadata)
+
 				break
 			default:
 				assert.Fail(t, "The exported event is not a FeatureEvent")
@@ -339,6 +361,8 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 }
 
 func TestDataExporterManager_multipleExporters(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
@@ -364,7 +388,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -378,12 +402,14 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	}
 
 	assert.Equal(t, want[:100], mockExporter1.GetExportedEvents())
-	assert.Equal(t, 0, len(mockExporter2.GetExportedEvents()))
+	assert.Empty(t, mockExporter2.GetExportedEvents())
 	time.Sleep(250 * time.Millisecond)
 	assert.Equal(t, want[:100], mockExporter2.GetExportedEvents())
 }
 
 func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testing.T) {
+	t.Parallel()
+
 	if runtime.GOOS == "windows" {
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
@@ -409,7 +435,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 
 	// Initialize inputEvents slice
 	var inputEvents []exporter.FeatureEvent
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
@@ -422,16 +448,17 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 		}
 	}(dc)
 
-	assert.Equal(t, 0, len(mockExporter2.GetExportedEvents()))
-	assert.Equal(t, 0, len(mockExporter1.GetExportedEvents()))
+	assert.Empty(t, mockExporter2.GetExportedEvents())
+	assert.Empty(t, mockExporter1.GetExportedEvents())
 	time.Sleep(70 * time.Millisecond)
-	assert.True(t, len(mockExporter1.GetExportedEvents()) > 0)
-	assert.True(t, len(mockExporter2.GetExportedEvents()) == 0)
+	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
+	assert.Empty(t, mockExporter2.GetExportedEvents())
 	time.Sleep(200 * time.Millisecond)
-	assert.True(t, len(mockExporter1.GetExportedEvents()) > 0)
-	assert.True(t, len(mockExporter2.GetExportedEvents()) > 0)
+	assert.NotEmpty(t, mockExporter1.GetExportedEvents())
+	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
 }
 
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 	// We are running the same test multiple times to have more chance to have a race condition.
 	for i := 1; i < 20; i++ {
@@ -482,7 +509,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			_, _ = ffclient.BoolVariation("test-flag", user1, false)
 			_, _ = ffclient.BoolVariation("test-flag", user2, false)
 			ffclient.Close() // a flush is triggered here
-			assert.Equal(t, 6, len(mockExporter.GetExportedEvents()))
+			assert.Len(t, mockExporter.GetExportedEvents(), 6)
 		})
 	}
 }
@@ -492,6 +519,8 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // releases every goroutine it started, including the event store cleaner. Forgetting the store
 // leaks one goroutine and the events it retains per client, which is unbounded for the relay
 // proxy since it builds a client per flagset on every hot reload.
+//
+//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
 func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 	const nbManagers = 50
 	goroutinesBefore := runtime.NumGoroutine()

@@ -9,12 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
 const (
@@ -49,6 +50,7 @@ func validateOutcomeCounts(t *testing.T, m metric.Metrics) map[string]float64 {
 			counts[mm.GetLabel()[0].GetValue()] = mm.GetCounter().GetValue()
 		}
 	}
+
 	return counts
 }
 
@@ -82,6 +84,7 @@ func assertValidateResult(
 		if wantStatus == http.StatusRequestEntityTooLarge {
 			assert.Contains(t, httpErr.Message, "request body too large (max ")
 		}
+
 		return
 	}
 	require.NoError(t, err)
@@ -119,13 +122,55 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		wantValid  bool
 		wantErrors []controller.FlagValidationError
 	}{
-		{name: "valid json", contentType: "application/json", body: validJSON, wantStatus: http.StatusOK, wantValid: true},
-		{name: "valid json with charset", contentType: "application/json; charset=utf-8", body: validJSON, wantStatus: http.StatusOK, wantValid: true},
-		{name: "valid yaml", contentType: "application/yaml", body: validYAML, wantStatus: http.StatusOK, wantValid: true},
-		{name: "valid x-yaml", contentType: "application/x-yaml", body: validYAML, wantStatus: http.StatusOK, wantValid: true},
-		{name: "valid text yaml", contentType: "text/yaml", body: validYAML, wantStatus: http.StatusOK, wantValid: true},
-		{name: "valid toml", contentType: "application/toml", body: validTOML, wantStatus: http.StatusOK, wantValid: true},
-		{name: "empty yaml body", contentType: "application/yaml", body: "", wantStatus: http.StatusOK, wantValid: true},
+		{
+			name:        "valid json",
+			contentType: "application/json",
+			body:        validJSON,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "valid json with charset",
+			contentType: "application/json; charset=utf-8",
+			body:        validJSON,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "valid yaml",
+			contentType: "application/yaml",
+			body:        validYAML,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "valid x-yaml",
+			contentType: "application/x-yaml",
+			body:        validYAML,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "valid text yaml",
+			contentType: "text/yaml",
+			body:        validYAML,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "valid toml",
+			contentType: "application/toml",
+			body:        validTOML,
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
+		{
+			name:        "empty yaml body",
+			contentType: "application/yaml",
+			body:        "",
+			wantStatus:  http.StatusOK,
+			wantValid:   true,
+		},
 		{
 			name: "invalid flags sorted by key", contentType: "application/json", body: invalidJSON,
 			wantStatus: http.StatusUnprocessableEntity,
@@ -144,21 +189,51 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 				Message: "internal validation error: flag definition could not be validated",
 			}},
 		},
-		{name: "bad json syntax", contentType: "application/json", body: `{"flag-a":`, wantStatus: http.StatusBadRequest},
+		{
+			name:        "bad json syntax",
+			contentType: "application/json",
+			body:        `{"flag-a":`,
+			wantStatus:  http.StatusBadRequest,
+		},
 		{name: "bad yaml syntax", contentType: "application/yaml", body: "a: [", wantStatus: http.StatusBadRequest},
 		{name: "bad toml syntax", contentType: "application/toml", body: "a = ", wantStatus: http.StatusBadRequest},
-		{name: "yaml scalar", contentType: "application/yaml", body: "just a string", wantStatus: http.StatusBadRequest},
+		{
+			name:        "yaml scalar",
+			contentType: "application/yaml",
+			body:        "just a string",
+			wantStatus:  http.StatusBadRequest,
+		},
 		{name: "yaml list", contentType: "application/yaml", body: "- a\n- b\n", wantStatus: http.StatusBadRequest},
 		{name: "json list", contentType: "application/json", body: "[]", wantStatus: http.StatusBadRequest},
-		{name: "unreadable body", contentType: "application/json", reader: failingReader{}, wantStatus: http.StatusBadRequest},
-		{name: "unsupported content type", contentType: "text/plain", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
-		{name: "malformed content type", contentType: "application/json;;;=", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
+		{
+			name:        "unreadable body",
+			contentType: "application/json",
+			reader:      failingReader{},
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:        "unsupported content type",
+			contentType: "text/plain",
+			body:        validJSON,
+			wantStatus:  http.StatusUnsupportedMediaType,
+		},
+		{
+			name:        "malformed content type",
+			contentType: "application/json;;;=",
+			body:        validJSON,
+			wantStatus:  http.StatusUnsupportedMediaType,
+		},
 		{name: "missing content type", contentType: "", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
 		{
 			name: "json at the size limit", contentType: "application/json",
 			body: padTo(validJSON, " ", jsonBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
-		{name: "json over the size limit", contentType: "application/json", body: oversizedJSON, wantStatus: http.StatusRequestEntityTooLarge},
+		{
+			name:        "json over the size limit",
+			contentType: "application/json",
+			body:        oversizedJSON,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+		},
 		{
 			name: "chunked json over the size limit", contentType: "application/json", chunked: true,
 			body: oversizedJSON, wantStatus: http.StatusRequestEntityTooLarge,

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,21 +11,22 @@ import (
 // stagedRolloutFlag: step 1 adds the rule "r", step 2 then step 3 change it.
 func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 	rule := func(update Rule) Rule {
-		update.Name = testconvert.String("r")
+		update.Name = new("r")
+
 		return update
 	}
 	step := func(h int, rules ...Rule) ScheduledStep {
 		return ScheduledStep{
-			Date:         testconvert.Time(base.Add(time.Duration(h) * time.Hour)),
-			InternalFlag: InternalFlag{Rules: &rules},
+			Date:  new(base.Add(time.Duration(h) * time.Hour)),
+			Rules: &rules,
 		}
 	}
 	var steps []ScheduledStep
 	if progressive {
 		pr := func(initial, end float64) Rule {
 			return rule(Rule{ProgressiveRollout: &ProgressiveRollout{
-				Initial: &ProgressiveRolloutStep{Percentage: testconvert.Float64(initial)},
-				End:     &ProgressiveRolloutStep{Percentage: testconvert.Float64(end)},
+				Initial: &ProgressiveRolloutStep{Percentage: new(initial)},
+				End:     &ProgressiveRolloutStep{Percentage: new(end)},
 			}})
 		}
 		steps = []ScheduledStep{step(1, pr(1, 2)), step(2, pr(10, 20)), step(3, pr(30, 40))}
@@ -36,11 +36,12 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 		}
 		steps = []ScheduledStep{step(1, pc(50, 50)), step(2, pc(100, 0)), step(3, pc(0, 100))}
 	}
+
 	return &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"), "B": testconvert.Interface("b"),
+			"A": new(any("a")), "B": new(any("b")),
 		},
-		DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+		DefaultRule: &Rule{VariationResult: new("A")},
 		Scheduled:   &steps,
 	}
 }
@@ -63,15 +64,18 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 			for _, due := range []int{2, 3, 2, 1, 3, 1, 3, 2} {
 				got, err := f.applyScheduledRolloutSteps(base.Add(time.Duration(due)*time.Hour + time.Minute))
 				require.NoError(t, err)
-				want, err := stagedRolloutFlag(base, progressive).buildScheduledFlag(base.Add(time.Duration(due)*time.Hour + time.Minute))
+				want, err := stagedRolloutFlag(
+					base,
+					progressive,
+				).buildScheduledFlag(base.Add(time.Duration(due)*time.Hour + time.Minute))
 				require.NoError(t, err)
 				require.Len(t, got.GetRules(), 1)
 				r, w := got.GetRules()[0], want.GetRules()[0]
 				if progressive {
-					assert.Equal(t, w.GetProgressiveRollout().Initial.getPercentage(),
-						r.GetProgressiveRollout().Initial.getPercentage(), "due=%d initial", due)
-					assert.Equal(t, w.GetProgressiveRollout().End.getPercentage(),
-						r.GetProgressiveRollout().End.getPercentage(), "due=%d end", due)
+					assert.InDelta(t, w.GetProgressiveRollout().Initial.getPercentage(),
+						r.GetProgressiveRollout().Initial.getPercentage(), 0, "due=%d initial", due)
+					assert.InDelta(t, w.GetProgressiveRollout().End.getPercentage(),
+						r.GetProgressiveRollout().End.getPercentage(), 0, "due=%d end", due)
 				} else {
 					assert.Equal(t, w.GetPercentages(), r.GetPercentages(), "due=%d", due)
 				}

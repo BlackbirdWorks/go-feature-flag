@@ -26,10 +26,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 )
 
 var _ retriever.InitializableRetriever = &githubretriever.Retriever{}
@@ -55,6 +56,7 @@ func tokenResponse(token string, expiresAt time.Time) []byte {
 		"token":      token,
 		"expires_at": expiresAt.Format(time.RFC3339),
 	})
+
 	return b
 }
 
@@ -93,6 +95,7 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 				time.Now().Add(cmp.Or(m.tokenTTL, time.Hour)),
 			)
 		}
+
 		return newResponse(cmp.Or(m.tokenStatus, http.StatusCreated), body), nil
 	}
 
@@ -104,8 +107,9 @@ func (m *appMockHTTP) Do(req *http.Request) (*http.Response, error) {
 		return nil, m.retryErr
 	}
 	resp := newResponse(http.StatusOK, []byte(flagBody))
-	resp.Header.Set("X-RateLimit-Remaining", "4999")
-	resp.Header.Set("X-RateLimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+	resp.Header.Set("X-Ratelimit-Remaining", "4999")
+	resp.Header.Set("X-Ratelimit-Reset", strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10))
+
 	return resp, nil
 }
 
@@ -126,6 +130,7 @@ func generateTestKey(t *testing.T) (*rsa.PrivateKey, string) {
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(key),
 	})
+
 	return key, string(pemBytes)
 }
 
@@ -139,6 +144,7 @@ func newAppRetriever(pemStr string, mock *appMockHTTP) *githubretriever.Retrieve
 		PrivateKey:     pemStr,
 	}
 	r.SetHTTPClient(mock)
+
 	return r
 }
 
@@ -177,6 +183,8 @@ func decodeJWTPart(t *testing.T, part string, v any) {
 }
 
 func TestGitHubAppAuth_Success(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		configure    func(t *testing.T, r *githubretriever.Retriever)
@@ -206,6 +214,8 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			key, pemStr := generateTestKey(t)
 			mock := &appMockHTTP{}
 			r := newAppRetriever(pemStr, mock)
@@ -234,6 +244,8 @@ func TestGitHubAppAuth_Success(t *testing.T) {
 }
 
 func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		tokenTTL      time.Duration
@@ -255,6 +267,8 @@ func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			_, pemStr := generateTestKey(t)
 			mock := &appMockHTTP{tokenTTL: tt.tokenTTL}
 			r := newAppRetriever(pemStr, mock)
@@ -272,6 +286,8 @@ func TestGitHubAppAuth_TokenRefresh(t *testing.T) {
 }
 
 func TestGitHubAppAuth_401TriggersRetry(t *testing.T) {
+	t.Parallel()
+
 	_, pemStr := generateTestKey(t)
 	mock := &appMockHTTP{first401ThenOK: true}
 	r := newAppRetriever(pemStr, mock)
@@ -286,6 +302,8 @@ func TestGitHubAppAuth_401TriggersRetry(t *testing.T) {
 }
 
 func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
+	t.Parallel()
+
 	_, pemStr := generateTestKey(t)
 	mock := &appMockHTTP{}
 	r := newAppRetriever(pemStr, mock)
@@ -310,6 +328,8 @@ func TestGitHubAppAuth_ConcurrentRetrieveMintsOnce(t *testing.T) {
 }
 
 func TestGitHubAppAuth_Errors(t *testing.T) {
+	t.Parallel()
+
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	ecDER, err := x509.MarshalECPrivateKey(ecKey)
@@ -379,6 +399,8 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 	_, pemStr := generateTestKey(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := newAppRetriever(pemStr, cmp.Or(tt.mock, &appMockHTTP{}))
 			if tt.configure != nil {
 				tt.configure(r)
@@ -392,6 +414,8 @@ func TestGitHubAppAuth_Errors(t *testing.T) {
 }
 
 func TestGitHubAppAuth_Init(t *testing.T) {
+	t.Parallel()
+
 	_, pemStr := generateTestKey(t)
 	tests := []struct {
 		name      string
@@ -447,6 +471,8 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := tt.retriever
 			assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 
@@ -455,6 +481,7 @@ func TestGitHubAppAuth_Init(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.wantErr)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)

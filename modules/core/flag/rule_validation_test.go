@@ -5,16 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 func TestRule_IsValid(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
-		"variation_B": testconvert.Interface("value_B"),
-		"variation_C": testconvert.Interface("value_C"),
+		"variation_A": new(any("value_A")),
+		"variation_B": new(any("value_B")),
+		"variation_C": new(any("value_C")),
 	}
 
 	tests := []struct {
@@ -27,8 +29,8 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with variation result",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -37,7 +39,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with percentages",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 50,
 					"variation_B": 50,
@@ -50,17 +52,17 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with progressive rollout",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -71,7 +73,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "disabled rule should be valid",
 			rule: flag.Rule{
-				Disable: testconvert.Bool(true),
+				Disable: new(true),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -80,8 +82,8 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "disabled rule with defaultRule should be valid",
 			rule: flag.Rule{
-				Disable:         testconvert.Bool(true),
-				VariationResult: testconvert.String("variation_A"),
+				Disable:         new(true),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -90,7 +92,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with no return value",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -99,7 +101,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid default rule without query",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("variation_A"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -108,7 +110,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "non-default rule without query should fail",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("variation_A"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -117,8 +119,8 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid query",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("variation_A"),
-				Query:           testconvert.String("invalid query syntax"),
+				VariationResult: new("variation_A"),
+				Query:           new("invalid query syntax"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -127,7 +129,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid percentages",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"non_existent": 100,
 				},
@@ -139,17 +141,17 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid progressive rollout",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -160,7 +162,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid variation result",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("non_existent"),
+				VariationResult: new("non_existent"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -170,6 +172,8 @@ func TestRule_IsValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 		})
@@ -177,10 +181,12 @@ func TestRule_IsValid(t *testing.T) {
 }
 
 func TestRule_validatePercentages(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
-		"variation_B": testconvert.Interface("value_B"),
-		"variation_C": testconvert.Interface("value_C"),
+		"variation_A": new(any("value_A")),
+		"variation_B": new(any("value_B")),
+		"variation_C": new(any("value_C")),
 	}
 
 	tests := []struct {
@@ -194,8 +200,8 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "nil percentages should be valid",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -204,7 +210,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "valid percentages",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 30,
 					"variation_B": 70,
@@ -217,7 +223,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "valid percentages summing to 100",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 25,
 					"variation_B": 25,
@@ -231,7 +237,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "empty percentages should fail",
 			rule: flag.Rule{
-				Query:       testconvert.String("key eq \"test\""),
+				Query:       new("key eq \"test\""),
 				Percentages: &map[string]float64{},
 			},
 			defaultRule: false,
@@ -242,7 +248,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages summing to zero should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 0,
 					"variation_B": 0,
@@ -256,7 +262,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with non-existent variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"non_existent": 100,
 				},
@@ -269,7 +275,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with multiple non-existent variations should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A":    50,
 					"non_existent_1": 25,
@@ -283,7 +289,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with negative values should fail even when the sum is positive",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": -10,
 					"variation_B": 110,
@@ -297,7 +303,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with NaN should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": math.NaN(),
 					"variation_B": 100,
@@ -311,7 +317,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with positive infinity should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": math.Inf(1),
 				},
@@ -324,7 +330,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages too large to be scaled should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": math.MaxFloat64,
 				},
@@ -337,7 +343,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages summing to more than 100 should be valid",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 150,
 					"variation_B": 50,
@@ -351,6 +357,8 @@ func TestRule_validatePercentages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -361,10 +369,12 @@ func TestRule_validatePercentages(t *testing.T) {
 }
 
 func TestRule_validateProgressiveRollout(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
-		"variation_B": testconvert.Interface("value_B"),
-		"variation_C": testconvert.Interface("value_C"),
+		"variation_A": new(any("value_A")),
+		"variation_B": new(any("value_B")),
+		"variation_C": new(any("value_C")),
 	}
 
 	tests := []struct {
@@ -378,8 +388,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "nil progressive rollout should be valid",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -388,17 +398,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "valid progressive rollout",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -409,17 +419,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "valid progressive rollout with equal percentages",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(50),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(50)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(50),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(50)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -430,17 +440,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with initial percentage higher than end should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -452,17 +462,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with non-existent end variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("non_existent"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("non_existent"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -474,17 +484,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with non-existent initial variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("non_existent"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("non_existent"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -496,12 +506,12 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with nil initial step should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -512,12 +522,12 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with nil end step should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 				},
 			},
@@ -528,7 +538,7 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "empty progressive rollout should fail",
 			rule: flag.Rule{
-				Query:              testconvert.String("key eq \"test\""),
+				Query:              new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{},
 			},
 			variations: variations,
@@ -538,17 +548,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with negative initial percentage should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(-50),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(-50)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -559,17 +569,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with NaN initial percentage should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(math.NaN()),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(math.NaN()),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -580,17 +590,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with NaN end percentage should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(math.NaN()),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(math.NaN()),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -601,17 +611,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with infinite end percentage should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(math.Inf(1)),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(math.Inf(1)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -622,17 +632,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with nil initial variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  nil,
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -644,17 +654,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with nil end variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  nil,
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -666,17 +676,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with empty initial variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String(""),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new(""),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -688,17 +698,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with empty end variation should fail",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String(""),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new(""),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -710,16 +720,16 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout without percentage should use default 0",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation: testconvert.String("variation_A"),
-						Date:      testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation: new("variation_A"),
+						Date:      new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 			},
@@ -731,6 +741,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -741,10 +753,12 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 }
 
 func TestRule_validateVariationResult(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
-		"variation_B": testconvert.Interface("value_B"),
-		"variation_C": testconvert.Interface("value_C"),
+		"variation_A": new(any("value_A")),
+		"variation_B": new(any("value_B")),
+		"variation_C": new(any("value_C")),
 	}
 
 	tests := []struct {
@@ -758,7 +772,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "nil variation result should be valid when percentages exist",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 100,
 				},
@@ -771,17 +785,17 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "nil variation result should be valid when progressive rollout exists",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
 				VariationResult: nil,
@@ -793,7 +807,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "valid variation result",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("variation_A"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -802,7 +816,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result with non-existent variation should fail",
 			rule: flag.Rule{
-				VariationResult: testconvert.String("non_existent"),
+				VariationResult: new("non_existent"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -812,7 +826,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result with empty string should fail",
 			rule: flag.Rule{
-				VariationResult: testconvert.String(""),
+				VariationResult: new(""),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -822,11 +836,11 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result should be ignored when percentages exist",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				Percentages: &map[string]float64{
 					"variation_A": 100,
 				},
-				VariationResult: testconvert.String("non_existent"),
+				VariationResult: new("non_existent"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -835,20 +849,20 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result should be ignored when progressive rollout exists",
 			rule: flag.Rule{
-				Query: testconvert.String("key eq \"test\""),
+				Query: new("key eq \"test\""),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_A"),
-						Percentage: testconvert.Float64(0),
-						Date:       testconvert.Time(time.Now().Add(1 * time.Hour)),
+						Variation:  new("variation_A"),
+						Percentage: new(float64(0)),
+						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  testconvert.String("variation_B"),
-						Percentage: testconvert.Float64(100),
-						Date:       testconvert.Time(time.Now().Add(2 * time.Hour)),
+						Variation:  new("variation_B"),
+						Percentage: new(float64(100)),
+						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
-				VariationResult: testconvert.String("non_existent"),
+				VariationResult: new("non_existent"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -858,6 +872,8 @@ func TestRule_validateVariationResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -868,8 +884,10 @@ func TestRule_validateVariationResult(t *testing.T) {
 }
 
 func TestRule_isQueryValid(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
+		"variation_A": new(any("value_A")),
 	}
 
 	tests := []struct {
@@ -884,7 +902,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "default rule should be valid without query",
 			rule: flag.Rule{
 				Query:           nil,
-				VariationResult: testconvert.String("variation_A"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -893,8 +911,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "default rule should be valid with query",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -904,7 +922,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule without query should fail",
 			rule: flag.Rule{
 				Query:           nil,
-				VariationResult: testconvert.String("variation_A"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -914,8 +932,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with empty query should fail",
 			rule: flag.Rule{
-				Query:           testconvert.String(""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new(""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -924,8 +942,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with valid Nikunjy query",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -934,8 +952,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with valid JSONLogic query",
 			rule: flag.Rule{
-				Query:           testconvert.String(`{"==": [{"var": "key"}, "test"]}`),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new(`{"==": [{"var": "key"}, "test"]}`),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -944,8 +962,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with invalid JSONLogic query",
 			rule: flag.Rule{
-				Query:           testconvert.String(`{"unknownOperator": [1, 2]}`),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new(`{"unknownOperator": [1, 2]}`),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -955,8 +973,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with invalid Nikunjy query",
 			rule: flag.Rule{
-				Query:           testconvert.String("invalid query syntax"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("invalid query syntax"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -966,8 +984,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with complex valid Nikunjy query",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\" and version gt 1.0.0"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\" and version gt 1.0.0"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -976,8 +994,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with valid Nikunjy query with OR",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test1\" or key eq \"test2\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test1\" or key eq \"test2\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -986,8 +1004,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with query containing whitespace",
 			rule: flag.Rule{
-				Query:           testconvert.String("  key eq \"test\"  "),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("  key eq \"test\"  "),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -996,8 +1014,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with query containing newlines",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\"\n"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\"\n"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1007,6 +1025,8 @@ func TestRule_isQueryValid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
@@ -1017,8 +1037,10 @@ func TestRule_isQueryValid(t *testing.T) {
 }
 
 func TestRule_validateNikunjyQuery(t *testing.T) {
+	t.Parallel()
+
 	variations := map[string]*any{
-		"variation_A": testconvert.Interface("value_A"),
+		"variation_A": new(any("value_A")),
 	}
 
 	tests := []struct {
@@ -1032,8 +1054,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid simple query",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1042,8 +1064,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with AND",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\" and version gt 1.0.0"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\" and version gt 1.0.0"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1052,8 +1074,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with OR",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test1\" or key eq \"test2\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test1\" or key eq \"test2\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1062,8 +1084,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with comparison operators",
 			rule: flag.Rule{
-				Query:           testconvert.String("age gt 18"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("age gt 18"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1072,8 +1094,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with lt operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("age lt 65"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("age lt 65"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1082,8 +1104,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with ge operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("score ge 100"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("score ge 100"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1092,8 +1114,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with le operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("score le 200"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("score le 200"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1102,8 +1124,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with ne operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("status ne \"inactive\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("status ne \"inactive\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1112,8 +1134,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with in operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("status in [\"active\", \"pending\"]"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("status in [\"active\", \"pending\"]"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1122,8 +1144,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with parentheses",
 			rule: flag.Rule{
-				Query:           testconvert.String("(key eq \"test1\" or key eq \"test2\") and version gt 1.0.0"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("(key eq \"test1\" or key eq \"test2\") and version gt 1.0.0"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1132,8 +1154,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "invalid query syntax",
 			rule: flag.Rule{
-				Query:           testconvert.String("invalid query syntax"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("invalid query syntax"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1143,8 +1165,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "invalid query with missing operator",
 			rule: flag.Rule{
-				Query:           testconvert.String("key \"test\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key \"test\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1154,8 +1176,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "invalid query with unclosed quotes",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1165,8 +1187,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "invalid query with malformed parentheses",
 			rule: flag.Rule{
-				Query:           testconvert.String("key eq \"test\" and (version gt 1.0.0"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("key eq \"test\" and (version gt 1.0.0"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1176,8 +1198,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "empty query",
 			rule: flag.Rule{
-				Query:           testconvert.String(""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new(""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1186,8 +1208,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "query with only whitespace",
 			rule: flag.Rule{
-				Query:           testconvert.String("   "),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("   "),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1197,8 +1219,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with semver comparison",
 			rule: flag.Rule{
-				Query:           testconvert.String("version gt 1.0.0"),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("version gt 1.0.0"),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1207,8 +1229,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid query with date comparison",
 			rule: flag.Rule{
-				Query:           testconvert.String("createdAt gt \"2023-01-01T00:00:00Z\""),
-				VariationResult: testconvert.String("variation_A"),
+				Query:           new("createdAt gt \"2023-01-01T00:00:00Z\""),
+				VariationResult: new("variation_A"),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1218,6 +1240,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {

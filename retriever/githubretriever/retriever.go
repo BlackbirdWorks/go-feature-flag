@@ -74,9 +74,11 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
 	if err := r.validateAppAuth(); err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -84,6 +86,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.invalidateCachedToken()
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -92,6 +95,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -108,6 +112,7 @@ func (r *Retriever) validateAppAuth() error {
 		return errors.New("github app: AppID, InstallationID and PrivateKey or PrivateKeyFile are all required")
 	}
 	_, err := r.loadPrivateKey()
+
 	return err
 }
 
@@ -169,16 +174,26 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 
 // fetch calls the contents API with the given token and records the rate limit headers.
 func (r *Retriever) fetch(ctx context.Context, contentsURL, token string) (*http.Response, error) {
-	resp, err := shared.CallHTTPAPI(ctx, contentsURL, http.MethodGet, "", r.Timeout, r.buildHeaders(token), r.httpClient)
+	resp, err := shared.CallHTTPAPI(
+		ctx,
+		contentsURL,
+		http.MethodGet,
+		"",
+		r.Timeout,
+		r.buildHeaders(token),
+		r.httpClient,
+	)
 	if err != nil {
 		return nil, err
 	}
 	r.updateRateLimit(resp.Header)
+
 	return resp, nil
 }
 
@@ -209,6 +224,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 	}
 	r.cachedToken = token
 	r.tokenExpiresAt = expiresAt
+
 	return token, nil
 }
 
@@ -252,6 +268,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	if resp.StatusCode != http.StatusCreated {
 		// GitHub explains the failure in the body (bad app id, suspended installation, clock skew...).
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+
 		return "", time.Time{}, fmt.Errorf(
 			"github app: access_tokens endpoint returned %d for installation %d: %s",
 			resp.StatusCode, r.InstallationID, strings.TrimSpace(string(msg)),
@@ -268,11 +285,12 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", err)
 	}
 	if result.Token == "" {
-		return "", time.Time{}, fmt.Errorf("github app: token response contained no token")
+		return "", time.Time{}, errors.New("github app: token response contained no token")
 	}
 	if result.ExpiresAt.IsZero() {
-		return "", time.Time{}, fmt.Errorf("github app: token response contained no expires_at")
+		return "", time.Time{}, errors.New("github app: token response contained no expires_at")
 	}
+
 	return result.Token, result.ExpiresAt, nil
 }
 
@@ -292,13 +310,14 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
-		return nil, fmt.Errorf("github app: failed to decode PEM block from private key")
+		return nil, errors.New("github app: failed to decode PEM block from private key")
 	}
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		return nil, fmt.Errorf("github app: failed to parse RSA private key: %w", err)
 	}
+
 	return key, nil
 }
 
@@ -306,10 +325,11 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 func (r *Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
-	header.Add("X-GitHub-Api-Version", "2022-11-28")
+	header.Add("X-Github-Api-Version", "2022-11-28")
 	if token != "" {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
+
 	return header
 }
 
@@ -320,6 +340,7 @@ func (r *Retriever) checkRateLimit() error {
 	if r.rateLimitRemaining <= 0 && time.Now().Before(r.rateLimitReset) {
 		return fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
 	}
+
 	return nil
 }
 
@@ -327,10 +348,10 @@ func (r *Retriever) checkRateLimit() error {
 func (r *Retriever) buildURL(branch string) (string, error) {
 	// Validate inputs to prevent path traversal attacks
 	if strings.Contains(r.FilePath, "..") {
-		return "", fmt.Errorf("filepath must not contain '..'")
+		return "", errors.New("filepath must not contain '..'")
 	}
 	if strings.Contains(r.RepositorySlug, "..") {
-		return "", fmt.Errorf("repository slug must not contain '..'")
+		return "", errors.New("repository slug must not contain '..'")
 	}
 
 	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
@@ -357,6 +378,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
 	u.Path = path.Join(append([]string{u.Path}, elem...)...)
+
 	return u, nil
 }
 
@@ -374,6 +396,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 		return fmt.Errorf("request to %s failed with code %d."+
 			" GitHub Headers: %v", url, resp.StatusCode, ghHeaders)
 	}
+
 	return nil
 }
 
@@ -386,13 +409,13 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if remaining := headers.Get("X-RateLimit-Remaining"); remaining != "" {
+	if remaining := headers.Get("X-Ratelimit-Remaining"); remaining != "" {
 		if remainingInt, err := strconv.Atoi(remaining); err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
-	if reset := headers.Get("X-RateLimit-Reset"); reset != "" {
+	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
 		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}

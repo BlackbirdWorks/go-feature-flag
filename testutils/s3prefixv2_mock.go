@@ -59,6 +59,7 @@ func (m *S3PrefixMock) SetDownloadErrKey(key string, err error) {
 	}
 	if err == nil {
 		delete(m.downloadErrKeys, key)
+
 		return
 	}
 	m.downloadErrKeys[key] = err
@@ -75,6 +76,7 @@ func (m *S3PrefixMock) Delete(key string) {
 func (m *S3PrefixMock) ListCalls() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.listCalls
 }
 
@@ -82,6 +84,7 @@ func (m *S3PrefixMock) ListCalls() int {
 func (m *S3PrefixMock) DownloadCalls(key string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	return m.downloadCalls[key]
 }
 
@@ -93,6 +96,7 @@ func (m *S3PrefixMock) TotalDownloadCalls() int {
 	for _, c := range m.downloadCalls {
 		total += c
 	}
+
 	return total
 }
 
@@ -129,6 +133,7 @@ func (m *S3PrefixMock) ListObjectsV2(
 		}
 		if count == pageSize {
 			out.IsTruncated = aws.Bool(true)
+
 			break
 		}
 		count++
@@ -138,6 +143,7 @@ func (m *S3PrefixMock) ListObjectsV2(
 				seenPrefixes[cp] = true
 				out.CommonPrefixes = append(out.CommonPrefixes, s3types.CommonPrefix{Prefix: aws.String(cp)})
 			}
+
 			continue
 		}
 		obj := s3types.Object{Key: aws.String(k)}
@@ -150,6 +156,7 @@ func (m *S3PrefixMock) ListObjectsV2(
 		out.NextContinuationToken = nil
 	}
 	out.KeyCount = aws.Int32(int32(count)) //nolint:gosec // small test values
+
 	return out, nil
 }
 
@@ -162,6 +169,7 @@ func (m *S3PrefixMock) sortedKeys(prefix string) []string {
 		}
 	}
 	sort.Strings(keys)
+
 	return keys
 }
 
@@ -175,6 +183,7 @@ func commonPrefix(key, prefix, delimiter string) string {
 	if i < 0 {
 		return ""
 	}
+
 	return prefix + rest[:i+len(delimiter)]
 }
 
@@ -212,5 +221,6 @@ func (m *S3PrefixMock) DownloadObject(
 	if !m.NoETag {
 		out.ETag = aws.String(etagOf(content))
 	}
+
 	return out, nil
 }

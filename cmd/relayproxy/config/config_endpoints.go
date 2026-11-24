@@ -29,6 +29,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 	if s == "" {
 		// an empty value (for example an empty environment variable) means unset.
 		*b = 0
+
 		return nil
 	}
 	if strings.HasPrefix(s, "-") {
@@ -36,6 +37,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 	}
 	if n, err := strconv.ParseUint(s, 10, 63); err == nil {
 		*b = ByteSize(n)
+
 		return nil
 	}
 	if _, err := strconv.ParseFloat(s, 64); err == nil {
@@ -50,6 +52,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 		return fmt.Errorf("invalid size %q: too large", s)
 	}
 	*b = ByteSize(n)
+
 	return nil
 }
 
@@ -84,6 +87,7 @@ func (v ValidateFlagsEndpoint) WithDefaults() ValidateFlagsEndpoint {
 	if v.MaxTOMLBodySize == 0 {
 		v.MaxTOMLBodySize = DefaultValidateFlagsMaxTOMLBodySize
 	}
+
 	return v
 }
 
@@ -106,5 +110,6 @@ func (v ValidateFlagsEndpoint) IsValid() error {
 			return fmt.Errorf("%s must not be negative", limit.name)
 		}
 	}
+
 	return nil
 }

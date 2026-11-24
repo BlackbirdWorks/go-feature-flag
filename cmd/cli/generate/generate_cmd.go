@@ -1,11 +1,12 @@
 package generate
 
 import (
-	"fmt"
+	"errors"
+
+	"github.com/spf13/cobra"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	"github.com/spf13/cobra"
 )
 
 func NewGenerateCmd() *cobra.Command {
@@ -17,12 +18,14 @@ func NewGenerateCmd() *cobra.Command {
 			output := helper.Output{}
 			output.Add("you must specify a subcommand (e.g., manifest)", helper.ErrorLevel)
 			output.PrintLines(cmd)
-			return fmt.Errorf("no subcommand provided")
+
+			return errors.New("no subcommand provided")
 		},
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
 
 	g.AddCommand(manifest.NewManifestCmd())
+
 	return g
 }

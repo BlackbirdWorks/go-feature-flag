@@ -8,12 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -28,6 +29,9 @@ type Exporter struct {
 	// Default: semaphore
 	TracerName string
 
+	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
+	tracerProvider trace.TracerProvider
+
 	tracer trace.Tracer
 	once   sync.Once
 }
@@ -36,6 +40,11 @@ func (e *Exporter) init() {
 	e.once.Do(func() {
 		if e.TracerName == "" {
 			e.TracerName = defaultTracerName
+		}
+		if e.tracerProvider != nil {
+			e.tracer = e.tracerProvider.Tracer(e.TracerName)
+
+			return
 		}
 		e.tracer = otel.Tracer(e.TracerName)
 	})

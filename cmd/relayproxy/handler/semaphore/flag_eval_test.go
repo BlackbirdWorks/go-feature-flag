@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -8,22 +9,25 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const configFlagsLocation = testdataDir + "/config_flags.yaml"
 
 func Test_flag_eval_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -159,21 +163,21 @@ func Test_flag_eval_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: configFlagsLocation,
-					},
-					Exporter: &config.ExporterConf{
-						Kind: config.LogExporter,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: configFlagsLocation,
+				},
+				Exporter: &config.ExporterConf{
+					Kind: config.LogExporter,
 				},
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			flagEval := controller.NewFlagEval(flagsetManager, metric.Metrics{})
 
@@ -184,7 +188,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -196,19 +200,21 @@ func Test_flag_eval_Handler(t *testing.T) {
 			handlerErr := flagEval.Handler(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
-				he, ok := handlerErr.(*echo.HTTPError)
+				require.Error(t, handlerErr, "handler should return an error")
+				he := &echo.HTTPError{}
+				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
 					assert.Equal(t, tt.want.errorMsg, he.Message)
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})
@@ -216,6 +222,8 @@ func Test_flag_eval_Handler(t *testing.T) {
 }
 
 func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
@@ -249,12 +257,12 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: configFlagsLocation,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: configFlagsLocation,
 				},
 			}
 

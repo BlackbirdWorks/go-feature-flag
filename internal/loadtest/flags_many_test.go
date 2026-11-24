@@ -37,7 +37,7 @@ func TestManyFlagsYAML(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal([]byte(ManyFlagsYAML(tt.n)), &flags))
 			require.Len(t, flags, tt.n)
 			var static, targeted, percentage int
-			for i := 0; i < tt.n; i++ {
+			for i := range tt.n {
 				f, ok := flags[fmt.Sprintf("flag-%d", i)]
 				require.True(t, ok, "flag-%d", i)
 				require.NotNil(t, f.TrackEvents)

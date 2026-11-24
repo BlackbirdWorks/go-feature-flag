@@ -22,6 +22,7 @@ func DefaultSkipper(c *echo.Context) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -78,6 +79,7 @@ func ZapLogger(log *zap.Logger, isDebugEnabled bool) echo.MiddlewareFunc {
 			default:
 				log.Debug("Success", fields...)
 			}
+
 			return nil
 		},
 	})
@@ -97,5 +99,6 @@ func redactAPIKey(uri string) string {
 			params[i] = key + "=REDACTED"
 		}
 	}
+
 	return path + "?" + strings.Join(params, "&")
 }

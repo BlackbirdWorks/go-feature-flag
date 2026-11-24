@@ -11,22 +11,24 @@ import (
 	"testing"
 	"time"
 
-	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // defaultFlagsetMgr is a flagset manager in default mode (no flagsets configured).
 var defaultFlagsetMgr = &mockFlagsetManagerSSE{flagsetName: "default", isDefault: true}
 
 func Test_websocket_flag_change(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flagChange notifier.DiffCache
@@ -40,20 +42,20 @@ func Test_websocket_flag_change(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("A"),
+								VariationResult: new("A"),
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("B"),
+								VariationResult: new("B"),
 							},
 						},
 					},
@@ -66,22 +68,22 @@ func Test_websocket_flag_change(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
-							"B": testconvert.Interface(false),
+							"A": new(any(true)),
+							"B": new(any(false)),
 						},
 						DefaultRule: &flag.Rule{
-							VariationResult: testconvert.String("A"),
+							VariationResult: new("A"),
 						},
 					},
 				},
 				Added: map[string]flag.Flag{
 					"flag-2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
-							"B": testconvert.Interface(false),
+							"A": new(any(true)),
+							"B": new(any(false)),
 						},
 						DefaultRule: &flag.Rule{
-							VariationResult: testconvert.String("A"),
+							VariationResult: new("A"),
 						},
 					},
 				},
@@ -89,20 +91,20 @@ func Test_websocket_flag_change(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("A"),
+								VariationResult: new("A"),
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
 							DefaultRule: &flag.Rule{
-								VariationResult: testconvert.String("B"),
+								VariationResult: new("B"),
 							},
 						},
 					},
@@ -112,6 +114,8 @@ func Test_websocket_flag_change(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create context with timeout for the entire test
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -121,7 +125,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				websocketService.Close()
 				// Wait for cleanup to complete to avoid leaking goroutines in tests.
 				if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-					t.Errorf("websocket service cleanup failed: %v", err)
+					assert.NoError(t, err, "websocket service cleanup failed")
 				}
 			}()
 
@@ -140,9 +144,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				HandshakeTimeout: 10 * time.Second,
 			}
 			ws, _, err := dialer.DialContext(ctx, url, nil)
-			if err != nil {
-				t.Fatalf("Failed to connect to WebSocket: %v", err)
-			}
+			require.NoError(t, err, "Failed to connect to WebSocket")
 			defer func() {
 				ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 				_ = ws.Close()
@@ -150,7 +152,7 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			// Set read deadline to prevent hanging
 			err = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Wait a short time to ensure WebSocket registration is complete
 			// This prevents the race condition where BroadcastFlagChanges is called
@@ -162,10 +164,10 @@ func Test_websocket_flag_change(t *testing.T) {
 
 			// Read message with timeout
 			_, receivedMessage, err := ws.ReadMessage()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			expectedMessage, err := json.Marshal(tt.flagChange)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.JSONEq(t, string(expectedMessage), string(receivedMessage))
 		})
 	}
@@ -190,7 +192,7 @@ func broadcastUntilRegistered(
 		case <-firstMsg:
 			return
 		case <-deadline:
-			t.Fatal("connection never registered: no broadcast reached the client")
+			require.Fail(t, "connection never registered: no broadcast reached the client")
 		case <-time.After(20 * time.Millisecond):
 		}
 	}
@@ -202,6 +204,8 @@ func broadcastUntilRegistered(
 // "concurrent write to websocket connection" and crashes the relay proxy.
 // Run with -race to surface the data race if the writes are not serialized.
 func Test_websocket_concurrent_writes(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -209,7 +213,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	defer func() {
 		websocketService.Close()
 		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			t.Errorf("websocket service cleanup failed: %v", err)
+			assert.NoError(t, err, "websocket service cleanup failed")
 		}
 	}()
 
@@ -224,9 +228,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	ws, _, err := dialer.DialContext(ctx, url, nil)
-	if err != nil {
-		t.Fatalf("Failed to connect to WebSocket: %v", err)
-	}
+	require.NoError(t, err, "Failed to connect to WebSocket")
 	defer func() {
 		_ = ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		_ = ws.Close()
@@ -254,10 +256,10 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
 				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
 				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+					DefaultRule: &flag.Rule{VariationResult: new("B")},
 				},
 			},
 		},
@@ -287,13 +289,15 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	select {
 	case <-clientDone:
 	case <-time.After(5 * time.Second):
-		t.Fatal("client read loop did not stop")
+		require.Fail(t, "client read loop did not stop")
 	}
 }
 
 // Test_websocket_legacy_handler verifies the deprecated LegacyHandler endpoint
 // still delegates to Handler and pushes flag changes to the client.
 func Test_websocket_legacy_handler(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -301,7 +305,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	defer func() {
 		websocketService.Close()
 		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			t.Errorf("websocket service cleanup failed: %v", err)
+			assert.NoError(t, err, "websocket service cleanup failed")
 		}
 	}()
 
@@ -315,9 +319,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	url := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/ws/v1/flag/change"
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	ws, _, err := dialer.DialContext(ctx, url, nil)
-	if err != nil {
-		t.Fatalf("Failed to connect to WebSocket: %v", err)
-	}
+	require.NoError(t, err, "Failed to connect to WebSocket")
 	defer func() { _ = ws.Close() }()
 	require.NoError(t, ws.SetReadDeadline(time.Now().Add(10*time.Second)))
 
@@ -327,10 +329,10 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		Updated: map[string]notifier.DiffUpdated{
 			"my-flag": {
 				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+					DefaultRule: &flag.Rule{VariationResult: new("A")},
 				},
 				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+					DefaultRule: &flag.Rule{VariationResult: new("B")},
 				},
 			},
 		},
@@ -338,15 +340,17 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	websocketService.BroadcastFlagChanges("default", diff)
 
 	_, received, err := ws.ReadMessage()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	expected, err := json.Marshal(diff)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.JSONEq(t, string(expected), string(received))
 }
 
 // Test_websocket_flagset_scoping verifies that, with flagsets, a client is
 // registered on the flagset of its API key and only receives its changes.
 func Test_websocket_flagset_scoping(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		handler func(*controller.WSFlagChange) echo.HandlerFunc
@@ -362,6 +366,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -406,7 +412,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 				case <-msgs:
 					registered = true
 				case <-deadline:
-					t.Fatal("connection never registered: no broadcast reached the client")
+					require.Fail(t, "connection never registered: no broadcast reached the client")
 				case <-time.After(20 * time.Millisecond):
 				}
 			}
@@ -424,7 +430,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 						return
 					}
 				case <-deadline:
-					t.Fatal("the flagsetA broadcast never reached the client")
+					require.Fail(t, "the flagsetA broadcast never reached the client")
 				}
 			}
 		})
@@ -434,6 +440,8 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 // Test_websocket_flagset_not_resolved verifies that the connection is rejected
 // before the websocket upgrade when no flagset can be resolved from the API key.
 func Test_websocket_flagset_not_resolved(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		handler func(*controller.WSFlagChange) echo.HandlerFunc
@@ -460,6 +468,8 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			websocketService := stream.NewWebsocketService()
 			defer websocketService.Close()
 

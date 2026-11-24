@@ -2,13 +2,14 @@ package flag
 
 import (
 	"fmt"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_constructMetadataParallel(t *testing.T) {
+	t.Parallel()
+
 	sharedMetadata := map[string]any{
 		"key1": "value1",
 	}
@@ -18,10 +19,8 @@ func Test_constructMetadataParallel(t *testing.T) {
 		wantEvaluatedRuleName string
 	}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// generate test cases
-	for i := 0; i < 10_000; i++ {
+	for i := range 10_000 {
 		ruleName := fmt.Sprintf("rule-%d", i)
 		tests = append(tests, struct {
 			name                  string
@@ -33,7 +32,6 @@ func Test_constructMetadataParallel(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -44,6 +42,8 @@ func Test_constructMetadataParallel(t *testing.T) {
 }
 
 func Test_ConstructMetadata(t *testing.T) {
+	t.Parallel()
+
 	rule := "test-rule"
 
 	tests := []struct {
@@ -61,7 +61,7 @@ func Test_ConstructMetadata(t *testing.T) {
 		{
 			name:         "nil metadata, empty rule",
 			flagMetadata: nil,
-			ruleName:     stringToPointer(""),
+			ruleName:     new(""),
 			want:         nil,
 		},
 		{
@@ -79,7 +79,7 @@ func Test_ConstructMetadata(t *testing.T) {
 		{
 			name:         "non-nil metadata, empty rule",
 			flagMetadata: map[string]any{"foo": "bar"},
-			ruleName:     stringToPointer(""),
+			ruleName:     new(""),
 			want:         map[string]any{"foo": "bar"},
 		},
 		{
@@ -92,12 +92,10 @@ func Test_ConstructMetadata(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := constructMetadata(tt.flagMetadata, tt.ruleName)
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func stringToPointer(s string) *string {
-	return &s
 }

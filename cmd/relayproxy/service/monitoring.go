@@ -1,41 +1,41 @@
 package service
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 )
 
-// Monitoring is the interface of the monitoring service
+// Monitoring is the interface of the monitoring service.
 type Monitoring interface {
 	Health() model.HealthResponse
 	Info() (model.InfoResponse, error)
 }
 
-// NewMonitoring creates a new implementation of Monitoring
+// NewMonitoring creates a new implementation of Monitoring.
 func NewMonitoring(flagsetManager FlagsetManager) Monitoring {
 	return &monitoringImpl{
 		flagsetManager: flagsetManager,
 	}
 }
 
-// monitoringImpl is one implementation of the Monitoring interface
+// monitoringImpl is one implementation of the Monitoring interface.
 type monitoringImpl struct {
 	flagsetManager FlagsetManager
 }
 
-// Health returns a static object to show that the server is initialized
+// Health returns a static object to show that the server is initialized.
 func (m *monitoringImpl) Health() model.HealthResponse {
 	return model.HealthResponse{
 		Initialized: true,
 	}
 }
 
-// Info returns information about the relay-proxy
+// Info returns information about the relay-proxy.
 func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 	if m.flagsetManager == nil {
-		return model.InfoResponse{}, fmt.Errorf("flagset manager is not initialized")
+		return model.InfoResponse{}, errors.New("flagset manager is not initialized")
 	}
 	flagSets, err := m.flagsetManager.AllFlagSets()
 	if err != nil {
@@ -44,9 +44,10 @@ func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 
 	if m.flagsetManager.IsDefaultFlagSet() {
 		if m.flagsetManager.Default() == nil {
-			return model.InfoResponse{}, fmt.Errorf("no default flagset configured")
+			return model.InfoResponse{}, errors.New("no default flagset configured")
 		}
 		cacheRefreshDate := m.flagsetManager.Default().GetCacheRefreshDate()
+
 		return model.InfoResponse{
 			LatestCacheRefresh: &cacheRefreshDate,
 		}, nil
@@ -60,6 +61,7 @@ func (m *monitoringImpl) Info() (model.InfoResponse, error) {
 			latestRefreshDate = refreshDates[flagsetName]
 		}
 	}
+
 	return model.InfoResponse{
 		Flagsets:           refreshDates,
 		LatestCacheRefresh: &latestRefreshDate,

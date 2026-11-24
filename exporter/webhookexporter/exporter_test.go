@@ -6,18 +6,24 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestWebhook_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestWebhook_Export(t *testing.T) {
+	t.Parallel()
+
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 	type fields struct {
 		EndpointURL string
@@ -60,12 +66,27 @@ func TestWebhook_Export(t *testing.T) {
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -87,12 +108,27 @@ func TestWebhook_Export(t *testing.T) {
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -114,12 +150,26 @@ func TestWebhook_Export(t *testing.T) {
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -137,12 +187,26 @@ func TestWebhook_Export(t *testing.T) {
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -160,12 +224,27 @@ func TestWebhook_Export(t *testing.T) {
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -181,6 +260,8 @@ func TestWebhook_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &Exporter{
 				EndpointURL: tt.fields.EndpointURL,
 				Secret:      tt.fields.Secret,
@@ -191,13 +272,14 @@ func TestWebhook_Export(t *testing.T) {
 			err := f.Export(context.Background(), tt.args.logger, tt.args.featureEvents)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			if tt.expected.bodyFilePath != "" {
 				c, err := os.ReadFile(tt.expected.bodyFilePath)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(c), tt.fields.httpClient.Body)
 			}
 
@@ -213,6 +295,8 @@ func TestWebhook_Export(t *testing.T) {
 }
 
 func TestWebhook_Export_impossibleToParse(t *testing.T) {
+	t.Parallel()
+
 	f := &Exporter{
 		EndpointURL: " http://invalid.com/",
 	}

@@ -11,17 +11,20 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/azure/azurite"
+
+	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var containerName = "testcontainer"
 
 func TestAzureBlobStorageRetriever(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		want      string
@@ -73,6 +76,8 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			container, _ := setupTest(t)
 			defer tearDown(t, container)
 			blobURL, err := container.BlobServiceURL(context.Background())
@@ -80,7 +85,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 
 			tt.retriever.ServiceURL = fmt.Sprintf("%s/%s", blobURL, azurite.AccountName)
 			err = tt.retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			defer func() {
 				err := tt.retriever.Shutdown(context.Background())
 				assert.NoError(t, err)
@@ -89,7 +94,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
 			if err == nil {
 				want, err := os.ReadFile(tt.want)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, string(want), string(got), "retrieve() got = %v, want %v", string(want), string(got))
 			}
 		})
@@ -97,7 +102,11 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should error when no account name", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := azblobretriever.Retriever{
 			Container:  containerName,
 			AccountKey: azurite.AccountKey,
@@ -108,6 +117,8 @@ func TestInit(t *testing.T) {
 	})
 
 	t.Run("Should error when calling retrieve without init", func(t *testing.T) {
+		t.Parallel()
+
 		retriever := azblobretriever.Retriever{
 			Container:   containerName,
 			AccountName: azurite.AccountName,
@@ -117,7 +128,6 @@ func TestInit(t *testing.T) {
 		_, err := retriever.Retrieve(context.Background())
 		assert.Error(t, err)
 	})
-
 }
 
 func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
@@ -125,7 +135,16 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	azuriteContainer, err := azurite.Run(
 		ctx,
 		"mcr.microsoft.com/azure-storage/azurite:3.35.0",
-		testcontainers.WithCmd("azurite", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck"),
+		testcontainers.WithCmd(
+			"azurite",
+			"--blobHost",
+			"0.0.0.0",
+			"--queueHost",
+			"0.0.0.0",
+			"--tableHost",
+			"0.0.0.0",
+			"--skipApiVersionCheck",
+		),
 	)
 	require.NoError(t, err)
 

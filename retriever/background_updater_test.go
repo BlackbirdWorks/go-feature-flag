@@ -8,6 +8,8 @@ import (
 )
 
 func TestClose(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		backgroundUpdater backgroundUpdater
@@ -30,6 +32,8 @@ func TestClose(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.NotPanics(t, func() {
 				tt.backgroundUpdater.close()
 			})

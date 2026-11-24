@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"reflect"
 	"regexp"
 	"strings"
@@ -97,6 +98,7 @@ func IsSecretField(typeName, fieldName string) bool {
 	if secret, classified := fieldClassification[typeName+"."+fieldName]; classified {
 		return secret
 	}
+
 	return sensitiveNamePattern.MatchString(fieldName)
 }
 
@@ -109,6 +111,7 @@ func (c *Config) Redacted() map[string]any {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	out, _ := redactValue(reflect.ValueOf(c), 0).(map[string]any)
+
 	return out
 }
 
@@ -124,6 +127,7 @@ func (c *Config) String() string {
 	if err != nil {
 		return RedactedValue
 	}
+
 	return string(b)
 }
 
@@ -134,6 +138,7 @@ func isOwnType(t reflect.Type) bool {
 	if t.Name() == "" { // anonymous struct declared inside one of our types
 		return true
 	}
+
 	return strings.HasPrefix(t.PkgPath(), modulePathPrefix)
 }
 
@@ -145,6 +150,7 @@ func koanfName(f reflect.StructField) string {
 	if name == "" {
 		name = f.Name
 	}
+
 	return name
 }
 
@@ -152,7 +158,7 @@ func redactStruct(v reflect.Value, depth int) map[string]any {
 	t := v.Type()
 	typeName := t.String()
 	out := make(map[string]any, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		f := t.Field(i)
 		if !f.IsExported() {
 			continue
@@ -160,9 +166,8 @@ func redactStruct(v reflect.Value, depth int) map[string]any {
 		// embedded (inline / squash) structs are flattened, like the configuration file is.
 		if f.Anonymous && !IsSecretField(typeName, f.Name) {
 			if inner, ok := redactValue(v.Field(i), depth+1).(map[string]any); ok {
-				for k, val := range inner {
-					out[k] = val
-				}
+				maps.Copy(out, inner)
+
 				continue
 			}
 		}
@@ -172,10 +177,12 @@ func redactStruct(v reflect.Value, depth int) map[string]any {
 			} else {
 				out[koanfName(f)] = RedactedValue
 			}
+
 			continue
 		}
 		out[koanfName(f)] = redactValue(v.Field(i), depth+1)
 	}
+
 	return out
 }
 
@@ -198,17 +205,20 @@ func redactValue(v reflect.Value, depth int) any {
 		if v.IsNil() {
 			return nil
 		}
+
 		return redactValue(v.Elem(), depth+1)
 	case reflect.Struct:
 		if !isOwnType(v.Type()) {
 			return opaqueValue
 		}
+
 		return redactStruct(v, depth)
 	case reflect.Slice, reflect.Array:
 		out := make([]any, 0, v.Len())
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			out = append(out, redactValue(v.Index(i), depth+1))
 		}
+
 		return out
 	case reflect.Map:
 		out := make(map[string]any, v.Len())
@@ -217,10 +227,12 @@ func redactValue(v reflect.Value, depth int) any {
 			key := fmt.Sprint(iter.Key().Interface())
 			if sensitiveNamePattern.MatchString(key) {
 				out[key] = RedactedValue
+
 				continue
 			}
 			out[key] = redactValue(iter.Value(), depth+1)
 		}
+
 		return out
 	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
 		return opaqueValue
@@ -228,6 +240,7 @@ func redactValue(v reflect.Value, depth int) any {
 		if v.CanInterface() {
 			return v.Interface()
 		}
+
 		return opaqueValue
 	}
 }

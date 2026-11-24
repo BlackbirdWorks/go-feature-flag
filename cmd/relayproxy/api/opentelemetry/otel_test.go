@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,8 +18,12 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -59,6 +61,7 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -132,7 +135,11 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 }
 
 func TestInitResource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("defaults, no env", func(t *testing.T) {
+		t.Parallel()
+
 		res, err := initResource(context.Background(), "test", "1.2.3", nil)
 		require.NoError(t, err)
 
@@ -148,6 +155,8 @@ func TestInitResource(t *testing.T) {
 	})
 
 	t.Run("with config map set", func(t *testing.T) {
+		t.Parallel()
+
 		attribs := map[string]string{
 			"key1": "val1",
 			"key2": "val2",
@@ -166,6 +175,7 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // t.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment
 func TestInit(t *testing.T) {
 	logger := log.InitLogger().ZapLogger
 
@@ -230,7 +240,7 @@ func TestInit(t *testing.T) {
 		require.Len(t, logs.All(), 1)
 
 		want := []observer.LoggedEntry{{
-			Entry:   zapcore.Entry{Level: zap.ErrorLevel, Message: "OTel error"},
+			Level: zap.ErrorLevel, Message: "OTel error",
 			Context: []zapcore.Field{zap.Error(expectedErr)},
 		}}
 

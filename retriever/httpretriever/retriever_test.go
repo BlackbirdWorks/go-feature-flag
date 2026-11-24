@@ -7,13 +7,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
-	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
+	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
 func Test_httpRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		httpClient mock.HTTP
 		url        string
@@ -133,6 +136,8 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := httpretriever.Retriever{
 				URL:    tt.fields.url,
 				Method: tt.fields.method,

@@ -4,14 +4,16 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/thejerf/slogassert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/thejerf/slogassert"
 )
 
 func TestLogNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 	}
 	tests := []struct {
@@ -26,12 +28,12 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("defaultRule"),
+							Name: new("defaultRule"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -60,8 +62,8 @@ func TestLogNotifier_Notify(t *testing.T) {
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -69,23 +71,23 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -114,8 +116,8 @@ func TestLogNotifier_Notify(t *testing.T) {
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -123,20 +125,20 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 						After: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -144,15 +146,15 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
-							Disable: testconvert.Bool(true),
+							Disable: new(true),
 						},
 					},
 				},
@@ -176,8 +178,8 @@ func TestLogNotifier_Notify(t *testing.T) {
 					"add-test-flag": &flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
-								Name:  testconvert.String("rule1"),
-								Query: testconvert.String("key eq \"random-key\""),
+								Name:  new("rule1"),
+								Query: new("key eq \"random-key\""),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -185,13 +187,13 @@ func TestLogNotifier_Notify(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(false),
-							"False":   testconvert.Interface(false),
-							"True":    testconvert.Interface(true),
+							"Default": new(any(false)),
+							"False":   new(any(false)),
+							"True":    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name:            testconvert.String("defaultRule"),
-							VariationResult: testconvert.String("Default"),
+							Name:            new("defaultRule"),
+							VariationResult: new("Default"),
 						},
 					},
 				},
@@ -214,8 +216,8 @@ func TestLogNotifier_Notify(t *testing.T) {
 						After: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -223,20 +225,20 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -244,15 +246,15 @@ func TestLogNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
-							Disable: testconvert.Bool(true),
+							Disable: new(true),
 						},
 					},
 				},
@@ -270,6 +272,8 @@ func TestLogNotifier_Notify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelDebug, nil)
 			logger := slog.New(handler)
 			c := &Notifier{

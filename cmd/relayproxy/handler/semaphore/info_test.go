@@ -8,6 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -15,12 +20,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_info_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		handlerErr bool
@@ -55,21 +59,17 @@ func Test_info_Handler(t *testing.T) {
 					{
 						Name:    "teamA",
 						APIKeys: []string{"teamA-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: testdataDir + "/config_flags.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: testdataDir + "/config_flags.yaml",
 						},
 					},
 					{
 						Name:    "teamB",
 						APIKeys: []string{"teamA-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: testdataDir + "/config_flags.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: testdataDir + "/config_flags.yaml",
 						},
 					},
 				},
@@ -79,8 +79,10 @@ func Test_info_Handler(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			flagsetManager, err := service.NewFlagsetManager(&tt.config, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			srv := service.NewMonitoring(flagsetManager)
 			infoCtrl := controller.NewInfo(srv)
@@ -94,6 +96,7 @@ func Test_info_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
+
 				return
 			}
 
@@ -102,7 +105,7 @@ func Test_info_Handler(t *testing.T) {
 			// Parse the response JSON to check the structure
 			var response map[string]any
 			err = json.Unmarshal(rec.Body.Bytes(), &response)
-			assert.NoError(t, err, "Response should be valid JSON")
+			require.NoError(t, err, "Response should be valid JSON")
 
 			// Check that cacheRefresh field exists and is a valid timestamp
 			cacheRefreshStr, exists := response["cacheRefresh"]
@@ -110,20 +113,20 @@ func Test_info_Handler(t *testing.T) {
 
 			// Parse the timestamp string
 			cacheRefresh, err := time.Parse(time.RFC3339, cacheRefreshStr.(string))
-			assert.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
+			require.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
 			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
 
 			if tt.config.FlagSets != nil {
 				flagsets, exists := response["flagsets"]
 				assert.True(t, exists, "Response should contain flagsets field")
-				assert.Equal(t, len(tt.config.FlagSets), len(flagsets.(map[string]any)), "Number of flagsets should match")
+				assert.Len(t, flagsets.(map[string]any), len(tt.config.FlagSets), "Number of flagsets should match")
 				for _, flagset := range tt.config.FlagSets {
 					flagsetName := flagset.Name
 					flagsetRefreshDateStr, exists := flagsets.(map[string]any)[flagsetName]
 					assert.True(t, exists, "Response should contain flagset %s field", flagsetName)
 
 					flagsetRefreshDate, err := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
-					assert.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
+					require.NoError(t, err, "flagsetRefreshDate should be a valid RFC3339 timestamp")
 					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
 				}
 			}
@@ -131,9 +134,13 @@ func Test_info_Handler(t *testing.T) {
 	}
 }
 
-// Test_info_Handler_Error tests the error scenario in the info handler
+// Test_info_Handler_Error tests the error scenario in the info handler.
 func Test_info_Handler_Error(t *testing.T) {
+	t.Parallel()
+
 	t.Run("monitoring service returns error", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a mock monitoring service that returns an error
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
@@ -151,16 +158,19 @@ func Test_info_Handler_Error(t *testing.T) {
 		res := infoCtrl.Handler(c)
 
 		// Verify that the handler returns an error
-		assert.Error(t, res, "Handler should return an error when monitoring service fails")
+		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError, ok := res.(*echo.HTTPError)
+		httpError := &echo.HTTPError{}
+		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")
 		assert.Equal(t, "flagset manager is not initialized", httpError.Message, "Error message should match")
 	})
 
 	t.Run("monitoring service returns different error", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a mock monitoring service that returns a different error
 		mockMonitoring := &mock.MockMonitoringService{
 			HealthResponse: model.HealthResponse{Initialized: true},
@@ -178,10 +188,11 @@ func Test_info_Handler_Error(t *testing.T) {
 		res := infoCtrl.Handler(c)
 
 		// Verify that the handler returns an error
-		assert.Error(t, res, "Handler should return an error when monitoring service fails")
+		require.Error(t, res, "Handler should return an error when monitoring service fails")
 
 		// Verify that the error is an HTTP error with status 500
-		httpError, ok := res.(*echo.HTTPError)
+		httpError := &echo.HTTPError{}
+		ok := errors.As(res, &httpError)
 		assert.True(t, ok, "Error should be an HTTP error")
 		assert.Equal(t, http.StatusInternalServerError, httpError.Code, "Should return 500 status code")
 		assert.Equal(t, "failed to get flagsets", httpError.Message, "Error message should match")

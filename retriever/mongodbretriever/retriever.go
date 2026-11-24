@@ -3,13 +3,14 @@ package mongodbretriever
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // Retriever is a configuration struct for a MongoDB connection and Collection.
@@ -35,33 +36,36 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		client, err := mongo.Connect(ctx, options.Client().ApplyURI(r.URI))
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 		r.dbClient = client
 		r.dbConnection = client.Database(r.Database)
 		r.status = retriever.RetrieverReady
 	}
+
 	return nil
 }
 
-// Status returns the current status of the retriever
+// Status returns the current status of the retriever.
 func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
-// Shutdown disconnects the retriever from Mongodb instance
+// Shutdown disconnects the retriever from Mongodb instance.
 func (r *Retriever) Shutdown(ctx context.Context) error {
 	return r.dbClient.Disconnect(ctx)
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
-// if a document does not comply with the specification it will be ignored
+// if a document does not comply with the specification it will be ignored.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.dbConnection == nil {
-		return nil, fmt.Errorf("database connection is not initialized")
+		return nil, errors.New("database connection is not initialized")
 	}
 
 	opt := options.CollectionOptions{}

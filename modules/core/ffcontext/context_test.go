@@ -4,12 +4,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 func TestUserAddCustomAttribute(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		name  string
 		value any
@@ -40,6 +43,8 @@ func TestUserAddCustomAttribute(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.user.AddCustomAttribute(tt.args.name, tt.args.value)
 			assert.Equal(t, tt.want, tt.user.GetCustom())
 		})
@@ -47,6 +52,8 @@ func TestUserAddCustomAttribute(t *testing.T) {
 }
 
 func TestExtractGOFFProtectedFields(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		ctx  ffcontext.EvaluationContext
@@ -61,7 +68,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -72,20 +79,20 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
 			name: "context goff specifics as map[string]interface and date as *time.Time",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": testconvert.Time(
+					"currentDateTime": new(
 						time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC),
 					),
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -97,7 +104,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
@@ -120,23 +127,23 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 			name: "context goff specifics as GoffContextSpecifics type",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
-					CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
 		{
 			name: "context goff specifics as GoffContextSpecifics type contains flagList",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", ffcontext.GoffContextSpecifics{
-					CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+					CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 					FlagList:        []string{"flag1", "flag2"},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
 		},
@@ -144,13 +151,13 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 			name: "context goff specifics as map[string]interface type contains flagList",
 			ctx: ffcontext.NewEvaluationContextBuilder("my-targetingKey").
 				AddCustom("gofeatureflag", map[string]any{
-					"currentDateTime": testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
+					"currentDateTime": new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)).
 						Format(time.RFC3339),
 					"flagList": []string{"flag1", "flag2"},
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				CurrentDateTime: testconvert.Time(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
+				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
 		},
@@ -245,6 +252,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.ctx.ExtractGOFFProtectedFields()
 			assert.Equal(t, tt.want, got)
 		})
@@ -252,6 +261,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 }
 
 func TestEvaluationContextMarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -274,14 +285,18 @@ func TestEvaluationContextMarshalJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			data, err := tt.context.MarshalJSON()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.JSONEq(t, tt.expected, string(data))
 		})
 	}
 }
 
 func TestEvaluationContextToMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		context  ffcontext.EvaluationContext
@@ -334,6 +349,8 @@ func TestEvaluationContextToMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.context.ToMap()
 			assert.Equal(t, tt.expected, got)
 		})
@@ -341,7 +358,11 @@ func TestEvaluationContextToMap(t *testing.T) {
 }
 
 func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
+	t.Parallel()
+
 	t.Run("targetingKey is not leaked into the context attributes", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 
@@ -352,6 +373,8 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	})
 
 	t.Run("mutating the returned map does not leak back into the context", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 
@@ -364,6 +387,8 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 	})
 
 	t.Run("multiple calls are stable and leave the context untouched", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := ffcontext.NewEvaluationContext("user-123")
 		ctx.AddCustomAttribute("company", "acme")
 
@@ -387,22 +412,30 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 		wantMeta   map[string]any
 	}{
 		{
-			name:       "semaphore key",
-			attributes: map[string]any{ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate}},
-			wantFlags:  []string{"a"},
-			wantDate:   newDate,
+			name: "semaphore key",
+			attributes: map[string]any{
+				ffcontext.ReservedKey: map[string]any{"flagList": []any{"a"}, "currentDateTime": newDate},
+			},
+			wantFlags: []string{"a"},
+			wantDate:  newDate,
 		},
 		{
-			name:       "legacy key only",
-			attributes: map[string]any{ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate}},
-			wantFlags:  []string{"b"},
-			wantDate:   legacyDate,
+			name: "legacy key only",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"b"}, "currentDateTime": legacyDate},
+			},
+			wantFlags: []string{"b"},
+			wantDate:  legacyDate,
 		},
 		{
 			name: "both keys, semaphore wins field by field",
 			attributes: map[string]any{
 				ffcontext.LegacyReservedKey: map[string]any{
-					"flagList": []any{"old"}, "currentDateTime": legacyDate, "exporterMetadata": map[string]any{"k": "legacy"},
+					"flagList": []any{
+						"old",
+					},
+					"currentDateTime":  legacyDate,
+					"exporterMetadata": map[string]any{"k": "legacy"},
 				},
 				ffcontext.ReservedKey: map[string]any{"flagList": []any{"new"}, "currentDateTime": newDate},
 			},
@@ -472,6 +505,7 @@ func mustParse(t *testing.T, s string) time.Time {
 	t.Helper()
 	d, err := time.Parse(time.RFC3339, s)
 	assert.NoError(t, err)
+
 	return d
 }
 

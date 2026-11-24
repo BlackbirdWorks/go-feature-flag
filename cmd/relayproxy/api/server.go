@@ -4,6 +4,13 @@ import (
 	"net/http"
 	"sync"
 
+	echootel "github.com/labstack/echo-otel/v5"
+	echoprometheus "github.com/labstack/echo-prometheus"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
@@ -14,12 +21,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	echootel "github.com/labstack/echo-otel/v5"
-	echoprometheus "github.com/labstack/echo-prometheus"
-	"github.com/labstack/echo/v5"
-	"github.com/labstack/echo/v5/middleware"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 type AuthMiddlewareType = string
@@ -29,7 +30,7 @@ const (
 	AdminAuth AuthMiddlewareType = "ADMIN"
 )
 
-// New is used to create a new instance of the API server
+// New is used to create a new instance of the API server.
 func New(config *config.Config,
 	services service.Services,
 	zapLog *zap.Logger,
@@ -46,10 +47,11 @@ func New(config *config.Config,
 	}
 	s.apiEcho = echo.New()
 	s.initRoutes()
+
 	return s
 }
 
-// Server is the struct that represents the API server
+// Server is the struct that represents the API server.
 type Server struct {
 	config         *config.Config
 	apiEcho        *echo.Echo
@@ -66,7 +68,7 @@ type Server struct {
 	stopped chan struct{}
 }
 
-// initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy
+// initRoutes initialize the API endpoints that contain business logic and specificity for the relay proxy.
 func (s *Server) initRoutes() {
 	s.apiEcho.HTTPErrorHandler = echo.DefaultHTTPErrorHandler(s.config.IsDebugEnabled())
 	s.apiEcho.Use(echootel.NewMiddleware(configfile.OtelTracerName))
@@ -85,6 +87,7 @@ func (s *Server) initRoutes() {
 				// classic histogram buckets for backward compatibility.
 				opts.NativeHistogramBucketFactor = 1.1
 				opts.NativeHistogramMaxBucketNumber = 160
+
 				return opts
 			},
 		}))

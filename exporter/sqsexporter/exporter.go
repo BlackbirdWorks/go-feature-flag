@@ -3,6 +3,7 @@ package sqsexporter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -38,13 +40,13 @@ func (f *Exporter) Export(
 	if f.AwsConfig == nil {
 		cfg, err := config.LoadDefaultConfig(ctx)
 		if err != nil {
-			return fmt.Errorf("impossible to init SQS exporter: %v", err)
+			return fmt.Errorf("impossible to init SQS exporter: %w", err)
 		}
 		f.AwsConfig = &cfg
 	}
 
 	if f.QueueURL == "" {
-		return fmt.Errorf("impossible to init SQS exporter: QueueURL is a mandatory parameter")
+		return errors.New("impossible to init SQS exporter: QueueURL is a mandatory parameter")
 	}
 
 	if f.sqsService == nil {

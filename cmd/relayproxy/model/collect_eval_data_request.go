@@ -4,7 +4,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 )
 
-// CollectEvalDataRequest is the request to collect data in
+// CollectEvalDataRequest is the request to collect data in.
 type CollectEvalDataRequest struct {
 	// Meta are the extra information added during the configuration
 	Meta exporter.FeatureEventMetadata `json:"meta"`

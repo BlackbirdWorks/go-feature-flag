@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-// SimpleRetriever implements only the basic Retriever interface
+// SimpleRetriever implements only the basic Retriever interface.
 type SimpleRetriever struct {
 	Name           string
 	RetrieveCalled bool
@@ -21,6 +21,7 @@ func (m *SimpleRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	if m.ShouldFail {
 		return nil, errors.New("retrieve failed")
 	}
+
 	return []byte(defaultFlagConfig), nil
 }
 

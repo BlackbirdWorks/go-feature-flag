@@ -5,14 +5,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 )
 
 func TestZapLogger200(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -25,7 +29,7 @@ func TestZapLogger200(t *testing.T) {
 	obs, logs := observer.New(zap.DebugLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, false)(h)(c)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	logFields := logs.AllUntimed()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields["status"])
@@ -36,6 +40,8 @@ func TestZapLogger200(t *testing.T) {
 }
 
 func TestZapLogger300(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -48,7 +54,7 @@ func TestZapLogger300(t *testing.T) {
 	obs, logs := observer.New(zap.DebugLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, false)(h)(c)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	logFields := logs.AllUntimed()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields["status"])
@@ -58,6 +64,8 @@ func TestZapLogger300(t *testing.T) {
 	assert.NotNil(t, logFields["size"])
 }
 func TestZapLogger400(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -70,7 +78,7 @@ func TestZapLogger400(t *testing.T) {
 	obs, logs := observer.New(zap.DebugLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, false)(h)(c)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	logFields := logs.AllUntimed()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
@@ -81,6 +89,8 @@ func TestZapLogger400(t *testing.T) {
 }
 
 func TestZapLogger500(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
 	rec := httptest.NewRecorder()
@@ -93,7 +103,7 @@ func TestZapLogger500(t *testing.T) {
 	obs, logs := observer.New(zap.ErrorLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, false)(h)(c)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	logFields := logs.AllUntimed()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
@@ -104,6 +114,8 @@ func TestZapLogger500(t *testing.T) {
 }
 
 func TestZapLoggerHealth(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -116,11 +128,13 @@ func TestZapLoggerHealth(t *testing.T) {
 	obs, logs := observer.New(zap.DebugLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, false)(h)(c)
-	assert.Nil(t, err)
-	assert.Equal(t, 0, len(logs.AllUntimed()))
+	require.NoError(t, err)
+	assert.Empty(t, logs.AllUntimed())
 }
 
 func TestZapLoggerHealthDebug(t *testing.T) {
+	t.Parallel()
+
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rec := httptest.NewRecorder()
@@ -133,11 +147,13 @@ func TestZapLoggerHealthDebug(t *testing.T) {
 	obs, logs := observer.New(zap.DebugLevel)
 	logger := zap.New(obs)
 	err := middleware.ZapLogger(logger, true)(h)(c)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(logs.AllUntimed()))
+	require.NoError(t, err)
+	assert.Len(t, logs.AllUntimed(), 1)
 }
 
 func TestZapLoggerRedactsAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		uri  string
@@ -171,6 +187,8 @@ func TestZapLoggerRedactsAPIKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, tt.uri, nil)
 			c := e.NewContext(req, httptest.NewRecorder())
@@ -180,7 +198,7 @@ func TestZapLoggerRedactsAPIKey(t *testing.T) {
 
 			obs, logs := observer.New(zap.DebugLevel)
 			err := middleware.ZapLogger(zap.New(obs), false)(h)(c)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, 1, logs.Len())
 			assert.Equal(t, tt.want, logs.AllUntimed()[0].ContextMap()["request"])
 		})

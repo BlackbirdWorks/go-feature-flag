@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
 // newWSConnPair stands up a throwaway websocket server and returns the
@@ -39,10 +40,13 @@ func newWSConnPair(t *testing.T) (server, client *websocket.Conn) {
 		_ = client.Close()
 		_ = server.Close()
 	})
+
 	return server, client
 }
 
 func Test_threadSafeConn_ping(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 1)
@@ -51,6 +55,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 		case pinged <- struct{}{}:
 		default:
 		}
+
 		return nil
 	})
 	// A reader is required for the client to process incoming control frames.
@@ -69,7 +74,7 @@ func Test_threadSafeConn_ping(t *testing.T) {
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
-		t.Fatal("client never received the ping")
+		require.Fail(t, "client never received the ping")
 	}
 
 	// Error path: writing to a closed connection returns an error.
@@ -78,6 +83,8 @@ func Test_threadSafeConn_ping(t *testing.T) {
 }
 
 func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 
 	pinged := make(chan struct{}, 8)
@@ -86,6 +93,7 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 		case pinged <- struct{}{}:
 		default:
 		}
+
 		return nil
 	})
 	go func() {
@@ -109,18 +117,20 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	select {
 	case <-pinged:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop never sent a ping")
+		require.Fail(t, "ping loop never sent a ping")
 	}
 
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not stop when the context was cancelled")
+		require.Fail(t, "ping loop did not stop when the context was cancelled")
 	}
 }
 
 func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
+	t.Parallel()
+
 	server, client := newWSConnPair(t)
 	// Close both ends so the next write fails immediately.
 	_ = client.Close()
@@ -138,13 +148,15 @@ func Test_pingPongLoop_stops_on_write_error(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not stop after a write error")
+		require.Fail(t, "ping loop did not stop after a write error")
 	}
 }
 
 // Test_pingPongLoop_zero_interval_uses_default ensures a zero-valued interval
 // falls back to the default rather than panicking time.NewTicker.
 func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
+	t.Parallel()
+
 	server, _ := newWSConnPair(t)
 
 	f := NewWsFlagChange(stream.NewWebsocketService(), nil, zap.NewNop())
@@ -161,6 +173,6 @@ func Test_pingPongLoop_zero_interval_uses_default(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("ping loop did not start/stop with a zero interval")
+		require.Fail(t, "ping loop did not start/stop with a zero interval")
 	}
 }

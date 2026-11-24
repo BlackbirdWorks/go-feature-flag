@@ -26,6 +26,7 @@ func NewHTTPClient(timeout time.Duration, transport http.RoundTripper) HTTPClien
 	if timeout <= 0 {
 		timeout = defaultHTTPTimeout
 	}
+
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,

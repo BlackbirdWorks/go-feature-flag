@@ -35,7 +35,7 @@ func (s *S3ManagerV2Mock) UploadObject(
 	buf := new(strings.Builder)
 	_, err := io.Copy(buf, uploadInput.Body)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println(err) //nolint:forbidigo // mock server diagnostics
 	}
 	s.S3ManagerMockFileSystem[*uploadInput.Key] = buf.String()
 
@@ -59,6 +59,7 @@ func (s *S3ManagerV2Mock) DownloadObject(
 	if input.Key != nil && *input.Key == "valid" {
 		res, _ := os.ReadFile(s.TestDataLocation + "/flag-config.yaml")
 		_, _ = input.WriterAt.WriteAt(res, 0)
+
 		return &transfermanager.DownloadObjectOutput{}, nil
 	}
 	if input.Key != nil && *input.Key == "no-file" {

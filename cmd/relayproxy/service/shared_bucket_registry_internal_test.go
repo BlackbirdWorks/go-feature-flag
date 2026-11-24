@@ -19,13 +19,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 )
 
 // fakeS3 serves the same flag file for every key and counts the requests.
@@ -56,12 +57,14 @@ func (f *fakeS3) etagOf(key string) string {
 	if e, ok := f.etags[key]; ok {
 		return e
 	}
+
 	return "x"
 }
 
 func (f *fakeS3) getCount(key string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.getsByKey[key]
 }
 
@@ -82,6 +85,7 @@ func (f *fakeS3) ListObjectsV2(
 			out.Contents = append(out.Contents, s3types.Object{Key: aws.String(k), ETag: aws.String(f.etagOf(k))})
 		}
 	}
+
 	return out, nil
 }
 
@@ -98,11 +102,13 @@ func (f *fakeS3) DownloadObject(
 	if _, err := in.WriterAt.WriteAt(f.content, 0); err != nil {
 		return nil, err
 	}
+
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(f.etagOf(aws.ToString(in.Key)))}, nil
 }
 
 func newFakeRegistry(t *testing.T, f *fakeS3, created *atomic.Int32) *sharedBucketRegistry {
 	t.Helper()
+
 	return newFakeRegistryWithPolling(t, f, created, 0, false, nil)
 }
 
@@ -110,8 +116,10 @@ func newFakeRegistryWithPolling(
 	t *testing.T, f *fakeS3, created *atomic.Int32, interval time.Duration, jitter bool, logger *zap.Logger,
 ) *sharedBucketRegistry {
 	t.Helper()
+
 	return newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 		created.Add(1)
+
 		return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
 			Bucket: bucket, Lister: f, Downloader: f,
 		})
@@ -122,11 +130,13 @@ func s3FlagSet(name, bucket, item string) config.FlagSet {
 	return config.FlagSet{
 		Name:    name,
 		APIKeys: []string{name + "-key"},
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever:                   &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: bucket, Item: item},
-			EnableSharedPollerPerBucket: true,
-			PollingInterval:             60000,
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind:   retrieverconf.S3Retriever,
+			Bucket: bucket,
+			Item:   item,
 		},
+		EnableSharedPollerPerBucket: true,
+		PollingInterval:             60000,
 	}
 }
 
@@ -134,6 +144,7 @@ func s3FlagSet(name, bucket, item string) config.FlagSet {
 func (r *sharedBucketRegistry) groupCount() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return len(r.groups)
 }
 
@@ -183,7 +194,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			multi.Retrievers = &[]retrieverconf.RetrieverConf{*multi.Retriever}
 			for _, fs := range []config.FlagSet{folder, other, multi} {
 				_, err := reg.retrieverFor(&fs)
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 			assert.Equal(t, 0, reg.groupCount())
 		}},
@@ -191,32 +202,36 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
 			_, err := reg.retrieverFor(&fs)
-			assert.ErrorContains(t, err, "no AWS")
+			require.ErrorContains(t, err, "no AWS")
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 		{name: "concurrent callers build the group once", run: func(t *testing.T) {
 			const callers = 4
 			var building sync.WaitGroup
 			building.Add(callers)
-			reg := newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
-				// every caller is building its own group at the same time: only one is kept
-				building.Done()
-				building.Wait()
-				return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
-					Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
-				})
-			}, 0, false, nil)
+			reg := newSharedBucketRegistry(
+				func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
+					// every caller is building its own group at the same time: only one is kept
+					building.Done()
+					building.Wait()
+
+					return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+						Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
+					})
+				},
+				0,
+				false,
+				nil,
+			)
 			var wg sync.WaitGroup
 			retrievers := make(chan *releasingRetriever, callers)
 			for i := range callers {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					fs := s3FlagSet(fmt.Sprintf("f%d", i), "b1", fmt.Sprintf("p/%d.yaml", i))
 					r, err := reg.retrieverFor(&fs)
 					assert.NoError(t, err)
 					retrievers <- r.(*releasingRetriever)
-				}()
+				})
 			}
 			wg.Wait()
 			close(retrievers)
@@ -262,13 +277,13 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 		{name: "invalid configuration", run: func(t *testing.T) {
 			reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
 			bad := s3FlagSet("c", "b1", "")
-			assert.Error(t, reg.preRegister(&bad))
+			require.Error(t, reg.preRegister(&bad))
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 		{name: "factory error", run: func(t *testing.T) {
 			fs := s3FlagSet("a", "b1", "p/a.yaml")
 			reg := failingRegistry(nil)
-			assert.ErrorContains(t, reg.preRegister(&fs), "no AWS")
+			require.ErrorContains(t, reg.preRegister(&fs), "no AWS")
 			assert.Equal(t, 0, reg.groupCount())
 		}},
 	}
@@ -319,6 +334,8 @@ func Test_sharedBucketRegistry_preRegisterAll(t *testing.T) {
 }
 
 // Not parallel: the subtests use t.Setenv.
+//
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func Test_defaultSharedItemsFactory(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -364,7 +381,11 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			name: "different interval", parent: 10 * time.Second, polling: 5000,
 			wantMessage: []string{"the pollingInterval of the flagset is ignored"},
 		},
-		{name: "jitter only on the flagset", jitter: true, wantMessage: []string{"the enablePollingJitter of the flagset is ignored"}},
+		{
+			name:        "jitter only on the flagset",
+			jitter:      true,
+			wantMessage: []string{"the enablePollingJitter of the flagset is ignored"},
+		},
 		{name: "jitter on the parent", parentJit: true, jitter: true},
 		{
 			name: "both differ", parent: 10 * time.Second, polling: 1000, jitter: true,

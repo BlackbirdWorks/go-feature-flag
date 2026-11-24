@@ -3,10 +3,11 @@ package controller
 import (
 	"net/http"
 
+	"github.com/labstack/echo/v5"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/labstack/echo/v5"
 )
 
 // errLegacyUser is the message returned when a request still uses the removed `user` field.
@@ -24,6 +25,7 @@ func assertRequest(u *model.AllFlagRequest) *echo.HTTPError {
 			"assertRequest: impossible to find evaluationContext in request",
 		)
 	}
+
 	return nil
 }
 
@@ -36,5 +38,6 @@ func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.Context,
 			)
 	}
 	u := req.EvaluationContext
+
 	return utils.ConvertEvaluationCtxFromRequest(u.Key, u.Custom), nil
 }

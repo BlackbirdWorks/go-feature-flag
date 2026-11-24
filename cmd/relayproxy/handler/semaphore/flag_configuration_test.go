@@ -1,11 +1,18 @@
 package controller_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -13,16 +20,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const mockConfigFlagsLocation = testdataDir + "/configuration/"
 
 func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		bodyLocation string
 		statusCode   int
@@ -67,21 +71,21 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode (no flagsets)
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/configuration_flags.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: config.LogExporter,
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/configuration_flags.yaml",
+				},
+				Exporter: &config.ExporterConf{
+					Kind: config.LogExporter,
 				},
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
 			e := echo.New()
@@ -89,21 +93,25 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			c := e.NewContext(req, rec)
 			c.SetPath("/v1/flag/configuration")
 
 			// Call the handler
-			assert.NoError(t, ctrl.Handler(c))
+			require.NoError(t, ctrl.Handler(c))
 
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})
@@ -111,6 +119,8 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 }
 
 func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
+	t.Parallel()
+
 	const configFlagsLocation = testdataDir + "/configuration_flags.yaml"
 	const configFlagsLocation2 = testdataDir + "/config_flags_v2.yaml"
 
@@ -171,32 +181,30 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 	for _, tt := range test {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for flagset mode
 			conf := config.Config{
 				FlagSets: []config.FlagSet{
 					{
 						Name: "flagset1",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: configFlagsLocation,
-							},
-							Exporter: &config.ExporterConf{
-								Kind: config.LogExporter,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: configFlagsLocation,
+						},
+						Exporter: &config.ExporterConf{
+							Kind: config.LogExporter,
 						},
 						APIKeys: []string{"flagset1-api-key"},
 					},
 					{
 						Name: "flagset2",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: retrieverconf.FileRetriever,
-								Path: configFlagsLocation2,
-							},
-							Exporter: &config.ExporterConf{
-								Kind: config.LogExporter,
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: retrieverconf.FileRetriever,
+							Path: configFlagsLocation2,
+						},
+						Exporter: &config.ExporterConf{
+							Kind: config.LogExporter,
 						},
 						APIKeys: []string{"flagset2-api-key"},
 					},
@@ -204,7 +212,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			ctrl := controller.NewAPIFlagConfiguration(flagsetManager, metric.Metrics{})
 			e := echo.New()
@@ -212,9 +220,13 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			// read the request body from the file
 			requestBody, err := os.ReadFile(tt.requestBody)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 
 			// Add API key to header if provided
@@ -229,20 +241,22 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 			err = ctrl.Handler(c)
 
 			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
-				assert.Error(t, err, "handler should return an error for invalid API key")
-				he, ok := err.(*echo.HTTPError)
+				require.Error(t, err, "handler should return an error for invalid API key")
+				he := &echo.HTTPError{}
+				ok := errors.As(err, &he)
 				if ok {
 					assert.Equal(t, tt.want.statusCode, he.Code)
 				}
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.want.statusCode, rec.Code)
 
 			if tt.want.bodyLocation != "" {
 				wantBody, err := os.ReadFile(tt.want.bodyLocation)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.JSONEq(t, string(wantBody), rec.Body.String())
 			}
 		})
@@ -250,6 +264,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 }
 
 func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_configuration_total"
 	const want = "# HELP " + metricName + " Counter events for number of configuration api requests.\n" +
 		"# TYPE " + metricName + " counter\n" +
@@ -259,11 +275,9 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 		FlagSets: []config.FlagSet{
 			{
 				Name: "flagset1",
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/configuration_flags.yaml",
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/configuration_flags.yaml",
 				},
 				APIKeys: []string{"flagset1-api-key"},
 			},
@@ -271,7 +285,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 	}
 	flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err, "impossible to create flagset manager")
-	defer flagsetManager.Close()
+	t.Cleanup(func() { flagsetManager.Close() })
 
 	tests := []struct {
 		name           string
@@ -310,6 +324,8 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
 
@@ -317,7 +333,11 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 			require.NoError(t, err)
 
 			ctrl := controller.NewAPIFlagConfiguration(tt.flagsetManager, metrics)
-			req := httptest.NewRequest(http.MethodPost, "/v1/flag/configuration", strings.NewReader(string(requestBody)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/v1/flag/configuration",
+				strings.NewReader(string(requestBody)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			req.Header.Set(echo.HeaderAuthorization, "Bearer "+tt.apiKey)
 			rec := httptest.NewRecorder()

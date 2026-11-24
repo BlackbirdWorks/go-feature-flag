@@ -3,11 +3,14 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func TestHash(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		s string
 	}
@@ -24,14 +27,16 @@ func TestHash(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := utils.Hash(tt.args.s); got != tt.want {
-				t.Errorf("Hash() = %v, want %v", got, tt.want)
-			}
+			t.Parallel()
+
+			assert.Equal(t, tt.want, utils.Hash(tt.args.s), "Hash()")
 		})
 	}
 }
 
 func TestBuildHash(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		bucketingKey  string
@@ -99,6 +104,8 @@ func TestBuildHash(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := utils.BuildHash(tt.args.flagKey, tt.args.bucketingKey, tt.args.maxPercentage)
 			assert.Equal(t, tt.want, got)
 		})

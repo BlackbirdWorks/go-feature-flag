@@ -4,11 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 )
 
 func Test_Redis_Retrieve_NotInitialized(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		retriever *redisretriever.Retriever
@@ -22,6 +25,8 @@ func Test_Redis_Retrieve_NotInitialized(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.retriever.Retrieve(context.Background())
 			assert.Nil(t, got)
 			assert.ErrorContains(t, err, tt.wantErr)

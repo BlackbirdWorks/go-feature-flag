@@ -9,13 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type queueTestExporter struct {
@@ -34,6 +35,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 		return errors.New("failing")
 	}
 	e.events.Add(int64(len(ev)))
+
 	return nil
 }
 
@@ -115,17 +117,15 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 
 			var wg sync.WaitGroup
 			var maxG atomic.Int64
-			for w := 0; w < 4; w++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < tt.evals/4; i++ {
+			for range 4 {
+				wg.Go(func() {
+					for range tt.evals / 4 {
 						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)
 						}
 					}
-				}()
+				})
 			}
 			// the evaluations must never wait for a blocked exporter.
 			done := make(chan struct{})
@@ -134,7 +134,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			case <-done:
 			case <-time.After(time.Minute):
 				release()
-				t.Fatal("evaluations are blocked by the exporter")
+				require.Fail(t, "evaluations are blocked by the exporter")
 			}
 			if exp.block != nil {
 				// the exporter is still blocked: parked goroutines are still alive.

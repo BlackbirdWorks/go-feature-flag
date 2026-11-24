@@ -9,7 +9,7 @@ import (
 )
 
 // FileInitializableRetriever is the existing file-based mock that creates/deletes files
-// This maintains compatibility with existing tests
+// This maintains compatibility with existing tests.
 type FileInitializableRetriever struct {
 	Path          string
 	CurrentStatus retriever.Status
@@ -22,12 +22,13 @@ func NewFileInitializableRetriever(path string, status retriever.Status) *FileIn
 	}
 }
 
-// Retrieve reads the file and returns the content
+// Retrieve reads the file and returns the content.
 func (r *FileInitializableRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	content, err := os.ReadFile(r.Path)
 	if err != nil {
 		return nil, err
 	}
+
 	return content, nil
 }
 
@@ -40,6 +41,7 @@ func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) 
     variation: A`
 
 	yamlBytes := []byte(yamlString)
+
 	return os.WriteFile(r.Path, yamlBytes, 0600)
 }
 

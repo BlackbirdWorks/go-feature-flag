@@ -23,6 +23,7 @@ func (g *GoffContextSpecifics) addCurrentDateTime(currentDateTime any) {
 		if currentDateTime, err := time.ParseInLocation(time.RFC3339, value, time.Local); err == nil {
 			g.CurrentDateTime = &currentDateTime
 		}
+
 		return
 	default:
 		return

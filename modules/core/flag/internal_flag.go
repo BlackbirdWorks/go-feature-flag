@@ -9,10 +9,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/nikunjy/rules/parser"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/nikunjy/rules/parser"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 // converted into an InternalFlag to be used in the library.
 type InternalFlag struct {
 	// Variations are all the variations available for this flag. You can have as many variation as needed.
-	Variations *map[string]*any `json:"variations,omitempty" yaml:"variations,omitempty" toml:"variations,omitempty"` // nolint:lll
+	Variations *map[string]*any `json:"variations,omitempty" yaml:"variations,omitempty" toml:"variations,omitempty"` //nolint:lll
 
 	// Rules is the list of Rule for this flag.
 	// This an optional field.
@@ -40,12 +41,12 @@ type InternalFlag struct {
 	// Experimentation is your struct to configure an experimentation, it will allow you to configure a start date and
 	// an end date for your flag.
 	// When the experimentation is not running, the flag will serve the default value.
-	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" yaml:"experimentation,omitempty" toml:"experimentation,omitempty"` // nolint: lll
+	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" yaml:"experimentation,omitempty" toml:"experimentation,omitempty"` //nolint: lll
 
 	// Scheduled is your struct to configure an update on some fields of your flag over time.
 	// You can add several steps that updates the flag, this is typically used if you want to gradually add more user
 	// in your flag.
-	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty"` // nolint: lll
+	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty"` //nolint: lll
 
 	// TrackEvents is false if you don't want to export the data in your data exporter.
 	// Default value is true
@@ -63,7 +64,7 @@ type InternalFlag struct {
 	Metadata *map[string]any `json:"metadata,omitempty" yaml:"metadata,omitempty" toml:"metadata,omitempty"`
 }
 
-// Value is returning the Value associate to the flag
+// Value is returning the Value associate to the flag.
 func (f *InternalFlag) Value(
 	flagName string,
 	evaluationCtx ffcontext.Context,
@@ -141,6 +142,7 @@ func (f *InternalFlag) Value(
 		// caller owns the value it receives, as it did when the flag was copied at each evaluation.
 		value = cloneVariationValue(value)
 	}
+
 	return value, ResolutionDetails{
 		Variant:   variationSelection.name,
 		Reason:    variationSelection.reason,
@@ -159,6 +161,7 @@ func selectEvaluationReason(
 		if isDynamic {
 			return ReasonTargetingMatchSplit
 		}
+
 		return ReasonTargetingMatch
 	}
 
@@ -169,18 +172,21 @@ func selectEvaluationReason(
 		if hasRule {
 			return ReasonDefault
 		}
+
 		return ReasonStatic
 	}
+
 	return ReasonUnknown
 }
 
 func (f *InternalFlag) isCacheable() bool {
 	isDynamic := (f.Scheduled != nil && len(*f.Scheduled) > 0) || f.Experimentation != nil
+
 	return !isDynamic
 }
 
 // selectVariation is doing the magic to select the variation that should be used for this specific user
-// to always affect the user to the same segment we are using a hash of the flag name + key
+// to always affect the user to the same segment we are using a hash of the flag name + key.
 func (f *InternalFlag) selectVariation(
 	flagName, key string, ctx ffcontext.Context) (variationSelection, error) {
 	hasRule := len(f.GetRules()) != 0
@@ -196,10 +202,12 @@ func (f *InternalFlag) selectVariation(
 				if errors.Is(err, errRuleNotApply) {
 					continue
 				}
+
 				return variationSelection{}, err
 			}
 			matchedIndex := ruleIndex
 			reason := selectEvaluationReason(hasRule, true, target.IsDynamic(), false)
+
 			return variationSelection{
 				name:      variationName,
 				reason:    reason,
@@ -211,7 +219,7 @@ func (f *InternalFlag) selectVariation(
 	}
 
 	if f.DefaultRule == nil {
-		return variationSelection{}, fmt.Errorf("no default targeting for the flag")
+		return variationSelection{}, errors.New("no default targeting for the flag")
 	}
 
 	variationName, err := f.GetDefaultRule().evaluate(key, queryCtx, flagName, true)
@@ -220,6 +228,7 @@ func (f *InternalFlag) selectVariation(
 	}
 
 	reason := selectEvaluationReason(hasRule, false, f.GetDefaultRule().IsDynamic(), true)
+
 	return variationSelection{
 		name:      variationName,
 		reason:    reason,
@@ -244,6 +253,7 @@ func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*In
 			due++
 		}
 	}
+
 	return scheduledFlags.get(f, due, func() (*InternalFlag, error) {
 		return f.buildScheduledFlag(evaluationDate)
 	})
@@ -326,10 +336,11 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 			}
 		}
 	}
+
 	return flagCopy, nil
 }
 
-// isExperimentationOver checks if we are in an experimentation or not
+// isExperimentationOver checks if we are in an experimentation or not.
 func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 	return f.Experimentation != nil &&
 		((f.Experimentation.Start != nil && evaluationDate.Before(*f.Experimentation.Start)) ||
@@ -342,7 +353,7 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 // their queries cached across reloads.
 func (f *InternalFlag) IsValid() error {
 	if len(f.GetVariations()) == 0 {
-		return fmt.Errorf("no variation available")
+		return errors.New("no variation available")
 	}
 
 	// Check that all variation has the same types
@@ -359,7 +370,7 @@ func (f *InternalFlag) IsValid() error {
 				return err
 			}
 			if currentType != expectedVarType {
-				return fmt.Errorf("all variations should have the same type")
+				return errors.New("all variations should have the same type")
 			}
 		} else {
 			var err error
@@ -372,7 +383,7 @@ func (f *InternalFlag) IsValid() error {
 
 	// Validate that we have a default Rule
 	if f.GetDefaultRule() == nil {
-		return fmt.Errorf("missing default rule")
+		return errors.New("missing default rule")
 	}
 
 	// Retained before the rules are validated, so the parses made by the validation
@@ -410,14 +421,16 @@ func (f *InternalFlag) IsValid() error {
 
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
 	nikunjyEvaluators.index(f.Rules, ruleQueries, evaluators)
+
 	return nil
 }
 
-// GetVariations is the getter of the field Variations
+// GetVariations is the getter of the field Variations.
 func (f *InternalFlag) GetVariations() map[string]*any {
 	if f.Variations == nil {
 		return map[string]*any{}
 	}
+
 	return *f.Variations
 }
 
@@ -425,6 +438,7 @@ func (f *InternalFlag) GetRules() []Rule {
 	if f.Rules == nil {
 		return []Rule{}
 	}
+
 	return *f.Rules
 }
 
@@ -434,43 +448,48 @@ func (f *InternalFlag) GetRuleIndexByName(name string) *int {
 			return &index
 		}
 	}
+
 	return nil
 }
 
-// GetDefaultRule is the getter of the field DefaultRule
+// GetDefaultRule is the getter of the field DefaultRule.
 func (f *InternalFlag) GetDefaultRule() *Rule {
 	return f.DefaultRule
 }
 
-// IsTrackEvents is the getter of the field TrackEvents
+// IsTrackEvents is the getter of the field TrackEvents.
 func (f *InternalFlag) IsTrackEvents() bool {
 	if f.TrackEvents == nil {
 		return true
 	}
+
 	return *f.TrackEvents
 }
 
-// IsDisable is the getter for the field Disable
+// IsDisable is the getter for the field Disable.
 func (f *InternalFlag) IsDisable() bool {
 	if f.Disable == nil {
 		return false
 	}
+
 	return *f.Disable
 }
 
-// GetVersion is the getter for the field Version
+// GetVersion is the getter for the field Version.
 func (f *InternalFlag) GetVersion() string {
 	if f.Version == nil {
 		return ""
 	}
+
 	return *f.Version
 }
 
-// GetVariationValue return the value of variation from his name
+// GetVariationValue return the value of variation from his name.
 func (f *InternalFlag) GetVariationValue(name string) any {
 	if v, exists := f.GetVariations()[name]; exists && v != nil {
 		return *v
 	}
+
 	return nil
 }
 
@@ -479,12 +498,13 @@ func (f *InternalFlag) GetBucketingKey() string {
 	if f.BucketingKey == nil {
 		return ""
 	}
+
 	return *f.BucketingKey
 }
 
 // RequiresBucketing checks if the flag requires a bucketing key for evaluation
 // A flag requires bucketing if it has percentage-based rules or progressive rollouts,
-// including those introduced by scheduled rollout steps
+// including those introduced by scheduled rollout steps.
 func (f *InternalFlag) RequiresBucketing() bool {
 	// Check if default rule requires bucketing and if any targeting rule requires bucketing
 	if f.defaultRuleRequiresBucketing() || f.rulesRequireBucketing(f.GetRules()) {
@@ -499,26 +519,28 @@ func (f *InternalFlag) RequiresBucketing() bool {
 			}
 		}
 	}
+
 	return false
 }
 
-// rulesRequireBucketing checks if any of the rules require bucketing
+// rulesRequireBucketing checks if any of the rules require bucketing.
 func (f *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
 	for _, rule := range rules {
 		if rule.RequiresBucketing() {
 			return true
 		}
 	}
+
 	return false
 }
 
-// defaultRuleRequiresBucketing checks if the default rule requires bucketing
+// defaultRuleRequiresBucketing checks if the default rule requires bucketing.
 func (f *InternalFlag) defaultRuleRequiresBucketing() bool {
 	return f.DefaultRule != nil && f.DefaultRule.RequiresBucketing()
 }
 
 // GetBucketingKeyValue return the value of the bucketing key from the context
-// If requiresBucketing is false, it allows empty keys for flags that don't need them
+// If requiresBucketing is false, it allows empty keys for flags that don't need them.
 func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, error) {
 	// Cache the bucketing requirement check to avoid multiple calls
 	requiresBucketing := f.RequiresBucketing()
@@ -540,9 +562,10 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 			if v == "" {
 				return f.requiresBucketingCheck(requiresBucketing, "bucketing")
 			}
+
 			return v, nil
 		default:
-			return "", fmt.Errorf("invalid bucketing key")
+			return "", errors.New("invalid bucketing key")
 		}
 	}
 
@@ -554,19 +577,21 @@ func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, erro
 	return ctx.GetKey(), nil
 }
 
-// requiresBucketingCheck checks if the bucketing is required and returns the appropriate error
+// requiresBucketingCheck checks if the bucketing is required and returns the appropriate error.
 func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
 	if requiresBucketing {
 		return "", &internalerror.EmptyBucketingKeyError{Message: fmt.Sprintf("Empty %s key", key)}
 	}
+
 	return "", nil
 }
 
-// GetMetadata return the metadata associated to the flag
+// GetMetadata return the metadata associated to the flag.
 func (f *InternalFlag) GetMetadata() map[string]any {
 	if f.Metadata == nil {
 		return nil
 	}
+
 	return *f.Metadata
 }
 
@@ -574,6 +599,7 @@ func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time
 	if ctx == nil || ctx.ExtractGOFFProtectedFields().CurrentDateTime == nil {
 		return defaultDate
 	}
+
 	return *ctx.ExtractGOFFProtectedFields().CurrentDateTime
 }
 
@@ -583,6 +609,7 @@ func (f *InternalFlag) detachedMetadata(original *InternalFlag) map[string]any {
 	if f == original {
 		return f.GetMetadata()
 	}
+
 	return cloneMetadata(f.GetMetadata())
 }
 
@@ -590,6 +617,7 @@ func cloneMetadata(m map[string]any) map[string]any {
 	if m == nil {
 		return nil
 	}
+
 	return cloneVariationValue(m).(map[string]any)
 }
 
@@ -602,18 +630,21 @@ func cloneVariationValue(v any) any {
 		for k, e := range x {
 			out[k] = cloneVariationValue(e)
 		}
+
 		return out
 	case map[any]any:
 		out := make(map[any]any, len(x))
 		for k, e := range x {
 			out[k] = cloneVariationValue(e)
 		}
+
 		return out
 	case []any:
 		out := make([]any, len(x))
 		for i, e := range x {
 			out[i] = cloneVariationValue(e)
 		}
+
 		return out
 	default:
 		return v

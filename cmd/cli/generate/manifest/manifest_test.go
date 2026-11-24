@@ -4,11 +4,15 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 )
 
 func TestNewManifestCmd(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		config         string
 		format         string
@@ -47,10 +51,12 @@ func TestNewManifestCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			destination := ""
 			if tt.args.setDestination {
-				f, err := os.CreateTemp("", "temp")
-				assert.NoError(t, err)
+				f, err := os.CreateTemp(t.TempDir(), "temp")
+				require.NoError(t, err)
 				destination = f.Name()
 				defer func() { _ = os.Remove(destination) }()
 			}

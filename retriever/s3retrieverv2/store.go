@@ -5,6 +5,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
@@ -37,6 +38,7 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 			res = append(res, folderloader.Entry{Key: aws.ToString(obj.Key), Version: aws.ToString(obj.ETag)})
 		}
 	}
+
 	return res, nil
 }
 

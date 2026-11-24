@@ -6,31 +6,33 @@ import (
 	"time"
 	"weak"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 func scheduledFlag(base time.Time) *InternalFlag {
 	f := &InternalFlag{
 		Variations: &map[string]*any{
-			"A": testconvert.Interface("a"),
-			"B": testconvert.Interface("b"),
+			"A": new(any("a")),
+			"B": new(any("b")),
 		},
-		DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+		DefaultRule: &Rule{VariationResult: new("A")},
 		Scheduled: &[]ScheduledStep{
-			{Date: testconvert.Time(base.Add(2 * time.Hour)), InternalFlag: InternalFlag{
-				DefaultRule: &Rule{VariationResult: testconvert.String("B")}}},
-			{Date: testconvert.Time(base.Add(time.Hour)), InternalFlag: InternalFlag{
-				Version: testconvert.String("v2")}},
+			{Date: new(base.Add(2 * time.Hour)),
+				DefaultRule: &Rule{VariationResult: new("B")}},
+			{Date: new(base.Add(time.Hour)),
+				Version: new("v2")},
 		},
 	}
+
 	return f
 }
 
 func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	t.Parallel()
+
 	base := time.Now()
 	tests := []struct {
 		name        string
@@ -45,6 +47,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			f := scheduledFlag(base)
 			before := *f.Scheduled
 			runParallel(200, func(int) {
@@ -59,7 +62,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantVersion, res.GetVersion())
 			// the flag itself is never modified
-			assert.Equal(t, "", f.GetVersion())
+			assert.Empty(t, f.GetVersion())
 			assert.Equal(t, "A", f.GetDefaultRule().GetVariationResult())
 			assert.Equal(t, before, *f.Scheduled)
 		})
@@ -79,6 +82,7 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		runtime.GC()
 		_, ok := scheduledFlags.entries.Load(key)
+
 		return !ok
 	}, 5*time.Second, 20*time.Millisecond)
 }
@@ -119,10 +123,10 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			val := tt.value()
 			f := &InternalFlag{
 				Variations:  &map[string]*any{"A": &val},
-				DefaultRule: &Rule{VariationResult: testconvert.String("A")},
+				DefaultRule: &Rule{VariationResult: new("A")},
 				Scheduled: &[]ScheduledStep{{
-					Date:         testconvert.Time(base.Add(-time.Hour)),
-					InternalFlag: InternalFlag{Version: testconvert.String("v2")},
+					Date:    new(base.Add(-time.Hour)),
+					Version: new("v2"),
 				}},
 			}
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()

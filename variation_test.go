@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thejerf/slogassert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -15,14 +19,10 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/thejerf/slogassert"
 )
 
 type cacheMock struct {
@@ -78,6 +78,7 @@ func assertExpectedLog(t *testing.T, handler *slogassert.Handler, expectedLog st
 		"no log message containing %q was emitted", expectedLog)
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -102,16 +103,16 @@ func TestBoolVariation(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -126,7 +127,7 @@ func TestBoolVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        true,
@@ -171,8 +172,8 @@ func TestBoolVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -180,13 +181,13 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(true)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -203,8 +204,8 @@ func TestBoolVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -212,13 +213,13 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -235,8 +236,8 @@ func TestBoolVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -244,13 +245,13 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -267,8 +268,8 @@ func TestBoolVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -276,13 +277,13 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -299,8 +300,8 @@ func TestBoolVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -308,15 +309,15 @@ func TestBoolVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				}, nil),
 			},
 			want:        true,
@@ -331,7 +332,7 @@ func TestBoolVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        false,
@@ -383,6 +384,7 @@ func TestBoolVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "BoolVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariation() got = %v, want %v", got, tt.want)
@@ -393,6 +395,7 @@ func TestBoolVariation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -417,16 +420,16 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -440,7 +443,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[bool]{
@@ -490,8 +493,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -499,13 +502,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(true)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -529,8 +532,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -538,13 +541,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -571,8 +574,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -580,13 +583,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -613,7 +616,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -621,13 +624,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -651,8 +654,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -660,13 +663,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"False":   testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
+						"Default": new(any(false)),
+						"False":   new(any(false)),
+						"True":    new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -693,8 +696,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -702,13 +705,13 @@ func TestBoolVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -731,7 +734,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[bool]{
@@ -752,11 +755,11 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("on"),
+						VariationResult: new("on"),
 					},
 				}, nil),
 			},
@@ -779,8 +782,8 @@ func TestBoolVariationDetails(t *testing.T) {
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on":  testconvert.Interface(true),
-						"off": testconvert.Interface(false),
+						"on":  new(any(true)),
+						"off": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
@@ -818,7 +821,12 @@ func TestBoolVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -851,6 +859,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					err,
 					tt.wantErr,
 				)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariationDetails() got = %v, want %v", got, tt.want)
@@ -861,6 +870,7 @@ func TestBoolVariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64Variation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -885,16 +895,16 @@ func TestFloat64Variation(t *testing.T) {
 				defaultValue:  123.3,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -909,7 +919,7 @@ func TestFloat64Variation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  120.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        120.12,
@@ -954,8 +964,8 @@ func TestFloat64Variation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -963,13 +973,13 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -986,8 +996,8 @@ func TestFloat64Variation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -995,13 +1005,13 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1018,8 +1028,8 @@ func TestFloat64Variation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -1027,13 +1037,13 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1050,8 +1060,8 @@ func TestFloat64Variation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1059,13 +1069,13 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1082,8 +1092,8 @@ func TestFloat64Variation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1091,15 +1101,15 @@ func TestFloat64Variation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				}, nil),
 			},
 			want:        120.12,
@@ -1114,7 +1124,7 @@ func TestFloat64Variation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        118.12,
@@ -1136,7 +1146,12 @@ func TestFloat64Variation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(config, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						config,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1162,9 +1177,10 @@ func TestFloat64Variation(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
 				assert.Error(t, err, "Float64Variation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
-			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
+			assert.InDelta(t, tt.want, got, 0, "Float64Variation() got = %v, want %v", got, tt.want)
 
 			// clean logger
 			ff = nil
@@ -1172,6 +1188,7 @@ func TestFloat64Variation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64VariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1196,16 +1213,16 @@ func TestFloat64VariationDetails(t *testing.T) {
 				defaultValue:  123.3,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -1219,7 +1236,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  120.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[float64]{
@@ -1269,8 +1286,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1278,13 +1295,13 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1308,8 +1325,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1317,13 +1334,13 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1350,8 +1367,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -1359,13 +1376,13 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.12),
-						"False":   testconvert.Interface(121.12),
-						"True":    testconvert.Interface(120.12),
+						"Default": new(any(119.12)),
+						"False":   new(any(121.12)),
+						"True":    new(any(120.12)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1392,8 +1409,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1401,13 +1418,13 @@ func TestFloat64VariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1429,7 +1446,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  118.12,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[float64]{
@@ -1457,7 +1474,12 @@ func TestFloat64VariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1483,6 +1505,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
 				assert.Error(t, err, "Float64Variation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
@@ -1493,6 +1516,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1517,16 +1541,16 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -1541,7 +1565,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        []any{"toto"},
@@ -1586,8 +1610,8 @@ func TestJSONArrayVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1595,13 +1619,13 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1618,8 +1642,8 @@ func TestJSONArrayVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1627,13 +1651,13 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1649,12 +1673,12 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name: testconvert.String("defaultRule"),
+						Name: new("defaultRule"),
 						Percentages: &map[string]float64{
 							"False": 90,
 							"True":  10,
@@ -1675,8 +1699,8 @@ func TestJSONArrayVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1684,13 +1708,13 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1706,18 +1730,18 @@ func TestJSONArrayVariation(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name: testconvert.String("defaultRule"),
+						Name: new("defaultRule"),
 						Percentages: &map[string]float64{
 							"False": 0,
 							"True":  100,
 						},
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				}, nil),
 			},
 			want:        []any{"true"},
@@ -1732,7 +1756,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        []any{"toto"},
@@ -1754,7 +1778,12 @@ func TestJSONArrayVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -1779,6 +1808,7 @@ func TestJSONArrayVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONArrayVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
@@ -1789,6 +1819,7 @@ func TestJSONArrayVariation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -1813,16 +1844,16 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -1836,7 +1867,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[[]any]{
@@ -1886,8 +1917,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1895,13 +1926,13 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1925,8 +1956,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -1934,13 +1965,13 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -1966,12 +1997,12 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface([]any{"default"}),
-						"True":    testconvert.Interface([]any{"true"}),
-						"False":   testconvert.Interface([]any{"false"}),
+						"Default": new(any([]any{"default"})),
+						"True":    new(any([]any{"true"})),
+						"False":   new(any([]any{"false"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name: testconvert.String("defaultRule"),
+						Name: new("defaultRule"),
 						Percentages: &map[string]float64{
 							"False": 90,
 							"True":  10,
@@ -1999,8 +2030,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2008,13 +2039,13 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2036,7 +2067,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  []any{"toto"},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[[]any]{
@@ -2064,7 +2095,12 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2093,6 +2129,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONArrayVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
@@ -2103,6 +2140,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2127,16 +2165,16 @@ func TestJSONVariation(t *testing.T) {
 				defaultValue:  map[string]any{},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -2151,7 +2189,7 @@ func TestJSONVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        map[string]any{"default-notkey": true},
@@ -2196,8 +2234,8 @@ func TestJSONVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2205,13 +2243,13 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2228,8 +2266,8 @@ func TestJSONVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2237,13 +2275,13 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2260,8 +2298,8 @@ func TestJSONVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -2269,13 +2307,13 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2292,8 +2330,8 @@ func TestJSONVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2301,13 +2339,13 @@ func TestJSONVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2323,7 +2361,7 @@ func TestJSONVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        map[string]any{"default-notkey": true},
@@ -2345,7 +2383,12 @@ func TestJSONVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2372,6 +2415,7 @@ func TestJSONVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
@@ -2382,6 +2426,7 @@ func TestJSONVariation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2405,7 +2450,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[map[string]any]{
@@ -2428,8 +2473,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2437,13 +2482,13 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2467,8 +2512,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2476,13 +2521,13 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2509,8 +2554,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -2518,13 +2563,13 @@ func TestJSONVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"default": true}),
-						"True":    testconvert.Interface(map[string]any{"true": true}),
-						"False":   testconvert.Interface(map[string]any{"false": true}),
+						"Default": new(any(map[string]any{"default": true})),
+						"True":    new(any(map[string]any{"true": true})),
+						"False":   new(any(map[string]any{"false": true})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2550,7 +2595,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  map[string]any{"default-notkey": true},
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[map[string]any]{
@@ -2578,7 +2623,12 @@ func TestJSONVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2606,6 +2656,7 @@ func TestJSONVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
@@ -2616,6 +2667,7 @@ func TestJSONVariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2640,16 +2692,16 @@ func TestStringVariation(t *testing.T) {
 				defaultValue:  "",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -2664,7 +2716,7 @@ func TestStringVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        "default-notkey",
@@ -2710,8 +2762,8 @@ func TestStringVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2719,13 +2771,13 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2742,8 +2794,8 @@ func TestStringVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2751,13 +2803,13 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2774,8 +2826,8 @@ func TestStringVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -2783,13 +2835,13 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2806,8 +2858,8 @@ func TestStringVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2815,13 +2867,13 @@ func TestStringVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(1),
-						"False":   testconvert.Interface(2),
-						"True":    testconvert.Interface(3),
+						"Default": new(any(1)),
+						"False":   new(any(2)),
+						"True":    new(any(3)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -2837,7 +2889,7 @@ func TestStringVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        "default-notkey",
@@ -2855,18 +2907,18 @@ func TestStringVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:            testconvert.String("semver_rule"),
-							Query:           testconvert.String("version gt \"1.0.0-1234\""),
-							VariationResult: testconvert.String("prerelease"),
+							Name:            new("semver_rule"),
+							Query:           new("version gt \"1.0.0-1234\""),
+							VariationResult: new("prerelease"),
 						},
 					},
 					Variations: &map[string]*any{
-						"prerelease": testconvert.Interface("newer-prerelease"),
-						"default":    testconvert.Interface("default-value"),
+						"prerelease": new(any("newer-prerelease")),
+						"default":    new(any("default-value")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("default"),
 					},
 				}, nil),
 			},
@@ -2889,7 +2941,12 @@ func TestStringVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -2916,6 +2973,7 @@ func TestStringVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "StringVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
@@ -2926,6 +2984,7 @@ func TestStringVariation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -2949,7 +3008,7 @@ func TestStringVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[string]{
@@ -2972,8 +3031,8 @@ func TestStringVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -2981,13 +3040,13 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3011,8 +3070,8 @@ func TestStringVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3020,13 +3079,13 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3053,8 +3112,8 @@ func TestStringVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -3062,13 +3121,13 @@ func TestStringVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("default"),
-						"True":    testconvert.Interface("true"),
-						"False":   testconvert.Interface("false"),
+						"Default": new(any("default")),
+						"True":    new(any("true")),
+						"False":   new(any("false")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3094,7 +3153,7 @@ func TestStringVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  "default-notkey",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[string]{
@@ -3122,7 +3181,12 @@ func TestStringVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3148,6 +3212,7 @@ func TestStringVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "StringVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
@@ -3158,6 +3223,7 @@ func TestStringVariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3182,16 +3248,16 @@ func TestIntVariation(t *testing.T) {
 				defaultValue:  1,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -3206,7 +3272,7 @@ func TestIntVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  125,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        125,
@@ -3251,8 +3317,8 @@ func TestIntVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3260,13 +3326,13 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3283,8 +3349,8 @@ func TestIntVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3292,13 +3358,13 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3315,8 +3381,8 @@ func TestIntVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -3324,13 +3390,13 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3347,8 +3413,8 @@ func TestIntVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3356,13 +3422,13 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface("xxx"),
-						"False":   testconvert.Interface("xxx"),
-						"True":    testconvert.Interface("xxx"),
+						"Default": new(any("xxx")),
+						"False":   new(any("xxx")),
+						"True":    new(any("xxx")),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3379,8 +3445,8 @@ func TestIntVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3388,13 +3454,13 @@ func TestIntVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.1),
-						"True":    testconvert.Interface(120.1),
-						"False":   testconvert.Interface(121.1),
+						"Default": new(any(119.1)),
+						"True":    new(any(120.1)),
+						"False":   new(any(121.1)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3410,7 +3476,7 @@ func TestIntVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  125,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want:        125,
@@ -3432,7 +3498,12 @@ func TestIntVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3458,6 +3529,7 @@ func TestIntVariation(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "IntVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
@@ -3468,6 +3540,7 @@ func TestIntVariation(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariationDetails(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3491,7 +3564,7 @@ func TestIntVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  125,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[int]{
@@ -3514,8 +3587,8 @@ func TestIntVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3523,13 +3596,13 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3553,8 +3626,8 @@ func TestIntVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3562,13 +3635,13 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3595,8 +3668,8 @@ func TestIntVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -3604,13 +3677,13 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119),
-						"True":    testconvert.Interface(120),
-						"False":   testconvert.Interface(121),
+						"Default": new(any(119)),
+						"True":    new(any(120)),
+						"False":   new(any(121)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3637,8 +3710,8 @@ func TestIntVariationDetails(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3646,13 +3719,13 @@ func TestIntVariationDetails(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(119.1),
-						"True":    testconvert.Interface(120.1),
-						"False":   testconvert.Interface(121.1),
+						"Default": new(any(119.1)),
+						"True":    new(any(120.1)),
+						"False":   new(any(121.1)),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3678,7 +3751,7 @@ func TestIntVariationDetails(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  125,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[int]{
@@ -3706,7 +3779,12 @@ func TestIntVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -3732,6 +3810,7 @@ func TestIntVariationDetails(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Error(t, err, "IntVariation() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
@@ -3742,6 +3821,7 @@ func TestIntVariationDetails(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestRawVariation(t *testing.T) {
 	type args struct {
 		flagKey       string
@@ -3766,16 +3846,16 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  "",
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"var_true":  testconvert.Interface(true),
-						"var_false": testconvert.Interface(false),
+						"var_true":  new(any(true)),
+						"var_false": new(any(false)),
 					},
 					Rules: &[]flag.Rule{{
-						Query:       testconvert.String("key eq \"key\""),
+						Query:       new("key eq \"key\""),
 						Percentages: &map[string]float64{"var_true": 100, "var_false": 0}},
 					},
 					BucketingKey: nil,
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_false"),
+						VariationResult: new("var_false"),
 					},
 				}, nil),
 				disableInit: true,
@@ -3796,7 +3876,7 @@ func TestRawVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.RawVarResult{
@@ -3863,8 +3943,8 @@ func TestRawVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3872,13 +3952,13 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3902,8 +3982,8 @@ func TestRawVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -3911,13 +3991,13 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3944,8 +4024,8 @@ func TestRawVariation(t *testing.T) {
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("anonymous eq true"),
+							Name:  new("rule1"),
+							Query: new("anonymous eq true"),
 							Percentages: &map[string]float64{
 								"False": 90,
 								"True":  10,
@@ -3953,13 +4033,13 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(map[string]any{"test": "test"}),
-						"True":    testconvert.Interface(map[string]any{"test2": "test"}),
-						"False":   testconvert.Interface(map[string]any{"test3": "test"}),
+						"Default": new(any(map[string]any{"test": "test"})),
+						"True":    new(any(map[string]any{"test2": "test"})),
+						"False":   new(any(map[string]any{"test3": "test"})),
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
 				}, nil),
 			},
@@ -3985,14 +4065,14 @@ func TestRawVariation(t *testing.T) {
 				defaultValue:  true,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
 					Variations: &map[string]*any{
-						"Default": testconvert.Interface(false),
-						"True":    testconvert.Interface(true),
-						"False":   testconvert.Interface(false),
+						"Default": new(any(false)),
+						"True":    new(any(true)),
+						"False":   new(any(false)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Name:  testconvert.String("rule1"),
-							Query: testconvert.String("key eq \"random-key\""),
+							Name:  new("rule1"),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -4000,10 +4080,10 @@ func TestRawVariation(t *testing.T) {
 						},
 					},
 					DefaultRule: &flag.Rule{
-						Name:            testconvert.String("defaultRule"),
-						VariationResult: testconvert.String("Default"),
+						Name:            new("defaultRule"),
+						VariationResult: new("Default"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				}, nil),
 			},
 			want: model.RawVarResult{
@@ -4028,7 +4108,7 @@ func TestRawVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  false,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.RawVarResult{
@@ -4048,7 +4128,7 @@ func TestRawVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext("random-key"),
 				defaultValue:  nil,
 				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Disable: testconvert.Bool(true),
+					Disable: new(true),
 				}, nil),
 			},
 			want: model.RawVarResult{
@@ -4077,7 +4157,12 @@ func TestRawVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, &fflog.FFLogger{LeveledLogger: logger}),
+					retrieverManager: retriever.NewManager(
+						c,
+						[]retriever.Retriever{},
+						tt.args.cacheMock,
+						&fflog.FFLogger{LeveledLogger: logger},
+					),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -4103,7 +4188,7 @@ func TestRawVariation(t *testing.T) {
 			assertExpectedLog(t, handler, tt.expectedLog)
 
 			if tt.wantErr {
-				assert.Error(t, err, "RawVariation() error = %v, wantErr %v", err, tt.wantErr)
+				require.Error(t, err, "RawVariation() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.want, got, "RawVariation() got = %v, want %v", got, tt.want)
 
@@ -4114,7 +4199,9 @@ func TestRawVariation(t *testing.T) {
 }
 
 func Test_OverrideContextEnrichmentWithEnvironment(t *testing.T) {
-	tempFile, err := os.CreateTemp("", "")
+	t.Parallel()
+
+	tempFile, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
 	defer tempFile.Close()
 
@@ -4147,7 +4234,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res)
-	assert.NoError(t, err1)
+	require.NoError(t, err1)
 	allFlags := goff.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags.GetFlags()["flag1"].Value)
 
@@ -4166,7 +4253,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res2)
-	assert.NoError(t, err3)
+	require.NoError(t, err3)
 	allFlags2 := goff2.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags2.GetFlags()["flag1"].Value)
 
@@ -4186,7 +4273,7 @@ flag1:
 		false,
 	)
 	assert.True(t, res3)
-	assert.NoError(t, err5)
+	require.NoError(t, err5)
 
 	allFlags3 := goff3.AllFlagsState(ffcontext.NewEvaluationContextBuilder("my-key").Build())
 	assert.Equal(t, true, allFlags3.GetFlags()["flag1"].Value)

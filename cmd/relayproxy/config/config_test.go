@@ -2,15 +2,11 @@ package config_test
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/spf13/pflag"
@@ -19,9 +15,15 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
+	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 )
 
 func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		content     string
@@ -33,17 +35,20 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			configPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(configPath, []byte(tt.content), 0o600))
+			var environ []string
 			if tt.environment != "" {
-				t.Setenv("DISABLEFLAGDETAILSINSTREAM", tt.environment)
+				environ = append(environ, "DISABLEFLAGDETAILSINSTREAM="+tt.environment)
 			}
 
 			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			flagSet.String("config", "", "Location of your config file")
 			require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
 
-			got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+			got, err := config.New(flagSet, zap.NewNop(), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.True(t, got.DisableFlagDetailsInStream)
 		})
@@ -51,6 +56,8 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 }
 
 func TestParseConfig_fileFromPflag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		want         *config.Config
@@ -61,18 +68,16 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid yaml file",
 			fileLocation: "../testdata/config/valid-file.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -96,20 +101,18 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid yaml file with legacy key notifier (without s)",
 			fileLocation: "../testdata/config/valid-file-notifier.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
-					FixNotifiers: []config.NotifierConf{
-						{Kind: config.DiscordNotifier, WebhookURL: "https://discord.com/api/webhooks/yyyy/xxxxxxx"},
-					},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
+				FixNotifiers: []config.NotifierConf{
+					{Kind: config.DiscordNotifier, WebhookURL: "https://discord.com/api/webhooks/yyyy/xxxxxxx"},
 				},
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
@@ -135,20 +138,18 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid yaml file with legacy key notifier (without s)",
 			fileLocation: "../testdata/config/valid-file-notifiers.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
-					Notifiers: []config.NotifierConf{
-						{Kind: config.DiscordNotifier, WebhookURL: "https://discord.com/api/webhooks/yyyy/xxxxxxx"},
-					},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
+				Notifiers: []config.NotifierConf{
+					{Kind: config.DiscordNotifier, WebhookURL: "https://discord.com/api/webhooks/yyyy/xxxxxxx"},
 				},
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
@@ -174,24 +175,22 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid yaml file with multiple exporters",
 			fileLocation: "../testdata/config/valid-yaml-multiple-exporters.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporters: &[]config.ExporterConf{
-						{
-							Kind: "log",
-						},
-						{
-							Kind:      "file",
-							OutputDir: "./",
-						},
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporters: &[]config.ExporterConf{
+					{
+						Kind: "log",
+					},
+					{
+						Kind:      "file",
+						OutputDir: "./",
+					},
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -215,28 +214,26 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid yaml file with both exporter and exporters",
 			fileLocation: "../testdata/config/valid-yaml-exporter-and-exporters.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					Exporters: &[]config.ExporterConf{
-						{
-							Kind:        "webhook",
-							EndpointURL: "https://example.com/webhook",
-						},
-						{
-							Kind:      "file",
-							OutputDir: "./",
-						},
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				Exporters: &[]config.ExporterConf{
+					{
+						Kind:        "webhook",
+						EndpointURL: "https://example.com/webhook",
+					},
+					{
+						Kind:      "file",
+						OutputDir: "./",
+					},
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -260,18 +257,16 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid json file",
 			fileLocation: "../testdata/config/valid-file.json",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -290,18 +285,16 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid toml file",
 			fileLocation: "../testdata/config/valid-file.toml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -320,13 +313,11 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "All default",
 			fileLocation: "../testdata/config/all-default.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         60000,
-					FileFormat:              "yaml",
-					StartWithRetrieverError: false,
-				},
-				Version:  "1.X.X",
-				LogLevel: config.DefaultLogLevel,
+				PollingInterval:         60000,
+				FileFormat:              "yaml",
+				StartWithRetrieverError: false,
+				Version:                 "1.X.X",
+				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
 		},
@@ -339,14 +330,12 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 			name:         "Valid YAML with OTel config",
 			fileLocation: "../testdata/config/valid-otel.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 60000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-						},
+				PollingInterval: 60000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 				},
 				Server: config.Server{
@@ -374,12 +363,13 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("version", "1.X.X")
+			t.Parallel()
+
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
 
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron("version=1.X.X"))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -389,29 +379,28 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 }
 
 func TestParseConfig_fileFromFolder(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name                       string
-		want                       *config.Config
-		fileLocation               string
-		wantErr                    assert.ErrorAssertionFunc
-		disableDefaultFileCreation bool
+		name         string
+		want         *config.Config
+		fileLocation string
+		wantErr      assert.ErrorAssertionFunc
 	}{
 		{
 			name:         "Valid file",
 			fileLocation: "../testdata/config/valid-file.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "http",
-						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "http",
+					URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -435,13 +424,11 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			name:         "All default",
 			fileLocation: "../testdata/config/all-default.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         60000,
-					FileFormat:              "yaml",
-					StartWithRetrieverError: false,
-				},
-				Version:  "1.X.X",
-				LogLevel: config.DefaultLogLevel,
+				PollingInterval:         60000,
+				FileFormat:              "yaml",
+				StartWithRetrieverError: false,
+				Version:                 "1.X.X",
+				LogLevel:                config.DefaultLogLevel,
 			},
 			wantErr: assert.NoError,
 		},
@@ -455,13 +442,11 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			fileLocation: "../testdata/config/file-not-exist.yaml",
 			wantErr:      assert.NoError,
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         60000,
-					FileFormat:              "yaml",
-					StartWithRetrieverError: false,
-				},
-				Version:  "1.X.X",
-				LogLevel: config.DefaultLogLevel,
+				PollingInterval:         60000,
+				FileFormat:              "yaml",
+				StartWithRetrieverError: false,
+				Version:                 "1.X.X",
+				LogLevel:                config.DefaultLogLevel,
 			},
 		},
 		{
@@ -469,13 +454,11 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			fileLocation: "",
 			wantErr:      assert.NoError,
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         60000,
-					FileFormat:              "yaml",
-					StartWithRetrieverError: false,
-				},
-				Version:  "1.X.X",
-				LogLevel: config.DefaultLogLevel,
+				PollingInterval:         60000,
+				FileFormat:              "yaml",
+				StartWithRetrieverError: false,
+				Version:                 "1.X.X",
+				LogLevel:                config.DefaultLogLevel,
 			},
 		},
 		{
@@ -483,28 +466,18 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 			fileLocation: "",
 			wantErr:      assert.NoError,
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         60000,
-					FileFormat:              "yaml",
-					StartWithRetrieverError: false,
-				},
-				Version:  "1.X.X",
-				LogLevel: config.DefaultLogLevel,
+				PollingInterval:         60000,
+				FileFormat:              "yaml",
+				StartWithRetrieverError: false,
+				Version:                 "1.X.X",
+				LogLevel:                config.DefaultLogLevel,
 			},
-			disableDefaultFileCreation: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_ = os.Remove("./goff-proxy.yaml")
-			if !tt.disableDefaultFileCreation {
-				source, _ := os.Open(tt.fileLocation)
-				destination, _ := os.Create("./goff-proxy.yaml")
-				defer destination.Close()
-				defer source.Close()
-				defer os.Remove("./goff-proxy.yaml")
-				_, _ = io.Copy(destination, source)
-			}
+			t.Parallel()
+
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
@@ -518,6 +491,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 }
 
 func TestConfig_IsValid(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Server                  config.Server
 		HideBanner              bool
@@ -772,11 +747,9 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "test-flagset",
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 				},
@@ -793,11 +766,9 @@ func TestConfig_IsValid(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 				},
@@ -814,11 +785,9 @@ func TestConfig_IsValid(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name: "test-flagset",
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 				},
@@ -836,21 +805,17 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "flagset-1",
 						APIKeys: []string{"shared-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 					{
 						Name:    "flagset-2",
 						APIKeys: []string{"shared-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 				},
@@ -868,11 +833,9 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "test-flagset",
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								// Missing Path
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							// Missing Path
 						},
 					},
 				},
@@ -890,15 +853,13 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "test-flagset",
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
-							Exporter: &config.ExporterConf{
-								Kind: "webhook",
-								// Missing EndpointURL
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
+						},
+						Exporter: &config.ExporterConf{
+							Kind: "webhook",
+							// Missing EndpointURL
 						},
 					},
 				},
@@ -916,16 +877,14 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "test-flagset",
 						APIKeys: []string{"test-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
-							Notifiers: []config.NotifierConf{
-								{
-									Kind: "webhook",
-									// Missing EndpointURL
-								},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
+						},
+						Notifiers: []config.NotifierConf{
+							{
+								Kind: "webhook",
+								// Missing EndpointURL
 							},
 						},
 					},
@@ -944,21 +903,17 @@ func TestConfig_IsValid(t *testing.T) {
 					{
 						Name:    "flagset-1",
 						APIKeys: []string{"api-key-1"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 					{
 						Name:    "flagset-2",
 						APIKeys: []string{"api-key-2"},
-						CommonFlagSet: config.CommonFlagSet{
-							Retriever: &retrieverconf.RetrieverConf{
-								Kind: "file",
-								Path: "../testdata/config/valid-file.yaml",
-							},
+						Retriever: &retrieverconf.RetrieverConf{
+							Kind: "file",
+							Path: "../testdata/config/valid-file.yaml",
 						},
 					},
 				},
@@ -984,23 +939,23 @@ func TestConfig_IsValid(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval:         tt.fields.PollingInterval,
-					FileFormat:              tt.fields.FileFormat,
-					StartWithRetrieverError: tt.fields.StartWithRetrieverError,
-					Retriever:               tt.fields.Retriever,
-					Exporter:                tt.fields.Exporter,
-					Notifiers:               tt.fields.Notifiers,
-					Retrievers:              tt.fields.Retrievers,
-				},
-				Server:           tt.fields.Server,
-				HideBanner:       tt.fields.HideBanner,
-				Swagger:          tt.fields.Swagger,
-				LogLevel:         tt.fields.LogLevel,
-				LogFormat:        tt.fields.LogFormat,
-				FlagSets:         tt.fields.FlagSets,
-				OfrepEventStream: tt.fields.OfrepEventStream,
+				PollingInterval:         tt.fields.PollingInterval,
+				FileFormat:              tt.fields.FileFormat,
+				StartWithRetrieverError: tt.fields.StartWithRetrieverError,
+				Retriever:               tt.fields.Retriever,
+				Exporter:                tt.fields.Exporter,
+				Notifiers:               tt.fields.Notifiers,
+				Retrievers:              tt.fields.Retrievers,
+				Server:                  tt.fields.Server,
+				HideBanner:              tt.fields.HideBanner,
+				Swagger:                 tt.fields.Swagger,
+				LogLevel:                tt.fields.LogLevel,
+				LogFormat:               tt.fields.LogFormat,
+				FlagSets:                tt.fields.FlagSets,
+				OfrepEventStream:        tt.fields.OfrepEventStream,
 			}
 			if tt.name == "empty config" {
 				c = nil
@@ -1011,6 +966,8 @@ func TestConfig_IsValid(t *testing.T) {
 }
 
 func TestConfig_APIKeyExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -1176,6 +1133,8 @@ func TestConfig_APIKeyExists(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.config.ForceReloadAPIKeys()
 			assert.Equalf(
 				t,
@@ -1189,6 +1148,8 @@ func TestConfig_APIKeyExists(t *testing.T) {
 }
 
 func TestConfig_APIAdminKeyExists(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		config config.Config
@@ -1282,6 +1243,8 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			tt.config.ForceReloadAPIKeys()
 			assert.Equalf(
 				t,
@@ -1295,66 +1258,65 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 }
 
 func TestMergeConfig_FromOSEnv(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
-		name                       string
-		want                       *config.Config
-		fileLocation               string
-		wantErr                    assert.ErrorAssertionFunc
-		disableDefaultFileCreation bool
-		envVars                    map[string]string
+		name         string
+		want         *config.Config
+		fileLocation string
+		wantErr      assert.ErrorAssertionFunc
+		envVars      map[string]string
 	}{
 		{
 			name:         "Valid file",
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Notifiers: []config.NotifierConf{
-						{
-							Kind:        config.WebhookNotifier,
-							EndpointURL: "https://xxx.com/notifier",
-						},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Notifiers: []config.NotifierConf{
+					{
+						Kind:        config.WebhookNotifier,
+						EndpointURL: "https://xxx.com/notifier",
 					},
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test",
-								},
-								"token": {"token"},
-							},
-						},
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"token": {
-									"11213123",
-								},
-								"authorization": {
-									"test1",
-								},
-							},
-						},
-						{
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test1",
-								},
-								"x-goff-custom": {
-									"custom",
-								},
-							},
-						},
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
 				},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "http",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test",
+							},
+							"token": {"token"},
+						},
+					},
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"token": {
+								"11213123",
+							},
+							"authorization": {
+								"test1",
+							},
+						},
+					},
+					{
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test1",
+							},
+							"x-goff-custom": {
+								"custom",
+							},
+						},
+					},
+				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1387,54 +1349,52 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			name:         "Valid file (with legacy notifier without s)",
 			fileLocation: "../testdata/config/validate-array-env-file-legacy.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					FixNotifiers: []config.NotifierConf{
-						{
-							Kind:        config.WebhookNotifier,
-							EndpointURL: "https://xxx.com/notifier",
-						},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				FixNotifiers: []config.NotifierConf{
+					{
+						Kind:        config.WebhookNotifier,
+						EndpointURL: "https://xxx.com/notifier",
 					},
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test",
-								},
-								"token": {"token"},
-							},
-						},
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"token": {
-									"11213123",
-								},
-								"authorization": {
-									"test1",
-								},
-							},
-						},
-						{
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test1",
-								},
-								"x-goff-custom": {
-									"custom",
-								},
-							},
-						},
-					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
-					},
-					StartWithRetrieverError: false,
 				},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "http",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test",
+							},
+							"token": {"token"},
+						},
+					},
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"token": {
+								"11213123",
+							},
+							"authorization": {
+								"test1",
+							},
+						},
+					},
+					{
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test1",
+							},
+							"x-goff-custom": {
+								"custom",
+							},
+						},
+					},
+				},
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1467,49 +1427,47 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			name:         "Valid file with prefix",
 			fileLocation: "../testdata/config/validate-array-env-file-envprefix.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test",
-								},
-								"token": {"token"},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "http",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test",
 							},
+							"token": {"token"},
 						},
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"token": {
-									"11213123",
-								},
-								"authorization": {
-									"test1",
-								},
+					},
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"token": {
+								"11213123",
 							},
-						},
-						{
-							HTTPHeaders: map[string][]string{
-								"authorization": {
-									"test1",
-								},
-								"x-goff-custom": {
-									"custom",
-								},
+							"authorization": {
+								"test1",
 							},
 						},
 					},
-					Exporter: &config.ExporterConf{
-						Kind: "log",
+					{
+						HTTPHeaders: map[string][]string{
+							"authorization": {
+								"test1",
+							},
+							"x-goff-custom": {
+								"custom",
+							},
+						},
 					},
-					StartWithRetrieverError: false,
 				},
-				EnvVariablePrefix: "GOFF_",
+				Exporter: &config.ExporterConf{
+					Kind: "log",
+				},
+				StartWithRetrieverError: false,
+				EnvVariablePrefix:       "GOFF_",
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1541,38 +1499,36 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			name:         "Change kafka exporter",
 			fileLocation: "../testdata/config/validate-array-env-file.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Notifiers: []config.NotifierConf{
-						{
-							Kind:        config.WebhookNotifier,
-							EndpointURL: "http://localhost:8080/webhook",
-						},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Notifiers: []config.NotifierConf{
+					{
+						Kind:        config.WebhookNotifier,
+						EndpointURL: "http://localhost:8080/webhook",
 					},
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-						},
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"token": {
-									"11213123",
-								},
+				},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "http",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					},
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"token": {
+								"11213123",
 							},
 						},
 					},
-					Exporter: &config.ExporterConf{
-						Kind: "kafka",
-						Kafka: kafkaexporter.Settings{
-							Addresses: []string{"localhost:19092", "localhost:19093"},
-						},
-					},
-					StartWithRetrieverError: false,
 				},
+				Exporter: &config.ExporterConf{
+					Kind: "kafka",
+					Kafka: kafkaexporter.Settings{
+						Addresses: []string{"localhost:19092", "localhost:19093"},
+					},
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1600,35 +1556,33 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			name:         "Change kafka exporters",
 			fileLocation: "../testdata/config/valid-env-exporters-kafka.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 1000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "http",
-							URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-						},
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-							HTTPHeaders: map[string][]string{
-								"token": {
-									"11213123",
-								},
+				PollingInterval: 1000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "http",
+						URL:  "https://raw.githubusercontent.com/BlackbirdWorks/semaphore/main/cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+					},
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+						HTTPHeaders: map[string][]string{
+							"token": {
+								"11213123",
 							},
 						},
 					},
-					Exporters: &[]config.ExporterConf{
-						{
-							Kind: "kafka",
-							Kafka: kafkaexporter.Settings{
-								Addresses: []string{"localhost:19092", "localhost:19093"},
-								Topic:     "svc-goff.evaluation",
-							},
-						},
-					},
-					StartWithRetrieverError: false,
 				},
+				Exporters: &[]config.ExporterConf{
+					{
+						Kind: "kafka",
+						Kafka: kafkaexporter.Settings{
+							Addresses: []string{"localhost:19092", "localhost:19093"},
+							Topic:     "svc-goff.evaluation",
+						},
+					},
+				},
+				StartWithRetrieverError: false,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1652,18 +1606,15 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			},
 		},
 		{
-			name:                       "Valid YAML with OTel config",
-			fileLocation:               "../testdata/config/valid-otel.yaml",
-			disableDefaultFileCreation: true,
+			name:         "Valid YAML with OTel config",
+			fileLocation: "../testdata/config/valid-otel.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 60000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-						},
+				PollingInterval: 60000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 					},
 				},
 				Server: config.Server{
@@ -1694,14 +1645,11 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 			},
 		},
 		{
-			name:                       "Configure flagset with basic environment variables",
-			fileLocation:               "../testdata/config/validate-array-env-file-flagset.yaml",
-			disableDefaultFileCreation: true,
+			name:         "Configure flagset with basic environment variables",
+			fileLocation: "../testdata/config/validate-array-env-file-flagset.yaml",
 			want: &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					FileFormat:      "yaml",
-					PollingInterval: 60000,
-				},
+				FileFormat:      "yaml",
+				PollingInterval: 60000,
 				Server: config.Server{
 					Mode: config.ServerModeHTTP,
 					Port: 1031,
@@ -1710,31 +1658,29 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				Version:  "1.X.X",
 				FlagSets: []config.FlagSet{
 					{
-						Name:    "xxx",
-						APIKeys: []string{"other-api-key", "default-api-key"},
-						CommonFlagSet: config.CommonFlagSet{
-							PollingInterval:         50000,
-							FileFormat:              "yaml",
-							StartWithRetrieverError: true,
-							Notifiers: []config.NotifierConf{
-								{
-									Kind:        config.WebhookNotifier,
-									EndpointURL: "http://localhost:8080/webhook",
+						Name:                    "xxx",
+						APIKeys:                 []string{"other-api-key", "default-api-key"},
+						PollingInterval:         50000,
+						FileFormat:              "yaml",
+						StartWithRetrieverError: true,
+						Notifiers: []config.NotifierConf{
+							{
+								Kind:        config.WebhookNotifier,
+								EndpointURL: "http://localhost:8080/webhook",
+							},
+						},
+						Exporters: &[]config.ExporterConf{
+							{
+								Kind: "kafka",
+								Kafka: kafkaexporter.Settings{
+									Addresses: []string{"localhost:19092", "localhost:19093"},
 								},
 							},
-							Exporters: &[]config.ExporterConf{
-								{
-									Kind: "kafka",
-									Kafka: kafkaexporter.Settings{
-										Addresses: []string{"localhost:19092", "localhost:19093"},
-									},
-								},
-							},
-							Retrievers: &[]retrieverconf.RetrieverConf{
-								{
-									Kind: "file",
-									Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
-								},
+						},
+						Retrievers: &[]retrieverconf.RetrieverConf{
+							{
+								Kind: "file",
+								Path: "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
 							},
 						},
 					},
@@ -1758,24 +1704,17 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			for k, v := range tt.envVars {
-				t.Setenv(k, v)
-			}
+			t.Parallel()
 
-			_ = os.Remove("./goff-proxy.yaml")
-			if !tt.disableDefaultFileCreation {
-				source, _ := os.Open(tt.fileLocation)
-				destination, _ := os.Create("./goff-proxy.yaml")
-				defer destination.Close()
-				defer source.Close()
-				defer os.Remove("./goff-proxy.yaml")
-				_, _ = io.Copy(destination, source)
+			environ := make([]string, 0, len(tt.envVars))
+			for k, v := range tt.envVars {
+				environ = append(environ, k+"="+v)
 			}
 
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{fmt.Sprintf("--config=%s", tt.fileLocation)})
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
 			if !tt.wantErr(t, err) {
 				return
 			}
@@ -1784,10 +1723,10 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 	}
 }
 
-// This test cannot be parallel: t.Setenv changes the process environment, and restores it when
-// the test ends (os.Setenv leaked the keys into every test that ran after it, which broke
-// -count>1 and any test reading the authorized keys).
+// The variables are given to the loader (withEnviron), the process environment is not modified.
 func TestSetAPIKeysFromEnv(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		envVars        map[string]string
@@ -1806,14 +1745,17 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			environ := make([]string, 0, len(tt.envVars))
 			for k, v := range tt.envVars {
-				t.Setenv(k, v)
+				environ = append(environ, k+"="+v)
 			}
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
-			got, err := config.New(f, zap.L(), "1.X.X")
+			got, err := config.New(f, zap.L(), "1.X.X", withEnviron(environ...))
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantEvaluation, got.AuthorizedKeys.Evaluation)
 			assert.Equal(t, tt.wantAdmin, got.AuthorizedKeys.Admin)
@@ -1822,6 +1764,8 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 }
 
 func TestConfig_LogLevel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		config       *config.Config
@@ -1877,6 +1821,8 @@ func TestConfig_LogLevel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.wantDebug, tt.config.IsDebugEnabled(), "IsDebugEnabled()")
 			assert.Equalf(t, tt.wantLogLevel, tt.config.ZapLogLevel(), "ZapLogLevel()")
 		})
@@ -1884,6 +1830,8 @@ func TestConfig_LogLevel(t *testing.T) {
 }
 
 func TestConfig_IsDebugEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		cfg  config.Config
@@ -1928,32 +1876,40 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 	for i := range tests {
 		tt := &tests[i]
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equalf(t, tt.want, tt.cfg.IsDebugEnabled(), "IsDebugEnabled()")
 		})
 	}
 }
 
 func TestConfigOnlyEnvVars(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Retrievers", func(t *testing.T) {
-		t.Setenv("RETRIEVERS_0_KIND", string(retrieverconf.FileRetriever))
-		t.Setenv("RETRIEVERS_0_PATH", "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml")
+		t.Parallel()
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 
-		got, err := config.New(f, zap.L(), "1.X.X")
-		assert.NoError(t, err)
+		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
+			"RETRIEVERS_0_PATH=cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml",
+		))
+		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.FileRetriever, (*got.Retrievers)[0].Kind)
 		assert.Equal(t, "cmd/relayproxy/testdata/dockerhub-example/flags.goff.yaml", (*got.Retrievers)[0].Path)
 	})
 
 	t.Run("Flagset retriever", func(t *testing.T) {
-		t.Setenv("FLAGSETS_0_RETRIEVERS_0_KIND", string(retrieverconf.HTTPRetriever))
-		t.Setenv("FLAGSETS_0_RETRIEVERS_0_URL", "https://example.com/flags.goff.yaml")
+		t.Parallel()
 
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-		got, err := config.New(f, zap.L(), "1.X.X")
-		assert.NoError(t, err)
+		got, err := config.New(f, zap.L(), "1.X.X", withEnviron(
+			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
+			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
+		))
+		require.NoError(t, err)
 
 		assert.Equal(t, retrieverconf.HTTPRetriever, (*got.FlagSets[0].Retrievers)[0].Kind)
 		assert.Equal(t, "https://example.com/flags.goff.yaml", (*got.FlagSets[0].Retrievers)[0].URL)
@@ -1965,6 +1921,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	s3Item := &retrieverconf.RetrieverConf{Kind: retrieverconf.S3Retriever, Bucket: "flags", Item: "a/flags.yaml"}
 	flagset := func(common config.CommonFlagSet) *config.Config {
 		common.EnableSharedPollerPerBucket = true
+
 		return &config.Config{
 			Server:   config.Server{Port: 8080},
 			FlagSets: []config.FlagSet{{Name: "fs", APIKeys: []string{"k"}, CommonFlagSet: common}},
@@ -1979,8 +1936,8 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 		{
 			name: "default (non flagset) config",
 			cfg: &config.Config{
-				Server:        config.Server{Port: 8080},
-				CommonFlagSet: config.CommonFlagSet{Retriever: s3Item, EnableSharedPollerPerBucket: true},
+				Server:    config.Server{Port: 8080},
+				Retriever: s3Item, EnableSharedPollerPerBucket: true,
 			},
 			wantErr: "only available inside a flagset",
 		},
@@ -2020,6 +1977,7 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
+
 				return
 			}
 			assert.ErrorContains(t, err, tt.wantErr)
@@ -2027,15 +1985,22 @@ func TestConfig_IsValid_EnableSharedPollerPerBucket(t *testing.T) {
 	}
 }
 
-func parseCleanQueueConfig(t *testing.T, content string) *config.Config {
+// withEnviron makes the loader read the given "KEY=value" variables instead of the process
+// environment, so the tests that load the configuration from the environment can run in parallel.
+func withEnviron(environ ...string) config.LoaderOption {
+	return config.WithEnviron(func() []string { return environ })
+}
+
+func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOption) *config.Config {
 	t.Helper()
 	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	flagSet.String("config", "", "Location of your config file")
 	require.NoError(t, flagSet.Parse([]string{"--config=" + configPath}))
-	got, err := config.New(flagSet, zap.NewNop(), "1.X.X")
+	got, err := config.New(flagSet, zap.NewNop(), "1.X.X", opts...)
 	require.NoError(t, err)
+
 	return got
 }
 
@@ -2070,10 +2035,10 @@ func TestParseConfig_ExporterCleanQueueInterval(t *testing.T) {
 	}
 }
 
-// Not parallel: t.Setenv changes the process environment.
 func TestParseConfig_ExporterCleanQueueInterval_Environment(t *testing.T) {
-	t.Setenv("EXPORTERCLEANQUEUEINTERVAL", "2m")
-	got := parseCleanQueueConfig(t, "logLevel: info\n")
+	t.Parallel()
+
+	got := parseCleanQueueConfig(t, "logLevel: info\n", withEnviron("EXPORTERCLEANQUEUEINTERVAL=2m"))
 	assert.Equal(t, 2*time.Minute, got.ExporterCleanQueueInterval)
 }
 
@@ -2085,23 +2050,23 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 		cfg     *config.Config
 		wantErr string
 	}{
-		{name: "unset", cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{Retriever: retriever}}},
+		{name: "unset", cfg: &config.Config{Retriever: retriever}},
 		{
 			name: "positive",
-			cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{
-				Retriever: retriever, ExporterCleanQueueInterval: time.Second}},
+			cfg: &config.Config{
+				Retriever: retriever, ExporterCleanQueueInterval: time.Second},
 		},
 		{
 			name: "negative",
-			cfg: &config.Config{CommonFlagSet: config.CommonFlagSet{
-				Retriever: retriever, ExporterCleanQueueInterval: -time.Second}},
+			cfg: &config.Config{
+				Retriever: retriever, ExporterCleanQueueInterval: -time.Second},
 			wantErr: "exporterCleanQueueInterval must not be negative",
 		},
 		{
 			name: "negative in a flagset",
 			cfg: &config.Config{FlagSets: []config.FlagSet{{
 				Name: "a", APIKeys: []string{"k"},
-				CommonFlagSet: config.CommonFlagSet{Retriever: retriever, ExporterCleanQueueInterval: -time.Second},
+				Retriever: retriever, ExporterCleanQueueInterval: -time.Second,
 			}}},
 			wantErr: "flagset a: exporterCleanQueueInterval must not be negative",
 		},
@@ -2113,6 +2078,7 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 			err := tt.cfg.IsValid()
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
+
 				return
 			}
 			assert.EqualError(t, err, tt.wantErr)
@@ -2121,6 +2087,8 @@ func TestConfig_IsValid_ExporterCleanQueueInterval(t *testing.T) {
 }
 
 func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
+	t.Parallel()
+
 	const marker = "SECRETMARKER-7f3a"
 	tests := []struct {
 		name         string
@@ -2132,10 +2100,12 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("OTEL_RESOURCE_ATTRIBUTES", tt.attributes)
+			t.Parallel()
+
 			core, logs := observer.New(zapcore.DebugLevel)
 
-			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X")
+			_, err := config.New(pflag.NewFlagSet("config", pflag.ContinueOnError), zap.New(core), "1.X.X",
+				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes))
 			require.NoError(t, err)
 
 			entries := logs.FilterMessageSnippet("OTEL_RESOURCE_ATTRIBUTES").All()

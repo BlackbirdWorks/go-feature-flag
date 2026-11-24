@@ -7,14 +7,17 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_webhookNotifier_Notify(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Secret string
 	}
@@ -54,12 +57,12 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -71,8 +74,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 						"test-flag": &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  testconvert.String("rule1"),
-									Query: testconvert.String("key eq \"random-key\""),
+									Name:  new("rule1"),
+									Query: new("key eq \"random-key\""),
 									Percentages: &map[string]float64{
 										"False": 0,
 										"True":  100,
@@ -80,13 +83,13 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"False":   testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
+								"Default": new(any(false)),
+								"False":   new(any(false)),
+								"True":    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            testconvert.String("defaultRule"),
-								VariationResult: testconvert.String("Default"),
+								Name:            new("defaultRule"),
+								VariationResult: new("Default"),
 							},
 						},
 					},
@@ -95,8 +98,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 							Before: &flag.InternalFlag{
 								Rules: &[]flag.Rule{
 									{
-										Name:  testconvert.String("rule1"),
-										Query: testconvert.String("key eq \"not-a-key\""),
+										Name:  new("rule1"),
+										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
 											"False": 0,
 											"True":  100,
@@ -104,20 +107,20 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									},
 								},
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface(false),
-									"False":   testconvert.Interface(false),
-									"True":    testconvert.Interface(true),
+									"Default": new(any(false)),
+									"False":   new(any(false)),
+									"True":    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
-									Name:            testconvert.String("defaultRule"),
-									VariationResult: testconvert.String("Default"),
+									Name:            new("defaultRule"),
+									VariationResult: new("Default"),
 								},
 							},
 							After: &flag.InternalFlag{
 								Rules: &[]flag.Rule{
 									{
-										Name:  testconvert.String("rule1"),
-										Query: testconvert.String("key eq \"not-a-key\""),
+										Name:  new("rule1"),
+										Query: new("key eq \"not-a-key\""),
 										Percentages: &map[string]float64{
 											"False": 0,
 											"True":  100,
@@ -125,15 +128,15 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									},
 								},
 								Variations: &map[string]*any{
-									"Default": testconvert.Interface(false),
-									"False":   testconvert.Interface(false),
-									"True":    testconvert.Interface(true),
+									"Default": new(any(false)),
+									"False":   new(any(false)),
+									"True":    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
-									Name:            testconvert.String("defaultRule"),
-									VariationResult: testconvert.String("Default"),
+									Name:            new("defaultRule"),
+									VariationResult: new("Default"),
 								},
-								Disable: testconvert.Bool(true),
+								Disable: new(true),
 							},
 						},
 					},
@@ -153,12 +156,12 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -229,12 +232,12 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface("default"),
-								"False":   testconvert.Interface("false"),
-								"True":    testconvert.Interface("test"),
+								"Default": new(any("default")),
+								"False":   new(any("false")),
+								"True":    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 95,
 									"True":  5,
@@ -250,6 +253,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockHTTPClient := &testutils.HTTPClientMock{
 				StatusCode: tt.args.statusCode,
 				ForceError: tt.args.forceError,
@@ -269,7 +274,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 			if tt.expected.err {
 				assert.ErrorContains(t, err, tt.expected.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				content, _ := os.ReadFile(tt.expected.bodyPath)
 				assert.JSONEq(t, string(content), mockHTTPClient.Body)
 				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
@@ -282,17 +287,19 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 }
 
 func Test_webhookNotifier_no_meta_data(t *testing.T) {
+	t.Parallel()
+
 	mockHTTPClient := &testutils.HTTPClientMock{StatusCode: 200, ForceError: false}
 	diff := notifier.DiffCache{
 		Added: map[string]flag.Flag{
 			"test-flag3": &flag.InternalFlag{
 				Variations: &map[string]*any{
-					"Default": testconvert.Interface("default"),
-					"False":   testconvert.Interface("false"),
-					"True":    testconvert.Interface("test"),
+					"Default": new(any("default")),
+					"False":   new(any("false")),
+					"True":    new(any("test")),
 				},
 				DefaultRule: &flag.Rule{
-					Name: testconvert.String("defaultRule"),
+					Name: new("defaultRule"),
 					Percentages: &map[string]float64{
 						"False": 95,
 						"True":  5,
@@ -313,7 +320,7 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 
 	err := c.Notify(diff)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	var m map[string]any
 	_ = json.Unmarshal([]byte(mockHTTPClient.Body), &m)
 

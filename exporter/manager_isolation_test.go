@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // gatedExporter counts what it exports; while gate is not nil its Export waits for it to be
@@ -35,6 +36,7 @@ func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []export
 		return assert.AnError
 	}
 	g.events.Add(int64(len(ev)))
+
 	return nil
 }
 
@@ -48,7 +50,11 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 		async  bool
 	}{
 		{name: "failing exporter, AddEvent", broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
-		{name: "failing exporter, QueueEvents", async: true, broken: func() *gatedExporter { return &gatedExporter{fail: true} }},
+		{
+			name:   "failing exporter, QueueEvents",
+			async:  true,
+			broken: func() *gatedExporter { return &gatedExporter{fail: true} },
+		},
 		{name: "blocked exporter, QueueEvents", async: true, broken: func() *gatedExporter {
 			return &gatedExporter{gate: make(chan struct{}), started: make(chan struct{})}
 		}},
@@ -83,7 +89,7 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 					require.Eventually(t, func() bool { return healthy.events.Load() == int64(b*perBatch) },
 						10*time.Second, time.Millisecond, "batch %d", b)
 				} else {
-					for i := 0; i < perBatch; i++ {
+					for range perBatch {
 						m.AddEvent(exporter.FeatureEvent{})
 					}
 				}
@@ -118,7 +124,7 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
-			for i := 0; i < tt.events; i++ {
+			for range tt.events {
 				m.AddEvent(exporter.FeatureEvent{})
 			}
 			// no Stop yet: nothing but the event count can have triggered the flushes.
@@ -145,6 +151,11 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	require.Eventually(t, func() bool { return exp.events.Load() == 2*threshold }, 10*time.Second, time.Millisecond)
 	// a third batch must be flushed by the event count, not wait for the timer (1h) or a backoff.
 	am.QueueEvents(make([]exporter.FeatureEvent, threshold))
-	assert.Eventually(t, func() bool { return exp.events.Load() == 3*threshold }, 500*time.Millisecond, time.Millisecond)
+	assert.Eventually(
+		t,
+		func() bool { return exp.events.Load() == 3*threshold },
+		500*time.Millisecond,
+		time.Millisecond,
+	)
 	m.Stop()
 }

@@ -6,6 +6,10 @@ import (
 	"net/url"
 	"sort"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -16,9 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type EvaluateCtrl struct {
@@ -52,6 +53,7 @@ func NewOFREPEvaluate(
 	for _, opt := range opts {
 		opt(&h)
 	}
+
 	return h
 }
 
@@ -124,6 +126,7 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 		if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
 			httpStatus = http.StatusNotFound
 		}
+
 		return c.JSON(
 			httpStatus,
 			NewEvaluateError(flagKey, flagValue.ErrorCode,
@@ -228,13 +231,11 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 			value = nil
 		}
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
-			OFREPEvaluateSuccessResponse: model.OFREPEvaluateSuccessResponse{
-				Key:      key,
-				Value:    value,
-				Reason:   val.Reason,
-				Variant:  val.VariationType,
-				Metadata: val.Metadata,
-			},
+			Key:          key,
+			Value:        value,
+			Reason:       val.Reason,
+			Variant:      val.VariationType,
+			Metadata:     val.Metadata,
 			ErrorCode:    val.ErrorCode,
 			ErrorDetails: val.ErrorDetails,
 		})
@@ -254,6 +255,7 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 	}
 
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
 	return c.JSON(http.StatusOK, response)
 }
 
@@ -283,6 +285,7 @@ func (h *EvaluateCtrl) buildEventStreams(c *echo.Context) []model.OFREPEventStre
 	if apiKey := helper.APIKey(c); apiKey != "" {
 		u.RawQuery = url.Values{"apiKey": []string{apiKey}}.Encode()
 	}
+
 	return []model.OFREPEventStream{{
 		Type:               "sse",
 		URL:                u.String(),
@@ -324,5 +327,6 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 
 	// Create evaluation context (empty targeting key is allowed)
 	evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctx)
+
 	return evalCtx, nil
 }

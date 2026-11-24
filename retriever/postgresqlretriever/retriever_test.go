@@ -6,19 +6,25 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	testcontainerPostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 )
 
-var postgreSQLContainerList = make(map[string]*testcontainerPostgres.PostgresContainer)
+// postgreSQLContainerList maps a test name to its container; sync.Map because tests run in parallel.
+var postgreSQLContainerList sync.Map
 
 func TestPostgreSQLRetriever(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		files     []string
@@ -87,6 +93,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			connectionString := startPostgreSQLAndAddData(t, t.Name(), tt.files)
 			defer stopPostgreSQL(t, t.Name())
 
@@ -95,12 +103,12 @@ func TestPostgreSQLRetriever(t *testing.T) {
 				Table:   tt.tableName,
 				Columns: tt.columns,
 			}
-			assert.NoError(t, r.Init(context.TODO(), nil, &tt.flagset))
+			require.NoError(t, r.Init(context.TODO(), nil, &tt.flagset))
 			defer func() {
 				assert.NoError(t, r.Shutdown(context.TODO()))
 			}()
 
-			assert.Equal(t, r.Status(), retriever.RetrieverReady)
+			assert.Equal(t, retriever.RetrieverReady, r.Status())
 			got, err := r.Retrieve(context.TODO())
 			tt.assertErr(t, err)
 			if err != nil {
@@ -108,9 +116,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 			}
 
 			want, err := os.ReadFile(filepath.Join("testdata", tt.want))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.JSONEq(t, string(want), string(got))
-
 		})
 	}
 }
@@ -118,16 +125,16 @@ func TestPostgreSQLRetriever(t *testing.T) {
 func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) string {
 	ctx := context.TODO()
 	postgreSQLContainer, err := testcontainerPostgres.Run(ctx, "postgres:15-alpine")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	connectionString, err := postgreSQLContainer.ConnectionString(ctx, "sslmode=disable")
-	assert.NoError(t, err)
-	postgreSQLContainerList[testName] = postgreSQLContainer
+	require.NoError(t, err)
+	postgreSQLContainerList.Store(testName, postgreSQLContainer)
 
 	// Retry connection with backoff
 	var conn *pgx.Conn
 	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
+	for i := range maxRetries {
 		conn, err = pgx.Connect(ctx, connectionString)
 		if err == nil {
 			break
@@ -136,9 +143,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 			time.Sleep(time.Duration(i+1) * time.Second)
 		}
 	}
-	if err != nil {
-		t.Fatalf("Failed to connect to database after %d retries: %v", maxRetries, err)
-	}
+	require.NoError(t, err, "Failed to connect to database after %d retries", maxRetries)
 	defer func() {
 		if conn != nil {
 			conn.Close(ctx)
@@ -147,7 +152,7 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 
 	for _, file := range files {
 		content, err := os.ReadFile(filepath.Join("testdata", file))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Execute the SQL content
 		_, err = conn.Exec(ctx, string(content))
@@ -158,28 +163,32 @@ func startPostgreSQLAndAddData(t *testing.T, testName string, files []string) st
 }
 
 func stopPostgreSQL(t *testing.T, testName string) {
-	postgreSQLContainer := postgreSQLContainerList[testName]
-	if postgreSQLContainer != nil {
-		if err := postgreSQLContainer.Terminate(context.TODO()); err != nil {
-			assert.NoError(t, err)
-		}
+	if v, ok := postgreSQLContainerList.LoadAndDelete(testName); ok {
+		container, _ := v.(*testcontainerPostgres.PostgresContainer)
+		assert.NoError(t, container.Terminate(context.TODO()))
 	}
 }
 
-// TestRetrieverErrorHandling tests various error conditions in the PostgreSQL retriever
+// TestRetrieverErrorHandling tests various error conditions in the PostgreSQL retriever.
 func TestRetrieverErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Init - Invalid connection URI", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   "invalid-connection-string",
 			Table: "test_table",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, retriever.RetrieverError, r.Status())
 	})
 
 	t.Run("Init - Connection timeout", func(t *testing.T) {
+		t.Parallel()
+
 		// Use a non-routable IP address to simulate connection timeout
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@192.0.2.1:5432/db", // RFC5737 test address
@@ -190,11 +199,13 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		defer cancel()
 
 		err := r.Init(ctx, nil, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, retriever.RetrieverError, r.Status())
 	})
 
 	t.Run("Init - Ping failure", func(t *testing.T) {
+		t.Parallel()
+
 		// This test uses a malformed URI that allows connection but fails on ping
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://nonexistentuser:wrongpass@localhost:9999/nonexistentdb",
@@ -202,11 +213,13 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, retriever.RetrieverError, r.Status())
 	})
 
 	t.Run("Retrieve - nil connection", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@localhost:5432/db",
 			Table: "test_table",
@@ -214,23 +227,29 @@ func TestRetrieverErrorHandling(t *testing.T) {
 		// Don't call Init() to ensure conn is nil
 
 		_, err := r.Retrieve(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "database connection pool is not initialized")
 	})
 
 	t.Run("Status - nil receiver", func(t *testing.T) {
+		t.Parallel()
+
 		var r *postgresqlretriever.Retriever
 		status := r.Status()
 		assert.Equal(t, retriever.RetrieverNotReady, status)
 	})
 
 	t.Run("Status - empty status", func(t *testing.T) {
+		t.Parallel()
+
 		r := &postgresqlretriever.Retriever{}
 		status := r.Status()
 		assert.Equal(t, retriever.RetrieverNotReady, status)
 	})
 
 	t.Run("Shutdown - nil connection", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   "postgres://user:pass@localhost:5432/db",
 			Table: "test_table",
@@ -242,29 +261,35 @@ func TestRetrieverErrorHandling(t *testing.T) {
 	})
 }
 
-// TestRetrieverQueryErrors tests query-related error conditions using a real PostgreSQL container
+// TestRetrieverQueryErrors tests query-related error conditions using a real PostgreSQL container.
 func TestRetrieverQueryErrors(t *testing.T) {
+	t.Parallel()
+
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql", "sql/insert_data.sql"})
-	defer stopPostgreSQL(t, t.Name())
+	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
 
 	t.Run("Query execution error - invalid table", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "nonexistent_table",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		_, err = r.Retrieve(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to execute query")
 	})
 
 	t.Run("Query execution error - invalid columns", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
@@ -275,24 +300,26 @@ func TestRetrieverQueryErrors(t *testing.T) {
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		_, err = r.Retrieve(context.Background())
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to execute query")
 	})
 
 	t.Run("Context cancellation during query", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
@@ -302,22 +329,24 @@ func TestRetrieverQueryErrors(t *testing.T) {
 		cancel()
 
 		_, err = r.Retrieve(ctx)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to execute query")
 	})
 }
 
-// TestRetrieverDataHandlingErrors tests data processing error conditions
+// TestRetrieverDataHandlingErrors tests data processing error conditions.
 func TestRetrieverDataHandlingErrors(t *testing.T) {
+	t.Parallel()
+
 	// Create a test container with some test data
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	defer stopPostgreSQL(t, t.Name())
+	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
 
 	// Insert some test data
 	ctx := context.Background()
 	conn, err := pgx.Connect(ctx, connectionString)
-	assert.NoError(t, err)
-	defer conn.Close(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close(ctx) })
 
 	// Insert a row with malformed JSON that will cause unmarshaling issues
 	// Using a JSON string that contains control characters that may cause issues
@@ -325,30 +354,32 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 		INSERT INTO go_feature_flag (flag_name, flagset, config) 
 		VALUES ('problematic_flag', 'default', '{"key": "value\nwith\nnewlines"}')
 	`)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Insert a row with valid JSON for comparison
 	_, err = conn.Exec(ctx, `
 		INSERT INTO go_feature_flag (flag_name, flagset, config) 
 		VALUES ('valid_flag', 'default', '{"valid": "json"}')
 	`)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	t.Run("Data processing with special characters", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		// This should handle the data gracefully
 		result, err := r.Retrieve(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Should contain both flags since the JSON is valid
 		assert.Contains(t, string(result), "valid_flag")
@@ -356,13 +387,15 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	})
 
 	t.Run("Context timeout during query execution", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
@@ -380,60 +413,71 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	})
 }
 
-// TestRetrieverEdgeCases tests additional edge cases and boundary conditions
+// TestRetrieverEdgeCases tests additional edge cases and boundary conditions.
 func TestRetrieverEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	defer stopPostgreSQL(t, t.Name())
+	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
 
 	t.Run("Empty result set", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag", // Empty table
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		result, err := r.Retrieve(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "{}", string(result))
 	})
 
 	t.Run("Flagset filtering with no matches", func(t *testing.T) {
-		// Insert some data first
+		t.Parallel()
+
+		// Insert some data first, in a table of its own: the sibling subtests run in parallel
+		// and one of them expects go_feature_flag to stay empty.
 		ctx := context.Background()
 		conn, err := pgx.Connect(ctx, connectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer conn.Close(ctx)
 
+		_, err = conn.Exec(ctx, `CREATE TABLE flagset_filter_flags (LIKE go_feature_flag INCLUDING ALL)`)
+		require.NoError(t, err)
 		_, err = conn.Exec(ctx, `
-			INSERT INTO go_feature_flag (flag_name, flagset, config) 
+			INSERT INTO flagset_filter_flags (flag_name, flagset, config) 
 			VALUES ('test_flag', 'production', '{"enabled": true}')
 		`)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Query with a flagset that doesn't exist
 		nonExistentFlagset := "non-existent-flagset"
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
-			Table: "go_feature_flag",
+			Table: "flagset_filter_flags",
 		}
 
 		err = r.Init(context.Background(), nil, &nonExistentFlagset)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		result, err := r.Retrieve(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "{}", string(result))
 	})
 
 	t.Run("Multiple Init calls", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
@@ -441,12 +485,12 @@ func TestRetrieverEdgeCases(t *testing.T) {
 
 		// First init should succeed
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, retriever.RetrieverReady, r.Status())
 
 		// Second init should also succeed (should reuse connection)
 		err = r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, retriever.RetrieverReady, r.Status())
 
 		defer func() {
@@ -455,10 +499,12 @@ func TestRetrieverEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Custom column names", func(t *testing.T) {
+		t.Parallel()
+
 		// Create a table with different column names
 		ctx := context.Background()
 		conn, err := pgx.Connect(ctx, connectionString)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer conn.Close(ctx)
 
 		_, err = conn.Exec(ctx, `
@@ -468,13 +514,13 @@ func TestRetrieverEdgeCases(t *testing.T) {
 				configuration JSONB
 			)
 		`)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		_, err = conn.Exec(ctx, `
 			INSERT INTO custom_flags (name, environment, configuration) 
 			VALUES ('custom_flag', 'dev', '{"enabled": false}')
 		`)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
@@ -487,34 +533,38 @@ func TestRetrieverEdgeCases(t *testing.T) {
 		}
 
 		err = r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer func() {
 			assert.NoError(t, r.Shutdown(context.Background()))
 		}()
 
 		result, err := r.Retrieve(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(result), "custom_flag")
 	})
 }
 
-// TestRetrieverShutdownErrors tests shutdown error conditions
+// TestRetrieverShutdownErrors tests shutdown error conditions.
 func TestRetrieverShutdownErrors(t *testing.T) {
+	t.Parallel()
+
 	connectionString := startPostgreSQLAndAddData(t, t.Name(), []string{"sql/init.sql"})
-	defer stopPostgreSQL(t, t.Name())
+	t.Cleanup(func() { stopPostgreSQL(t, t.Name()) })
 
 	t.Run("Shutdown with active connection", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Shutdown should succeed
 		err = r.Shutdown(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Second shutdown should also succeed (should not error on nil connection)
 		err = r.Shutdown(context.Background())
@@ -522,13 +572,15 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 	})
 
 	t.Run("Shutdown with cancelled context", func(t *testing.T) {
+		t.Parallel()
+
 		r := postgresqlretriever.Retriever{
 			URI:   connectionString,
 			Table: "go_feature_flag",
 		}
 
 		err := r.Init(context.Background(), nil, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Create a cancelled context
 		ctx, cancel := context.WithCancel(context.Background())
@@ -541,6 +593,8 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 }
 
 func TestPostgreSQLRetriever_OutputFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -552,6 +606,8 @@ func TestPostgreSQLRetriever_OutputFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			r := postgresqlretriever.Retriever{}
 			assert.Equal(t, tt.want, r.OutputFormat())
 		})

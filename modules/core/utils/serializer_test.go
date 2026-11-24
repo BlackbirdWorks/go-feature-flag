@@ -3,12 +3,15 @@ package utils_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUserToMap(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		u    ffcontext.Context
@@ -41,6 +44,8 @@ func TestUserToMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, utils.ContextToMap(tt.u))
 		})
 	}

@@ -5,5 +5,6 @@ package helper
 func SetExitFuncForTest(f func(int)) (restore func()) {
 	orig := exitFunc
 	exitFunc = f
+
 	return func() { exitFunc = orig }
 }

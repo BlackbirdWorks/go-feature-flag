@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// IsJSONObject checks if a string is a valid JSON
+// IsJSONObject checks if a string is a valid JSON.
 func IsJSONObject(s string) bool {
 	// Decoding into a map only succeeds for an object or for null, so skip the copy
 	// and the decode when s can be neither. JSON allows only these four whitespace
@@ -15,5 +15,6 @@ func IsJSONObject(s string) bool {
 		return false
 	}
 	var js map[string]any
+
 	return json.Unmarshal([]byte(s), &js) == nil
 }

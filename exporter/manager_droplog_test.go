@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 // gatedSink is a log handler that blocks the records about dropped events until gate is closed.
@@ -34,6 +36,7 @@ func (g *gatedSink) Handle(ctx context.Context, r slog.Record) error {
 		g.once.Do(func() { close(g.entered) })
 		<-g.gate
 	}
+
 	return g.inner.Handle(ctx, r)
 }
 func (g *gatedSink) WithAttrs(a []slog.Attr) slog.Handler { return g }
@@ -71,7 +74,7 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			done := make(chan struct{})
 			go func() {
 				defer close(done)
-				for i := 0; i < 100; i++ {
+				for range 100 {
 					if tt.async {
 						m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 2))
 					} else {
@@ -82,14 +85,14 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			select {
 			case <-done:
 			case <-time.After(time.Minute):
-				t.Fatal("adding events is blocked by the log sink")
+				require.Fail(t, "adding events is blocked by the log sink")
 			}
 			assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
 			// the warning is still written, by another goroutine
 			select {
 			case <-sink.entered:
 			case <-time.After(time.Minute):
-				t.Fatal("the drop warning was not written")
+				require.Fail(t, "the drop warning was not written")
 			}
 			release()
 			m.Stop()

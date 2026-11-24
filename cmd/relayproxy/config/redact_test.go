@@ -27,8 +27,7 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 		return
 	}
 	seen[t] = true
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		if !f.IsExported() {
 			continue
 		}
@@ -39,7 +38,8 @@ func ownStructFields(t reflect.Type, seen map[reflect.Type]bool, out map[string]
 
 func allConfigFields() map[string]reflect.StructField {
 	out := map[string]reflect.StructField{}
-	ownStructFields(reflect.TypeOf(Config{}), map[reflect.Type]bool{}, out)
+	ownStructFields(reflect.TypeFor[Config](), map[reflect.Type]bool{}, out)
+
 	return out
 }
 
@@ -88,7 +88,7 @@ func fillLeaves(v reflect.Value, n *int) {
 		fillLeaves(val, n)
 		v.SetMapIndex(key, val)
 	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
+		for i := range v.NumField() {
 			if v.Type().Field(i).IsExported() {
 				fillLeaves(v.Field(i), n)
 			}
@@ -108,12 +108,13 @@ func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
 	if v.Kind() == reflect.Slice {
 		v.Set(reflect.MakeSlice(v.Type(), 1, 1))
 		fillSecretFields(v.Index(0), n, filled)
+
 		return
 	}
 	if v.Kind() != reflect.Struct || !isOwnType(v.Type()) {
 		return
 	}
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		f := v.Type().Field(i)
 		if !f.IsExported() {
 			continue
@@ -121,6 +122,7 @@ func fillSecretFields(v reflect.Value, n *int, filled map[string]bool) {
 		if IsSecretField(v.Type().String(), f.Name) {
 			fillLeaves(v.Field(i), n)
 			filled[v.Type().String()+"."+f.Name] = true
+
 			continue
 		}
 		fillSecretFields(v.Field(i), n, filled)
@@ -146,6 +148,7 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	conf.OtelConfig.Resource.Attributes = map[string]string{"service.token": secretMarker + "-otel"}
 	conf.Version = "visible-version"
 	conf.LogLevel = "debug"
+
 	return conf
 }
 
@@ -188,7 +191,11 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 	t.Run("zap.Any", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer
-		core := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(&buf), zap.DebugLevel)
+		core := zapcore.NewCore(
+			zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+			zapcore.AddSync(&buf),
+			zap.DebugLevel,
+		)
 		zap.New(core).Debug("config", zap.Any("config", conf))
 		assert.NotContains(t, buf.String(), secretMarker)
 		assert.Contains(t, buf.String(), "visible-version")

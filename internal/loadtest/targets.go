@@ -56,6 +56,7 @@ func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &LibraryTarget{client: c, exporter: exp, flagKey: o.FlagKey, dir: dir}, nil
 }
 
@@ -74,6 +75,7 @@ func (l *LibraryTarget) Eval(worker, i int) error {
 		AddCustom("company", "acme").
 		Build()
 	_, err := l.client.BoolVariation(l.flagKey, ctx, false)
+
 	return err
 }
 

@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // the evaluation context enrichment (and the environment) is shared by all the evaluations:
@@ -40,20 +41,18 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 
 			shared := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "free").Build()
 			var wg sync.WaitGroup
-			for w := 0; w < 8; w++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < 100; i++ {
+			for range 8 {
+				wg.Go(func() {
+					for range 100 {
 						_, _ = c.BoolVariation("test-flag", shared, false)
 						_ = c.AllFlagsState(shared)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			assert.Equal(t, map[string]any{"plan": "free"}, shared.GetCustom(),
 				"the evaluation context of the caller must not be modified")
-			assert.Equal(t, len(tt.enrichment), len(c.GetEvaluationContextEnrichment()),
+			assert.Len(t, c.GetEvaluationContextEnrichment(), len(tt.enrichment),
 				"the configured enrichment must not be modified")
 		})
 	}

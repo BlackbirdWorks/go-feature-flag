@@ -4,13 +4,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/linter"
 )
 
 func TestCmdLint(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
@@ -43,9 +46,11 @@ func TestCmdLint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			redirectionStderr, err := os.CreateTemp("", "temp")
+			t.Parallel()
+
+			redirectionStderr, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
-			redirectionStdout, err := os.CreateTemp("", "out")
+			redirectionStdout, err := os.CreateTemp(t.TempDir(), "out")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(redirectionStderr.Name())

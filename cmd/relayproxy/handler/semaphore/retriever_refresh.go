@@ -3,13 +3,14 @@ package controller
 import (
 	"net/http"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type forceFlagsRefresh struct {
@@ -21,7 +22,7 @@ type retrieverRefreshResponse struct {
 	Refreshed bool `json:"refreshed"`
 }
 
-// NewForceFlagsRefresh initialize the controller for the /data/collector endpoint
+// NewForceFlagsRefresh initialize the controller for the /data/collector endpoint.
 func NewForceFlagsRefresh(flagsetManager service.FlagsetManager, metrics metric.Metrics) Controller {
 	return &forceFlagsRefresh{
 		flagsetManager: flagsetManager,
@@ -60,5 +61,6 @@ func (h *forceFlagsRefresh) Handler(c *echo.Context) error {
 		Refreshed: forceRefreshStatus,
 	}
 	span.SetAttributes(attribute.Bool("retrieverRefresh.refreshed", forceRefreshStatus))
+
 	return c.JSON(http.StatusOK, resp)
 }

@@ -9,6 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -17,21 +22,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestDeprecatedAliasHeaders(t *testing.T) {
+	t.Parallel()
+
 	z, err := zap.NewProduction()
 	require.NoError(t, err)
 
 	c := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-			},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
@@ -92,6 +93,7 @@ func readWSFrames(ws *websocket.Conn) <-chan string {
 			frames <- string(msg)
 		}
 	}()
+
 	return frames
 }
 
@@ -106,15 +108,18 @@ func changeFlagUntilFrame(t *testing.T, path, flagName string, frames <-chan str
 		select {
 		case frame, ok := <-frames:
 			require.True(t, ok, "websocket connection closed before receiving a frame")
+
 			return frame
 		case <-deadline:
-			t.Fatalf("no websocket frame received after changing %s", flagName)
+			require.Failf(t, "no websocket frame received", "after changing %s", flagName)
 		case <-time.After(3 * time.Second):
 		}
 	}
 }
 
 func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	tenantAFile := filepath.Join(dir, "tenant-a.yaml")
 	tenantBFile := filepath.Join(dir, "tenant-b.yaml")
@@ -123,12 +128,10 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 
 	flagset := func(name, apiKey, path string) config.FlagSet {
 		return config.FlagSet{
-			Name:    name,
-			APIKeys: []string{apiKey},
-			CommonFlagSet: config.CommonFlagSet{
-				Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: path}},
-				PollingInterval: 200,
-			},
+			Name:            name,
+			APIKeys:         []string{apiKey},
+			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: "file", Path: path}},
+			PollingInterval: 200,
 		}
 	}
 	c := &config.Config{
@@ -146,10 +149,10 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	z := zap.NewNop()
 
 	wsService := stream.NewWebsocketService()
-	defer wsService.Close()
+	t.Cleanup(func() { wsService.Close() })
 	flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, wsService)
 	require.NoError(t, err)
-	defer flagsetManager.Close()
+	t.Cleanup(func() { flagsetManager.Close() })
 
 	apiServer := api.New(c, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
@@ -158,7 +161,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		Metrics:           metric.Metrics{},
 	}, z)
 	go apiServer.StartWithContext(context.Background())
-	defer apiServer.Stop(context.Background())
+	t.Cleanup(func() { apiServer.Stop(context.Background()) })
 	waitForServer(t, fmt.Sprintf("http://localhost:%d", c.ServerPort(z)))
 	wsURL := fmt.Sprintf("ws://localhost:%d", c.ServerPort(z))
 
@@ -172,11 +175,14 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 
 	for _, tt := range endpoints {
 		t.Run(tt.name+": changes are only sent to the clients of the flagset", func(t *testing.T) {
+			t.Parallel()
+
 			dial := func(apiKey string) <-chan string {
 				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+tt.path+"?apiKey="+apiKey, nil)
 				require.NoError(t, err)
 				_ = resp.Body.Close()
 				t.Cleanup(func() { _ = ws.Close() })
+
 				return readWSFrames(ws)
 			}
 			tenantAFrames := dial("tenant-A-api-key")
@@ -206,6 +212,8 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 	for _, endpoint := range endpoints {
 		for _, tt := range rejected {
 			t.Run(endpoint.name+": "+tt.name+" is rejected before the upgrade", func(t *testing.T) {
+				t.Parallel()
+
 				ws, resp, err := websocket.DefaultDialer.Dial(wsURL+endpoint.path+"?apiKey="+tt.apiKey, nil)
 				if ws != nil {
 					_ = ws.Close()

@@ -10,5 +10,6 @@ func StrTrim(s string) string {
 	for index, item := range trimmed {
 		trimmed[index] = strings.TrimLeft(item, " ")
 	}
+
 	return strings.Join(trimmed, "")
 }

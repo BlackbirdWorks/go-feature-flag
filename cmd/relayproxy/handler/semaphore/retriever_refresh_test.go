@@ -6,18 +6,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
+	t.Parallel()
+
 	ctrl := controller.NewForceFlagsRefresh(nil, metric.Metrics{})
 	e := echo.New()
 	rec := httptest.NewRecorder()
@@ -26,7 +30,7 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	c := e.NewContext(req, rec)
 	handlerErr := ctrl.Handler(c)
-	assert.Error(t, handlerErr)
+	require.Error(t, handlerErr)
 	assert.Equal(
 		t,
 		"code=500, message=flagset manager is not initialized",
@@ -35,18 +39,18 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 }
 
 func Test_retriever_refresh_Handler_valid(t *testing.T) {
+	t.Parallel()
+
 	// Create config for default mode
 	conf := config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{
-				Kind: retrieverconf.FileRetriever,
-				Path: "../../../../testdata/flag-config.yaml",
-			},
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind: retrieverconf.FileRetriever,
+			Path: "../../../../testdata/flag-config.yaml",
 		},
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-	assert.NoError(t, err, "impossible to create flagset manager")
+	require.NoError(t, err, "impossible to create flagset manager")
 
 	// Get the default flagset to check refresh date
 	defaultFlagset := flagsetManager.Default()
@@ -64,7 +68,7 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	c := e.NewContext(req, rec)
 	handlerErr := ctrl.Handler(c)
-	assert.NoError(t, handlerErr)
+	require.NoError(t, handlerErr)
 
 	assert.NotEqual(t, previousRefresh, defaultFlagset.GetCacheRefreshDate())
 }

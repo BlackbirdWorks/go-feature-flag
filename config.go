@@ -176,6 +176,7 @@ func (c *Config) GetRetrievers() ([]retriever.Retriever, error) {
 	if len(c.Retrievers) > 0 {
 		retrievers = append(retrievers, c.Retrievers...)
 	}
+
 	return retrievers, nil
 }
 
@@ -190,6 +191,7 @@ func (c *Config) GetDataExporters() []DataExporter {
 	if len(c.DataExporters) > 0 {
 		dataExporters = append(dataExporters, c.DataExporters...)
 	}
+
 	return dataExporters
 }
 
@@ -210,5 +212,6 @@ func (c *Config) IsOffline() bool {
 	}
 	c.offlineMutex.RLock()
 	defer c.offlineMutex.RUnlock()
+
 	return c.Offline
 }

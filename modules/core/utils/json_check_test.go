@@ -3,11 +3,14 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func TestIsJSONObject(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input string
@@ -67,6 +70,8 @@ func TestIsJSONObject(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := utils.IsJSONObject(tt.input)
 			assert.Equal(t, tt.want, got)
 		})

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
@@ -29,390 +31,425 @@ func init() {
 
 func BenchmarkAllFlags(b *testing.B) {
 	state := client.AllFlagsState(ffcontext.NewEvaluationContext("user-0"))
-	if !state.IsValid() || len(state.GetFlags()) != 42 {
-		b.Fatalf("expected 42 valid flags, got %d (valid=%t)", len(state.GetFlags()), state.IsValid())
-	}
+	require.True(b, state.IsValid(), "expected a valid flag state")
+	require.Len(b, state.GetFlags(), 42, "expected 42 flags")
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		_ = client.AllFlagsState(user)
 	}
 }
 
 func BenchmarkBoolVar_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-no-rule-100", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-no-rule-0", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-no-rule-50", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-rule", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-rule-complex", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-rollout-progressive", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkBoolVar_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.BoolVariation("bool-rollout-scheduled", user, false); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-no-rule-100", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-no-rule-0", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-no-rule-50", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-rule", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-rule-complex", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-rollout-progressive", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkStringVar_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.StringVariation("string-rollout-scheduled", user, "error"); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-no-rule-100", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-no-rule-0", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-no-rule-50", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-rule", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-rule-complex", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-rollout-progressive", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkIntVar_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.IntVariation("int-rollout-scheduled", user, 4); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-no-rule-100", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-no-rule-0", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-no-rule-50", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-rule", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-rule-complex", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-rollout-progressive", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkFloat64Var_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.Float64Variation("float64-rollout-scheduled", user, 4.0); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-no-rule-100", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONVariation(
+			"json-no-rule-100",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.JSONVariation("json-no-rule-0", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-no-rule-50", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONVariation(
+			"json-no-rule-50",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.JSONVariation("json-rule", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rule-complex", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONVariation(
+			"json-rule-complex",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rollout-progressive", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONVariation(
+			"json-rollout-progressive",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONVar_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONVariation("json-rollout-scheduled", user, map[string]any{"sdkDefault": "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONVariation(
+			"json-rollout-scheduled",
+			user,
+			map[string]any{"sdkDefault": "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_NoRule100(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-no-rule-100", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-no-rule-100",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_NoRule0(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.JSONArrayVariation("jsonArr-no-rule-0", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_NoRule50(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.JSONArrayVariation("jsonArr-no-rule-50", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_Rule(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
 		if _, err := client.JSONArrayVariation("jsonArr-rule", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_RuleComplex(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rule-complex", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rule-complex",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_RolloutProgressive(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rollout-progressive", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rollout-progressive",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }
 
 func BenchmarkJSONArrayVar_RolloutScheduled(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf("user-%d", i))
-		if _, err := client.JSONArrayVariation("jsonArr-rollout-scheduled", user, []any{"sdkDefault", "default"}); err != nil {
-			b.Fatal(err)
+		if _, err := client.JSONArrayVariation(
+			"jsonArr-rollout-scheduled",
+			user,
+			[]any{"sdkDefault", "default"},
+		); err != nil {
+			require.NoError(b, err)
 		}
 	}
 }

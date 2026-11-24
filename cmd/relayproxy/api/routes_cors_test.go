@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -13,20 +16,17 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // testConfig returns a minimal HTTP relay proxy configuration listening on a free port.
 func testConfig(t *testing.T) *config.Config {
 	t.Helper()
+
 	return &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -64,6 +64,7 @@ func startTestServer(t *testing.T, conf *config.Config) string {
 		waitForServer(t, fmt.Sprintf("http://localhost:%d", monitoringPort))
 	}
 	waitForServer(t, baseURL)
+
 	return baseURL
 }
 
@@ -79,12 +80,15 @@ func doRequest(t *testing.T, method, url string, headers map[string]string) *htt
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = resp.Body.Close() })
+
 	return resp
 }
 
 // Test_CORS_SimpleRequest pins the behaviour of the default echo CORS middleware on the API
 // server: any origin is allowed and no CORS header leaks on a request without an Origin.
 func Test_CORS_SimpleRequest(t *testing.T) {
+	t.Parallel()
+
 	baseURL := startTestServer(t, testConfig(t))
 
 	tests := []struct {
@@ -97,7 +101,11 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			t.Run("with Origin header", func(t *testing.T) {
+				t.Parallel()
+
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, map[string]string{
 					"Origin": "https://example.com",
 				})
@@ -109,6 +117,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 			})
 
 			t.Run("without Origin header", func(t *testing.T) {
+				t.Parallel()
+
 				resp := doRequest(t, http.MethodGet, baseURL+tt.endpoint, nil)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				assert.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
@@ -121,6 +131,8 @@ func Test_CORS_SimpleRequest(t *testing.T) {
 // before the authentication middleware runs, otherwise no browser could ever call an
 // authenticated endpoint of the relay proxy.
 func Test_CORS_Preflight(t *testing.T) {
+	t.Parallel()
+
 	conf := testConfig(t)
 	conf.AuthorizedKeys = config.APIKeys{Evaluation: []string{"my-key"}}
 	conf.ForceReloadAPIKeys()
@@ -135,6 +147,8 @@ func Test_CORS_Preflight(t *testing.T) {
 
 	for _, endpoint := range endpoints {
 		t.Run(endpoint, func(t *testing.T) {
+			t.Parallel()
+
 			resp := doRequest(t, http.MethodOptions, baseURL+endpoint, map[string]string{
 				"Origin":                         "https://example.com",
 				"Access-Control-Request-Method":  http.MethodPost,
@@ -155,6 +169,8 @@ func Test_CORS_Preflight(t *testing.T) {
 // Test_CORS_MonitoringPort checks that the CORS middleware is also active on the monitoring
 // server when it runs on a dedicated port.
 func Test_CORS_MonitoringPort(t *testing.T) {
+	t.Parallel()
+
 	conf := testConfig(t)
 	conf.Server.MonitoringPort = testutils.GetFreePort(t)
 	startTestServer(t, conf)

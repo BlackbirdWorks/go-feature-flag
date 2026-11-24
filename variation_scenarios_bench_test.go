@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
@@ -24,13 +27,9 @@ var (
 func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFeatureFlag {
 	b.Helper()
 	dir, err := os.MkdirTemp("", "ffbench")
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	path := filepath.Join(dir, "flags.yaml")
-	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, os.WriteFile(path, []byte(yaml), 0o600))
 	cfg := ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
@@ -43,15 +42,15 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 		}
 	}
 	c, err := ffclient.New(cfg)
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
+
 	return c
 }
 
 func getScenarioClient(b *testing.B) *ffclient.GoFeatureFlag {
 	b.Helper()
 	scenarioOnce.Do(func() { scenarioClient = newBenchClient(b, loadtest.FlagsYAML(), true) })
+
 	return scenarioClient
 }
 
@@ -80,6 +79,7 @@ func evalOne(c *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Context) 
 	default:
 		_, err = c.BoolVariation(key, ctx, false)
 	}
+
 	return err
 }
 
@@ -98,10 +98,8 @@ func BenchmarkScenarios(b *testing.B) {
 				name := fmt.Sprintf("%s/%s/track=%t", sc, typ, track)
 				b.Run(name, func(b *testing.B) {
 					b.ReportAllocs()
-					for i := 0; i < b.N; i++ {
-						if err := evalOne(c, key, typ, benchContext(i)); err != nil {
-							b.Fatal(err)
-						}
+					for i := range b.N {
+						require.NoError(b, evalOne(c, key, typ, benchContext(i)))
 					}
 				})
 			}
@@ -122,7 +120,8 @@ func BenchmarkScenariosParallel(b *testing.B) {
 					for pb.Next() {
 						i++
 						if err := evalOne(c, key, "bool", benchContext(i)); err != nil {
-							b.Error(err)
+							assert.NoError(b, err)
+
 							return
 						}
 					}
@@ -138,11 +137,9 @@ func BenchmarkAllFlagsState(b *testing.B) {
 		c := newBenchClient(b, loadtest.ManyFlagsYAML(n), false)
 		b.Run(fmt.Sprintf("flags=%d", n), func(b *testing.B) {
 			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
+			for i := range b.N {
 				s := c.AllFlagsState(benchContext(i))
-				if len(s.GetFlags()) != n {
-					b.Fatalf("expected %d flags got %d", n, len(s.GetFlags()))
-				}
+				require.Len(b, s.GetFlags(), n, "expected %d flags", n)
 			}
 		})
 		b.Run(fmt.Sprintf("flags=%d/parallel", n), func(b *testing.B) {
@@ -170,10 +167,8 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 			name := fmt.Sprintf("%s/track=%t", sc, track)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
-					if err := evalOne(c, key, "bool", ctx); err != nil {
-						b.Fatal(err)
-					}
+				for range b.N {
+					require.NoError(b, evalOne(c, key, "bool", ctx))
 				}
 			})
 			b.Run(name+"/parallel", func(b *testing.B) {
@@ -181,7 +176,8 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
 						if err := evalOne(c, key, "bool", ctx); err != nil {
-							b.Error(err)
+							assert.NoError(b, err)
+
 							return
 						}
 					}

@@ -13,6 +13,7 @@ import (
 // S3Client returns an S3 client on the emulator.
 func (s *Server) S3Client(t testing.TB) *s3.Client {
 	t.Helper()
+
 	return s3.NewFromConfig(s.MustAwsConfig(t))
 }
 
@@ -22,6 +23,7 @@ func (s *Server) CreateBucket(t testing.TB, prefix string) string {
 	name := UniqueName(t, prefix)
 	_, err := s.S3Client(t).CreateBucket(t.Context(), &s3.CreateBucketInput{Bucket: aws.String(name)})
 	require.NoError(t, err)
+
 	return name
 }
 
@@ -44,6 +46,7 @@ func (s *Server) GetObject(t testing.TB, bucket, key string) []byte {
 	defer func() { _ = out.Body.Close() }()
 	b, err := io.ReadAll(out.Body)
 	require.NoError(t, err)
+
 	return b
 }
 
@@ -61,5 +64,6 @@ func (s *Server) ListKeys(t testing.TB, bucket, prefix string) []string {
 			keys = append(keys, aws.ToString(o.Key))
 		}
 	}
+
 	return keys
 }

@@ -5,12 +5,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
+
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 func TestRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	bucketFiles := map[string]string{
@@ -96,6 +100,8 @@ func TestRetriever_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mockedStorage := testutils.NewMockedGCS(t)
 			mockedStorage.WithFiles(t, tt.storage.bucket, tt.storage.files)
 
@@ -121,7 +127,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 
 				if err == nil {
 					wantContent, err := os.ReadFile(want)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 
 					assert.Equal(
 						t,

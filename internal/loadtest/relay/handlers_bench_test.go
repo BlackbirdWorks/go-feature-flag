@@ -7,12 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/labstack/echo/v5"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
 	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
-	"github.com/labstack/echo/v5"
 )
 
 // invoke runs the handler once the way the router would, without any network.
@@ -23,12 +27,11 @@ func invoke(b *testing.B, e *echo.Echo, h func(*echo.Context) error, ep relay.En
 	c := e.NewContext(req, rec)
 	c.SetPathValues(echo.PathValues{{Name: "flagKey", Value: key}})
 	if err := h(c); err != nil {
-		b.Error(err)
+		assert.NoError(b, err)
+
 		return
 	}
-	if rec.Code != http.StatusOK {
-		b.Errorf("unexpected status %d: %s", rec.Code, rec.Body.String())
-	}
+	assert.Equal(b, http.StatusOK, rec.Code, "unexpected status: %s", rec.Body.String())
 }
 
 // BenchmarkHandlers calls the relay proxy handlers in-process (no router, no middleware, no
@@ -38,9 +41,7 @@ func BenchmarkHandlers(b *testing.B) {
 		FlagsYAML:    loadtest.FlagsYAML(),
 		ExporterMode: loadtest.ExporterDiscard,
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	defer r.Close()
 	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
 	semEval := controller.NewFlagEval(fm, metrics)
@@ -62,7 +63,7 @@ func BenchmarkHandlers(b *testing.B) {
 			h := handlers[ep]
 			b.Run(fmt.Sprintf("%s/track=%t", ep, track), func(b *testing.B) {
 				b.ReportAllocs()
-				for i := 0; i < b.N; i++ {
+				for i := range b.N {
 					invoke(b, e, h, ep, key, i)
 				}
 			})

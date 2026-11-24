@@ -39,6 +39,7 @@ func inlineCode(text string) string {
 	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
 		text = " " + text + " "
 	}
+
 	return fence + text + fence
 }
 
@@ -55,6 +56,7 @@ func describeChanges(before, after flag.Flag, code func(string) string) ([]strin
 	}
 	d := &describer{code: code}
 	d.flag(b, a)
+
 	return d.lines, nil
 }
 
@@ -68,6 +70,7 @@ func UpdatedBy(f flag.Flag) string {
 		return ""
 	}
 	name, _ := internalFlag.GetMetadata()[UpdatedByMetadataKey].(string)
+
 	return strings.TrimSpace(name)
 }
 
@@ -76,6 +79,7 @@ func UpdatedBySuffix(f flag.Flag) string {
 	if name := UpdatedBy(f); name != "" {
 		return " by " + name
 	}
+
 	return ""
 }
 
@@ -85,6 +89,7 @@ func withoutUpdatedBy(metadata map[string]any) map[string]any {
 	}
 	filtered := maps.Clone(metadata)
 	delete(filtered, UpdatedByMetadataKey)
+
 	return filtered
 }
 
@@ -167,6 +172,7 @@ func (d *describer) toggle(subject, field string, before, after *bool, defaultVa
 		// and leaves it alone when the field is absent.
 		if after == nil {
 			d.addf("%s: %s no longer set", subject, d.code(fmt.Sprintf("%s: %t", field, *before)))
+
 			return
 		}
 		oldValue = !newValue
@@ -231,6 +237,7 @@ func (d *describer) targeting(before, after []flag.Rule) {
 		newRule := a.rules[key]
 		if oldKey, ok := renamed[key]; ok {
 			d.addf("Targeting rule %s renamed to %s", d.ruleLabel(oldKey), d.ruleLabel(key))
+
 			continue
 		}
 		oldRule, existed := b.rules[key]
@@ -371,6 +378,7 @@ func (d *describer) experimentation(before, after *flag.ExperimentationRollout) 
 		}
 		d.stepDate("Experimentation start", oldStart, newStart)
 		d.stepDate("Experimentation end", oldEnd, newEnd)
+
 		return
 	}
 	oldWindow, newWindow := describeWindow(before), describeWindow(after)
@@ -411,6 +419,7 @@ func (d *describer) scheduled(before, after *[]flag.ScheduledStep) {
 				content = strings.Join(lines, "; ")
 			}
 			d.addf("Scheduled step %s added: %s", stepLabel(a[j], j), content)
+
 			continue
 		}
 		if oldDate, newDate := stepDate(b[i], i), stepDate(a[j], j); oldDate != newDate {
@@ -437,6 +446,7 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 		if steps[index].Date == nil {
 			return "#" + strconv.Itoa(index)
 		}
+
 		return steps[index].Date.UTC().Format(time.RFC3339Nano)
 	}
 	byKey := map[string][]int{}
@@ -449,6 +459,7 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 		k := key(after, j)
 		if candidates := byKey[k]; len(candidates) > 0 {
 			pairs[j], byKey[k] = candidates[0], candidates[1:]
+
 			continue
 		}
 		unpairedAfter = append(unpairedAfter, j)
@@ -466,6 +477,7 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 	for n := range min(len(unpairedBefore), len(unpairedAfter)) {
 		pairs[unpairedAfter[n]] = unpairedBefore[n]
 	}
+
 	return pairs
 }
 
@@ -473,6 +485,7 @@ func pairSteps(before, after []flag.ScheduledStep) map[int]int {
 func (d *describer) stepLines(before, after *flag.InternalFlag) []string {
 	step := &describer{code: d.code, inStep: true}
 	step.flag(before, after)
+
 	return step.lines
 }
 
@@ -485,6 +498,7 @@ func (d *describer) describeRule(rule flag.Rule) string {
 	if rule.IsDisable() {
 		text += " (disabled)"
 	}
+
 	return text
 }
 
@@ -521,6 +535,7 @@ func (d *describer) describePatch(rule flag.Rule) string {
 	if len(parts) == 0 {
 		return "nothing"
 	}
+
 	return strings.Join(parts, ", ")
 }
 
@@ -535,6 +550,7 @@ func (d *describer) percentageParts(percentages map[string]float64, inPatch bool
 			parts = append(parts, d.code(name)+" "+formatNumber(percentages[name])+"%")
 		}
 	}
+
 	return parts
 }
 
@@ -556,8 +572,10 @@ func (d *describer) describeProgressive(rollout *flag.ProgressiveRollout) string
 		if len(parts) == 0 {
 			return "an unset step"
 		}
+
 		return strings.Join(parts, " ")
 	}
+
 	return fmt.Sprintf("a progressive rollout from %s to %s", step(rollout.Initial), step(rollout.End))
 }
 
@@ -582,6 +600,7 @@ func stepLabel(step flag.ScheduledStep, index int) string {
 	if step.Date == nil {
 		return stepDate(step, index)
 	}
+
 	return "on " + stepDate(step, index)
 }
 
@@ -589,6 +608,7 @@ func stepDate(step flag.ScheduledStep, index int) string {
 	if step.Date == nil {
 		return "#" + strconv.Itoa(index+1)
 	}
+
 	return formatDate(*step.Date)
 }
 
@@ -602,6 +622,7 @@ func (d *describer) ruleLabel(key ruleKey) string {
 	if key.name == "" {
 		return "#" + strconv.Itoa(key.position)
 	}
+
 	return d.code(key.name)
 }
 
@@ -620,6 +641,7 @@ func indexRules(rules []flag.Rule) indexedRules {
 		index.order = append(index.order, key)
 		index.rules[key] = rule
 	}
+
 	return index
 }
 
@@ -642,11 +664,13 @@ func findRenames(before, after indexedRules) map[ruleKey]ruleKey {
 			renames[newKey] = oldKey
 		}
 	}
+
 	return renames
 }
 
 func withoutName(rule flag.Rule) string {
 	rule.Name = nil
+
 	return ReadableValue(rule)
 }
 
@@ -658,6 +682,7 @@ func keptKeys(order []ruleKey, other map[ruleKey]flag.Rule) []ruleKey {
 			kept = append(kept, key)
 		}
 	}
+
 	return kept
 }
 
@@ -668,6 +693,7 @@ func formatDate(t time.Time) string {
 	if t.Second() == 0 && t.Nanosecond() == 0 {
 		return t.Format("2006-01-02 15:04 UTC")
 	}
+
 	return t.Format("2006-01-02 15:04:05.999999999 UTC")
 }
 
@@ -679,6 +705,7 @@ func readablePtr(value *any) string {
 	if value == nil {
 		return ReadableValue(nil)
 	}
+
 	return ReadableValue(*value)
 }
 
@@ -690,6 +717,7 @@ func unionKeys[V any](a, b map[string]V) []string {
 		}
 	}
 	slices.Sort(keys)
+
 	return keys
 }
 
@@ -697,6 +725,7 @@ func equalPtr[T comparable](a, b *T) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
+
 	return *a == *b
 }
 
@@ -704,6 +733,7 @@ func derefOr[T any](p *T, fallback T) T {
 	if p == nil {
 		return fallback
 	}
+
 	return *p
 }
 
@@ -711,5 +741,6 @@ func derefSlice[T any](s *[]T) []T {
 	if s == nil {
 		return nil
 	}
+
 	return *s
 }

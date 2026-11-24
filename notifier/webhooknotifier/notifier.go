@@ -3,6 +3,7 @@ package webhooknotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 
 var _ notifier.Notifier = &Notifier{}
 
-// webhookReqBody is the format we are sending to the webhook
+// webhookReqBody is the format we are sending to the webhook.
 type webhookReqBody struct {
 	Meta  map[string]string  `json:"meta"`
 	Flags notifier.DiffCache `json:"flags"`
@@ -88,9 +89,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.EndpointURL == "" {
-		return fmt.Errorf(
-			"invalid notifier configuration, no endpointURL provided for the webhook notifier",
-		)
+		return errors.New("invalid notifier configuration, no endpointURL provided for the webhook notifier")
 	}
 
 	// init the notifier
@@ -124,7 +123,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Webhook Notifier) impossible to read differences; %v", err)
+		return fmt.Errorf("error: (Webhook Notifier) impossible to read differences; %w", err)
 	}
 
 	// Notifications can overlap, so each request needs its own headers and signature.
@@ -140,7 +139,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	request := http.Request{
-		Method: "POST",
+		Method: http.MethodPost,
 		URL:    endpointURL,
 		Header: headers,
 		Body:   io.NopCloser(bytes.NewReader(payload)),

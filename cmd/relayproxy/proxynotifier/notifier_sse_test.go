@@ -3,15 +3,17 @@ package proxynotifier_test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNotifierSSE_Notify(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		flagsetName string
@@ -29,9 +31,9 @@ func TestNotifierSSE_Notify(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
 			},
@@ -40,6 +42,8 @@ func TestNotifierSSE_Notify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 

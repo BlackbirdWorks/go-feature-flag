@@ -36,7 +36,7 @@ func NewEvaluationContext(key string) EvaluationContext {
 // Please use NewEvaluationContext instead and add a attributes attribute to know that it is an anonymous user.
 //
 // ctx := NewEvaluationContext("my-targetingKey")
-// ctx.AddCustomAttribute("anonymous", true)
+// ctx.AddCustomAttribute("anonymous", true).
 func NewAnonymousEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{
 		anonymousAttribute: true,
@@ -106,6 +106,7 @@ func (u EvaluationContext) ToMap() map[string]any {
 	resMap := make(map[string]any, len(u.attributes)+1)
 	maps.Copy(resMap, u.attributes)
 	resMap["targetingKey"] = u.targetingKey
+
 	return resMap
 }
 
@@ -121,6 +122,7 @@ const LegacyReservedKey = "gofeatureflag"
 func HasReservedKey(attributes map[string]any) bool {
 	_, current := attributes[ReservedKey]
 	_, legacyName := attributes[LegacyReservedKey]
+
 	return current || legacyName
 }
 
@@ -137,6 +139,7 @@ func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 	if v, ok := u.attributes[ReservedKey]; ok {
 		specifics = readSpecifics(v, specifics)
 	}
+
 	return specifics
 }
 
@@ -164,5 +167,6 @@ func readSpecifics(v any, base GoffContextSpecifics) GoffContextSpecifics {
 	if found.ExporterMetadata != nil {
 		base.ExporterMetadata = found.ExporterMetadata
 	}
+
 	return base
 }

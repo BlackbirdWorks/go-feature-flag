@@ -19,6 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshiftdata/types"
 	"github.com/aws/smithy-go"
 	smithyjson "github.com/aws/smithy-go/encoding/json"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -43,7 +44,7 @@ const (
 	// its statements and the Data API rejects more than 200KB of them ("Parameter size exceeds 200 kB").
 	// They are measured JSON-encoded, as sent on the wire, with a safe margin.
 	maxBatchParamBytes = 180 * 1024
-	// paramOverheadBytes is the JSON envelope of a parameter: {"name":,"value":},
+	// paramOverheadBytes is the JSON envelope of a parameter: {"name":,"value":},.
 	paramOverheadBytes = 20
 	// maxSuperBytes is the maximum size of a JSON value: it is sent as a VARCHAR parameter to JSON_PARSE,
 	// and a Redshift VARCHAR cannot be longer than 65535 bytes.
@@ -256,6 +257,7 @@ func (e *Exporter) Export(
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -274,6 +276,7 @@ func (e *Exporter) validate() error {
 	if e.ClusterIdentifier != "" && e.WorkgroupName != "" {
 		return errors.New("redshift exporter: ClusterIdentifier and WorkgroupName are mutually exclusive")
 	}
+
 	return nil
 }
 
@@ -284,6 +287,7 @@ func (e *Exporter) tableName(eventType string) string {
 	if eventType == trackingEventType {
 		return defaultTrackingTableName
 	}
+
 	return defaultFeatureTableName
 }
 
@@ -296,12 +300,14 @@ func (e *Exporter) initClient(ctx context.Context) error {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
 				e.initErr = fmt.Errorf("redshift exporter: impossible to load AWS config: %w", err)
+
 				return
 			}
 			e.AwsConfig = &cfg
 		}
 		e.client = redshiftdata.NewFromConfig(*e.AwsConfig)
 	})
+
 	return e.initErr
 }
 
@@ -326,6 +332,7 @@ func (e *Exporter) migrate(ctx context.Context, table string, columns []column) 
 		return err
 	}
 	e.migrated = true
+
 	return nil
 }
 
@@ -363,6 +370,7 @@ func (e *Exporter) run(ctx context.Context, sqls []string, params []types.SqlPar
 	if err != nil {
 		return fmt.Errorf("redshift exporter: execute statement: %w", err)
 	}
+
 	return e.waitForStatement(ctx, output.Id)
 }
 
@@ -419,6 +427,7 @@ func (e *Exporter) cancelStatement(ctx context.Context, id *string, lastErr erro
 	if cancelErr != nil {
 		errs = append(errs, fmt.Errorf("cancel statement: %w", cancelErr))
 	}
+
 	return errors.Join(errs...)
 }
 
@@ -450,6 +459,7 @@ func isPermanentAPIError(err error) bool {
 	if !errors.As(err, &apiErr) || apiErr.ErrorFault() == smithy.FaultServer {
 		return false
 	}
+
 	return retry.IsErrorRetryables(retry.DefaultRetryables).IsErrorRetryable(err) != aws.TrueTernary
 }
 
@@ -457,6 +467,7 @@ func (e *Exporter) interval() time.Duration {
 	if e.pollInterval <= 0 {
 		return defaultPollInterval
 	}
+
 	return e.pollInterval
 }
 
@@ -470,6 +481,7 @@ func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (
 		if detail := statementError(output); detail != "" {
 			msg += ": " + detail
 		}
+
 		return true, errors.New(msg)
 	default:
 		return false, nil
@@ -486,6 +498,7 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 			return aws.ToString(sub.Error)
 		}
 	}
+
 	return ""
 }
 
@@ -523,6 +536,7 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 			if firstErr == nil {
 				firstErr = err
 			}
+
 			continue
 		}
 		rows = append(rows, row{key: event.GetKey(), values: values})
@@ -531,6 +545,7 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 		logger.Warn("redshift exporter: events skipped because they cannot be converted to JSON",
 			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys), "error", firstErr.Error())
 	}
+
 	return rows, eventType, nil
 }
 
@@ -538,6 +553,7 @@ func columnsForEventType(eventType string) []column {
 	if eventType == trackingEventType {
 		return trackingEventColumns
 	}
+
 	return featureEventColumns
 }
 
@@ -550,6 +566,7 @@ func featureEventRow(event exporter.FeatureEvent) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return []string{
 		event.Kind,
 		event.ContextKind,
@@ -574,6 +591,7 @@ func trackingEventRow(event exporter.TrackingEvent) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return []string{
 		event.Kind,
 		event.ContextKind,
@@ -606,10 +624,12 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 		r.paramSize = paramsSize(params)
 		if tooLarge || prefixSize+r.size > maxStatementBytes || r.paramSize > maxBatchParamBytes {
 			skippedKeys = append(skippedKeys, r.key)
+
 			continue
 		}
 		kept = append(kept, r)
 	}
+
 	return kept, skippedKeys
 }
 
@@ -625,6 +645,7 @@ func truncateUTF8(value string, maxBytes int) string {
 	for cut > 0 && !utf8.RuneStart(value[cut]) {
 		cut--
 	}
+
 	return value[:cut]
 }
 
@@ -637,6 +658,7 @@ func uniqueKeys(keys []string) []string {
 			unique = append(unique, k)
 		}
 	}
+
 	return unique
 }
 
@@ -645,6 +667,7 @@ func insertPrefix(table string, columns []column) string {
 	for _, c := range columns {
 		quoted = append(quoted, quoteIdentifier(c.name))
 	}
+
 	return fmt.Sprintf("INSERT INTO %s (%s) VALUES ", quoteTableName(table), strings.Join(quoted, ", "))
 }
 
@@ -679,6 +702,7 @@ func buildBatches(table string, columns []column, rows []row) []batch {
 	if len(b.sqls) > 0 {
 		batches = append(batches, b)
 	}
+
 	return batches
 }
 
@@ -702,6 +726,7 @@ func chunkRows(rows []row, prefixSize int) []chunk {
 	if start < len(rows) {
 		chunks = append(chunks, chunk{rows: rows[start:], size: size, paramSize: paramSize})
 	}
+
 	return chunks
 }
 
@@ -711,12 +736,14 @@ func paramsSize(params []types.SqlParameter) int {
 	for _, p := range params {
 		size += jsonStringSize(aws.ToString(p.Name)) + jsonStringSize(aws.ToString(p.Value)) + paramOverheadBytes
 	}
+
 	return size
 }
 
 func jsonStringSize(s string) int {
 	enc := smithyjson.NewEncoder()
 	enc.Value.String(s)
+
 	return len(enc.Bytes())
 }
 
@@ -749,6 +776,7 @@ func buildRowValues(columns []column, values []string, firstParam int) (string, 
 		}
 	}
 	sql := "(" + strings.Join(placeholders, ", ") + ")"
+
 	return sql, params, size + len(sql)
 }
 
@@ -756,6 +784,7 @@ func booleanLiteral(value string) string {
 	if value == strconv.FormatBool(true) {
 		return "TRUE"
 	}
+
 	return "FALSE"
 }
 
@@ -770,5 +799,6 @@ func quoteTableName(name string) string {
 	for i, part := range parts {
 		parts[i] = quoteIdentifier(part)
 	}
+
 	return strings.Join(parts, ".")
 }

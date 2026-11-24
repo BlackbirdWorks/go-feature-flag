@@ -4,14 +4,17 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/evaluate"
 )
 
 const XAPIKeyHeader = "X-API-Key"
 
 func TestCmdEvaluate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		args           []string
@@ -426,9 +429,11 @@ func TestCmdEvaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stdOut, err := os.CreateTemp("", "temp")
+			t.Parallel()
+
+			stdOut, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
-			stdErr, err := os.CreateTemp("", "temp")
+			stdErr, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(stdOut.Name())

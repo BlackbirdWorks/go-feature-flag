@@ -4,11 +4,15 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func TestTrackingEvent_FormatInCSV(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		trackingEvent *exporter.TrackingEvent
@@ -53,8 +57,10 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			csvTemplate, err := template.New("test").Parse(tt.template)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			got, err := tt.trackingEvent.FormatInCSV(csvTemplate)
 			tt.wantErr(t, err)
 			if err == nil {
@@ -65,6 +71,8 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 }
 
 func TestTrackingEvent_FormatInJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		trackingEvent *exporter.TrackingEvent
@@ -106,6 +114,8 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.trackingEvent.FormatInJSON()
 			tt.wantErr(t, err)
 			if err == nil {
@@ -116,6 +126,8 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 }
 
 func TestTrackingEvent_GetKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		trackingEvent *exporter.TrackingEvent
@@ -146,12 +158,16 @@ func TestTrackingEvent_GetKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.trackingEvent.GetKey())
 		})
 	}
 }
 
 func TestTrackingEvent_GetUserKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		trackingEvent *exporter.TrackingEvent
@@ -171,6 +187,8 @@ func TestTrackingEvent_GetUserKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.trackingEvent.GetUserKey())
 		})
 	}

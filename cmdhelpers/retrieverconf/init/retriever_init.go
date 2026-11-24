@@ -6,6 +6,9 @@ import (
 	"time"
 
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/redis/go-redis/v9"
+	"k8s.io/client-go/rest"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/retriever"
 	azblobretriever "github.com/blackbirdworks/semaphore/retriever/azblobstorageretriever"
@@ -20,14 +23,12 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
-	"github.com/redis/go-redis/v9"
-	"k8s.io/client-go/rest"
 )
 
-// retrieverFactory defines the signature for retriever factory functions
+// retrieverFactory defines the signature for retriever factory functions.
 type retrieverFactory func(*retrieverconf.RetrieverConf, time.Duration) (retriever.Retriever, error)
 
-// retrieverFactories maps retriever kinds to their factory functions
+// retrieverFactories maps retriever kinds to their factory functions.
 var retrieverFactories = map[retrieverconf.RetrieverKind]retrieverFactory{
 	retrieverconf.GitHubRetriever:        createGitHubRetriever,
 	retrieverconf.GitlabRetriever:        createGitlabRetriever,
@@ -43,7 +44,7 @@ var retrieverFactories = map[retrieverconf.RetrieverKind]retrieverFactory{
 	retrieverconf.PostgreSQLRetriever:    createPostgreSQLRetriever,
 }
 
-// InitRetriever initialize the retriever based on the configuration
+// InitRetriever initialize the retriever based on the configuration.
 func InitRetriever(
 	c *retrieverconf.RetrieverConf) (retriever.Retriever, error) {
 	retrieverTimeout := retrieverconf.DefaultRetrieverConfig.Timeout
@@ -54,22 +55,25 @@ func InitRetriever(
 	if !exists {
 		return nil, fmt.Errorf("invalid retriever: kind \"%s\" is not supported", c.Kind)
 	}
+
 	return retrieverFactory(c, retrieverTimeout)
 }
 
-// Factory functions for each retriever type
+// Factory functions for each retriever type.
 func createGitHubRetriever(
 	c *retrieverconf.RetrieverConf, timeout time.Duration) (retriever.Retriever, error) {
 	token := c.AuthToken
-	if token == "" && c.GithubToken != "" { // nolint: staticcheck
-		token = c.GithubToken // nolint: staticcheck
+	if token == "" && c.GithubToken != "" { //nolint: staticcheck
+		token = c.GithubToken //nolint: staticcheck
 	}
+
 	return &githubretriever.Retriever{
 		RepositorySlug: c.RepositorySlug,
 		Branch: func() string {
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -91,6 +95,7 @@ func createGitlabRetriever(
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -108,6 +113,7 @@ func createBitbucketRetriever(
 			if c.Branch == "" {
 				return retrieverconf.DefaultRetrieverConfig.GitBranch
 			}
+
 			return c.Branch
 		}(),
 		FilePath:       c.Path,
@@ -123,6 +129,7 @@ func createFileRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retri
 
 func createS3Retriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retriever.Retriever, error) {
 	awsConfig, err := awsConf.LoadDefaultConfig(context.Background())
+
 	return &s3retrieverv2.Retriever{
 		Bucket:    c.Bucket,
 		Item:      c.Item,
@@ -141,6 +148,7 @@ func createHTTPRetriever(
 			if c.HTTPMethod == "" {
 				return retrieverconf.DefaultRetrieverConfig.HTTPMethod
 			}
+
 			return c.HTTPMethod
 		}(),
 		Body:           c.HTTPBody,
@@ -163,6 +171,7 @@ func createKubernetesRetriever(
 	if err != nil {
 		return nil, err
 	}
+
 	return &k8sretriever.Retriever{
 		Namespace:     c.Namespace,
 		ConfigMapName: c.ConfigMap,
@@ -180,6 +189,7 @@ func createRedisRetriever(c *retrieverconf.RetrieverConf, _ time.Duration) (retr
 	if c.RedisOptions != nil {
 		options = c.RedisOptions.ToRedisOptions()
 	}
+
 	return &redisretriever.Retriever{Options: options, Prefix: c.RedisPrefix}, nil
 }
 

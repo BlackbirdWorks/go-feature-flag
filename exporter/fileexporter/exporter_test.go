@@ -9,24 +9,25 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
-	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
 	"github.com/xitongsys/parquet-go/reader"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestFile_Export(t *testing.T) {
+	t.Parallel()
+
 	// Create a temporary directory for test file operations
 	tempDir, err := os.MkdirTemp("", "fileexporter-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir) // Clean up after tests
+	require.NoError(t, err, "Failed to create temp dir")
+	t.Cleanup(func() { os.RemoveAll(tempDir) })
 
 	hostname, _ := os.Hostname()
 	type fields struct {
@@ -63,12 +64,27 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -86,12 +102,26 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -110,12 +140,28 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER", Metadata: map[string]any{"test": "test"},
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
+						Metadata:     map[string]any{"test": "test"},
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -123,12 +169,29 @@ func TestFile_Export(t *testing.T) {
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
 				featureEvents: []exporter.FeatureEvent{
 					{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: `"YO"`, Default: false, Source: "SERVER", Metadata: map[string]any{"test": "test"},
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        `"YO"`,
+						Default:      false,
+						Source:       "SERVER",
+						Metadata:     map[string]any{"test": "test"},
 					},
 					{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: `"YO2"`, Default: false, Version: "127", Source: "SERVER", Metadata: map[string]any{},
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        `"YO2"`,
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
+						Metadata:     map[string]any{},
 					},
 				},
 			},
@@ -181,12 +244,26 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -251,12 +328,26 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -274,12 +365,27 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -297,12 +403,27 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -320,12 +441,26 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -340,12 +475,26 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -360,8 +509,15 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -372,7 +528,7 @@ func TestFile_Export(t *testing.T) {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
 				err := os.MkdirAll(fields.OutputDir, 0755)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
@@ -386,13 +542,20 @@ func TestFile_Export(t *testing.T) {
 			wantErr: true,
 			fields: fields{
 				Format:    "parquet",
-				OutputDir: filepath.Join(tempDir, "invalid-parent-dir"),
+				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
 			},
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -402,13 +565,16 @@ func TestFile_Export(t *testing.T) {
 				if runtime.GOOS == "windows" {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
-				err := os.MkdirAll(tempDir, 0755)
-				assert.NoError(t, err)
-				err = os.Chmod(tempDir, 0000) // Remove all permissions
+				// Only the dedicated parent of this case loses its permissions, the other
+				// cases of this table run in parallel in sibling directories of tempDir.
+				parent := filepath.Dir(fields.OutputDir)
+				err := os.MkdirAll(parent, 0755)
+				require.NoError(t, err)
+				err = os.Chmod(parent, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fields) {
-				err := os.Chmod(tempDir, 0755) // Restore permissions for cleanup
+				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},
@@ -422,12 +588,27 @@ func TestFile_Export(t *testing.T) {
 			args: args{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-						Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "ABCD",
+						CreationDate: 1617970547,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO",
+						Default:      false,
+						Source:       "SERVER",
 					},
 					exporter.FeatureEvent{
-						Kind: "feature", ContextKind: "anonymousUser", UserKey: "EFGH", CreationDate: 1617970701, Key: "random-key",
-						Variation: "Default", Value: "YO2", Default: false, Version: "127", Source: "SERVER",
+						Kind:         "feature",
+						ContextKind:  "anonymousUser",
+						UserKey:      "EFGH",
+						CreationDate: 1617970701,
+						Key:          "random-key",
+						Variation:    "Default",
+						Value:        "YO2",
+						Default:      false,
+						Version:      "127",
+						Source:       "SERVER",
 					},
 				},
 			},
@@ -439,6 +620,8 @@ func TestFile_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			outputDir := tt.fields.OutputDir
 			if tt.fields.OutputDir == "" {
 				outputDir, _ = os.MkdirTemp("", "fileExporter")
@@ -463,17 +646,18 @@ func TestFile_Export(t *testing.T) {
 			err := f.Export(context.Background(), tt.args.logger, tt.args.events)
 			if tt.wantErr {
 				assert.Error(t, err, "export method should error")
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// Check if the directory was created
 			_, err = os.Stat(outputDir)
-			assert.NoError(t, err, "Output directory should exist")
+			require.NoError(t, err, "Output directory should exist")
 
 			files, _ := os.ReadDir(outputDir)
-			assert.Equal(t, 1, len(files), "Directory %s should have only one file", outputDir)
+			assert.Len(t, files, 1, "Directory %s should have only one file", outputDir)
 			assert.Regexp(t, tt.expected.fileNameRegex, files[0].Name(), "Invalid file name")
 
 			assertExportOutput(
@@ -494,14 +678,15 @@ func TestFile_Export(t *testing.T) {
 func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureEvent {
 	t.Helper()
 	fr, err := local.NewLocalFileReader(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer fr.Close()
 	pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pr.ReadStop()
 	gotFeatureEvents := make([]exporter.FeatureEvent, pr.GetNumRows())
 	err = pr.Read(&gotFeatureEvents)
 	assert.NoError(t, err)
+
 	return gotFeatureEvents
 }
 
@@ -510,14 +695,15 @@ func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureE
 func readParquetTrackingEvents(t *testing.T, filePath string) []exporter.TrackingEvent {
 	t.Helper()
 	fr, err := local.NewLocalFileReader(filePath)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer fr.Close()
 	pr, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pr.ReadStop()
 	gotTrackingEvents := make([]exporter.TrackingEvent, pr.GetNumRows())
 	err = pr.Read(&gotTrackingEvents)
 	assert.NoError(t, err)
+
 	return gotTrackingEvents
 }
 
@@ -535,9 +721,11 @@ func assertExportOutput(
 	if format == "parquet" {
 		if eventType == "tracking" {
 			assert.ElementsMatch(t, expectedTrackingEvents, readParquetTrackingEvents(t, filePath))
+
 			return
 		}
 		assert.ElementsMatch(t, expectedFeatureEvents, readParquetFeatureEvents(t, filePath))
+
 		return
 	}
 
@@ -552,11 +740,15 @@ func assertExportOutput(
 }
 
 func TestFile_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	e := fileexporter.Exporter{}
 	assert.True(t, e.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestExportWithoutOutputDir(t *testing.T) {
+	t.Parallel()
+
 	featureEvents := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
 			Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
@@ -583,5 +775,5 @@ func TestExportWithoutOutputDir(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-	assert.True(t, countFileWithPrefix > 0, "At least one file should have been created")
+	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")
 }

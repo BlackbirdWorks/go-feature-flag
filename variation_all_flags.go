@@ -61,6 +61,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 				flagstate.FromFlagEvaluation(key, evaluationCtx, flagCtx, currentFlag),
 			)
 		}
+
 		return flagStates
 	}
 
@@ -77,6 +78,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 			flagstate.FromFlagEvaluation(key, evaluationCtx, flagCtx, currentFlag),
 		)
 	}
+
 	return allFlags
 }
 
@@ -85,6 +87,7 @@ func (g *GoFeatureFlag) AllFlagsState(evaluationCtx ffcontext.Context) flagstate
 	if g == nil {
 		return flagstate.AllFlags{}
 	}
+
 	return g.GetFlagStates(evaluationCtx, []string{})
 }
 

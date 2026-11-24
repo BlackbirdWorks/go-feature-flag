@@ -40,6 +40,7 @@ func LoadConfigFile(
 		if _, err := os.Stat(inputFilePath); err != nil {
 			return nil, fmt.Errorf("impossible to find config file %s", inputFilePath)
 		}
+
 		return readConfigFile(inputFilePath, configFormat)
 	}
 	for _, location := range defaultLocations {
@@ -54,10 +55,12 @@ func LoadConfigFile(
 						"the flag file %s uses the legacy name %s, it is still accepted, rename it to %s.%s",
 						configFile, filename, flagFileNames[0], ext))
 				}
+
 				return readConfigFile(configFile, ext)
 			}
 		}
 	}
+
 	return nil, fmt.Errorf(
 		"impossible to find config file in the default locations [%s]",
 		strings.Join(defaultLocations, ","),
@@ -73,6 +76,7 @@ func readConfigFile(configFile, configFormat string) (map[string]dto.DTO, error)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", configFile, err)
 	}
+
 	return flags, nil
 }
 
@@ -86,7 +90,9 @@ func ParseConfig(data []byte, configFormat string) (map[string]dto.DTO, error) {
 		if format != "toml" && format != "json" {
 			format = "yaml"
 		}
+
 		return nil, fmt.Errorf("could not parse file (%s): %w", format, err)
 	}
+
 	return flags, nil
 }

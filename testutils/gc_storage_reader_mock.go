@@ -1,7 +1,7 @@
 package testutils
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"os"
 )
@@ -19,7 +19,7 @@ func (r *GCStorageReaderMock) Close() error {
 
 func (r *GCStorageReaderMock) Read(p []byte) (n int, err error) {
 	if r.ShouldFail {
-		return 0, fmt.Errorf("failed to read from GCP")
+		return 0, errors.New("failed to read from GCP")
 	}
 
 	// Set the mocked data to be read.
@@ -33,12 +33,13 @@ func (r *GCStorageReaderMock) Read(p []byte) (n int, err error) {
 	// Return io.EOF if read all bytes.
 	if r.readIndex >= int64(len(r.data)) {
 		err = io.EOF
-		return
+
+		return n, err
 	}
 
 	// Copy unread bytes.
 	n = copy(p, r.data[r.readIndex:])
 	r.readIndex += int64(n)
 
-	return
+	return n, err
 }

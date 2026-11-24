@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -70,7 +71,8 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 		if f.AwsConfig == nil {
 			cfg, err := config.LoadDefaultConfig(ctx)
 			if err != nil {
-				initErr = fmt.Errorf("impossible to init S3 exporter: %v", err)
+				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
+
 				return
 			}
 			f.AwsConfig = &cfg
@@ -79,6 +81,7 @@ func (f *Exporter) initializeUploader(ctx context.Context) error {
 		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
 		f.s3Uploader = transfermanager.New(client)
 	})
+
 	return initErr
 }
 
@@ -132,12 +135,14 @@ func (f *Exporter) Export(
 				"[S3Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()),
 			)
+
 			continue
 		}
 		if err := f.uploadFile(ctx, logger, of, file.Name()); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -166,6 +171,7 @@ func (f *Exporter) uploadFile(
 		location = *result.Location
 	}
 	logger.Info("[S3Exporter] file uploaded.", slog.String("location", location))
+
 	return nil
 }
 

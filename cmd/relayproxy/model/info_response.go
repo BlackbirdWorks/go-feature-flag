@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// InfoResponse is the object returned by the info API
+// InfoResponse is the object returned by the info API.
 type InfoResponse struct {
 	// LatestCacheRefresh is the last time when your flag file was read and stored in the internal cache.
 	// This field is used for backward compatibility when using the default flagset.

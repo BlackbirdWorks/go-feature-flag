@@ -1,15 +1,17 @@
 package linter
 
 import (
-	"fmt"
+	"errors"
+
+	"github.com/spf13/cobra"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
-	"github.com/spf13/cobra"
 )
 
-var lintFlagFormat string
-
 func NewLintCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var lintFlagFormat string
+
 	lintCmd := &cobra.Command{
 		Use:   "lint <config_file>",
 		Short: "🛑 Lint Semaphore configuration file.",
@@ -22,6 +24,7 @@ func NewLintCmd() *cobra.Command {
 	}
 	lintCmd.Flags().
 		StringVarP(&lintFlagFormat, "format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
+
 	return lintCmd
 }
 
@@ -36,11 +39,13 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
 		output.PrintLines(cmd)
-		return fmt.Errorf("invalid Semaphore configuration")
+
+		return errors.New("invalid Semaphore configuration")
 	}
 
 	output.Add("Valid Semaphore configuration", helper.InfoLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
@@ -48,5 +53,6 @@ func extractFilePathFromArgs(args []string) string {
 	if len(args) == 0 {
 		return ""
 	}
+
 	return args[0]
 }

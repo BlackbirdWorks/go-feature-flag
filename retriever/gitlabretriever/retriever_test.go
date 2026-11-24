@@ -6,9 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/retriever/gitlabretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/stretchr/testify/assert"
 )
 
 func sampleText() string {
@@ -26,6 +28,8 @@ func sampleText() string {
 `
 }
 func Test_gitlab_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		httpClient mock.HTTP
 		context    context.Context
@@ -142,6 +146,8 @@ func Test_gitlab_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := gitlabretriever.Retriever{
 				BaseURL:        tt.fields.baseURL,
 				FilePath:       tt.fields.filePath,
@@ -166,7 +172,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 					assert.Equal(
 						t,
 						tt.fields.gitlabToken,
-						tt.fields.httpClient.Req.Header.Get("PRIVATE-TOKEN"),
+						tt.fields.httpClient.Req.Header.Get("Private-Token"),
 					)
 				}
 			}
@@ -175,6 +181,8 @@ func Test_gitlab_Retrieve(t *testing.T) {
 }
 
 func Test_gitlab_RetrievePathEscaping(t *testing.T) {
+	t.Parallel()
+
 	const projectPath = "/api/v4/projects/team%2Fsubgroup%2Fconfig/repository/files/"
 	tests := []struct {
 		name            string
@@ -241,6 +249,8 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			client := &mock.HTTP{}
 			r := gitlabretriever.Retriever{
 				RepositorySlug: "team/subgroup/config",
@@ -250,9 +260,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 			r.SetHTTPClient(client)
 
 			_, err := r.Retrieve(context.Background())
-			if !assert.NoError(t, err) {
-				return
-			}
+			require.NoError(t, err)
 			// EscapedPath is what is sent on the wire, URL.Path would hide the encoding.
 			assert.Equal(t, tt.wantEscapedPath, client.Req.URL.EscapedPath())
 			assert.Equal(t, tt.wantRawQuery, client.Req.URL.RawQuery)
@@ -269,6 +277,6 @@ func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
 		RepositorySlug: "team/config",
 	}
 	_, err := h.Retrieve(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 }

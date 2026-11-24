@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/loadtest"
@@ -28,7 +31,7 @@ func resetStore(b *testing.B, s exporter.EventStore[exporter.FeatureEvent]) {
 	if err := s.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
 		return nil
 	}); err != nil {
-		b.Error(err)
+		assert.NoError(b, err)
 	}
 	if c, ok := s.(interface{ CleanQueue() }); ok {
 		c.CleanQueue()
@@ -46,7 +49,7 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 		ev := benchEvent()
 		b.ReportAllocs()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+		for i := range b.N {
 			s.Add(ev)
 			if (i+1)%resetEvery == 0 {
 				resetStore(b, s)
@@ -83,14 +86,14 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 			ev := benchEvent()
 			b.ReportAllocs()
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				for j := 0; j < n; j++ {
+			for range b.N {
+				for range n {
 					s.Add(ev)
 				}
 				if err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
 					return nil
 				}); err != nil {
-					b.Fatal(err)
+					require.NoError(b, err)
 				}
 			}
 			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/event")
@@ -125,7 +128,7 @@ func BenchmarkManagerAddEvent(b *testing.B) {
 						}
 					})
 				} else {
-					for i := 0; i < b.N; i++ {
+					for range b.N {
 						m.AddEvent(ev)
 					}
 				}

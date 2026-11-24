@@ -5,14 +5,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type FlagConfigurationAPICtrl struct {
@@ -106,6 +107,7 @@ func (h *FlagConfigurationAPICtrl) Handler(c *echo.Context) error {
 	c.Response().Header().
 		Set(echo.HeaderLastModified, flagset.GetCacheRefreshDate().
 			Format(time.RFC1123))
+
 	return c.JSON(
 		http.StatusOK,
 		FlagConfigurationResponse{

@@ -3,14 +3,17 @@ package postgresqlretriever
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var defaultColumns = map[string]string{
@@ -48,6 +51,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 		pool, err := GetPool(ctx, r.URI)
 		if err != nil {
 			r.status = retriever.RetrieverError
+
 			return err
 		}
 
@@ -55,14 +59,16 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 	}
 
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
-// Status returns the current status of the retriever
+// Status returns the current status of the retriever.
 func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -72,13 +78,14 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 		ReleasePool(ctx, r.URI)
 		r.pool = nil
 	}
+
 	return nil
 }
 
 // Retrieve fetches flag configuration from PostgreSQL.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.pool == nil {
-		return nil, fmt.Errorf("database connection pool is not initialized")
+		return nil, errors.New("database connection pool is not initialized")
 	}
 
 	// Build the query using the configured table and column names
@@ -107,6 +114,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		if err := rows.Scan(&flagName, &configData); err != nil {
 			r.logger.Error("Failed to scan row", "error", err)
+
 			continue
 		}
 
@@ -114,6 +122,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		var config map[string]any
 		if err := json.Unmarshal(configData, &config); err != nil {
 			r.logger.Error("Failed to unmarshal config data", "error", err, "flagName", flagName)
+
 			continue
 		}
 		flagConfigs[flagName] = config
@@ -136,6 +145,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	r.logger.Debug("Retrieved flags from PostgreSQL", "count", len(flagConfigs))
+
 	return result, nil
 }
 
@@ -172,15 +182,11 @@ func (r *Retriever) buildQuery() string {
 func (r *Retriever) getColumnNames() map[string]string {
 	// Start with a copy of defaultColumns
 	columns := make(map[string]string)
-	for k, v := range defaultColumns {
-		columns[k] = v
-	}
+	maps.Copy(columns, defaultColumns)
 
 	// Override with any provided custom columns
 	if r.Columns != nil {
-		for k, v := range r.Columns {
-			columns[k] = v
-		}
+		maps.Copy(columns, r.Columns)
 	}
 
 	return columns
@@ -190,5 +196,6 @@ func (r *Retriever) getFlagset() string {
 	if r.flagset != nil && *r.flagset != "" && *r.flagset != utils.DefaultFlagSetName {
 		return *r.flagset
 	}
+
 	return ""
 }

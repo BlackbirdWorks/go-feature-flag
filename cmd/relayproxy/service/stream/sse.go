@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/r3labs/sse/v2"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/r3labs/sse/v2"
 )
 
 // SSEService is the service interface that handles SSE connections.
@@ -45,6 +46,7 @@ func NewSSEService(opts ...Option) SSEService {
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
 		go s.sendHeartbeats(interval)
 	}
+
 	return s
 }
 
@@ -73,6 +75,7 @@ func (s *sseServiceImpl) BroadcastFlagChanges(flagsetName string, _ notifier.Dif
 		Event: []byte("message"),
 		Data:  data,
 	})
+
 	return nil
 }
 

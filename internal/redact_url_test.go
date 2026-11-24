@@ -9,9 +9,10 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal"
 )
 
 func TestRedactURLError(t *testing.T) {
@@ -49,10 +50,20 @@ func TestRedactURLError(t *testing.T) {
 				"failed to parse Location header %q: invalid character", "https://u:SECRETMARKER-p@bad host/x")},
 		},
 		{
-			name: "cause quoting an url", wantMessage: `Get "[REDACTED]": bad [REDACTED] here`,
-			err: &url.Error{Op: "Get", URL: secretURL, Err: errors.New(`bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here`)},
+			name:        "cause quoting an url",
+			wantMessage: `Get "[REDACTED]": bad [REDACTED] here`,
+			err: &url.Error{
+				Op:  "Get",
+				URL: secretURL,
+				Err: errors.New(`bad https://u:SECRETMARKER-p@h/p?t=SECRETMARKER-q here`),
+			},
 		},
-		{name: "plain error is untouched", err: errors.New("random error"), wantMessage: "random error", wantSame: true},
+		{
+			name:        "plain error is untouched",
+			err:         errors.New("random error"),
+			wantMessage: "random error",
+			wantSame:    true,
+		},
 		{name: "nil", err: nil, wantSame: true},
 	}
 	for _, tt := range tests {
@@ -61,6 +72,7 @@ func TestRedactURLError(t *testing.T) {
 			got := internal.RedactURLError(tt.err)
 			if tt.err == nil {
 				assert.NoError(t, got)
+
 				return
 			}
 			assert.NotContains(t, got.Error(), "SECRETMARKER")
@@ -68,8 +80,7 @@ func TestRedactURLError(t *testing.T) {
 			if tt.wantSame {
 				assert.Equal(t, tt.err, got)
 			}
-			var urlErr *url.Error
-			if errors.As(tt.err, &urlErr) {
+			if urlErr, ok := errors.AsType[*url.Error](tt.err); ok {
 				assert.ErrorAs(t, got, &urlErr, "the error stays a *url.Error")
 			}
 		})
@@ -83,7 +94,11 @@ func TestRedactURL(t *testing.T) {
 		raw  string
 		want string
 	}{
-		{name: "userinfo and query dropped", raw: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/b.yaml?token=SECRETMARKER#frag", want: "https://flags.example.com"},
+		{
+			name: "userinfo and query dropped",
+			raw:  "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/b.yaml?token=SECRETMARKER#frag",
+			want: "https://flags.example.com",
+		},
 		{name: "scheme and host kept", raw: "http://localhost:8080/flags", want: "http://localhost:8080"},
 		{name: "unparsable value replaced", raw: "http://us:SECRETMARKER@host:bad/x", want: internal.RedactedURL},
 	}

@@ -6,6 +6,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -14,12 +18,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 func TestPprofEndpointsStarts(t *testing.T) {
+	t.Parallel()
+
 	type test struct {
 		name               string
 		MonitoringPort     int
@@ -42,15 +45,15 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			z, err := zap.NewProduction()
 			require.NoError(t, err)
 			c := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -90,6 +93,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 // to the monitoring server when it runs on a dedicated port, and that it honours
 // disableVersionHeader on both servers.
 func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                 string
 		disableVersionHeader bool
@@ -109,6 +114,8 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := testConfig(t)
 			conf.Version = "1.2.3"
 			conf.DisableVersionHeader = tt.disableVersionHeader
@@ -120,14 +127,14 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				monitoringResp.Header.Get("X-GOFEATUREFLAG-VERSION"),
+				monitoringResp.Header.Get("X-Gofeatureflag-Version"),
 				"monitoring server")
 
 			apiResp := doRequest(t, http.MethodGet, baseURL+"/v1/flag/change", nil)
 			assert.Equal(t, http.StatusOK, apiResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				apiResp.Header.Get("X-GOFEATUREFLAG-VERSION"),
+				apiResp.Header.Get("X-Gofeatureflag-Version"),
 				"api server")
 		})
 	}

@@ -1,80 +1,78 @@
 package log_test
 
 import (
-	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
-// temporarily replace stderr so we can capture it
-// close the closer before reading from the reader
-// not safe for concurrent use!
-func replaceStderr(t *testing.T) (io.Reader, io.Closer) {
-	oldStderr := os.Stderr
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stderr = w
+// logFile returns a log file of its own for the test and a function that reads what was logged.
+func logFile(t *testing.T) (string, func() string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "out.log")
 
-	t.Cleanup(func() { os.Stderr = oldStderr })
+	return path, func() string {
+		b, err := os.ReadFile(path)
+		require.NoError(t, err)
 
-	return r, w
+		return string(b)
+	}
 }
 
 func TestInitLogger(t *testing.T) {
-	r, w := replaceStderr(t)
+	t.Parallel()
 
-	logger := log.InitLogger()
+	path, read := logFile(t)
+
+	logger := log.InitLogger(log.WithOutputPaths(path))
 	logger.ZapLogger.Info("test message")
 
-	w.Close()
-
-	b, err := io.ReadAll(r)
-	require.NoError(t, err)
-
-	assert.Contains(t, string(b), `"level":"info"`)
-	assert.Contains(t, string(b), `"msg":"test message"`)
+	out := read()
+	assert.Contains(t, out, `"level":"info"`)
+	assert.Contains(t, out, `"msg":"test message"`)
 }
 
 func TestLoggerUpdate(t *testing.T) {
-	t.Run("update to logfmt/warn", func(t *testing.T) {
-		r, w := replaceStderr(t)
+	t.Parallel()
 
-		logger := log.InitLogger()
+	t.Run("update to logfmt/warn", func(t *testing.T) {
+		t.Parallel()
+
+		path, read := logFile(t)
+
+		logger := log.InitLogger(log.WithOutputPaths(path))
 		logger.Update("logfmt", zap.WarnLevel)
 		logger.ZapLogger.Info("hidden")
 		logger.ZapLogger.Warn("danger, Will Robinson!")
 
-		w.Close()
+		b := read()
 
-		b, err := io.ReadAll(r)
-		require.NoError(t, err)
+		assert.NotContains(t, b, `{`)
+		assert.NotContains(t, b, `info`)
 
-		assert.NotContains(t, string(b), `{`)
-		assert.NotContains(t, string(b), `info`)
-
-		assert.Contains(t, string(b), `level=warn`)
-		assert.Contains(t, string(b), `msg="danger, Will Robinson!"`)
+		assert.Contains(t, b, `level=warn`)
+		assert.Contains(t, b, `msg="danger, Will Robinson!"`)
 	})
 
 	t.Run("json by default", func(t *testing.T) {
-		r, w := replaceStderr(t)
+		t.Parallel()
 
-		logger := log.InitLogger()
+		path, read := logFile(t)
+
+		logger := log.InitLogger(log.WithOutputPaths(path))
 		logger.Update("", zap.DebugLevel)
 		logger.ZapLogger.Info("hello world")
 		logger.ZapLogger.Debug("debugging")
 
-		w.Close()
+		b := read()
 
-		b, err := io.ReadAll(r)
-		require.NoError(t, err)
-
-		assert.Contains(t, string(b), `"level":"debug"`)
-		assert.Contains(t, string(b), `"msg":"debugging"`)
+		assert.Contains(t, b, `"level":"debug"`)
+		assert.Contains(t, b, `"msg":"debugging"`)
 	})
 }

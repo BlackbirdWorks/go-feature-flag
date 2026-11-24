@@ -60,6 +60,7 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 	switch e.Mode {
 	case ExporterFailing:
 		e.Failures.Add(1)
+
 		return errors.New("loadtest: exporter is failing")
 	case ExporterSlow:
 		select {
@@ -70,5 +71,6 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 	}
 	e.Batches.Add(1)
 	e.Events.Add(int64(len(events)))
+
 	return nil
 }

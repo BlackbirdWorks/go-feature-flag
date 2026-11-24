@@ -3,6 +3,7 @@ package slacknotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -39,7 +40,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.SlackWebhookURL == "" {
-		return fmt.Errorf("error: (Slack Notifier) invalid notifier configuration, no " +
+		return errors.New("error: (Slack Notifier) invalid notifier configuration, no " +
 			"SlackWebhookURL provided for the slack notifier")
 	}
 
@@ -59,7 +60,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	reqBody := convertToSlackMessage(diff)
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Slack Notifier) impossible to read differences; %v", err)
+		return fmt.Errorf("error: (Slack Notifier) impossible to read differences; %w", err)
 	}
 	request := http.Request{
 		Method: http.MethodPost,
@@ -90,6 +91,7 @@ func convertToSlackMessage(diffCache notifier.DiffCache) slackMessage {
 		Text:        fmt.Sprintf("Changes detected in your feature flag file on: *%s*", hostname),
 		Attachments: attachments,
 	}
+
 	return res
 }
 
@@ -103,6 +105,7 @@ func convertDeletedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 
@@ -124,6 +127,7 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 
@@ -137,6 +141,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 		}
 		attachments = append(attachments, attachment)
 	}
+
 	return attachments
 }
 

@@ -9,11 +9,13 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/retriever"
 )
 
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
 	tests := []struct {
@@ -79,6 +81,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)
@@ -103,6 +106,7 @@ func initRetriever(t *testing.T, r *Retriever, awsConfig, nilCtx bool) error {
 	if nilCtx {
 		ctx = nil
 	}
+
 	return r.Init(ctx, nil)
 }
 

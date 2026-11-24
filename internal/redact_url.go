@@ -41,6 +41,7 @@ func RedactURLError(err error) error {
 			cause = errors.New(embeddedURL.ReplaceAllString(msg, RedactedURL))
 		}
 	}
+
 	return &url.Error{Op: urlErr.Op, URL: RedactedURL, Err: cause}
 }
 
@@ -53,5 +54,6 @@ func RedactURL(raw string) string {
 	if err != nil {
 		return RedactedURL
 	}
+
 	return (&url.URL{Scheme: u.Scheme, Host: u.Host}).String()
 }

@@ -10,15 +10,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 // FuzzOFREPEvaluate checks that any request body sent to the OFREP endpoints
@@ -34,12 +35,10 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			PollingInterval: 10000,
-			FileFormat:      "yaml",
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-			},
+		PollingInterval: 10000,
+		FileFormat:      "yaml",
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 		},
 	}, zap.NewNop(), nil, nil, nil)
 	require.NoError(f, err)

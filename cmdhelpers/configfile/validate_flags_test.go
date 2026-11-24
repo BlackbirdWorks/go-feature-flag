@@ -4,24 +4,25 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestValidateFlags(t *testing.T) {
 	t.Parallel()
 	panicking := dto.DTO{
-		Variations:  &map[string]*any{"a": testconvert.Interface(true)},
+		Variations:  &map[string]*any{"a": new(any(true))},
 		DefaultRule: &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{}},
 	}
 	valid := dto.DTO{
-		Variations:  &map[string]*any{"a": testconvert.Interface(true)},
-		DefaultRule: &flag.Rule{VariationResult: testconvert.String("a")},
+		Variations:  &map[string]*any{"a": new(any(true))},
+		DefaultRule: &flag.Rule{VariationResult: new("a")},
 	}
-	invalid := dto.DTO{Variations: &map[string]*any{"a": testconvert.Interface(true)}}
+	invalid := dto.DTO{Variations: &map[string]*any{"a": new(any(true))}}
 
 	tests := []struct {
 		name  string
@@ -103,7 +104,7 @@ func TestFlagError(t *testing.T) {
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
 			if tt.wantIsErr != nil {
-				assert.ErrorIs(t, err, tt.wantIsErr)
+				require.ErrorIs(t, err, tt.wantIsErr)
 			}
 			var ce customError
 			assert.Equal(t, tt.wantAs, errors.As(err, &ce))

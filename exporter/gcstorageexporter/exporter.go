@@ -9,10 +9,11 @@ import (
 	"path"
 
 	"cloud.google.com/go/storage"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"google.golang.org/api/option"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -105,6 +106,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			logger.Error("[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
+
 			continue
 		}
 		if err := f.uploadFile(ctx, client, of, file.Name()); err != nil {
@@ -142,11 +144,12 @@ func (f *Exporter) uploadFile(
 	}
 	if err != nil {
 		return fmt.Errorf(
-			"error: [GCP Exporter] impossible to copy the file from %s to bucket %s: %v",
+			"error: [GCP Exporter] impossible to copy the file from %s to bucket %s: %w",
 			source,
 			f.Bucket,
 			err,
 		)
 	}
+
 	return nil
 }

@@ -3,15 +3,16 @@ package config
 import (
 	"fmt"
 
+	"github.com/xitongsys/parquet-go/parquet"
+
 	"github.com/blackbirdworks/semaphore/exporter/kafkaexporter"
 	"github.com/blackbirdworks/semaphore/exporter/redshiftexporter"
-	"github.com/xitongsys/parquet-go/parquet"
 )
 
-// ExporterConf contains all the field to configure an exporter
+// ExporterConf contains all the field to configure an exporter.
 type ExporterConf struct {
 	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
-	TracerName              string                 `mapstructure:"tracerName"             koanf:"tracername"`
+	TracerName              string                 `mapstructure:"tracerName"              koanf:"tracername"`
 	OutputDir               string                 `mapstructure:"outputDir"               koanf:"outputdir"`
 	Format                  string                 `mapstructure:"format"                  koanf:"format"`
 	Filename                string                 `mapstructure:"filename"                koanf:"filename"`
@@ -32,21 +33,21 @@ type ExporterConf struct {
 	DatasetID               string                 `mapstructure:"datasetID"               koanf:"datasetid"`
 	TableName               string                 `mapstructure:"tableName"               koanf:"tablename"`
 	//nolint:gosec
-	GoogleCredentials string `mapstructure:"googleCredentials"       koanf:"googlecredentials"`
-	AutoMigrate       bool   `mapstructure:"autoMigrate"             koanf:"automigrate"`
-	Topic             string `mapstructure:"topic"                   koanf:"topic"`
-	StreamArn         string `mapstructure:"streamArn"               koanf:"streamarn"`
-	StreamName        string `mapstructure:"streamName"              koanf:"streamname"`
-	AccountName       string `mapstructure:"accountName"             koanf:"accountname"`
-	AccountKey        string `mapstructure:"accountKey"              koanf:"accountkey"`
-	Container         string `mapstructure:"container"               koanf:"container"`
-	ExporterEventType string `mapstructure:"eventType"               koanf:"eventtype"`
-	ClusterIdentifier string `mapstructure:"clusterIdentifier"       koanf:"clusteridentifier"`
-	WorkgroupName     string `mapstructure:"workgroupName"           koanf:"workgroupname"`
-	Database          string `mapstructure:"database"                koanf:"database"`
-	DbUser            string `mapstructure:"dbUser"                  koanf:"dbuser"`
-	SecretArn         string `mapstructure:"secretArn"               koanf:"secretarn"`
-	AwsRegion         string `mapstructure:"awsRegion"               koanf:"awsregion"`
+	GoogleCredentials string `mapstructure:"googleCredentials" koanf:"googlecredentials"`
+	AutoMigrate       bool   `mapstructure:"autoMigrate"       koanf:"automigrate"`
+	Topic             string `mapstructure:"topic"             koanf:"topic"`
+	StreamArn         string `mapstructure:"streamArn"         koanf:"streamarn"`
+	StreamName        string `mapstructure:"streamName"        koanf:"streamname"`
+	AccountName       string `mapstructure:"accountName"       koanf:"accountname"`
+	AccountKey        string `mapstructure:"accountKey"        koanf:"accountkey"`
+	Container         string `mapstructure:"container"         koanf:"container"`
+	ExporterEventType string `mapstructure:"eventType"         koanf:"eventtype"`
+	ClusterIdentifier string `mapstructure:"clusterIdentifier" koanf:"clusteridentifier"`
+	WorkgroupName     string `mapstructure:"workgroupName"     koanf:"workgroupname"`
+	Database          string `mapstructure:"database"          koanf:"database"`
+	DbUser            string `mapstructure:"dbUser"            koanf:"dbuser"`
+	SecretArn         string `mapstructure:"secretArn"         koanf:"secretarn"`
+	AwsRegion         string `mapstructure:"awsRegion"         koanf:"awsregion"`
 }
 
 func (c *ExporterConf) IsValid() error {
@@ -76,7 +77,7 @@ func (c *ExporterConf) IsValid() error {
 	}
 	if len(c.ParquetCompressionCodec) > 0 {
 		if _, err := parquet.CompressionCodecFromString(c.ParquetCompressionCodec); err != nil {
-			return fmt.Errorf("invalid exporter: \"parquetCompressionCodec\" err: %v", err)
+			return fmt.Errorf("invalid exporter: \"parquetCompressionCodec\" err: %w", err)
 		}
 	}
 	if c.Kind == SQSExporter && c.QueueURL == "" {
@@ -162,6 +163,7 @@ func (c *ExporterConf) isValidRedshift() error {
 			c.Kind,
 		)
 	}
+
 	return nil
 }
 
@@ -183,7 +185,7 @@ const (
 	OpenTelemetryExporter ExporterKind = "opentelemetry"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r ExporterKind) IsValid() error {
 	switch r {
 	case FileExporter,
@@ -201,5 +203,6 @@ func (r ExporterKind) IsValid() error {
 		OpenTelemetryExporter:
 		return nil
 	}
+
 	return fmt.Errorf("invalid exporter: kind \"%s\" is not supported", r)
 }

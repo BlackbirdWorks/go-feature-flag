@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,7 +44,9 @@ type Retriever struct {
 	CACertPath string
 
 	httpClient internal.HTTPClient
-	status     retriever.Status
+	// baseTransport is the transport the TLS transport is cloned from (http.DefaultTransport when nil).
+	baseTransport http.RoundTripper
+	status        retriever.Status
 }
 
 // SetHTTPClient is here if you want to override the default http.Client we are using.
@@ -57,9 +60,11 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
 	if _, err := r.getHTTPClient(); err != nil {
 		r.status = retriever.RetrieverError
+
 		return err
 	}
 	r.status = retriever.RetrieverReady
+
 	return nil
 }
 
@@ -67,6 +72,7 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.httpClient = nil
 	r.status = retriever.RetrieverNotReady
+
 	return nil
 }
 
@@ -75,6 +81,7 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil || r.status == "" {
 		return retriever.RetrieverNotReady
 	}
+
 	return r.status
 }
 
@@ -97,6 +104,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 
@@ -112,9 +120,13 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 			return nil, err
 		}
 
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		base := r.baseTransport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", http.DefaultTransport)
+			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", base)
 		}
 
 		tlsTransport := defaultTransport.Clone()
@@ -123,6 +135,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	}
 
 	r.httpClient = internal.NewHTTPClient(r.Timeout, transport)
+
 	return r.httpClient, nil
 }
 
@@ -148,7 +161,7 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 
 func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
-		return nil, fmt.Errorf("client certificate and client key must be provided together")
+		return nil, errors.New("client certificate and client key must be provided together")
 	}
 	if r.ClientCertPath == "" {
 		return nil, nil
@@ -158,6 +171,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return []tls.Certificate{cert}, nil
 }
 
@@ -179,7 +193,8 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 		return nil, err
 	}
 	if !rootCAs.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to parse CA certificate")
+		return nil, errors.New("failed to parse CA certificate")
 	}
+
 	return rootCAs, nil
 }

@@ -28,5 +28,6 @@ func (h *HTTPClientMock) Do(req *http.Request) (*http.Response, error) {
 	}
 	h.Headers = req.Header.Clone()
 	resp.StatusCode = h.StatusCode
+
 	return resp, nil
 }

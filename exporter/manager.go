@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/google/uuid"
+
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const DefaultExporterCleanQueueInterval = 1 * time.Minute
@@ -128,6 +129,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 	m.flushAgain = make([]atomic.Bool, len(consumers))
 	m.flushStalled = make([]atomic.Bool, len(consumers))
 	go m.reportDrops()
+
 	return m
 }
 
@@ -158,6 +160,7 @@ func (m *managerImpl[T]) reportDrops() {
 		case <-timer.C:
 		case <-m.stopCh:
 			timer.Stop()
+
 			return
 		}
 	}
@@ -168,6 +171,7 @@ func (m *managerImpl[T]) DroppedEvents() int64 {
 	if c, ok := (*m.eventStore).(interface{ DroppedEvents() int64 }); ok {
 		return c.DroppedEvents()
 	}
+
 	return 0
 }
 
@@ -192,6 +196,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 	store := *m.eventStore
 	if fit, ok := store.(interface{ AddWhileRoom([]T) int }); ok && async && len(events) > 1 {
 		m.addEventsWaiting(store, fit, events)
+
 		return
 	}
 	m.addAll(store, events)
@@ -201,6 +206,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 func (m *managerImpl[T]) addAll(store EventStore[T], events []T) {
 	if batch, ok := store.(interface{ AddAll([]T) }); ok {
 		batch.AddAll(events)
+
 		return
 	}
 	for _, event := range events {
@@ -277,6 +283,7 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	remaining := time.Until(deadline)
 	if remaining <= 0 {
 		markStalled()
+
 		return false
 	}
 	timer := time.NewTimer(remaining)
@@ -286,6 +293,7 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 		return true
 	case <-timer.C:
 		markStalled()
+
 		return false
 	case <-m.stopCh:
 		return false
@@ -306,6 +314,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 	for i, consumer := range m.consumers {
 		if !consumer.IsBulk() {
 			m.flush(i, async, false)
+
 			continue
 		}
 		if time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
@@ -315,6 +324,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 		count, err := store.GetPendingEventCount(consumer.GetConsumerID())
 		if err != nil {
 			m.logger.Error("error while fetching pending events", err)
+
 			continue
 		}
 		if count >= m.flushThresholds[i] {
@@ -327,6 +337,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 	if !async {
 		m.flushNow(i, checkProgress)
+
 		return
 	}
 	m.stopMu.RLock()
@@ -338,9 +349,7 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 	if !m.flushRunning[i].CompareAndSwap(false, true) {
 		return // the running goroutine will see flushAgain
 	}
-	m.flushWg.Add(1)
-	go func() {
-		defer m.flushWg.Done()
+	m.flushWg.Go(func() {
 		for {
 			for m.flushAgain[i].Swap(false) {
 				// a flush requested while the previous one was running was requested before that
@@ -357,7 +366,7 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 // flushNow flushes the consumer in the calling goroutine. When checkProgress is true (flush
@@ -368,12 +377,14 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	f, ok := consumer.(interface{ flush() error })
 	if !ok {
 		consumer.Flush()
+
 		return
 	}
 	if err := f.flush(); err != nil {
 		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
 		}
+
 		return
 	}
 	m.nextFlushAfter[i].Store(0)

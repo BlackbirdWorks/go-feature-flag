@@ -4,14 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestFromFlagEvaluation(t *testing.T) {
+	t.Parallel()
+
+	evaluatedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+
 	tests := []struct {
 		name          string
 		key           string
@@ -26,10 +30,10 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("user-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(true),
+				Disable: new(true),
 			},
 			expected: flagstate.FlagState{
-				Timestamp:    time.Now().Unix(),
+				Timestamp:    evaluatedAt.Unix(),
 				TrackEvents:  true,
 				Failed:       false,
 				ErrorCode:    "",
@@ -44,10 +48,10 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(1),
-					"var2": testconvert.Interface(2),
+					"var1": new(any(1)),
+					"var2": new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -57,7 +61,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 				},
 			},
 			expected: flagstate.FlagState{
-				Timestamp:    time.Now().Unix(),
+				Timestamp:    evaluatedAt.Unix(),
 				TrackEvents:  true,
 				Failed:       true,
 				ErrorCode:    flag.ErrorCodeTargetingKeyMissing,
@@ -72,19 +76,19 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(1),
-					"var2": testconvert.Interface(2),
+					"var1": new(any(1)),
+					"var2": new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 			},
 			expected: flagstate.FlagState{
 				Value:         1,
 				VariationType: "var1",
-				Timestamp:     time.Now().Unix(),
+				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        false,
 				Reason:        flag.ReasonStatic,
@@ -97,22 +101,22 @@ func TestFromFlagEvaluation(t *testing.T) {
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
 			flagCtx:       flag.Context{},
 			currentFlag: &flag.InternalFlag{
-				Disable: testconvert.Bool(false),
+				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": testconvert.Interface(
-						map[bool]*any{true: testconvert.Interface(1)},
-					),
-					"var2": testconvert.Interface(
-						map[bool]*any{true: testconvert.Interface(2)},
-					),
+					"var1": new(any(
+						map[bool]*any{true: new(any(1))},
+					)),
+					"var2": new(any(
+						map[bool]*any{true: new(any(2))},
+					)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("var1"),
+					VariationResult: new("var1"),
 				},
 			},
 			expected: flagstate.FlagState{
 				VariationType: "SdkDefault",
-				Timestamp:     time.Now().Unix(),
+				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        true,
 				Reason:        flag.ReasonError,
@@ -124,7 +128,10 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := flagstate.FromFlagEvaluation(
+			t.Parallel()
+
+			got := flagstate.FromFlagEvaluationAt(
+				evaluatedAt,
 				tt.key,
 				tt.evaluationCtx,
 				tt.flagCtx,

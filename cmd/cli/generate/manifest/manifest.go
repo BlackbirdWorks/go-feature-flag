@@ -3,7 +3,7 @@ package manifest
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 
@@ -18,7 +18,7 @@ import (
 
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
-		return Manifest{}, fmt.Errorf("--flag_manifest_destination is mandatory")
+		return Manifest{}, errors.New("--flag_manifest_destination is mandatory")
 	}
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,
@@ -28,6 +28,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 	if err != nil {
 		return Manifest{}, err
 	}
+
 	return Manifest{
 		dtos:                    flagDTOs,
 		flagManifestDestination: flagManifestDestination,
@@ -39,7 +40,7 @@ type Manifest struct {
 	flagManifestDestination string
 }
 
-// Generate the manifest file
+// Generate the manifest file.
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
 	flags := make(map[string]flag.InternalFlag)
@@ -47,11 +48,9 @@ func (m *Manifest) Generate() (helper.Output, error) {
 		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
 	}
 	output := helper.Output{}
-	prev := slog.Default()
-	slog.SetDefault(slog.New(slogHandlerForRecords(&captured)))
-	defer slog.SetDefault(prev)
 
-	definitions, err := manifest.GenerateDefinitionFromInternalFlags(flags)
+	definitions, err := manifest.GenerateDefinitionFromInternalFlags(
+		flags, manifest.WithLogger(slog.New(slogHandlerForRecords(&captured))))
 	for _, rec := range captured {
 		output.Add(rec.message, slogLevelToOutputLevel(rec.level))
 	}
@@ -71,15 +70,17 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	if err != nil {
 		return output, err
 	}
+
 	return output.Add("🎉 Manifest has been created", helper.InfoLevel), nil
 }
 
-// toJSON will convert the definitions to a JSON string
+// toJSON will convert the definitions to a JSON string.
 func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
 		return "", err
 	}
+
 	return string(definitionsJSON), nil
 }
 
@@ -101,6 +102,7 @@ func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true
 
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	*h.records = append(*h.records, capturedRecord{level: r.Level, message: r.Message})
+
 	return nil
 }
 

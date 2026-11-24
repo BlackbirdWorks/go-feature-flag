@@ -15,6 +15,7 @@ import (
 func bodyDumpSkipper(logger *zap.Logger) func(c *echo.Context) bool {
 	return func(c *echo.Context) bool {
 		path := c.Request().URL.Path
+
 		return strings.HasPrefix(path, "/swagger") ||
 			path == "/admin/v1/flags/validate" ||
 			!logger.Core().Enabled(zap.DebugLevel)
@@ -34,6 +35,7 @@ func bodyDumpHandler(logger *zap.Logger) middleware.BodyDumpHandler {
 		New: func() any {
 			buf := make([]byte, truncatedSize)
 			copy(buf[maxBodyLogSize:], truncatedBodySuffix)
+
 			return &buf
 		},
 	}
@@ -41,6 +43,7 @@ func bodyDumpHandler(logger *zap.Logger) middleware.BodyDumpHandler {
 	return func(_ *echo.Context, reqBody, _ []byte, _ error) {
 		if len(reqBody) <= maxBodyLogSize {
 			logger.Debug("Request info", zap.ByteString("request_body", reqBody))
+
 			return
 		}
 

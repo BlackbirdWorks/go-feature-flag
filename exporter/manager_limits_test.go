@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 // outageExporter fails until recovered is set, then counts what it receives.
@@ -23,6 +24,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 		return assert.AnError
 	}
 	e.events.Add(int64(len(ev)))
+
 	return nil
 }
 
@@ -57,7 +59,7 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
-			for i := 0; i < tt.events; i++ {
+			for range tt.events {
 				if tt.async {
 					m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 1))
 				} else {

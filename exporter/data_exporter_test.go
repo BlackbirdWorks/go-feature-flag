@@ -2,7 +2,7 @@ package exporter_test
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"os"
 	"sync"
@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 type slowExporter struct {
@@ -26,6 +28,7 @@ type slowExporter struct {
 func (s *slowExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	s.exportCall.Add(1)
 	time.Sleep(s.delay)
+
 	return nil
 }
 
@@ -34,14 +37,16 @@ func (s *slowExporter) IsBulk() bool {
 }
 
 func TestDataExporterFlush_TriggerError(t *testing.T) {
+	t.Parallel()
+
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
 			Kind: "feature",
 		})
 	}
 
-	logFile, _ := os.CreateTemp("", "")
+	logFile, _ := os.CreateTemp(t.TempDir(), "")
 	textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 	defer func() { _ = os.Remove(logFile.Name()) }()
@@ -55,12 +60,14 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 
 	exp.Flush()
 	// flush should error and not return any event
-	assert.Equal(t, 0, len(exporterMock.GetExportedEvents()))
+	assert.Empty(t, exporterMock.GetExportedEvents())
 	logContent, _ := os.ReadFile(logFile.Name())
 	assert.Equal(t, "error\n", string(logContent))
 }
 
 func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		exporter    mock.ExporterMock
@@ -75,12 +82,14 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			evStore := mock.NewEventStore[testutils.ExportableMockEvent]()
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				evStore.Add(testutils.NewExportableMockEvent("feature"))
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			defer func() { _ = os.Remove(logFile.Name()) }()
@@ -99,7 +108,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			exp.Flush()
 			// flush should error and not return any event
-			assert.Equal(t, 0, len(exporterMock.GetExportedEvents()))
+			assert.Empty(t, exporterMock.GetExportedEvents())
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -107,6 +116,8 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 }
 
 func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		exporter    mock.ExporterMock
@@ -114,24 +125,26 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 	}{
 		{
 			name:        "classic exporter",
-			exporter:    &mock.Exporter{Err: fmt.Errorf("error"), ExpectedNumberErr: 1},
+			exporter:    &mock.Exporter{Err: errors.New("error"), ExpectedNumberErr: 1},
 			expectedLog: "error while exporting data: error\n",
 		},
 		{
 			name:        "deprecated exporter",
-			exporter:    &mock.ExporterDeprecated{Err: fmt.Errorf("error"), ExpectedNumberErr: 1},
+			exporter:    &mock.ExporterDeprecated{Err: errors.New("error"), ExpectedNumberErr: 1},
 			expectedLog: "error while exporting data (deprecated): error\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
-			for i := 0; i < 100; i++ {
+			for range 100 {
 				evStore.Add(exporter.FeatureEvent{Kind: "feature"})
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			defer func() { _ = os.Remove(logFile.Name()) }()
@@ -146,7 +159,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			exp.Flush()
 			// flush should error and not return any event
-			assert.Equal(t, 100, len(exporterMock.GetExportedEvents()))
+			assert.Len(t, exporterMock.GetExportedEvents(), 100)
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -154,11 +167,13 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 }
 
 func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
+	t.Parallel()
+
 	evStore := exporter.NewEventStore[exporter.FeatureEvent](defaultTestCleanQueueDuration)
 	evStore.AddConsumer("slow-consumer")
 	defer evStore.Stop()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		evStore.Add(exporter.FeatureEvent{Kind: "feature"})
 	}
 
@@ -184,6 +199,6 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 
 	assert.Equal(t, int32(1), slow.exportCall.Load())
 	count, err := evStore.GetPendingEventCount("slow-consumer")
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 }

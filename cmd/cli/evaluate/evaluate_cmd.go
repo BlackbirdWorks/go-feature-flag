@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
@@ -15,45 +17,45 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/spf13/cobra"
 )
 
-var (
-	evalFlagFormat string
-	kind           string
-	evalConfigFile string
-	path           string
-	authToken      string
-	githubToken    string
-	repositorySlug string
-	branch         string
-	baseURL        string
-	bucket         string
-	item           string
-	url            string
-	method         string
-	body           string
-	headers        []string
-	timeout        int64
-	object         string
-	namespace      string
-	configMap      string
-	key            string
-	uri            string
-	database       string
-	collection     string
-	container      string
-	accountName    string
-	accountKey     string
-	table          string
-	columns        []string
-	evalFlag       string
-	evalCtx        string
-	checkMode      bool
-)
-
-// nolint:funlen
+//nolint:funlen
 func NewEvaluateCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	var (
+		evalFlagFormat string
+		kind           string
+		evalConfigFile string
+		path           string
+		authToken      string
+		githubToken    string
+		repositorySlug string
+		branch         string
+		baseURL        string
+		bucket         string
+		item           string
+		url            string
+		method         string
+		body           string
+		headers        []string
+		timeout        int64
+		object         string
+		namespace      string
+		configMap      string
+		key            string
+		uri            string
+		database       string
+		collection     string
+		container      string
+		accountName    string
+		accountKey     string
+		table          string
+		columns        []string
+		evalFlag       string
+		evalCtx        string
+		checkMode      bool
+	)
+
 	evaluateCmd := &cobra.Command{
 		Use:   "evaluate",
 		Short: "⚙️ Evaluate feature flags based on configuration and context",
@@ -106,8 +108,8 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 		Long: "⚙️ Evaluate feature flags based on configuration and context," +
 			" if no specific flag requested it will evaluate all flags",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			parsedHeaders := parseHTTPHeaders()
-			parsedColumns := parsePostgresColumns()
+			parsedHeaders := parseHTTPHeaders(headers)
+			parsedColumns := parsePostgresColumns(columns)
 
 			retrieverConf := retrieverconf.RetrieverConf{
 				Kind:           retrieverconf.RetrieverKind(kind),
@@ -117,6 +119,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 					if path != "" {
 						return path
 					}
+
 					return evalConfigFile
 				}(),
 				GithubToken: githubToken, //nolint:staticcheck // we keep the deprecated flag for backward compatibility
@@ -145,15 +148,18 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 
 			err := retrieverConf.IsValid()
 			if err != nil {
-				if rcErr, ok := err.(*rerr.RetrieverConfError); ok {
+				rcErr := &rerr.RetrieverConfError{}
+				if errors.As(err, &rcErr) {
 					return errors.New(rcErr.CliErrorMessage())
 				}
+
 				return err
 			}
 
 			if checkMode {
 				return runCheck(cmd, retrieverConf)
 			}
+
 			return runEvaluate(cmd, args, evalFlagFormat, retrieverConf, evalFlag, evalCtx)
 		},
 		SilenceUsage:  true,
@@ -229,6 +235,7 @@ evaluate --kind postgres --table my-table --column my-column:my-column-type --fl
 		"Postgres column mapping of your configuration file on Postgres (may be repeated)")
 	_ = evaluateCmd.Flags().MarkDeprecated("github-token", "Use auth-token instead")
 	_ = evaluateCmd.Flags().MarkDeprecated("config", "Use path instead")
+
 	return evaluateCmd
 }
 
@@ -274,6 +281,7 @@ func runEvaluate(
 
 	output.Add(string(detailed), helper.DefaultLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
@@ -282,7 +290,7 @@ func runCheck(
 	retrieverConf retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
-	// nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
+	//nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
 	detailed, err := json.MarshalIndent(retrieverConf, "", "  ")
 	if err != nil {
 		return err
@@ -290,13 +298,14 @@ func runCheck(
 
 	output.Add(string(detailed), helper.DefaultLevel)
 	output.PrintLines(cmd)
+
 	return nil
 }
 
 func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger) error {
 	if r, ok := r.(retriever.InitializableRetriever); ok {
 		if err := r.Init(ctx, logger); err != nil {
-			return fmt.Errorf("impossible to init retriever: %v", err)
+			return fmt.Errorf("impossible to init retriever: %w", err)
 		}
 	}
 
@@ -307,14 +316,14 @@ func tryInitializeWithFlagset(
 	ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger, flagset string) error {
 	if r, ok := r.(retriever.InitializableRetrieverWithFlagset); ok {
 		if err := r.Init(ctx, logger, &flagset); err != nil {
-			return fmt.Errorf("impossible to init flagset retriever: %v", err)
+			return fmt.Errorf("impossible to init flagset retriever: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func parseHTTPHeaders() map[string][]string {
+func parseHTTPHeaders(headers []string) map[string][]string {
 	result := make(map[string][]string)
 	for _, h := range headers {
 		parts := strings.SplitN(h, ":", 2)
@@ -328,10 +337,11 @@ func parseHTTPHeaders() map[string][]string {
 		val := strings.TrimSpace(parts[1])
 		result[key] = append(result[key], val)
 	}
+
 	return result
 }
 
-func parsePostgresColumns() map[string]string {
+func parsePostgresColumns(columns []string) map[string]string {
 	result := make(map[string]string)
 	for _, c := range columns {
 		parts := strings.SplitN(c, ":", 2)
@@ -342,5 +352,6 @@ func parsePostgresColumns() map[string]string {
 		val := strings.TrimSpace(parts[1])
 		result[key] = val
 	}
+
 	return result
 }

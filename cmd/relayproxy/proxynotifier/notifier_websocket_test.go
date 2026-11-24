@@ -4,12 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/proxynotifier"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
 )
 
 type mockWebsocketService struct {
@@ -41,6 +42,8 @@ func (m *mockWebsocketService) BroadcastFlagChanges(flagsetName string, diff not
 }
 
 func TestNotify(t *testing.T) {
+	t.Parallel()
+
 	// Create a mock WebsocketService
 	mockService := &mockWebsocketService{}
 
@@ -52,22 +55,22 @@ func TestNotify(t *testing.T) {
 		Deleted: map[string]flag.Flag{
 			"flag-1": &flag.InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface(true),
-					"B": testconvert.Interface(false),
+					"A": new(any(true)),
+					"B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("A"),
+					VariationResult: new("A"),
 				},
 			},
 		},
 		Added: map[string]flag.Flag{
 			"flag-2": &flag.InternalFlag{
 				Variations: &map[string]*any{
-					"A": testconvert.Interface(true),
-					"B": testconvert.Interface(false),
+					"A": new(any(true)),
+					"B": new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: testconvert.String("A"),
+					VariationResult: new("A"),
 				},
 			},
 		},
@@ -75,20 +78,20 @@ func TestNotify(t *testing.T) {
 			"my-flag": {
 				Before: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"A": testconvert.Interface(true),
-						"B": testconvert.Interface(false),
+						"A": new(any(true)),
+						"B": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("A"),
+						VariationResult: new("A"),
 					},
 				},
 				After: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"A": testconvert.Interface(true),
-						"B": testconvert.Interface(false),
+						"A": new(any(true)),
+						"B": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("B"),
+						VariationResult: new("B"),
 					},
 				},
 			},
@@ -99,7 +102,7 @@ func TestNotify(t *testing.T) {
 	err := n.Notify(diff)
 
 	// Assertions
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, diff, mockService.internalDiff)
 	assert.Equal(t, "my-flagset", mockService.flagsetName)
 }

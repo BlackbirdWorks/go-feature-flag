@@ -6,21 +6,21 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/notification"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/thejerf/slogassert"
+
+	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func TestNotificationServiceNotify(t *testing.T) {
 	t.Parallel()
 	yo := func() map[string]flag.Flag {
-		return map[string]flag.Flag{"yo": &flag.InternalFlag{Version: testconvert.String("1.0")}}
+		return map[string]flag.Flag{"yo": &flag.InternalFlag{Version: new("1.0")}}
 	}
-	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: testconvert.String("1.0")}}
+	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
 	tests := []struct {
 		name         string
 		oldCache     map[string]flag.Flag
@@ -60,5 +60,6 @@ type notifierMock struct {
 
 func (n *notifierMock) Notify(notifier.DiffCache) error {
 	n.calls.Add(1)
+
 	return n.err
 }

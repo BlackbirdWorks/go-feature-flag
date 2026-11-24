@@ -14,12 +14,13 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -75,6 +76,7 @@ func (f *fakeStore) setGetErrKey(key string, err error) {
 	}
 	if err == nil {
 		delete(f.getErrKeys, key)
+
 		return
 	}
 	f.getErrKeys[key] = err
@@ -83,6 +85,7 @@ func (f *fakeStore) setGetErrKey(key string, err error) {
 func (f *fakeStore) calls(key string) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.getCalls[key]
 }
 
@@ -90,6 +93,7 @@ func (f *fakeStore) version(content string) string {
 	if f.noVersion {
 		return ""
 	}
+
 	return "v:" + content
 }
 
@@ -113,6 +117,7 @@ func (f *fakeStore) List(_ context.Context, prefix string, recursive bool) ([]fo
 		}
 		res = append(res, folderloader.Entry{Key: k, Version: v})
 	}
+
 	return res, nil
 }
 
@@ -142,6 +147,7 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	if f.getVersion != "" {
 		return []byte(c), f.getVersion, nil
 	}
+
 	return []byte(c), f.version(c), nil
 }
 
@@ -614,6 +620,7 @@ func roundTripCases(t *testing.T) []loadCase {
 			steps: []step{{wantSameAs: []string{local}}},
 		})
 	}
+
 	return cases
 }
 
@@ -698,6 +705,7 @@ func variationOf(flags map[string]dto.DTO, flagName, variation string) any {
 	if v == nil {
 		return nil
 	}
+
 	return *v
 }
 
@@ -852,12 +860,28 @@ func TestReuse(t *testing.T) {
 	}{
 		{name: "nil loader", nilLoader: true},
 		{name: "same options", opts: func(o folderloader.Options) folderloader.Options { return o }, wantSame: true},
-		{name: "prefix changed", opts: func(o folderloader.Options) folderloader.Options { o.Prefix = "g/"; return o }},
-		{name: "pattern changed", opts: func(o folderloader.Options) folderloader.Options { o.Pattern = "*.yaml"; return o }},
-		{name: "recursive changed", opts: func(o folderloader.Options) folderloader.Options { o.Recursive = false; return o }},
+		{name: "prefix changed", opts: func(o folderloader.Options) folderloader.Options {
+			o.Prefix = "g/"
+
+			return o
+		}},
+		{name: "pattern changed", opts: func(o folderloader.Options) folderloader.Options {
+			o.Pattern = "*.yaml"
+
+			return o
+		}},
+		{name: "recursive changed", opts: func(o folderloader.Options) folderloader.Options {
+			o.Recursive = false
+
+			return o
+		}},
 		{
 			name: "logger changed",
-			opts: func(o folderloader.Options) folderloader.Options { o.Logger = &fflog.FFLogger{}; return o },
+			opts: func(o folderloader.Options) folderloader.Options {
+				o.Logger = &fflog.FFLogger{}
+
+				return o
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -883,6 +907,7 @@ func TestReuse(t *testing.T) {
 			if tt.wantSame {
 				assert.Same(t, old, got)
 				assert.Equal(t, "yaml", got.OutputFormat())
+
 				return
 			}
 			assert.NotSame(t, old, got)

@@ -6,19 +6,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	middleware2 "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 )
 
 func TestKeyAuthExtended(t *testing.T) {
+	t.Parallel()
+
 	validKey := "valid-api-key"
 	invalidKey := "invalid-api-key"
 
-	// nolint:unparam
+	//nolint:unparam
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
@@ -91,6 +94,8 @@ func TestKeyAuthExtended(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -121,12 +126,13 @@ func TestKeyAuthExtended(t *testing.T) {
 			err := handler(c)
 
 			if tt.expectedError {
-				assert.Error(t, err)
-				if httpErr, ok := err.(*echo.HTTPError); ok {
+				require.Error(t, err)
+				httpErr := &echo.HTTPError{}
+				if errors.As(err, &httpErr) {
 					assert.Equal(t, tt.expectedStatus, httpErr.Code)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedStatus, rec.Code)
 			}
 		})
@@ -134,14 +140,18 @@ func TestKeyAuthExtended(t *testing.T) {
 }
 
 func TestKeyAuthExtended_SetDefaults(t *testing.T) {
+	t.Parallel()
+
 	validKey := "valid-api-key"
 
-	// nolint:unparam
+	//nolint:unparam
 	validator := func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
 		return key == validKey, nil
 	}
 
 	t.Run("returns middleware that always errors when Validator is nil", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -163,6 +173,8 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 	})
 
 	t.Run("uses default ErrorHandler when nil", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -183,12 +195,15 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 		// Request without a key falls through to Echo's KeyAuth, which returns 401.
 		err := handler(c)
 		require.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})
 
 	t.Run("uses default Skipper when nil", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -209,12 +224,15 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 		// Default skipper should not skip, so request without key should fail
 		err := handler(c)
 		require.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})
 
 	t.Run("uses default KeyLookup when empty", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+validKey)
@@ -235,11 +253,13 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Default KeyLookup should work with Authorization header
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("uses custom ErrorHandler when provided", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -267,6 +287,8 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 	})
 
 	t.Run("uses custom Skipper when provided", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		rec := httptest.NewRecorder()
@@ -289,11 +311,13 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Custom skipper should skip authentication
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("uses custom KeyLookup when provided", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodGet, "/test?apiKey="+validKey, nil)
 		rec := httptest.NewRecorder()
@@ -313,17 +337,21 @@ func TestKeyAuthExtended_SetDefaults(t *testing.T) {
 
 		// Custom KeyLookup should work with query parameter
 		err := handler(c)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
 	})
 
 	t.Run("verifies default KeyLookup value matches echo default", func(t *testing.T) {
+		t.Parallel()
+
 		// This test verifies that the default KeyLookup matches Echo's DefaultKeyAuthConfig.KeyLookup.
 		assert.Equal(t, "header:Authorization:Bearer ", middleware.DefaultKeyAuthConfig.KeyLookup)
 	})
 }
 
 func TestKeyAuthExtended_InvalidXAPIKey_NilErrorHandler(t *testing.T) {
+	t.Parallel()
+
 	// Reproduces https://github.com/thomaspoignant/go-feature-flag/issues/4842
 	// When ErrorHandler is nil (defaulting to echo's DefaultKeyAuthConfig.ErrorHandler
 	// which is also nil), sending an invalid X-API-Key causes a nil pointer dereference
@@ -351,6 +379,8 @@ func TestKeyAuthExtended_InvalidXAPIKey_NilErrorHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			e := echo.New()
 			req := httptest.NewRequest(http.MethodPost, "/admin/v1/retriever/refresh", nil)
 			req.Header.Set(helper.XAPIKeyHeader, tt.xAPIKey)
@@ -383,12 +413,16 @@ func TestKeyAuthExtended_InvalidXAPIKey_NilErrorHandler(t *testing.T) {
 }
 
 func TestKeyAuthExtended_ValidatorError(t *testing.T) {
+	t.Parallel()
+
 	validatorErr := errors.New("db connection lost")
 	failingValidator := func(_ *echo.Context, _ string, _ middleware.ExtractorSource) (bool, error) {
 		return false, validatorErr
 	}
 
 	t.Run("validator error with nil ErrorHandler returns error directly", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/admin/v1/retriever/refresh", nil)
 		req.Header.Set(helper.XAPIKeyHeader, "any-key")
@@ -407,6 +441,8 @@ func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 	})
 
 	t.Run("validator error with ErrorHandler delegates to handler", func(t *testing.T) {
+		t.Parallel()
+
 		e := echo.New()
 		req := httptest.NewRequest(http.MethodPost, "/admin/v1/retriever/refresh", nil)
 		req.Header.Set(helper.XAPIKeyHeader, "any-key")
@@ -422,8 +458,9 @@ func TestKeyAuthExtended_ValidatorError(t *testing.T) {
 		})
 
 		err := handler(c)
-		assert.Error(t, err)
-		httpErr, ok := err.(*echo.HTTPError)
+		require.Error(t, err)
+		httpErr := &echo.HTTPError{}
+		ok := errors.As(err, &httpErr)
 		require.True(t, ok)
 		assert.Equal(t, http.StatusUnauthorized, httpErr.Code)
 	})

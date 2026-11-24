@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 const studioYaml = `server:
@@ -34,6 +35,7 @@ func flagSetNames(c *config.Config) []string {
 	for _, flagSet := range c.FlagSets {
 		names = append(names, flagSet.Name)
 	}
+
 	return names
 }
 
@@ -42,6 +44,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeader {
 			w.WriteHeader(http.StatusUnauthorized)
+
 			return
 		}
 		_, _ = w.Write([]byte(body))
@@ -50,6 +53,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 	if body == "" {
 		srv.Close()
 	}
+
 	return srv
 }
 
@@ -58,10 +62,12 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 	w.Header().Set("ETag", etag)
 	if status != http.StatusOK {
 		w.WriteHeader(status)
+
 		return
 	}
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
+
 		return
 	}
 	_, _ = w.Write([]byte(body))
@@ -74,13 +80,16 @@ func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	case v := <-ch:
 		return v
 	case <-time.After(5 * time.Second):
-		t.Fatal(msg)
+		require.Fail(t, msg)
 		var zero T
+
 		return zero
 	}
 }
 
 func TestStudio(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		fileConfig   string            // {{URL}} is the URL of the server, {{CACHE}} the cache file
@@ -198,13 +207,16 @@ flagSets:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			srv := newStudioServer(t, tt.body, tt.authHeader)
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			if tt.cache != "" {
 				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0600))
 			}
+			environ := make([]string, 0, len(tt.env))
 			for name, value := range tt.env {
-				t.Setenv(name, value)
+				environ = append(environ, name+"="+value)
 			}
 			fileConfig := strings.NewReplacer("{{URL}}", srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
@@ -212,7 +224,7 @@ flagSets:
 			f.String("config", "", "Location of your config file")
 			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", false).ToConfig()
+			got, err := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", false, withEnviron(environ...)).ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(got))
@@ -224,6 +236,8 @@ flagSets:
 }
 
 func TestStudioReload(t *testing.T) {
+	t.Parallel()
+
 	const fileConfig = `server:
   port: 2031
 studio:
@@ -260,6 +274,8 @@ studio:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			body := studioYaml
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -288,7 +304,11 @@ studio:
 				mu.Unlock()
 			}
 			if tt.newFile != "" {
-				_ = testutils.CopyContentToExistingTempFile(t, strings.ReplaceAll(tt.newFile, "{{URL}}", srv.URL), configFile)
+				_ = testutils.CopyContentToExistingTempFile(
+					t,
+					strings.ReplaceAll(tt.newFile, "{{URL}}", srv.URL),
+					configFile,
+				)
 			}
 
 			newConfig := receive(t, configs, "Timeout waiting for callback to be triggered")
@@ -299,8 +319,12 @@ studio:
 }
 
 func TestStudioReloadRetriesFailedFetch(t *testing.T) {
+	t.Parallel()
+
 	for _, etag := range []string{"", `"v2"`} {
 		t.Run("etag="+etag, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			requests := 0
 			retries := make(chan string, 1)
@@ -325,6 +349,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 					w.Header().Set("ETag", etag)
 					if etag != "" && r.Header.Get("If-None-Match") == etag {
 						w.WriteHeader(http.StatusNotModified)
+
 						return
 					}
 					_, _ = w.Write([]byte(updated))
@@ -346,7 +371,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 
 			c := receive(t, configs, "Timeout waiting for recovery after the failed reload")
 			assert.Equal(t, []string{"team-b"}, flagSetNames(c.config))
-			assert.NoError(t, c.config.IsValid())
+			require.NoError(t, c.config.IsValid())
 			assert.GreaterOrEqual(t, c.requests, 4, "failed reloads must not notify consumers")
 			header := receive(t, retries, "Timeout waiting for an unconditional retry")
 			assert.Empty(t, header, "the failed reload must invalidate the accepted ETag")
@@ -355,6 +380,8 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 }
 
 func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		body   string
@@ -371,6 +398,8 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var mu sync.Mutex
 			body, etag, status := studioYaml, `"v1"`, http.StatusOK
 			rejected := false
@@ -401,6 +430,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			}
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
+			//nolint:testifylint // the cached bytes must match exactly, not just semantically
 			assert.Equal(t, studioYaml, string(cached))
 			mu.Lock()
 			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
@@ -427,5 +457,6 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.ConfigLoad
 	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 	loader := config.NewConfigLoader(f, zap.NewNop(), "1.0.0", true)
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
+
 	return loader
 }

@@ -16,6 +16,7 @@ func (c *Config) IsSwaggerEnabled() bool {
 	if c.Swagger.Enabled {
 		return true
 	}
+
 	return c.EnableSwagger
 }
 
@@ -30,5 +31,6 @@ func (c *Config) SwaggerHost() string {
 	if c.Host != "" {
 		return c.Host
 	}
+
 	return "localhost"
 }

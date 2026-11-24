@@ -63,7 +63,7 @@ type SerializableRedisOptions struct {
 
 	// ContextTimeoutEnabled controls whether the client respects context timeouts and deadlines.
 	// Default is false.
-	ContextTimeoutEnabled bool `mapstructure:"contextTimeoutEnabled" koanf:"contexttimeoutenabled" json:"contextTimeoutEnabled,omitempty"` // nolint:lll
+	ContextTimeoutEnabled bool `mapstructure:"contextTimeoutEnabled" koanf:"contexttimeoutenabled" json:"contextTimeoutEnabled,omitempty"` //nolint:lll
 
 	// PoolFIFO uses FIFO mode for each node connection pool GET/PUT (default LIFO).
 	PoolFIFO bool `mapstructure:"poolFIFO" koanf:"poolfifo" json:"poolFIFO,omitempty"`
@@ -109,7 +109,7 @@ type SerializableRedisOptions struct {
 	IdentitySuffix string `mapstructure:"identitySuffix" koanf:"identitysuffix" json:"identitySuffix,omitempty"`
 }
 
-// ToRedisOptions converts SerializableRedisOptions to redis.Options
+// ToRedisOptions converts SerializableRedisOptions to redis.Options.
 func (s *SerializableRedisOptions) ToRedisOptions() *redis.Options {
 	// DisableIdentity overrides DisableIndentity.
 	// This is to maintain backward compatibility with the deprecated flag and to

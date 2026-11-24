@@ -10,17 +10,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/aws/smithy-go/middleware"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestExporter_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporter_ExportBasicWithStreamName(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format:   "json",
@@ -41,7 +47,7 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 		},
 	)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, mock.PutRecordsInputs, 1)
 	assert.Len(t, mock.PutRecordsInputs[0].Records, 3)
 	for idx := range mock.PutRecordsInputs {
@@ -54,6 +60,8 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 }
 
 func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format:   "json",
@@ -74,7 +82,7 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 		},
 	)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, mock.PutRecordsInputs, 1)
 	assert.Len(t, mock.PutRecordsInputs[0].Records, 3)
 	for idx := range mock.PutRecordsInputs {
@@ -84,11 +92,13 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 
 	assert.NotNil(t, exp.AwsConfig)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, exp.AwsConfig)
 }
 
 func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 	exp := Exporter{
 		Format: "json",
@@ -108,6 +118,8 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 }
 
 func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
@@ -134,12 +146,14 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 		},
 	)
 
-	assert.NoError(t, err)
-	assert.Equal(t, *mock.PutRecordsInputs[0].Records[0].PartitionKey, "test-key")
-	assert.Equal(t, exp.AwsConfig.Region, "unexistent-region")
+	require.NoError(t, err)
+	assert.Equal(t, "test-key", *mock.PutRecordsInputs[0].Records[0].PartitionKey)
+	assert.Equal(t, "unexistent-region", exp.AwsConfig.Region)
 }
 
 func TestExporter_ExportSenderError(t *testing.T) {
+	t.Parallel()
+
 	mock := MockKinesisSenderWithError{}
 
 	exp := Exporter{
@@ -162,33 +176,35 @@ func TestExporter_ExportSenderError(t *testing.T) {
 }
 
 func TestExporterSettingsCreation(t *testing.T) {
+	t.Parallel()
+
 	{
 		settings := NewSettings()
-		assert.Equal(t, settings.PartitionKey(context.TODO(), NewFeatureEvent()), "default")
+		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamArn("test-stream-arn"))
-		assert.Equal(t, settings.PartitionKey(context.TODO(), NewFeatureEvent()), "default")
+		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
-		assert.Equal(t, *settings.StreamArn, "test-stream-arn")
+		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamName("test-stream-name"))
-		assert.Equal(t, settings.PartitionKey(context.TODO(), NewFeatureEvent()), "default")
-		assert.Equal(t, *settings.StreamName, "test-stream-name")
+		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, "test-stream-name", *settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithExplicitHashKey("test-explicit-hash-key"))
-		assert.Equal(t, settings.PartitionKey(context.TODO(), NewFeatureEvent()), "default")
+		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
-		assert.Equal(t, *settings.ExplicitHashKey, "test-explicit-hash-key")
+		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
@@ -199,10 +215,10 @@ func TestExporterSettingsCreation(t *testing.T) {
 				func(_ context.Context, _ exporter.ExportableEvent) string { return "non-default" },
 			),
 		)
-		assert.Equal(t, settings.PartitionKey(context.TODO(), NewFeatureEvent()), "non-default")
+		assert.Equal(t, "non-default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName) // overwritten by streamArn
-		assert.Equal(t, *settings.StreamArn, "test-stream-arn")
-		assert.Equal(t, *settings.ExplicitHashKey, "test-explicit-hash-key")
+		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
+		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
@@ -210,11 +226,13 @@ func TestExporterSettingsCreation(t *testing.T) {
 			WithStreamName("test-stream-name"),
 		)
 		assert.Nil(t, settings.StreamArn) // overwritten by streamName
-		assert.Equal(t, *settings.StreamName, "test-stream-name")
+		assert.Equal(t, "test-stream-name", *settings.StreamName)
 	}
 }
 
 func TestHugeMessageExportFlow(t *testing.T) {
+	t.Parallel()
+
 	event := exporter.FeatureEvent{
 		Kind:         "feature",
 		ContextKind:  "anonymousUser",
@@ -248,8 +266,8 @@ func TestHugeMessageExportFlow(t *testing.T) {
 		},
 	)
 
-	assert.NoError(t, err)
-	assert.Len(t, mock.PutRecordsInputs, 0)
+	require.NoError(t, err)
+	assert.Empty(t, mock.PutRecordsInputs)
 }
 
 func NewFeatureEvent() exporter.ExportableEvent {
@@ -285,6 +303,7 @@ func (k *MockKinesisSender) SendMessages(
 		EncryptionType:    types.EncryptionTypeNone,
 		ResultMetadata:    middleware.Metadata{},
 	}
+
 	return &output, nil
 }
 

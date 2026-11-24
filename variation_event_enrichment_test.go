@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type collectingExporter struct {
@@ -28,6 +29,7 @@ func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []e
 	for _, e := range ev {
 		c.events = append(c.events, e.(exporter.FeatureEvent))
 	}
+
 	return nil
 }
 
@@ -45,8 +47,18 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 		wantMetadata map[string]any
 		wantKind     string
 	}{
-		{name: "no enrichment", callerCustom: meta("us"), wantMetadata: map[string]any{"region": "us"}, wantKind: "user"},
-		{name: "enriched metadata, caller has none", enrichment: meta("eu"), wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
+		{
+			name:         "no enrichment",
+			callerCustom: meta("us"),
+			wantMetadata: map[string]any{"region": "us"},
+			wantKind:     "user",
+		},
+		{
+			name:         "enriched metadata, caller has none",
+			enrichment:   meta("eu"),
+			wantMetadata: map[string]any{"region": "eu"},
+			wantKind:     "user",
+		},
 		{name: "enriched metadata wins over the caller's", enrichment: meta("eu"), callerCustom: meta("us"),
 			wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
 		{name: "enriched anonymous", enrichment: map[string]any{"anonymous": true}, wantKind: "anonymousUser"},

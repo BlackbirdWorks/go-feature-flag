@@ -15,6 +15,9 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -22,8 +25,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/spf13/pflag"
-	"github.com/stretchr/testify/require"
 )
 
 // startRelayProxyFromYAML starts a relay proxy in the process from a YAML configuration, wired like
@@ -76,6 +77,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 	})
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitForServer(t, baseURL)
+
 	return baseURL
 }
 
@@ -95,7 +97,7 @@ func postJSON(t testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	if apiKey != "" {
-		req.Header.Set("X-API-Key", apiKey)
+		req.Header.Set("X-Api-Key", apiKey)
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -105,5 +107,6 @@ func postJSON(t testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(t, err)
 	res := apiResponse{Status: resp.StatusCode, Raw: string(raw)}
 	_ = json.Unmarshal(raw, &res.Body) // not JSON for some errors, Body stays nil
+
 	return res
 }

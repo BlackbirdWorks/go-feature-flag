@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	retrieverInit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
@@ -17,8 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/api/option"
 )
 
 // evaluateTestCase describes a single Test_Evaluate scenario.
@@ -47,6 +48,7 @@ func buildEvaluate(
 	if customize != nil {
 		customize(r)
 	}
+
 	return evaluate{
 		retriever:     r,
 		fileFormat:    "yaml",
@@ -60,6 +62,7 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	e, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)
+
 		return
 	}
 	m, err := e.Evaluate()
@@ -77,6 +80,8 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 }
 
 func Test_Evaluate(t *testing.T) {
+	t.Parallel()
+
 	tests := []evaluateTestCase{
 		{
 			name: "Should error is config file does not exist",
@@ -341,6 +346,7 @@ func Test_Evaluate(t *testing.T) {
 				downloader := &testutils.S3ManagerV2Mock{
 					TestDataLocation: "./testdata",
 				}
+
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:   "s3",
 					Bucket: "Bucket",
@@ -405,6 +411,7 @@ func Test_Evaluate(t *testing.T) {
 			initEvaluate: func() (evaluate, error) {
 				mockedStorage := testutils.NewMockedGCS(t)
 				mockedStorage.WithFiles(t, "flags", map[string]string{"testdata/flag-config.yaml": "flag-config.yaml"})
+
 				return buildEvaluate(&retrieverconf.RetrieverConf{
 					Kind:   "googleStorage",
 					Bucket: "flags",
@@ -438,6 +445,8 @@ func Test_Evaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assertEvaluate(t, tt)
 		})
 	}

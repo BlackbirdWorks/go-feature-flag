@@ -37,6 +37,7 @@ func newOptions(opts ...Option) options {
 	for _, opt := range opts {
 		opt(&options)
 	}
+
 	return options
 }
 
@@ -50,6 +51,7 @@ func flagChangePayload(diff notifier.DiffCache, includeFlagDetails bool) any {
 	if includeFlagDetails {
 		return diff
 	}
+
 	return flagChangeNames{
 		Deleted: mapKeys(diff.Deleted),
 		Added:   mapKeys(diff.Added),
@@ -62,5 +64,6 @@ func mapKeys[T any](values map[string]T) map[string]struct{} {
 	for key := range values {
 		keys[key] = struct{}{}
 	}
+
 	return keys
 }

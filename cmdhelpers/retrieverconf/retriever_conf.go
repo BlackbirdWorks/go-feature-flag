@@ -19,70 +19,71 @@ var DefaultRetrieverConfig = struct {
 	GitBranch:  "main",
 }
 
-// RetrieverConf contains all the field to configure a retriever
+// RetrieverConf contains all the field to configure a retriever.
 type RetrieverConf struct {
-	Kind           RetrieverKind `mapstructure:"kind"             koanf:"kind"`
-	RepositorySlug string        `mapstructure:"repositorySlug"   koanf:"repositoryslug"`
-	Branch         string        `mapstructure:"branch"           koanf:"branch"`
-	Path           string        `mapstructure:"path"             koanf:"path"`
+	Kind           RetrieverKind `mapstructure:"kind"           koanf:"kind"`
+	RepositorySlug string        `mapstructure:"repositorySlug" koanf:"repositoryslug"`
+	Branch         string        `mapstructure:"branch"         koanf:"branch"`
+	Path           string        `mapstructure:"path"           koanf:"path"`
 	// Deprecated: Please use AuthToken instead
-	GithubToken        string              `mapstructure:"githubToken"   koanf:"githubtoken"`
-	URL                string              `mapstructure:"url"           koanf:"url"`
-	Timeout            int64               `mapstructure:"timeout"       koanf:"timeout"`
-	HTTPMethod         string              `mapstructure:"method"        koanf:"method"`
-	HTTPBody           string              `mapstructure:"body"          koanf:"body"`
-	HTTPHeaders        map[string][]string `mapstructure:"headers"       koanf:"headers"`
+	GithubToken        string              `mapstructure:"githubToken"    koanf:"githubtoken"`
+	URL                string              `mapstructure:"url"            koanf:"url"`
+	Timeout            int64               `mapstructure:"timeout"        koanf:"timeout"`
+	HTTPMethod         string              `mapstructure:"method"         koanf:"method"`
+	HTTPBody           string              `mapstructure:"body"           koanf:"body"`
+	HTTPHeaders        map[string][]string `mapstructure:"headers"        koanf:"headers"`
 	HTTPClientCertPath string              `mapstructure:"clientCertPath" koanf:"clientcertpath"`
 	HTTPClientKeyPath  string              `mapstructure:"clientKeyPath"  koanf:"clientkeypath"`
 	HTTPCACertPath     string              `mapstructure:"caCertPath"     koanf:"cacertpath"`
-	Bucket             string              `mapstructure:"bucket"        koanf:"bucket"`
-	Object             string              `mapstructure:"object"        koanf:"object"`
-	Item               string              `mapstructure:"item"          koanf:"item"`
-	Prefix             string              `mapstructure:"prefix"        koanf:"prefix"`
-	Pattern            string              `mapstructure:"pattern"       koanf:"pattern"`
-	Recursive          bool                `mapstructure:"recursive"     koanf:"recursive"`
-	Namespace          string              `mapstructure:"namespace"     koanf:"namespace"`
-	ConfigMap          string              `mapstructure:"configmap"     koanf:"configmap"`
-	Key                string              `mapstructure:"key"           koanf:"key"`
-	BaseURL            string              `mapstructure:"baseUrl"       koanf:"baseurl"`
-	AuthToken          string              `mapstructure:"token"         koanf:"token"` //nolint:gosec // G117
+	Bucket             string              `mapstructure:"bucket"         koanf:"bucket"`
+	Object             string              `mapstructure:"object"         koanf:"object"`
+	Item               string              `mapstructure:"item"           koanf:"item"`
+	Prefix             string              `mapstructure:"prefix"         koanf:"prefix"`
+	Pattern            string              `mapstructure:"pattern"        koanf:"pattern"`
+	Recursive          bool                `mapstructure:"recursive"      koanf:"recursive"`
+	Namespace          string              `mapstructure:"namespace"      koanf:"namespace"`
+	ConfigMap          string              `mapstructure:"configmap"      koanf:"configmap"`
+	Key                string              `mapstructure:"key"            koanf:"key"`
+	BaseURL            string              `mapstructure:"baseUrl"        koanf:"baseurl"`
+	AuthToken          string              `mapstructure:"token"          koanf:"token"` //nolint:gosec // G117
 
 	// URI is used by
 	// - the postgresql retriever
 	// - the mongodb retriever
-	URI string `mapstructure:"uri"  koanf:"uri"`
+	URI string `mapstructure:"uri" koanf:"uri"`
 
 	// Table is used by
 	// - the postgresql retriever
-	Table string `mapstructure:"table"  koanf:"table"`
+	Table string `mapstructure:"table" koanf:"table"`
 
 	// Columns is used by
 	// - the postgresql retriever (it allows to use custom column names)
-	Columns    map[string]string `mapstructure:"columns"        koanf:"columns"`
-	Database   string            `mapstructure:"database"       koanf:"database"`
-	Collection string            `mapstructure:"collection"     koanf:"collection"`
+	Columns    map[string]string `mapstructure:"columns"    koanf:"columns"`
+	Database   string            `mapstructure:"database"   koanf:"database"`
+	Collection string            `mapstructure:"collection" koanf:"collection"`
 
 	// RedisOptions is the serializable redis configuration that can be used in JSON/YAML files
-	RedisOptions *SerializableRedisOptions `mapstructure:"redisOptions"   koanf:"redisOptions"`
+	RedisOptions *SerializableRedisOptions `mapstructure:"redisOptions" koanf:"redisOptions"`
 
-	RedisPrefix string `mapstructure:"redisPrefix"    koanf:"redisPrefix"`
-	AccountName string `mapstructure:"accountName"    koanf:"accountname"`
-	AccountKey  string `mapstructure:"accountKey"     koanf:"accountkey"`
-	Container   string `mapstructure:"container"      koanf:"container"`
+	RedisPrefix string `mapstructure:"redisPrefix" koanf:"redisPrefix"`
+	AccountName string `mapstructure:"accountName" koanf:"accountname"`
+	AccountKey  string `mapstructure:"accountKey"  koanf:"accountkey"`
+	Container   string `mapstructure:"container"   koanf:"container"`
 
 	// GitHub App authentication fields (GitHub retriever only).
 	// Mutually exclusive with token / githubToken.
 	// AppID and InstallationID are required; supply the private key either inline
 	// (GitHubAppPrivateKey) or as a file path (GitHubAppPrivateKeyFile).
-	GitHubAppID          int64 `mapstructure:"githubAppId"             koanf:"githubappid"`
-	GitHubInstallationID int64 `mapstructure:"githubInstallationId"    koanf:"githubinstallationid"`
-	// nolint:gosec // G117 - these fields hold operator-supplied config, not hardcoded secrets
+	GitHubAppID          int64 `mapstructure:"githubAppId"          koanf:"githubappid"`
+	GitHubInstallationID int64 `mapstructure:"githubInstallationId" koanf:"githubinstallationid"`
+	//nolint:gosec // G117 - these fields hold operator-supplied config, not hardcoded secrets
 	GitHubAppPrivateKey     string `mapstructure:"githubAppPrivateKey"     koanf:"githubappprivatekey"`
 	GitHubAppPrivateKeyFile string `mapstructure:"githubAppPrivateKeyFile" koanf:"githubappprivatekeyfile"`
 }
 
 // IsValid validate the configuration of the retriever
-// nolint:gocognit
+//
+//nolint:gocognit
 func (c *RetrieverConf) IsValid() error {
 	if err := c.Kind.IsValid(); err != nil {
 		return err
@@ -122,6 +123,7 @@ func (c *RetrieverConf) IsValid() error {
 	if c.Kind == AzBlobStorageRetriever {
 		return c.validateAzBlobStorageRetriever()
 	}
+
 	return nil
 }
 
@@ -135,10 +137,11 @@ func (c *RetrieverConf) validateHTTPRetriever() error {
 	if c.HTTPClientCertPath == "" && c.HTTPClientKeyPath != "" {
 		return err.NewRetrieverConfError("clientCertPath", string(c.Kind))
 	}
+
 	return nil
 }
 
-// validatePostgreSQLRetriever validates the configuration of the postgresql retriever
+// validatePostgreSQLRetriever validates the configuration of the postgresql retriever.
 func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
@@ -146,6 +149,7 @@ func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.Table == "" {
 		return err.NewRetrieverConfError("table", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -159,6 +163,7 @@ func (c *RetrieverConf) validateGitRetriever() error {
 	if c.Kind == GitHubRetriever {
 		return c.validateGitHubAuth()
 	}
+
 	return nil
 }
 
@@ -204,6 +209,7 @@ func (c *RetrieverConf) validateKubernetesRetriever() error {
 	if c.Key == "" {
 		return err.NewRetrieverConfError("key", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -217,6 +223,7 @@ func (c *RetrieverConf) validateMongoDBRetriever() error {
 	if c.URI == "" {
 		return err.NewRetrieverConfError("uri", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -227,6 +234,7 @@ func (c *RetrieverConf) validateRedisRetriever() error {
 	if c.RedisOptions.Addr == "" {
 		return err.NewRetrieverConfError("redisOptions.addr", string(c.Kind))
 	}
+
 	return nil
 }
 
@@ -240,10 +248,11 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 	if c.Object == "" {
 		return err.NewRetrieverConfError("object", string(c.Kind))
 	}
+
 	return nil
 }
 
-// RetrieverKind is an enum containing all accepted Retriever kind
+// RetrieverKind is an enum containing all accepted Retriever kind.
 type RetrieverKind string
 
 const (
@@ -261,7 +270,7 @@ const (
 	PostgreSQLRetriever    RetrieverKind = "postgresql"
 )
 
-// IsValid is checking if the value is part of the enum
+// IsValid is checking if the value is part of the enum.
 func (r RetrieverKind) IsValid() error {
 	switch r {
 	case HTTPRetriever, GitHubRetriever, GitlabRetriever, S3Retriever, RedisRetriever,
@@ -269,13 +278,15 @@ func (r RetrieverKind) IsValid() error {
 		BitbucketRetriever, AzBlobStorageRetriever, PostgreSQLRetriever:
 		return nil
 	}
+
 	return fmt.Errorf("invalid retriever: kind \"%s\" is not supported", r)
 }
 
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.
 func (c *RetrieverConf) validateS3Retriever() error {
 	if err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive); err != nil {
-		return fmt.Errorf("invalid retriever: %v for kind \"%s\"", err, c.Kind)
+		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
 	}
+
 	return nil
 }

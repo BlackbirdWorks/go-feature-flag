@@ -11,11 +11,9 @@ func NewEvaluateError(
 	errorDetails string,
 ) *model.OFREPEvaluateResponseError {
 	return &model.OFREPEvaluateResponseError{
-		OFREPCommonResponseError: model.OFREPCommonResponseError{
-			ErrorCode:    errorCode,
-			ErrorDetails: errorDetails,
-		},
-		Key: key,
+		ErrorCode:    errorCode,
+		ErrorDetails: errorDetails,
+		Key:          key,
 	}
 }
 

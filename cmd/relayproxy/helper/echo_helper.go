@@ -5,9 +5,10 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/labstack/echo/v5"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/labstack/echo/v5"
 )
 
 // APIKey extracts the API key from the request headers.
@@ -26,11 +27,12 @@ func APIKey(c *echo.Context) string {
 	if len(apiKey) >= len(BearerPrefix) && strings.EqualFold(apiKey[:len(BearerPrefix)], BearerPrefix) {
 		return strings.TrimSpace(apiKey[len(BearerPrefix):])
 	}
+
 	return apiKey
 }
 
 // FlagSet retrieves the flagset for the given API key from the flagset manager
-// This layer ensure that the flagset manager is initialized and that the API key is valid
+// This layer ensure that the flagset manager is initialized and that the API key is valid.
 func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.GoFeatureFlag, *echo.HTTPError) {
 	if flagsetManager == nil {
 		return nil, echo.NewHTTPError(http.StatusInternalServerError, "flagset manager is not initialized")
@@ -39,6 +41,7 @@ func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.Go
 	if err != nil {
 		return nil, echo.NewHTTPError(http.StatusBadRequest, "error while getting flagset: "+err.Error())
 	}
+
 	return flagset, nil
 }
 
@@ -53,5 +56,6 @@ func FlagKey(c *echo.Context) string {
 	if decoded, err := url.PathUnescape(key); err == nil {
 		return decoded
 	}
+
 	return key
 }

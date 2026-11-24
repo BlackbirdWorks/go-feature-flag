@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -156,6 +157,7 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 			downloader = transfermanager.New(client)
 		}
 	}
+
 	return &SharedItems{
 		bucket:     opts.Bucket,
 		lister:     lister,
@@ -177,6 +179,7 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 func (g *SharedItems) baseContext() context.Context {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
 	return g.baseLocked()
 }
 
@@ -184,6 +187,7 @@ func (g *SharedItems) baseLocked() context.Context {
 	if g.base == nil || g.base.Err() != nil {
 		g.base, g.cancel = context.WithCancel(context.Background())
 	}
+
 	return g.base
 }
 
@@ -192,6 +196,7 @@ func (g *SharedItems) baseLocked() context.Context {
 func (g *SharedItems) Retriever(item string) *SharedItemRetriever {
 	r := &SharedItemRetriever{group: g, item: item}
 	g.register(r)
+
 	return r
 }
 
@@ -254,6 +259,7 @@ func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
 		g.cancel()
 	}
 	g.recompute()
+
 	return r.inflight
 }
 
@@ -284,6 +290,7 @@ func listingPrefix(keys []string) string {
 			prefix = prefix[:len(prefix)-1]
 		}
 	}
+
 	return prefix[:strings.LastIndex(prefix, "/")+1]
 }
 
@@ -310,6 +317,7 @@ func (g *SharedItems) freshLocked(key string) bool {
 	if g.listErr != nil {
 		ttl = min(ttl, maxSharedErrorTTL)
 	}
+
 	return time.Since(g.listedAt) < ttl
 }
 
@@ -330,6 +338,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 			etag, ok := g.listing[key]
 			item, err := listedItem{etag: etag, found: ok, start: g.listStart}, g.listErr
 			g.mu.Unlock()
+
 			return item, err
 		}
 		fl := g.listingLocked()
@@ -347,9 +356,11 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 		g.mu.Unlock()
 		if covered {
 			etag, ok := fl.listing[key]
+
 			return listedItem{etag: etag, found: ok, start: fl.start}, fl.err
 		}
 	}
+
 	return listedItem{}, errors.New("item is not registered in the shared listing")
 }
 
@@ -366,6 +377,7 @@ func (g *SharedItems) listingLocked() *sharedListing {
 		wanted[k] = struct{}{}
 	}
 	go g.runListing(g.baseLocked(), fl, g.prefix, wanted, g.seq)
+
 	return fl
 }
 
@@ -422,12 +434,14 @@ func (g *SharedItems) list(
 		// no (new) continuation token: the end of the listing was not reached
 		return nil, fmt.Errorf("the listing of prefix %q is incomplete", prefix)
 	}
+
 	return res, nil
 }
 
 func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
+
 	return p.NextPage(ctx)
 }
 
@@ -457,6 +471,7 @@ func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, erro
 	if err != nil {
 		return nil, "", fmt.Errorf("unable to download item from S3 %q, %w", key, err)
 	}
+
 	return slices.Clone(data), etag, nil
 }
 
@@ -471,6 +486,7 @@ func (g *SharedItems) content(
 	c.mu.Lock()
 	if c.data != nil && ((listed.etag != "" && c.etag == listed.etag) || !c.fetchedAt.Before(listed.start)) {
 		defer c.mu.Unlock()
+
 		return c.data, c.etag, nil
 	}
 	dl := c.dl
@@ -518,6 +534,7 @@ func (g *SharedItems) download(base context.Context, key string) ([]byte, string
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
 	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
+
 	return data, etag, startedAt, err
 }
 
@@ -549,10 +566,12 @@ type SharedItemRetriever struct {
 func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	if r.item == "" {
 		r.status.Store(retriever.RetrieverError)
+
 		return errors.New("impossible to init shared S3 retriever: item is empty")
 	}
 	r.group.register(r)
 	r.status.Store(retriever.RetrieverReady)
+
 	return nil
 }
 
@@ -564,6 +583,7 @@ func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
 	}
 	r.group.deregister(ctx, r)
 	r.status.Store(retriever.RetrieverNotReady)
+
 	return nil
 }
 
@@ -572,6 +592,7 @@ func (r *SharedItemRetriever) Status() retriever.Status {
 	if s, ok := r.status.Load().(retriever.Status); ok {
 		return s
 	}
+
 	return retriever.RetrieverNotReady
 }
 
@@ -590,6 +611,7 @@ func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 	r.group.mu.Lock()
 	r.delivered, r.hasDelivered = etag, true
 	r.group.mu.Unlock()
+
 	return data, nil
 }
 
@@ -693,6 +715,7 @@ func (g *SharedItems) pollOnce(ctx context.Context) {
 	if fl.err != nil {
 		logger.Error("unable to list the S3 bucket, the flagsets are not refreshed",
 			slog.String("bucket", g.bucket), slog.Any("error", fl.err))
+
 		return
 	}
 	g.refresh(ctx, g.changed(fl.listing))
@@ -714,6 +737,7 @@ func (g *SharedItems) changed(listing map[string]string) []*SharedItemRetriever 
 			res = append(res, r)
 		}
 	}
+
 	return res
 }
 
@@ -749,6 +773,7 @@ func (g *SharedItems) refreshOne(r *SharedItemRetriever) {
 	fn := r.refresh
 	if _, ok := g.items[r]; !ok || fn == nil {
 		g.mu.Unlock()
+
 		return
 	}
 	inflight := make(chan struct{})

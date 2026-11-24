@@ -5,17 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		initialConfig string
@@ -105,6 +108,8 @@ loglevel: error`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create temporary directory and config file
 			configFile := testutils.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
@@ -140,7 +145,7 @@ loglevel: error`,
 			for {
 				select {
 				case <-timeout:
-					t.Fatal("Timeout waiting for callback to be triggered")
+					require.Fail(t, "Timeout waiting for callback to be triggered")
 				case <-ticker.C:
 					mu.Lock()
 					callbackCount := len(*receivedConfigs)
@@ -151,18 +156,36 @@ loglevel: error`,
 						mu.Lock()
 						defer mu.Unlock()
 
-						assert.Len(t, *receivedConfigs, tt.wantCallbacks, "Expected %d callbacks, got %d", tt.wantCallbacks, callbackCount)
+						assert.Len(
+							t,
+							*receivedConfigs,
+							tt.wantCallbacks,
+							"Expected %d callbacks, got %d",
+							tt.wantCallbacks,
+							callbackCount,
+						)
 
 						// Verify the last received config has updated values
 						lastConfig := (*receivedConfigs)[len(*receivedConfigs)-1]
 						// Verify that the config changed from initial values
 						assert.NotEqual(t, 1031, lastConfig.Server.Port, "Port should have changed from initial value")
-						assert.NotEqual(t, 1000, lastConfig.PollingInterval, "PollingInterval should have changed from initial value")
-						assert.NotEqual(t, "info", lastConfig.LogLevel, "LogLevel should have changed from initial value")
+						assert.NotEqual(
+							t,
+							1000,
+							lastConfig.PollingInterval,
+							"PollingInterval should have changed from initial value",
+						)
+						assert.NotEqual(
+							t,
+							"info",
+							lastConfig.LogLevel,
+							"LogLevel should have changed from initial value",
+						)
 
 						// Clean up
 						err = loader.StopWatchChanges()
 						assert.NoError(t, err)
+
 						return
 					}
 				}
@@ -172,6 +195,8 @@ loglevel: error`,
 }
 
 func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
+	t.Parallel()
+
 	configFile := testutils.CopyContentToNewTempFile(t, `server:
   port: 1031
 pollingInterval: 1000
@@ -208,10 +233,12 @@ loglevel: debug`, configFile)
 	// Verify callback was NOT called
 	mu.Lock()
 	defer mu.Unlock()
-	assert.Len(t, receivedConfigs, 0, "Callback should not be triggered when watchChanges is disabled")
+	assert.Empty(t, receivedConfigs, "Callback should not be triggered when watchChanges is disabled")
 }
 
 func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
+	t.Parallel()
+
 	// Create temporary directory and config file
 	configFile := testutils.CopyContentToNewTempFile(t, `server:
   port: 1031

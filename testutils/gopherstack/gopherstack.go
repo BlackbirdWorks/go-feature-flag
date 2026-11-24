@@ -67,6 +67,7 @@ func Start(ctx context.Context) (*Server, error) {
 		if err := waitHealthy(ctx, ep); err != nil {
 			return nil, err
 		}
+
 		return &Server{Endpoint: ep}, nil
 	}
 	image := Image
@@ -74,24 +75,24 @@ func Start(ctx context.Context) (*Server, error) {
 		image = v
 	}
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        image,
-			ExposedPorts: []string{Port},
-			WaitingFor: wait.ForHTTP(HealthPath).
-				WithPort(Port).
-				WithStartupTimeout(60 * time.Second),
-		},
+		Image:        image,
+		ExposedPorts: []string{Port},
+		WaitingFor: wait.ForHTTP(HealthPath).
+			WithPort(Port).
+			WithStartupTimeout(60 * time.Second),
 		Started: true,
 	})
 	if err != nil {
 		if c != nil {
 			_ = testcontainers.TerminateContainer(c)
 		}
+
 		return nil, fmt.Errorf("start gopherstack: %w", err)
 	}
 	host, err := c.Host(ctx)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(c)
+
 		return nil, err
 	}
 	if host == "localhost" {
@@ -100,9 +101,11 @@ func Start(ctx context.Context) (*Server, error) {
 	port, err := c.MappedPort(ctx, Port)
 	if err != nil {
 		_ = testcontainers.TerminateContainer(c)
+
 		return nil, err
 	}
 	u := url.URL{Scheme: "http", Host: net.JoinHostPort(host, port.Port())}
+
 	return &Server{Endpoint: u.String(), container: c}, nil
 }
 
@@ -135,6 +138,7 @@ func (s *Server) Terminate() error {
 	if s == nil || s.container == nil {
 		return nil
 	}
+
 	return testcontainers.TerminateContainer(s.container)
 }
 
@@ -152,6 +156,7 @@ func (s *Server) MustAwsConfig(t testing.TB) aws.Config {
 	t.Helper()
 	cfg, err := s.AwsConfig(t.Context())
 	require.NoError(t, err)
+
 	return cfg
 }
 
@@ -192,6 +197,7 @@ func Shared(t *testing.T) *Server {
 		shared, sharedStart.err = Start(context.Background())
 	}
 	require.NoError(t, sharedStart.err)
+
 	return shared
 }
 
@@ -216,5 +222,6 @@ func UniqueName(t testing.TB, prefix string) string {
 		base = strings.Trim(base[:30], "-")
 	}
 	suffix := fmt.Sprintf("%08x", randUint32())
+
 	return strings.Trim(prefix+"-"+base, "-") + "-" + suffix
 }

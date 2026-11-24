@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 // An invalid configuration reload is logged at debug level together with the configuration:
@@ -25,12 +26,10 @@ func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *te
 	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "flags.yaml", AuthToken: token, URI: mongoURI}
 	flagSet := func(name string) config.FlagSet {
 		return config.FlagSet{
-			Name:    name,
-			APIKeys: []string{sharedAPIKey},
-			CommonFlagSet: config.CommonFlagSet{
-				Retriever: retriever,
-				Notifiers: []config.NotifierConf{{Kind: "slack", SlackWebhookURL: webhook, Secret: "SECRETMARKER-n"}},
-			},
+			Name:      name,
+			APIKeys:   []string{sharedAPIKey},
+			Retriever: retriever,
+			Notifiers: []config.NotifierConf{{Kind: "slack", SlackWebhookURL: webhook, Secret: "SECRETMARKER-n"}},
 		}
 	}
 	invalid := &config.Config{FlagSets: []config.FlagSet{flagSet("one"), flagSet("two")}}

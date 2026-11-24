@@ -13,24 +13,33 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
-	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
+	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "user", UserKey: fmt.Sprintf("user-%d", i), CreationDate: int64(1617970547 + i),
-			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Default: false, Source: "SERVER",
+			Kind:         "feature",
+			ContextKind:  "user",
+			UserKey:      fmt.Sprintf("user-%d", i),
+			CreationDate: int64(1617970547 + i),
+			Key:          "my-flag",
+			Variation:    "enabled",
+			Value:        fmt.Sprintf("value-%d", i),
+			Default:      false,
+			Source:       "SERVER",
 		})
 	}
+
 	return res
 }
 
@@ -72,7 +81,16 @@ func TestE2E_Export(t *testing.T) {
 				lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 				require.Len(t, lines, n)
 				for i, l := range lines {
-					assert.Equal(t, fmt.Sprintf("feature;user;user-%d;%d;my-flag;enabled;value-%d;false;SERVER", i, 1617970547+i, i), l)
+					assert.Equal(
+						t,
+						fmt.Sprintf(
+							"feature;user;user-%d;%d;my-flag;enabled;value-%d;false;SERVER",
+							i,
+							1617970547+i,
+							i,
+						),
+						l,
+					)
 				}
 			},
 		},

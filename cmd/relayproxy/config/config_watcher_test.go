@@ -6,12 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/testutils"
 )
 
 const (
@@ -29,10 +30,13 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 
 	cfg, err := config.New(f, zap.NewNop(), "1.0.0")
 	require.NoError(t, err)
+
 	return cfg, configFile
 }
 
 func TestConfigAttachConfigChangeCallback(t *testing.T) {
+	t.Parallel()
+
 	initialConfig := `server:
   port: 1031
 pollingInterval: 1000
@@ -69,7 +73,7 @@ loglevel: debug`
 	for {
 		select {
 		case <-timeout:
-			t.Fatal("Timeout waiting for callback to be triggered")
+			require.Fail(t, "Timeout waiting for callback to be triggered")
 		case <-ticker.C:
 			mu.Lock()
 			if callbackCalled {
@@ -81,6 +85,7 @@ loglevel: debug`
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
+
 				return
 			}
 			mu.Unlock()
@@ -89,6 +94,8 @@ loglevel: debug`
 }
 
 func TestConfigStopConfigChangeWatcher(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		setupConfig func(*testing.T) *config.Config
@@ -101,6 +108,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
   port: 1031
 pollingInterval: 1000
 loglevel: info`)
+
 				return cfg
 			},
 			wantErr: false,
@@ -116,6 +124,8 @@ loglevel: info`)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			cfg := tt.setupConfig(t)
 			err := cfg.StopConfigChangeWatcher()
 
@@ -129,6 +139,8 @@ loglevel: info`)
 }
 
 func TestConfigAttachConfigChangeCallbackMultipleCallbacks(t *testing.T) {
+	t.Parallel()
+
 	initialConfig := `server:
   port: 1031
 pollingInterval: 1000
@@ -168,7 +180,7 @@ loglevel: error`
 	for {
 		select {
 		case <-timeout:
-			t.Fatal("Timeout waiting for callbacks to be triggered")
+			require.Fail(t, "Timeout waiting for callbacks to be triggered")
 		case <-ticker.C:
 			mu.Lock()
 			if callback1Called && callback2Called {
@@ -178,6 +190,7 @@ loglevel: error`
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
+
 				return
 			}
 			mu.Unlock()

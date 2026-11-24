@@ -6,15 +6,19 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLog_Export(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		LogFormat string
 	}
@@ -33,8 +37,14 @@ func TestLog_Export(t *testing.T) {
 			fields: fields{LogFormat: ""},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			}},
 			expectedLog: "user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
@@ -46,8 +56,14 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			}},
 			expectedLog: "key=\"random-key\"\n",
@@ -59,8 +75,14 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			}},
 			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
@@ -72,8 +94,14 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			}},
 			expectedLog: "^\\[" + testutils.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
@@ -82,21 +110,24 @@ func TestLog_Export(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &logsexporter.Exporter{
 				LogFormat: tt.fields.LogFormat,
 			}
 
-			logFile, _ := os.CreateTemp("", "")
+			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
 			err := f.Export(context.Background(), logger, tt.args.featureEvents)
 
 			if tt.wantErr {
 				assert.Error(t, err, "It should return an error")
+
 				return
 			}
 
-			assert.NoError(t, err, "DeprecatedExporterV1 should not throw errors")
+			require.NoError(t, err, "DeprecatedExporterV1 should not throw errors")
 
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Regexp(t, tt.expectedLog, string(logContent))
@@ -105,6 +136,8 @@ func TestLog_Export(t *testing.T) {
 }
 
 func TestLog_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := logsexporter.Exporter{}
 	assert.False(t, exporter.IsBulk(), "File exporter is not a bulk exporter")
 }

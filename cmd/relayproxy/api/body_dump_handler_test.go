@@ -24,7 +24,12 @@ func Test_bodyDumpSkipper(t *testing.T) {
 		{name: "debug on regular endpoint", level: zapcore.DebugLevel, path: "/v1/allflags", want: false},
 		{name: "debug on swagger", level: zapcore.DebugLevel, path: "/swagger/index.html", want: true},
 		{name: "debug on validate endpoint", level: zapcore.DebugLevel, path: "/admin/v1/flags/validate", want: true},
-		{name: "debug on other admin endpoint", level: zapcore.DebugLevel, path: "/admin/v1/retriever/refresh", want: false},
+		{
+			name:  "debug on other admin endpoint",
+			level: zapcore.DebugLevel,
+			path:  "/admin/v1/retriever/refresh",
+			want:  false,
+		},
 		{name: "info level", level: zapcore.InfoLevel, path: "/v1/allflags", want: true},
 	}
 	for _, tt := range tests {
@@ -40,6 +45,8 @@ func Test_bodyDumpSkipper(t *testing.T) {
 }
 
 func Test_bodyDumpHandler_smallBody(t *testing.T) {
+	t.Parallel()
+
 	core, recorded := observer.New(zapcore.DebugLevel)
 	logger := zap.New(core)
 
@@ -56,6 +63,8 @@ func Test_bodyDumpHandler_smallBody(t *testing.T) {
 }
 
 func Test_bodyDumpHandler_largeBody(t *testing.T) {
+	t.Parallel()
+
 	core, recorded := observer.New(zapcore.DebugLevel)
 	logger := zap.New(core)
 
@@ -67,7 +76,7 @@ func Test_bodyDumpHandler_largeBody(t *testing.T) {
 	assert.Len(t, logs, 1)
 
 	loggedBody := logs[0].Context[0].Interface.([]byte)
-	assert.True(t, len(loggedBody) < len(body), "logged body should be truncated")
+	assert.Less(t, len(loggedBody), len(body), "logged body should be truncated")
 	assert.True(t, strings.HasSuffix(string(loggedBody), "... truncated ..."))
 }
 

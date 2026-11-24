@@ -12,14 +12,15 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -327,6 +328,7 @@ func roundTripCases(t *testing.T) []retrieveCase {
 			steps: []step{{wantSameAs: []string{local}}},
 		})
 	}
+
 	return cases
 }
 
@@ -379,12 +381,14 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, st step) ([][]byte, []e
 		wg.Go(func() {
 			if st.nilCtx {
 				results[c], errs[c] = r.Retrieve(nil) //nolint:staticcheck // nil ctx is supported
+
 				return
 			}
 			results[c], errs[c] = r.Retrieve(t.Context())
 		})
 	}
 	wg.Wait()
+
 	return results, errs
 }
 
@@ -392,6 +396,7 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, st step, got [
 	t.Helper()
 	if st.wantErr != "" {
 		require.ErrorContains(t, err, st.wantErr, "step %d", i)
+
 		return
 	}
 	require.NoError(t, err, "step %d", i)
@@ -484,6 +489,7 @@ func TestRetriever_Init(t *testing.T) {
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				assert.Equal(t, retriever.RetrieverError, r.Status())
+
 				return
 			}
 			require.NoError(t, err)
@@ -578,7 +584,7 @@ func TestRetriever_Init_ChangedSelection(t *testing.T) {
 	r.Prefix = ""
 	r.Item = "g/b.yaml"
 	require.NoError(t, r.Init(t.Context(), nil))
-	assert.Equal(t, "", r.OutputFormat())
+	assert.Empty(t, r.OutputFormat())
 }
 
 func TestRetriever_SetLister(t *testing.T) {
@@ -620,6 +626,7 @@ func TestRetriever_SetDownloader(t *testing.T) {
 			got, err := r.Retrieve(t.Context())
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)

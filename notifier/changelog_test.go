@@ -4,23 +4,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 func TestFlagChanges(t *testing.T) {
+	t.Parallel()
+
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
 	baseFlag := func() *flag.InternalFlag {
 		return &flag.InternalFlag{
 			Variations: &map[string]*any{
-				"on":  testconvert.Interface(true),
-				"off": testconvert.Interface(false),
+				"on":  new(any(true)),
+				"off": new(any(false)),
 			},
-			DefaultRule: &flag.Rule{VariationResult: testconvert.String("off")},
+			DefaultRule: &flag.Rule{VariationResult: new("off")},
 			Metadata:    &map[string]any{"team": "payments"},
 		}
 	}
@@ -32,16 +34,16 @@ func TestFlagChanges(t *testing.T) {
 	}{
 		{
 			name:   "should show a disabled flag without pointer syntax",
-			update: func(f *flag.InternalFlag) { f.Disable = testconvert.Bool(true) },
+			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
 			want:   []notifier.FieldChange{{Path: "Disable", From: "null", To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
 			update: func(f *flag.InternalFlag) {
 				f.Rules = &[]flag.Rule{{
-					Name:            testconvert.String("beta"),
-					Query:           testconvert.String(`country eq "FR"`),
-					VariationResult: testconvert.String("on"),
+					Name:            new("beta"),
+					Query:           new(`country eq "FR"`),
+					VariationResult: new("on"),
 				}}
 			},
 			want: []notifier.FieldChange{{
@@ -86,7 +88,7 @@ func TestFlagChanges(t *testing.T) {
 		{
 			name: "should report a variation that was added",
 			update: func(f *flag.InternalFlag) {
-				(*f.Variations)["beta"] = testconvert.Interface("blue")
+				(*f.Variations)["beta"] = new(any("blue"))
 			},
 			want: []notifier.FieldChange{{Path: "Variations.beta", From: "null", To: `"blue"`}},
 		},
@@ -98,6 +100,8 @@ func TestFlagChanges(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			after := baseFlag()
 			tt.update(after)
 			got, err := notifier.FlagChanges(baseFlag(), after)
@@ -108,27 +112,33 @@ func TestFlagChanges(t *testing.T) {
 }
 
 func TestFlagChanges_error(t *testing.T) {
+	t.Parallel()
+
 	before := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	after := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	got, err := notifier.FlagChanges(before, after)
-	assert.ErrorContains(t, err, "impossible to compute flag changes")
+	require.ErrorContains(t, err, "impossible to compute flag changes")
 	assert.Nil(t, got)
 }
 
 func TestReadableValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value any
 		want  string
 	}{
 		{name: "nil", value: nil, want: "null"},
-		{name: "string pointer", value: testconvert.String("on"), want: `"on"`},
+		{name: "string pointer", value: new("on"), want: `"on"`},
 		{name: "map", value: map[string]float64{"on": 50, "off": 50}, want: `{"off":50,"on":50}`},
 		{name: "keeps HTML characters as typed", value: "a < b && c", want: `"a < b && c"`},
 		{name: "falls back to Go syntax when JSON cannot encode the value", value: make(chan int), want: "(chan int)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Contains(t, notifier.ReadableValue(tt.value), tt.want)
 		})
 	}

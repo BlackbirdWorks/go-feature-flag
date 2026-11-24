@@ -6,15 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/thejerf/slogassert"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/thejerf/slogassert"
-	"gopkg.in/yaml.v3"
 )
 
 func persistFlags(t *testing.T) map[string]dto.DTO {
@@ -27,6 +28,7 @@ func persistFlags(t *testing.T) map[string]dto.DTO {
   defaultRule:
     variation: A
 `), &flags))
+
 	return flags
 }
 
@@ -101,7 +103,7 @@ func TestCacheManagerReadsAfterClose(t *testing.T) {
 	m.Close()
 
 	_, err := m.AllFlags()
-	assert.ErrorContains(t, err, "before the initialisation")
+	require.ErrorContains(t, err, "before the initialisation")
 	_, err = m.GetFlag("f")
 	assert.ErrorContains(t, err, "before the initialisation")
 }

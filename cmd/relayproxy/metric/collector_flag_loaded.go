@@ -4,10 +4,11 @@ import (
 	"strconv"
 	"strings"
 
+	prom "github.com/prometheus/client_golang/prometheus"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	prom "github.com/prometheus/client_golang/prometheus"
 )
 
 const flagLoadedEvaluationKey = "semaphore-flag-loaded-metric"
@@ -54,7 +55,12 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 		}
 		for flagName, f := range flags {
 			metric, err := prom.NewConstMetric(
-				c.desc, prom.GaugeValue, 1, flagsetName, flagName, strconv.FormatBool(isEffectivelyDisabled(flagName, f)),
+				c.desc,
+				prom.GaugeValue,
+				1,
+				flagsetName,
+				flagName,
+				strconv.FormatBool(isEffectivelyDisabled(flagName, f)),
 			)
 			if err != nil {
 				continue
@@ -74,6 +80,7 @@ func isEffectivelyDisabled(flagName string, f flag.Flag) bool {
 	if details.Reason == flag.ReasonError {
 		return f.IsDisable()
 	}
+
 	return details.Reason == flag.ReasonDisabled
 }
 
@@ -97,5 +104,6 @@ func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 	if m.Registry == nil || source == nil {
 		return nil
 	}
+
 	return m.Registry.Register(newFlagLoadedCollector(source))
 }

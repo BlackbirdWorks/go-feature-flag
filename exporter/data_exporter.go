@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -100,6 +101,7 @@ func (d *dataExporterImpl[T]) Stop() {
 	// we don't start the daemon if we are not in bulk mode
 	if !d.IsBulk() {
 		d.Flush()
+
 		return
 	}
 	d.stopOnce.Do(func() {
@@ -109,7 +111,7 @@ func (d *dataExporterImpl[T]) Stop() {
 	d.Flush()
 }
 
-// Flush is sending the data to the exporter
+// Flush is sending the data to the exporter.
 func (d *dataExporterImpl[T]) Flush() {
 	_ = d.flush()
 }
@@ -122,26 +124,28 @@ func (d *dataExporterImpl[T]) flush() error {
 		if d != nil && d.logger != nil {
 			d.logger.Error(err.Error())
 		}
+
 		return err
 	}
 	// release the events everybody has consumed instead of waiting for the periodic cleaning
 	if c, ok := store.(interface{ CleanQueue() }); ok {
 		c.CleanQueue()
 	}
+
 	return nil
 }
 
-// IsBulk return false if we should directly send the data as soon as it is produce
+// IsBulk return false if we should directly send the data as soon as it is produce.
 func (d *dataExporterImpl[T]) IsBulk() bool {
 	return d.exporter.Exporter.IsBulk()
 }
 
-// GetConsumerID return the consumer ID used in the event store
+// GetConsumerID return the consumer ID used in the event store.
 func (d *dataExporterImpl[T]) GetConsumerID() string {
 	return d.consumerID
 }
 
-// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush()
+// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush().
 func (d *dataExporterImpl[T]) GetMaxEventInMemory() int64 {
 	return d.exporter.MaxEventInMemory
 }
@@ -167,7 +171,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 				return fmt.Errorf("error while exporting data (deprecated): %w", err)
 			}
 		default:
-			return fmt.Errorf("trying to send unknown object to the exporter (deprecated)")
+			return errors.New("trying to send unknown object to the exporter (deprecated)")
 		}
 	case DeprecatedExporterV2:
 		switch events := any(events).(type) {
@@ -177,7 +181,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 				return fmt.Errorf("error while exporting data: %w", err)
 			}
 		default:
-			return fmt.Errorf("trying to send unknown object to the exporter")
+			return errors.New("trying to send unknown object to the exporter")
 		}
 	case Exporter:
 		exportableEvents := make([]ExportableEvent, len(events))
@@ -189,7 +193,8 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 			return fmt.Errorf("error while exporting data: %w", err)
 		}
 	default:
-		return fmt.Errorf("this is not a valid exporter")
+		return errors.New("this is not a valid exporter")
 	}
+
 	return nil
 }

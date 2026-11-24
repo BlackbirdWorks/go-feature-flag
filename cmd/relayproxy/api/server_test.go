@@ -15,6 +15,13 @@ import (
 	"testing"
 	"time"
 
+	promdto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"google.golang.org/protobuf/encoding/protodelim"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -24,12 +31,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils"
-	promdto "github.com/prometheus/client_model/go"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"google.golang.org/protobuf/encoding/protodelim"
 )
 
 // newTestLogger returns a logger whose Fatal() terminates the calling goroutine instead of the
@@ -43,6 +44,7 @@ func newTestLogger(t *testing.T) *log.Logger {
 	l := log.InitLogger()
 	l.ZapLogger = l.ZapLogger.WithOptions(zap.WithFatalHook(zapcore.WriteThenGoexit))
 	t.Cleanup(func() { _ = l.ZapLogger.Sync() })
+
 	return l
 }
 
@@ -57,19 +59,20 @@ func waitForServer(t *testing.T, baseURL string) {
 			return false
 		}
 		_ = resp.Body.Close()
+
 		return true
 	}, 10*time.Second, 20*time.Millisecond, "server never became reachable on %s", baseURL)
 }
 
 func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -122,15 +125,15 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	monitoringPort := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -201,14 +204,14 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 }
 
 func Test_CheckOFREPAPIExists(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -248,49 +251,49 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
 	waitForServer(t, baseURL)
 
-	req, err := http.NewRequest("POST",
+	req, err := http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(req)
+	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err = http.DefaultClient.Do(req)
+	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/test-flag",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err = http.DefaultClient.Do(req)
+	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 }
 
 func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -325,18 +328,18 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, proxyConf.Version, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Equal(t, proxyConf.Version, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
 func Test_VersionHeader_Disabled(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -372,11 +375,15 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Empty(t, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
 func Test_AuthenticationMiddleware(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Non Admin Endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []authMiddlewareTestCase{
 			{
 				name:          "Authentication disabled",
@@ -411,6 +418,8 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 	})
 
 	t.Run("Admin Endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []authMiddlewareTestCase{
 			{
 				name:          "Authentication disabled",
@@ -438,13 +447,14 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				request, err := http.NewRequest("POST", baseURL+"/admin/v1/retriever/refresh", nil)
+				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
 				require.NoError(t, err)
 				request.Header.Add("Content-Type", "application/json")
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
 					request.Header.Add("Authorization", "Bearer "+tt.configAPIKeys.Admin[0])
 				}
-				return http.DefaultClient.Do(request)
+
+				return (&http.Client{}).Do(request)
 			})
 	})
 }
@@ -468,12 +478,10 @@ func runAuthMiddlewareTests(
 		t.Run(tt.name, func(t *testing.T) {
 			port := testutils.GetFreePort(t)
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -529,7 +537,7 @@ func skipUnixSocketOnWindows(t *testing.T) {
 	}
 }
 
-// Helper function to create an HTTP client that can connect via Unix socket
+// Helper function to create an HTTP client that can connect via Unix socket.
 func newUnixSocketHTTPClient(socketPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
@@ -541,6 +549,8 @@ func newUnixSocketHTTPClient(socketPath string) *http.Client {
 }
 
 func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
 	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
@@ -550,12 +560,10 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -591,6 +599,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -621,6 +630,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	monitoringPort := testutils.GetFreePort(t)
 	// Create a temporary directory for the socket
@@ -631,12 +642,10 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -673,6 +682,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -703,6 +713,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 }
 
 func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	// Create a temporary directory for the socket
 	tempDir, err := os.MkdirTemp("", "goff-test-socket-*")
@@ -712,12 +724,10 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	socketPath := filepath.Join(tempDir, "goff-test-ofrep.sock")
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -757,6 +767,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(socketPath)
+
 		return err == nil
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -768,7 +779,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test OFREP evaluate all flags endpoint
-	req, err := http.NewRequest("POST",
+	req, err := http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -780,7 +791,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (non-existent flag)
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -792,7 +803,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (existing flag)
-	req, err = http.NewRequest("POST",
+	req, err = http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/test-flag",
 		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
 	require.NoError(t, err)
@@ -805,6 +816,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 }
 
 func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	tests := []struct {
 		name          string
@@ -878,6 +891,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a temporary directory for the socket
 			tempDir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -886,12 +901,10 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-%d.sock", index))
 
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -927,6 +940,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				_, err := os.Stat(socketPath)
+
 				return err == nil
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -958,6 +972,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 }
 
 func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
+	t.Parallel()
+
 	skipUnixSocketOnWindows(t)
 	tests := []struct {
 		name                 string
@@ -978,6 +994,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 	for index, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create a temporary directory for the socket
 			tempDir, err := os.MkdirTemp("", "")
 			require.NoError(t, err)
@@ -986,12 +1004,10 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			socketPath := filepath.Join(tempDir, fmt.Sprintf("goff-test-version-%d.sock", index))
 
 			proxyConf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: "file",
-							Path: "../../../testdata/flag-config.yaml",
-						},
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: "file",
+						Path: "../../../testdata/flag-config.yaml",
 					},
 				},
 				Server: config.Server{
@@ -1025,6 +1041,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				_, err := os.Stat(socketPath)
+
 				return err == nil
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
@@ -1037,26 +1054,26 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 
 			if tt.wantVersionHeader {
-				assert.Equal(t, "test-version-1.0.0", response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+				assert.Equal(t, "test-version-1.0.0", response.Header.Get("X-Gofeatureflag-Version"))
 			} else {
-				assert.Empty(t, response.Header.Get("X-GOFEATUREFLAG-VERSION"))
+				assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 			}
 		})
 	}
 }
 
 func Test_NativeHistograms_Enabled(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -1106,7 +1123,10 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	// Scrape /metrics with protobuf Accept header
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/metrics", nil)
 	require.NoError(t, err)
-	req.Header.Set("Accept", "application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited")
+	req.Header.Set(
+		"Accept",
+		"application/vnd.google.protobuf;proto=io.prometheus.client.MetricFamily;encoding=delimited",
+	)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -1156,6 +1176,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 }
 
 func Test_PortFreedAfterShutdown(t *testing.T) {
+	t.Parallel()
+
 	// Pick a free port.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -1163,12 +1185,10 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	ln.Close()
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -1206,6 +1226,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 			return false
 		}
 		_ = resp.Body.Close()
+
 		return resp.StatusCode == http.StatusOK
 	}, 5*time.Second, 50*time.Millisecond)
 
@@ -1217,7 +1238,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(10 * time.Second):
-		t.Fatal("server did not stop within 10 seconds")
+		require.Fail(t, "server did not stop within 10 seconds")
 	}
 
 	// Verify the port is free by binding to it again.
@@ -1227,6 +1248,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 }
 
 func Test_StopBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	// Pick a free port.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -1234,12 +1257,10 @@ func Test_StopBeforeStart(t *testing.T) {
 	ln.Close()
 
 	proxyConf := &config.Config{
-		CommonFlagSet: config.CommonFlagSet{
-			Retrievers: &[]retrieverconf.RetrieverConf{
-				{
-					Kind: "file",
-					Path: "../../../testdata/flag-config.yaml",
-				},
+		Retrievers: &[]retrieverconf.RetrieverConf{
+			{
+				Kind: "file",
+				Path: "../../../testdata/flag-config.yaml",
 			},
 		},
 		Server: config.Server{
@@ -1270,7 +1291,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	select {
 	case <-stopReturned:
 	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not return after its context was done")
+		require.Fail(t, "Stop did not return after its context was done")
 	}
 
 	// A server stopped before it started must return immediately without serving.
@@ -1282,7 +1303,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("StartWithContext did not return for a server already stopped")
+		require.Fail(t, "StartWithContext did not return for a server already stopped")
 	}
 
 	ln2, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))

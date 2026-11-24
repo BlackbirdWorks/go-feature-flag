@@ -40,6 +40,7 @@ func FlagChanges(before, after any) ([]FieldChange, error) {
 		})
 	}
 	sort.SliceStable(changes, func(i, j int) bool { return changes[i].Path < changes[j].Path })
+
 	return changes, nil
 }
 
@@ -53,5 +54,6 @@ func ReadableValue(value any) string {
 	if err := encoder.Encode(value); err == nil {
 		return strings.TrimSuffix(out.String(), "\n")
 	}
+
 	return render.Render(value)
 }

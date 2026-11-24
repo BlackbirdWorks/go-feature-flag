@@ -9,6 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -16,12 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/spf13/pflag"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 )
 
 const (
@@ -36,7 +37,7 @@ const (
 	phaseAfterChange   = "after change"
 )
 
-// httpRequestCheck defines a check to perform on an HTTP request
+// httpRequestCheck defines a check to perform on an HTTP request.
 type httpRequestCheck struct {
 	apiKey          string   // API key to use in the request (empty means no API key header)
 	expectedStatus  int      // expected HTTP status code
@@ -45,6 +46,8 @@ type httpRequestCheck struct {
 }
 
 func TestConfigChangeDefaultMode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -83,6 +86,8 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -125,6 +130,8 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 }
 
 func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -187,6 +194,8 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -228,6 +237,8 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 	}
 }
 func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
+	t.Parallel()
+
 	// Tests for invalid config changes that should be rejected
 	invalidConfigTests := []struct {
 		name               string
@@ -269,6 +280,8 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 
 	for _, tt := range invalidConfigTests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -320,6 +333,8 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 // TestConfigChangeFlagsetAddRemove validates that flagsets can be added or removed at runtime
 // through the configuration file watch mechanism, without restarting the relay proxy.
 func TestConfigChangeFlagsetAddRemove(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		port               string
@@ -365,6 +380,8 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			urlAPIAllFlags := localhostURL + tt.port + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", tt.port)
@@ -406,6 +423,8 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 // (anything other than its API keys) is rejected at runtime: an error is logged and the flagset
 // keeps serving its original configuration until the relay proxy is restarted.
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePortAsString(t)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
@@ -485,13 +504,14 @@ func newAPIServerWithLogger(
 
 	s := api.New(c, services, logger)
 	go func() { s.StartWithContext(context.Background()) }()
+
 	return s, c
 }
 
-// doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks
+// doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks.
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
-	request, err := http.NewRequest("POST", url, strings.NewReader(body))
+	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
 	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
 	if check.apiKey != "" {

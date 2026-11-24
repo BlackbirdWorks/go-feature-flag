@@ -3,11 +3,14 @@ package config_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestConfigIsSwaggerEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		config      *config.Config
@@ -75,6 +78,8 @@ func TestConfigIsSwaggerEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.IsSwaggerEnabled()
 			assert.Equal(t, tt.want, got, tt.description)
 		})
@@ -82,6 +87,8 @@ func TestConfigIsSwaggerEnabled(t *testing.T) {
 }
 
 func TestConfigSwaggerHost(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		config      *config.Config
@@ -153,6 +160,8 @@ func TestConfigSwaggerHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.SwaggerHost()
 			assert.Equal(t, tt.want, got, tt.description)
 		})

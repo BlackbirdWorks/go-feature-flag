@@ -15,5 +15,6 @@ func constructMetadata(
 		metadata = make(map[string]any)
 	}
 	metadata["evaluatedRuleName"] = *ruleName
+
 	return metadata
 }

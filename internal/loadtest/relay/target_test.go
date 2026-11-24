@@ -5,10 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/loadtest"
-	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/loadtest"
+	"github.com/blackbirdworks/semaphore/internal/loadtest/relay"
 )
 
 func TestParseEndpoint(t *testing.T) {
@@ -45,6 +46,7 @@ func TestEndpoint_PathAndEmitsEvents(t *testing.T) {
 			req, err := tt.ep.NewRequest("http://x", "k", 1)
 			if tt.path == "" {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -98,7 +100,13 @@ func TestTarget_Eval(t *testing.T) {
 		{"semaphore unknown flag is an error", relay.SemaphoreEval, loadtest.ExporterDiscard, "does-not-exist", true},
 		{"ofrep known flag", relay.OFREPEval, loadtest.ExporterDiscard, "rule-bool-track", false},
 		{"ofrep unknown flag is an error", relay.OFREPEval, loadtest.ExporterDiscard, "does-not-exist", true},
-		{"semaphore bulk with discard exporter", relay.SemaphoreAllFlags, loadtest.ExporterDiscard, "rule-bool-track", false},
+		{
+			"semaphore bulk with discard exporter",
+			relay.SemaphoreAllFlags,
+			loadtest.ExporterDiscard,
+			"rule-bool-track",
+			false,
+		},
 		{"ofrep bulk without exporter", relay.OFREPBulk, "", "rule-bool-track", false},
 	}
 	for _, tt := range tests {

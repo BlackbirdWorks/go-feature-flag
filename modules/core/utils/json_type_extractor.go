@@ -13,5 +13,6 @@ func JSONTypeExtractor(variation any) (string, error) {
 	case map[string]any:
 		return "(map[string]interface{})", nil
 	}
+
 	return "", nil
 }

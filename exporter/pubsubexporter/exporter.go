@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 
 	"cloud.google.com/go/pubsub" //nolint:staticcheck
+	"google.golang.org/api/option"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"google.golang.org/api/option"
 )
 
 var _ exporter.Exporter = &Exporter{}
@@ -94,5 +95,6 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	topic.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = topic
+
 	return nil
 }

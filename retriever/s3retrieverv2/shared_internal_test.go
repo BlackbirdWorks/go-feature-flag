@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:paralleltest,tparallel // t.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment
 func TestNewSharedItems_DefaultConfigError(t *testing.T) {
 	t.Setenv("AWS_PROFILE", "this-profile-does-not-exist")
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")
@@ -98,6 +99,7 @@ func (u unrelatedBucket) ListObjectsV2(
 	for i := range u.n {
 		out.Contents = append(out.Contents, s3types.Object{Key: aws.String(fmt.Sprintf("d/other-%d", i))})
 	}
+
 	return out, nil
 }
 
@@ -125,6 +127,7 @@ func (l *tokenLister) ListObjectsV2(
 	context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
 	n := l.calls.Add(1)
+
 	return &s3.ListObjectsV2Output{
 		IsTruncated:           aws.Bool(true),
 		NextContinuationToken: aws.String(l.next(n)),
@@ -164,7 +167,7 @@ func TestSharedItems_list(t *testing.T) {
 			l := &tokenLister{next: tt.next}
 			g := &SharedItems{bucket: "b", lister: l}
 			_, err := g.list(t.Context(), "p/", nil)
-			assert.ErrorContains(t, err, tt.wantErr)
+			require.ErrorContains(t, err, tt.wantErr)
 			assert.Equal(t, tt.wantCalls, l.calls.Load())
 		})
 	}

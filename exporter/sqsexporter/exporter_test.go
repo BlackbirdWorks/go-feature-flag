@@ -3,7 +3,7 @@ package sqsexporter
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -11,9 +11,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 type SQSSendMessageAPIMock struct {
@@ -24,18 +26,23 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 	params *sqs.SendMessageInput,
 	_ ...func(*sqs.Options)) (*sqs.SendMessageOutput, error) {
 	if params.QueueUrl != nil && strings.HasSuffix(*params.QueueUrl, "error") {
-		return nil, fmt.Errorf("random error")
+		return nil, errors.New("random error")
 	}
 	s.messages = append(s.messages, *params)
+
 	return nil, nil
 }
 
 func TestSQSIsBulk(t *testing.T) {
+	t.Parallel()
+
 	exporter := Exporter{}
 	assert.False(t, exporter.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporterExport(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		QueueURL   string
 		AwsConfig  *aws.Config
@@ -56,8 +63,14 @@ func TestExporterExport(t *testing.T) {
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 		},
@@ -70,12 +83,24 @@ func TestExporterExport(t *testing.T) {
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCDEF", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCDEF",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 		},
@@ -88,18 +113,32 @@ func TestExporterExport(t *testing.T) {
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCDEF", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCDEF",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			f := &Exporter{
 				QueueURL:   tt.fields.QueueURL,
 				AwsConfig:  tt.fields.AwsConfig,
@@ -110,10 +149,11 @@ func TestExporterExport(t *testing.T) {
 			err := f.Export(context.TODO(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			want := make([]sqs.SendMessageInput, len(tt.events))
 			for index, event := range tt.events {
 				messageBody, _ := json.Marshal(event)

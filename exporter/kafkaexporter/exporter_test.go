@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/IBM/sarama"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
 )
 
 type messageSenderMock struct {
@@ -20,15 +22,20 @@ type messageSenderMock struct {
 
 func (s *messageSenderMock) SendMessages(msgs []*sarama.ProducerMessage) error {
 	s.messages = append(s.messages, msgs...)
+
 	return s.error
 }
 
 func TestExporter_IsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporter_Export(t *testing.T) {
+	t.Parallel()
+
 	const mockTopic = "mockTopic"
 
 	tests := []struct {
@@ -67,12 +74,24 @@ func TestExporter_Export(t *testing.T) {
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCDEF", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCDEF",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 			settings: Settings{
@@ -89,12 +108,24 @@ func TestExporter_Export(t *testing.T) {
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCDEF", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCDEF",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 			settings: Settings{
@@ -111,12 +142,24 @@ func TestExporter_Export(t *testing.T) {
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCDEF", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false,
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCDEF",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
 				},
 			},
 			settings: Settings{
@@ -133,7 +176,6 @@ func TestExporter_Export(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -147,10 +189,11 @@ func TestExporter_Export(t *testing.T) {
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			want := make([]*sarama.ProducerMessage, len(tt.events))
 			for index, event := range tt.events {

@@ -13,18 +13,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/sqsexporter"
 	"github.com/blackbirdworks/semaphore/testutils/gopherstack"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func createQueue(t *testing.T, client *sqs.Client) string {
 	t.Helper()
-	out, err := client.CreateQueue(t.Context(), &sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))})
+	out, err := client.CreateQueue(
+		t.Context(),
+		&sqs.CreateQueueInput{QueueName: aws.String(gopherstack.UniqueName(t, "queue"))},
+	)
 	require.NoError(t, err)
+
 	return aws.ToString(out.QueueUrl)
 }
 
@@ -52,11 +57,16 @@ func receiveAll(t *testing.T, client *sqs.Client, queueURL string, want int) []r
 				r.emitter = aws.ToString(a.StringValue)
 			}
 			got = append(got, r)
-			_, err := client.DeleteMessage(t.Context(), &sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle})
+			_, err := client.DeleteMessage(
+				t.Context(),
+				&sqs.DeleteMessageInput{QueueUrl: aws.String(queueURL), ReceiptHandle: m.ReceiptHandle},
+			)
 			require.NoError(t, err)
 		}
+
 		return len(got) >= want
 	}, 30*time.Second, 100*time.Millisecond, "got %d/%d messages", len(got), want)
+
 	return got
 }
 
@@ -64,10 +74,17 @@ func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
-			Kind: "feature", ContextKind: "user", UserKey: fmt.Sprintf("user-%04d", i), CreationDate: int64(1617970547 + i),
-			Key: "my-flag", Variation: "enabled", Value: fmt.Sprintf("value-%d", i), Source: "SERVER",
+			Kind:         "feature",
+			ContextKind:  "user",
+			UserKey:      fmt.Sprintf("user-%04d", i),
+			CreationDate: int64(1617970547 + i),
+			Key:          "my-flag",
+			Variation:    "enabled",
+			Value:        fmt.Sprintf("value-%d", i),
+			Source:       "SERVER",
 		})
 	}
+
 	return res
 }
 

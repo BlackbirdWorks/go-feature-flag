@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func samples(heap []uint64, gor []int) []Sample {
@@ -19,6 +20,7 @@ func samples(heap []uint64, gor []int) []Sample {
 	for i := range heap {
 		out[i] = Sample{HeapInuse: heap[i], Goroutines: gor[i]}
 	}
+
 	return out
 }
 
@@ -130,6 +132,7 @@ func TestParseExporterMode(t *testing.T) {
 			got, err := ParseExporterMode(tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -189,6 +192,7 @@ func (f *fakeTarget) Eval(_, _ int) error {
 		return errors.New("boom")
 	}
 	time.Sleep(50 * time.Microsecond)
+
 	return nil
 }
 func (f *fakeTarget) Extra() map[string]int64 { return map[string]int64{"evals": f.evals.Load()} }
@@ -236,7 +240,7 @@ func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 		assert.False(t, rep.Pass, "no measured sample: no verdict")
 		assert.Positive(t, rep.TotalEval)
 	case <-time.After(5 * time.Second):
-		t.Fatal("Run did not stop after the context was cancelled")
+		require.Fail(t, "Run did not stop after the context was cancelled")
 	}
 }
 
@@ -286,7 +290,7 @@ func TestLibraryTarget(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer lt.Close()
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		require.NoError(t, lt.Eval(0, i))
 	}
 	assert.Eventually(t, func() bool { return lt.Extra()["exported_events"] > 0 }, 5*time.Second, 20*time.Millisecond)
@@ -333,6 +337,7 @@ func TestSummarize(t *testing.T) {
 		for _, d := range durations {
 			h[bucket(d.Nanoseconds())]++
 		}
+
 		return h
 	}
 	us := time.Microsecond

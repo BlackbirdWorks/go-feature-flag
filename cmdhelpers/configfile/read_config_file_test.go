@@ -5,14 +5,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadConfigFile(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		inputFilePath      string
@@ -29,11 +32,11 @@ func TestLoadConfigFile(t *testing.T) {
 			expected: map[string]dto.DTO{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(true),
-						"var_b": testconvert.Interface(false),
+						"var_a": new(any(true)),
+						"var_b": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -42,11 +45,11 @@ func TestLoadConfigFile(t *testing.T) {
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(1),
-						"var_b": testconvert.Interface(2),
+						"var_a": new(any(1)),
+						"var_b": new(any(2)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,
@@ -61,11 +64,11 @@ func TestLoadConfigFile(t *testing.T) {
 			expected: map[string]dto.DTO{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(true),
-						"var_b": testconvert.Interface(false),
+						"var_a": new(any(true)),
+						"var_b": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -74,11 +77,11 @@ func TestLoadConfigFile(t *testing.T) {
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(1),
-						"var_b": testconvert.Interface(2),
+						"var_a": new(any(1)),
+						"var_b": new(any(2)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,
@@ -94,11 +97,11 @@ func TestLoadConfigFile(t *testing.T) {
 			expected: map[string]dto.DTO{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(true),
-						"var_b": testconvert.Interface(false),
+						"var_a": new(any(true)),
+						"var_b": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -107,11 +110,11 @@ func TestLoadConfigFile(t *testing.T) {
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(1.0),
-						"var_b": testconvert.Interface(2.0),
+						"var_a": new(any(1.0)),
+						"var_b": new(any(2.0)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123.0,
@@ -127,11 +130,11 @@ func TestLoadConfigFile(t *testing.T) {
 			expected: map[string]dto.DTO{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(true),
-						"var_b": testconvert.Interface(false),
+						"var_a": new(any(true)),
+						"var_b": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -140,11 +143,11 @@ func TestLoadConfigFile(t *testing.T) {
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(int64(1)),
-						"var_b": testconvert.Interface(int64(2)),
+						"var_a": new(any(int64(1))),
+						"var_b": new(any(int64(2))),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": int64(123),
@@ -161,11 +164,11 @@ func TestLoadConfigFile(t *testing.T) {
 			expected: map[string]dto.DTO{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(true),
-						"var_b": testconvert.Interface(false),
+						"var_a": new(any(true)),
+						"var_b": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_a"),
+						VariationResult: new("var_a"),
 					},
 					Metadata: &map[string]any{
 						"description":  "this is a simple feature flag",
@@ -174,11 +177,11 @@ func TestLoadConfigFile(t *testing.T) {
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"var_a": testconvert.Interface(1),
-						"var_b": testconvert.Interface(2),
+						"var_a": new(any(1)),
+						"var_b": new(any(2)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("var_b"),
+						VariationResult: new("var_b"),
 					},
 					Metadata: &map[string]any{
 						"defaultValue": 123,
@@ -219,6 +222,8 @@ func TestLoadConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			if tt.useDefaultLocation {
 				// write the config into an isolated per-test dir (auto-removed by the
 				// test framework). Using t.TempDir() instead of a fixed name in the
@@ -226,9 +231,9 @@ func TestLoadConfigFile(t *testing.T) {
 				// the Windows "file in use" errors from renaming an open handle.
 				dir := t.TempDir()
 				content, err := os.ReadFile(tt.inputFilePath)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, "flags.goff.yaml"), content, 0600)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				tt.inputFilePath = ""
 				tt.defaultLocations = []string{dir + "/"}
 			}
@@ -241,7 +246,7 @@ func TestLoadConfigFile(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
 			}
 		})
@@ -259,7 +264,12 @@ func TestParseConfig(t *testing.T) {
 	}{
 		{name: "json", data: `{"f":{"variations":{"a":1}}}`, format: "json", wantFlags: []string{"f"}},
 		{name: "yaml", data: "f:\n  variations:\n    a: 1\n", format: "yaml", wantFlags: []string{"f"}},
-		{name: "unknown format defaults to yaml", data: "f:\n  variations:\n    a: 1\n", format: "", wantFlags: []string{"f"}},
+		{
+			name:      "unknown format defaults to yaml",
+			data:      "f:\n  variations:\n    a: 1\n",
+			format:    "",
+			wantFlags: []string{"f"},
+		},
 		{name: "toml", data: "[f.variations]\na = 1\n", format: "TOML", wantFlags: []string{"f"}},
 		{name: "invalid json", data: `{`, format: "json", wantErr: "could not parse file (json)"},
 		{name: "invalid yaml", data: "a: [", format: "yaml", wantErr: "could not parse file (yaml)"},
@@ -271,9 +281,10 @@ func TestParseConfig(t *testing.T) {
 			got, err := configfile.ParseConfig([]byte(tt.data), tt.format)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(t, got, len(tt.wantFlags))
 			for _, k := range tt.wantFlags {
 				assert.Contains(t, got, k)
@@ -301,14 +312,15 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 			t.Parallel()
 			dir := t.TempDir() + "/"
 			for _, f := range tt.files {
-				assert.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
+				require.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
 			}
 			got, err := configfile.LoadConfigFile("", "yaml", []string{dir})
 			if tt.wantError {
 				assert.Error(t, err)
+
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Contains(t, got, tt.wantFlag)
 		})
 	}

@@ -6,17 +6,21 @@ import (
 	"os"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func Test_health_Handler(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -37,18 +41,18 @@ func Test_health_Handler(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create config for default mode with offline flag
 			conf := config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					Retriever: &retrieverconf.RetrieverConf{
-						Kind: retrieverconf.FileRetriever,
-						Path: testdataDir + "/config_flags.yaml",
-					},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: retrieverconf.FileRetriever,
+					Path: testdataDir + "/config_flags.yaml",
 				},
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(&conf, zap.NewNop(), []notifier.Notifier{}, nil, nil)
-			assert.NoError(t, err, "impossible to create flagset manager")
+			require.NoError(t, err, "impossible to create flagset manager")
 
 			srv := service.NewMonitoring(flagsetManager)
 			healthCtrl := controller.NewHealth(srv)
@@ -62,11 +66,12 @@ func Test_health_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				assert.Error(t, res, "handler should return an error")
+
 				return
 			}
 
 			body, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected body file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(body), rec.Body.String(), "Invalid response body")
 		})

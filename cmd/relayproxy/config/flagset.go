@@ -129,6 +129,7 @@ func (c *Config) GetFlagSets() []FlagSet {
 	defer c.mutex.RUnlock()
 	out := make([]FlagSet, len(c.FlagSets))
 	copy(out, c.FlagSets)
+
 	return out
 }
 
@@ -141,6 +142,7 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 		return fmt.Errorf("flagset %s already exists", flagset.Name)
 	}
 	c.FlagSets = append(c.FlagSets, flagset)
+
 	return nil
 }
 
@@ -154,6 +156,7 @@ func (c *Config) RemoveFlagSet(flagsetName string) error {
 		return err
 	}
 	c.FlagSets = append(c.FlagSets[:index], c.FlagSets[index+1:]...)
+
 	return nil
 }
 
@@ -166,6 +169,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 		return err
 	}
 	c.FlagSets[index].APIKeys = apiKeys
+
 	return nil
 }
 
@@ -176,6 +180,7 @@ func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return c.FlagSets[index].APIKeys, nil
 }
 
@@ -188,5 +193,6 @@ func (c *Config) getFlagSetIndexFromName(flagsetName string) (int, error) {
 			return index, nil
 		}
 	}
+
 	return -1, fmt.Errorf("flagset %s not found", flagsetName)
 }

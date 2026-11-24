@@ -4,15 +4,16 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	manifestHelper "github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 )
 
 const (
@@ -61,12 +62,14 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 	flags, err := flagset.GetFlagsFromCacheWithContext(c.Request().Context())
 	if err != nil {
 		m.logger.Error("error while getting flags from cache", zap.Error(err))
+
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
 	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags)
 	if err != nil {
 		m.logger.Error("error while generating manifest", zap.Error(err))
+
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}
 	manifestSuccessResponse := model.ManifestSuccessResponse{
@@ -83,10 +86,12 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 			sort.Slice(responses, func(i, j int) bool {
 				return responses[i].Key < responses[j].Key
 			})
+
 			return responses
 		}(),
 	}
 	c.Response().Header().Set(manifestCapabilitiesHeader, manifestCapabilitiesValue)
 	m.metrics.IncGetManifestCall()
+
 	return c.JSON(http.StatusOK, manifestSuccessResponse)
 }

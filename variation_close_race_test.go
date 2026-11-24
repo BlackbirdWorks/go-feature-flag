@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // gatedContext blocks the blockAt-th call of ExtractGOFFProtectedFields (0: never) until gate is
@@ -32,6 +33,7 @@ func (c gatedContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecific
 		close(c.reached)
 		<-c.gate
 	}
+
 	return c.Context.ExtractGOFFProtectedFields()
 }
 
@@ -45,6 +47,7 @@ type finalFlushHookExporter struct {
 func (e *finalFlushHookExporter) IsBulk() bool { return true }
 func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
+
 	return nil
 }
 
@@ -108,7 +111,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			select {
 			case <-reached:
 			case <-time.After(time.Minute):
-				t.Fatal("the evaluation did not reach the event")
+				require.Fail(t, "the evaluation did not reach the event")
 			}
 
 			// 3. the client closes; its final flush releases the evaluation.

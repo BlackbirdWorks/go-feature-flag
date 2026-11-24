@@ -46,5 +46,6 @@ func (o OfrepEventStream) IsValid() error {
 	if u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("ofrepEventStream.baseUrl must not contain a query or a fragment")
 	}
+
 	return nil
 }

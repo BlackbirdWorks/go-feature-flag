@@ -13,9 +13,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 // gracefulShutdownTimeout is the time given to in-flight requests to complete when the servers are stopped.
@@ -108,7 +109,7 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	}
 }
 
-// startAsHTTPServer launch the API server
+// startAsHTTPServer launch the API server.
 func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
@@ -148,6 +149,7 @@ func (s *Server) httpServerProtocols(srv *http.Server) error {
 	p.SetHTTP1(true)
 	p.SetUnencryptedHTTP2(true)
 	srv.Protocols = &p
+
 	return nil
 }
 
@@ -170,7 +172,7 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 	}
 }
 
-// startAwsLambda is starting the relay proxy as an AWS Lambda
+// startAwsLambda is starting the relay proxy as an AWS Lambda.
 func (s *Server) startAwsLambda() {
 	lambda.Start(s.lambdaHandler())
 }
@@ -180,6 +182,7 @@ func (s *Server) startAwsLambda() {
 // reason why we can't merged it in startAwsLambda.
 func (s *Server) lambdaHandler() any {
 	handlerMngr := newAwsLambdaHandlerManager(s.apiEcho, s.config.EffectiveAwsApiGatewayBasePath(s.zapLog))
+
 	return handlerMngr.SelectAdapter(s.config.LambdaAdapter(s.zapLog))
 }
 

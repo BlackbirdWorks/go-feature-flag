@@ -2,6 +2,7 @@ package ofrep_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,23 +10,26 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
-	"github.com/labstack/echo/v5"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const testdataDir = "../../testdata"
 const configFlagsLocation = testdataDir + "/semaphore/config_flags.yaml"
 
 func Test_Bulk_Evaluation(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode   int
 		bodyFile   string
@@ -115,22 +119,22 @@ func Test_Bulk_Evaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create flagset manager with configuration
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: tt.args.configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: tt.args.configFlagsLocation,
 					},
 				},
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
-			assert.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
@@ -141,7 +145,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -153,20 +157,22 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			handlerErr := ctrl.BulkEvaluate(c)
 
 			if tt.want.handlerErr {
-				assert.Error(t, handlerErr, "handler should return an error")
-				he, ok := handlerErr.(*echo.HTTPError)
+				require.Error(t, handlerErr, "handler should return an error")
+				he := &echo.HTTPError{}
+				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
 					assert.Equal(t, tt.want.errorMsg, he.Message)
 				} else {
 					assert.Equal(t, tt.want.errorMsg, handlerErr.Error())
 				}
+
 				return
 			}
 
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
 
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})
@@ -174,6 +180,8 @@ func Test_Bulk_Evaluation(t *testing.T) {
 }
 
 func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		eventStream config.OfrepEventStream
 		headers     map[string]string
@@ -237,13 +245,13 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-					},
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
@@ -272,6 +280,8 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 }
 
 func Test_Evaluate(t *testing.T) {
+	t.Parallel()
+
 	type want struct {
 		httpCode int
 		bodyFile string
@@ -399,22 +409,22 @@ func Test_Evaluate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Create flagset manager with configuration
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: tt.args.configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: tt.args.configFlagsLocation,
 					},
 				},
 			}
 
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
-			assert.NoError(t, err, "failed to create flagset manager")
+			require.NoError(t, err, "failed to create flagset manager")
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
@@ -428,7 +438,7 @@ func Test_Evaluate(t *testing.T) {
 			var bodyReq io.Reader
 			if tt.args.bodyFile != "" {
 				bodyReqContent, err := os.ReadFile(tt.args.bodyFile)
-				assert.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
+				require.NoError(t, err, "request wantBody file missing %s", tt.args.bodyFile)
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/"+flagKey, bodyReq)
@@ -436,7 +446,7 @@ func Test_Evaluate(t *testing.T) {
 
 			e.ServeHTTP(rec, req)
 			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			assert.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
 			assert.Equal(t, tt.want.httpCode, rec.Code, "Invalid HTTP Code")
 			assert.JSONEq(t, string(wantBody), rec.Body.String(), "Invalid response wantBody")
 		})
@@ -444,6 +454,8 @@ func Test_Evaluate(t *testing.T) {
 }
 
 func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
+	t.Parallel()
+
 	const metricName = "semaphore_flag_evaluations_total"
 	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
 		"# TYPE " + metricName + " counter\n"
@@ -477,15 +489,15 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000, // 10 seconds in milliseconds
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{
-							Kind: retrieverconf.FileRetriever,
-							Path: configFlagsLocation,
-						},
+				PollingInterval: 10000, // 10 seconds in milliseconds
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{
+						Kind: retrieverconf.FileRetriever,
+						Path: configFlagsLocation,
 					},
 				},
 			}
@@ -523,19 +535,21 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 		wantSemaphore bool
 	}{
 		{name: "both keys by default", wantSemaphore: true},
-		{name: "legacy only: option off", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(false)}, wantSemaphore: true},
+		{
+			name:          "legacy only: option off",
+			opts:          []ofrep.Option{ofrep.WithLegacyMetadataOnly(false)},
+			wantSemaphore: true,
+		},
 		{name: "legacy only: option on", opts: []ofrep.Option{ofrep.WithLegacyMetadataOnly(true)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			conf := &config.Config{
-				CommonFlagSet: config.CommonFlagSet{
-					PollingInterval: 10000,
-					FileFormat:      "yaml",
-					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
-					},
+				PollingInterval: 10000,
+				FileFormat:      "yaml",
+				Retrievers: &[]retrieverconf.RetrieverConf{
+					{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 				},
 			}
 			flagsetManager, err := service.NewFlagsetManager(conf, zap.NewNop(), nil, nil, nil)
@@ -547,7 +561,11 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			e.POST("/ofrep/v1/evaluate/flags/:flagKey", ctrl.Evaluate)
 			body, err := os.ReadFile(testdataDir + "/ofrep/valid_request.json")
 			require.NoError(t, err)
-			req := httptest.NewRequest(http.MethodPost, "/ofrep/v1/evaluate/flags/number-flag", strings.NewReader(string(body)))
+			req := httptest.NewRequest(
+				http.MethodPost,
+				"/ofrep/v1/evaluate/flags/number-flag",
+				strings.NewReader(string(body)),
+			)
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 			rec := httptest.NewRecorder()
 			e.ServeHTTP(rec, req)

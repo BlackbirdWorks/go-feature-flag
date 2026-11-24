@@ -27,7 +27,7 @@ type Retriever struct {
 	rateLimitReset     time.Time
 }
 
-// Retrieve get the content of the file from the Bitbucket API
+// Retrieve get the content of the file from the Bitbucket API.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
 		return nil, fmt.Errorf(
@@ -80,6 +80,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 				bitbucketHeaders[name] = resp.Header.Get(name)
 			}
 		}
+
 		return nil, fmt.Errorf("request to %s failed with code %d."+
 			" Bitbucket Headers: %v", URL, resp.StatusCode, bitbucketHeaders)
 	}
@@ -88,30 +89,31 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return body, nil
 }
 
-// SetHTTPClient set the HTTP client to use for the API call if you don't want to use the default one
+// SetHTTPClient set the HTTP client to use for the API call if you don't want to use the default one.
 func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 	r.httpClient = client
 }
 
 // updateRateLimit update the rate limit information from the headers to avoid calling the API if
-// the rate limit is reached
+// the rate limit is reached.
 func (r *Retriever) updateRateLimit(headers http.Header) {
-	if remaining := headers.Get("X-RateLimit-Limit"); remaining != "" {
+	if remaining := headers.Get("X-Ratelimit-Limit"); remaining != "" {
 		if remainingInt, err := strconv.Atoi(remaining); err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
-	if nearLimit := headers.Get("X-RateLimit-NearLimit"); nearLimit != "" {
+	if nearLimit := headers.Get("X-Ratelimit-Nearlimit"); nearLimit != "" {
 		if nearLimitBool, err := strconv.ParseBool(nearLimit); err == nil {
 			r.rateLimitNearLimit = nearLimitBool
 		}
 	}
 
-	if reset := headers.Get("X-RateLimit-Reset"); reset != "" {
+	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
 		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}

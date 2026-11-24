@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate"
 )
 
 type generateCmdTestCase struct {
@@ -21,6 +22,8 @@ type generateCmdTestCase struct {
 }
 
 func TestNewGenerateCmd(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 
@@ -43,6 +46,8 @@ func TestNewGenerateCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var buf bytes.Buffer
 			cmd := generate.NewGenerateCmd()
 			cmd.SetOut(&buf)
@@ -92,5 +97,6 @@ func hasManifestSubcommand(cmd *cobra.Command) bool {
 			return true
 		}
 	}
+
 	return false
 }

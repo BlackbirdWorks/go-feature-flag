@@ -3,13 +3,15 @@ package notifier_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 func TestDiffCache_HasDiff(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		Deleted map[string]flag.Flag
 		Added   map[string]flag.Flag
@@ -40,12 +42,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("defaultRule"),
+							Name: new("defaultRule"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -64,12 +66,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("defaultRule"),
+							Name: new("defaultRule"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -91,12 +93,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 					"flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(true),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(true)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -105,12 +107,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(false)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -128,12 +130,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Added: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("defaultRule"),
+							Name: new("defaultRule"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -144,12 +146,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": testconvert.Interface(true),
-							"True":    testconvert.Interface(true),
-							"False":   testconvert.Interface(true),
+							"Default": new(any(true)),
+							"True":    new(any(true)),
+							"False":   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: testconvert.String("defaultRule"),
+							Name: new("defaultRule"),
 							Percentages: &map[string]float64{
 								"False": 0,
 								"True":  100,
@@ -161,12 +163,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 					"flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(true),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(true)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -175,12 +177,12 @@ func TestDiffCache_HasDiff(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": testconvert.Interface(false),
-								"True":    testconvert.Interface(true),
-								"False":   testconvert.Interface(true),
+								"Default": new(any(false)),
+								"True":    new(any(true)),
+								"False":   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: testconvert.String("defaultRule"),
+								Name: new("defaultRule"),
 								Percentages: &map[string]float64{
 									"False": 0,
 									"True":  100,
@@ -195,6 +197,8 @@ func TestDiffCache_HasDiff(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			d := notifier.DiffCache{
 				Deleted: tt.fields.Deleted,
 				Added:   tt.fields.Added,

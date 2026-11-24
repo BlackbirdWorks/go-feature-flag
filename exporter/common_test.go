@@ -6,11 +6,14 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/exporter"
 )
 
 func Test_ParseTemplate(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		template        string
 		defaultTemplate string
@@ -51,6 +54,8 @@ func Test_ParseTemplate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defaultT, _ := template.New("random-name").Parse(tt.args.defaultTemplate)
 			assert.NotPanics(
 				t,
@@ -60,6 +65,7 @@ func Test_ParseTemplate(t *testing.T) {
 
 			if tt.wantErr {
 				assert.Equal(t, defaultT, got, "If template invalid we should use default template")
+
 				return
 			}
 			assert.NotEqual(t, defaultT, got, "We should not have the same template")
@@ -68,6 +74,8 @@ func Test_ParseTemplate(t *testing.T) {
 }
 
 func TestComputeFilename(t *testing.T) {
+	t.Parallel()
+
 	hostname, _ := os.Hostname()
 	type args struct {
 		template *template.Template
@@ -121,6 +129,8 @@ func TestComputeFilename(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := exporter.ComputeFilename(tt.args.template, tt.args.format)
 			if !tt.wantErr(
 				t,
@@ -142,6 +152,8 @@ func TestComputeFilename(t *testing.T) {
 }
 
 func TestFormatEventInCSV(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		csvTemplate *template.Template
 		event       exporter.FeatureEvent
@@ -161,8 +173,15 @@ func TestFormatEventInCSV(t *testing.T) {
 					exporter.DefaultCsvTemplate,
 				),
 				event: exporter.FeatureEvent{
-					Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-					Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+					Kind:         "feature",
+					ContextKind:  "anonymousUser",
+					UserKey:      "ABCD",
+					CreationDate: 1617970547,
+					Key:          "random-key",
+					Variation:    "Default",
+					Value:        "YO",
+					Default:      false,
+					Source:       "SERVER",
 				},
 			},
 			want:    "feature;anonymousUser;ABCD;1617970547;random-key;Default;YO;false;SERVER\n",
@@ -171,6 +190,8 @@ func TestFormatEventInCSV(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.args.event.FormatInCSV(tt.args.csvTemplate)
 			if !tt.wantErr(
 				t,
@@ -192,6 +213,8 @@ func TestFormatEventInCSV(t *testing.T) {
 }
 
 func TestFormatEventInJSON(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		event exporter.FeatureEvent
 	}
@@ -204,8 +227,15 @@ func TestFormatEventInJSON(t *testing.T) {
 		{
 			name: "valid",
 			args: args{event: exporter.FeatureEvent{
-				Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: 1617970547, Key: "random-key",
-				Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+				Kind:         "feature",
+				ContextKind:  "anonymousUser",
+				UserKey:      "ABCD",
+				CreationDate: 1617970547,
+				Key:          "random-key",
+				Variation:    "Default",
+				Value:        "YO",
+				Default:      false,
+				Source:       "SERVER",
 			}},
 			want:    "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":1617970547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\",\"source\":\"SERVER\"}\n",
 			wantErr: assert.NoError,
@@ -213,6 +243,8 @@ func TestFormatEventInJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.args.event.FormatInJSON()
 			if !tt.wantErr(t, err, fmt.Sprintf("FormatInJSON(%v)", tt.args.event)) {
 				return

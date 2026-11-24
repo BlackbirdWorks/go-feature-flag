@@ -3,15 +3,16 @@ package controller
 import (
 	"net/http"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/labstack/echo/v5"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 )
 
 type health struct {
 	monitoringService service.Monitoring
 }
 
-// NewHealth is a constructor to create a new controller for the health method
+// NewHealth is a constructor to create a new controller for the health method.
 func NewHealth(monitoring service.Monitoring) Controller {
 	return &health{
 		monitoringService: monitoring,

@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		query      string
@@ -42,6 +44,8 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			c := newNikunjyEvaluatorCache()
 
 			tt.wantErr(t, c.validate(tt.query))
@@ -61,6 +65,8 @@ func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
 }
 
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing.T) {
+	t.Parallel()
+
 	c := newNikunjyEvaluatorCache()
 	const query = `group eq "match"`
 	ev, err := c.get(query)
@@ -96,24 +102,22 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 // seen before: validating it, as the flag cache does on every configuration
 // load, then evaluating it once.
 func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
-	variations := map[string]*any{"on": testconvert.Interface(true)}
+	variations := map[string]*any{"on": new(any(true))}
 	ctx := ffcontext.NewEvaluationContext("user-1")
 	useFreshNikunjyEvaluators(b)
 	b.ReportAllocs()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		if i%1000 == 0 {
 			b.StopTimer()
 			nikunjyEvaluators = newNikunjyEvaluatorCache()
 			b.StartTimer()
 		}
 		r := Rule{
-			VariationResult: testconvert.String("on"),
-			Query:           testconvert.String(fmt.Sprintf(`key eq "user-%d"`, i)),
+			VariationResult: new("on"),
+			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
-		if err := r.IsValid(false, variations); err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, r.IsValid(false, variations))
 		_, _ = r.Evaluate("user-1", ctx, "test-flag", false)
 	}
 }
@@ -122,15 +126,16 @@ func newFlagWithQueries(queries ...string) *InternalFlag {
 	rules := make([]Rule, len(queries))
 	for i, q := range queries {
 		rules[i] = Rule{
-			Name:            testconvert.String(fmt.Sprintf("rule-%d", i)),
-			Query:           testconvert.String(q),
-			VariationResult: testconvert.String("on"),
+			Name:            new(fmt.Sprintf("rule-%d", i)),
+			Query:           new(q),
+			VariationResult: new("on"),
 		}
 	}
+
 	return &InternalFlag{
-		Variations:  &map[string]*any{"on": testconvert.Interface(true)},
+		Variations:  &map[string]*any{"on": new(any(true))},
 		Rules:       &rules,
-		DefaultRule: &Rule{VariationResult: testconvert.String("on")},
+		DefaultRule: &Rule{VariationResult: new("on")},
 	}
 }
 
@@ -141,12 +146,14 @@ func useFreshNikunjyEvaluators(tb testing.TB) *nikunjyEvaluatorCache {
 	previous := nikunjyEvaluators
 	nikunjyEvaluators = newNikunjyEvaluatorCache()
 	tb.Cleanup(func() { nikunjyEvaluators = previous })
+
 	return nikunjyEvaluators
 }
 
 func refCount(c *nikunjyEvaluatorCache, query string) int {
 	c.refsMu.Lock()
 	defer c.refsMu.Unlock()
+
 	return c.refs[query]
 }
 
@@ -155,6 +162,7 @@ func refCounts(c *nikunjyEvaluatorCache, queries []string) map[string]int {
 	for _, query := range queries {
 		counts[query] = refCount(c, query)
 	}
+
 	return counts
 }
 
@@ -165,6 +173,7 @@ func haveRefs(c *nikunjyEvaluatorCache, queries []string, n int) bool {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -176,6 +185,7 @@ func cachedQueries(c *nikunjyEvaluatorCache, queries []string) []string {
 			cached = append(cached, query)
 		}
 	}
+
 	return cached
 }
 
@@ -183,10 +193,12 @@ func gcUntil(t *testing.T, condition func() bool, msg string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
 		runtime.GC()
+
 		return condition()
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
 
+//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 	const (
 		removed   = `key eq "removed-by-reload"`

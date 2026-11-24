@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -9,6 +10,9 @@ import (
 	"dario.cat/mergo"
 	"github.com/IBM/sarama"
 	awsConf "github.com/aws/aws-sdk-go-v2/config"
+	slogzap "github.com/samber/slog-zap/v2"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config/kafka"
@@ -34,8 +38,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
 )
 
 // clientOptions are the internal options of NewGoFeatureFlagClient.
@@ -64,6 +66,7 @@ func exporterCleanQueueInterval(cFlagSet *config.FlagSet, o *clientOptions) time
 	if cFlagSet.ExporterCleanQueueInterval != 0 {
 		return cFlagSet.ExporterCleanQueueInterval
 	}
+
 	return o.defaultExporterCleanQueueInterval
 }
 
@@ -92,7 +95,7 @@ func newGoFeatureFlagClient(
 ) (_ *ffclient.GoFeatureFlag, retErr error) {
 	var err error
 	if cFlagSet == nil {
-		return nil, fmt.Errorf("proxy config is empty")
+		return nil, errors.New("proxy config is empty")
 	}
 	var o clientOptions
 	for _, opt := range opts {
@@ -161,6 +164,7 @@ func newGoFeatureFlagClient(
 	if rr, ok := firstSharedRetriever(retrievers); ok {
 		rr.SetRefresh(client.ForceRefresh)
 	}
+
 	return client, nil
 }
 
@@ -171,6 +175,7 @@ func standaloneSharedRegistry(cFlagSet *config.FlagSet, logger *zap.Logger) *sha
 	if !cFlagSet.EnableSharedPollerPerBucket {
 		return nil
 	}
+
 	return newSharedBucketRegistry(
 		nil, time.Duration(cFlagSet.PollingInterval)*time.Millisecond, cFlagSet.EnablePollingJitter, logger)
 }
@@ -181,6 +186,7 @@ func clientPollingInterval(cFlagSet *config.FlagSet) time.Duration {
 	if cFlagSet.EnableSharedPollerPerBucket {
 		return disabledPollingInterval
 	}
+
 	return time.Duration(cFlagSet.PollingInterval) * time.Millisecond
 }
 
@@ -194,6 +200,7 @@ func firstSharedRetriever(retrievers []retriever.Retriever) (*releasingRetriever
 		return nil, false
 	}
 	rr, ok := retrievers[0].(*releasingRetriever)
+
 	return rr, ok
 }
 
@@ -211,13 +218,14 @@ func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr *err
 }
 
 // initLeveledLogger initializes the leveled logger
-// it will add the flagset name as a contextual attribute if it is not the default flagset
+// it will add the flagset name as a contextual attribute if it is not the default flagset.
 func initLeveledLogger(c *config.FlagSet, logger *zap.Logger) *slog.Logger {
 	baseHandler := slogzap.Option{Level: slog.LevelDebug, Logger: logger}.NewZapHandler()
 	if c.Name != "" && c.Name != utils.DefaultFlagSetName {
 		attrs := []slog.Attr{slog.String("flagset", c.Name)}
 		baseHandler = baseHandler.WithAttrs(attrs)
 	}
+
 	return slog.New(baseHandler)
 }
 
@@ -230,12 +238,13 @@ func initRetrieversWithRegistry(
 	retrievers := make([]retriever.Retriever, 0)
 	if proxyConf.EnableSharedPollerPerBucket {
 		if registry == nil {
-			return nil, fmt.Errorf("enableSharedPollerPerBucket requires a shared bucket registry")
+			return nil, errors.New("enableSharedPollerPerBucket requires a shared bucket registry")
 		}
 		r, err := registry.retrieverFor(proxyConf)
 		if err != nil {
 			return nil, err
 		}
+
 		return append(retrievers, r), nil
 	}
 	// if the retriever is set, we add it to the retrievers
@@ -256,6 +265,7 @@ func initRetrieversWithRegistry(
 			retrievers = append(retrievers, currentRetriever)
 		}
 	}
+
 	return retrievers, nil
 }
 
@@ -293,12 +303,14 @@ func initDataExporter(c *config.ExporterConf) (ffclient.DataExporter, error) {
 			if c.FlushInterval != 0 {
 				return time.Duration(c.FlushInterval) * time.Millisecond
 			}
+
 			return config.DefaultExporter.FlushInterval
 		}(),
 		MaxEventInMemory: func() int64 {
 			if c.MaxEventInMemory != 0 {
 				return c.MaxEventInMemory
 			}
+
 			return config.DefaultExporter.MaxEventInMemory
 		}(),
 		ExporterEventType: exporterEventType,
@@ -357,6 +369,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 				if c.LogFormat != "" {
 					return c.LogFormat
 				}
+
 				return config.DefaultExporter.LogFormat
 			}(),
 		}, nil
@@ -380,6 +393,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &kinesisexporter.Exporter{
 			Format:    format,
 			AwsConfig: &awsConfig,
@@ -402,6 +416,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &sqsexporter.Exporter{
 			QueueURL:  c.QueueURL,
 			AwsConfig: &awsConfig,
@@ -411,6 +426,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &kafkaexporter.Exporter{
 			Format:   format,
 			Settings: settings,
@@ -437,6 +453,7 @@ func createExporter(c *config.ExporterConf) (exporter.CommonExporter, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		return &redshiftexporter.Exporter{
 			ClusterIdentifier: c.ClusterIdentifier,
 			WorkgroupName:     c.WorkgroupName,
@@ -498,6 +515,7 @@ func setKafkaConfig(k kafkaexporter.Settings) (kafkaexporter.Settings, error) {
 		}
 	}
 	c.Config = saramaConfig
+
 	return c, nil
 }
 
@@ -543,5 +561,6 @@ func initNotifier(c []config.NotifierConf) ([]notifier.Notifier, error) {
 			return nil, fmt.Errorf("invalid notifier: kind \"%s\" is not supported", cNotif.Kind)
 		}
 	}
+
 	return notifiers, nil
 }

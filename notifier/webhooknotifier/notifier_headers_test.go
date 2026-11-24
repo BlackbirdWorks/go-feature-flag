@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/internal/signer"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type headerTestHTTPClient func(*http.Request) (*http.Response, error)
@@ -21,6 +22,8 @@ func (f headerTestHTTPClient) Do(req *http.Request) (*http.Response, error) {
 }
 
 func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		headers map[string][]string
@@ -30,6 +33,8 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 			requests := make(chan *http.Request, 2)
@@ -61,9 +66,9 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 				case req := <-requests:
 					captured = append(captured, req)
 				case err := <-results:
-					t.Fatalf("notification returned before sending a request: %v", err)
+					require.Fail(t, "notification returned before sending a request", "err: %v", err)
 				case <-ctx.Done():
-					t.Fatal(ctx.Err())
+					require.Fail(t, "context done before the notification", ctx.Err().Error())
 				}
 			}
 			for _, req := range captured {
@@ -77,9 +82,9 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			for range captured {
 				select {
 				case err := <-results:
-					assert.NoError(t, err)
+					require.NoError(t, err)
 				case <-ctx.Done():
-					t.Fatal(ctx.Err())
+					require.Fail(t, "context done before the notification", ctx.Err().Error())
 				}
 			}
 		})
@@ -87,6 +92,8 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 }
 
 func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		headers map[string][]string
@@ -107,6 +114,8 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			original := http.Header(tt.headers).Clone()
 			n := Notifier{
 				EndpointURL: "https://example.com/hook",
@@ -126,6 +135,7 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 					if values := req.Header.Values("X-Custom"); len(values) > 0 {
 						values[0] = "changed by client"
 					}
+
 					return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 				}),
 			}

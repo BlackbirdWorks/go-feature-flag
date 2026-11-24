@@ -1,8 +1,13 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/labstack/echo/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
@@ -10,9 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/labstack/echo/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 type flagEval struct {
@@ -53,7 +55,7 @@ func NewFlagEval(flagsetMngr service.FlagsetManager, metrics metric.Metrics) Con
 func (h *flagEval) Handler(c *echo.Context) error {
 	flagKey := helper.FlagKey(c)
 	if flagKey == "" {
-		return fmt.Errorf("impossible to find the flag key in the URL")
+		return errors.New("impossible to find the flag key in the URL")
 	}
 
 	reqBody := new(model.EvalFlagRequest)

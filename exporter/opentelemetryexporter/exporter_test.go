@@ -5,13 +5,14 @@ import (
 	"testing"
 	"text/template"
 
-	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/otel"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
@@ -24,20 +25,24 @@ func (m MockUnsupportedEvent) GetUserKey() string                               
 func (m MockUnsupportedEvent) GetKey() string                                   { return "" }
 
 func TestOpenTelemetryIsBulk(t *testing.T) {
+	t.Parallel()
+
 	exp := Exporter{}
 	assert.False(t, exp.IsBulk(), "OpenTelemetry exporter is not a bulk exporter")
 }
 
 func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(recorder),
 	)
-	otel.SetTracerProvider(tp)
 
 	exp := &Exporter{
-		TracerName: "test-tracer",
+		TracerName:     "test-tracer",
+		tracerProvider: tp,
 	}
 
 	events := []exporter.ExportableEvent{
@@ -73,7 +78,7 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 	err := exp.Export(context.Background(), logger, events)
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spans := recorder.Ended()
 	assert.Len(t, spans, 2, "should create one span per feature event")
@@ -83,14 +88,15 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 }
 
 func TestExporterSpanAttributes(t *testing.T) {
+	t.Parallel()
+
 	// Arrange
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(recorder),
 	)
-	otel.SetTracerProvider(tp)
 
-	exp := &Exporter{}
+	exp := &Exporter{tracerProvider: tp}
 
 	event := exporter.FeatureEvent{
 		Kind:         "feature",
@@ -104,7 +110,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 		Version:      "v1",
 		Source:       "SERVER",
 		//  the for-loop branch
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"team": "platform",
 		},
 	}
@@ -113,7 +119,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 	err := exp.Export(context.Background(), &fflog.FFLogger{}, []exporter.ExportableEvent{event})
 
 	// Assert
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	spans := recorder.Ended()
 	assert.Len(t, spans, 1)
@@ -131,15 +137,16 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 // 'continue' logic when receiving non-FeatureEvent types.
 func TestExporter_Export_IgnoreUnsupportedEventTypes(t *testing.T) {
+	t.Parallel()
+
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	otel.SetTracerProvider(tp)
-	exp := &Exporter{}
+	exp := &Exporter{tracerProvider: tp}
 
 	events := []exporter.ExportableEvent{MockUnsupportedEvent{}}
 	err := exp.Export(context.Background(), nil, events)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, recorder.Ended(), "No spans should be created for unsupported events")
 }
 
@@ -147,16 +154,10 @@ func assertAttribute(t *testing.T, attrs []attribute.KeyValue, key string, expec
 	t.Helper()
 	for _, attr := range attrs {
 		if string(attr.Key) == key {
-			if attr.Value.AsInterface() != expected {
-				t.Fatalf(
-					"attribute %s mismatch: expected=%v got=%v",
-					key,
-					expected,
-					attr.Value.AsInterface(),
-				)
-			}
+			require.Equal(t, expected, attr.Value.AsInterface(), "attribute %s mismatch", key)
+
 			return
 		}
 	}
-	t.Fatalf("attribute %s not found", key)
+	require.Failf(t, "attribute not found", "attribute %s not found", key)
 }

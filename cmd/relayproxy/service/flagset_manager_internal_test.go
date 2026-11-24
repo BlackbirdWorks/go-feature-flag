@@ -12,13 +12,14 @@ import (
 	"testing/synctest"
 	"time"
 
-	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 func Test_flagsetManagerImpl_sharedPollerPerBucket(t *testing.T) {
@@ -39,8 +40,9 @@ func testSharedPollerManager(t *testing.T) {
 	nonShared := config.FlagSet{
 		Name:    "isolated",
 		APIKeys: []string{"isolated-key"},
-		CommonFlagSet: config.CommonFlagSet{
-			Retriever: &retrieverconf.RetrieverConf{Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml"},
+		Retriever: &retrieverconf.RetrieverConf{
+			Kind: retrieverconf.FileRetriever,
+			Path: "../testdata/semaphore/configuration_flags.yaml",
 		},
 	}
 	cfg := &config.Config{FlagSets: []config.FlagSet{
@@ -136,6 +138,7 @@ func newPollingManager(
 	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
 		&config.Config{FlagSets: []config.FlagSet{a, b}}, logger, nil, nil, nil, reg)
 	require.NoError(t, err)
+
 	return mgr.(*flagsetManagerImpl), reg
 }
 
@@ -182,9 +185,9 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		require.NoError(t, err)
 		mgr.config = &config.Config{FlagSets: []config.FlagSet{a, b}}
 		mgr.OnConfigChange(&config.Config{
-			Server:        config.Server{Port: 8080},
-			CommonFlagSet: config.CommonFlagSet{PollingInterval: 30000},
-			FlagSets:      []config.FlagSet{a, b, added},
+			Server:          config.Server{Port: 8080},
+			PollingInterval: 30000,
+			FlagSets:        []config.FlagSet{a, b, added},
 		})
 		after, err := mgr.AllFlagSets()
 		require.NoError(t, err)
@@ -207,9 +210,9 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 
 		// the same polling again changes nothing
 		mgr.OnConfigChange(&config.Config{
-			Server:        config.Server{Port: 8080},
-			CommonFlagSet: config.CommonFlagSet{PollingInterval: 30000},
-			FlagSets:      []config.FlagSet{a, b, added},
+			Server:          config.Server{Port: 8080},
+			PollingInterval: 30000,
+			FlagSets:        []config.FlagSet{a, b, added},
 		})
 		assert.Equal(t, 1, logs.FilterMessageSnippet("polling of the shared pollers updated").Len())
 		mgr.Close()
@@ -227,17 +230,28 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 		addedOverride time.Duration
 		want          time.Duration
 	}{
-		{name: "added flagset follows the reloaded top-level value", startupTop: time.Minute, reloadTop: 7 * time.Second, want: 7 * time.Second},
-		{name: "explicit flagset value wins", startupTop: time.Minute, reloadTop: 7 * time.Second, addedOverride: 3 * time.Second, want: 3 * time.Second},
+		{
+			name:       "added flagset follows the reloaded top-level value",
+			startupTop: time.Minute,
+			reloadTop:  7 * time.Second,
+			want:       7 * time.Second,
+		},
+		{
+			name:          "explicit flagset value wins",
+			startupTop:    time.Minute,
+			reloadTop:     7 * time.Second,
+			addedOverride: 3 * time.Second,
+			want:          3 * time.Second,
+		},
 		{name: "reload clears the top-level value", startupTop: time.Minute, want: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			existing := config.FlagSet{Name: "existing", APIKeys: []string{"k1"}, CommonFlagSet: config.CommonFlagSet{Retriever: retriever}}
+			existing := config.FlagSet{Name: "existing", APIKeys: []string{"k1"}, Retriever: retriever}
 			cfg := &config.Config{
-				FlagSets:      []config.FlagSet{existing},
-				CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.startupTop},
+				FlagSets:                   []config.FlagSet{existing},
+				ExporterCleanQueueInterval: tt.startupTop,
 			}
 			m, err := NewFlagsetManager(cfg, zap.NewNop(), nil, nil, nil)
 			require.NoError(t, err)
@@ -245,19 +259,22 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 
 			var got, calls atomic.Int64
 			impl := m.(*flagsetManagerImpl)
-			impl.clientOptions = []clientOption{withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
-				calls.Add(1)
-				got.Store(int64(c.ExporterCleanQueueInterval))
-				return ffclient.New(c)
-			})}
+			impl.clientOptions = []clientOption{
+				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+					calls.Add(1)
+					got.Store(int64(c.ExporterCleanQueueInterval))
+
+					return ffclient.New(c)
+				}),
+			}
 
 			added := config.FlagSet{
 				Name: "added", APIKeys: []string{"k2"},
-				CommonFlagSet: config.CommonFlagSet{Retriever: retriever, ExporterCleanQueueInterval: tt.addedOverride},
+				Retriever: retriever, ExporterCleanQueueInterval: tt.addedOverride,
 			}
 			impl.onConfigChangeWithFlagsets(&config.Config{
-				FlagSets:      []config.FlagSet{existing, added},
-				CommonFlagSet: config.CommonFlagSet{ExporterCleanQueueInterval: tt.reloadTop},
+				FlagSets:                   []config.FlagSet{existing, added},
+				ExporterCleanQueueInterval: tt.reloadTop,
 			})
 			assert.Equal(t, int64(1), calls.Load(), "the added flagset must be built exactly once")
 			assert.Equal(t, tt.want, time.Duration(got.Load()))

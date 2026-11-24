@@ -7,13 +7,14 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
-	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/dustin/go-humanize"
 	"github.com/labstack/echo/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 )
 
 type validateFlags struct {
@@ -70,6 +71,7 @@ func NewValidateFlags(
 func (h *validateFlags) Handler(c *echo.Context) error {
 	outcome, err := h.validate(c)
 	h.metrics.IncValidateFlags(outcome)
+
 	return err
 }
 
@@ -93,6 +95,7 @@ func (h *validateFlags) validate(c *echo.Context) (string, error) {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			return outcomeError, echo.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
 		}
+
 		return outcomeError, echo.NewHTTPError(http.StatusBadRequest, "impossible to read the request body")
 	}
 
@@ -127,6 +130,7 @@ func (h *validateFlags) validate(c *echo.Context) (string, error) {
 		status = http.StatusUnprocessableEntity
 		outcome = metric.ValidateFlagsOutcomeInvalid
 	}
+
 	return outcome, c.JSON(status, resp)
 }
 
@@ -136,6 +140,7 @@ func (h *validateFlags) validate(c *echo.Context) (string, error) {
 func tooLargeMessage(maxSize int64, format string) string {
 	// limits are validated as non-negative, the conversion cannot overflow.
 	size := humanize.IBytes(uint64(maxSize)) //nolint:gosec // see above
+
 	return fmt.Sprintf("request body too large (max %s for %s)", size, format)
 }
 

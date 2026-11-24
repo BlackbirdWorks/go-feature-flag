@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/retriever/bitbucketretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/stretchr/testify/assert"
 )
 
 func sampleText() string {
@@ -29,6 +31,8 @@ func sampleText() string {
 }
 
 func Test_bitbucket_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	endRatelimit := time.Now().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
@@ -120,6 +124,8 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := bitbucketretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				Branch:         tt.fields.branch,
@@ -129,7 +135,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 			h.SetHTTPClient(&tt.fields.httpClient)
 			got, err := h.Retrieve(tt.fields.context)
 			if tt.errMsg != "" {
-				assert.EqualError(t, err, tt.errMsg)
+				require.EqualError(t, err, tt.errMsg)
 			}
 			assert.Equal(
 				t,

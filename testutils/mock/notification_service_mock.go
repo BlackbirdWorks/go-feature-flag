@@ -28,6 +28,7 @@ func (n *NotificationService) Close() {
 func (n *NotificationService) GetNotifyCalls() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
 	return n.NotifyCalls
 }
 

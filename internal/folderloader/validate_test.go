@@ -3,9 +3,10 @@ package folderloader_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/internal/folderloader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
 func TestValidate(t *testing.T) {
@@ -54,6 +55,7 @@ func TestValidate(t *testing.T) {
 			err := folderloader.Validate(tt.itemName, tt.item, tt.prefix, tt.pattern, tt.recursive)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)

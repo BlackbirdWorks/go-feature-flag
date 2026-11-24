@@ -52,6 +52,7 @@ func Evaluate[T model.JSONType](
 			}, fmt.Errorf(errorWrongVariation, flagKey)
 		}
 	}
+
 	return model.VariationResult[T]{
 		Value:         v,
 		VariationType: resolutionDetails.Variant,

@@ -8,30 +8,31 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // compareJSONWithTimestampHandling compares expected and actual JSON while handling timestamp fields properly
-// to avoid flaky tests due to timing differences
+// to avoid flaky tests due to timing differences.
 func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, actualJSON []byte) {
 	t.Helper()
 
 	expected, err := os.ReadFile(expectedFilePath)
-	assert.NoError(t, err, "Failed to read expected JSON file")
+	require.NoError(t, err, "Failed to read expected JSON file")
 
 	var expectedFlags map[string]any
 	err = json.Unmarshal(expected, &expectedFlags)
-	assert.NoError(t, err, "Failed to unmarshal expected JSON")
+	require.NoError(t, err, "Failed to unmarshal expected JSON")
 
 	var actualFlags map[string]any
 	err = json.Unmarshal(actualJSON, &actualFlags)
-	assert.NoError(t, err, "Failed to unmarshal actual JSON")
+	require.NoError(t, err, "Failed to unmarshal actual JSON")
 
 	// Handle cases where there might not be a "flags" field (e.g., offline, module_not_init)
 	expectedFlagData, hasExpectedFlags := expectedFlags["flags"].(map[string]any)
@@ -57,7 +58,14 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 			require.NotEqual(t, 0, actualTimestamp, "timestamp should not be zero for flag %s", flagName)
 
 			// Timestamp should be recent (within a small delta of the current time)
-			assert.InDelta(t, float64(time.Now().Unix()), actualTimestamp, 5.0, "timestamp should be recent for flag %s", flagName)
+			assert.InDelta(
+				t,
+				float64(time.Now().Unix()),
+				actualTimestamp,
+				5.0,
+				"timestamp should be recent for flag %s",
+				flagName,
+			)
 
 			// Normalize timestamps to compare structure
 			expectedFlagObj["timestamp"] = actualFlagObj["timestamp"]
@@ -66,11 +74,18 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 
 	// Now compare the full JSON structures
 	expectedJSON, err := json.Marshal(expectedFlags)
-	assert.NoError(t, err, "Failed to marshal normalized expected JSON")
-	assert.JSONEq(t, string(expectedJSON), string(actualJSON), "JSON structures should match after timestamp normalization")
+	require.NoError(t, err, "Failed to marshal normalized expected JSON")
+	assert.JSONEq(
+		t,
+		string(expectedJSON),
+		string(actualJSON),
+		"JSON structures should match after timestamp normalization",
+	)
 }
 
 func TestAllFlagsState(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     ffclient.Config
@@ -116,6 +131,8 @@ func TestAllFlagsState(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			exportDir, _ := os.MkdirTemp("", "export")
 			tt.config.DataExporter = ffclient.DataExporter{
 				FlushInterval:    1000,
@@ -127,7 +144,7 @@ func TestAllFlagsState(t *testing.T) {
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -141,17 +158,19 @@ func TestAllFlagsState(t *testing.T) {
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
-			assert.Equal(t, 0, len(files))
+			assert.Empty(t, files)
 		})
 	}
 }
 
 func TestGetFlagStates(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		config            ffclient.Config
@@ -219,6 +238,8 @@ func TestGetFlagStates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// init logger
 			exportDir, _ := os.MkdirTemp("", "export")
 			tt.config.DataExporter = ffclient.DataExporter{
@@ -231,7 +252,7 @@ func TestGetFlagStates(t *testing.T) {
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -247,17 +268,19 @@ func TestGetFlagStates(t *testing.T) {
 
 			// Compare JSON output with proper timestamp handling
 			marshaled, err := allFlagsState.MarshalJSON()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			compareJSONWithTimestampHandling(t, tt.jsonOutput, marshaled)
 
 			// no data exported
 			files, _ := os.ReadDir(exportDir)
-			assert.Equal(t, 0, len(files))
+			assert.Empty(t, files)
 		})
 	}
 }
 
 func TestAllFlagsFromCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		config     ffclient.Config
@@ -300,18 +323,20 @@ func TestAllFlagsFromCache(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var goff *ffclient.GoFeatureFlag
 			var err error
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				defer goff.Close()
 
 				flags, err := goff.GetFlagsFromCache()
 				tt.err(t, err)
 
 				if err != nil {
-					assert.Equal(t, tt.numberFlag, len(flags))
+					assert.Len(t, flags, tt.numberFlag)
 				}
 			} else {
 				// we close directly so we can test with module not init
@@ -345,6 +370,7 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
 		f, ok := flags["scheduled"].(*flag.InternalFlag)
 		require.True(t, ok)
 		require.NotNil(t, f.Scheduled)
+
 		return f.Scheduled
 	}
 	readOnly1, err := goff.GetFlagsFromCacheReadOnly()

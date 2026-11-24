@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/labstack/echo/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/labstack/echo/v5"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type mockFlagsetManagerSSE struct {
@@ -36,6 +36,7 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
+
 	return m.flagsetName, nil
 }
 
@@ -50,6 +51,8 @@ func (m *mockFlagsetManagerSSE) Close()                           {}
 func (m *mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
 func Test_SSE_FlagChange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flagChange notifier.DiffCache
@@ -61,17 +64,17 @@ func Test_SSE_FlagChange(t *testing.T) {
 					"my-flag": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+							DefaultRule: &flag.Rule{VariationResult: new("A")},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"A": testconvert.Interface(true),
-								"B": testconvert.Interface(false),
+								"A": new(any(true)),
+								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+							DefaultRule: &flag.Rule{VariationResult: new("B")},
 						},
 					},
 				},
@@ -83,17 +86,17 @@ func Test_SSE_FlagChange(t *testing.T) {
 				Deleted: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"A": testconvert.Interface(true),
+							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("A")},
+						DefaultRule: &flag.Rule{VariationResult: new("A")},
 					},
 				},
 				Added: map[string]flag.Flag{
 					"flag-2": &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"B": testconvert.Interface(false),
+							"B": new(any(false)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: testconvert.String("B")},
+						DefaultRule: &flag.Rule{VariationResult: new("B")},
 					},
 				},
 			},
@@ -102,6 +105,8 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -132,7 +137,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				srv.URL+"/stream/v1/sse/flag/change", nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -142,7 +147,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			select {
 			case <-subscribed:
 			case <-ctx.Done():
-				t.Fatal("timed out waiting for SSE client to subscribe")
+				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
 			before := time.Now().Unix()
 			require.NoError(t, sseService.BroadcastFlagChanges("default", tt.flagChange))
@@ -159,6 +164,8 @@ func Test_SSE_FlagChange(t *testing.T) {
 }
 
 func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -189,7 +196,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -197,7 +204,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	select {
 	case <-subscribed:
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for SSE client to subscribe")
+		require.Fail(t, "timed out waiting for SSE client to subscribe")
 	}
 
 	// Broadcast to flagsetB -- the client on flagsetA should NOT receive it.
@@ -238,10 +245,13 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 		}
 	}
 	require.NotEmpty(t, fields["data"], "should have received an SSE data line")
+
 	return fields
 }
 
 func Test_SSE_FlagChange_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		apiKey         string
@@ -253,7 +263,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       fmt.Errorf("apiKey is required when using flagsets"),
+				err:       errors.New("apiKey is required when using flagsets"),
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -262,7 +272,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			apiKey: "unknown-key",
 			flagsetMgr: &mockFlagsetManagerSSE{
 				isDefault: false,
-				err:       fmt.Errorf("unknown api key"),
+				err:       errors.New("unknown api key"),
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
@@ -270,6 +280,8 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 
@@ -290,7 +302,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 

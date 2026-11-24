@@ -12,5 +12,6 @@ func newJSONRequest(url, body string) (*http.Request, error) {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
 	return req, nil
 }

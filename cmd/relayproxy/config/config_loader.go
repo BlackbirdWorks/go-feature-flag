@@ -9,9 +9,6 @@ import (
 	"sync"
 	"time"
 
-	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
-	"github.com/blackbirdworks/semaphore/utils"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/parsers/toml/v2"
 	"github.com/knadh/koanf/parsers/yaml"
@@ -21,6 +18,10 @@ import (
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
+
+	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
+	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -66,15 +67,29 @@ type ConfigLoader struct {
 	stopOnce  sync.Once     // ensures stopChan is only closed once
 }
 
+// LoaderOption configures a ConfigLoader.
+type LoaderOption func(*ConfigLoader)
+
+// WithEnviron sets the source of the environment variables (os.Environ by default). The values
+// are "KEY=value" strings, as returned by os.Environ.
+func WithEnviron(environ func() []string) LoaderOption {
+	return func(c *ConfigLoader) { c.environFunc = environ }
+}
+
 // NewConfigLoader creates a new ConfigLoader.
 func NewConfigLoader(
-	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool) *ConfigLoader {
+	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool, opts ...LoaderOption,
+) *ConfigLoader {
 	configLoader := ConfigLoader{
 		cmdLineFlagSet: cmdLineFlagSet,
 		log:            log,
 		version:        version,
 		watchChanges:   watchChanges,
 		k:              koanf.New("."),
+	}
+
+	for _, opt := range opts {
+		opt(&configLoader)
 	}
 
 	// Initialize channels only if we're watching for changes
@@ -90,6 +105,7 @@ func NewConfigLoader(
 	if watchChanges {
 		configLoader.startWatchChanges()
 	}
+
 	return &configLoader
 }
 
@@ -97,7 +113,7 @@ func NewConfigLoader(
 // - the command line
 // - the configuration file
 // - the environment variables
-// - the flagSets from Studio
+// - the flagSets from Studio.
 func (c *ConfigLoader) loadConfig() {
 	_ = c.k.Load(confmap.Provider(map[string]any{
 		"fileFormat":      "yaml",
@@ -112,14 +128,14 @@ func (c *ConfigLoader) loadConfig() {
 	_ = c.k.Set("version", c.version)
 }
 
-// AddConfigChangeCallback adds a callback to be called when the configuration changes
+// AddConfigChangeCallback adds a callback to be called when the configuration changes.
 func (c *ConfigLoader) AddConfigChangeCallback(callback func(newConfig *Config)) {
 	c.callbacksMutex.Lock()
 	defer c.callbacksMutex.Unlock()
 	c.callbacks = append(c.callbacks, callback)
 }
 
-// startWatchChanges starts watching for changes in the configuration file and Studio
+// startWatchChanges starts watching for changes in the configuration file and Studio.
 func (c *ConfigLoader) startWatchChanges() {
 	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
 		return
@@ -136,6 +152,7 @@ func (c *ConfigLoader) startWatchChanges() {
 	onChange := func(event any, err error) {
 		if err != nil {
 			c.log.Error("error watching for configuration changes", zap.Error(err))
+
 			return
 		}
 
@@ -197,7 +214,7 @@ func (c *ConfigLoader) processConfigChangeEvents() {
 	}
 }
 
-// reloadConfigAndNotify reloads the configuration and notifies all callbacks
+// reloadConfigAndNotify reloads the configuration and notifies all callbacks.
 func (c *ConfigLoader) reloadConfigAndNotify() {
 	// Create a new ConfigLoader with the stored config file path
 	newConfig := &ConfigLoader{
@@ -218,6 +235,7 @@ func (c *ConfigLoader) reloadConfigAndNotify() {
 	modifiedConfig, err := newConfig.ToConfig()
 	if err != nil {
 		c.log.Error("error loading new config", zap.Error(err))
+
 		return
 	}
 
@@ -246,10 +264,11 @@ func (c *ConfigLoader) ToConfig() (*Config, error) {
 		proxyConf.flagSetMode = flagSetModeNone
 	}
 	processExporters(proxyConf)
+
 	return proxyConf, nil
 }
 
-// StopWatchChanges stops watching for changes in the configuration file and Studio
+// StopWatchChanges stops watching for changes in the configuration file and Studio.
 func (c *ConfigLoader) StopWatchChanges() error {
 	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
 		return nil
@@ -269,10 +288,11 @@ func (c *ConfigLoader) StopWatchChanges() error {
 	if c.studioProvider != nil {
 		errs = append(errs, c.studioProvider.Unwatch())
 	}
+
 	return errors.Join(errs...)
 }
 
-// loadPosflag loads the flags from the command line
+// loadPosflag loads the flags from the command line.
 func (c *ConfigLoader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 	posflagProvider := posflag.Provider(cmdLineFlagSet, ".", c.k)
 	errBindFlag := c.k.Load(posflagProvider, nil)
@@ -281,7 +301,7 @@ func (c *ConfigLoader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 	}
 }
 
-// loadConfigFile loads the configuration file
+// loadConfigFile loads the configuration file.
 func (c *ConfigLoader) loadConfigFile() {
 	var errFileLocation error
 
@@ -290,6 +310,7 @@ func (c *ConfigLoader) loadConfigFile() {
 		c.configFilePath, errFileLocation = locateConfigFile(c.k.String("config"))
 		if errFileLocation != nil {
 			c.log.Error("not using any configuration file", zap.Error(errFileLocation))
+
 			return
 		}
 	}
@@ -324,10 +345,11 @@ func (c *ConfigLoader) legacyWarner() *legacy.Warner {
 	if c.warner != nil {
 		return c.warner
 	}
+
 	return legacy.Default
 }
 
-// loadStudioFlagSets loads the flagSets from studio.url, if it is set
+// loadStudioFlagSets loads the flagSets from studio.url, if it is set.
 func (c *ConfigLoader) loadStudioFlagSets() {
 	c.studioLoadErr = nil
 	if c.studioProvider == nil {
@@ -356,6 +378,7 @@ func (c *ConfigLoader) loadStudioFlagSets() {
 		c.studioProvider.Invalidate()
 		c.studioLoadErr = err
 		c.log.Error("error loading the flagSets from studio", zap.Error(err))
+
 		return
 	}
 	c.studioFlagSets = studioConf.FlagSets
@@ -388,6 +411,7 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 		if _, err := os.Stat(inputFilePath); err != nil {
 			return "", fmt.Errorf("impossible to find config file %s", inputFilePath)
 		}
+
 		return inputFilePath, nil
 	}
 	for _, location := range locations {
@@ -402,17 +426,19 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 						"the configuration file %s uses the legacy name %s, it is still accepted, "+
 							"rename it to %s.%s", configFile, legacyConfigFileName, configFileName, ext))
 				}
+
 				return configFile, nil
 			}
 		}
 	}
+
 	return "", fmt.Errorf(
 		"impossible to find config file in the default locations [%s]",
 		strings.Join(locations, ","),
 	)
 }
 
-// selectParserForFile returns the appropriate parser based on file extension
+// selectParserForFile returns the appropriate parser based on file extension.
 func selectParserForFile(configFileLocation string) koanf.Parser {
 	ext := filepath.Ext(configFileLocation)
 	switch strings.ToLower(ext) {
@@ -425,7 +451,7 @@ func selectParserForFile(configFileLocation string) koanf.Parser {
 	}
 }
 
-// processExporters handles the post-processing of exporters configuration
+// processExporters handles the post-processing of exporters configuration.
 func processExporters(proxyConf *Config) {
 	if proxyConf.Exporters == nil {
 		return

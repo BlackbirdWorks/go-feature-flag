@@ -9,12 +9,12 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/google/go-cmp/cmp"
 	"github.com/nikunjy/rules/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
 // useIndexingNikunjyEvaluators is useFreshNikunjyEvaluators with keys for the short queries of
@@ -24,6 +24,7 @@ func useIndexingNikunjyEvaluators(tb testing.TB) *nikunjyEvaluatorCache {
 	previous := nikunjyKeysMinQueryLen
 	nikunjyKeysMinQueryLen = 0
 	tb.Cleanup(func() { nikunjyKeysMinQueryLen = previous })
+
 	return c
 }
 
@@ -33,23 +34,26 @@ func idList(n, replaced int, replacement string) string {
 	var sb strings.Builder
 	sb.Grow(n*16 + 16)
 	sb.WriteString(`key in [`)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if i > 0 {
 			sb.WriteString(", ")
 		}
 		if i == replaced {
 			fmt.Fprintf(&sb, `"%s"`, replacement)
+
 			continue
 		}
 		fmt.Fprintf(&sb, `"user-%07d"`, i)
 	}
 	sb.WriteString(`]`)
+
 	return sb.String()
 }
 
 // applies reports whether the rule applies to the evaluation context of key.
 func applies(r *Rule, key string) bool {
 	_, err := r.Evaluate(key, ffcontext.NewEvaluationContext(key), "test-flag", false)
+
 	return err == nil
 }
 
@@ -57,6 +61,7 @@ func validatedFlag(t testing.TB, queries ...string) *InternalFlag {
 	t.Helper()
 	f := newFlagWithQueries(queries...)
 	require.NoError(t, f.IsValid())
+
 	return f
 }
 
@@ -66,7 +71,12 @@ func indexedEvaluator(c *nikunjyEvaluatorCache, r *Rule) *parser.Evaluator {
 
 func indexSize(c *nikunjyEvaluatorCache) int {
 	n := 0
-	c.byKey.Range(func(_, _ any) bool { n++; return true })
+	c.byKey.Range(func(_, _ any) bool {
+		n++
+
+		return true
+	})
+
 	return n
 }
 
@@ -94,6 +104,7 @@ func assertSharedEvaluators(t *testing.T, c *nikunjyEvaluatorCache, flags []*Int
 	assert.Len(t, distinct, wantEvaluators)
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 	const query = `key eq "shared"`
 	tests := []struct {
@@ -158,6 +169,7 @@ func splitRulesByQuery(flags []*InternalFlag, listA string) (rulesA, rulesB []*R
 			}
 		}
 	}
+
 	return rulesA, rulesB
 }
 
@@ -197,18 +209,17 @@ func assertListsApply(t assert.TestingT, rulesA, rulesB []*Rule, idA, idB string
 func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 	t.Helper()
 	var wg sync.WaitGroup
-	for g := 0; g < 8; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 3; i++ {
+	for range 8 {
+		wg.Go(func() {
+			for range 3 {
 				check(t)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	tests := []struct {
 		name string
@@ -270,6 +281,7 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 	tests := []struct {
 		name string
@@ -287,8 +299,12 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			matches:     "a", doesNotMatch: "b",
 		},
 		{
-			name:        "copy of the rule keeps the hash",
-			mutate:      func(r *Rule) *Rule { c := *r; return &c },
+			name: "copy of the rule keeps the hash",
+			mutate: func(r *Rule) *Rule {
+				c := *r
+
+				return &c
+			},
 			wantIndexed: true,
 			matches:     "a", doesNotMatch: "b",
 		},
@@ -296,6 +312,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			name: "query rewritten through its pointer is never evaluated with the old evaluator",
 			mutate: func(r *Rule) *Rule {
 				*r.Query = `key eq "b"`
+
 				return r
 			},
 			wantIndexed: false,
@@ -307,6 +324,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				q := `key eq "b"`
 				c := *r
 				c.Query = &q
+
 				return &c
 			},
 			wantIndexed: false,
@@ -318,6 +336,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 				c := *r
 				q := strings.Clone(*r.Query)
 				c.Query = &q
+
 				return &c
 			},
 			wantIndexed: true,
@@ -328,6 +347,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			mutate: func(r *Rule) *Rule {
 				q := `key eq "b"`
 				r.MergeRules(Rule{Query: &q})
+
 				return r
 			},
 			wantIndexed: false,
@@ -338,6 +358,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 			mutate: func(r *Rule) *Rule {
 				c := *r
 				c.QueryHash = 12345
+
 				return &c
 			},
 			wantIndexed: false,
@@ -391,7 +412,7 @@ func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
-			for j := 0; j < n; j++ {
+			for j := range n {
 				want := fmt.Sprintf("collide-%d", j)
 				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(r, want))
 			}
@@ -401,6 +422,8 @@ func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
 
 // TestNikunjyEvaluatorCache_ForcedCollisions makes every query hash to the same value, which
 // is the worst case of a 64-bit hash: no two queries may share an evaluator.
+//
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 	tests := []struct {
 		name string
@@ -416,7 +439,7 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			c := useIndexingNikunjyEvaluators(t)
 			c.hash = tt.hash
 			queries := make([]string, 0, 10)
-			for i := 0; i < 10; i++ {
+			for i := range 10 {
 				queries = append(queries, fmt.Sprintf(`key eq "collide-%d"`, i))
 			}
 			// A second flag with the same texts, in another order and in other strings.
@@ -431,7 +454,11 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 
 			// Releasing one flag keeps the keys of the other.
 			flags[0] = nil
-			gcUntil(t, func() bool { return c.keyRefsTotal() == len(queries) }, "the collected flag must release its keys")
+			gcUntil(
+				t,
+				func() bool { return c.keyRefsTotal() == len(queries) },
+				"the collected flag must release its keys",
+			)
 			for i := range *flags[1].Rules {
 				r := &(*flags[1].Rules)[i]
 				assert.NotNil(t, indexedEvaluator(c, r))
@@ -448,9 +475,11 @@ func (c *nikunjyEvaluatorCache) keyRefsTotal() int {
 	for _, refs := range c.keyRefs {
 		n += refs
 	}
+
 	return n
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 	useIndexingNikunjyEvaluators(t)
 	f := validatedFlag(t, `key eq "a"`)
@@ -461,10 +490,14 @@ func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(string(asJSON)), "hash")
 
 	var decoded InternalFlag
-	require.NoError(t, json.Unmarshal([]byte(`{"targeting":[{"query":"key eq \"a\"","variation":"on","queryHash":7}]}`), &decoded))
+	require.NoError(
+		t,
+		json.Unmarshal([]byte(`{"targeting":[{"query":"key eq \"a\"","variation":"on","queryHash":7}]}`), &decoded),
+	)
 	assert.Zero(t, (*decoded.Rules)[0].QueryHash)
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
 	useIndexingNikunjyEvaluators(t)
 	loaded := validatedFlag(t, `key eq "a"`)
@@ -473,6 +506,7 @@ func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
 	assert.False(t, cmp.Equal(loaded, validatedFlag(t, `key eq "b"`)))
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -510,6 +544,7 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			if !tt.valid {
 				require.Error(t, err)
 				assert.Zero(t, indexSize(c), "an invalid flag must not index its queries")
+
 				return
 			}
 			require.NoError(t, err)
@@ -522,6 +557,7 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
 	useIndexingNikunjyEvaluators(t)
 	q := `key eq "a"`
@@ -530,6 +566,7 @@ func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
 	assert.False(t, applies(r, "b"))
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	c := useIndexingNikunjyEvaluators(t)
 	const flags = 10
@@ -538,6 +575,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 		for f := range set {
 			set[f] = validatedFlag(t, query(f))
 		}
+
 		return set
 	}
 	current := load(func(f int) string { return fmt.Sprintf(`key eq "gen-0-%d"`, f%3) })
@@ -558,6 +596,7 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 			if changed {
 				return fmt.Sprintf(`key eq "gen-%d-%d"`, gen, f%3)
 			}
+
 			return fmt.Sprintf(`key eq "gen-%d-%d"`, gen-1, f%3)
 		})
 		if changed {
@@ -576,11 +615,16 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	clear(current) // drop the last references to the flags
 	gcUntil(t, func() bool { return indexSize(c) == 0 }, "no rule left to index")
 	cached := 0
-	c.entries.Range(func(_, _ any) bool { cached++; return true })
+	c.entries.Range(func(_, _ any) bool {
+		cached++
+
+		return true
+	})
 	assert.Zero(t, cached)
 	runtime.KeepAlive(current)
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) {
 	useIndexingNikunjyEvaluators(t)
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
@@ -593,16 +637,15 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 		if i%2 == 1 {
 			a, b = listB, listA
 		}
+
 		return []*InternalFlag{validatedFlag(t, strings.Clone(a)), validatedFlag(t, strings.Clone(b))}
 	}
 	current.flags = newSet(0)
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	for g := 0; g < 6; g++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 6 {
+		wg.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -620,7 +663,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 					assert.Equal(t, !isA, applies(r, "usex-0001000"))
 				}
 			}
-		}()
+		})
 	}
 	for i := 1; i <= 20; i++ {
 		next := newSet(i)
@@ -634,6 +677,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 }
 
 func TestHashNikunjyQuery(t *testing.T) {
+	t.Parallel()
+
 	long := strings.Repeat("0123456789abcdef", 8)
 	tests := []struct {
 		name string
@@ -648,29 +693,37 @@ func TestHashNikunjyQuery(t *testing.T) {
 		{name: "one byte of a long text, first block", a: long, b: "1" + long[1:]},
 		{name: "one byte of a long text, middle", a: long, b: long[:50] + "X" + long[51:]},
 		{name: "one byte of a long text, tail", a: long, b: long[:len(long)-1] + "X"},
-		{name: "swapped blocks of 8 bytes", a: long[:8] + "ABCDEFGH" + long[16:], b: "ABCDEFGH" + long[8:16] + long[16:]},
+		{
+			name: "swapped blocks of 8 bytes",
+			a:    long[:8] + "ABCDEFGH" + long[16:],
+			b:    "ABCDEFGH" + long[8:16] + long[16:],
+		},
 		{name: "case", a: `key eq "a"`, b: `KEY eq "a"`},
 		{name: "whitespace", a: `key eq "a"`, b: `key  eq "a"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.wantEqual, hashNikunjyQuery(tt.a) == hashNikunjyQuery(tt.b))
 		})
 	}
 
 	t.Run("every length from 0 to 100 has a different hash and is stable", func(t *testing.T) {
+		t.Parallel()
+
 		seen := map[uint64]int{}
-		for n := 0; n <= 100; n++ {
+		for n := range 101 {
 			h := hashNikunjyQuery(strings.Repeat("a", n))
 			assert.Equal(t, h, hashNikunjyQuery(strings.Repeat("a", n)))
-			if other, ok := seen[h]; ok {
-				t.Errorf("lengths %d and %d have the same hash", other, n)
-			}
+			other, collided := seen[h]
+			assert.False(t, collided, "lengths %d and %d have the same hash", other, n)
 			seen[h] = n
 		}
 	})
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -683,7 +736,7 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := useIndexingNikunjyEvaluators(t)
 			f := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
-			for i := 0; i < tt.validations; i++ {
+			for range tt.validations {
 				require.NoError(t, f.IsValid())
 			}
 			hashes := []uint64{(*f.Rules)[0].QueryHash, (*f.Rules)[1].QueryHash}
@@ -702,6 +755,8 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 }
 
 func TestRule_validateReturnsTheEvaluator(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		rule        Rule
@@ -709,18 +764,20 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 		wantEval    bool
 		wantInvalid bool
 	}{
-		{name: "nikunjy query", rule: Rule{Query: testconvert.String(`key eq "a"`), VariationResult: testconvert.String("on")}, wantEval: true},
-		{name: "jsonlogic query", rule: Rule{Query: testconvert.String(`{"==": [1, 1]}`), VariationResult: testconvert.String("on")}},
-		{name: "default rule", rule: Rule{VariationResult: testconvert.String("on")}, isDefault: true},
+		{name: "nikunjy query", rule: Rule{Query: new(`key eq "a"`), VariationResult: new("on")}, wantEval: true},
+		{name: "jsonlogic query", rule: Rule{Query: new(`{"==": [1, 1]}`), VariationResult: new("on")}},
+		{name: "default rule", rule: Rule{VariationResult: new("on")}, isDefault: true},
 		{
 			name: "disabled rule",
-			rule: Rule{Query: testconvert.String(`key eq `), Disable: testconvert.Bool(true), VariationResult: testconvert.String("on")},
+			rule: Rule{Query: new(`key eq `), Disable: new(true), VariationResult: new("on")},
 		},
-		{name: "invalid query", rule: Rule{Query: testconvert.String(`key eq `), VariationResult: testconvert.String("on")}, wantInvalid: true},
+		{name: "invalid query", rule: Rule{Query: new(`key eq `), VariationResult: new("on")}, wantInvalid: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": testconvert.Interface(true)}, nil)
+			t.Parallel()
+
+			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
 			} else {
@@ -731,6 +788,7 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable nikunjyKeysEnabled; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -758,6 +816,7 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -765,8 +824,15 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 		wantIndexed bool
 	}{
 		{name: "short query", query: `key eq "a"`},
-		{name: "query just under the length", query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`},
-		{name: "query of the length", query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`, wantIndexed: true},
+		{
+			name:  "query just under the length",
+			query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`,
+		},
+		{
+			name:        "query of the length",
+			query:       `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`,
+			wantIndexed: true,
+		},
 		{name: "long query", query: idList(200, -1, ""), wantIndexed: true},
 	}
 	for _, tt := range tests {
@@ -777,12 +843,17 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 			r := &(*f.Rules)[0]
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
 			assert.Equal(t, tt.wantIndexed, r.QueryHash != 0)
-			assert.True(t, applies(r, "user-0000001") || !strings.Contains(tt.query, "user-"), "the rule evaluates either way")
+			assert.True(
+				t,
+				applies(r, "user-0000001") || !strings.Contains(tt.query, "user-"),
+				"the rule evaluates either way",
+			)
 			runtime.KeepAlive(f)
 		})
 	}
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	query := idList(200, -1, "")
 	tests := []struct {
@@ -827,6 +898,7 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	query := idList(200, -1, "")
 	tests := []struct {
@@ -836,7 +908,7 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	}{
 		{
 			name:    "a rule of the flag without variation",
-			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: testconvert.String(`key eq "x"`)}) },
+			invalid: func(f *InternalFlag) { *f.Rules = append(*f.Rules, Rule{Query: new(`key eq "x"`)}) },
 		},
 		{
 			name:    "a rule of the flag with a query that does not parse",

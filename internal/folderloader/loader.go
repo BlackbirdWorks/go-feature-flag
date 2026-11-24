@@ -14,11 +14,12 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/pelletier/go-toml/v2"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/pelletier/go-toml/v2"
-	"gopkg.in/yaml.v3"
 )
 
 // Entry is an object found by Store.List.
@@ -96,6 +97,7 @@ func normalizePrefix(prefix string) string {
 	if p != "" && !strings.HasSuffix(p, "/") {
 		p += "/"
 	}
+
 	return p
 }
 
@@ -104,6 +106,7 @@ func (l *Loader) from() string {
 	if l.opts.Provider == "" {
 		return ""
 	}
+
 	return " from " + l.opts.Provider
 }
 
@@ -112,6 +115,7 @@ func (l *Loader) logPrefix() string {
 	if l.opts.Provider == "" {
 		return "folder loader"
 	}
+
 	return l.opts.Provider + " retriever"
 }
 
@@ -120,6 +124,7 @@ func (l *Loader) locationKey() string {
 	if l.opts.LocationKey == "" {
 		return "location"
 	}
+
 	return l.opts.LocationKey
 }
 
@@ -131,6 +136,7 @@ func sameVersion(a, b string) bool {
 
 func normalizeVersion(v string) string {
 	v = strings.TrimPrefix(v, "W/")
+
 	return strings.Trim(v, `"`)
 }
 
@@ -142,6 +148,7 @@ func Reuse(l *Loader, store Store, opts Options) *Loader {
 	if l != nil && l.opts == opts {
 		return l
 	}
+
 	return New(store, opts)
 }
 
@@ -157,6 +164,7 @@ func (l *Loader) OutputFormat() string {
 	if f, ok := l.format.Load().(string); ok {
 		return f
 	}
+
 	return formatOf(l.opts.Pattern)
 }
 
@@ -166,7 +174,7 @@ func (l *Loader) OutputFormat() string {
 func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	files, err := l.list(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %v", l.from(), l.opts.Prefix, err)
+		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
 	keys := sortedKeys(files)
 	if err := checkFormats(keys); err != nil {
@@ -189,6 +197,7 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 		format = formatOf(keys[0])
 	}
 	l.format.Store(format)
+
 	return marshalFlags(format, merged)
 }
 
@@ -198,6 +207,7 @@ func sortedKeys(files map[string]string) []string {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+
 	return keys
 }
 
@@ -223,7 +233,7 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 		}
 		content, version, err := l.store.Get(ctx, key)
 		if err != nil {
-			return fmt.Errorf("unable to download item%s %q, %v", l.from(), key, err)
+			return fmt.Errorf("unable to download item%s %q, %w", l.from(), key, err)
 		}
 		flags, err := parseFile(key, content)
 		if err != nil {
@@ -234,6 +244,7 @@ func (l *Loader) refreshCache(ctx context.Context, keys []string, files map[stri
 		}
 		working[key] = cachedFile{version: version, flags: flags}
 	}
+
 	return nil
 }
 
@@ -251,6 +262,7 @@ func (l *Loader) mergeFlags(keys []string) (map[string]dto.DTO, error) {
 			merged[flagKey] = flag
 		}
 	}
+
 	return merged, nil
 }
 
@@ -270,8 +282,9 @@ func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
 		out, err = json.Marshal(flags)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("unable to marshal the merged flags: %v", err)
+		return nil, fmt.Errorf("unable to marshal the merged flags: %w", err)
 	}
+
 	return out, nil
 }
 
@@ -294,6 +307,7 @@ func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 		}
 	}
 	l.warnSkipped(skipped)
+
 	return res, nil
 }
 
@@ -323,6 +337,7 @@ func (l *Loader) isEligible(key string) bool {
 		return true
 	}
 	ok, _ := path.Match(l.opts.Pattern, path.Base(key))
+
 	return ok
 }
 
@@ -335,6 +350,7 @@ func formatOf(key string) string {
 	case ".toml":
 		return "toml"
 	}
+
 	return ""
 }
 
@@ -346,6 +362,7 @@ func checkFormats(keys []string) error {
 		f := formatOf(key)
 		if firstFormat == "" {
 			firstKey, firstFormat = key, f
+
 			continue
 		}
 		if f != firstFormat {
@@ -354,6 +371,7 @@ func checkFormats(keys []string) error {
 				firstKey, firstFormat, key, f)
 		}
 	}
+
 	return nil
 }
 
@@ -365,7 +383,8 @@ func parseFile(key string, content []byte) (map[string]dto.DTO, error) {
 	}
 	flags, err := cache.ConvertToFlagStruct(content, formatOf(key))
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse file %q: %v", key, err)
+		return nil, fmt.Errorf("unable to parse file %q: %w", key, err)
 	}
+
 	return flags, nil
 }

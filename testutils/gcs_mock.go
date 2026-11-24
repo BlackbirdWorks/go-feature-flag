@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 )
 
@@ -27,17 +29,13 @@ func NewMockedGCS(t *testing.T) MockedStorage {
 func (m MockedStorage) WithFiles(t *testing.T, bucketName string, files map[string]string) {
 	for filename, name := range files {
 		content, err := os.ReadFile(filename)
-		if err != nil {
-			t.Fatalf("could not read testfile: %v", err)
-		}
+		require.NoError(t, err, "could not read testfile")
 
 		object := fakestorage.Object{
-			Content: content,
-			ObjectAttrs: fakestorage.ObjectAttrs{
-				BucketName: bucketName,
-				Name:       name,
-				Md5Hash:    EncodedMd5Hash(content),
-			},
+			Content:    content,
+			BucketName: bucketName,
+			Name:       name,
+			Md5Hash:    EncodedMd5Hash(content),
 		}
 		m.Server.CreateObject(object)
 	}

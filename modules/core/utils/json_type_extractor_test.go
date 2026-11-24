@@ -3,11 +3,15 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
 func Test_JSONTypeExtractor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    any
@@ -24,8 +28,10 @@ func Test_JSONTypeExtractor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := utils.JSONTypeExtractor(tt.input)
-			assert.NoError(t, err, "unexpected error")
+			require.NoError(t, err, "unexpected error")
 			assert.Equal(t, tt.expected, got)
 		})
 	}

@@ -60,6 +60,7 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	fs.IntVar(&o.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
 	fs.Float64Var(&o.heapTolerance, "heap-tolerance", 0.25, "relative HeapInuse growth tolerated")
 	fs.StringVar(&o.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")
+
 	return o, fs.Parse(args)
 }
 
@@ -83,6 +84,7 @@ func newTarget(o options) (loadtest.Target, error) {
 		if o.protocol != "http1" && o.protocol != "h2c" {
 			return nil, fmt.Errorf("unknown protocol %q (want http1 or h2c)", o.protocol)
 		}
+
 		return relay.NewTarget(relay.Options{
 			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: o.protocol == "h2c",
 			FlushIntervalMs: o.flushMs, MaxEventInMemory: o.maxEvents,
@@ -100,8 +102,10 @@ func startCPUProfile(path string) (func(), error) {
 	}
 	if err := pprof.StartCPUProfile(f); err != nil {
 		_ = f.Close()
+
 		return nil, err
 	}
+
 	return func() {
 		pprof.StopCPUProfile()
 		_ = f.Close()
@@ -124,6 +128,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		stop, err := startCPUProfile(o.cpuProfile)
 		if err != nil {
 			_, _ = fmt.Fprintln(stderr, "error:", err)
+
 			return 2
 		}
 		defer stop()
@@ -131,6 +136,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	t, err := newTarget(o)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
+
 		return 2
 	}
 	defer t.Close()
@@ -147,11 +153,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}, stdout)
 	if ctx.Err() != nil {
 		_, _ = fmt.Fprintln(stderr, "interrupted: no verdict")
+
 		return 130
 	}
 	rep.Summary(stdout)
 	if !rep.Pass {
 		return 1
 	}
+
 	return 0
 }

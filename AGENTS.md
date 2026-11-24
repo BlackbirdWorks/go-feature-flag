@@ -40,7 +40,7 @@ make swagger           # regenerate swagger after API annotation changes
 
 ## Conventions
 
-- Tests: parallel table-driven tests (`t.Parallel()`), `testify/assert`; no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
+- Tests: parallel table-driven tests (`t.Parallel()`), testify only (`require` stops the test and replaces `t.Fatal`, `assert` continues and replaces `t.Error`; no `t.Fatal*`/`t.Error*`, enforced by forbidigo); no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
 - Return errors, do not panic. Go module logging uses `slog` (`utils/fflog`); the relay proxy uses Zap.
 - Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
 - PR titles use Conventional Commits and commits are signed. Never force-push `main`.

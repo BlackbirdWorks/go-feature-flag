@@ -3,14 +3,17 @@ package config_test
 import (
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestConfig_EffectiveMonitoringPort(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -78,6 +81,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
 
@@ -102,6 +107,8 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 }
 
 func TestConfig_ServerHost(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		config   *config.Config
@@ -147,6 +154,8 @@ func TestConfig_ServerHost(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.ServerHost()
 			assert.Equal(t, tt.wantHost, got)
 		})
@@ -154,6 +163,8 @@ func TestConfig_ServerHost(t *testing.T) {
 }
 
 func TestConfig_ServerPort(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -221,6 +232,8 @@ func TestConfig_ServerPort(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
 
@@ -246,6 +259,8 @@ func TestConfig_ServerPort(t *testing.T) {
 }
 
 func TestConfig_ServerMode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -332,19 +347,15 @@ func TestConfig_ServerMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: ServerMode uses zap.L() instead of the passed logger,
-			// so we need to replace the global logger to capture deprecation warnings
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
-			var previousLogger *zap.Logger
 
 			if tt.wantDeprecationWarned {
 				core, logs := observer.New(zapcore.WarnLevel)
 				logger = zap.New(core)
 				observedLogs = logs
-				previousLogger = zap.L()
-				zap.ReplaceGlobals(logger)
-				defer zap.ReplaceGlobals(previousLogger)
 			} else {
 				logger = zap.NewNop()
 			}
@@ -361,6 +372,8 @@ func TestConfig_ServerMode(t *testing.T) {
 }
 
 func TestConfig_LambdaAdapter(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -448,19 +461,15 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: LambdaAdapter uses zap.L() instead of the passed logger,
-			// so we need to replace the global logger to capture deprecation warnings
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
-			var previousLogger *zap.Logger
 
 			if tt.wantDeprecationWarned {
 				core, logs := observer.New(zapcore.WarnLevel)
 				logger = zap.New(core)
 				observedLogs = logs
-				previousLogger = zap.L()
-				zap.ReplaceGlobals(logger)
-				defer zap.ReplaceGlobals(previousLogger)
 			} else {
 				logger = zap.NewNop()
 			}
@@ -477,6 +486,8 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 }
 
 func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                  string
 		config                *config.Config
@@ -553,19 +564,15 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Note: EffectiveAwsApiGatewayBasePath uses zap.L() instead of the passed logger,
-			// so we need to replace the global logger to capture deprecation warnings
+			t.Parallel()
+
 			var logger *zap.Logger
 			var observedLogs *observer.ObservedLogs
-			var previousLogger *zap.Logger
 
 			if tt.wantDeprecationWarned {
 				core, logs := observer.New(zapcore.WarnLevel)
 				logger = zap.New(core)
 				observedLogs = logs
-				previousLogger = zap.L()
-				zap.ReplaceGlobals(logger)
-				defer zap.ReplaceGlobals(previousLogger)
 			} else {
 				logger = zap.NewNop()
 			}
@@ -582,6 +589,8 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 }
 
 func TestConfig_UnixSocketPath(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		config         *config.Config
@@ -627,6 +636,8 @@ func TestConfig_UnixSocketPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := tt.config.UnixSocketPath()
 			assert.Equal(t, tt.wantSocketPath, got)
 		})

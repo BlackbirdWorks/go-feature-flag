@@ -7,12 +7,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 	"github.com/knadh/koanf/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 // recordingWarner returns a warner and the kinds it was asked to warn about.
@@ -24,9 +25,11 @@ func recordingWarner() (*legacy.Warner, func() []string) {
 		defer mu.Unlock()
 		kinds = append(kinds, kind)
 	})
+
 	return w, func() []string {
 		mu.Lock()
 		defer mu.Unlock()
+
 		return append([]string(nil), kinds...)
 	}
 }
@@ -42,8 +45,12 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 		wantErr      bool
 	}{
 		{name: "semaphore-proxy.yaml", files: []string{"0/semaphore-proxy.yaml"}, wantFile: "0/semaphore-proxy.yaml"},
-		{name: "legacy goff-proxy.yaml still found", files: []string{"0/goff-proxy.yaml"}, wantFile: "0/goff-proxy.yaml",
-			wantWarnings: []string{legacy.KindConfigFile}},
+		{
+			name:         "legacy goff-proxy.yaml still found",
+			files:        []string{"0/goff-proxy.yaml"},
+			wantFile:     "0/goff-proxy.yaml",
+			wantWarnings: []string{legacy.KindConfigFile},
+		},
 		{name: "new name wins over the legacy one in the same folder",
 			files:    []string{"0/goff-proxy.yaml", "0/semaphore-proxy.yaml"},
 			wantFile: "0/semaphore-proxy.yaml"},
@@ -74,6 +81,7 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Empty(t, warnings())
+
 				return
 			}
 			require.NoError(t, err)
@@ -279,7 +287,11 @@ func TestLoadEnvVariablesKubernetesServiceLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			core, logs := observer.New(zap.DebugLevel)
-			c := &ConfigLoader{log: zap.New(core), k: koanf.New("."), environFunc: func() []string { return tt.environ }}
+			c := &ConfigLoader{
+				log:         zap.New(core),
+				k:           koanf.New("."),
+				environFunc: func() []string { return tt.environ },
+			}
 			c.loadEnvVariables()
 			conf, err := c.ToConfig()
 			require.NoError(t, err)

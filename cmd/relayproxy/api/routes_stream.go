@@ -1,9 +1,10 @@
 package api
 
 import (
+	"github.com/labstack/echo/v5"
+
 	custommiddleware "github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
-	"github.com/labstack/echo/v5"
 )
 
 // addStreamRoutes registers all transports that push flag-change events to
@@ -39,6 +40,7 @@ func deprecatedAlias(replacement string) echo.MiddlewareFunc {
 				"Link",
 				`<`+replacement+`>; rel="successor-version"`,
 			)
+
 			return next(c)
 		}
 	}

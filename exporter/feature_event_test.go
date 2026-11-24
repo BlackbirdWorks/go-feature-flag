@@ -4,12 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewFeatureEvent(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		user             ffcontext.Context
 		flagKey          string
@@ -39,27 +42,45 @@ func TestNewFeatureEvent(t *testing.T) {
 				source:    "SERVER",
 			},
 			want: exporter.FeatureEvent{
-				Kind: "feature", ContextKind: "anonymousUser", UserKey: "ABCD", CreationDate: time.Now().Unix(), Key: "random-key",
-				Variation: "Default", Value: "YO", Default: false, Source: "SERVER",
+				Kind:         "feature",
+				ContextKind:  "anonymousUser",
+				UserKey:      "ABCD",
+				CreationDate: time.Now().Unix(),
+				Key:          "random-key",
+				Variation:    "Default",
+				Value:        "YO",
+				Default:      false,
+				Source:       "SERVER",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			before := time.Now().Unix()
+			got := exporter.NewFeatureEvent(
+				tt.args.user,
+				tt.args.flagKey,
+				tt.args.value,
+				tt.args.variation,
+				tt.args.failed,
+				tt.args.version,
+				tt.args.source,
+				tt.args.exporterMetadata,
+			)
+			after := time.Now().Unix()
+
+			// The creation date is the wall clock at call time: check the window, then compare the rest.
+			assert.GreaterOrEqual(t, got.CreationDate, before)
+			assert.LessOrEqual(t, got.CreationDate, after)
+			want := tt.want
+			want.CreationDate = got.CreationDate
 			assert.Equalf(
 				t,
-				tt.want,
-				exporter.NewFeatureEvent(
-					tt.args.user,
-					tt.args.flagKey,
-					tt.args.value,
-					tt.args.variation,
-					tt.args.failed,
-					tt.args.version,
-					tt.args.source,
-					tt.args.exporterMetadata,
-				),
-				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %V)",
+				want,
+				got,
+				"NewFeatureEvent(%v, %v, %v, %v, %v, %v, %v)",
 				tt.args.user,
 				tt.args.flagKey,
 				tt.args.value,
@@ -73,6 +94,8 @@ func TestNewFeatureEvent(t *testing.T) {
 }
 
 func TestFeatureEvent_MarshalInterface(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -138,9 +161,18 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			val, err := tt.featureEvent.ConvertValueForParquet()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("FeatureEvent.MarshalInterface() error = %v, wantErr %v", err, tt.wantErr)
+				assert.Failf(
+					t,
+					"unexpected error",
+					"FeatureEvent.MarshalInterface() error = %v, wantErr %v",
+					err,
+					tt.wantErr,
+				)
+
 				return
 			}
 			if tt.want != nil {
@@ -151,6 +183,8 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 }
 
 func TestFeatureEvent_FormatInJSON(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -226,6 +260,8 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := tt.featureEvent.FormatInJSON()
 			tt.wantErr(t, err)
 			if err == nil {
@@ -236,6 +272,8 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 }
 
 func TestFeatureEvent_GetKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent
@@ -277,12 +315,16 @@ func TestFeatureEvent_GetKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.featureEvent.GetKey())
 		})
 	}
 }
 
 func TestFeatureEvent_GetUserKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		featureEvent *exporter.FeatureEvent ``
@@ -310,6 +352,8 @@ func TestFeatureEvent_GetUserKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			assert.Equal(t, tt.want, tt.featureEvent.GetUserKey())
 		})
 	}

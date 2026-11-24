@@ -7,19 +7,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 )
 
 func Test_FlagCacheNotInit(t *testing.T) {
+	t.Parallel()
+
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
 	_, err := fCache.GetFlag("test-flag")
@@ -27,12 +30,16 @@ func Test_FlagCacheNotInit(t *testing.T) {
 }
 
 func Test_GetFlagNotExist(t *testing.T) {
+	t.Parallel()
+
 	fCache := cache.New(nil, "", nil)
 	_, err := fCache.GetFlag("not-exists-flag")
 	assert.Error(t, err, "We should have an error if the flag does not exists")
 }
 
 func Test_FlagCache(t *testing.T) {
+	t.Parallel()
+
 	yamlFile := []byte(`
 test-flag:
   variations:
@@ -107,7 +114,7 @@ trackEvents = false
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -115,13 +122,13 @@ trackEvents = false
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -154,7 +161,7 @@ test-flag:
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -162,13 +169,13 @@ test-flag:
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -208,7 +215,7 @@ test-flag:
 				"test-flag": {
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -216,13 +223,13 @@ test-flag:
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -258,19 +265,23 @@ variation = "false_var"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "",
 				&fflog.FFLogger{LeveledLogger: slog.Default()})
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			err = fCache.UpdateCache(newFlags, nil, true)
 			if tt.wantErr {
 				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
-			assert.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+			require.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
 				got, _ := fCache.GetFlag(key)
@@ -282,6 +293,8 @@ variation = "false_var"
 }
 
 func Test_AllFlags(t *testing.T) {
+	t.Parallel()
+
 	yamlFile := []byte(`
 test-flag:
   variations:
@@ -315,12 +328,12 @@ test-flag:
 			expected: map[string]flag.InternalFlag{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -328,9 +341,9 @@ test-flag:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -370,12 +383,12 @@ test-flag2:
 			expected: map[string]flag.InternalFlag{
 				"test-flag": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface(false),
-						"true_var":  testconvert.Interface(true),
+						"false_var": new(any(false)),
+						"true_var":  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 0,
 								"true_var":  100,
@@ -383,18 +396,18 @@ test-flag2:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"false_var": testconvert.Interface("false"),
-						"true_var":  testconvert.Interface("true"),
+						"false_var": new(any("false")),
+						"true_var":  new(any("true")),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: testconvert.String("key eq \"random-key\""),
+							Query: new("key eq \"random-key\""),
 							Percentages: &map[string]float64{
 								"false_var": 100,
 								"true_var":  0,
@@ -402,9 +415,9 @@ test-flag2:
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false_var"),
+						VariationResult: new("false_var"),
 					},
-					TrackEvents: testconvert.Bool(false),
+					TrackEvents: new(false),
 				},
 			},
 			wantErr: false,
@@ -422,21 +435,25 @@ test-flag2:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			err = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			allFlags, err := fCache.AllFlags()
 			if tt.wantErr {
 				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
@@ -449,6 +466,8 @@ test-flag2:
 }
 
 func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
+	t.Parallel()
+
 	loadedFlags := []byte(`test-flag:
   variations:
     true_var: true
@@ -473,8 +492,10 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 }
 
 func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
-	file, err := os.CreateTemp("", "")
-	assert.NoError(t, err)
+	t.Parallel()
+
+	file, err := os.CreateTemp(t.TempDir(), "")
+	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
 	// We start without any cache and we persist it on disk
@@ -493,33 +514,35 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 `)
 	loadedFlagsMap := map[string]dto.DTO{}
 	err = yaml.Unmarshal(loadedFlags, &loadedFlagsMap)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), file.Name(), nil)
 	err = fCache.UpdateCache(loadedFlagsMap, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	allFlags1, err := fCache.AllFlags()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	time.Sleep(100 * time.Millisecond) // waiting to let the go routine write in the file
 
 	// we start a new cache with the file persisted
 	fCache2 := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	content, err := os.ReadFile(file.Name())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	loadedFlagsMap2 := map[string]dto.DTO{}
 	err = yaml.Unmarshal(content, &loadedFlagsMap)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	err = fCache2.UpdateCache(loadedFlagsMap2, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	allFlags2, err := fCache.AllFlags()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Compare the 2 caches
 	assert.Equal(t, allFlags1, allFlags2)
 }
 
 func TestCacheManager_UpdateCache(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		initialFlags map[string]dto.DTO
@@ -531,25 +554,25 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"flag1": {
 					Variations: &map[string]*any{},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 				"flag2": {
 					Variations: &map[string]*any{
-						"false": testconvert.Interface(false),
+						"false": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false"),
+						VariationResult: new("false"),
 					},
 				},
 			},
@@ -560,10 +583,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},
@@ -573,28 +596,28 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			initialFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 				"flag2": {
 					Variations: &map[string]*any{
-						"false": testconvert.Interface(false),
+						"false": new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("false"),
+						VariationResult: new("false"),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
 				"flag1": {
 					Variations: &map[string]*any{
-						"true": testconvert.Interface(true),
+						"true": new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: testconvert.String("true"),
+						VariationResult: new("true"),
 					},
 				},
 			},
@@ -603,6 +626,8 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Test UpdateCache without notification
 			mockNotificationService := &mock.NotificationService{}
 			cm := cache.New(
@@ -612,10 +637,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			err := cm.UpdateCache(tt.initialFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cm.UpdateCache(tt.updatedFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(
 				t,
 				0,
@@ -624,7 +649,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			flags, err := cm.AllFlags()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(
 				t,
 				flags,
@@ -641,10 +666,10 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			err = cm.UpdateCache(tt.initialFlags, nil, false)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			err = cm.UpdateCache(tt.updatedFlags, nil, true)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(
 				t,
 				1,
@@ -653,7 +678,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			)
 
 			flags, err = cm.AllFlags()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Len(
 				t,
 				flags,

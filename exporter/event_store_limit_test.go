@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testutils"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type droppedCounter interface{ DroppedEvents() int64 }
@@ -26,6 +27,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				return err
 			}
 			*out = append(*out, events...)
+
 			return nil
 		}
 	}
@@ -64,7 +66,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				time.Hour, tt.limit, func(total int64) { mu.Lock(); onDropTotal = total; mu.Unlock() })
 			defer store.Stop()
 			store.AddConsumer("c")
-			for i := 0; i < tt.adds; i++ {
+			for i := range tt.adds {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 			}
 			if tt.consume {
@@ -77,7 +79,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 					assert.Len(t, out, tt.adds-int(tt.wantDropped))
 				}
 			}
-			for i := 0; i < tt.addsAfter; i++ {
+			for i := range tt.addsAfter {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
@@ -95,16 +97,20 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 	store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, 3, nil)
 	defer store.Stop()
 	store.AddConsumer("c")
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 	}
 	var got []string
-	require.NoError(t, store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
-		for _, e := range ev {
-			got = append(got, e.GetKey())
-		}
-		return nil
-	}))
+	require.NoError(
+		t,
+		store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
+			for _, e := range ev {
+				got = append(got, e.GetKey())
+			}
+
+			return nil
+		}),
+	)
 	assert.Equal(t, []string{"e0", "e1", "e2"}, got)
 }
 
@@ -126,15 +132,13 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 			defer store.Stop()
 			store.AddConsumer("c")
 			var wg sync.WaitGroup
-			for w := 0; w < tt.workers; w++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for i := 0; i < tt.perW; i++ {
+			for range tt.workers {
+				wg.Go(func() {
+					for range tt.perW {
 						store.Add(testutils.NewExportableMockEvent("e"))
 						assert.LessOrEqual(t, store.GetTotalEventCount(), tt.limit)
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			total := int64(tt.workers * tt.perW)
@@ -165,7 +169,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 			}}, time.Hour, nil)
 			defer m.Stop()
 			const n = 100000
-			for i := 0; i < n; i++ {
+			for range n {
 				m.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
 			assert.Equal(t, int64(n)-tt.wantCap, m.(exporter.DroppedEventsCounter).DroppedEvents())
@@ -180,6 +184,7 @@ type failingExporter struct{ calls atomic.Int32 }
 func (f *failingExporter) IsBulk() bool { return true }
 func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
+
 	return errors.New("always failing")
 }
 
@@ -204,7 +209,7 @@ func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 			defer store.Stop()
 			store.AddConsumer("a")
 			store.AddConsumer("b")
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				store.Add(testutils.NewExportableMockEvent("e"))
 			}
 			noop := func(context.Context, []testutils.ExportableMockEvent) error { return nil }

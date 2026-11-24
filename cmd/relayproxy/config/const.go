@@ -3,8 +3,9 @@ package config
 import (
 	"time"
 
-	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/xitongsys/parquet-go/parquet"
+
+	ffclient "github.com/blackbirdworks/semaphore"
 )
 
 const DefaultLogLevel = "info"

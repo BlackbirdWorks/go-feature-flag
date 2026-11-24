@@ -2,7 +2,7 @@ package mock
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 )
@@ -15,6 +15,7 @@ type implMockEventStore[T exporter.ExportableEvent] struct {
 
 func NewEventStore[T exporter.ExportableEvent]() exporter.EventStore[T] {
 	store := &implMockEventStore[T]{}
+
 	return store
 }
 
@@ -29,18 +30,20 @@ func (e *implMockEventStore[T]) Add(data T) {
 func (e *implMockEventStore[T]) ProcessPendingEvents(consumerID string,
 	processFunc func(context.Context, []T) error) error {
 	if consumerID == consumerNameError {
-		return fmt.Errorf("error")
+		return errors.New("error")
 	}
 	if err := processFunc(context.TODO(), e.store); err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func (e *implMockEventStore[T]) GetPendingEventCount(consumerName string) (int64, error) {
 	if consumerName == consumerNameError {
-		return 0, fmt.Errorf("error")
+		return 0, errors.New("error")
 	}
+
 	return int64(len(e.store)), nil
 }
 

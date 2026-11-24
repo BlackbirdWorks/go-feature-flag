@@ -19,5 +19,6 @@ func NewNotifierWebsocket(websocketService stream.WebsocketService, flagsetName 
 
 func (n *notifierWebsocket) Notify(diff notifier.DiffCache) error {
 	n.websocketService.BroadcastFlagChanges(n.flagsetName, diff)
+
 	return nil
 }

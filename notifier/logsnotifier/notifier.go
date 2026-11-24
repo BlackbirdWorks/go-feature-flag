@@ -29,9 +29,11 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 			if flagDiff.After.IsDisable() {
 				// Flag is disabled
 				c.Logger.Info("flag is turned OFF", slog.String("key", key))
+
 				continue
 			}
 			c.Logger.Info("flag is turned ON", slog.String("key", key))
+
 			continue
 		}
 		// key has changed in cache

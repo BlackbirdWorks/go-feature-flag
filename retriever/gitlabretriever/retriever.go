@@ -64,7 +64,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	parsedURL, err := url.Parse(path)
 	if err != nil {
-		return nil, fmt.Errorf("impossible to parse the url %s", internal.RedactURLError(err))
+		return nil, fmt.Errorf("impossible to parse the url %w", internal.RedactURLError(err))
 	}
 
 	rawQuery := parsedURL.Query()
@@ -74,7 +74,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	// add header for Gitlab Token if specified
 	header := http.Header{}
 	if r.GitlabToken != "" {
-		header.Add("PRIVATE-TOKEN", r.GitlabToken)
+		header.Add("Private-Token", r.GitlabToken)
 	}
 	httpRetriever := httpretriever.Retriever{
 		URL:     parsedURL.String(),

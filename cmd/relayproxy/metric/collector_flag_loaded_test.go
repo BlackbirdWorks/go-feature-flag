@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/modules/core/testutils/testconvert"
-	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ffclient "github.com/blackbirdworks/semaphore"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
 type fakeFlagsetSource struct {
@@ -36,6 +36,7 @@ func newFileClient(t *testing.T, content string) (*ffclient.GoFeatureFlag, strin
 	})
 	require.NoError(t, err)
 	t.Cleanup(client.Close)
+
 	return client, path
 }
 
@@ -56,6 +57,8 @@ flag-off:
 `
 
 func TestFlagLoaded_ExposesOneSeriesPerFlagPerFlagset(t *testing.T) {
+	t.Parallel()
+
 	teamA, _ := newFileClient(t, flagsYAML)
 	teamB, _ := newFileClient(t, `
 other-flag:
@@ -81,6 +84,8 @@ semaphore_flag_loaded{disabled="false",flag_name="other-flag",flagset="team-b"} 
 }
 
 func TestFlagLoaded_DisabledReflectsScheduledStepsAndExperimentation(t *testing.T) {
+	t.Parallel()
+
 	client, _ := newFileClient(t, `
 scheduled-off:
   variations:
@@ -182,6 +187,8 @@ semaphore_flag_loaded{disabled="true",flag_name="experiment-over-with-nested-buc
 }
 
 func TestFlagLoaded_DeletedFlagDisappearsAfterRefresh(t *testing.T) {
+	t.Parallel()
+
 	client, path := newFileClient(t, flagsYAML)
 	m, err := NewMetrics()
 	require.NoError(t, err)
@@ -210,6 +217,8 @@ semaphore_flag_loaded{disabled="false",flag_name="flag-on",flagset="default"} 1
 }
 
 func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		source FlagsetSource
@@ -223,6 +232,8 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			m, err := NewMetrics()
 			require.NoError(t, err)
 			require.NoError(t, m.RegisterFlagLoaded(tt.source))
@@ -234,26 +245,32 @@ func TestFlagLoaded_NoSeriesWhenFlagsetsUnavailable(t *testing.T) {
 }
 
 func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T) {
+	t.Parallel()
+
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
 	f := &flag.InternalFlag{
-		Variations: &map[string]*any{"enabled": testconvert.Interface(true)},
-		Disable:    testconvert.Bool(true),
+		Variations: &map[string]*any{"enabled": new(any(true))},
+		Disable:    new(true),
 		Scheduled: &[]flag.ScheduledStep{{
-			InternalFlag: flag.InternalFlag{Disable: testconvert.Bool(false)},
-			Date:         testconvert.Time(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
+			Disable: new(false),
+			Date:    new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 	}
 	assert.True(t, isEffectivelyDisabled("no-default-rule", f))
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {
-	assert.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
+	t.Parallel()
+
+	require.NoError(t, (&Metrics{}).RegisterFlagLoaded(fakeFlagsetSource{}))
 	m, err := NewMetrics()
 	require.NoError(t, err)
 	assert.NoError(t, m.RegisterFlagLoaded(nil))
 }
 
 func TestFlagLoaded_SkipsSeriesWithInvalidLabelValues(t *testing.T) {
+	t.Parallel()
+
 	valid, _ := newFileClient(t, flagsYAML)
 	invalid, _ := newFileClient(t, flagsYAML)
 	m, err := NewMetrics()

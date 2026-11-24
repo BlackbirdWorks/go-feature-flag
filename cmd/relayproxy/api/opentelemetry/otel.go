@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
 	"go.opentelemetry.io/otel"
@@ -17,6 +16,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 type OtelService struct {
@@ -28,13 +29,14 @@ func NewOtelService() OtelService {
 	return OtelService{}
 }
 
-// Init the OpenTelemetry service
+// Init the OpenTelemetry service.
 func (s *OtelService) Init(ctx context.Context, zapLog *zap.Logger, config *config.Config) error {
 	// Require the endpoint to be set either by the openTelemetryOtlpEndpoint
 	// config element or otel.exporter.otlp.endpoint
 	if (config.OpenTelemetryOtlpEndpoint == "" && config.OtelConfig.Exporter.Otlp.Endpoint == "") ||
 		config.OtelConfig.SDK.Disabled {
 		otel.SetTracerProvider(noop.NewTracerProvider())
+
 		return nil
 	}
 
@@ -186,10 +188,11 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	if v := conf.JaegerConfig.Sampler.Max.Operations; v != 0 {
 		maxOperations = v
 	}
+
 	return samplerURL, samplerRefreshInterval, maxOperations, nil
 }
 
-// Stop the OpenTelemetry service
+// Stop the OpenTelemetry service.
 func (s *OtelService) Stop(ctx context.Context) error {
 	if s.otelExporter != nil {
 		err := s.otelExporter.Shutdown(ctx)
@@ -204,5 +207,6 @@ func (s *OtelService) Stop(ctx context.Context) error {
 			return err
 		}
 	}
+
 	return nil
 }

@@ -2,16 +2,19 @@ package helper_test
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
 func TestOutput_PrintLines(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 
@@ -60,6 +63,8 @@ func TestOutput_PrintLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			var buf bytes.Buffer
 			cmd := &cobra.Command{}
 			cmd.SetOut(&buf)
@@ -71,6 +76,7 @@ func TestOutput_PrintLines(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest,tparallel // assigns to the package-level variable pterm.Error; removed by the service-object refactor (follow-up PR)
 func TestPrintFatalAndExit(t *testing.T) {
 	pterm.DisableStyling()
 	pterm.DisableColor()
@@ -85,7 +91,7 @@ func TestPrintFatalAndExit(t *testing.T) {
 	})
 	defer restore()
 
-	helper.PrintFatalAndExit(fmt.Errorf("boom"))
+	helper.PrintFatalAndExit(errors.New("boom"))
 
 	assert.True(t, called, "exitFunc should have been called")
 	assert.Equal(t, "ERROR: error executing command: boom\n", buf.String())

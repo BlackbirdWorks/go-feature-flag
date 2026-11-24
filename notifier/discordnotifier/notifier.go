@@ -3,6 +3,7 @@ package discordnotifier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,9 +41,7 @@ type Notifier struct {
 // Notify is the notifying all the changes to the notifier.
 func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	if c.DiscordWebhookURL == "" {
-		return fmt.Errorf(
-			"error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided",
-		)
+		return errors.New("error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided")
 	}
 
 	// init the notifier
@@ -64,7 +63,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	reqBody := convertToDiscordMessage(diff)
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
-		return fmt.Errorf("error: (Discord Notifier) failed to create message payload; %v", err)
+		return fmt.Errorf("error: (Discord Notifier) failed to create message payload; %w", err)
 	}
 	request := http.Request{
 		Method: http.MethodPost,
@@ -83,6 +82,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 			response.StatusCode,
 		)
 	}
+
 	return nil
 }
 
@@ -122,6 +122,7 @@ func convertDeletedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 			Color: colorDeleted,
 		})
 	}
+
 	return embeds
 }
 
@@ -139,6 +140,7 @@ func convertUpdatedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 		}
 		embeds = append(embeds, e)
 	}
+
 	return embeds
 }
 
@@ -150,6 +152,7 @@ func convertAddedFlagsToDiscordEmbed(diff notifier.DiffCache) []embed {
 			Color: colorAdded,
 		})
 	}
+
 	return embeds
 }
 
@@ -176,12 +179,17 @@ func fitTotalLength(embeds []embed) {
 		budget -= utf8.RuneCountInString(e.Title)
 		if len(e.changes) == 0 {
 			budget -= utf8.RuneCountInString(e.Description)
+
 			continue
 		}
 		lists = append(lists, i)
 	}
 	sort.SliceStable(lists, func(a, b int) bool {
-		return utf8.RuneCountInString(embeds[lists[a]].Description) < utf8.RuneCountInString(embeds[lists[b]].Description)
+		return utf8.RuneCountInString(
+			embeds[lists[a]].Description,
+		) < utf8.RuneCountInString(
+			embeds[lists[b]].Description,
+		)
 	})
 	for n, i := range lists {
 		share := max(budget/(len(lists)-n), 1)
@@ -197,5 +205,6 @@ func truncate(text string, maxLength int) string {
 	if len(runes) <= maxLength {
 		return text
 	}
+
 	return string(runes[:maxLength-1]) + "…"
 }

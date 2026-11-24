@@ -3,7 +3,7 @@ package exporter
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"text/template"
 	"time"
 
@@ -25,6 +25,7 @@ func NewFeatureEvent(
 	if ctx.IsAnonymous() {
 		contextKind = "anonymousUser"
 	}
+
 	return FeatureEvent{
 		Kind:         "feature",
 		ContextKind:  contextKind,
@@ -41,7 +42,8 @@ func NewFeatureEvent(
 }
 
 // FeatureEvent represent an Event that we store in the data storage
-// nolint:lll
+//
+//nolint:lll
 type FeatureEvent struct {
 	// Kind for a feature event is feature.
 	// A feature event will only be generated if the trackEvents attribute of the flag is set to true.
@@ -85,12 +87,12 @@ type FeatureEvent struct {
 	Metadata FeatureEventMetadata `json:"metadata,omitempty" parquet:"name=metadata, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
-// GetKey returns the key of the event
+// GetKey returns the key of the event.
 func (f FeatureEvent) GetKey() string {
 	return f.Key
 }
 
-// GetUserKey returns the user key of the event
+// GetUserKey returns the user key of the event.
 func (f FeatureEvent) GetUserKey() string {
 	return f.UserKey
 }
@@ -112,23 +114,26 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	if err != nil {
 		return nil, err
 	}
+
 	return buf.Bytes(), nil
 }
 
 func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	b = append(b, []byte("\n")...)
+
 	return b, err
 }
 
 // ConvertValueForParquet converts the value of the event to a string to be stored in a parquet file.
 func (f FeatureEvent) ConvertValueForParquet() (string, error) {
 	if f.Value == nil {
-		return "", fmt.Errorf("no value to convert, returning empty string")
+		return "", errors.New("no value to convert, returning empty string")
 	}
 	b, err := json.Marshal(f.Value)
 	if err != nil {
 		return "", err
 	}
+
 	return string(b), nil
 }

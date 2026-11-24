@@ -5,11 +5,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
 func TestByteSize_UnmarshalText(t *testing.T) {
@@ -42,6 +43,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 			err := got.UnmarshalText([]byte(tt.text))
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				return
 			}
 			require.NoError(t, err)
@@ -59,12 +61,20 @@ func TestValidateFlagsEndpoint_WithDefaults(t *testing.T) {
 	}{
 		{
 			name: "unset",
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1 << 20, MaxYAMLBodySize: 64 << 10, MaxTOMLBodySize: 64 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 1 << 20,
+				MaxYAMLBodySize: 64 << 10,
+				MaxTOMLBodySize: 64 << 10,
+			},
 		},
 		{
 			name: "partially set",
 			in:   config.ValidateFlagsEndpoint{MaxYAMLBodySize: 1 << 20},
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1 << 20, MaxYAMLBodySize: 1 << 20, MaxTOMLBodySize: 64 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 1 << 20,
+				MaxYAMLBodySize: 1 << 20,
+				MaxTOMLBodySize: 64 << 10,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -84,9 +94,21 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	}{
 		{name: "unset", in: config.ValidateFlagsEndpoint{}},
 		{name: "valid", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3}},
-		{name: "negative json", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}, wantErr: "maxJSONBodySize must not be negative"},
-		{name: "negative yaml", in: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}, wantErr: "maxYAMLBodySize must not be negative"},
-		{name: "negative toml", in: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}, wantErr: "maxTOMLBodySize must not be negative"},
+		{
+			name:    "negative json",
+			in:      config.ValidateFlagsEndpoint{MaxJSONBodySize: -1},
+			wantErr: "maxJSONBodySize must not be negative",
+		},
+		{
+			name:    "negative yaml",
+			in:      config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1},
+			wantErr: "maxYAMLBodySize must not be negative",
+		},
+		{
+			name:    "negative toml",
+			in:      config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1},
+			wantErr: "maxTOMLBodySize must not be negative",
+		},
 		{
 			name:    "several negatives report the first in order",
 			in:      config.ValidateFlagsEndpoint{MaxJSONBodySize: -1, MaxYAMLBodySize: -1, MaxTOMLBodySize: -1},
@@ -99,6 +121,7 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 			err := tt.in.IsValid()
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			assert.NoError(t, err)
@@ -115,9 +138,21 @@ func TestEndpoints_IsValid(t *testing.T) {
 	}{
 		{name: "unset"},
 		{name: "valid", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: 10}}},
-		{name: "negative json", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}}, wantErr: true},
-		{name: "negative yaml", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}}, wantErr: true},
-		{name: "negative toml", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}}, wantErr: true},
+		{
+			name:    "negative json",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: -1}},
+			wantErr: true,
+		},
+		{
+			name:    "negative yaml",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxYAMLBodySize: -1}},
+			wantErr: true,
+		},
+		{
+			name:    "negative toml",
+			in:      config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxTOMLBodySize: -1}},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,6 +160,7 @@ func TestEndpoints_IsValid(t *testing.T) {
 			err := tt.in.IsValid()
 			if tt.wantErr {
 				assert.ErrorContains(t, err, "must not be negative")
+
 				return
 			}
 			assert.NoError(t, err)
@@ -133,8 +169,9 @@ func TestEndpoints_IsValid(t *testing.T) {
 }
 
 // TestEndpoints_Loading checks the loading of the endpoints block from the file and the environment.
-// It cannot be parallel because of t.Setenv.
 func TestEndpoints_Loading(t *testing.T) {
+	t.Parallel()
+
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
 	tests := []struct {
 		name        string
@@ -152,7 +189,11 @@ func TestEndpoints_Loading(t *testing.T) {
 		{
 			name: "strings in the file",
 			file: base + "endpoints:\n  validateFlags:\n    maxJSONBodySize: 2MiB\n    maxYAMLBodySize: 128KiB\n    maxTOMLBodySize: \"256 KiB\"\n",
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2 << 20, MaxYAMLBodySize: 128 << 10, MaxTOMLBodySize: 256 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 2 << 20,
+				MaxYAMLBodySize: 128 << 10,
+				MaxTOMLBodySize: 256 << 10,
+			},
 		},
 		{
 			name: "environment variables",
@@ -162,7 +203,11 @@ func TestEndpoints_Loading(t *testing.T) {
 				"ENDPOINTS_VALIDATEFLAGS_MAXYAMLBODYSIZE": "100000",
 				"ENDPOINTS_VALIDATEFLAGS_MAXTOMLBODYSIZE": "32KiB",
 			},
-			want: config.ValidateFlagsEndpoint{MaxJSONBodySize: 3 << 20, MaxYAMLBodySize: 100000, MaxTOMLBodySize: 32 << 10},
+			want: config.ValidateFlagsEndpoint{
+				MaxJSONBodySize: 3 << 20,
+				MaxYAMLBodySize: 100000,
+				MaxTOMLBodySize: 32 << 10,
+			},
 		},
 		{
 			name: "environment overrides the file",
@@ -179,15 +224,18 @@ func TestEndpoints_Loading(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			path := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
+			environ := make([]string, 0, len(tt.env))
 			for k, v := range tt.env {
-				t.Setenv(k, v)
+				environ = append(environ, k+"="+v)
 			}
 			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			fs.String("config", "", "Location of your config file")
 			require.NoError(t, fs.Parse([]string{"--config=" + path}))
-			loader := config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false)
+			loader := config.NewConfigLoader(fs, zap.NewNop(), "1.0.0", false, withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)

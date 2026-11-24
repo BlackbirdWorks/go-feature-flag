@@ -6,13 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
 func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    *retrieverconf.SerializableRedisOptions
@@ -124,6 +127,8 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			result := tt.input.ToRedisOptions()
 			require.NotNil(t, result)
 			tt.validate(t, result)
@@ -132,6 +137,8 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 }
 
 func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		opts *retrieverconf.SerializableRedisOptions
@@ -177,6 +184,8 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// Marshal to JSON
 			jsonData, err := json.Marshal(tt.opts)
 			require.NoError(t, err)
@@ -202,6 +211,8 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 }
 
 func TestSerializableRedisOptions_JSONStructure(t *testing.T) {
+	t.Parallel()
+
 	// This test ensures the JSON structure is as expected
 	jsonStr := `{
 		"addr": "localhost:6379",

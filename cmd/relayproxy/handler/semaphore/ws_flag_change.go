@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
+
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
 
 // threadSafeConn serializes all writes to a single websocket connection.
@@ -27,6 +28,7 @@ type threadSafeConn struct {
 func (c *threadSafeConn) WriteJSON(v any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.conn.WriteJSON(v)
 }
 
@@ -34,6 +36,7 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 func (c *threadSafeConn) ping() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	return c.conn.WriteMessage(websocket.PingMessage, nil)
 }
 
@@ -60,7 +63,7 @@ func NewWsFlagChange(
 // defaultPingInterval is how often a keep-alive ping is sent to the client.
 const defaultPingInterval = 1 * time.Second
 
-// WSFlagChange is the implementation of the controller
+// WSFlagChange is the implementation of the controller.
 type WSFlagChange struct {
 	websocketService stream.WebsocketService
 	flagsetManager   service.FlagsetManager
@@ -138,6 +141,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 
 	conn.SetPongHandler(func(string) error {
 		_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
+
 		return nil
 	})
 
@@ -150,6 +154,7 @@ func (f *WSFlagChange) Handler(c *echo.Context) error {
 				zap.Error(err),
 				zap.Any("connection", conn),
 			)
+
 			return nil
 		}
 	}
@@ -180,10 +185,12 @@ func (f *WSFlagChange) pingPongLoop(ctx context.Context, conn *threadSafeConn) {
 					zap.Error(err),
 					zap.Any("connection", conn),
 				)
+
 				return
 			}
 		case <-ctx.Done():
 			f.logger.Debug("stopping ping pong loop")
+
 			return
 		}
 	}

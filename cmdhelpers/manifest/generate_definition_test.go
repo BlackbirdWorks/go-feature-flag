@@ -9,16 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // captureHandler stores every slog record so tests can assert message content
 // and severity emitted by GenerateDefinition. The handler is wired in as the
-// default slog logger via slog.SetDefault so it intercepts the package-level
-// slog calls performed by the code under test.
+// logger passed with manifest.WithLogger.
 type captureHandler struct {
 	msgs   []string
 	levels []slog.Level
@@ -28,33 +28,28 @@ func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.msgs = append(h.msgs, r.Message)
 	h.levels = append(h.levels, r.Level)
+
 	return nil
 }
 func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
 
-// installCaptureLogger swaps the default slog logger for one backed by a
-// captureHandler and registers a cleanup that restores the previous default,
-// so each subtest gets an isolated capture.
-func installCaptureLogger(t *testing.T) *captureHandler {
-	t.Helper()
+// newCaptureLogger returns a logger backed by a captureHandler (one per test case, so the
+// cases can run in parallel) and the handler to inspect.
+func newCaptureLogger() (*slog.Logger, *captureHandler) {
 	h := &captureHandler{}
-	previous := slog.Default()
-	slog.SetDefault(slog.New(h))
-	t.Cleanup(func() { slog.SetDefault(previous) })
-	return h
-}
 
-func ptrString(v string) *string { return &v }
+	return slog.New(h), h
+}
 
 // variationsPtr builds the *map[string]*any value expected by InternalFlag.Variations
 // from a plain map[string]any literal.
 func variationsPtr(values map[string]any) *map[string]*any {
 	out := make(map[string]*any, len(values))
 	for k, v := range values {
-		v := v
 		out[k] = &v
 	}
+
 	return &out
 }
 
@@ -62,13 +57,14 @@ func metadataPtr(m map[string]any) *map[string]any {
 	if m == nil {
 		return nil
 	}
+
 	return &m
 }
 
 func defaultRule(variation string) *flag.Rule {
 	return &flag.Rule{
-		Name:            ptrString("defaultRule"),
-		VariationResult: ptrString(variation),
+		Name:            new("defaultRule"),
+		VariationResult: new(variation),
 	}
 }
 
@@ -94,6 +90,7 @@ func boolFlagWithExperimentation(
 		Start: &s,
 		End:   &e,
 	}
+
 	return f
 }
 
@@ -101,10 +98,13 @@ func readGolden(t *testing.T, name string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("testdata", "generate_definition", name))
 	require.NoError(t, err)
+
 	return string(data)
 }
 
 func TestGenerateDefinition(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flags      map[string]flag.InternalFlag
@@ -347,13 +347,16 @@ func TestGenerateDefinition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := installCaptureLogger(t)
+			t.Parallel()
 
-			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags)
+			logger, handler := newCaptureLogger()
+
+			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags, manifest.WithLogger(logger))
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErr)
+
 				return
 			}
 			require.NoError(t, err)

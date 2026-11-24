@@ -4,13 +4,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 )
 
 func TestManifestCmd(t *testing.T) {
+	t.Parallel()
+
 	pterm.DisableStyling()
 	pterm.DisableColor()
 	tests := []struct {
@@ -59,11 +62,13 @@ func TestManifestCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpManifest, err := os.CreateTemp("", "temp")
+			t.Parallel()
+
+			tmpManifest, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			os.Remove(tmpManifest.Name()) // delete, we only want the path
 
-			redirectionStd, err := os.CreateTemp("", "temp")
+			redirectionStd, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
 			defer func() { _ = os.Remove(redirectionStd.Name()) }()
 
@@ -78,18 +83,18 @@ func TestManifestCmd(t *testing.T) {
 			tt.assertError(t, err)
 
 			if tt.expectedError != "" {
-				assert.EqualError(t, err, tt.expectedError)
+				require.EqualError(t, err, tt.expectedError)
 			}
 
 			output, err := os.ReadFile(redirectionStd.Name())
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectedOutput, string(output), "output is not expected")
 
 			if tt.expectedManifest != "" {
 				wantManifest, err := os.ReadFile(tt.expectedManifest)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				gotManifest, err := os.ReadFile(tmpManifest.Name())
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, string(wantManifest), string(gotManifest), "manifest is not expected")
 			}
 		})

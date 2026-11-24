@@ -7,12 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/blackbirdworks/semaphore/retriever/githubretriever"
 	"github.com/blackbirdworks/semaphore/testutils/mock"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_github_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	endRatelimit := time.Now().Add(1 * time.Hour)
 	type fields struct {
 		httpClient     mock.HTTP
@@ -157,6 +161,8 @@ func Test_github_Retrieve(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
@@ -166,7 +172,7 @@ func Test_github_Retrieve(t *testing.T) {
 			h.SetHTTPClient(&tt.fields.httpClient)
 			got, err := h.Retrieve(tt.fields.context)
 			if tt.errMsg != "" {
-				assert.EqualError(t, err, tt.errMsg)
+				require.EqualError(t, err, tt.errMsg)
 			}
 			assert.Equal(
 				t,
@@ -192,6 +198,8 @@ func Test_github_Retrieve(t *testing.T) {
 }
 
 func Test_github_Retrieve_BaseURL(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		httpClient     mock.HTTP
 		repositorySlug string
@@ -331,6 +339,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			h := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
@@ -358,6 +368,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 }
 
 func TestRateLimiting(t *testing.T) {
+	t.Parallel()
+
 	h := githubretriever.Retriever{
 		RepositorySlug: "thomaspoignant/go-feature-flag",
 		FilePath:       "testdata/flag-config.yaml",
@@ -366,19 +378,19 @@ func TestRateLimiting(t *testing.T) {
 	httpClient := &mock.HTTP{}
 	h.SetHTTPClient(httpClient)
 	_, err := h.Retrieve(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{RateLimit: true}
 	h.SetHTTPClient(httpClient)
 	_, err = h.Retrieve(context.TODO())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{}
 	h.SetHTTPClient(httpClient)
 	_, err = h.Retrieve(context.TODO())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.False(t, httpClient.HasBeenCalled)
 }
 
@@ -390,7 +402,7 @@ func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
 		RepositorySlug: "org/repo",
 	}
 	_, err := h.Retrieve(context.Background())
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid base URL")
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 }

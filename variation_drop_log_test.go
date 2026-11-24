@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // dropGatedSink blocks the records about dropped events until gate is closed.
@@ -30,6 +31,7 @@ func (g *dropGatedSink) Handle(ctx context.Context, r slog.Record) error {
 		g.once.Do(func() { close(g.entered) })
 		<-g.gate
 	}
+
 	return g.inner.Handle(ctx, r)
 }
 func (g *dropGatedSink) WithAttrs([]slog.Attr) slog.Handler { return g }
@@ -76,9 +78,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 			stop := make(chan struct{})
 			var wg sync.WaitGroup
 			for i := range counters {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					for {
 						select {
 						case <-stop:
@@ -88,7 +88,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
 						counters[i].Add(1)
 					}
-				}()
+				})
 			}
 			defer func() {
 				close(stop)
@@ -110,13 +110,14 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						return false
 					}
 				}
+
 				return true
 			}, time.Minute, time.Millisecond, "an evaluation is blocked by the log sink")
 			// and the warning is written by someone else.
 			select {
 			case <-sink.entered:
 			case <-time.After(time.Minute):
-				t.Fatal("the drop warning was not written")
+				require.Fail(t, "the drop warning was not written")
 			}
 		})
 	}

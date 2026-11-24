@@ -7,10 +7,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
-	"github.com/blackbirdworks/semaphore/testutils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -19,9 +15,16 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/integration/mtest"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/mongodbretriever"
+	"github.com/blackbirdworks/semaphore/testutils"
+	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 func Test_MongoDBRetriever_Retrieve(t *testing.T) {
+	t.Parallel()
+
 	mtDB := mtest.New(t, mtest.NewOptions().ClientType(mtest.Mock))
 
 	tests := []struct {
@@ -91,6 +94,7 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			assert.Equal(t, retriever.RetrieverReady, mdb.Status())
 
 			got, err := mdb.Retrieve(context.Background())
+			require.NoError(t, err)
 			if tt.want == nil {
 				assert.Nil(t, got)
 			} else {
@@ -103,6 +107,8 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 }
 
 func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
+	t.Parallel()
+
 	mdb := mongodbretriever.Retriever{
 		URI:        "invalidURI",
 		Collection: "collection",
@@ -110,11 +116,13 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 	}
 	assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 	err := mdb.Init(context.TODO(), &fflog.FFLogger{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, retriever.RetrieverError, mdb.Status())
 }
 
 func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -126,6 +134,8 @@ func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			mdb := mongodbretriever.Retriever{}
 			assert.Equal(t, tt.want, mdb.OutputFormat())
 		})

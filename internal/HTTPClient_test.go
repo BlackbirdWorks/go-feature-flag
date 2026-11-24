@@ -10,6 +10,8 @@ import (
 )
 
 func TestNewHTTPClient(t *testing.T) {
+	t.Parallel()
+
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 
 	client := NewHTTPClient(2*time.Second, transport)
@@ -21,6 +23,8 @@ func TestNewHTTPClient(t *testing.T) {
 }
 
 func TestNewHTTPClient_WithDefaultTimeout(t *testing.T) {
+	t.Parallel()
+
 	client := NewHTTPClient(0, nil)
 
 	httpClient, ok := client.(*http.Client)

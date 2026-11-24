@@ -73,7 +73,7 @@ func (retriever *Retriever) Retrieve(ctx context.Context) (content []byte, err e
 	if err != nil {
 		return nil,
 			fmt.Errorf(
-				"unable to read from GCP Object %s in Bucket %s, error: %s",
+				"unable to read from GCP Object %s in Bucket %s, error: %w",
 				retriever.Bucket,
 				retriever.Object,
 				err,
