@@ -141,18 +141,16 @@ func Test_Swagger(t *testing.T) {
 	}
 }
 
-// watchedListener hands out connections that record the read deadlines the server sets on them.
+// watchedListener hands out connections and keeps the first read deadline the server sets on the first of them:
+// before it reads the request, so before any handler (and huma) could set one. It is the read timeout of the server
+// itself, the zero time (no deadline) when the server has none.
 type watchedListener struct {
 	net.Listener
 
-	deadlines []watchedDeadline
-	mu        sync.Mutex
-}
-
-// watchedDeadline is a read deadline and the time it was set.
-type watchedDeadline struct {
-	setAt    time.Time
-	deadline time.Time
+	first      time.Time
+	mu         sync.Mutex
+	accepted   bool
+	firstIsSet bool
 }
 
 func (l *watchedListener) Accept() (net.Conn, error) {
@@ -160,23 +158,22 @@ func (l *watchedListener) Accept() (net.Conn, error) {
 	if err != nil {
 		return nil, err //nolint:wrapcheck // transparent
 	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.accepted {
+		return conn, nil
+	}
+	l.accepted = true
 
 	return &watchedConn{Conn: conn, listener: l}, nil
 }
 
-// armed returns the number of read deadlines that bound a read: in the future when they were set (the zero time clears
-// the deadline, and net/http sets a deadline in the past to abort the background read of a finished request).
-func (l *watchedListener) armed() int {
+// firstDeadline returns the first read deadline set on the first connection, and whether there was one.
+func (l *watchedListener) firstDeadline() (time.Time, bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	n := 0
-	for _, d := range l.deadlines {
-		if d.deadline.After(d.setAt) {
-			n++
-		}
-	}
 
-	return n
+	return l.first, l.firstIsSet
 }
 
 type watchedConn struct {
@@ -187,7 +184,9 @@ type watchedConn struct {
 
 func (c *watchedConn) SetReadDeadline(t time.Time) error {
 	c.listener.mu.Lock()
-	c.listener.deadlines = append(c.listener.deadlines, watchedDeadline{setAt: time.Now(), deadline: t})
+	if !c.listener.firstIsSet {
+		c.listener.first, c.listener.firstIsSet = t, true
+	}
 	c.listener.mu.Unlock()
 
 	return c.Conn.SetReadDeadline(t) //nolint:wrapcheck // transparent
@@ -252,6 +251,8 @@ func Test_Upload(t *testing.T) {
 			)
 			req.Header.Set("Content-Type", "application/json")
 			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
+			// real time on purpose: huma sets the deadline from the real clock, and the network deadlines are enforced
+			// by the runtime poller, not by clock.Now.
 			before := time.Now()
 			srv.Handler().ServeHTTP(rec, req)
 			after := time.Now()
@@ -287,12 +288,11 @@ func Test_Upload(t *testing.T) {
 			)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
-			assert.Equal(
-				t,
-				tt.wantDeadline,
-				watched.armed() > 0,
-				"the connections of the server are armed with a read deadline only with a read timeout",
-			)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			first, set := watched.firstDeadline()
+			require.True(t, set, "the server sets a read deadline when it starts to read a request")
+			assert.Equal(t, tt.wantDeadline, !first.IsZero(),
+				"the server arms its own read deadline (before any handler) only with a read timeout, got %v", first)
 
 			if !tt.wantEnded {
 				return
