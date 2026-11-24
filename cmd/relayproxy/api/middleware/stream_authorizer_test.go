@@ -65,7 +65,7 @@ func TestStreamAuthorizer(t *testing.T) {
 				},
 			}
 			conf.ForceReloadAPIKeys()
-			middleware := middleware2.StreamAuthorizer(conf)
+			middleware := middleware2.StreamAuthorizer(conf, nil)
 			handler := middleware(func(c *echo.Context) error {
 				return c.String(http.StatusOK, "Authorized")
 			})

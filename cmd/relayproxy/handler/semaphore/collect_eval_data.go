@@ -75,7 +75,7 @@ func (h *collectEvalData) Handler(c *echo.Context) error {
 
 	span.SetAttributes(attribute.Int("collectEventData.eventCollectionSize", len(reqBody.Events)))
 
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
 	if httpErr != nil {
 		return httpErr
 	}

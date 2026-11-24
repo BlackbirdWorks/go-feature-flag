@@ -378,7 +378,7 @@ List of authorized API keys.
 > This works in both default mode and flagset mode.
 > In flagset mode, `authorizedKeys.admin` and the [`apiKeys` of each flag set](#flagsetapikeys) are reloaded.
 > The `authorizedKeys` are replaced in a single step: a request is always checked against either the previous or the new keys.
-> A key moved or removed from the `apiKeys` of a flag set takes effect in two steps (routing, then authentication), so a request using it during the reload can briefly get a routing error.
+> In flag set mode a flag set key is accepted when it is routed to a flag set, and the flag set found at authentication is the one the request uses: a request using a key that is moved or removed during a reload is either served by one of its flag sets or rejected with `401`, never failed half way.
 
 ### `evaluationContextEnrichment`
 

@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
@@ -50,7 +51,7 @@ type sseFlagChange struct {
 // @Router       /stream/v1/sse/flag/change [get]
 func (h *sseFlagChange) Handler(c *echo.Context) error {
 	apiKey := c.QueryParam("apiKey")
-	flagsetName, err := h.flagsetManager.FlagSetName(apiKey)
+	flagsetName, err := helper.RequestFlagSetName(c, h.flagsetManager, apiKey)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

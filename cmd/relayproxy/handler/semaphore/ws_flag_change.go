@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 )
@@ -110,7 +111,7 @@ func (f *WSFlagChange) LegacyHandler(c *echo.Context) error {
 // @Router       /stream/v1/ws/flag/change [get]
 func (f *WSFlagChange) Handler(c *echo.Context) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
-	flagsetName, err := f.flagsetManager.FlagSetName(c.QueryParam("apiKey"))
+	flagsetName, err := helper.RequestFlagSetName(c, f.flagsetManager, c.QueryParam("apiKey"))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

@@ -48,7 +48,7 @@ func NewForceFlagsRefresh(flagsetManager service.FlagsetManager, metrics metric.
 func (h *forceFlagsRefresh) Handler(c *echo.Context) error {
 	h.metrics.IncForceRefresh()
 
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
 	if httpErr != nil {
 		return httpErr
 	}

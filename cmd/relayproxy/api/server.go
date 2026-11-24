@@ -17,6 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/manifest"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/ofrep"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	helpermiddleware "github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
@@ -184,8 +185,15 @@ func (s *Server) getAuthMiddleware(middlewareType AuthMiddlewareType) echo.Middl
 		})
 	default:
 		return custommiddleware.KeyAuthExtended(custommiddleware.KeyAuthExtendedConfig{
-			Validator: func(_ *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
-				return s.config.APIKeyExists(key), nil
+			Validator: func(c *echo.Context, key string, _ middleware.ExtractorSource) (bool, error) {
+				manager := s.services.FlagsetManager
+				if manager == nil || manager.IsDefaultFlagSet() {
+					return s.config.APIKeyExists(key), nil
+				}
+				// In flag set mode a key is accepted if it routes to a flag set: the routing is the single
+				// table, and the flag set resolved here is the one the handler uses.
+				// An admin key is accepted and then refused by the handler, as documented.
+				return helper.AuthenticateFlagSet(c, manager, key) || s.config.APIKeysAdminExists(key), nil
 			},
 			ErrorHandler: custommiddleware.AuthMiddlewareErrHandler,
 			Skipper: func(_ *echo.Context) bool {

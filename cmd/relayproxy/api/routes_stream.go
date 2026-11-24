@@ -12,7 +12,7 @@ import (
 // /ws/v1/flag/change route is kept for backward compatibility but marked
 // deprecated via response headers.
 func (s *Server) addStreamRoutes() {
-	authorize := custommiddleware.StreamAuthorizer(s.config)
+	authorize := custommiddleware.StreamAuthorizer(s.config, s.services.FlagsetManager)
 
 	cWsFlagChange := controller.NewWsFlagChange(s.services.WebsocketService, s.services.FlagsetManager, s.zapLog)
 	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.services.FlagsetManager, s.zapLog)

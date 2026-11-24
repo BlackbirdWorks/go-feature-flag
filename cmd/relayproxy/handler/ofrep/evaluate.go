@@ -107,7 +107,7 @@ func (h *EvaluateCtrl) Evaluate(c *echo.Context) error {
 	_, span := tracer.Start(c.Request().Context(), "flagEvaluation")
 	defer span.End()
 
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
 	if httpErr != nil {
 		return httpErr
 	}
@@ -211,7 +211,7 @@ func (h *EvaluateCtrl) BulkEvaluate(c *echo.Context) error {
 	_, span := tracer.Start(c.Request().Context(), "AllFlagsState")
 	defer span.End()
 
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, helper.APIKey(c))
+	flagset, httpErr := helper.RequestFlagSet(c, h.flagsetManager)
 	if httpErr != nil {
 		return httpErr
 	}
