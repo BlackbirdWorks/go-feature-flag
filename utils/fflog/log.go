@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // LogDateFormat is the default log format.
@@ -61,7 +63,7 @@ func (f *FFLogger) Warn(msg string, keysAndValues ...any) {
 func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 	if f != nil && f.LegacyLogger != nil {
 		if len(keysAndValues) == 0 {
-			f.LegacyLogger.Printf("%s %s %s", time.Now().Format("2006/01/02 15:04:05"), level, msg)
+			f.LegacyLogger.Printf("%s %s %s", clock.Now().Format("2006/01/02 15:04:05"), level, msg)
 
 			return
 		}
@@ -72,7 +74,7 @@ func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 		}
 		f.LegacyLogger.Printf(
 			"%s %s %s %v",
-			time.Now().Format("2006/01/02 15:04:05"),
+			clock.Now().Format("2006/01/02 15:04:05"),
 			level,
 			msg,
 			strings.Join(attrs, " "),

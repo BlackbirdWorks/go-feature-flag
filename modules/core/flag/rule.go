@@ -12,6 +12,7 @@ import (
 	"github.com/diegoholiveira/jsonlogic/v3"
 	"github.com/nikunjy/rules/parser"
 
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
@@ -99,7 +100,7 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return "", errors.New("evaluate Rule: no key for bucketing-required rule")
 	}
 
-	evaluationDate := DateFromContextOrDefault(ctx, time.Now())
+	evaluationDate := DateFromContextOrDefault(ctx, clock.Now())
 	// check that we have an evaluation context
 	if ctx == nil {
 		return "", errors.New("evaluate Rule: no evaluation context")

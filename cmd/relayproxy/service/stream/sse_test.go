@@ -18,6 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -95,11 +96,11 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			case <-ctx.Done():
 				require.Fail(t, "timed out waiting for SSE client to subscribe")
 			}
-			before := time.Now()
+			before := clocktest.Instant()
 			require.NoError(t, sseService.BroadcastFlagChanges(tt.broadcastFlagset, tt.diff))
 			if !tt.expectReceive {
 				// Broadcast the correct stream so the client unblocks after.
-				before = time.Now()
+				before = clocktest.Instant()
 				require.NoError(t, sseService.BroadcastFlagChanges(tt.subscribeFlagset, notifier.DiffCache{}))
 			}
 

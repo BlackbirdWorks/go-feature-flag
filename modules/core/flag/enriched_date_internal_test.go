@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 // the currentDateTime set by the evaluation context enrichment is the date of the evaluation for
@@ -14,7 +15,7 @@ import (
 func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
+	now := clocktest.Instant()
 	enrichmentAt := func(d time.Time) map[string]any {
 		return map[string]any{"gofeatureflag": map[string]any{"currentDateTime": d.Format(time.RFC3339Nano)}}
 	}

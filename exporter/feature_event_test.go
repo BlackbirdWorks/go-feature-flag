@@ -2,12 +2,12 @@ package exporter_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func TestNewFeatureEvent(t *testing.T) {
@@ -45,7 +45,7 @@ func TestNewFeatureEvent(t *testing.T) {
 				Kind:         "feature",
 				ContextKind:  "anonymousUser",
 				UserKey:      "ABCD",
-				CreationDate: time.Now().Unix(),
+				CreationDate: clocktest.Instant().Unix(),
 				Key:          "random-key",
 				Variation:    "Default",
 				Value:        "YO",
@@ -58,7 +58,7 @@ func TestNewFeatureEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			before := time.Now().Unix()
+			before := clocktest.Instant().Unix()
 			got := exporter.NewFeatureEvent(
 				tt.args.user,
 				tt.args.flagKey,
@@ -69,7 +69,7 @@ func TestNewFeatureEvent(t *testing.T) {
 				tt.args.source,
 				tt.args.exporterMetadata,
 			)
-			after := time.Now().Unix()
+			after := clocktest.Instant().Unix()
 
 			// The creation date is the wall clock at call time: check the window, then compare the rest.
 			assert.GreaterOrEqual(t, got.CreationDate, before)

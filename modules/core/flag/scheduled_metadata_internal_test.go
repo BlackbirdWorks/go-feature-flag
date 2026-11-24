@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 // the details handed to the caller belong to the evaluation: editing the metadata or the rule name
@@ -58,7 +59,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := tt.flag(time.Now())
+			f := tt.flag(clocktest.Instant())
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			_, first := f.Value("flag", ctx, Context{})
 			rel := first.Metadata["release"].(map[string]any)

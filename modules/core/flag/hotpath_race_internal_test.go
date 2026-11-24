@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func progressiveFlag(endPercentage *float64) *InternalFlag {
@@ -23,12 +24,12 @@ func progressiveFlag(endPercentage *float64) *InternalFlag {
 				Initial: &ProgressiveRolloutStep{
 					Variation:  new("B"),
 					Percentage: new(float64(0)),
-					Date:       new(time.Now().Add(-time.Hour)),
+					Date:       new(clocktest.Instant().Add(-time.Hour)),
 				},
 				End: &ProgressiveRolloutStep{
 					Variation:  new("A"),
 					Percentage: endPercentage,
-					Date:       new(time.Now().Add(time.Hour)),
+					Date:       new(clocktest.Instant().Add(time.Hour)),
 				},
 			},
 		},

@@ -11,6 +11,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 // largeInQuery returns `key in ["user-0000000", ...]` with 300000 ids, a ~4.5 MB query.
@@ -326,7 +327,7 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	svc := flag.NewService()
 	f := newSmallFlag(0, `key eq "user-1" and plan eq "pro"`)
-	past := time.Now().Add(-time.Hour)
+	past := clocktest.Instant().Add(-time.Hour)
 	f.Scheduled = &[]flag.ScheduledStep{{
 		Rules: &[]flag.Rule{{
 			Name:  new("rule-0"),

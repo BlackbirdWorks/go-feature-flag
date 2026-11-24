@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
+
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 const DefaultCsvTemplate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
@@ -29,7 +30,7 @@ func ParseTemplate(name, templateToParse, defaultTemplate string) *template.Temp
 // ComputeFilename is computing the filename to use for the export file.
 func ComputeFilename(template *template.Template, format string) (string, error) {
 	hostname, _ := os.Hostname()
-	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+	timestamp := strconv.FormatInt(clock.Now().Unix(), 10)
 	format = strings.ToLower(format)
 
 	var buf bytes.Buffer

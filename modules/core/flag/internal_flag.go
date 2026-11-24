@@ -11,6 +11,7 @@ import (
 
 	"github.com/nikunjy/rules/parser"
 
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
@@ -90,7 +91,7 @@ func (f *InternalFlag) Value(
 		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
-	evaluationDate := DateFromContextOrDefault(evaluationCtx, time.Now())
+	evaluationDate := DateFromContextOrDefault(evaluationCtx, clock.Now())
 	flag, err := f.applyScheduledRolloutSteps(svc, evaluationDate)
 	if err != nil {
 		return flagContext.DefaultSdkValue, ResolutionDetails{

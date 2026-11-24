@@ -10,6 +10,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
 func TestInternalFlag_Value(t *testing.T) {
@@ -2419,12 +2420,12 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 				Initial: &flag.ProgressiveRolloutStep{
 					Variation:  new("variation_A"),
 					Percentage: new(float64(0)),
-					Date:       new(time.Now().Add(1 * time.Second)),
+					Date:       new(clocktest.Instant().Add(1 * time.Second)),
 				},
 				End: &flag.ProgressiveRolloutStep{
 					Variation:  new("variation_B"),
 					Percentage: new(float64(100)),
-					Date:       new(time.Now().Add(2 * time.Second)),
+					Date:       new(clocktest.Instant().Add(2 * time.Second)),
 				},
 			},
 		},
@@ -2433,17 +2434,25 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 	user := ffcontext.NewEvaluationContextBuilder("test").AddCustom("anonymous", true).Build()
 	flagName := "test-flag"
 
-	// We evaluate the same flag multiple time overtime.
-	v, _ := f.Value(flagName, user, flag.Context{})
-	assert.Equal(t, f.GetVariationValue("variation_A"), v)
+	// We evaluate the same flag at different dates: before the initial step, at the initial step,
+	// and at the end of the progressive rollout.
+	tests := []struct {
+		name string
+		date time.Time
+		want string
+	}{
+		{name: "before the rollout starts", date: clocktest.Instant(), want: "variation_A"},
+		{name: "at the first step", date: clocktest.Instant().Add(1 * time.Second), want: "variation_A"},
+		{name: "at the end of the rollout", date: clocktest.Instant().Add(2 * time.Second), want: "variation_B"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	time.Sleep(1 * time.Second)
-	v2, _ := f.Value(flagName, user, flag.Context{})
-	assert.Equal(t, f.GetVariationValue("variation_A"), v2)
-
-	time.Sleep(1 * time.Second)
-	v3, _ := f.Value(flagName, user, flag.Context{})
-	assert.Equal(t, f.GetVariationValue("variation_B"), v3)
+			v, _ := f.Value(flagName, atDate(user, tt.date), flag.Context{})
+			assert.Equal(t, f.GetVariationValue(tt.want), v)
+		})
+	}
 }
 
 func TestInternalFlag_GetVariations(t *testing.T) {
@@ -3196,13 +3205,13 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 				DefaultRule: &flag.Rule{
 					VariationResult: new("variation_B"),
 				},
-				Date: new(time.Now().Add(-2 * time.Second)),
+				Date: new(clocktest.Instant().Add(-2 * time.Second)),
 			},
 			{
 				Variations: &map[string]*any{
 					"variation_B": new(any("value_QWERTY")),
 				},
-				Date: new(time.Now().Add(-1 * time.Second)),
+				Date: new(clocktest.Instant().Add(-1 * time.Second)),
 			},
 		},
 	}

@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -115,7 +116,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	var swapped Cache = newCache
 	c.mutex.Lock()
 	old := c.inMemoryCache.Swap(&swapped)
-	c.latestUpdate = time.Now()
+	c.latestUpdate = clock.Now()
 	c.mutex.Unlock()
 	// collect flags for compare (the old cache is immutable, no lock needed).
 	if old != nil {

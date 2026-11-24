@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -214,7 +215,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 	defer r.mu.Unlock()
 
 	// Refresh ~5 minutes before expiry so we never send an about-to-expire token.
-	if r.cachedToken != "" && time.Now().Before(r.tokenExpiresAt.Add(-5*time.Minute)) {
+	if r.cachedToken != "" && clock.Now().Before(r.tokenExpiresAt.Add(-5*time.Minute)) {
 		return r.cachedToken, nil
 	}
 
@@ -337,7 +338,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 func (r *Retriever) checkRateLimit() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.rateLimitRemaining <= 0 && time.Now().Before(r.rateLimitReset) {
+	if r.rateLimitRemaining <= 0 && clock.Now().Before(r.rateLimitReset) {
 		return fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
 	}
 

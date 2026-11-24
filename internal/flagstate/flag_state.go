@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
@@ -23,7 +24,7 @@ type FlagState struct {
 // FromFlagEvaluation builds the state of a flag evaluated now.
 func FromFlagEvaluation(key string, evaluationCtx ffcontext.Context,
 	flagCtx flag.Context, currentFlag flag.Flag) FlagState {
-	return FromFlagEvaluationAt(time.Now(), key, evaluationCtx, flagCtx, currentFlag)
+	return FromFlagEvaluationAt(clock.Now(), key, evaluationCtx, flagCtx, currentFlag)
 }
 
 // FromFlagEvaluationAt builds the state of a flag evaluated at the given instant.
