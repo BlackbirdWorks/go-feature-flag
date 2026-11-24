@@ -256,7 +256,7 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 			Date:    new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 	}
-	assert.True(t, isEffectivelyDisabled("no-default-rule", f))
+	assert.True(t, isEffectivelyDisabled(flag.NewService(), "no-default-rule", f))
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {

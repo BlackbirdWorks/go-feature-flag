@@ -17,15 +17,12 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
-// useIndexingNikunjyEvaluators is useFreshNikunjyEvaluators with keys for the short queries of
-// the tests too.
-func useIndexingNikunjyEvaluators(tb testing.TB) *nikunjyEvaluatorCache {
-	c := useFreshNikunjyEvaluators(tb)
-	previous := nikunjyKeysMinQueryLen
-	nikunjyKeysMinQueryLen = 0
-	tb.Cleanup(func() { nikunjyKeysMinQueryLen = previous })
+// newIndexingService creates a Service that gives keys to the short queries of the tests too.
+func newIndexingService() *Service {
+	svc := NewService()
+	svc.nikunjy.keysMinQueryLen = 0
 
-	return c
+	return svc
 }
 
 // idList returns `key in ["user-0000000", ...]` with n ids, where the id at position
@@ -51,16 +48,16 @@ func idList(n, replaced int, replacement string) string {
 }
 
 // applies reports whether the rule applies to the evaluation context of key.
-func applies(r *Rule, key string) bool {
-	_, err := r.Evaluate(key, ffcontext.NewEvaluationContext(key), "test-flag", false)
+func applies(svc *Service, r *Rule, key string) bool {
+	_, err := r.Evaluate(svc, key, ffcontext.NewEvaluationContext(key), "test-flag", false)
 
 	return err == nil
 }
 
-func validatedFlag(t testing.TB, queries ...string) *InternalFlag {
+func validatedFlag(t testing.TB, svc *Service, queries ...string) *InternalFlag {
 	t.Helper()
 	f := newFlagWithQueries(queries...)
-	require.NoError(t, f.IsValid())
+	require.NoError(t, f.IsValid(svc))
 
 	return f
 }
@@ -104,8 +101,9 @@ func assertSharedEvaluators(t *testing.T, c *nikunjyEvaluatorCache, flags []*Int
 	assert.Len(t, distinct, wantEvaluators)
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
+	t.Parallel()
+
 	const query = `key eq "shared"`
 	tests := []struct {
 		name  string
@@ -142,14 +140,17 @@ func TestNikunjyEvaluatorCache_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			flags := make([]*InternalFlag, tt.flags)
 			for f := range flags {
 				queries := make([]string, tt.rules)
 				for r := range queries {
 					queries[r] = tt.queryOf(f, r)
 				}
-				flags[f] = validatedFlag(t, queries...)
+				flags[f] = validatedFlag(t, svc, queries...)
 			}
 			assertSharedEvaluators(t, c, flags, tt.wantEvaluators)
 			runtime.KeepAlive(flags)
@@ -190,18 +191,18 @@ func assertListsHaveOwnEvaluators(t *testing.T, c *nikunjyEvaluatorCache, rulesA
 }
 
 // assertListsApply checks which ids apply to the rules of list A and to the rules of list B.
-func assertListsApply(t assert.TestingT, rulesA, rulesB []*Rule, idA, idB string) {
+func assertListsApply(t assert.TestingT, svc *Service, rulesA, rulesB []*Rule, idA, idB string) {
 	for _, r := range rulesA {
-		assert.True(t, applies(r, idA), "the id of list A must match list A")
-		assert.False(t, applies(r, idB), "the id of list B must not match list A")
-		assert.True(t, applies(r, "user-0000001"))
-		assert.False(t, applies(r, "nobody"))
+		assert.True(t, applies(svc, r, idA), "the id of list A must match list A")
+		assert.False(t, applies(svc, r, idB), "the id of list B must not match list A")
+		assert.True(t, applies(svc, r, "user-0000001"))
+		assert.False(t, applies(svc, r, "nobody"))
 	}
 	for _, r := range rulesB {
-		assert.True(t, applies(r, idB), "the id of list B must match list B")
-		assert.False(t, applies(r, idA), "the id of list A must not match list B")
-		assert.True(t, applies(r, "user-0000001"))
-		assert.False(t, applies(r, "nobody"))
+		assert.True(t, applies(svc, r, idB), "the id of list B must match list B")
+		assert.False(t, applies(svc, r, idA), "the id of list A must not match list B")
+		assert.True(t, applies(svc, r, "user-0000001"))
+		assert.False(t, applies(svc, r, "nobody"))
 	}
 }
 
@@ -219,8 +220,9 @@ func runConcurrently(t *testing.T, check func(t assert.TestingT)) {
 	wg.Wait()
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		n    int
@@ -253,16 +255,19 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			listA, listB := idList(tt.n, -1, ""), tt.listB(tt.n)
 			require.NotEqual(t, listA, listB)
 
 			// Both lists are in several flags, in different rule positions, with their
 			// own copy of the text.
 			flags := []*InternalFlag{
-				validatedFlag(t, strings.Clone(listA), strings.Clone(listB)),
-				validatedFlag(t, strings.Clone(listB), strings.Clone(listA)),
-				validatedFlag(t, strings.Clone(listA)),
+				validatedFlag(t, svc, strings.Clone(listA), strings.Clone(listB)),
+				validatedFlag(t, svc, strings.Clone(listB), strings.Clone(listA)),
+				validatedFlag(t, svc, strings.Clone(listA)),
 			}
 			rulesA, rulesB := splitRulesByQuery(flags, listA)
 			require.Len(t, rulesA, 3)
@@ -270,10 +275,12 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 			assertListsHaveOwnEvaluators(t, c, rulesA, rulesB)
 
 			check := func(t assert.TestingT) {
-				assertListsApply(t, rulesA, rulesB, tt.idA, tt.idB)
+				assertListsApply(t, svc, rulesA, rulesB, tt.idA, tt.idB)
 			}
 			check(t)
 			t.Run("interleaved and concurrent evaluations", func(t *testing.T) {
+				t.Parallel()
+
 				runConcurrently(t, check)
 			})
 			runtime.KeepAlive(flags)
@@ -281,8 +288,9 @@ func TestNikunjyEvaluatorCache_NearIdenticalLargeQueries(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// mutate changes a validated rule, or returns another rule to evaluate.
@@ -367,13 +375,16 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
-			f := validatedFlag(t, `key eq "a"`)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
+			f := validatedFlag(t, svc, `key eq "a"`)
 			require.NotZero(t, (*f.Rules)[0].QueryHash)
 			r := tt.mutate(&(*f.Rules)[0])
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
-			assert.True(t, applies(r, tt.matches))
-			assert.False(t, applies(r, tt.doesNotMatch))
+			assert.True(t, applies(svc, r, tt.matches))
+			assert.False(t, applies(svc, r, tt.doesNotMatch))
 			runtime.KeepAlive(f)
 		})
 	}
@@ -407,14 +418,14 @@ func assertOneTextPerKeyAndEvaluator(t *testing.T, c *nikunjyEvaluatorCache, fla
 
 // assertCollidingQueriesApply checks that each rule of flags applies to the key of its own query
 // only, among the n colliding queries.
-func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
+func assertCollidingQueriesApply(t *testing.T, svc *Service, flags []*InternalFlag, n int) {
 	t.Helper()
 	for _, f := range flags {
 		for i := range *f.Rules {
 			r := &(*f.Rules)[i]
 			for j := range n {
 				want := fmt.Sprintf("collide-%d", j)
-				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(r, want))
+				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(svc, r, want))
 			}
 		}
 	}
@@ -422,9 +433,9 @@ func assertCollidingQueriesApply(t *testing.T, flags []*InternalFlag, n int) {
 
 // TestNikunjyEvaluatorCache_ForcedCollisions makes every query hash to the same value, which
 // is the worst case of a 64-bit hash: no two queries may share an evaluator.
-//
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		hash func(string) uint64
@@ -436,7 +447,10 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			c.hash = tt.hash
 			queries := make([]string, 0, 10)
 			for i := range 10 {
@@ -447,10 +461,10 @@ func TestNikunjyEvaluatorCache_ForcedCollisions(t *testing.T) {
 			for i, q := range queries {
 				reversed[len(queries)-1-i] = strings.Clone(q)
 			}
-			flags := []*InternalFlag{validatedFlag(t, queries...), validatedFlag(t, reversed...)}
+			flags := []*InternalFlag{validatedFlag(t, svc, queries...), validatedFlag(t, svc, reversed...)}
 
 			assertOneTextPerKeyAndEvaluator(t, c, flags, len(queries))
-			assertCollidingQueriesApply(t, flags, len(queries))
+			assertCollidingQueriesApply(t, svc, flags, len(queries))
 
 			// Releasing one flag keeps the keys of the other.
 			flags[0] = nil
@@ -479,10 +493,11 @@ func (c *nikunjyEvaluatorCache) keyRefsTotal() int {
 	return n
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestRule_QueryHashIsNotSerialized(t *testing.T) {
-	useIndexingNikunjyEvaluators(t)
-	f := validatedFlag(t, `key eq "a"`)
+	t.Parallel()
+
+	svc := newIndexingService()
+	f := validatedFlag(t, svc, `key eq "a"`)
 	require.NotZero(t, (*f.Rules)[0].QueryHash)
 
 	asJSON, err := json.Marshal(f)
@@ -497,17 +512,19 @@ func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 	assert.Zero(t, (*decoded.Rules)[0].QueryHash)
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
-	useIndexingNikunjyEvaluators(t)
-	loaded := validatedFlag(t, `key eq "a"`)
-	reloaded := validatedFlag(t, strings.Clone(`key eq "a"`))
+	t.Parallel()
+
+	svc := newIndexingService()
+	loaded := validatedFlag(t, svc, `key eq "a"`)
+	reloaded := validatedFlag(t, svc, strings.Clone(`key eq "a"`))
 	assert.True(t, cmp.Equal(loaded, reloaded), "two loads of the same flag are the same flag")
-	assert.False(t, cmp.Equal(loaded, validatedFlag(t, `key eq "b"`)))
+	assert.False(t, cmp.Equal(loaded, validatedFlag(t, svc, `key eq "b"`)))
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		query string
@@ -538,9 +555,12 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			f := newFlagWithQueries(tt.query)
-			err := f.IsValid()
+			err := f.IsValid(svc)
 			if !tt.valid {
 				require.Error(t, err)
 				assert.Zero(t, indexSize(c), "an invalid flag must not index its queries")
@@ -550,30 +570,33 @@ func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
 			require.NoError(t, err)
 			r := &(*f.Rules)[0]
 			assert.Equal(t, strings.Contains(tt.query, "eq"), indexedEvaluator(c, r) != nil)
-			assert.True(t, applies(r, tt.matches))
-			assert.False(t, applies(r, tt.doesNotMatch))
+			assert.True(t, applies(svc, r, tt.matches))
+			assert.False(t, applies(svc, r, tt.doesNotMatch))
 			runtime.KeepAlive(f)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
-	useIndexingNikunjyEvaluators(t)
+	t.Parallel()
+
+	svc := newIndexingService()
 	q := `key eq "a"`
 	r := &Rule{Query: &q, VariationResult: &q}
-	assert.True(t, applies(r, "a"))
-	assert.False(t, applies(r, "b"))
+	assert.True(t, applies(svc, r, "a"))
+	assert.False(t, applies(svc, r, "b"))
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
-	c := useIndexingNikunjyEvaluators(t)
+	t.Parallel()
+
+	svc := newIndexingService()
+	c := svc.nikunjy
 	const flags = 10
 	load := func(query func(f int) string) []*InternalFlag {
 		set := make([]*InternalFlag, flags)
 		for f := range set {
-			set[f] = validatedFlag(t, query(f))
+			set[f] = validatedFlag(t, svc, query(f))
 		}
 
 		return set
@@ -583,8 +606,12 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 		for f, flg := range set {
 			r := &(*flg.Rules)[0]
 			assert.NotNil(t, indexedEvaluator(c, r))
-			assert.True(t, applies(r, fmt.Sprintf("gen-%d-%d", gen, f%3)))
-			assert.False(t, applies(r, fmt.Sprintf("gen-%d-%d", gen-1, f%3)), "stale evaluator of the previous load")
+			assert.True(t, applies(svc, r, fmt.Sprintf("gen-%d-%d", gen, f%3)))
+			assert.False(
+				t,
+				applies(svc, r, fmt.Sprintf("gen-%d-%d", gen-1, f%3)),
+				"stale evaluator of the previous load",
+			)
 		}
 	}
 	check(current, 0)
@@ -624,9 +651,10 @@ func TestNikunjyEvaluatorCache_Reload(t *testing.T) {
 	runtime.KeepAlive(current)
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) {
-	useIndexingNikunjyEvaluators(t)
+	t.Parallel()
+
+	svc := newIndexingService()
 	listA, listB := idList(2000, -1, ""), idList(2000, 1000, "usex-0001000")
 	var current struct {
 		sync.RWMutex
@@ -638,7 +666,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 			a, b = listB, listA
 		}
 
-		return []*InternalFlag{validatedFlag(t, strings.Clone(a)), validatedFlag(t, strings.Clone(b))}
+		return []*InternalFlag{validatedFlag(t, svc, strings.Clone(a)), validatedFlag(t, svc, strings.Clone(b))}
 	}
 	current.flags = newSet(0)
 
@@ -659,8 +687,8 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsDuringReloads(t *testing.T) 
 				for _, f := range set {
 					r := &(*f.Rules)[0]
 					isA := strings.Contains(r.GetQuery(), "user-0001000")
-					assert.Equal(t, isA, applies(r, "user-0001000"))
-					assert.Equal(t, !isA, applies(r, "usex-0001000"))
+					assert.Equal(t, isA, applies(svc, r, "user-0001000"))
+					assert.Equal(t, !isA, applies(svc, r, "usex-0001000"))
 				}
 			}
 		})
@@ -723,8 +751,9 @@ func TestHashNikunjyQuery(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		validations int
@@ -734,18 +763,21 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			f := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
 			for range tt.validations {
-				require.NoError(t, f.IsValid())
+				require.NoError(t, f.IsValid(svc))
 			}
 			hashes := []uint64{(*f.Rules)[0].QueryHash, (*f.Rules)[1].QueryHash}
 			assert.NotZero(t, hashes[0])
 			assert.NotEqual(t, hashes[0], hashes[1])
 			assert.Equal(t, 2*tt.validations, c.keyRefsTotal(), "one reference per rule and validation")
 			assert.Equal(t, 2, indexSize(c))
-			assert.True(t, applies(&(*f.Rules)[0], "a"))
-			assert.False(t, applies(&(*f.Rules)[1], "a"))
+			assert.True(t, applies(svc, &(*f.Rules)[0], "a"))
+			assert.False(t, applies(svc, &(*f.Rules)[1], "a"))
 
 			runtime.KeepAlive(f)
 			*f = InternalFlag{} // drop the rules
@@ -777,7 +809,8 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ev, err := tt.rule.validate(tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
+			svc := NewService()
+			ev, err := tt.rule.validate(svc, tt.isDefault, map[string]*any{"on": new(any(true))}, nil)
 			if tt.wantInvalid {
 				require.Error(t, err)
 			} else {
@@ -788,8 +821,9 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable nikunjyKeysEnabled; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		enabled     bool
@@ -800,24 +834,26 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
-			previous := nikunjyKeysEnabled
-			nikunjyKeysEnabled = tt.enabled
-			t.Cleanup(func() { nikunjyKeysEnabled = previous })
+			t.Parallel()
 
-			f := validatedFlag(t, `key eq "a"`)
+			svc := newIndexingService()
+			c := svc.nikunjy
+			c.keysEnabled = tt.enabled
+
+			f := validatedFlag(t, svc, `key eq "a"`)
 			r := &(*f.Rules)[0]
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
 			assert.Equal(t, tt.wantIndexed, indexSize(c) == 1)
-			assert.True(t, applies(r, "a"), "the rule evaluates through the evaluator cache")
-			assert.False(t, applies(r, "b"))
+			assert.True(t, applies(svc, r, "a"), "the rule evaluates through the evaluator cache")
+			assert.False(t, applies(svc, r, "b"))
 			runtime.KeepAlive(f)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		query       string
@@ -826,26 +862,29 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 		{name: "short query", query: `key eq "a"`},
 		{
 			name:  "query just under the length",
-			query: `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`,
+			query: `key eq "` + strings.Repeat("a", defaultNikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`,
 		},
 		{
 			name:        "query of the length",
-			query:       `key eq "` + strings.Repeat("a", nikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`,
+			query:       `key eq "` + strings.Repeat("a", defaultNikunjyKeysMinQueryLen-len(`key eq ""`)) + `"`,
 			wantIndexed: true,
 		},
 		{name: "long query", query: idList(200, -1, ""), wantIndexed: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useFreshNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := NewService()
+			c := svc.nikunjy
 			f := newFlagWithQueries(tt.query)
-			require.NoError(t, f.IsValid())
+			require.NoError(t, f.IsValid(svc))
 			r := &(*f.Rules)[0]
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
 			assert.Equal(t, tt.wantIndexed, r.QueryHash != 0)
 			assert.True(
 				t,
-				applies(r, "user-0000001") || !strings.Contains(tt.query, "user-"),
+				applies(svc, r, "user-0000001") || !strings.Contains(tt.query, "user-"),
 				"the rule evaluates either way",
 			)
 			runtime.KeepAlive(f)
@@ -853,8 +892,9 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
+	t.Parallel()
+
 	query := idList(200, -1, "")
 	tests := []struct {
 		name string
@@ -871,10 +911,13 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
 			flags := make([]*InternalFlag, tt.loads)
 			for i := range flags {
-				flags[i] = validatedFlag(t, strings.Clone(query))
+				flags[i] = validatedFlag(t, svc, strings.Clone(query))
 			}
 			trimmed := (&(*flags[0].Rules)[0]).GetTrimmedQuery()
 			assert.Equal(t, tt.wantTextRefs, refCount(c, trimmed))
@@ -885,8 +928,8 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 			for _, f := range flags {
 				r := &(*f.Rules)[0]
 				assert.Same(t, first, indexedEvaluator(c, r), "one evaluator for the query")
-				assert.True(t, applies(r, "user-0000199"))
-				assert.False(t, applies(r, "nobody"))
+				assert.True(t, applies(svc, r, "user-0000199"))
+				assert.False(t, applies(svc, r, "nobody"))
 			}
 
 			runtime.KeepAlive(flags)
@@ -898,8 +941,9 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // calls the helper useIndexingNikunjyEvaluators which assigns to the package-level variable nikunjyKeysMinQueryLen; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
+	t.Parallel()
+
 	query := idList(200, -1, "")
 	tests := []struct {
 		name string
@@ -917,19 +961,22 @@ func TestNikunjyEvaluatorCache_KnownQueryOfAnInvalidFlag(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useIndexingNikunjyEvaluators(t)
-			valid := validatedFlag(t, strings.Clone(query))
+			t.Parallel()
+
+			svc := newIndexingService()
+			c := svc.nikunjy
+			valid := validatedFlag(t, svc, strings.Clone(query))
 			require.Equal(t, 1, c.keyRefsTotal())
 
 			invalid := newFlagWithQueries(strings.Clone(query))
 			tt.invalid(invalid)
-			require.Error(t, invalid.IsValid())
+			require.Error(t, invalid.IsValid(svc))
 			assert.Equal(t, 2, c.keyRefsTotal(), "the reference taken by the invalid flag is released with it")
 
 			runtime.KeepAlive(invalid)
 			*invalid = InternalFlag{} // drop the rules
 			gcUntil(t, func() bool { return c.keyRefsTotal() == 1 }, "the invalid flag must release its reference once")
-			assert.True(t, applies(&(*valid.Rules)[0], "user-0000199"), "the query is still evaluated")
+			assert.True(t, applies(svc, &(*valid.Rules)[0], "user-0000199"), "the query is still evaluated")
 			runtime.KeepAlive(valid)
 		})
 	}

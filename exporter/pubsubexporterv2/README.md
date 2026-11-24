@@ -45,11 +45,11 @@ func main() {
         },
     }
 
-    err := ffclient.Init(config)
+    client, err := ffclient.New(config)
     if err != nil {
         log.Fatal(err)
     }
-    defer ffclient.Close()
+    defer client.Close()
 }
 ```
 

@@ -32,13 +32,13 @@ configuration to your `ffclient.Config{}` object:
 ```go
 import 	"github.com/blackbirdworks/semaphore/retriever/file"
 // ...
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &fileretriever.Retriever{
         Path: "/semaphore/my-flags.yaml",
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | Field      |   Mandatory   | Description                               |

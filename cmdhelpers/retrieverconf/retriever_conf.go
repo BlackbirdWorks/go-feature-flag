@@ -9,15 +9,15 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
-var DefaultRetrieverConfig = struct {
-	Timeout    time.Duration
-	HTTPMethod string
-	GitBranch  string
-}{
-	Timeout:    10 * time.Second,
-	HTTPMethod: http.MethodGet,
-	GitBranch:  "main",
-}
+// The defaults of the retriever configuration.
+const (
+	// DefaultTimeout is the timeout of a retriever that does not set one.
+	DefaultTimeout = 10 * time.Second
+	// DefaultHTTPMethod is the method of the HTTP retriever that does not set one.
+	DefaultHTTPMethod = http.MethodGet
+	// DefaultGitBranch is the branch of the git retrievers that do not set one.
+	DefaultGitBranch = "main"
+)
 
 // RetrieverConf contains all the field to configure a retriever.
 type RetrieverConf struct {

@@ -57,15 +57,31 @@ func TestWarnerConcurrentUse(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
-func TestWarnerDefaultAndSetLogFunc(t *testing.T) {
+func TestWarnerWithoutDestination(t *testing.T) {
 	t.Parallel()
-	// A nil LogFunc falls back to slog, which must not panic.
-	w := legacy.NewWarner(nil)
-	w.Warn("k", "goes to slog")
+	tests := []struct {
+		name   string
+		warner *legacy.Warner
+	}{
+		{name: "nil log function", warner: legacy.NewWarner(nil)},
+		{name: "nil warner", warner: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.NotPanics(t, func() { tt.warner.Warn("k", "dropped") })
+		})
+	}
+}
 
-	var got []string
-	w.SetLogFunc(func(kind, _ string) { got = append(got, kind) })
-	w.Warn("other", "goes to the new destination")
-	w.Warn("other", "ignored")
-	assert.Equal(t, []string{"other"}, got)
+func TestWarnersDoNotShareState(t *testing.T) {
+	t.Parallel()
+	var first, second []string
+	w1 := legacy.NewWarner(func(kind, _ string) { first = append(first, kind) })
+	w2 := legacy.NewWarner(func(kind, _ string) { second = append(second, kind) })
+	w1.Warn("k", "m")
+	w2.Warn("k", "m")
+	w1.Warn("k", "m")
+	assert.Equal(t, []string{"k"}, first)
+	assert.Equal(t, []string{"k"}, second)
 }

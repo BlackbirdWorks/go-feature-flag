@@ -55,8 +55,13 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	fs.DurationVar(&o.interval, "interval", 5*time.Second, "sampling interval")
 	fs.IntVar(&o.workers, "workers", runtime.GOMAXPROCS(0), "number of load goroutines")
 	fs.StringVar(&o.flagKey, "flag", "rule-bool-track", "flag key to evaluate (tracking on by default)")
-	fs.Int64Var(&o.flushMs, "flush-ms", 1000, "exporter flush interval (ms)")
-	fs.Int64Var(&o.maxEvents, "max-events", 100000, "exporter MaxEventInMemory")
+	fs.Int64Var(&o.flushMs, "flush-ms", 100, "exporter flush interval (ms)")
+	fs.Int64Var(
+		&o.maxEvents,
+		"max-events",
+		10000,
+		"exporter MaxEventInMemory (a small backlog keeps the heap measuring leaks, not the pending events)",
+	)
 	fs.IntVar(&o.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
 	fs.Float64Var(&o.heapTolerance, "heap-tolerance", 0.25, "relative HeapInuse growth tolerated")
 	fs.StringVar(&o.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")

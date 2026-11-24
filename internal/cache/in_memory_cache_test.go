@@ -124,7 +124,7 @@ func TestAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := cache.NewInMemoryCache(nil)
+			c := cache.NewInMemoryCache(flag.NewService(), nil)
 			c.Init(tt.param)
 			assert.Equal(t, tt.want, c.All())
 		})
@@ -162,7 +162,7 @@ func TestCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := cache.NewInMemoryCache(nil)
+			c := cache.NewInMemoryCache(flag.NewService(), nil)
 			c.Init(tt.param)
 			got := c.Copy()
 			assert.Equal(t, c, got)

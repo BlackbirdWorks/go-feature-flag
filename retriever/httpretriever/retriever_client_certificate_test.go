@@ -248,3 +248,37 @@ func createClientCertificateFiles(t *testing.T) (string, string) {
 
 	return certFile, keyFile
 }
+
+func TestRetriever_SetBaseTransport(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		transport http.RoundTripper
+		wantErr   string
+	}{
+		{
+			name:      "a transport that is not a *http.Transport is refused",
+			transport: unsupportedTransport{},
+			wantErr:   "http default transport is httpretriever.unsupportedTransport, expected *http.Transport",
+		},
+		{name: "a *http.Transport is cloned", transport: &http.Transport{}, wantErr: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			caCertFile, _ := createClientCertificateFiles(t)
+			r := Retriever{CACertPath: caCertFile}
+			r.SetBaseTransport(tt.transport)
+
+			err := r.Init(context.Background(), nil)
+
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

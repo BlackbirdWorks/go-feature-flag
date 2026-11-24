@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
 )
 
@@ -49,7 +50,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", r.BitBucketToken))
 	}
 
-	if (r.rateLimitRemaining <= 0) && time.Now().Before(r.rateLimitReset) {
+	if (r.rateLimitRemaining <= 0) && clock.Now().Before(r.rateLimitReset) {
 		return nil, fmt.Errorf("rate limit exceeded. Next call will be after %s", r.rateLimitReset)
 	}
 

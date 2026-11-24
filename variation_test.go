@@ -19,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testutils"
@@ -38,7 +39,7 @@ func NewCacheMock(flag flag.Flag, err error) cache.Manager {
 }
 
 func (c *cacheMock) GetLatestUpdateDate() time.Time {
-	return time.Now()
+	return clocktest.Instant()
 }
 
 func (c *cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
@@ -78,8 +79,9 @@ func assertExpectedLog(t *testing.T, handler *slogassert.Handler, expectedLog st
 		"no log message containing %q was emitted", expectedLog)
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -342,12 +344,15 @@ func TestBoolVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 			fflog := &fflog.FFLogger{
 				LeveledLogger: slog.New(handler),
 			}
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -357,7 +362,8 @@ func TestBoolVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
-					retrieverManager: retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, fflog),
+					evaluationService: flag.NewService(),
+					retrieverManager:  retriever.NewManager(c, []retriever.Retriever{}, tt.args.cacheMock, fflog),
 					config: Config{
 						PollingInterval: 0,
 						LeveledLogger:   logger,
@@ -378,7 +384,7 @@ func TestBoolVariation(t *testing.T) {
 				}
 			}
 
-			got, err := BoolVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.BoolVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -388,15 +394,13 @@ func TestBoolVariation(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestBoolVariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -809,9 +813,12 @@ func TestBoolVariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -821,6 +828,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -847,7 +855,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				}
 			}
 
-			got, err := BoolVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.BoolVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -863,15 +871,13 @@ func TestBoolVariationDetails(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "BoolVariationDetails() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64Variation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -1134,9 +1140,12 @@ func TestFloat64Variation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				config := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -1146,6 +1155,7 @@ func TestFloat64Variation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						config,
 						[]retriever.Retriever{},
@@ -1172,7 +1182,7 @@ func TestFloat64Variation(t *testing.T) {
 				}
 			}
 
-			got, err := Float64Variation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.Float64Variation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
@@ -1181,15 +1191,13 @@ func TestFloat64Variation(t *testing.T) {
 				return
 			}
 			assert.InDelta(t, tt.want, got, 0, "Float64Variation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestFloat64VariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -1462,9 +1470,12 @@ func TestFloat64VariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -1474,6 +1485,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -1500,7 +1512,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 				}
 			}
 
-			got, err := Float64VariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.Float64VariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 			if tt.wantErr {
@@ -1509,15 +1521,13 @@ func TestFloat64VariationDetails(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "Float64Variation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -1766,9 +1776,12 @@ func TestJSONArrayVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -1778,6 +1791,7 @@ func TestJSONArrayVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -1804,7 +1818,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				}
 			}
 
-			got, err := JSONArrayVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.JSONArrayVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			if tt.wantErr {
 				assert.Error(t, err, "JSONArrayVariation() error = %v, wantErr %v", err, tt.wantErr)
@@ -1813,14 +1827,13 @@ func TestJSONArrayVariation(t *testing.T) {
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
 			assertExpectedLog(t, handler, tt.expectedLog)
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONArrayVariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -2083,9 +2096,12 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2095,6 +2111,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2121,7 +2138,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				}
 			}
 
-			got, err := JSONArrayVariationDetails(
+			got, err := ff.JSONArrayVariationDetails(
 				tt.args.flagKey,
 				tt.args.evaluationCtx,
 				tt.args.defaultValue,
@@ -2134,14 +2151,13 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 			}
 			assert.Equal(t, tt.want, got, "JSONArrayVariation() got = %v, want %v", got, tt.want)
 			assertExpectedLog(t, handler, tt.expectedLog)
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -2371,9 +2387,12 @@ func TestJSONVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2383,6 +2402,7 @@ func TestJSONVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2409,7 +2429,7 @@ func TestJSONVariation(t *testing.T) {
 				}
 			}
 
-			got, err := JSONVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.JSONVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -2419,15 +2439,13 @@ func TestJSONVariation(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestJSONVariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -2611,9 +2629,12 @@ func TestJSONVariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2623,6 +2644,7 @@ func TestJSONVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2650,7 +2672,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				}
 			}
 
-			got, err := JSONVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.JSONVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -2660,15 +2682,13 @@ func TestJSONVariationDetails(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "JSONVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -2929,9 +2949,12 @@ func TestStringVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -2941,6 +2964,7 @@ func TestStringVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -2967,7 +2991,7 @@ func TestStringVariation(t *testing.T) {
 					),
 				}
 			}
-			got, err := StringVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.StringVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -2977,15 +3001,13 @@ func TestStringVariation(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestStringVariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -3169,9 +3191,12 @@ func TestStringVariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -3181,6 +3206,7 @@ func TestStringVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3206,7 +3232,7 @@ func TestStringVariationDetails(t *testing.T) {
 					),
 				}
 			}
-			got, err := StringVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.StringVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -3216,15 +3242,13 @@ func TestStringVariationDetails(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "StringVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -3486,9 +3510,12 @@ func TestIntVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -3498,6 +3525,7 @@ func TestIntVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3523,7 +3551,7 @@ func TestIntVariation(t *testing.T) {
 					),
 				}
 			}
-			got, err := IntVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.IntVariation(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -3533,15 +3561,13 @@ func TestIntVariation(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestIntVariationDetails(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -3767,9 +3793,12 @@ func TestIntVariationDetails(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -3779,6 +3808,7 @@ func TestIntVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -3804,7 +3834,7 @@ func TestIntVariationDetails(t *testing.T) {
 					),
 				}
 			}
-			got, err := IntVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
+			got, err := ff.IntVariationDetails(tt.args.flagKey, tt.args.evaluationCtx, tt.args.defaultValue)
 
 			assertExpectedLog(t, handler, tt.expectedLog)
 
@@ -3814,15 +3844,13 @@ func TestIntVariationDetails(t *testing.T) {
 				return
 			}
 			assert.Equal(t, tt.want, got, "IntVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // assigns to the package-level variable ff; removed by the service-object refactor (follow-up PR)
 func TestRawVariation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		flagKey       string
 		evaluationCtx ffcontext.Context
@@ -4145,9 +4173,12 @@ func TestRawVariation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			handler := slogassert.New(t, slog.LevelInfo, nil)
 			logger := slog.New(handler)
 
+			var ff *GoFeatureFlag
 			if !tt.args.disableInit {
 				c := retriever.ManagerConfig{
 					FileFormat:              "YAML",
@@ -4157,6 +4188,7 @@ func TestRawVariation(t *testing.T) {
 					PollingInterval:         500,
 				}
 				ff = &GoFeatureFlag{
+					evaluationService: flag.NewService(),
 					retrieverManager: retriever.NewManager(
 						c,
 						[]retriever.Retriever{},
@@ -4191,9 +4223,6 @@ func TestRawVariation(t *testing.T) {
 				require.Error(t, err, "RawVariation() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			assert.Equal(t, tt.want, got, "RawVariation() got = %v, want %v", got, tt.want)
-
-			// clean logger
-			ff = nil
 		})
 	}
 }

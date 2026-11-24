@@ -1340,3 +1340,27 @@ func Test_StopBeforeStart(t *testing.T) {
 	require.NoError(t, err, "port %d should never have been bound", port)
 	ln2.Close()
 }
+
+func Test_New_Options(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts []api.Option
+	}{
+		{name: "no option", opts: nil},
+		{
+			name: "global telemetry (only installed when the server starts)",
+			opts: []api.Option{api.WithGlobalTelemetry()},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := api.New(&config.Config{}, service.Services{}, zap.NewNop(), tt.opts...)
+
+			assert.NotNil(t, s)
+		})
+	}
+}

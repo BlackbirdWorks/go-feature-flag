@@ -53,6 +53,7 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 		if err != nil {
 			continue
 		}
+		svc := flagset.EvaluationService()
 		for flagName, f := range flags {
 			metric, err := prom.NewConstMetric(
 				c.desc,
@@ -60,7 +61,7 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 				1,
 				flagsetName,
 				flagName,
-				strconv.FormatBool(isEffectivelyDisabled(flagName, f)),
+				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, f)),
 			)
 			if err != nil {
 				continue
@@ -71,12 +72,12 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 }
 
 // isEffectivelyDisabled evaluates the flag so scheduled steps and experimentation windows are taken into account.
-func isEffectivelyDisabled(flagName string, f flag.Flag) bool {
+func isEffectivelyDisabled(svc *flag.Service, flagName string, f flag.Flag) bool {
 	ctx := ffcontext.NewEvaluationContext(flagLoadedEvaluationKey)
 	if internal, ok := f.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
 		addNestedAttribute(ctx, internal.GetBucketingKey(), flagLoadedEvaluationKey)
 	}
-	_, details := f.Value(flagName, ctx, flag.Context{})
+	_, details := f.Value(flagName, ctx, flag.Context{Service: svc})
 	if details.Reason == flag.ReasonError {
 		return f.IsDisable()
 	}

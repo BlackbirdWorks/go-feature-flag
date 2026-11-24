@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
@@ -60,7 +60,7 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 			// Timestamp should be recent (within a small delta of the current time)
 			assert.InDelta(
 				t,
-				float64(time.Now().Unix()),
+				float64(clocktest.Instant().Unix()),
 				actualTimestamp,
 				5.0,
 				"timestamp should be recent for flag %s",

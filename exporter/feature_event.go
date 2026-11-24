@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 type FeatureEventMetadata = map[string]any
@@ -30,7 +31,7 @@ func NewFeatureEvent(
 		Kind:         "feature",
 		ContextKind:  contextKind,
 		UserKey:      ctx.GetKey(),
-		CreationDate: time.Now().Unix(),
+		CreationDate: clock.Now().Unix(),
 		Key:          flagKey,
 		Variation:    variation,
 		Value:        value,

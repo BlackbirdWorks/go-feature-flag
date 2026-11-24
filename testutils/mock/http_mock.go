@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 type HTTP struct {
@@ -45,7 +47,7 @@ func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
 
 	ratelimitReset := m.EndRatelimit
 	if ratelimitReset.IsZero() {
-		ratelimitReset = time.Now().Add(1 * time.Hour)
+		ratelimitReset = clock.Now().Add(1 * time.Hour)
 	}
 
 	rateLimit := &http.Response{

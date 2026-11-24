@@ -41,6 +41,7 @@ make swagger           # regenerate swagger after API annotation changes
 ## Conventions
 
 - Tests: parallel table-driven tests (`t.Parallel()`), testify only (`require` stops the test and replaces `t.Fatal`, `assert` continues and replaces `t.Error`; no `t.Fatal*`/`t.Error*`, enforced by forbidigo); no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
+- No package-level state: `gochecknoglobals`, `gochecknoinits` and `reassign` are enforced. State is owned by objects created at startup and passed down (the client owns a `flag.Service` with the evaluation caches; the relay owns its Postgres pool registry; loggers are injected). The only package-level variable is `clock.Now` (`modules/core/clock`): read the wall clock through it, never `time.Now()` (except for measured durations and network deadlines), and pin it once in a test package's `TestMain` with `clocktest.Freeze()`, building fixtures relative to `clocktest.Instant()`. Tests never reassign it.
 - Return errors, do not panic. Go module logging uses `slog` (`utils/fflog`); the relay proxy uses Zap.
 - Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
 - PR titles use Conventional Commits and commits are signed. Never force-push `main`.
@@ -49,7 +50,7 @@ make swagger           # regenerate swagger after API annotation changes
 ## Names: Semaphore first, GO Feature Flag still accepted
 
 The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
-that keeps working (one warning per process and kind when it is used, `modules/core/legacy`). Do not remove an alias
+that keeps working (one warning per owner (relay config loader, client, CLI command) and kind when it is used, `modules/core/legacy`). Do not remove an alias
 without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table.
 
 - Relay proxy config file `semaphore-proxy.<ext>` before the legacy `goff-proxy.<ext>`, searched in `./`, `/semaphore/`, `/etc/opt/semaphore/`, `/goff/`, `/etc/opt/goff/`.
@@ -61,4 +62,4 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 
 ## Entry points
 
-`ffclient.Init()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.
+`ffclient.New()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.

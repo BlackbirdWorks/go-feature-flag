@@ -131,7 +131,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 		{
 			name:        "deprecated exporter",
 			exporter:    &mock.ExporterDeprecated{Err: errors.New("error"), ExpectedNumberErr: 1},
-			expectedLog: "error while exporting data (deprecated): error\n",
+			expectedLog: "You are using an exporter with the old logger.Please update your custom exporter to comply to the new Exporter interface.\nerror while exporting data (deprecated): error\n",
 		},
 	}
 

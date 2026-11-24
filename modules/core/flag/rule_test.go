@@ -660,7 +660,13 @@ func TestRuleEvaluate(t *testing.T) {
 			if tt.args.user != nil {
 				key = tt.args.user.GetKey()
 			}
-			got, err := tt.rule.Evaluate(key, atFixedNow(tt.args.user), "flagname+", tt.args.isDefault)
+			got, err := tt.rule.Evaluate(
+				flag.NewService(),
+				key,
+				atFixedNow(tt.args.user),
+				"flagname+",
+				tt.args.isDefault,
+			)
 
 			if !tt.wantErr(
 				t,

@@ -75,6 +75,18 @@ func (f *InternalFlag) Value(
 		evaluationCtx = ffcontext.NewEvaluationContext("")
 	}
 
+	// The Service owns the caches of the evaluation: a Context without one is a wiring mistake, reported
+	// as an error instead of silently evaluating with a throwaway Service.
+	svc := flagContext.Service
+	if svc == nil {
+		return flagContext.DefaultSdkValue, ResolutionDetails{
+			Variant:      VariationSDKDefault,
+			Reason:       ReasonError,
+			ErrorCode:    ErrorCodeGeneral,
+			ErrorMessage: errNoService.Error(),
+		}
+	}
+
 	// The enrichment is applied first: its currentDateTime is the date of the evaluation (scheduled
 	// steps, experimentation and progressive rollout). The caller's context must not be modified
 	// (it can be shared by concurrent evaluations), so we work on an enriched view of it.
@@ -82,8 +94,12 @@ func (f *InternalFlag) Value(
 		evaluationCtx = newEnrichedContext(evaluationCtx, flagContext.EvaluationContextEnrichment)
 	}
 
-	evaluationDate := DateFromContextOrDefault(evaluationCtx, time.Now())
-	flag, err := f.applyScheduledRolloutSteps(evaluationDate)
+	// The date is only read (from the context, else the clock) by the flags that depend on it.
+	var evaluationDate time.Time
+	if f.Scheduled != nil || f.Experimentation != nil {
+		evaluationDate = svc.evaluationDate(evaluationCtx)
+	}
+	flag, err := f.applyScheduledRolloutSteps(svc, evaluationDate)
 	if err != nil {
 		return flagContext.DefaultSdkValue, ResolutionDetails{
 			Variant:      VariationSDKDefault,
@@ -113,7 +129,7 @@ func (f *InternalFlag) Value(
 		}
 	}
 
-	variationSelection, err := flag.selectVariation(flagName, key, evaluationCtx)
+	variationSelection, err := flag.selectVariation(svc, flagName, key, evaluationCtx)
 	if err != nil {
 		return flagContext.DefaultSdkValue,
 			ResolutionDetails{
@@ -187,10 +203,10 @@ func (f *InternalFlag) isCacheable() bool {
 // selectVariation is doing the magic to select the variation that should be used for this specific user
 // to always affect the user to the same segment we are using a hash of the flag name + key.
 func (f *InternalFlag) selectVariation(
-	flagName, key string, ctx ffcontext.Context) (variationSelection, error) {
+	svc *Service, flagName, key string, ctx ffcontext.Context) (variationSelection, error) {
 	hasRule := len(f.GetRules()) != 0
 	// Shared by all the rules below: the context is converted to a map at most once.
-	queryCtx := &queryContext{ctx: ctx}
+	queryCtx := &queryContext{svc: svc, ctx: ctx}
 	defer queryCtx.release()
 	// Check all targeting in order, the first to match will be the one used.
 	if hasRule {
@@ -240,7 +256,7 @@ func (f *InternalFlag) selectVariation(
 //
 // The flag that results only depends on how many steps are due, so it is built once for each
 // count (see scheduledMemo) and shared, read-only, by the evaluations. The flag f is never modified.
-func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*InternalFlag, error) {
+func (f *InternalFlag) applyScheduledRolloutSteps(svc *Service, evaluationDate time.Time) (*InternalFlag, error) {
 	if f.Scheduled == nil {
 		return f, nil
 	}
@@ -253,7 +269,7 @@ func (f *InternalFlag) applyScheduledRolloutSteps(evaluationDate time.Time) (*In
 		}
 	}
 
-	return scheduledFlags.get(f, due, func() (*InternalFlag, error) {
+	return svc.scheduled.get(f, due, func() (*InternalFlag, error) {
 		return f.buildScheduledFlag(evaluationDate)
 	})
 }
@@ -350,7 +366,7 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 // Validating a flag also keeps the cached parses of its nikunjy queries until its rules
 // are garbage collected, so validating the flags of a configuration load is what keeps
 // their queries cached across reloads.
-func (f *InternalFlag) IsValid() error {
+func (f *InternalFlag) IsValid(svc *Service) error {
 	if len(f.GetVariations()) == 0 {
 		return errors.New("no variation available")
 	}
@@ -387,12 +403,12 @@ func (f *InternalFlag) IsValid() error {
 
 	// Retained before the rules are validated, so the parses made by the validation
 	// stay cached even if a previous configuration's rules are collected meanwhile.
-	known := nikunjyEvaluators.known(f.Rules)
-	ruleQueries := nikunjyEvaluators.retain(f.Rules, known)
+	known := svc.nikunjy.known(f.Rules)
+	ruleQueries := svc.nikunjy.retain(f.Rules, known)
 
 	const isDefaultRule = true
 	// Validate rules
-	if err := f.GetDefaultRule().IsValid(isDefaultRule, f.GetVariations()); err != nil {
+	if err := f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations()); err != nil {
 		return err
 	}
 
@@ -406,7 +422,7 @@ func (f *InternalFlag) IsValid() error {
 		if known != nil {
 			knownEvaluator = known[i].evaluator
 		}
-		if evaluators[i], err = rule.validate(!isDefaultRule, f.GetVariations(), knownEvaluator); err != nil {
+		if evaluators[i], err = rule.validate(svc, !isDefaultRule, f.GetVariations(), knownEvaluator); err != nil {
 			return err
 		}
 
@@ -419,7 +435,7 @@ func (f *InternalFlag) IsValid() error {
 	}
 
 	// The queries are parsed now: index them to evaluate the rules without hashing them.
-	nikunjyEvaluators.index(f.Rules, ruleQueries, evaluators)
+	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
 
 	return nil
 }

@@ -45,7 +45,8 @@ type ConfigLoader struct {
 	configFilePath string // stored config file path for reload
 	// environFunc returns the environment variables, os.Environ when nil (it is set by the tests).
 	environFunc func() []string
-	// warner is where the use of a legacy name is reported, legacy.Default when nil (it is set by the tests).
+	// warner is where the use of a legacy name is reported: the loader owns one that logs through log,
+	// unless a LoaderOption set another.
 	warner *legacy.Warner
 
 	// flagSets loaded from studio.url, the provider and its parser are reused on reload
@@ -90,6 +91,11 @@ func NewConfigLoader(
 
 	for _, opt := range opts {
 		opt(&configLoader)
+	}
+	if configLoader.warner == nil {
+		configLoader.warner = legacy.NewWarner(func(kind, message string) {
+			log.Warn(message, zap.String("legacyName", kind))
+		})
 	}
 
 	// Initialize channels only if we're watching for changes
@@ -307,7 +313,7 @@ func (c *ConfigLoader) loadConfigFile() {
 
 	// Use stored config file path if available (for reload), otherwise read from flag set
 	if c.configFilePath == "" {
-		c.configFilePath, errFileLocation = locateConfigFile(c.k.String("config"))
+		c.configFilePath, errFileLocation = locateConfigFile(c.k.String("config"), c.legacyWarner())
 		if errFileLocation != nil {
 			c.log.Error("not using any configuration file", zap.Error(errFileLocation))
 
@@ -342,11 +348,7 @@ func (c *ConfigLoader) loadEnvVariables() {
 
 // legacyWarner returns where the use of a legacy name is reported.
 func (c *ConfigLoader) legacyWarner() *legacy.Warner {
-	if c.warner != nil {
-		return c.warner
-	}
-
-	return legacy.Default
+	return c.warner
 }
 
 // loadStudioFlagSets loads the flagSets from studio.url, if it is set.
@@ -392,15 +394,17 @@ const (
 
 // configFileLocations are the folders searched for the configuration file when --config is not set.
 // The /goff/ folders are the ones of GO Feature Flag, they are searched after the Semaphore ones.
-var configFileLocations = []string{
-	"./", "/semaphore/", "/etc/opt/semaphore/",
-	"/goff/", "/etc/opt/goff/",
+func configFileLocations() []string {
+	return []string{
+		"./", "/semaphore/", "/etc/opt/semaphore/",
+		"/goff/", "/etc/opt/goff/",
+	}
 }
 
 // locateConfigFile is selecting the configuration file we will use.
 // In every location semaphore-proxy.<ext> is searched before the legacy goff-proxy.<ext>.
-func locateConfigFile(inputFilePath string) (string, error) {
-	return locateConfigFileIn(inputFilePath, configFileLocations, legacy.Default)
+func locateConfigFile(inputFilePath string, warner *legacy.Warner) (string, error) {
+	return locateConfigFileIn(inputFilePath, configFileLocations(), warner)
 }
 
 // locateConfigFileIn is locateConfigFile with the folders to search.

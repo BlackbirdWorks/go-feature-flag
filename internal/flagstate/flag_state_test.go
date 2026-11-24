@@ -28,7 +28,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			name:          "Flag is disabled",
 			key:           "test-key",
 			evaluationCtx: ffcontext.NewEvaluationContext("user-key"),
-			flagCtx:       flag.Context{},
+			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(true),
 			},
@@ -46,7 +46,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			name:          "Flag evaluation error",
 			key:           "test-key",
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
-			flagCtx:       flag.Context{},
+			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
@@ -74,7 +74,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			name:          "Flag evaluation valid type",
 			key:           "test-key",
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
-			flagCtx:       flag.Context{},
+			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
@@ -99,7 +99,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 			name:          "Flag evaluation invalid type",
 			key:           "test-key",
 			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
-			flagCtx:       flag.Context{},
+			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{

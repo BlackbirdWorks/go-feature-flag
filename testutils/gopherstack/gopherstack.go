@@ -1,9 +1,8 @@
 // Package gopherstack starts the gopherstack AWS emulator (https://github.com/blackbirdworks/gopherstack)
 // in a Docker container, to run end-to-end tests of the AWS-backed components (S3, Kinesis, SQS).
 //
-// One emulator is shared by all the tests of a package: use Shared to get it, and TerminateShared
-// from a TestMain if you want the container removed before the process exits (the testcontainers
-// reaper removes it anyway).
+// One emulator is shared by all the tests of a package: the TestMain of the package runs Main, which
+// starts it and removes it when the tests are done, and the tests get it with Connect.
 //
 // Environment variables:
 //   - GOPHERSTACK_ENDPOINT reuses an already running instance (ex: http://127.0.0.1:8000)
@@ -20,7 +19,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -112,13 +110,14 @@ func Start(ctx context.Context) (*Server, error) {
 func waitHealthy(ctx context.Context, endpoint string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+	client := &http.Client{Timeout: 5 * time.Second}
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
 		if err != nil {
 			return err
 		}
-		resp, err := http.DefaultClient.Do(req) //nolint:gosec // same endpoint
+		resp, err := client.Do(req) //nolint:gosec // same endpoint
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {
@@ -177,38 +176,47 @@ func (s *Server) SetAwsEnv(t *testing.T) {
 	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
 }
 
-var (
-	sharedMu sync.Mutex
-	shared   *Server
-	// sharedStart caches the error of a failed start, so it is not retried by every test.
-	sharedStart struct{ err error }
-)
-
-// Shared returns the emulator of the test binary, started on the first call. The test is skipped
-// if Docker is not available, and fails if the container can't be started.
-func Shared(t *testing.T) *Server {
-	t.Helper()
+// Main is the body of the TestMain of a package that runs end-to-end tests against the emulator. It
+// starts one emulator for the package (unless GOPHERSTACK_ENDPOINT already points to one) when Docker
+// is available, publishes its endpoint in GOPHERSTACK_ENDPOINT for Connect, runs the tests and removes
+// the container. When Docker is not available the tests that call Connect are skipped.
+//
+//	func TestMain(m *testing.M) { os.Exit(gopherstack.Main(m)) }
+func Main(m *testing.M) int {
+	ctx := context.Background()
 	if os.Getenv(EnvEndpoint) == "" {
-		testcontainers.SkipIfProviderIsNotHealthy(t)
-	}
-	sharedMu.Lock()
-	defer sharedMu.Unlock()
-	if shared == nil && sharedStart.err == nil {
-		shared, sharedStart.err = Start(context.Background())
-	}
-	require.NoError(t, sharedStart.err)
+		provider, err := testcontainers.NewDockerProvider()
+		if err != nil || provider.Health(ctx) != nil {
+			return m.Run() // Connect skips the tests
+		}
+		_ = provider.Close()
+		srv, err := Start(ctx)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gopherstack:", err)
 
-	return shared
+			return 1
+		}
+		defer func() { _ = srv.Terminate() }()
+		if err := os.Setenv(EnvEndpoint, srv.Endpoint); err != nil {
+			fmt.Fprintln(os.Stderr, "gopherstack:", err)
+
+			return 1
+		}
+	}
+
+	return m.Run()
 }
 
-// TerminateShared removes the shared container, to call from a TestMain after m.Run.
-func TerminateShared() {
-	sharedMu.Lock()
-	defer sharedMu.Unlock()
-	if shared != nil {
-		_ = shared.Terminate()
-		shared = nil
+// Connect returns the emulator that Main started (or that GOPHERSTACK_ENDPOINT points to). The test is
+// skipped if there is none, because Docker is not available.
+func Connect(t testing.TB) *Server {
+	t.Helper()
+	endpoint := strings.TrimRight(os.Getenv(EnvEndpoint), "/")
+	if endpoint == "" {
+		t.Skip("gopherstack is not available: Docker is not healthy and " + EnvEndpoint + " is not set")
 	}
+
+	return &Server{Endpoint: endpoint}
 }
 
 var nonDNS = regexp.MustCompile(`[^a-z0-9]+`)

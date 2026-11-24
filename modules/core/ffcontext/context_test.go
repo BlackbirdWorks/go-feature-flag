@@ -68,6 +68,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
@@ -79,6 +80,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
@@ -92,6 +94,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
@@ -104,6 +107,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
@@ -113,6 +117,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				AddCustom("gofeatureflag", nil).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: nil,
 			},
 		},
@@ -131,6 +136,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 			},
 		},
@@ -143,6 +149,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
@@ -157,6 +164,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: new(time.Date(2022, 8, 1, 0, 0, 10, 0, time.UTC)),
 				FlagList:        []string{"flag1", "flag2"},
 			},
@@ -169,7 +177,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				FlagList: []string{"flag1", "flag2"},
+				UsedLegacyKey: true,
+				FlagList:      []string{"flag1", "flag2"},
 			},
 		},
 		{
@@ -185,6 +194,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey: true,
 				ExporterMetadata: map[string]any{
 					"toto": 123,
 					"titi": 123.45,
@@ -201,6 +211,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: nil,
 			},
 		},
@@ -212,6 +223,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:   true,
 				CurrentDateTime: nil,
 			},
 		},
@@ -223,7 +235,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				FlagList: []string{"flag1", "flag2", "flag3"},
+				UsedLegacyKey: true,
+				FlagList:      []string{"flag1", "flag2", "flag3"},
 			},
 		},
 		{
@@ -234,7 +247,8 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
-				FlagList: nil,
+				UsedLegacyKey: true,
+				FlagList:      nil,
 			},
 		},
 		{
@@ -245,6 +259,7 @@ func TestExtractGOFFProtectedFields(t *testing.T) {
 				}).
 				Build(),
 			want: ffcontext.GoffContextSpecifics{
+				UsedLegacyKey:    true,
 				ExporterMetadata: nil,
 			},
 		},

@@ -46,6 +46,7 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
+	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
@@ -301,8 +302,8 @@ func Test_initExporter(t *testing.T) {
 				Secret:      "1234",
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &webhookexporter.Exporter{
 					EndpointURL: "https://gofeatureflag.org/webhook-example",
 					Secret:      "1234",
@@ -321,13 +322,13 @@ func Test_initExporter(t *testing.T) {
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &fileexporter.Exporter{
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					OutputDir:               "/outputfolder/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
 					ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
@@ -341,10 +342,10 @@ func Test_initExporter(t *testing.T) {
 				Kind: "log",
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &logsexporter.Exporter{
-					LogFormat: config.DefaultExporter.LogFormat,
+					LogFormat: config.DefaultExporter().LogFormat,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -361,14 +362,14 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &s3exporterv2.Exporter{
 					Bucket:                  "my-bucket",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					S3Path:                  "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 			},
 			wantType:               &s3exporterv2.Exporter{},
@@ -384,7 +385,7 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &sqsexporter.Exporter{
 					QueueURL: "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
 				},
@@ -436,15 +437,15 @@ func Test_initExporter(t *testing.T) {
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &gcstorageexporter.Exporter{
 					Bucket:                  "my-bucket",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					Path:                    "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -463,10 +464,10 @@ func Test_initExporter(t *testing.T) {
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &kafkaexporter.Exporter{
-					Format: config.DefaultExporter.Format,
+					Format: config.DefaultExporter().Format,
 					Settings: kafkaexporter.Settings{
 						Topic:     "example-topic",
 						Addresses: []string{"addr1", "addr2"},
@@ -485,9 +486,9 @@ func Test_initExporter(t *testing.T) {
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
-				MaxEventInMemory: config.DefaultExporter.MaxEventInMemory,
+				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &kinesisexporter.Exporter{
-					Format: config.DefaultExporter.Format,
+					Format: config.DefaultExporter().Format,
 					Settings: kinesisexporter.NewSettings(
 						kinesisexporter.WithStreamArn("my-stream"),
 					),
@@ -506,15 +507,15 @@ func Test_initExporter(t *testing.T) {
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
-				FlushInterval:    config.DefaultExporter.FlushInterval,
+				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &azureexporter.Exporter{
 					Container:               "my-container",
-					Format:                  config.DefaultExporter.Format,
+					Format:                  config.DefaultExporter().Format,
 					Path:                    "/my-path/",
-					Filename:                config.DefaultExporter.FileName,
-					CsvTemplate:             config.DefaultExporter.CsvFormat,
-					ParquetCompressionCodec: config.DefaultExporter.ParquetCompressionCodec,
+					Filename:                config.DefaultExporter().FileName,
+					CsvTemplate:             config.DefaultExporter().CsvFormat,
+					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -635,7 +636,7 @@ func Test_initNotifier(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := initNotifier(tt.args.c)
+			got, err := initNotifier(tt.args.c, zap.NewNop())
 			if !tt.wantErr(t, err, fmt.Sprintf("initNotifier(%v)", tt.args.c)) {
 				return
 			}
@@ -1182,6 +1183,48 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 			require.NoError(t, err)
 			t.Cleanup(client.Close)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		uris []string
+	}{
+		{
+			name: "two retrievers on the same database",
+			uris: []string{"postgres://localhost/db", "postgres://localhost/db"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			retrievers := make([]retrieverconf.RetrieverConf, 0, len(tt.uris))
+			for _, uri := range tt.uris {
+				retrievers = append(retrievers, retrieverconf.RetrieverConf{
+					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: "flags",
+				})
+			}
+			var o clientOptions
+			o.ensurePostgresPools()
+
+			got, err := initRetrieversWithRegistry(
+				&config.FlagSet{Retrievers: &retrievers},
+				nil,
+				o.retrieverOptions()...)
+
+			require.NoError(t, err)
+			require.Len(t, got, len(tt.uris))
+			first, ok := got[0].(*postgresqlretriever.Retriever)
+			require.True(t, ok)
+			second, ok := got[1].(*postgresqlretriever.Retriever)
+			require.True(t, ok)
+			require.NotNil(t, first.Pools)
+			assert.Same(t, first.Pools, second.Pools, "retrievers of one client share their pools")
 		})
 	}
 }

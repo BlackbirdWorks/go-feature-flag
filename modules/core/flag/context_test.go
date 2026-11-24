@@ -53,7 +53,7 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := &flag.Context{
+			s := &flag.Context{Service: flag.NewService(),
 				EvaluationContextEnrichment: tt.EvaluationContextEnrichment,
 			}
 			s.AddIntoEvaluationContextEnrichment(tt.args.key, tt.args.value)

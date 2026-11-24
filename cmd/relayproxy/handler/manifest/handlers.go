@@ -1,10 +1,12 @@
 package manifest
 
 import (
+	"log/slog"
 	"net/http"
 	"sort"
 
 	"github.com/labstack/echo/v5"
+	slogzap "github.com/samber/slog-zap/v2"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 
@@ -66,7 +68,8 @@ func (m *ManifestCtrl) GetManifest(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
-	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags)
+	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(
+		slog.New(slogzap.Option{Level: slog.LevelDebug, Logger: m.logger}.NewZapHandler())))
 	if err != nil {
 		m.logger.Error("error while generating manifest", zap.Error(err))
 

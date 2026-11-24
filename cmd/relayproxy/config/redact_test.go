@@ -54,11 +54,11 @@ func TestEverySensitiveLookingFieldIsClassified(t *testing.T) {
 		if !sensitiveNamePattern.MatchString(f.Name) {
 			continue
 		}
-		_, classified := fieldClassification[name]
+		_, classified := fieldClassification()[name]
 		assert.Truef(t, classified,
 			"field %s looks sensitive: classify it in fieldClassification (secretField or plainField)", name)
 	}
-	for name := range fieldClassification {
+	for name := range fieldClassification() {
 		f, exists := fields[name]
 		assert.Truef(t, exists, "fieldClassification has an entry for the unknown field %s", name)
 		if exists {
@@ -137,7 +137,7 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	fillSecretFields(reflect.ValueOf(conf), &n, filled)
 
 	// every secret field of the configuration must have been filled with a marker.
-	for name, secret := range fieldClassification {
+	for name, secret := range fieldClassification() {
 		if secret {
 			assert.Truef(t, filled[name], "the test did not fill the secret field %s", name)
 		}

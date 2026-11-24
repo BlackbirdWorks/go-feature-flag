@@ -242,6 +242,7 @@ func TestLoadConfigFile(t *testing.T) {
 				tt.inputFilePath,
 				tt.configFormat,
 				tt.defaultLocations,
+				nil,
 			)
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -314,7 +315,7 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 			for _, f := range tt.files {
 				require.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
 			}
-			got, err := configfile.LoadConfigFile("", "yaml", []string{dir})
+			got, err := configfile.LoadConfigFile("", "yaml", []string{dir}, nil)
 			if tt.wantError {
 				assert.Error(t, err)
 
@@ -330,5 +331,5 @@ func TestConfigFileDefaultLocations(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t,
 		[]string{"./", "/semaphore/", "/etc/opt/semaphore/", "/goff/", "/etc/opt/goff/"},
-		configfile.ConfigFileDefaultLocations)
+		configfile.ConfigFileDefaultLocations())
 }

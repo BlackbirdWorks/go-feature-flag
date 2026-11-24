@@ -45,7 +45,7 @@ func flagKeys(t *testing.T, content []byte) []string {
 
 func TestE2E_SingleItem(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name        string
@@ -117,7 +117,7 @@ func TestE2E_SingleItem(t *testing.T) {
 
 func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "upd")
 	cfg := srv.MustAwsConfig(t)
 
@@ -143,7 +143,7 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 
 func TestE2E_Retriever_NotFoundBeforeCreation(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "late")
 	cfg := srv.MustAwsConfig(t)
 	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: "late.json", AwsConfig: &cfg}
@@ -159,7 +159,7 @@ func TestE2E_Retriever_NotFoundBeforeCreation(t *testing.T) {
 
 func TestE2E_FolderMode(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	objects := map[string][]byte{
 		"flags/a.yaml":          flagYAML("flag-a", "1"),
@@ -259,7 +259,7 @@ func TestE2E_FolderMode(t *testing.T) {
 
 func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 	bucket := srv.CreateBucket(t, "dirchg")
 	cfg := srv.MustAwsConfig(t)
 	srv.PutObject(t, bucket, "f/a.json", flagJSON("flag-a", "v1"))
@@ -298,7 +298,7 @@ func TestE2E_FolderMode_ChangesAreSeen(t *testing.T) {
 
 func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name      string
@@ -373,7 +373,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 
 func TestE2E_SharedItems_Errors(t *testing.T) {
 	t.Parallel()
-	srv := gopherstack.Shared(t)
+	srv := gopherstack.Connect(t)
 
 	tests := []struct {
 		name   string

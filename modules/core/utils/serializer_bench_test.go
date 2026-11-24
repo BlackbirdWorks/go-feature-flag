@@ -8,8 +8,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
-var contextToMapSink map[string]any
-
 func BenchmarkContextToMap(b *testing.B) {
 	for _, n := range []int{0, 5, 15} {
 		builder := ffcontext.NewEvaluationContextBuilder("3f1c1a52-8a5e-4c1e-9d0a-2b7f6c2e9a10")
@@ -20,7 +18,7 @@ func BenchmarkContextToMap(b *testing.B) {
 		b.Run(fmt.Sprintf("%d custom attributes", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				contextToMapSink = utils.ContextToMap(ctx)
+				_ = utils.ContextToMap(ctx)
 			}
 		})
 	}

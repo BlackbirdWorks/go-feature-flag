@@ -38,3 +38,21 @@ func atFixedNow(ctx ffcontext.Context) ffcontext.Context {
 
 	return out
 }
+
+// atDate returns a copy of ctx whose evaluation date is date, replacing the one it carries. The
+// given context is left untouched (test cases run in parallel).
+func atDate(ctx ffcontext.Context, date time.Time) ffcontext.Context {
+	specifics := ctx.ExtractGOFFProtectedFields()
+	specifics.CurrentDateTime = &date
+
+	out := ffcontext.NewEvaluationContext(ctx.GetKey())
+	for k, v := range ctx.GetCustom() {
+		if k == ffcontext.ReservedKey || k == ffcontext.LegacyReservedKey {
+			continue
+		}
+		out.AddCustomAttribute(k, v)
+	}
+	out.AddCustomAttribute(ffcontext.ReservedKey, specifics)
+
+	return out
+}

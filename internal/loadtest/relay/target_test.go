@@ -14,7 +14,7 @@ import (
 
 func TestParseEndpoint(t *testing.T) {
 	t.Parallel()
-	for _, e := range relay.Endpoints {
+	for _, e := range relay.Endpoints() {
 		got, err := relay.ParseEndpoint(string(e))
 		require.NoError(t, err)
 		assert.Equal(t, e, got)
@@ -154,7 +154,7 @@ func TestStart_CleansUpOnFailure(t *testing.T) {
 func TestTarget_ProtocolAndFlagsPerCall(t *testing.T) {
 	t.Parallel()
 	for _, h2c := range []bool{false, true} {
-		for _, ep := range relay.Endpoints {
+		for _, ep := range relay.Endpoints() {
 			name := "http1 " + string(ep)
 			wantProto := "HTTP/1.1"
 			if h2c {

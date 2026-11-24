@@ -2,10 +2,13 @@ package helper
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+
+	"github.com/blackbirdworks/semaphore/modules/core/legacy"
 )
 
 type Level = string
@@ -24,8 +27,6 @@ type OutputLine struct {
 type Output struct {
 	Lines []OutputLine
 }
-
-var exitFunc = os.Exit
 
 func (o *Output) Add(line string, level Level) Output {
 	o.Lines = append(o.Lines, OutputLine{Text: line, Level: level})
@@ -56,7 +57,22 @@ func (o *Output) PrintLines(cmd *cobra.Command) {
 	}
 }
 
+// PrintFatalAndExit prints err as an error and exits the process with the code 1.
 func PrintFatalAndExit(err error) {
-	pterm.Error.Printf("error executing command: %v\n", err)
-	exitFunc(1)
+	PrintFatal(&pterm.Error, os.Exit, err)
+}
+
+// PrintFatal prints err with printer, then calls exit with the code 1. The printer and the exit
+// function are parameters so that the callers that must not stop the process (tests) can pass their own.
+func PrintFatal(printer *pterm.PrefixPrinter, exit func(int), err error) {
+	printer.Printf("error executing command: %v\n", err)
+	exit(1)
+}
+
+// LegacyWarner returns the Warner of a CLI command: the use of a legacy name is logged once, through
+// the default logger of the process.
+func LegacyWarner() *legacy.Warner {
+	return legacy.NewWarner(func(kind, message string) {
+		slog.Default().Warn(message, slog.String("legacyName", kind))
+	})
 }

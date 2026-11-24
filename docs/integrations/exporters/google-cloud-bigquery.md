@@ -91,8 +91,8 @@ config := ffclient.Config{
     },
     // ...
 }
-err := ffclient.Init(config)
-defer ffclient.Close()
+client, err := ffclient.New(config)
+defer client.Close()
 ```
 
 | Field               |    Mandatory     | Default                    | Description                                                                                   |

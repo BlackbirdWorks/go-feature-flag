@@ -16,16 +16,23 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-var defaultColumns = map[string]string{
-	"flag_name": "flag_name",
-	"flagset":   "flagset",
-	"config":    "config",
+// defaultColumns returns the names of the columns when the configuration does not set them.
+func defaultColumns() map[string]string {
+	return map[string]string{
+		"flag_name": "flag_name",
+		"flagset":   "flagset",
+		"config":    "config",
+	}
 }
 
 type Retriever struct {
 	URI     string
 	Table   string
 	Columns map[string]string
+	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
+	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
+	// creates one of its own at Init.
+	Pools *PoolRegistry
 
 	logger  *fflog.FFLogger
 	status  retriever.Status
@@ -44,11 +51,14 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 	r.columns = r.getColumnNames()
 	r.flagset = flagset
 
+	if r.Pools == nil {
+		r.Pools = NewPoolRegistry()
+	}
 	if r.pool == nil {
 		r.logger.Info("Initializing PostgreSQL retriever")
 		r.logger.Debug("Using columns", "columns", r.columns)
 
-		pool, err := GetPool(ctx, r.URI)
+		pool, err := r.Pools.GetPool(ctx, r.URI)
 		if err != nil {
 			r.status = retriever.RetrieverError
 
@@ -75,7 +85,7 @@ func (r *Retriever) Status() retriever.Status {
 // Shutdown closes the database connection.
 func (r *Retriever) Shutdown(ctx context.Context) error {
 	if r.pool != nil {
-		ReleasePool(ctx, r.URI)
+		r.Pools.ReleasePool(ctx, r.URI)
 		r.pool = nil
 	}
 
@@ -182,7 +192,7 @@ func (r *Retriever) buildQuery() string {
 func (r *Retriever) getColumnNames() map[string]string {
 	// Start with a copy of defaultColumns
 	columns := make(map[string]string)
-	maps.Copy(columns, defaultColumns)
+	maps.Copy(columns, defaultColumns())
 
 	// Override with any provided custom columns
 	if r.Columns != nil {

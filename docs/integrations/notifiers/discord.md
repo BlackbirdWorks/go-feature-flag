@@ -55,7 +55,7 @@ To configure your GO module to use the Discord notifier, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 ```go
-err := ffclient.Init(ffclient.Config
+client, err := ffclient.New(ffclient.Config
 {
     // ...
     Notifiers: []notifier.Notifier{
@@ -64,7 +64,7 @@ err := ffclient.Init(ffclient.Config
         },
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | **Field**           | **Mandatory** | **Description**                           |

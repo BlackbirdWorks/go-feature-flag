@@ -27,7 +27,7 @@ During the initialization you must give a [`ffclient.Config{}`](https://pkg.go.d
 
 ## Example
 ```go
-ffclient.Init(ffclient.Config{ 
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     LeveledLogger:   slog.Default(),
     Context:         context.Background(),
@@ -55,17 +55,15 @@ ffclient.Init(ffclient.Config{
 ```
 
 ## Multiple configuration flag files
-`semaphore` comes ready to use out of the box by calling the `Init` function and, it will be available everywhere.  
-Since most applications will want to use a single central flag configuration, the package provides this. It is similar to a singleton.
-
-In all the examples above, they demonstrate using `semaphore` in its singleton style approach.
+There is no package-level (singleton) client. Create a client with `ffclient.New` at startup, keep it, and pass it to
+the code that evaluates flags. Close it when your application stops.
 
 ### Working with multiple semaphore
 
 You can also create many `semaphore` clients to use in your application.  
 
 Each will have its own unique set of configurations and flags. Each can read from a different config file and from different places.  
-All the functions that `semaphore` package supports are mirrored as methods on a [`GoFeatureFlag`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#GoFeatureFlag).
+All the functions are methods of a [`GoFeatureFlag`](https://pkg.go.dev/github.com/blackbirdworks/semaphore#GoFeatureFlag).
 
 #### Example
 
