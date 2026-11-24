@@ -56,7 +56,10 @@ func TestText(t *testing.T) {
 			linked: buildinfo.Linked{Version: "1.0.0", Commit: "linked", Date: "linked-date"},
 			bi: &debug.BuildInfo{
 				GoVersion: "go1.27.4",
-				Settings:  []debug.BuildSetting{{Key: "vcs.revision", Value: "vcs"}, {Key: "vcs.time", Value: "vcs-date"}},
+				Settings: []debug.BuildSetting{
+					{Key: "vcs.revision", Value: "vcs"},
+					{Key: "vcs.time", Value: "vcs-date"},
+				},
 			},
 			want: "semaphore 1.0.0\ncommit: linked\nbuilt: linked-date\ngo: go1.27.4\nfips140: false\n",
 		},

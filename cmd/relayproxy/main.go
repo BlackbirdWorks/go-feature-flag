@@ -26,8 +26,8 @@ import (
 // version, commit and date are overridden by GoReleaser during the build (-X main.version=...).
 var (
 	version = buildinfo.DevVersion
-	commit  string
-	date    string
+	commit  string //nolint:gochecknoglobals // set with -ldflags -X main.commit
+	date    string //nolint:gochecknoglobals // set with -ldflags -X main.date
 )
 
 // versionText is what --version prints.

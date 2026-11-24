@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-// Linked holds the values a release build injects with -ldflags "-X main.version=... -X main.commit=... -X main.date=...".
+// Linked holds the values a release build injects with
+// -ldflags "-X main.version=... -X main.commit=... -X main.date=...".
 // An empty field means "not injected".
 type Linked struct {
 	Version string
