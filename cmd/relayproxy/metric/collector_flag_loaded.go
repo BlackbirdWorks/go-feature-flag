@@ -47,7 +47,8 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 		if flagset == nil {
 			continue
 		}
-		flags, err := flagset.GetFlagsFromCache()
+		// the flags are only evaluated: not copying them keeps the memoized state of the scheduled rollouts.
+		flags, err := flagset.GetFlagsFromCacheReadOnly()
 		if err != nil {
 			continue
 		}

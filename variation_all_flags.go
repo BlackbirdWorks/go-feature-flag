@@ -66,7 +66,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 
 	// Evaluate all the flags
 	// the flags are only read to be evaluated, so they are not copied.
-	flags, err := g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
+	flags, err := g.GetFlagsFromCacheReadOnly()
 	if err != nil {
 		return flagstate.AllFlags{}
 	}
@@ -93,6 +93,15 @@ func (g *GoFeatureFlag) AllFlagsState(evaluationCtx ffcontext.Context) flagstate
 // error reporting this is returned.
 func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flag.Flag, error) {
 	return g.GetFlagsFromCacheWithContext(context.Background())
+}
+
+// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the deep copy of the flags: the
+// flags are the ones the evaluations use. The caller must only read them (evaluate them,
+// look at them) and must not change them, nor hand them to code that does.
+// It is the cheap way to evaluate every flag again and again, a copy rebuilds the state that
+// is memoized for the scheduled rollouts.
+func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error) {
+	return g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
 }
 
 // GetFlagsFromCacheWithContext returns all the flags present in the cache with their

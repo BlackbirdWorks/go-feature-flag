@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -321,4 +323,40 @@ func TestAllFlagsFromCache(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetFlagsFromCacheReadOnly checks that the read-only snapshot serves the flags of the evaluations (the scheduled
+// rollouts keep their memoized state between two calls) and that the public snapshot is detached from them.
+func TestGetFlagsFromCacheReadOnly(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "flags.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`scheduled:
+  variations: {A: a, B: b}
+  defaultRule: {variation: A}
+  scheduledRollout:
+    - date: 2999-01-01T00:00:00Z
+      defaultRule: {variation: B}
+`), 0o600))
+	goff, err := ffclient.New(ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
+	require.NoError(t, err)
+	defer goff.Close()
+
+	steps := func(flags map[string]flag.Flag) *[]flag.ScheduledStep {
+		f, ok := flags["scheduled"].(*flag.InternalFlag)
+		require.True(t, ok)
+		require.NotNil(t, f.Scheduled)
+		return f.Scheduled
+	}
+	readOnly1, err := goff.GetFlagsFromCacheReadOnly()
+	require.NoError(t, err)
+	readOnly2, err := goff.GetFlagsFromCacheReadOnly()
+	require.NoError(t, err)
+	copy1, err := goff.GetFlagsFromCache()
+	require.NoError(t, err)
+	copy2, err := goff.GetFlagsFromCache()
+	require.NoError(t, err)
+
+	assert.Same(t, steps(readOnly1), steps(readOnly2), "the read-only snapshots share the steps the memo is keyed on")
+	assert.NotSame(t, steps(readOnly1), steps(copy1), "the public snapshot is detached from the live flags")
+	assert.NotSame(t, steps(copy1), steps(copy2), "every public snapshot is its own copy")
 }
