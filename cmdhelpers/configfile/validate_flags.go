@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
 // errInternalValidation is the generic error used when the validation of a flag panics,
@@ -30,11 +31,14 @@ func (e FlagError) Error() string {
 func (e FlagError) Unwrap() error { return e.Err }
 
 // ValidateFlags converts and validates every flag.
-// It returns the validation errors sorted by flag key.
+// It returns the validation errors sorted by flag key. The flags are validated with an evaluation
+// Service of their own, that is dropped with the call: validating does not touch the state of a client.
 func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 	var errs []FlagError
+	svc := flag.NewService()
+	defer svc.Close()
 	for _, key := range slices.Sorted(maps.Keys(flags)) {
-		if err := validateFlag(flags[key]); err != nil {
+		if err := validateFlag(svc, flags[key]); err != nil {
 			errs = append(errs, FlagError{Flag: key, Err: err})
 		}
 	}
@@ -45,13 +49,13 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 // validateFlag converts and validates a single flag.
 // The recover guards against panics in the IsValid method of modules/core (for example on partially
 // filled rollout definitions): such a flag is reported as invalid instead of crashing the caller.
-func validateFlag(flagDto dto.DTO) (err error) {
+func validateFlag(svc *flag.Service, flagDto dto.DTO) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errInternalValidation
 		}
 	}()
-	flag := flagDto.Convert()
+	f := flagDto.Convert()
 
-	return flag.IsValid()
+	return f.IsValid(svc)
 }

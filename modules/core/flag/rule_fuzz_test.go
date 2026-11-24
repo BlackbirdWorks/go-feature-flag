@@ -36,14 +36,13 @@ func FuzzEvaluateRule(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, query, ctxJSON string) {
 		// Every fuzzed query would otherwise stay in the evaluator cache forever.
-		useFreshNikunjyEvaluators(t)
-		t.Cleanup(compiledQueryCache.Clear)
+		svc := NewService()
 		var attributes map[string]any
 		if json.Unmarshal([]byte(ctxJSON), &attributes) != nil {
 			return
 		}
 		r := Rule{Query: &query, VariationResult: new("A")}
-		if r.isQueryValid(false) != nil {
+		if r.isQueryValid(svc, false) != nil {
 			return
 		}
 
@@ -54,7 +53,7 @@ func FuzzEvaluateRule(f *testing.F) {
 			require.NoError(t, err)
 			_ = jsonlogic.Apply(strings.NewReader(r.GetTrimmedQuery()), bytes.NewReader(strCtx), io.Discard)
 		default:
-			ev, err := nikunjyEvaluators.get(r.GetTrimmedQuery())
+			ev, err := svc.nikunjy.get(r.GetTrimmedQuery())
 			require.NoError(t, err, "query passed validation but does not parse")
 			_, _ = ev.Process(mapCtx)
 		}
@@ -70,9 +69,10 @@ func FuzzPercentageRollout(f *testing.F) {
 	f.Add("", "", 33.3, 33.3, 33.4)
 	f.Add("user-3", "other-flag", 0.5, 0.25, 0.25)
 	f.Fuzz(func(t *testing.T, key, flagName string, pA, pB, pC float64) {
+		svc := NewService()
 		percentages := map[string]float64{"A": pA, "B": pB, "C": pC}
 		r := Rule{Percentages: &percentages}
-		if hasKnownValidationGap(r) || r.IsValid(true, fuzzVariations("A", "B", "C")) != nil {
+		if hasKnownValidationGap(r) || r.IsValid(svc, true, fuzzVariations("A", "B", "C")) != nil {
 			return
 		}
 		got, err := r.EvaluatePercentageRollout(key, flagName)
@@ -92,6 +92,7 @@ func FuzzProgressiveRollout(f *testing.F) {
 	f.Add("user-2", 10.0, 50.0, int64(60), int64(30), int64(30))
 	f.Add("user-3", 0.0, 0.0, int64(86400), int64(0), int64(90000))
 	f.Fuzz(func(t *testing.T, key string, initialPct, endPct float64, duration, offset1, offset2 int64) {
+		svc := NewService()
 		initialDate := time.Unix(startUnix, 0)
 		endDate := time.Unix(startUnix+duration, 0)
 		r := Rule{ProgressiveRollout: &ProgressiveRollout{
@@ -103,14 +104,14 @@ func FuzzProgressiveRollout(f *testing.F) {
 			},
 		}}
 		missingEnd := Rule{ProgressiveRollout: &ProgressiveRollout{Initial: r.ProgressiveRollout.Initial}}
-		require.Error(t, missingEnd.IsValid(true, fuzzVariations("A", "B")), "missing end step must be rejected")
+		require.Error(t, missingEnd.IsValid(svc, true, fuzzVariations("A", "B")), "missing end step must be rejected")
 		missingInitial := Rule{ProgressiveRollout: &ProgressiveRollout{End: r.ProgressiveRollout.End}}
 		require.Error(
 			t,
-			missingInitial.IsValid(true, fuzzVariations("A", "B")),
+			missingInitial.IsValid(svc, true, fuzzVariations("A", "B")),
 			"missing initial step must be rejected",
 		)
-		if hasKnownValidationGap(r) || r.IsValid(true, fuzzVariations("A", "B")) != nil {
+		if hasKnownValidationGap(r) || r.IsValid(svc, true, fuzzVariations("A", "B")) != nil {
 			return
 		}
 		// sort the dates, not the offsets: startUnix+offset can overflow and wrap.

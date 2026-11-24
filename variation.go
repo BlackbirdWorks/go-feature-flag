@@ -325,6 +325,7 @@ func getVariation[T model.JSONType](
 	flagCtx := flag.Context{
 		DefaultSdkValue:             sdkDefaultValue,
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
+		Service:                     g.evaluationService,
 	}
 
 	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)

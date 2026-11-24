@@ -21,9 +21,9 @@ import (
 // is cached.
 //
 // An entry is evicted once no validated rule list contains its query. refs counts those
-// rule lists per query: the cache is shared by every client of the process (e.g. every
-// flag set of the relay proxy), so one client's reload must not evict a query another
-// client still uses.
+// rule lists per query: the cache is owned by a Service, which is shared by the flag
+// sets that the same client reloads, so one reload must not evict a query another
+// rule list still uses.
 //
 // Finding the entry of a query costs a hash of the whole query string, which is milliseconds
 // for the megabytes of a large list, plus a comparison of its bytes. So the evaluation of a
@@ -43,7 +43,20 @@ type nikunjyEvaluatorCache struct {
 	byKey   sync.Map // map[uint64]*nikunjyKeyedEvaluator
 	keysMu  sync.Mutex
 	keyRefs map[uint64]int // the validated rule lists that use each key, protected by keysMu
+
+	// keysEnabled is whether index saves keys. It is not when the keys could not be released: the
+	// rules are then evaluated through get, as rules that are not validated. It is a field so that
+	// tests can run that case.
+	keysEnabled bool
+	// keysMinQueryLen is the length from which a query is given a key. A short query is hashed and
+	// compared by get faster than a key is saved, released and looked up: giving it a key would only
+	// make loading slower and keep its evaluator in memory. It is a field so that tests can give
+	// keys to short queries.
+	keysMinQueryLen int
 }
+
+// defaultNikunjyKeysMinQueryLen is the default length from which a nikunjy query is given a key.
+const defaultNikunjyKeysMinQueryLen = 1024
 
 // nikunjyKeyedEvaluator is the evaluator of a query text. Its key is only used for rules
 // whose query is that text: lookup compares the text.
@@ -102,26 +115,16 @@ func hashNikunjyQuery(query string) uint64 {
 	return h
 }
 
-// nikunjyKeysEnabled is whether index saves keys. It is not when the keys could not be released:
-// the rules are then evaluated through get, as rules that are not validated. It is a variable so
-// that tests can run that case.
-var nikunjyKeysEnabled = true
-
-// nikunjyKeysMinQueryLen is the length from which a query is given a key. A short query is
-// hashed and compared by get faster than a key is saved, released and looked up: giving it a key
-// would only make loading slower and keep its evaluator in memory. It is a variable so that
-// tests can give keys to short queries.
-var nikunjyKeysMinQueryLen = 1024
-
 func newNikunjyEvaluatorCache() *nikunjyEvaluatorCache {
 	return &nikunjyEvaluatorCache{
 		refs:    map[string]int{},
 		hash:    hashNikunjyQuery,
 		keyRefs: map[uint64]int{},
+
+		keysEnabled:     true,
+		keysMinQueryLen: defaultNikunjyKeysMinQueryLen,
 	}
 }
-
-var nikunjyEvaluators = newNikunjyEvaluatorCache()
 
 func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 	if v, ok := c.entries.Load(query); ok {
@@ -215,14 +218,14 @@ func mayBeNikunjyQuery(query string) bool {
 // queries of the previous load. The keys it finds are released once rules is garbage collected.
 // For the other queries it saves the hash, for index. It returns nil if no query qualifies.
 func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
-	if rules == nil || !nikunjyKeysEnabled {
+	if rules == nil || !c.keysEnabled {
 		return nil
 	}
 	var found []nikunjyKnownQuery
 	var keys []uint64
 	for i := range *rules {
 		r := &(*rules)[i]
-		if !qualifiesForKnown(r) {
+		if !c.qualifiesForKnown(r) {
 			continue
 		}
 		if found == nil {
@@ -250,8 +253,8 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 
 // qualifiesForKnown is true for an enabled rule whose query may be a nikunjy query long enough
 // to have a key.
-func qualifiesForKnown(r *Rule) bool {
-	return !r.IsDisable() && r.Query != nil && len(*r.Query) >= nikunjyKeysMinQueryLen &&
+func (c *nikunjyEvaluatorCache) qualifiesForKnown(r *Rule) bool {
+	return !r.IsDisable() && r.Query != nil && len(*r.Query) >= c.keysMinQueryLen &&
 		mayBeNikunjyQuery(*r.Query)
 }
 
@@ -281,14 +284,14 @@ func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (key uint64, entry *nikunjyK
 // evaluated while they are indexed for the first time: a configuration is validated before it is
 // served.
 func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery, evaluators []*parser.Evaluator) {
-	if !nikunjyKeysEnabled {
+	if !c.keysEnabled {
 		return
 	}
 	keys := make([]uint64, 0, len(queries))
 	for _, q := range queries {
 		ev := evaluators[q.rule]
 		r := &(*rules)[q.rule]
-		if ev == nil || len(q.raw) < nikunjyKeysMinQueryLen || r.Query == nil || *r.Query != q.raw {
+		if ev == nil || len(q.raw) < c.keysMinQueryLen || r.Query == nil || *r.Query != q.raw {
 			continue // not validated, short, or changed while the rules were validated
 		}
 		hash := q.hash
@@ -418,9 +421,23 @@ func (c *nikunjyEvaluatorCache) release(queries []string) {
 	defer c.refsMu.Unlock()
 	for _, q := range queries {
 		c.refs[q]--
-		if c.refs[q] == 0 {
+		if c.refs[q] <= 0 {
 			delete(c.refs, q)
 			c.entries.Delete(q)
 		}
 	}
+}
+
+// reset drops every evaluator and key. The rule lists that were validated keep working: a key that
+// no longer leads to an evaluator falls back to get, and the reference counts restart from zero (a
+// release of a collected rule list then only removes what is not there).
+func (c *nikunjyEvaluatorCache) reset() {
+	c.entries.Clear()
+	c.byKey.Clear()
+	c.refsMu.Lock()
+	clear(c.refs)
+	c.refsMu.Unlock()
+	c.keysMu.Lock()
+	clear(c.keyRefs)
+	c.keysMu.Unlock()
 }

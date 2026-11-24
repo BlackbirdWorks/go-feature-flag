@@ -14,6 +14,7 @@ import (
 // nikunjy targeting query. Before the parser cache, every call re-parses the query
 // via ANTLR; after the cache, parsing happens once per distinct query string.
 func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
+	svc := flag.NewService()
 	rule := flag.Rule{
 		Name:            new("complex"),
 		VariationResult: new("on"),
@@ -32,7 +33,7 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
+		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
 
@@ -40,6 +41,7 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 // once per round, with garbage collections between rounds. It models a large flag
 // configuration where most flags are evaluated less often than the GC runs.
 func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
+	svc := flag.NewService()
 	const queries = 1000
 	rules := make([]flag.Rule, queries)
 	for i := range rules {
@@ -48,7 +50,7 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 			VariationResult: new("on"),
 			Query:           new(fmt.Sprintf(`group eq "group-%d"`, i)),
 		}
-		_, _ = rules[i].Evaluate("user-1", ffcontext.NewEvaluationContext("user-1"), "warm-up", false)
+		_, _ = rules[i].Evaluate(svc, "user-1", ffcontext.NewEvaluationContext("user-1"), "warm-up", false)
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("group", "group-0").
@@ -62,12 +64,13 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 			runtime.GC()
 			b.StartTimer()
 		}
-		_, _ = rules[i%queries].Evaluate("user-1", ctx, "test-flag", false)
+		_, _ = rules[i%queries].Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
 
 // BenchmarkRuleEvaluate_NikunjySimple is a single-predicate variant for comparison.
 func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
+	svc := flag.NewService()
 	rule := flag.Rule{
 		Name:            new("simple"),
 		VariationResult: new("on"),
@@ -79,7 +82,7 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
+		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
 
@@ -87,6 +90,7 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 // user IDs, the shape of a flag that lists individual targets, with a context
 // that is not in the list.
 func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
+	svc := flag.NewService()
 	users := make([]string, 400)
 	for i := range users {
 		users[i] = fmt.Sprintf(`"%08d-0000-4000-8000-000000000000"`, i)
@@ -102,13 +106,14 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
+		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
 
 // BenchmarkInternalFlagValue_MultiRule evaluates a flag whose targeting rules all
 // carry a query, the last one matching, so every rule reads the evaluation context.
 func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
+	svc := flag.NewService()
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
@@ -130,7 +135,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()
-	flagCtx := flag.Context{DefaultSdkValue: false}
+	flagCtx := flag.Context{DefaultSdkValue: false, Service: svc}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
@@ -141,6 +146,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 // BenchmarkInternalFlagValue_MultiRuleJSONLogic is BenchmarkInternalFlagValue_MultiRule
 // with JsonLogic queries, which read the evaluation context as JSON.
 func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
+	svc := flag.NewService()
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
@@ -164,7 +170,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()
-	flagCtx := flag.Context{DefaultSdkValue: false}
+	flagCtx := flag.Context{DefaultSdkValue: false, Service: svc}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
@@ -175,6 +181,7 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 // BenchmarkRuleEvaluate_NikunjySimpleParallel evaluates one query from every P at
 // once, the case where concurrent evaluations compete for the cached evaluators.
 func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
+	svc := flag.NewService()
 	rule := flag.Rule{
 		Name:            new("simple-parallel"),
 		VariationResult: new("on"),
@@ -187,7 +194,7 @@ func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = rule.Evaluate("user-1", ctx, "test-flag", false)
+			_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 		}
 	})
 }

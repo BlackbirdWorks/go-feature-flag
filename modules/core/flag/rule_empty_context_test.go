@@ -165,7 +165,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := tt.rule.Evaluate(tt.key, atFixedNow(tt.ctx), "test-flag", false)
+			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), "test-flag", false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

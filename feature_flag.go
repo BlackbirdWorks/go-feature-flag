@@ -10,6 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
+	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -22,6 +23,10 @@ type GoFeatureFlag struct {
 	featureEventDataExporter  exporter.Manager[exporter.FeatureEvent]
 	trackingEventDataExporter exporter.Manager[exporter.TrackingEvent]
 	retrieverManager          *retriever.Manager
+	// evaluationService owns the caches of the flag evaluation (parsed queries, scheduled rollouts, ...).
+	// It is created with the client, shared by the cache that validates the flags and by the
+	// evaluations, and released by Close.
+	evaluationService *flag.Service
 	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
@@ -53,8 +58,9 @@ func New(config Config) (*GoFeatureFlag, error) {
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
-		config:         config,
-		evalExporterWg: sync.WaitGroup{},
+		config:            config,
+		evalExporterWg:    sync.WaitGroup{},
+		evaluationService: flag.NewService(),
 	}
 
 	if config.Offline {
@@ -64,7 +70,7 @@ func New(config Config) (*GoFeatureFlag, error) {
 		return goFF, nil
 	}
 
-	retrieverManager, err := initializeRetrieverManager(config)
+	retrieverManager, err := initializeRetrieverManager(config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
 		return nil, fmt.Errorf(
 			"impossible to initialize the retrievers, please check your configuration: %w",
@@ -89,7 +95,7 @@ func initializeNotificationService(config Config) notification.Service {
 }
 
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
-func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
+func initializeRetrieverManager(config Config, evaluationService *flag.Service) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
 		return nil, err
@@ -110,6 +116,7 @@ func initializeRetrieverManager(config Config) (*retriever.Manager, error) {
 		notificationService,
 		config.PersistentFlagConfigurationFile,
 		config.internalLogger,
+		cache.WithService(evaluationService),
 	)
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
@@ -184,6 +191,7 @@ func (g *GoFeatureFlag) Close() {
 		if g.trackingEventDataExporter != nil {
 			g.trackingEventDataExporter.Stop()
 		}
+		g.evaluationService.Close()
 	}
 }
 
@@ -194,6 +202,13 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 	}
 
 	return g.retrieverManager.GetCacheRefreshDate()
+}
+
+// EvaluationService returns the evaluation service of the client: the owner of the caches that
+// evaluating (and validating) its flags uses. Pass it in flag.Context.Service when you evaluate the
+// flags that GetFlagsFromCache returns. It is never nil.
+func (g *GoFeatureFlag) EvaluationService() *flag.Service {
+	return g.evaluationService
 }
 
 // GetEvaluationContextEnrichment returns the evaluation context enrichment.

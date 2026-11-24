@@ -104,21 +104,21 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 	variations := map[string]*any{"on": new(any(true))}
 	ctx := ffcontext.NewEvaluationContext("user-1")
-	useFreshNikunjyEvaluators(b)
+	svc := NewService()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := range b.N {
 		if i%1000 == 0 {
 			b.StopTimer()
-			nikunjyEvaluators = newNikunjyEvaluatorCache()
+			svc = NewService()
 			b.StartTimer()
 		}
 		r := Rule{
 			VariationResult: new("on"),
 			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
-		require.NoError(b, r.IsValid(false, variations))
-		_, _ = r.Evaluate("user-1", ctx, "test-flag", false)
+		require.NoError(b, r.IsValid(svc, false, variations))
+		_, _ = r.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
 
@@ -137,17 +137,6 @@ func newFlagWithQueries(queries ...string) *InternalFlag {
 		Rules:       &rules,
 		DefaultRule: &Rule{VariationResult: new("on")},
 	}
-}
-
-// useFreshNikunjyEvaluators gives the test its own package evaluator cache. Cleanups
-// registered by earlier tests release into the cache they retained in, so they cannot
-// evict entries of this test. It swaps a package variable: not for parallel tests.
-func useFreshNikunjyEvaluators(tb testing.TB) *nikunjyEvaluatorCache {
-	previous := nikunjyEvaluators
-	nikunjyEvaluators = newNikunjyEvaluatorCache()
-	tb.Cleanup(func() { nikunjyEvaluators = previous })
-
-	return nikunjyEvaluators
 }
 
 func refCount(c *nikunjyEvaluatorCache, query string) int {
@@ -198,8 +187,9 @@ func gcUntil(t *testing.T, condition func() bool, msg string) {
 	}, 5*time.Second, 10*time.Millisecond, msg)
 }
 
-//nolint:paralleltest,tparallel // calls the helper useFreshNikunjyEvaluators which assigns to the package-level variable nikunjyEvaluators; removed by the service-object refactor (follow-up PR)
 func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
+	t.Parallel()
+
 	const (
 		removed   = `key eq "removed-by-reload"`
 		kept      = `key eq "kept-by-reload"`
@@ -234,12 +224,15 @@ func TestNikunjyEvaluatorCache_Eviction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := useFreshNikunjyEvaluators(t)
+			t.Parallel()
+
+			svc := NewService()
+			c := svc.nikunjy
 			queries := slices.Sorted(maps.Keys(tt.wantRefs))
 			oldFlag := newFlagWithQueries(tt.oldQueries...)
-			require.NoError(t, oldFlag.IsValid())
+			require.NoError(t, oldFlag.IsValid(svc))
 			newFlag := newFlagWithQueries(tt.newQueries...)
-			require.NoError(t, newFlag.IsValid())
+			require.NoError(t, newFlag.IsValid(svc))
 			require.Equal(t, tt.wantRefs, refCounts(c, queries), "references once both rule lists are validated")
 
 			runtime.KeepAlive(oldFlag)

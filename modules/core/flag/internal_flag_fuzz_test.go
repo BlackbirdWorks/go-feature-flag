@@ -37,8 +37,7 @@ func FuzzInternalFlagValue(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, flagJSON, ctxJSON string, evalUnix int64) {
 		// Every fuzzed query would otherwise stay in the evaluator cache forever.
-		useFreshNikunjyEvaluators(t)
-		t.Cleanup(compiledQueryCache.Clear)
+		svc := NewService()
 		var internalFlag InternalFlag
 		var attributes map[string]any
 		if json.Unmarshal([]byte(flagJSON), &internalFlag) != nil ||
@@ -54,10 +53,10 @@ func FuzzInternalFlagValue(f *testing.F) {
 		evalCtx.AddCustomAttribute("gofeatureflag", map[string]any{"currentDateTime": date})
 		// evaluation.Evaluate calls Value on flags that were never validated,
 		// so any flag must evaluate without panicking.
-		_, details := internalFlag.Value("my-flag", evalCtx, Context{})
+		_, details := internalFlag.Value("my-flag", evalCtx, Context{Service: svc})
 
-		flagAtDate, err := internalFlag.applyScheduledRolloutSteps(date)
-		if err != nil || hasKnownFlagGap(flagAtDate) || flagAtDate.IsValid() != nil {
+		flagAtDate, err := internalFlag.applyScheduledRolloutSteps(svc, date)
+		if err != nil || hasKnownFlagGap(flagAtDate) || flagAtDate.IsValid(svc) != nil {
 			return
 		}
 		assert.NotEqual(t, ErrorFlagConfiguration, details.ErrorCode, "%s", details.ErrorMessage)

@@ -25,6 +25,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 	flagCtx := flag.Context{
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 		DefaultSdkValue:             nil,
+		Service:                     g.evaluationService,
 	}
 
 	// Evaluate only the flags in flagsToEvaluate

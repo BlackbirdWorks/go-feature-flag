@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"sync"
 	"time"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
@@ -76,9 +75,9 @@ func (r *Rule) RequiresBucketing() bool {
 
 // Evaluate is checking if the rule applies to for the user.
 // If yes, it returns the variation you should use for this rule.
-func (r *Rule) Evaluate(key string, ctx ffcontext.Context, flagName string, isDefault bool,
+func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagName string, isDefault bool,
 ) (string, error) {
-	v, err := r.evaluate(key, &queryContext{ctx: ctx}, flagName, isDefault)
+	v, err := r.evaluate(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
@@ -141,21 +140,19 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 // the query engines must only read the map, never modify it. The JSON form JsonLogic reads
 // is shared the same way.
 type queryContext struct {
+	// svc owns the caches and the pool that evaluating the queries uses.
+	svc                  *Service
 	ctx                  ffcontext.Context
 	parsedEvalCtxAsMap   map[string]any
 	parsedEvalCtxAsBytes []byte
 	parsedEvalCtxAsData  any
-	// pooled is true when parsedEvalCtxAsMap comes from queryMapPool (see release).
+	// pooled is true when parsedEvalCtxAsMap comes from the pool of svc (see release).
 	pooled bool
 }
 
-// queryMapPool recycles the maps of the queryContexts: the map is only read by the query engines
-// during the evaluation and never retained, so it is cleared and reused by the next evaluation.
-var queryMapPool = sync.Pool{New: func() any { return make(map[string]any, 16) }}
-
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		q.parsedEvalCtxAsMap = utils.ContextToMapInto(queryMapPool.Get().(map[string]any), q.ctx)
+		q.parsedEvalCtxAsMap = utils.ContextToMapInto(q.svc.queryMaps.Get().(map[string]any), q.ctx)
 		q.pooled = true
 	}
 
@@ -166,7 +163,7 @@ func (q *queryContext) mapOnce() map[string]any {
 func (q *queryContext) release() {
 	if q.pooled {
 		clear(q.parsedEvalCtxAsMap)
-		queryMapPool.Put(q.parsedEvalCtxAsMap)
+		q.svc.queryMaps.Put(q.parsedEvalCtxAsMap)
 		q.parsedEvalCtxAsMap = nil
 		q.pooled = false
 	}
@@ -213,12 +210,12 @@ func (q *queryContext) dataOnce() (any, error) {
 func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
 	if r.QueryHash != 0 { // the rule was validated
 		raw := r.GetQuery()
-		if ev := nikunjyEvaluators.lookup(r.QueryHash, raw); ev != nil {
+		if ev := queryCtx.svc.nikunjy.lookup(r.QueryHash, raw); ev != nil {
 			return evaluateNikunjy(ev, raw, queryCtx)
 		}
 	}
 
-	return evaluateRule(getCompiledQuery(r.GetQuery()), queryCtx)
+	return evaluateRule(queryCtx.svc.compiledQuery(r.GetQuery()), queryCtx)
 }
 
 // evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
@@ -287,7 +284,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 
 		return isJSONLogicTruthy(result)
 	default:
-		ev, err := nikunjyEvaluators.get(query)
+		ev, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
 			slog.Error("error while parsing the nikunjy query",
 				slog.String("query", query), slog.Any("error", err))

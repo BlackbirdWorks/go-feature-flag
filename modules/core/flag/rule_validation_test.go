@@ -174,7 +174,7 @@ func TestRule_IsValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 		})
 	}
@@ -359,7 +359,7 @@ func TestRule_validatePercentages(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -743,7 +743,7 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -874,7 +874,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -1027,7 +1027,7 @@ func TestRule_isQueryValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -1242,7 +1242,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := tt.rule.IsValid(tt.defaultRule, tt.variations)
+			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
 			tt.wantErr(t, err, "IsValid() error = %v", err)
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)

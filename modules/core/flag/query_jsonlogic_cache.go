@@ -3,37 +3,8 @@ package flag
 import (
 	"encoding/json"
 	"math"
-	"sync"
 	"unicode/utf8"
-
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
-
-// compiledQueryCache memoizes the trimmed form, format and decoded JsonLogic rule per raw query.
-// Only evaluation stores entries, so the set is bounded by the evaluated flag config.
-var compiledQueryCache sync.Map // map[string]*compiledQuery
-
-type compiledQuery struct {
-	trimmed   string
-	format    QueryFormat
-	jsonLogic any
-}
-
-func getCompiledQuery(raw string) *compiledQuery {
-	if v, ok := compiledQueryCache.Load(raw); ok {
-		return v.(*compiledQuery)
-	}
-	trimmed := utils.StrTrim(raw)
-	c := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
-	if c.format == JSONLogicQueryFormat {
-		var rule any
-		if json.Unmarshal([]byte(c.trimmed), &rule) == nil {
-			c.jsonLogic = rule
-		}
-	}
-	actual, _ := compiledQueryCache.LoadOrStore(raw, c)
-	return actual.(*compiledQuery)
-}
 
 // isJSONLogicTruthy treats false, null, "", 0 and [] as falsy, as per the JsonLogic spec.
 func isJSONLogicTruthy(v any) bool {

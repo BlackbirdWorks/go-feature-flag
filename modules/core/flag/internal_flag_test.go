@@ -3164,7 +3164,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 				Scheduled:       tt.fields.Scheduled,
 				Experimentation: tt.fields.Experimentation,
 			}
-			err := f.IsValid()
+			err := f.IsValid(flag.NewService())
 			errMsg := ""
 			if err != nil {
 				errMsg = err.Error()
@@ -3310,7 +3310,7 @@ func TestInternalFlag_IsValid_DeterministicError(t *testing.T) {
 					Variations:  &tt.variations,
 					DefaultRule: &flag.Rule{VariationResult: new("a")},
 				}
-				assert.EqualError(t, f.IsValid(), tt.wantErr)
+				assert.EqualError(t, f.IsValid(flag.NewService()), tt.wantErr)
 			}
 		})
 	}

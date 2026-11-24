@@ -11,8 +11,8 @@ import (
 )
 
 // IsValid is checking if the rule is valid.
-func (r *Rule) IsValid(defaultRule bool, variations map[string]*any) error {
-	_, err := r.validate(defaultRule, variations, nil)
+func (r *Rule) IsValid(svc *Service, defaultRule bool, variations map[string]*any) error {
+	_, err := r.validate(svc, defaultRule, variations, nil)
 
 	return err
 }
@@ -24,7 +24,7 @@ func (r *Rule) IsValid(defaultRule bool, variations map[string]*any) error {
 // known is the evaluator of a nikunjy query that was validated already: the query is not
 // validated again.
 func (r *Rule) validate(
-	defaultRule bool, variations map[string]*any, known *parser.Evaluator,
+	svc *Service, defaultRule bool, variations map[string]*any, known *parser.Evaluator,
 ) (*parser.Evaluator, error) {
 	if !defaultRule && r.IsDisable() {
 		return nil, nil
@@ -37,7 +37,7 @@ func (r *Rule) validate(
 	ev := known
 	if ev == nil {
 		var err error
-		if ev, err = r.validateQuery(defaultRule); err != nil {
+		if ev, err = r.validateQuery(svc, defaultRule); err != nil {
 			return nil, err
 		}
 	}
@@ -174,14 +174,14 @@ func (r *Rule) validateVariationResult(variations map[string]*any) error {
 // isQueryValid validates the query configuration of the rule.
 // It checks that the query is not empty and that the query format is valid.
 // The query format can be either JSONLogic or Nikunjy.
-func (r *Rule) isQueryValid(defaultRule bool) error {
-	_, err := r.validateQuery(defaultRule)
+func (r *Rule) isQueryValid(svc *Service, defaultRule bool) error {
+	_, err := r.validateQuery(svc, defaultRule)
 
 	return err
 }
 
 // validateQuery is isQueryValid. It also returns the evaluator of a nikunjy query.
-func (r *Rule) validateQuery(defaultRule bool) (*parser.Evaluator, error) {
+func (r *Rule) validateQuery(svc *Service, defaultRule bool) (*parser.Evaluator, error) {
 	if defaultRule {
 		return nil, nil
 	}
@@ -199,6 +199,6 @@ func (r *Rule) validateQuery(defaultRule bool) (*parser.Evaluator, error) {
 
 		return nil, nil
 	default:
-		return nikunjyEvaluators.validateEvaluator(r.GetTrimmedQuery())
+		return svc.nikunjy.validateEvaluator(r.GetTrimmedQuery())
 	}
 }

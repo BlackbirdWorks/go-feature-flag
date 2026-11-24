@@ -46,12 +46,24 @@ type cacheManagerImpl struct {
 	persistentFlagConfigurationFile string
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
+	// service validates the flags that are loaded, and owns the parses of their queries.
+	service *flag.Service
+}
+
+// Option customizes the Manager that New creates.
+type Option func(*cacheManagerImpl)
+
+// WithService makes the manager validate its flags with svc, which the caller owns (and closes).
+// By default the manager creates a Service of its own.
+func WithService(svc *flag.Service) Option {
+	return func(m *cacheManagerImpl) { m.service = svc }
 }
 
 func New(
 	notificationService notification.Service,
 	persistentFlagConfigurationFile string,
 	logger *fflog.FFLogger,
+	opts ...Option,
 ) Manager {
 	m := &cacheManagerImpl{
 		logger:                          logger,
@@ -59,7 +71,13 @@ func New(
 		notificationService:             notificationService,
 		persistentFlagConfigurationFile: persistentFlagConfigurationFile,
 	}
-	var initial Cache = NewInMemoryCache(logger)
+	for _, opt := range opts {
+		opt(m)
+	}
+	if m.service == nil {
+		m.service = flag.NewService()
+	}
+	var initial Cache = NewInMemoryCache(m.service, logger)
 	m.inMemoryCache.Store(&initial)
 
 	return m
@@ -89,7 +107,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	log *fflog.FFLogger,
 	notifyChanges bool,
 ) error {
-	newCache := NewInMemoryCache(c.logger)
+	newCache := NewInMemoryCache(c.service, c.logger)
 	newCache.Init(newFlags)
 	newCacheFlags := newCache.All()
 	oldCacheFlags := map[string]flag.Flag{}

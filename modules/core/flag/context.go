@@ -11,6 +11,11 @@ type Context struct {
 
 	// DefaultSdkValue is the default value of the SDK when calling the variation.
 	DefaultSdkValue any `json:"defaultSdkValue,omitempty"`
+
+	// Service owns the caches that evaluating the flag uses. A client creates one and passes it
+	// here for every evaluation, so that the evaluations share the parsed queries and nothing else
+	// does. Nil means a throwaway Service for each evaluation (see InternalFlag.Value).
+	Service *Service `json:"-"`
 }
 
 // AddIntoEvaluationContextEnrichment adds a key and value to the evaluation context enrichment.

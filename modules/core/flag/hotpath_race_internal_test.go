@@ -126,7 +126,8 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				Rules:       &[]Rule{{Query: new(tt.query), VariationResult: new("A")}},
 				DefaultRule: &Rule{VariationResult: new("B")},
 			}
-			require.NoError(t, f.IsValid())
+			svc := NewService()
+			require.NoError(t, f.IsValid(svc))
 			ctx := &customContext{key: "user", custom: tt.ctxCustom}
 			var before map[string]any
 			if tt.ctxCustom != nil {
@@ -134,7 +135,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				maps.Copy(before, tt.ctxCustom)
 			}
 			runParallel(200, func(i int) {
-				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment})
+				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)
 			})
 			assert.Equal(t, before, ctx.custom, "the evaluation context must not be modified")

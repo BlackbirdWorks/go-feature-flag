@@ -46,7 +46,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 		if err != nil || hasProgressiveRolloutWithoutStep(flags) {
 			return
 		}
-		cache.NewInMemoryCache(logger).Init(flags)
+		cache.NewInMemoryCache(flag.NewService(), logger).Init(flags)
 	})
 }
 

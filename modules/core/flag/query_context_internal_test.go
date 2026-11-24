@@ -34,7 +34,7 @@ func TestQueryContext_MapOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryCtx := &queryContext{ctx: tt.ctx}
+			queryCtx := &queryContext{svc: NewService(), ctx: tt.ctx}
 
 			first := queryCtx.mapOnce()
 			second := queryCtx.mapOnce()
@@ -73,7 +73,7 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryCtx := &queryContext{ctx: tt.ctx}
+			queryCtx := &queryContext{svc: NewService(), ctx: tt.ctx}
 
 			first, err := queryCtx.jsonOnce()
 			require.NoError(t, err)
@@ -90,6 +90,7 @@ func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
 	t.Parallel()
 
 	queryCtx := &queryContext{
+		svc: NewService(),
 		ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("unsupported", make(chan int)).Build(),
 	}
 
@@ -114,6 +115,7 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 			t.Parallel()
 
 			queryCtx := &queryContext{
+				svc: NewService(),
 				ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("bad", tt.value).Build(),
 			}
 			query := `{"==": [{"var": "key"}, "user-1"]}`
@@ -122,8 +124,12 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Nil(t, queryCtx.parsedEvalCtxAsData)
-			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "first rule")
-			assert.False(t, evaluateRule(getCompiledQuery(query), queryCtx), "later rules must not see partial data")
+			assert.False(t, evaluateRule(queryCtx.svc.compiledQuery(query), queryCtx), "first rule")
+			assert.False(
+				t,
+				evaluateRule(queryCtx.svc.compiledQuery(query), queryCtx),
+				"later rules must not see partial data",
+			)
 		})
 	}
 }
@@ -160,7 +166,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryCtx := &queryContext{ctx: ffcontext.NewEvaluationContext("user-1")}
+			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext("user-1")}
 
 			_, err := tt.rule.evaluate("user-1", queryCtx, "my-flag", tt.isDefault)
 
