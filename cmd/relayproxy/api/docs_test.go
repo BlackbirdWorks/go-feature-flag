@@ -18,6 +18,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -44,14 +45,15 @@ func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 
 // swaggerDocument is what the tests read of the OpenAPI document.
 type swaggerDocument struct {
-	Paths      map[string]map[string]any `json:"paths"`
+	OpenAPI    string                    `json:"openapi"    yaml:"openapi"`
+	Paths      map[string]map[string]any `json:"paths"      yaml:"paths"`
 	Components struct {
-		Schemas map[string]any `json:"schemas"`
-	} `json:"components"`
+		Schemas map[string]any `json:"schemas" yaml:"schemas"`
+	} `json:"components" yaml:"components"`
 	Info struct {
-		Version string `json:"version"`
-	} `json:"info"`
-	Servers []any `json:"servers"`
+		Version string `json:"version" yaml:"version"`
+	} `json:"info"       yaml:"info"`
+	Servers []any `json:"servers"    yaml:"servers"`
 }
 
 // Test_Swagger checks the documents that the Swagger UI displays. The document describes the whole API (the
@@ -76,7 +78,11 @@ func Test_Swagger(t *testing.T) {
 			name: "dedicated monitoring listener", monitoringPort: 18080,
 			wantPaths: []string{"/health", "/info", "/metrics", "/v1/allflags", "/admin/v1/flags/validate"},
 		},
-		{name: "first requests", concurrent: 8},
+		{
+			name:       "first requests",
+			concurrent: 8,
+			wantPaths:  []string{"/health", "/v1/allflags", "/admin/v1/flags/validate"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,10 +115,18 @@ func Test_Swagger(t *testing.T) {
 
 				for _, path := range paths {
 					require.Len(t, bodies[path], tt.concurrent)
+					// the document is complete: it parses, it is OpenAPI 3 with the version of the relay proxy and it
+					// has the operations
+					var doc swaggerDocument
 					if strings.HasSuffix(path, ".json") {
-						assert.True(t, json.Valid([]byte(bodies[path][0])), "%s is a complete JSON document", path)
+						require.NoError(t, json.Unmarshal([]byte(bodies[path][0]), &doc), path)
 					} else {
-						assert.Contains(t, bodies[path][0], "openapi: ", "%s is a complete YAML document", path)
+						require.NoError(t, yaml.Unmarshal([]byte(bodies[path][0]), &doc), path)
+					}
+					assert.Equal(t, "v9.9.9", doc.Info.Version, path)
+					assert.True(t, strings.HasPrefix(doc.OpenAPI, "3."), "%s: %q", path, doc.OpenAPI)
+					for _, p := range tt.wantPaths {
+						assert.Contains(t, doc.Paths, p, path)
 					}
 					for _, body := range bodies[path] {
 						assert.Equal(t, bodies[path][0], body, path)
