@@ -12,7 +12,7 @@ divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs),
 ## Layout
 
 - Root `.go` files: the Go engine, `package ffclient` (`feature_flag.go`, `variation*.go`, `config*.go`, `tracking.go`).
-- `cmd/relayproxy/`: HTTP relay proxy (Echo, Zap logging, Prometheus metrics, OpenTelemetry). Swagger in `cmd/relayproxy/docs/`, Helm chart in `cmd/relayproxy/helm-charts/relay-proxy/`.
+- `cmd/relayproxy/`: HTTP relay proxy (Echo, Zap logging, Prometheus metrics, OpenTelemetry). Swagger in `cmd/relayproxy/docs/`.
 - `cmd/cli/`: command line (`evaluate`, `lint`, `generate`); `cmd/jsonschema-generator/`.
 - `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
 - `modules/core/`: flag, context and evaluation logic (a directory of the root module, not a separate module).
@@ -41,7 +41,7 @@ make swagger           # regenerate swagger after API annotation changes
 ## Conventions
 
 - Tests: parallel table-driven tests (`t.Parallel()`), testify only (`require` stops the test and replaces `t.Fatal`, `assert` continues and replaces `t.Error`; no `t.Fatal*`/`t.Error*`, enforced by forbidigo); no `export_test.go`. Fix flaky tests at the cause (no rerun-until-green, skips or blind threshold bumps).
-- No package-level state: `gochecknoglobals`, `gochecknoinits` and `reassign` are enforced. State is owned by objects created at startup and passed down (the client owns a `flag.Service` with the evaluation caches; the relay owns its Postgres pool registry; loggers are injected). The only package-level variable is `clock.Now` (`modules/core/clock`): read the wall clock through it, never `time.Now()` (except for measured durations and network deadlines), and pin it once in a test package's `TestMain` with `clocktest.Freeze()`, building fixtures relative to `clocktest.Instant()`. Tests never reassign it.
+- No package-level state: `gochecknoglobals`, `gochecknoinits` and `reassign` are enforced. State is owned by objects created at startup and passed down (the client owns a `flag.Service` with the evaluation caches; the relay owns its Postgres pool registry; loggers are injected). The only package-level variable (besides the build metadata below) is `clock.Now` (`modules/core/clock`): read the wall clock through it, never `time.Now()` (except for measured durations and network deadlines), and pin it once in a test package's `TestMain` with `clocktest.Freeze()`, building fixtures relative to `clocktest.Instant()`. Tests never reassign it. Exception: the build metadata strings `version`, `commit` and `date` of `cmd/relayproxy` and `cmd/cli` are package-level because GoReleaser can only set them with `-ldflags -X main.<name>=...`; they are read once at startup, passed to `cmdhelpers/buildinfo` and never reassigned (the `//nolint:gochecknoglobals` on them points here).
 - Return errors, do not panic. Go module logging uses `slog` (`utils/fflog`); the relay proxy uses Zap.
 - Ask before adding dependencies. Never commit secrets. Do not edit `vendor/` or `go.work` by hand.
 - PR titles use Conventional Commits and commits are signed. Never force-push `main`.

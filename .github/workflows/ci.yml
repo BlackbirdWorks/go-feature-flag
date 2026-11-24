@@ -581,6 +581,56 @@ jobs:
           dotnet-version: "9.0.x"
       - run: make provider-tests
 
+  # The release configuration is exercised on every pull request so it cannot rot between
+  # releases: `goreleaser check`, a snapshot build of the FIPS target for the runner (the build
+  # with its own settings; it uses the same entry point and ldflags as the others) and a
+  # compile of the Lambda target. Nothing is published. The regular and CLI binaries are
+  # compiled by the build job; the full multi-platform snapshot, all archives and every image
+  # are built only by the "Release" workflow dry run (workflow_dispatch).
+  release-check:
+    name: release (goreleaser check, snapshot build)
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: $/.github/actions/setup-go
+      - name: Check the GoReleaser configuration
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+      # The FIPS build is the one with its own settings (GOFIPS140 read from .fips-version) and
+      # the regular and CLI builds are compiled by the build job; building only this id keeps the job short.
+      - name: Snapshot build of the FIPS binary for this platform
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: build --snapshot --clean --single-target --id semaphore-fips
+      - name: Compile the AWS Lambda target (linux/arm64)
+        # --single-target only builds for the runner, which excludes the arm64-only Lambda build.
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /dev/null ./cmd/relayproxy
+      - name: Check the version baked into the binary
+        run: |
+          bin=$(ls release/semaphore-fips_linux_amd64*/semaphore-fips)
+          go version -m "$bin" | grep -- '-X main.version='
+          go version -m "$bin" | grep -- 'GOFIPS140='
+      - name: Check the Dockerfiles that GoReleaser does not build here
+        run: |
+          # Every release Dockerfile must drop root and keep its entrypoint.
+          for f in cmd/relayproxy/DockerfileGoreleaser* cmd/cli/Dockerfile; do
+            grep -q '^USER 65532:65532$' "$f" || { echo "::error file=$f::the image must run as uid 65532"; exit 1; }
+            grep -q '^ENTRYPOINT \[' "$f" || { echo "::error file=$f::the image must set an ENTRYPOINT"; exit 1; }
+          done
 
   # Single required check for branch protection. `needs` lists every job above;
   # a job skipped by the path filter counts as success, a failed or cancelled
@@ -605,6 +655,7 @@ jobs:
       - fuzz-plan
       - fuzz
       - provider-tests
+      - release-check
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
