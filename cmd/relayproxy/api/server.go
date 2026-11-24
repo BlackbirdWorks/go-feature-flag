@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
+	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
 type AuthMiddlewareType = string
@@ -45,6 +47,12 @@ func New(config *config.Config,
 	}
 	for _, opt := range opts {
 		opt(&s)
+	}
+	// the metrics (Go runtime and HTTP server) are set up before the routes: the middleware gets the meter provider
+	// of the service when it is built.
+	if err := s.otelService.InitMetrics(context.Background(), config); err != nil {
+		logger.LogAttrs(context.Background(), slog.LevelError,
+			"error while initializing OTel metrics, continuing without OTel metrics", cmdlog.Err(err))
 	}
 	s.initRoutes()
 
@@ -90,7 +98,7 @@ func WithReadTimeout(d time.Duration) Option {
 }
 
 // WithMeterProvider sets the meter provider of the HTTP server metrics of the requests (the metrics that the tracing
-// middleware reports). Without it the server uses the global one of OpenTelemetry.
+// middleware reports). Without it the server uses the one of its OpenTelemetry service.
 func WithMeterProvider(provider metric.MeterProvider) Option {
 	return func(s *Server) { s.meterProvider = provider }
 }

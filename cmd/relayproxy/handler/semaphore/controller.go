@@ -39,9 +39,15 @@ func (r *Request) ContentType() string { return r.contentType }
 // BodyOpts configures an operation that reads its own body: huma reads the bytes (the handler decodes them, so
 // the error bodies stay the ones of the relay proxy). The body has no size limit, as before, but the read is bound
 // by readTimeout (the read timeout of the server, which also bound it before): a slow or stalled upload ends.
+//
+// A readTimeout of zero or less means no bound: it is not the default (the server uses 30 seconds), an operator
+// who disabled the read timeout of the server asked for it.
 func BodyOpts(op *huma.Operation, readTimeout time.Duration) {
 	op.MaxBodyBytes = -1
 	op.BodyReadTimeout = readTimeout
+	if readTimeout <= 0 {
+		op.BodyReadTimeout = -1
+	}
 	op.SkipValidateBody = true
 	op.SkipValidateParams = true
 }

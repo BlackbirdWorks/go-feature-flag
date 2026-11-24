@@ -2,6 +2,7 @@ package opentelemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -130,7 +131,7 @@ func (s *OtelService) Init(ctx context.Context, config *config.Config) error {
 // OpenTelemetry is configured (same condition as the tracer provider). The metrics are exported like the traces:
 // the protocol, the endpoint and the headers follow the OTEL_EXPORTER_OTLP_* variables, and OTEL_METRICS_EXPORTER
 // selects the exporter (none disables the export). The export interval is the one of the SDK.
-// Like Init, it does not change any process-wide state: Install does.
+// It changes no process-wide state: the meter provider is given where it is used (MeterProvider).
 func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) error {
 	if isDisabled(config) {
 		return nil
@@ -168,9 +169,6 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 // The OpenTelemetry API only offers process-wide registration, so it is the startup wiring (main) that
 // asks for it.
 func (s *OtelService) Install(logger *slog.Logger) {
-	if s.meterProvider != nil {
-		otel.SetMeterProvider(s.meterProvider)
-	}
 	if s.otelTraceProvider == nil {
 		otel.SetTracerProvider(noop.NewTracerProvider())
 
@@ -292,28 +290,23 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	return samplerURL, samplerRefreshInterval, maxOperations, nil
 }
 
-// Stop the OpenTelemetry service.
+// Stop the OpenTelemetry service. The exporter, the tracer provider and the meter provider are all shut down, whatever
+// the failure of one of them (the metrics are flushed within the deadline of ctx even when the traces fail to stop);
+// the errors are joined.
 func (s *OtelService) Stop(ctx context.Context) error {
+	var errs []error
 	if s.otelExporter != nil {
-		err := s.otelExporter.Shutdown(ctx)
-		if err != nil {
-			return err
-		}
+		errs = append(errs, s.otelExporter.Shutdown(ctx))
 	}
-
 	if s.otelTraceProvider != nil {
-		err := s.otelTraceProvider.Shutdown(ctx)
-		if err != nil {
-			return err
-		}
+		errs = append(errs, s.otelTraceProvider.Shutdown(ctx))
 	}
-
-	// Shutdown flushes the metrics that were not exported yet, within the deadline of ctx.
+	// Shutdown flushes the metrics that were not exported yet.
 	if s.meterProvider != nil {
 		if err := s.meterProvider.Shutdown(ctx); err != nil {
-			return fmt.Errorf("stopping the OTel meter provider: %w", err)
+			errs = append(errs, fmt.Errorf("stopping the OTel meter provider: %w", err))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }

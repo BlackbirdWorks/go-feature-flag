@@ -50,14 +50,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 		)
 		// we can continue because otel is not mandatory to start the server
 	}
-	// the metrics (Go runtime and HTTP server) are set up with the traces, on the same configuration.
-	if metricsErr := s.otelService.InitMetrics(ctx, s.config); metricsErr != nil {
-		s.logger.LogAttrs(context.Background(), slog.LevelError,
-			"error while initializing OTel metrics, continuing without OTel metrics",
-			cmdlog.Err(metricsErr),
-		)
-	}
-	if s.installGlobalTelemetry && (err == nil || s.otelService.MeterProvider() != nil) {
+	if err == nil && s.installGlobalTelemetry {
 		s.otelService.Install(s.logger)
 	}
 

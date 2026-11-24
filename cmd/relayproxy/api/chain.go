@@ -10,7 +10,6 @@ import (
 	"github.com/blackbirdworks/huma-middleware/middleware/recovery"
 	"github.com/blackbirdworks/huma-middleware/middleware/tracing"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
@@ -23,9 +22,10 @@ import (
 // This file is the one place where the middleware that wrap a whole listener are assembled. They are plain
 // http.Handler wrappers around the mux, the first one is the outermost:
 //
-//  1. cleanpath: the path is cleaned (double slash, dot segments) before the mux routes it;
-//  2. the version header, so that every answer carries it, the 500 of a recovered panic included;
-//  3. the access log, with the status that was sent (a recovered panic is a 500 record, at the error level);
+//  1. the access log, with the status that was sent (a recovered panic is a 500 record, at the error level). It is
+//     outside cleanpath: it logs the request as the client sent it, an unclean path included;
+//  2. cleanpath: the path is cleaned (double slash, dot segments) before the mux routes it;
+//  3. the version header, so that every answer carries it, the 500 of a recovered panic included;
 //  4. tracing (OpenTelemetry server span, the library does it with otelhttp), only when OpenTelemetry is
 //     configured: without an exporter there is nothing to send and the middleware is not installed;
 //  5. the request body dump (debug level) and the HTTP metrics (API listener only);
@@ -42,13 +42,14 @@ import (
 // before. The authentication and the ETag are per route: they are middleware of the operations.
 
 func (s *Server) tracingOptions() []tracing.Option {
-	// the meter provider is the one of the service (or the global one, which the service installs): the HTTP server
-	// metrics of the requests go where the runtime metrics go.
-	meter := s.meterProvider
-	if meter == nil {
-		meter = otel.GetMeterProvider()
+	// the meter provider is the one of the service: the HTTP server metrics of the requests go where the runtime
+	// metrics go. Nothing is process-wide: the provider is given where it is used.
+	var opts []tracing.Option
+	if meter := s.meterProvider; meter != nil {
+		opts = append(opts, tracing.WithMeterProvider(meter))
+	} else if provider := s.otelService.MeterProvider(); provider != nil {
+		opts = append(opts, tracing.WithMeterProvider(provider))
 	}
-	opts := []tracing.Option{tracing.WithMeterProvider(meter)}
 	if s.tracerProvider != nil {
 		opts = append(opts, tracing.WithTracerProvider(s.tracerProvider))
 	}
@@ -87,9 +88,9 @@ func (s *Server) tracing() middleware.Func {
 // apiChain wraps the mux of the API listener.
 func (s *Server) apiChain(mux http.Handler) http.Handler {
 	chain := []middleware.Func{
+		s.accessLog(),
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
-		s.accessLog(),
 	}
 	if s.tracingEnabled() {
 		chain = append(chain, s.tracing())
@@ -125,9 +126,9 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 // monitoringChain wraps the mux of the dedicated monitoring listener.
 func (s *Server) monitoringChain(mux http.Handler) http.Handler {
 	return middleware.Chain(mux,
+		s.accessLog(),
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
-		s.accessLog(),
 		middleware.CORS(),
 		s.recovery(),
 	)

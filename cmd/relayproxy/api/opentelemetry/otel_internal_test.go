@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -330,4 +332,49 @@ func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	ExportEnvironment(c)
 
 	assert.Equal(t, "https://example.com:4318", os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+}
+
+// failingExporter is a span exporter that cannot shut down.
+type failingExporter struct{}
+
+func (failingExporter) ExportSpans(context.Context, []sdktrace.ReadOnlySpan) error { return nil }
+
+func (failingExporter) Shutdown(context.Context) error { return errTestError }
+
+// TestStop_ShutsEverythingDown checks that a trace exporter that fails to stop does not keep the metrics from being
+// flushed and stopped: every part is shut down and the errors are joined.
+func TestStop_ShutsEverythingDown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		exports sdktrace.SpanExporter
+		wantErr error
+		name    string
+	}{
+		{name: "the trace exporter fails to stop", exports: failingExporter{}, wantErr: errTestError},
+		{name: "nothing fails"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := sdkmetric.NewManualReader()
+			svc := NewOtelService(WithMetricReader(reader))
+			svc.otelExporter = tt.exports
+			require.NoError(
+				t,
+				svc.InitMetrics(t.Context(), &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
+			)
+
+			err := svc.Stop(t.Context())
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			var data metricdata.ResourceMetrics
+			assert.ErrorIs(t, reader.Collect(t.Context(), &data), sdkmetric.ErrReaderShutdown,
+				"the metrics were shut down whatever happened to the traces")
+		})
+	}
 }
