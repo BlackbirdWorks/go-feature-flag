@@ -39,6 +39,7 @@ chart (the Helm chart of the original project was not carried over: the owner do
    tag (made by `github-actions[bot]`, not signed: the project has no signing key) on the commit the run started
    on, and `release` publishes it. The release job runs in the same workflow run: a tag pushed with
    `GITHUB_TOKEN` does not start another run, which is why the tag is not a separate trigger here.
+   The version logic is `.github/ci-scripts/release-plan.sh`, unit tested by `make test-ci-scripts` (run in CI).
 4. Watch the run to its end before starting another: a second run started while one is active and another is
    pending replaces the pending run (one pending run per concurrency group). Runs are serialised, and each
    computes its version after the previous one finished.
@@ -121,12 +122,22 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   bad one.
 - Images: delete the bad version tags in the package settings (or `gh api -X DELETE
   /orgs/BlackbirdWorks/packages/container/semaphore/versions/<id>`), and re-point `latest` by
-  re-running the workflow of the previous good tag (`workflow_dispatch` with `release_tag` set to that tag and
-  `dry_run` unchecked republishes it, tags included).
+  re-running the workflow of the previous good tag (`gh workflow run release.yml --ref <tag> -f release_tag=<tag> -f dry_run=false`
+  republishes it, tags included).
 - A failed run that stopped half-way (images pushed, release not created): fix the cause and
-  re-run the failed job, or run the workflow with `release_tag` set to the same tag and `dry_run` unchecked (the `bump` input is
-  ignored; the tag is never created or moved; if the run had already created the tag, do not run a bump again, it would
-  make the next version).
+  re-run the failed job, or re-publish the tag from the command line (`release_tag` runs must be started on the tag):
+
+  ```shell
+  gh workflow run release.yml --ref v0.1.0 -f release_tag=v0.1.0 -f dry_run=false
+  ```
+
+  `gh workflow run --ref` accepts a tag; the workflow refuses a `release_tag` run started on any other ref, because the
+  attestations take their source commit from the run (a run on `main` would name the wrong commit). The `bump` input is
+  ignored and the tag is never created or moved; if the run had already created the tag, do not run a bump again, it would
+  make the next version. It is not confirmed that the web "Use workflow from" picker lists tags, so use the command.
+  Trade-off: a run on a tag executes the workflow file as stored at that tag, so a fix to `release.yml` merged
+  after the tag was cut does not reach the retry. If the workflow at the tag is what is broken, do not retry: fix it on
+  `main` and cut a new patch version (the tag is never moved).
   GoReleaser replaces existing release files.
 
 ## First version

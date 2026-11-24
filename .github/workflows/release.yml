@@ -16,7 +16,9 @@ name: Release
 #
 # Other entry points, both of which publish an existing tag and never create or move one:
 #   - a pushed tag (v*), for example a pre-release such as v0.2.0-rc.1 pushed by an owner;
-#   - release_tag=<tag> on a manual run with dry_run=false, to re-publish a tag whose release run failed.
+#   - release_tag=<tag> on a manual run with dry_run=false started ON that tag (
+#     `gh workflow run release.yml --ref <tag> ...`), to re-publish a tag whose release run failed. The attestations take
+#     their source commit from the run, so the run must be on the tag for them to name the built commit.
 # See docs/RELEASING.md.
 
 on:
@@ -38,7 +40,7 @@ on:
         type: boolean
         default: true
       release_tag:
-        description: "Re-publish this EXISTING tag instead of creating one (needs dry_run=false; the bump input is ignored; never moves the tag)"
+        description: "Re-publish this EXISTING tag instead of creating one (needs dry_run=false and the run started on that tag with gh workflow run --ref <tag>; the bump input is ignored; never moves the tag)"
         type: string
         required: false
         default: ""
@@ -87,69 +89,7 @@ jobs:
           INPUT_BUMP: ${{ inputs.bump }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          set -euo pipefail
-          # vMAJOR.MINOR.PATCH with an optional -alpha.N, -beta.N or -rc.N suffix. Other
-          # suffixes are refused: they could collide with the -fips/-bookworm/-trixie image tags.
-          release_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.[0-9]+)?$'
-          stable_re='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
-
-          dry=true
-          create=false
-          if [[ "$EVENT_NAME" == push ]]; then
-            dry=false
-            tag="$REF_NAME"
-          elif [[ -n "$INPUT_RELEASE_TAG" ]]; then
-            [[ "$INPUT_DRY_RUN" == false ]] || { echo "::error::release_tag publishes a tag: set dry_run=false (a dry run of an existing tag is a plain dry run, leave release_tag empty)"; exit 1; }
-            dry=false
-            tag="$INPUT_RELEASE_TAG"
-            git rev-parse -q --verify "refs/tags/$tag" > /dev/null || { echo "::error::tag $tag does not exist: release_tag never creates a tag"; exit 1; }
-          else
-            [[ "$INPUT_DRY_RUN" == false ]] && dry=false
-            if [[ "$dry" == false ]]; then
-              # Only main may be released. The dry run is allowed from any ref so a branch can be tested.
-              [[ "$REF" == refs/heads/main ]] || { echo "::error::a release is cut from main only: pick main in 'Use workflow from'"; exit 1; }
-              create=true
-            fi
-            # Latest stable tag, highest version first. Pre-release tags are ignored.
-            latest=$(git tag --list 'v*' | grep -E "$stable_re" | sort -V | tail -1 || true)
-            if [[ -z "$latest" ]]; then
-              # First release: v0.1.0 whatever the bump (the owner's chosen first version).
-              tag=v0.1.0
-            else
-              IFS=. read -r major minor patch <<< "${latest#v}"
-              case "$INPUT_BUMP" in
-                major) tag="v$((major + 1)).0.0" ;;
-                minor) tag="v${major}.$((minor + 1)).0" ;;
-                patch) tag="v${major}.${minor}.$((patch + 1))" ;;
-                *) echo "::error::unknown bump '$INPUT_BUMP' (patch, minor or major)"; exit 1 ;;
-              esac
-            fi
-            # The Go module path has no /vN suffix: a tag at major >= 2 would be invisible to the
-            # Go module proxy. A v2 needs a deliberate module path change first.
-            [[ "$tag" =~ ^v[01]\. ]] || { echo "::error::refusing $tag: major >= 2 needs a /vN module path first"; exit 1; }
-            if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
-              echo "::error::refusing to overwrite existing tag $tag"; exit 1
-            fi
-            echo "Next version: $tag (latest stable tag: ${latest:-none}, bump: $INPUT_BUMP)"
-            {
-              echo "### Release plan"
-              echo "- latest stable tag: \`${latest:-none}\`"
-              echo "- bump: \`$INPUT_BUMP\`"
-              echo "- next version: \`$tag\`"
-              echo "- dry run: \`$dry\`"
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-          if [[ "$dry" == false ]] && ! [[ "$tag" =~ $release_re ]]; then
-            echo "::error::$tag is not a release version (vMAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N])"
-            exit 1
-          fi
-          {
-            echo "dry-run=$dry"
-            echo "tag=$tag"
-            echo "create-tag=$create"
-          } >> "$GITHUB_OUTPUT"
+        run: .github/ci-scripts/release-plan.sh
 
   # Creates the annotated tag on the commit this run was started on (main) and pushes it.
   # The tag is made by github-actions[bot] and is not signed (the project has no signing key).
@@ -285,6 +225,9 @@ jobs:
           args: release --clean ${{ steps.notes.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Several tags can point at HEAD (a stable tag on the commit of its -rc): GoReleaser
+          # would take the highest by version order, the -rc. Pin the planned tag.
+          GORELEASER_CURRENT_TAG: ${{ needs.plan.outputs.tag }}
       - name: Attest the release files
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
