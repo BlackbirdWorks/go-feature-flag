@@ -57,14 +57,14 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		r.BaseURL = "https://api.bitbucket.org"
 	}
 
-	URL := fmt.Sprintf(
+	requestURL := fmt.Sprintf(
 		"%s/2.0/repositories/%s/src/%s/%s",
 		r.BaseURL,
 		r.RepositorySlug,
 		branch,
 		r.FilePath)
 
-	resp, err := shared.CallHTTPAPI(ctx, URL, http.MethodGet, "", r.Timeout, header, r.httpClient)
+	resp, err := shared.CallHTTPAPI(ctx, requestURL, http.MethodGet, "", r.Timeout, header, r.httpClient)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		}
 
 		return nil, fmt.Errorf("request to %s failed with code %d."+
-			" Bitbucket Headers: %v", URL, resp.StatusCode, bitbucketHeaders)
+			" Bitbucket Headers: %v", requestURL, resp.StatusCode, bitbucketHeaders)
 	}
 
 	body, err := io.ReadAll(resp.Body)

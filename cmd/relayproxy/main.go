@@ -94,7 +94,7 @@ func main() {
 	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%d", proxyConf.SwaggerHost(), proxyConf.ServerPort(logger.ZapLogger))
 
 	// Set the version for the prometheus version collector
-	promversion.Version = version
+	promversion.Version = version //nolint:reassign // prometheus/common/version exposes no setter
 	// Initialize metrics
 	metricsV2, err := metric.NewMetrics(metric.MetricsOpts{
 		EnableBulkMetricFlagNames: proxyConf.EnableBulkMetricFlagNames,

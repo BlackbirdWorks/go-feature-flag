@@ -43,7 +43,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	hostname, _ := os.Hostname()
 	var msgText strings.Builder
-	msgText.WriteString(fmt.Sprintf("Changes detected in your feature flag file on: **%s**", hostname))
+	fmt.Fprintf(&msgText, "Changes detected in your feature flag file on: **%s**", hostname)
 
 	// Deleted
 	deletedKeys := make([]string, 0, len(diffCache.Deleted))
@@ -52,7 +52,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	}
 	sort.Strings(deletedKeys)
 	for _, key := range deletedKeys {
-		msgText.WriteString(fmt.Sprintf("\n * ❌ Flag **%s** deleted", key))
+		fmt.Fprintf(&msgText, "\n * ❌ Flag **%s** deleted", key)
 	}
 
 	// Added
@@ -62,9 +62,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	}
 	sort.Strings(addedKeys)
 	for _, key := range addedKeys {
-		msgText.WriteString(
-			fmt.Sprintf("\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key])),
-		)
+		fmt.Fprintf(&msgText, "\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key]))
 	}
 
 	// Updated
@@ -75,11 +73,11 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 	sort.Strings(updatedKeys)
 	for _, key := range updatedKeys {
 		value := diffCache.Updated[key]
-		msgText.WriteString(fmt.Sprintf("\n * ✏️ Flag **%s** updated%s", key, notifier.UpdatedBySuffix(value.After)))
+		fmt.Fprintf(&msgText, "\n * ✏️ Flag **%s** updated%s", key, notifier.UpdatedBySuffix(value.After))
 		// Adaptive Card markdown has no inline code, so the changes are described without it.
 		changes, err := notifier.DescribeChangesPlain(value.Before, value.After)
 		if err != nil {
-			msgText.WriteString(fmt.Sprintf("\n   * %s: %s", notifier.ChangesUnavailable, err))
+			fmt.Fprintf(&msgText, "\n   * %s: %s", notifier.ChangesUnavailable, err)
 
 			continue
 		}

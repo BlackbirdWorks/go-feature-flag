@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	maps0 "maps"
 	"net/netip"
 	"os"
@@ -181,6 +182,9 @@ func (c *ConfigLoader) environ() func() []string {
 // Load the ENV Like:RETRIEVERS_0_HEADERS_AUTHORIZATION.
 func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error) {
 	paths := normalizePaths(s)
+	if len(paths) < 3 {
+		return configMap, fmt.Errorf("environment variable %q: expected <ARRAY>_<INDEX>_<FIELD>", s)
+	}
 	prefixKey := paths[0]
 
 	configArray, ok := configMap[prefixKey].([]any)
@@ -192,10 +196,16 @@ func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error)
 
 	index, err := strconv.Atoi(paths[1])
 	if err != nil {
-		return configMap, err
+		return configMap, fmt.Errorf("environment variable %q: invalid index %q: %w", s, paths[1], err)
+	}
+	if index < 0 {
+		return configMap, fmt.Errorf("environment variable %q: negative index %d", s, index)
 	}
 
-	configItem := fetchOrInitConfigItemAtIndex(configArray, index)
+	configItem, err := fetchOrInitConfigItemAtIndex(configArray, index)
+	if err != nil {
+		return configMap, fmt.Errorf("environment variable %q: %w", s, err)
+	}
 	keys := paths[2:]
 
 	if shouldHandleRecursively(prefixKey, keys) {
@@ -216,13 +226,20 @@ func normalizePaths(s string) []string {
 }
 
 // fetchOrInitConfigItemAtIndex retrieves or creates a config item at the specified index.
-func fetchOrInitConfigItemAtIndex(configArray []any, index int) map[string]any {
+// An entry that is not a map (a scalar or a nested array from the config file) cannot take a
+// field override, so it is an error rather than a silent overwrite; a null entry is replaced by a new map.
+func fetchOrInitConfigItemAtIndex(configArray []any, index int) (map[string]any, error) {
 	outRange := index > len(configArray)-1
-	if outRange {
-		return make(map[string]any)
+	if outRange || configArray[index] == nil {
+		return make(map[string]any), nil
 	}
 
-	return configArray[index].(map[string]any)
+	item, ok := configArray[index].(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("the config entry at index %d is a %T, expected an object", index, configArray[index])
+	}
+
+	return item, nil
 }
 
 // shouldHandleRecursively determines if the configuration should be handled recursively.
@@ -358,20 +375,20 @@ func (c *ConfigLoader) parseOtelResourceAttributes(attributes string, log *zap.L
 	configMap := c.k.Raw()
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {
-		configMap["otel"] = make(map[string]any)
-		otel = configMap["otel"].(map[string]any)
+		otel = make(map[string]any)
+		configMap["otel"] = otel
 	}
 
 	resource, ok := otel["resource"].(map[string]any)
 	if !ok {
-		otel["resource"] = make(map[string]any)
-		resource = otel["resource"].(map[string]any)
+		resource = make(map[string]any)
+		otel["resource"] = resource
 	}
 
 	attrs, ok := resource["attributes"].(map[string]any)
 	if !ok {
-		resource["attributes"] = make(map[string]any)
-		attrs = resource["attributes"].(map[string]any)
+		attrs = make(map[string]any)
+		resource["attributes"] = attrs
 	}
 
 	for i, attr := range strings.Split(attributes, ",") {

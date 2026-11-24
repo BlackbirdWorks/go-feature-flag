@@ -598,9 +598,15 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
+		// The socket file exists as soon as the server binds, before it listens: dial it.
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
 
-		return err == nil
+		_ = conn.Close()
+
+		return true
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
 	// Verify socket file exists
@@ -681,9 +687,15 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
+		// The socket file exists as soon as the server binds, before it listens: dial it.
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
 
-		return err == nil
+		_ = conn.Close()
+
+		return true
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
 	// Verify socket file exists
@@ -766,9 +778,15 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
+		// The socket file exists as soon as the server binds, before it listens: dial it.
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
 
-		return err == nil
+		_ = conn.Close()
+
+		return true
 	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
 	// Verify socket file exists
@@ -939,9 +957,15 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
-				_, err := os.Stat(socketPath)
+				// The socket file exists as soon as the server binds, before it listens: dial it.
+				conn, err := net.Dial("unix", socketPath)
+				if err != nil {
+					return false
+				}
 
-				return err == nil
+				_ = conn.Close()
+
+				return true
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
 			// Create a Unix socket HTTP client
@@ -1040,9 +1064,15 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
-				_, err := os.Stat(socketPath)
+				// The socket file exists as soon as the server binds, before it listens: dial it.
+				conn, err := net.Dial("unix", socketPath)
+				if err != nil {
+					return false
+				}
 
-				return err == nil
+				_ = conn.Close()
+
+				return true
 			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
 
 			// Create a Unix socket HTTP client

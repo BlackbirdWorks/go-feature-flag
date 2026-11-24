@@ -18,7 +18,7 @@ var client *ffclient.GoFeatureFlag
 
 // init starts the client on the benchmark fixture.
 // It panics on error so the benchmarks never run against an empty flag set.
-func init() {
+func init() { //nolint:gochecknoinits // benchmark fixture shared by every benchmark of the package
 	var err error
 	client, err = ffclient.New(ffclient.Config{
 		PollingInterval: 1 * time.Second,
