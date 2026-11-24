@@ -26,7 +26,7 @@ type S3ManagerV2Mock struct {
 func (s *S3ManagerV2Mock) UploadObject(
 	ctx context.Context,
 	uploadInput *transfermanager.UploadObjectInput,
-	opts ...func(*transfermanager.Options),
+	_ ...func(*transfermanager.Options),
 ) (*transfermanager.UploadObjectOutput, error) {
 	if ctx == nil {
 		return nil, errCannotCreateContextFrom
@@ -54,7 +54,7 @@ func (s *S3ManagerV2Mock) UploadObject(
 func (s *S3ManagerV2Mock) DownloadObject(
 	ctx context.Context,
 	input *transfermanager.DownloadObjectInput,
-	opts ...func(*transfermanager.Options),
+	_ ...func(*transfermanager.Options),
 ) (*transfermanager.DownloadObjectOutput, error) {
 	if ctx == nil {
 		return nil, errCannotCreateContextFrom

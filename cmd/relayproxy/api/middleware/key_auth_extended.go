@@ -92,8 +92,8 @@ func KeyAuthExtended(config KeyAuthExtendedConfig) echo.MiddlewareFunc {
 	// Set default values
 	err := setDefaults(&config)
 	if err != nil {
-		return func(next echo.HandlerFunc) echo.HandlerFunc {
-			return func(c *echo.Context) error {
+		return func(_ echo.HandlerFunc) echo.HandlerFunc {
+			return func(_ *echo.Context) error {
 				return err
 			}
 		}

@@ -99,7 +99,7 @@ func TestE2E_Export(t *testing.T) {
 			name: "csv custom template and fixed filename", format: "csv", s3Path: "exports/csv2", nbEvents: 2,
 			filename: "fixed.csv", csvTemplate: "{{ .UserKey }},{{ .Key }},{{ .Value }}\n",
 			wantKeyRegex: "^exports/csv2/fixed.csv$",
-			check: func(t *testing.T, content []byte, n int) {
+			check: func(t *testing.T, content []byte, _ int) {
 				t.Helper()
 				assert.Equal(t, "user-0,my-flag,value-0\nuser-1,my-flag,value-1\n", string(content))
 			},

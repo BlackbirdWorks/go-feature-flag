@@ -95,7 +95,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -200,7 +200,7 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -285,7 +285,7 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			// Create observed logger to capture error logs
 			core, observedLogs := observer.New(zapcore.ErrorLevel)
 			observedLogger := zap.New(core)
-			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 
@@ -382,7 +382,7 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 			callbackCalled := make(chan bool, 1)
 			logger, err := zap.NewDevelopment()
 			require.NoError(t, err)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(newConfig *config.Config) {
+			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
@@ -426,7 +426,7 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := observer.New(zapcore.ErrorLevel)
 	observedLogger := zap.New(core)
-	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(newConfig *config.Config) {
+	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
 		callbackCalled <- true
 	})
 	defer func() {

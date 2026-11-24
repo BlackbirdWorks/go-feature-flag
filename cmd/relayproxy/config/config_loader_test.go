@@ -24,7 +24,7 @@ func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
 		initialConfig string
 		updatedConfig string
 		wantCallbacks int
-		setupCallback func(*testing.T, *config.ConfigLoader) (*[]*config.Config, *sync.Mutex)
+		setupCallback func(*testing.T, *config.Loader) (*[]*config.Config, *sync.Mutex)
 	}{
 		{
 			name: "Single callback triggered on config change",
@@ -37,7 +37,7 @@ loglevel: info`,
 pollingInterval: 2000
 loglevel: debug`,
 			wantCallbacks: 1,
-			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+			setupCallback: func(t *testing.T, loader *config.Loader) (*[]*config.Config, *sync.Mutex) {
 				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
@@ -62,7 +62,7 @@ loglevel: info`,
 pollingInterval: 3000
 loglevel: warn`,
 			wantCallbacks: 2,
-			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+			setupCallback: func(t *testing.T, loader *config.Loader) (*[]*config.Config, *sync.Mutex) {
 				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
@@ -93,7 +93,7 @@ loglevel: info`,
 pollingInterval: 5000
 loglevel: error`,
 			wantCallbacks: 1,
-			setupCallback: func(t *testing.T, loader *config.ConfigLoader) (*[]*config.Config, *sync.Mutex) {
+			setupCallback: func(t *testing.T, loader *config.Loader) (*[]*config.Config, *sync.Mutex) {
 				t.Helper()
 				var mu sync.Mutex
 				receivedConfigs := make([]*config.Config, 0)
@@ -261,7 +261,7 @@ loglevel: info`)
 	// Setup callback
 	var mu sync.Mutex
 	var callbackCalled bool
-	loader.AddConfigChangeCallback(func(newConfig *config.Config) {
+	loader.AddConfigChangeCallback(func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
 		callbackCalled = true

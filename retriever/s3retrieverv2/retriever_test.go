@@ -90,13 +90,13 @@ func TestRetriever_Retrieve(t *testing.T) {
 		},
 		{
 			name:  "item mode download error",
-			setup: func(m *testutils.S3PrefixMock) {},
+			setup: func(_ *testutils.S3PrefixMock) {},
 			r:     cfg{Item: "missing.yaml"},
 			steps: []step{{wantErr: "unable to download item from S3 \"missing.yaml\""}},
 		},
 		{
 			name:  "not initialized",
-			setup: func(m *testutils.S3PrefixMock) {},
+			setup: func(_ *testutils.S3PrefixMock) {},
 			r:     cfg{Prefix: "f/", noLister: true},
 			steps: []step{{wantErr: "lister is not initialized"}},
 		},

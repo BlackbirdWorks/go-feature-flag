@@ -285,7 +285,7 @@ func initRetrieversWithRegistry(
 	}
 	// if the retriever is set, we add it to the retrievers
 	if proxyConf.Retriever != nil {
-		currentRetriever, err := retrieverInit.InitRetriever(proxyConf.Retriever, retrieverOpts...)
+		currentRetriever, err := retrieverInit.Retriever(proxyConf.Retriever, retrieverOpts...)
 		if err != nil {
 			return nil, err
 		}
@@ -294,7 +294,7 @@ func initRetrieversWithRegistry(
 	// if the retrievers are set, we add them to the retrievers
 	if proxyConf.Retrievers != nil {
 		for _, r := range *proxyConf.Retrievers {
-			currentRetriever, err := retrieverInit.InitRetriever(&r, retrieverOpts...)
+			currentRetriever, err := retrieverInit.Retriever(&r, retrieverOpts...)
 			if err != nil {
 				return nil, err
 			}

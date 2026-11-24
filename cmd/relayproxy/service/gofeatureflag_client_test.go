@@ -938,19 +938,19 @@ func TestSetKafkaConfig(t *testing.T) {
 			},
 			{
 				// a zero value cannot be told from an unset one: the default of sarama is kept
-				name: "an unset ClientID keeps the default", user: func(c *sarama.Config) {},
+				name: "an unset ClientID keeps the default", user: func(_ *sarama.Config) {},
 				got: func(c *sarama.Config) any { return c.ClientID }, want: defaults.ClientID,
 			},
 			{
-				name: "an unset DialTimeout keeps the default", user: func(c *sarama.Config) {},
+				name: "an unset DialTimeout keeps the default", user: func(_ *sarama.Config) {},
 				got: func(c *sarama.Config) any { return c.Net.DialTimeout }, want: defaults.Net.DialTimeout,
 			},
 			{
-				name: "an unset Version keeps the default", user: func(c *sarama.Config) {},
+				name: "an unset Version keeps the default", user: func(_ *sarama.Config) {},
 				got: func(c *sarama.Config) any { return c.Version }, want: defaults.Version,
 			},
 			{
-				name: "an unset Producer.Retry.Max keeps the default", user: func(c *sarama.Config) {},
+				name: "an unset Producer.Retry.Max keeps the default", user: func(_ *sarama.Config) {},
 				got: func(c *sarama.Config) any { return c.Producer.Retry.Max }, want: defaults.Producer.Retry.Max,
 			},
 		}
@@ -1183,7 +1183,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 	fs := s3FlagSet("a", "b1", "p/a.yaml")
 	r, err := reg.retrieverFor(&fs)
 	require.NoError(t, err)
-	file, err := retrieverInit.InitRetriever(&retrieverconf.RetrieverConf{
+	file, err := retrieverInit.Retriever(&retrieverconf.RetrieverConf{
 		Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml",
 	})
 	require.NoError(t, err)

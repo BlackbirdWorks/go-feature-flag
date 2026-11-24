@@ -130,7 +130,7 @@ func isServiceLinkURL(value string) bool {
 	return false
 }
 
-func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
+func (c *Loader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
 	return &environProvider{prefix: prefix, environ: c.environ(),
 		skip: func(key, value string) bool { return prefix != "" && isServiceLink(key, value) },
 		skipped: func(names []string) {
@@ -182,7 +182,7 @@ func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) k
 }
 
 // environ returns the source of the environment variables, os.Environ unless the loader was given another one.
-func (c *ConfigLoader) environ() func() []string {
+func (c *Loader) environ() func() []string {
 	if c.environFunc != nil {
 		return c.environFunc
 	}
@@ -382,7 +382,7 @@ func expandArray(configArray []any, index int) []any {
 // parseOtelResourceAttributes parses the OTEL_RESOURCE_ATTRIBUTES environment variable
 // and sets the attributes in the koanf configuration.
 // The expected format is "key1=value1,key2=value2,...".
-func (c *ConfigLoader) parseOtelResourceAttributes(attributes string, log *zap.Logger) {
+func (c *Loader) parseOtelResourceAttributes(attributes string, log *zap.Logger) {
 	configMap := c.k.Raw()
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {

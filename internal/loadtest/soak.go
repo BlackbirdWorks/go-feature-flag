@@ -440,11 +440,12 @@ func judge(r *Report, o Options) {
 			heaps[i] = float64(s.HeapInuse)
 		}
 		slices.Sort(heaps)
-		if mid := len(heaps) / halves; len(heaps)%2 == 1 {
+		mid := len(heaps) / halves
+		if len(heaps)%2 == 1 {
 			return heaps[mid]
-		} else {
-			return (heaps[mid-1] + heaps[mid]) / halves
 		}
+
+		return (heaps[mid-1] + heaps[mid]) / halves
 	}
 	first, last := median(m[:half]), median(m[len(m)-half:])
 	r.HeapGrowthBytes = last - first

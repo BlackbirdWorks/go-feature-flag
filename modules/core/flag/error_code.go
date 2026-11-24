@@ -4,7 +4,7 @@ package flag
 type ErrorCode = string
 
 const (
-	// Proposed in the open-feature specs.
+	// ErrorCodeProviderNotReady and the next codes are proposed in the open-feature specs.
 	ErrorCodeProviderNotReady    ErrorCode = "PROVIDER_NOT_READY"
 	ErrorCodeFlagNotFound        ErrorCode = "FLAG_NOT_FOUND"
 	ErrorCodeParseError          ErrorCode = "PARSE_ERROR"
@@ -15,6 +15,6 @@ const (
 
 	// Custom error code for Semaphore.
 
-	// 	ErrorFlagConfiguration is returned when we were not able to use the flag because of a misconfiguration
+	// ErrorFlagConfiguration is returned when we were not able to use the flag because of a misconfiguration
 	ErrorFlagConfiguration ErrorCode = "FLAG_CONFIG"
 )

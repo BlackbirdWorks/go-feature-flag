@@ -79,8 +79,8 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 	return func(o *options) { o.postgresPools = pools }
 }
 
-// InitRetriever initialize the retriever based on the configuration.
-func InitRetriever(
+// Retriever initialize the retriever based on the configuration.
+func Retriever(
 	c *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
 	var o options
 	for _, opt := range opts {

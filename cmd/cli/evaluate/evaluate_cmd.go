@@ -252,7 +252,7 @@ func runEvaluate(
 	flag, ctx string) error {
 	output := helper.Output{}
 
-	r, err := retrieverInit.InitRetriever(&retrieverConf)
+	r, err := retrieverInit.Retriever(&retrieverConf)
 	if err != nil {
 		return err
 	}

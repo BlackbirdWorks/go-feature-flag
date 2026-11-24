@@ -270,7 +270,7 @@ func (j *JSONQueryVisitorImpl) VisitBoolean(ctx *BooleanContext) any {
 	return nil
 }
 
-func (j *JSONQueryVisitorImpl) VisitNull(ctx *NullContext) any {
+func (j *JSONQueryVisitorImpl) VisitNull(_ *NullContext) any {
 	j.currentOperation = &NullOperation{}
 	j.rightOp = nil
 

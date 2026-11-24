@@ -203,7 +203,7 @@ func TestExporter_Export(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			server, client := newTestClient(t, ctx, projectID, topic)
+			server, client := newTestClient(ctx, t, projectID, topic)
 			newClientFunc := func(_ context.Context, _ string, _ ...option.ClientOption) (*pubsub.Client, error) {
 				return client, nil
 			}
@@ -281,8 +281,8 @@ func assertPublisherSettings(
 // newTestClient starts an in-memory PubSub server (one per test case, so cases can run
 // in parallel without seeing each other's messages) and a client connected to it.
 func newTestClient(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	projectID, topic string,
 ) (*pstest.Server, *pubsub.Client) {
 	t.Helper()

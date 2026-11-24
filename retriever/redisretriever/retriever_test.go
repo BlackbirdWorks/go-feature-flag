@@ -92,8 +92,9 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 	t.Helper()
 	ctx := context.TODO()
 
+	//nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
 	redisContainer, err := testcontainerRedis.RunContainer(
-		ctx, //nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
+		ctx,
 		testcontainers.WithImage("docker.io/redis:7"),
 		testcontainerRedis.WithSnapshotting(10, 1),
 		testcontainerRedis.WithLogLevel(testcontainerRedis.LogLevelVerbose),

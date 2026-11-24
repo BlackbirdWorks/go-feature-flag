@@ -185,7 +185,7 @@ type Config struct {
 	forceAuthenticatedRequests bool
 
 	// configLoader is the service in charge of loading the configuration.
-	configLoader *ConfigLoader
+	configLoader *Loader
 
 	// logger is the logger for the relay proxy
 	logger *zap.Logger

@@ -46,7 +46,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 			defer eventStore.Stop()
 			err := eventStore.ProcessPendingEvents(
 				"wrong name",
-				func(ctx context.Context, events []testutils.ExportableMockEvent) error { return nil },
+				func(_ context.Context, _ []testutils.ExportableMockEvent) error { return nil },
 			)
 			assert.EqualError(t, err, "consumer with name wrong name not found")
 		},
@@ -74,7 +74,7 @@ func Test_SingleConsumer(t *testing.T) {
 
 	// Consume
 	err := eventStore.ProcessPendingEvents(consumerName,
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 100)
 
 			return nil
@@ -90,7 +90,7 @@ func Test_SingleConsumer(t *testing.T) {
 	requireEventuallyPendingCount(t, eventStore, consumerName, 91)
 
 	err = eventStore.ProcessPendingEvents(consumerName,
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 91)
 
 			return nil
@@ -123,7 +123,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1000), consumer1Size)
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -147,7 +147,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 
 	// Consumer with Consumer1 and Consumer2
 	err = eventStore.ProcessPendingEvents(consumerNames[0],
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -155,7 +155,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 	require.NoError(t, err)
 
 	err = eventStore.ProcessPendingEvents(consumerNames[1],
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 2000)
 
 			return nil
@@ -188,7 +188,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 	consumeFunc := func(eventStore exporter.EventStore[testutils.ExportableMockEvent], consumerName string, eventCounters *map[string]int) {
 		defer wg.Done()
 		err := eventStore.ProcessPendingEvents(consumerName,
-			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testutils.ExportableMockEvent) error {
 				assert.NotEmpty(t, events)
 
 				return nil
@@ -199,7 +199,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 		) // we wait to be sure that the producer has produce new events
 
 		err = eventStore.ProcessPendingEvents(consumerName,
-			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testutils.ExportableMockEvent) error {
 				if eventCounters != nil {
 					countersMu.Lock()
 					(*eventCounters)[consumerName] = len(events)
@@ -241,7 +241,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 	// process is in error, so we are not able to update the offset
 	err = eventStore.ProcessPendingEvents(
 		consumerName,
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return errError
@@ -257,7 +257,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 	// process is not in error anymore
 	err = eventStore.ProcessPendingEvents(
 		consumerName,
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 1000)
 
 			return nil
@@ -288,7 +288,7 @@ func Test_WaitForEmptyClean(t *testing.T) {
 	startEventProducer(ctx, eventStore, 100, false)
 	err := eventStore.ProcessPendingEvents(
 		consumerNames[0],
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, events []testutils.ExportableMockEvent) error {
 			assert.Len(t, events, 100)
 
 			return nil
@@ -319,7 +319,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	var processedBatch []string
 	go func() {
 		_ = eventStore.ProcessPendingEvents(consumerName,
-			func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+			func(_ context.Context, events []testutils.ExportableMockEvent) error {
 				for _, e := range events {
 					processedBatch = append(processedBatch, e.GetUserKey())
 				}
@@ -522,7 +522,7 @@ func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 	callbackCalled := false
 	err := eventStore.ProcessPendingEvents(
 		consumerName,
-		func(ctx context.Context, events []testutils.ExportableMockEvent) error {
+		func(_ context.Context, _ []testutils.ExportableMockEvent) error {
 			callbackCalled = true
 
 			return nil

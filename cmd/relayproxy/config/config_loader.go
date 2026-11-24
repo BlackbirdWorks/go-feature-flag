@@ -42,7 +42,7 @@ const (
 	legacyEnvVariablePrefix = "GOFF"
 )
 
-type ConfigLoader struct {
+type Loader struct {
 	// input parameters
 	cmdLineFlagSet *pflag.FlagSet
 	log            *zap.Logger
@@ -79,19 +79,19 @@ type ConfigLoader struct {
 }
 
 // LoaderOption configures a ConfigLoader.
-type LoaderOption func(*ConfigLoader)
+type LoaderOption func(*Loader)
 
 // WithEnviron sets the source of the environment variables (os.Environ by default). The values
 // are "KEY=value" strings, as returned by os.Environ.
 func WithEnviron(environ func() []string) LoaderOption {
-	return func(c *ConfigLoader) { c.environFunc = environ }
+	return func(c *Loader) { c.environFunc = environ }
 }
 
 // NewConfigLoader creates a new ConfigLoader.
 func NewConfigLoader(
 	cmdLineFlagSet *pflag.FlagSet, log *zap.Logger, version string, watchChanges bool, opts ...LoaderOption,
-) *ConfigLoader {
-	configLoader := ConfigLoader{
+) *Loader {
+	configLoader := Loader{
 		cmdLineFlagSet: cmdLineFlagSet,
 		log:            log,
 		version:        version,
@@ -130,7 +130,7 @@ func NewConfigLoader(
 // - the configuration file
 // - the environment variables
 // - the flagSets from Studio.
-func (c *ConfigLoader) loadConfig() {
+func (c *Loader) loadConfig() {
 	_ = c.k.Load(confmap.Provider(map[string]any{
 		"fileFormat":      "yaml",
 		"pollingInterval": defaultPollingIntervalMillis,
@@ -145,14 +145,14 @@ func (c *ConfigLoader) loadConfig() {
 }
 
 // AddConfigChangeCallback adds a callback to be called when the configuration changes.
-func (c *ConfigLoader) AddConfigChangeCallback(callback func(newConfig *Config)) {
+func (c *Loader) AddConfigChangeCallback(callback func(newConfig *Config)) {
 	c.callbacksMutex.Lock()
 	defer c.callbacksMutex.Unlock()
 	c.callbacks = append(c.callbacks, callback)
 }
 
 // startWatchChanges starts watching for changes in the configuration file and Studio.
-func (c *ConfigLoader) startWatchChanges() {
+func (c *Loader) startWatchChanges() {
 	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
 		return
 	}
@@ -165,7 +165,7 @@ func (c *ConfigLoader) startWatchChanges() {
 
 	// The watcher callback just sends to the channel and returns immediately
 	// This prevents blocking the fsnotify goroutine
-	onChange := func(event any, err error) {
+	onChange := func(_ any, err error) {
 		if err != nil {
 			c.log.Error("error watching for configuration changes", zap.Error(err))
 
@@ -199,7 +199,7 @@ func (c *ConfigLoader) startWatchChanges() {
 // is already pending, new events are dropped since they would trigger the same reload.
 // A small debounce delay is added to handle file systems (especially Linux with inotify)
 // where os.WriteFile triggers multiple events (truncate + write) in rapid succession.
-func (c *ConfigLoader) processConfigChangeEvents() {
+func (c *Loader) processConfigChangeEvents() {
 	// debounceDelay gives time for rapid file system events to settle.
 	// On Linux, os.WriteFile can trigger: 1) truncate event (file empty) 2) write event (file has content)
 	// Without debounce, we might read the file between truncate and write, seeing empty content.
@@ -231,9 +231,9 @@ func (c *ConfigLoader) processConfigChangeEvents() {
 }
 
 // reloadConfigAndNotify reloads the configuration and notifies all callbacks.
-func (c *ConfigLoader) reloadConfigAndNotify() {
+func (c *Loader) reloadConfigAndNotify() {
 	// Create a new ConfigLoader with the stored config file path
-	newConfig := &ConfigLoader{
+	newConfig := &Loader{
 		cmdLineFlagSet: c.cmdLineFlagSet,
 		log:            c.log,
 		version:        c.version,
@@ -263,7 +263,7 @@ func (c *ConfigLoader) reloadConfigAndNotify() {
 }
 
 // ToConfig returns the configuration.
-func (c *ConfigLoader) ToConfig() (*Config, error) {
+func (c *Loader) ToConfig() (*Config, error) {
 	proxyConf := &Config{}
 	errUnmarshal := c.k.Unmarshal("", proxyConf)
 	if errUnmarshal != nil {
@@ -285,7 +285,7 @@ func (c *ConfigLoader) ToConfig() (*Config, error) {
 }
 
 // StopWatchChanges stops watching for changes in the configuration file and Studio.
-func (c *ConfigLoader) StopWatchChanges() error {
+func (c *Loader) StopWatchChanges() error {
 	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
 		return nil
 	}
@@ -309,7 +309,7 @@ func (c *ConfigLoader) StopWatchChanges() error {
 }
 
 // loadPosflag loads the flags from the command line.
-func (c *ConfigLoader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
+func (c *Loader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 	posflagProvider := posflag.Provider(cmdLineFlagSet, ".", c.k)
 	errBindFlag := c.k.Load(posflagProvider, nil)
 	if errBindFlag != nil {
@@ -318,7 +318,7 @@ func (c *ConfigLoader) loadPosflag(cmdLineFlagSet *pflag.FlagSet) {
 }
 
 // loadConfigFile loads the configuration file.
-func (c *ConfigLoader) loadConfigFile() {
+func (c *Loader) loadConfigFile() {
 	var errFileLocation error
 
 	// Use stored config file path if available (for reload), otherwise read from flag set
@@ -343,7 +343,7 @@ func (c *ConfigLoader) loadConfigFile() {
 // The variables are read with the prefix of the envVariablePrefix setting (no prefix by default), then with
 // the SEMAPHORE_ prefix, which is always accepted. A variable with the SEMAPHORE_ prefix wins over the same
 // variable without it.
-func (c *ConfigLoader) loadEnvVariables() {
+func (c *Loader) loadEnvVariables() {
 	prefix := c.k.String("envVariablePrefix")
 	if strings.HasPrefix(strings.ToUpper(prefix), legacyEnvVariablePrefix) {
 		c.legacyWarner().Warn(legacy.KindEnvPrefix, fmt.Sprintf(
@@ -357,12 +357,12 @@ func (c *ConfigLoader) loadEnvVariables() {
 }
 
 // legacyWarner returns where the use of a legacy name is reported.
-func (c *ConfigLoader) legacyWarner() *legacy.Warner {
+func (c *Loader) legacyWarner() *legacy.Warner {
 	return c.warner
 }
 
 // loadStudioFlagSets loads the flagSets from studio.url, if it is set.
-func (c *ConfigLoader) loadStudioFlagSets() {
+func (c *Loader) loadStudioFlagSets() {
 	c.studioLoadErr = nil
 	if c.studioProvider == nil {
 		conf, err := c.ToConfig()

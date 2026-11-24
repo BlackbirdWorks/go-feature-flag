@@ -315,7 +315,7 @@ func Test_InitRetriever(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := InitRetriever(tt.conf)
+			got, err := Retriever(tt.conf)
 			tt.wantErr(t, err)
 			if err == nil {
 				assert.IsType(t, tt.wantType, got)
@@ -442,7 +442,7 @@ func Test_InitRetriever_Redis(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := InitRetriever(tt.conf)
+			got, err := Retriever(tt.conf)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -473,7 +473,7 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := InitRetriever(&retrieverconf.RetrieverConf{
+			got, err := Retriever(&retrieverconf.RetrieverConf{
 				Kind: retrieverconf.PostgreSQLRetriever, URI: "postgres://localhost/db", Table: "flags",
 			}, tt.opts...)
 
@@ -488,7 +488,7 @@ func Test_InitRetriever_WithPostgresPools(t *testing.T) {
 func Test_InitRetriever_UnknownKind(t *testing.T) {
 	t.Parallel()
 
-	_, err := InitRetriever(&retrieverconf.RetrieverConf{Kind: "unknown"})
+	_, err := Retriever(&retrieverconf.RetrieverConf{Kind: "unknown"})
 
 	require.EqualError(t, err, `invalid retriever: kind "unknown" is not supported`)
 }

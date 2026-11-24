@@ -465,7 +465,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}
 }
 
-func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.ConfigLoader {
+func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	t.Helper()
 	fileConfig := "studio:\n  url: " + url + "/flagsets.yaml\n  pollingInterval: 150\n"
 	if cacheFile != "" {

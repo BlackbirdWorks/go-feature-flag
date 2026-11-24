@@ -4319,7 +4319,6 @@ flag1:
 
 // anonymousContext builds the evaluation context with the deprecated constructor, which the tests keep covering.
 func anonymousContext(key string) ffcontext.EvaluationContext {
-	return ffcontext.NewAnonymousEvaluationContext(
-		key,
-	) //nolint:staticcheck // SA1019: the deprecated constructor is under test
+	//nolint:staticcheck // SA1019: the deprecated constructor is under test
+	return ffcontext.NewAnonymousEvaluationContext(key)
 }

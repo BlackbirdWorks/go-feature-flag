@@ -16,8 +16,8 @@ var (
 	errImpossibleToFindConfigFile = errors.New("impossible to find config file in the default locations")
 )
 
-// ConfigFileDefaultLocations returns the folders searched for the flag file when no path is given.
-func ConfigFileDefaultLocations() []string {
+// DefaultLocations returns the folders searched for the flag file when no path is given.
+func DefaultLocations() []string {
 	return []string{
 		"./",
 		"/semaphore/",
@@ -41,7 +41,7 @@ func LoadConfigFile(
 	warner *legacy.Warner,
 ) (map[string]dto.DTO, error) {
 	if defaultLocations == nil {
-		defaultLocations = ConfigFileDefaultLocations()
+		defaultLocations = DefaultLocations()
 	}
 	fileNames := flagFileNames()
 	supportedExtensions := []string{

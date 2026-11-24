@@ -155,13 +155,13 @@ loglevel: error`
 	var mu sync.Mutex
 	var callback1Called, callback2Called bool
 
-	callback1 := func(newConfig *config.Config) {
+	callback1 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
 		callback1Called = true
 	}
 
-	callback2 := func(newConfig *config.Config) {
+	callback2 := func(_ *config.Config) {
 		mu.Lock()
 		defer mu.Unlock()
 		callback2Called = true

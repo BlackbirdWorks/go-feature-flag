@@ -41,7 +41,7 @@ func buildEvaluate(
 	evaluationCtx string,
 	customize func(r retriever.Retriever),
 ) (evaluate, error) {
-	r, err := retrieverInit.InitRetriever(conf)
+	r, err := retrieverInit.Retriever(conf)
 	if err != nil {
 		return evaluate{}, err
 	}

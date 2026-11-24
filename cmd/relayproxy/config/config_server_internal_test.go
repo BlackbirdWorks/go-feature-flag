@@ -79,7 +79,7 @@ func TestAttachConfigChangeCallback(t *testing.T) {
 		{name: "without a loader nothing is attached", config: &Config{logger: zap.NewNop()}},
 		{name: "without a loader and a logger it does not panic", config: &Config{}},
 		{name: "with a loader the callback is registered",
-			config: &Config{logger: zap.NewNop(), configLoader: &ConfigLoader{}}, wantN: 1},
+			config: &Config{logger: zap.NewNop(), configLoader: &Loader{}}, wantN: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

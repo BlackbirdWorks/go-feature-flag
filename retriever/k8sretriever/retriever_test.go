@@ -56,7 +56,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	kubeClientProviderFactory := func(object ...runtime.Object) func(*restclient.Config) (kubernetes.Interface, error) {
-		return func(config *restclient.Config) (kubernetes.Interface, error) {
+		return func(_ *restclient.Config) (kubernetes.Interface, error) {
 			return fake.NewSimpleClientset(object...), nil
 		}
 	}
@@ -149,7 +149,7 @@ func Test_kubernetesRetriever_Retrieve(t *testing.T) {
 			newClient := kubeClientProviderFactory(tt.fields.object)
 			if tt.name == "k8s client is nil" {
 				// mocking the client factory
-				newClient = func(config *restclient.Config) (kubernetes.Interface, error) {
+				newClient = func(_ *restclient.Config) (kubernetes.Interface, error) {
 					return nil, nil //nolint:nilnil // the test simulates a factory that returns no client
 				}
 			}

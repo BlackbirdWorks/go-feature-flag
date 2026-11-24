@@ -67,7 +67,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := progressiveFlag(tt.endPercentage)
-			runParallel(300, func(i int) {
+			runParallel(300, func(_ int) {
 				ctx := ffcontext.NewEvaluationContext("user")
 				_, d := f.Value("flag", ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
@@ -137,7 +137,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				before = map[string]any{}
 				maps.Copy(before, tt.ctxCustom)
 			}
-			runParallel(200, func(i int) {
+			runParallel(200, func(_ int) {
 				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)
 			})

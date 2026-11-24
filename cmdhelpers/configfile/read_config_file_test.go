@@ -331,5 +331,5 @@ func TestConfigFileDefaultLocations(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t,
 		[]string{"./", "/semaphore/", "/etc/opt/semaphore/", "/goff/", "/etc/opt/goff/"},
-		configfile.ConfigFileDefaultLocations())
+		configfile.DefaultLocations())
 }

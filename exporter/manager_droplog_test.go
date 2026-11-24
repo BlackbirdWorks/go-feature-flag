@@ -39,7 +39,7 @@ func (g *gatedSink) Handle(ctx context.Context, r slog.Record) error {
 
 	return g.inner.Handle(ctx, r)
 }
-func (g *gatedSink) WithAttrs(a []slog.Attr) slog.Handler { return g }
+func (g *gatedSink) WithAttrs(_ []slog.Attr) slog.Handler { return g }
 func (g *gatedSink) WithGroup(string) slog.Handler        { return g }
 
 // Adding events must never wait for the log sink: the warning about the dropped events is written
