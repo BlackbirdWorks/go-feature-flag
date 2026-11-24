@@ -5,13 +5,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/knadh/koanf/providers/env"
+	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/v2"
 	"go.uber.org/zap"
 )
 
 func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) koanf.Provider {
-	return env.ProviderWithValue(prefix, ".", func(key, v string) (string, any) {
+	return env.Provider(".", env.Opt{Prefix: prefix, TransformFunc: func(key, v string) (string, any) {
 		key = strings.TrimPrefix(key, prefix)
 		switch {
 		case strings.HasPrefix(key, "RETRIEVERS"),
@@ -48,7 +48,7 @@ func (c *ConfigLoader) mapEnvVariablesProvider(prefix string, log *zap.Logger) k
 		default:
 			return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
 		}
-	})
+	}})
 }
 
 // Load the ENV Like:RETRIEVERS_0_HEADERS_AUTHORIZATION
