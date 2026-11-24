@@ -46,9 +46,9 @@ make swagger           # regenerate swagger after API annotation changes
 - PR titles use Conventional Commits and commits are signed. Never force-push `main`.
 - Do not add or alter licence headers; keep `LICENSE`, `rules/LICENSE` and `NOTICE` intact.
 
-## Names: Semaphore first, Semaphore still accepted
+## Names: Semaphore first, GO Feature Flag still accepted
 
-The names below are client or deployment contracts. The Semaphore name is canonical, the Semaphore name is an alias
+The names below are client or deployment contracts. The Semaphore name is canonical, the legacy GO Feature Flag name is an alias
 that keeps working (one warning per process and kind when it is used, `modules/core/legacy`). Do not remove an alias
 without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for the full table.
 
