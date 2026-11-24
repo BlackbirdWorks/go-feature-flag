@@ -21,8 +21,9 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func TestSSEService_BroadcastAndReceive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		subscribeFlagset string
@@ -61,6 +62,8 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -82,7 +85,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 				}
 			})
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -140,8 +143,9 @@ func TestSSEService_Close(t *testing.T) {
 	sseService.Close()
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func TestSSEService_Comments(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name              string
 		query             string
@@ -186,6 +190,8 @@ func TestSSEService_Comments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			// The body is read until this timeout, it leaves time for several heartbeats.
 			ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 			defer cancel()
@@ -196,7 +202,7 @@ func TestSSEService_Comments(t *testing.T) {
 			defer srv.Close()
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, tt.wantStatus, resp.StatusCode)

@@ -44,7 +44,9 @@ type Retriever struct {
 	CACertPath string
 
 	httpClient internal.HTTPClient
-	status     retriever.Status
+	// baseTransport is the transport the TLS transport is cloned from (http.DefaultTransport when nil).
+	baseTransport http.RoundTripper
+	status        retriever.Status
 }
 
 // SetHTTPClient is here if you want to override the default http.Client we are using.
@@ -118,9 +120,13 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 			return nil, err
 		}
 
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+		base := r.baseTransport
+		if base == nil {
+			base = http.DefaultTransport
+		}
+		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
-			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", http.DefaultTransport)
+			return nil, fmt.Errorf("http default transport is %T, expected *http.Transport", base)
 		}
 
 		tlsTransport := defaultTransport.Clone()

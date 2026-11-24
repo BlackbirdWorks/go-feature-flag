@@ -70,17 +70,14 @@ func TestRetriever_getHTTPClient_WithCACertificate(t *testing.T) {
 	assert.Equal(t, uint16(tls.VersionTLS12), transport.TLSClientConfig.MinVersion)
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultTransport
 func TestRetriever_getHTTPClient_WithUnsupportedDefaultTransport(t *testing.T) {
+	t.Parallel()
+
 	caCertFile, _ := createClientCertificateFiles(t)
-	defaultTransport := http.DefaultTransport
-	t.Cleanup(func() {
-		http.DefaultTransport = defaultTransport
-	})
-	http.DefaultTransport = unsupportedTransport{}
 
 	retriever := Retriever{
-		CACertPath: caCertFile,
+		CACertPath:    caCertFile,
+		baseTransport: unsupportedTransport{},
 	}
 
 	err := retriever.Init(context.Background(), nil)

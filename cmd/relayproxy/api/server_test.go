@@ -203,8 +203,9 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseI1.StatusCode)
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_CheckOFREPAPIExists(t *testing.T) {
+	t.Parallel()
+
 	port := testutils.GetFreePort(t)
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
@@ -256,7 +257,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err := http.DefaultClient.Do(req)
+	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
@@ -267,7 +268,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err = http.DefaultClient.Do(req)
+	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
@@ -278,7 +279,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Add("Authorization", "Bearer test")
 	req.Header.Add("Content-Type", "application/json")
-	response, err = http.DefaultClient.Do(req)
+	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = response.Body.Close() }()
 	assert.Equal(t, http.StatusOK, response.StatusCode)
@@ -377,9 +378,12 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_AuthenticationMiddleware(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Non Admin Endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []authMiddlewareTestCase{
 			{
 				name:          "Authentication disabled",
@@ -414,6 +418,8 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 	})
 
 	t.Run("Admin Endpoint", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []authMiddlewareTestCase{
 			{
 				name:          "Authentication disabled",
@@ -448,7 +454,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 					request.Header.Add("Authorization", "Bearer "+tt.configAPIKeys.Admin[0])
 				}
 
-				return http.DefaultClient.Do(request)
+				return (&http.Client{}).Do(request)
 			})
 	})
 }

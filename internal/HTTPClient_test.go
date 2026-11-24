@@ -9,8 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultTransport
 func TestNewHTTPClient(t *testing.T) {
+	t.Parallel()
+
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 
 	client := NewHTTPClient(2*time.Second, transport)

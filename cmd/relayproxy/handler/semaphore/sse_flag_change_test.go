@@ -50,8 +50,9 @@ func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
 func (m *mockFlagsetManagerSSE) Close()                           {}
 func (m *mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flagChange notifier.DiffCache
@@ -104,6 +105,8 @@ func Test_SSE_FlagChange(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
@@ -134,7 +137,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 				srv.URL+"/stream/v1/sse/flag/change", nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
@@ -160,8 +163,9 @@ func Test_SSE_FlagChange(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -192,7 +196,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -245,8 +249,9 @@ func readSSEEvent(t *testing.T, resp *http.Response) map[string]string {
 	return fields
 }
 
-//nolint:paralleltest,tparallel // uses the shared http.DefaultClient
 func Test_SSE_FlagChange_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		apiKey         string
@@ -275,6 +280,8 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			sseService := stream.NewSSEService()
 			defer sseService.Close()
 
@@ -295,7 +302,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
