@@ -35,26 +35,28 @@ func Test_EventStoreWithLimit(t *testing.T) {
 	tests := []struct {
 		name string
 		// steps are executed in order against a store limited to limit events
-		limit       int64
-		adds        int
-		consume     bool // consume everything after the adds
-		consumeErr  error
-		addsAfter   int
-		wantStored  int64
-		wantDropped int64
-		wantOut     []string // events exported by the (successful) consume, in order
+		limit          int64
+		adds           int
+		consume        bool // consume everything after the adds
+		consumeErr     error
+		wantConsumeErr string
+		addsAfter      int
+		wantStored     int64
+		wantDropped    int64
+		wantOut        []string // events exported by the (successful) consume, in order
 	}{
 		{name: "no limit keeps everything", limit: 0, adds: 50, wantStored: 50},
 		{name: "under the limit", limit: 10, adds: 10, wantStored: 10},
-		{name: "over the limit drops the newest", limit: 10, adds: 25, wantStored: 10, wantDropped: 15,
-			wantOut: nil},
+		{name: "over the limit drops the newest", limit: 10, adds: 25, wantStored: 10, wantDropped: 15},
 		{
 			name: "failing consumer never grows the store", limit: 10, adds: 25,
 			consume: true, consumeErr: errors.New("boom"), addsAfter: 25, wantStored: 10, wantDropped: 40,
+			wantConsumeErr: "boom",
 		},
 		{
 			name: "consumed events free room", limit: 10, adds: 10, consume: true, addsAfter: 10,
 			wantStored: 10, wantDropped: 0,
+			wantOut: []string{"e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9"},
 		},
 	}
 	for _, tt := range tests {
@@ -69,16 +71,20 @@ func Test_EventStoreWithLimit(t *testing.T) {
 			for i := range tt.adds {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 			}
+			var out []testutils.ExportableMockEvent
 			if tt.consume {
-				var out []testutils.ExportableMockEvent
 				err := store.ProcessPendingEvents("c", process(&out, tt.consumeErr))
-				if tt.consumeErr != nil {
-					require.Error(t, err)
+				if tt.wantConsumeErr != "" {
+					require.EqualError(t, err, tt.wantConsumeErr)
 				} else {
 					require.NoError(t, err)
-					assert.Len(t, out, tt.adds-int(tt.wantDropped))
 				}
 			}
+			var gotOut []string
+			for _, e := range out {
+				gotOut = append(gotOut, e.GetKey())
+			}
+			assert.Equal(t, tt.wantOut, gotOut)
 			for i := range tt.addsAfter {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}

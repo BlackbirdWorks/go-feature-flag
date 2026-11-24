@@ -563,6 +563,7 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 		wantStopTwice bool
 	}{
 		{name: "one manager", nbManagers: 1, wantRunning: 0, wantStopTwice: true},
+		{name: "one manager stopped once", nbManagers: 1, wantRunning: 0, wantStopTwice: false},
 		{name: "many managers", nbManagers: 50, wantRunning: 0, wantStopTwice: true},
 	}
 	for _, tt := range tests {
@@ -592,7 +593,9 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 					dc.Stop()
 					// Close() can legitimately be called twice, and Stop() used to panic with
 					// "close of closed channel" on the second call.
-					assert.NotPanics(t, dc.Stop)
+					if tt.wantStopTwice {
+						assert.NotPanics(t, dc.Stop)
+					}
 				}
 			})
 

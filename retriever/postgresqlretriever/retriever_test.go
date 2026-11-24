@@ -247,6 +247,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 
 		err := r.Shutdown(context.Background())
 		assert.NoError(t, err) // Should not error when connection is nil
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 }
 
@@ -551,9 +552,13 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 		err = r.Shutdown(context.Background())
 		require.NoError(t, err)
 
+		// TODO(#52): the status must be NOT_READY after a shutdown (as for the redis retriever)
+		assert.Equal(t, retriever.RetrieverReady, r.Status())
+
 		// Second shutdown should also succeed (should not error on nil connection)
 		err = r.Shutdown(context.Background())
 		assert.NoError(t, err)
+		assert.Equal(t, retriever.RetrieverReady, r.Status()) // TODO(#52): NOT_READY
 	})
 
 	t.Run("Shutdown with cancelled context", func(t *testing.T) {
@@ -574,6 +579,7 @@ func TestRetrieverShutdownErrors(t *testing.T) {
 		// Shutdown with cancelled context should still succeed
 		err = r.Shutdown(ctx)
 		assert.NoError(t, err)
+		assert.Equal(t, retriever.RetrieverReady, r.Status()) // TODO(#52): NOT_READY
 	})
 }
 

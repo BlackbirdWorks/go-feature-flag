@@ -653,7 +653,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 			require.NoError(t, r2.Shutdown(t.Context()))
 			assert.Equal(t, retriever.RetrieverNotReady, r2.Status())
 			_, err = r2.Retrieve(t.Context())
-			require.Error(t, err)
+			require.EqualError(t, err, "shared S3 retriever is not initialized")
 
 			time.Sleep(s3retrieverv2.DefaultSharedPollingInterval)
 			_, err = r1.Retrieve(t.Context())
@@ -667,6 +667,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		r := initRetriever(t, newGroup(t, newFakeBucket(nil)), "a/1.yaml")
 		//nolint:staticcheck // a nil context is tolerated on purpose
 		assert.NoError(t, r.Shutdown(nil))
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 
 	t.Run("shutting down an item that is not registered is harmless", func(t *testing.T) {
@@ -674,6 +675,7 @@ func TestSharedItemRetriever_Shutdown(t *testing.T) {
 		r := newGroup(t, newFakeBucket(nil)).Retriever("")
 		assert.NoError(t, r.Shutdown(t.Context()))
 		assert.NoError(t, r.Shutdown(t.Context()))
+		assert.Equal(t, retriever.RetrieverNotReady, r.Status())
 	})
 
 	t.Run("re-Init joins the group again", func(t *testing.T) {

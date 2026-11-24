@@ -25,11 +25,16 @@ import (
 func TestStartWithoutRetriever(t *testing.T) {
 	t.Parallel()
 
-	_, err := ffclient.New(ffclient.Config{
+	got, err := ffclient.New(ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 	})
-	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.EqualError(
+		t,
+		err,
+		"impossible to initialize the retrievers, please check your configuration: no retriever in the configuration, impossible to get the flags",
+	)
 }
 
 func TestMultipleRetrievers(t *testing.T) {
@@ -79,17 +84,6 @@ func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
 	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
-}
-
-func TestStartWithMinInterval(t *testing.T) {
-	t.Parallel()
-
-	_, err := ffclient.New(ffclient.Config{
-		PollingInterval: 2,
-		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
-		LeveledLogger:   slog.Default(),
-	})
-	assert.NoError(t, err)
 }
 
 func TestValidUseCase(t *testing.T) {
@@ -428,8 +422,19 @@ func TestInvalidConfAndRetrieverError(t *testing.T) {
 		LeveledLogger:           slog.Default(),
 		StartWithRetrieverError: true,
 	})
+	require.NoError(t, err)
 	defer gff.Close()
-	assert.NoError(t, err)
+	// nothing could be loaded: the flag is unknown and the default value is returned
+	got, err := gff.BoolVariationDetails("test-flag", ffcontext.NewEvaluationContext("random-key"), false)
+	require.EqualError(t, err, "flag test-flag is not present or disabled")
+	assert.Equal(t, model.VariationResult[bool]{
+		TrackEvents:   true,
+		VariationType: "SdkDefault",
+		Failed:        true,
+		Reason:        flag.ReasonError,
+		ErrorCode:     flag.ErrorCodeFlagNotFound,
+		Value:         false,
+	}, got)
 }
 
 func TestValidUseCaseBigFlagFile(t *testing.T) {
@@ -595,14 +600,27 @@ func Test_GetPollingInterval(t *testing.T) {
 	tests := []struct {
 		name            string
 		pollingInterval time.Duration
+		wantMillis      int64
 	}{
 		{
 			name:            "60 seconds",
 			pollingInterval: 60 * time.Second,
+			wantMillis:      60_000,
 		},
 		{
 			name:            "6 hour",
 			pollingInterval: 6 * time.Hour,
+			wantMillis:      21_600_000,
+		},
+		{
+			name:            "an interval below the minimum is raised to one second",
+			pollingInterval: 2,
+			wantMillis:      1000,
+		},
+		{
+			name:            "no interval uses the default of 60 seconds",
+			pollingInterval: 0,
+			wantMillis:      60_000,
 		},
 	}
 
@@ -615,7 +633,7 @@ func Test_GetPollingInterval(t *testing.T) {
 				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 			})
 			require.NoError(t, err)
-			assert.Equal(t, tt.pollingInterval.Milliseconds(), goff.GetPollingInterval())
+			assert.Equal(t, tt.wantMillis, goff.GetPollingInterval())
 		})
 	}
 }

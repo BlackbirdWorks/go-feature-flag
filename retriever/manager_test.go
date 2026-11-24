@@ -50,6 +50,11 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				"standard": true,
 				"flagset":  true,
 			},
+			expectedShutdownCalls: map[string]bool{
+				"legacy":   true,
+				"standard": true,
+				"flagset":  true,
+			},
 		},
 		{
 			name: "Mixed retriever types with one initialization failure",
@@ -84,6 +89,10 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			},
 			expectError: true,
 			expectedInitCalls: map[string]bool{
+				"standard": true,
+				"flagset":  true,
+			},
+			expectedShutdownCalls: map[string]bool{
 				"standard": true,
 				"flagset":  true,
 			},
@@ -149,8 +158,12 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			// Verify that Init was called on the expected retrievers
 			assertInitCalls(t, tt.retrievers, tt.expectedInitCalls)
 
+			// Verify that the status of the expected retrievers was read during Init
+			assertCalls(t, tt.retrievers, tt.expectedStatusCalls, statusCalled, "Status")
+
 			// Clean up
-			_ = manager.Shutdown(ctx)
+			require.NoError(t, manager.Shutdown(ctx))
+			assertCalls(t, tt.retrievers, tt.expectedShutdownCalls, shutdownCalled, "Shutdown")
 		})
 	}
 }
@@ -179,6 +192,52 @@ func initCalled(r retriever.Retriever) (called bool, ok bool) {
 		return v.InitCalled, true
 	default:
 		return false, false
+	}
+}
+
+// statusCalled reports whether Status was recorded as called on a mock retriever.
+func statusCalled(r retriever.Retriever) (called bool, ok bool) {
+	switch v := r.(type) {
+	case *mockretriever.InitializableRetrieverLegacy:
+		return v.StatusCalled, true
+	case *mockretriever.InitializableRetriever:
+		return v.StatusCalled, true
+	case *mockretriever.InitializableRetrieverWithFlagset:
+		return v.StatusCalled, true
+	default:
+		return false, false
+	}
+}
+
+// shutdownCalled reports whether Shutdown was recorded as called on a mock retriever.
+func shutdownCalled(r retriever.Retriever) (called bool, ok bool) {
+	switch v := r.(type) {
+	case *mockretriever.InitializableRetrieverLegacy:
+		return v.ShutdownCalled, true
+	case *mockretriever.InitializableRetriever:
+		return v.ShutdownCalled, true
+	case *mockretriever.InitializableRetrieverWithFlagset:
+		return v.ShutdownCalled, true
+	default:
+		return false, false
+	}
+}
+
+// assertCalls verifies that the method observed by called was called on each retriever that the test case expects.
+func assertCalls(
+	t *testing.T,
+	retrievers []retriever.Retriever,
+	expected map[string]bool,
+	called func(retriever.Retriever) (bool, bool),
+	method string,
+) {
+	t.Helper()
+	for name := range expected {
+		r := findRetrieverByName(retrievers, name)
+		require.NotNil(t, r, "Retriever %s should have been found", name)
+		got, ok := called(r)
+		require.True(t, ok, "%s cannot be observed on %s", method, name)
+		assert.True(t, got, "%s should have been called on %s", method, name)
 	}
 }
 
@@ -235,19 +294,20 @@ variation = "A"
 		name        string
 		hintFormat  string
 		globalFmt   string
-		expectError bool
+		wantErr     string
+		wantFlags   []string
 	}{
 		{
 			name:        "FormatHinter toml overrides global yaml",
 			hintFormat:  "toml",
 			globalFmt:   "yaml",
-			expectError: false,
+			wantFlags:   []string{"test-flag"},
 		},
 		{
 			name:        "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat:  "",
 			globalFmt:   "yaml",
-			expectError: true,
+			wantErr:     "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 
@@ -267,11 +327,18 @@ variation = "A"
 			manager := retriever.NewManager(config, []retriever.Retriever{r}, cacheManager, &logger)
 			err := manager.Init(ctx)
 
-			if tt.expectError {
-				require.Error(t, err)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
 			} else {
 				require.NoError(t, err)
 			}
+			flags, allErr := cacheManager.AllFlags()
+			require.NoError(t, allErr)
+			var gotFlags []string
+			for name := range flags {
+				gotFlags = append(gotFlags, name)
+			}
+			assert.Equal(t, tt.wantFlags, gotFlags)
 			_ = manager.Shutdown(ctx)
 		})
 	}
@@ -342,11 +409,13 @@ func TestManagerStopPollingIsIdempotent(t *testing.T) {
 	manager := newPollingManager(t, &countingRetriever{})
 	require.NoError(t, manager.Init(ctx))
 
+	var shutdownErr error
 	assert.NotPanics(t, func() {
 		manager.StopPolling()
 		manager.StopPolling()
-		_ = manager.Shutdown(ctx)
+		shutdownErr = manager.Shutdown(ctx)
 	})
+	assert.NoError(t, shutdownErr)
 }
 
 // TestManagerStopPollingWithPollingDisabled makes sure that stopping a manager that never
@@ -363,9 +432,11 @@ func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	}, []retriever.Retriever{&countingRetriever{}}, cacheManager, &logger)
 	require.NoError(t, manager.Init(ctx))
 
+	var shutdownErr error
 	assert.NotPanics(t, func() {
 		manager.StartPolling(ctx)
 		manager.StopPolling()
-		_ = manager.Shutdown(ctx)
+		shutdownErr = manager.Shutdown(ctx)
 	})
+	assert.NoError(t, shutdownErr)
 }

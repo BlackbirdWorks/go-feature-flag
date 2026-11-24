@@ -197,6 +197,7 @@ func TestRedisShutdown(t *testing.T) {
 		var retriever *redisretriever.Retriever
 		err := retriever.Shutdown(context.TODO())
 		assert.NoError(t, err)
+		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
 	})
 
 	t.Run("should handle nil client gracefully", func(t *testing.T) {

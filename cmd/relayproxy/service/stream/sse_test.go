@@ -140,8 +140,58 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 func TestSSEService_Close(t *testing.T) {
 	t.Parallel()
 
-	sseService := stream.NewSSEService()
-	sseService.Close()
+	tests := []struct {
+		name        string
+		connect     bool
+		closeTwice  bool
+		wantStream  string
+	}{
+		{name: "closing the service ends the stream of a connected client", connect: true, wantStream: ": connected\n\n"},
+		{name: "closing twice is harmless", connect: true, closeTwice: true, wantStream: ": connected\n\n"},
+		{name: "closing a service without client", connect: false, wantStream: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			sseService := stream.NewSSEService()
+			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
+			defer srv.Close()
+
+			var body io.ReadCloser = http.NoBody
+			if tt.connect {
+				subscribed := make(chan struct{}, 1)
+				sseService.SetOnSubscribe(func(string) {
+					select {
+					case subscribed <- struct{}{}:
+					default:
+					}
+				})
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream=flagsetA", nil)
+				require.NoError(t, err)
+				resp, err := (&http.Client{}).Do(req)
+				require.NoError(t, err)
+				body = resp.Body
+				select {
+				case <-subscribed:
+				case <-ctx.Done():
+					require.Fail(t, "timed out waiting for the SSE client to subscribe")
+				}
+			}
+			defer func() { _ = body.Close() }()
+
+			sseService.Close()
+			if tt.closeTwice {
+				sseService.Close()
+			}
+
+			got, err := io.ReadAll(body)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantStream, string(got))
+		})
+	}
 }
 
 func TestSSEService_Comments(t *testing.T) {

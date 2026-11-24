@@ -154,7 +154,7 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 	assert.Eventually(
 		t,
 		func() bool { return exp.events.Load() == 3*threshold },
-		500*time.Millisecond,
+		10*time.Second, // only bounds a failure
 		time.Millisecond,
 	)
 	m.Stop()

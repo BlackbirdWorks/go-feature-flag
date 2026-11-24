@@ -28,33 +28,28 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 	mtDB := mtest.New(t, mtest.NewOptions().ClientType(mtest.Mock))
 
 	tests := []struct {
-		name    string
-		want    []byte
-		data    string
-		wantErr bool
+		name string
+		want []byte
+		data string
 	}{
 		{
-			name:    "Returns well formed flag definition document",
-			data:    testutils.MongoFindResultString,
-			want:    []byte(testutils.QueryResult),
-			wantErr: false,
+			name: "Returns well formed flag definition document",
+			data: testutils.MongoFindResultString,
+			want: []byte(testutils.QueryResult),
 		},
 		{
-			name:    "One of the Flag definition document does not have 'flag' key/value (ignore this document)",
-			data:    testutils.MongoMissingFlagKey,
-			want:    []byte(testutils.MissingFlagKeyResult),
-			wantErr: false,
+			name: "One of the Flag definition document does not have 'flag' key/value (ignore this document)",
+			data: testutils.MongoMissingFlagKey,
+			want: []byte(testutils.MissingFlagKeyResult),
 		},
 		{
-			name:    "Flag definition document 'flag' key does not have 'string' value (ignore this document)",
-			data:    testutils.MongoFindResultFlagNoStr,
-			want:    []byte(testutils.FlagKeyNotStringResult),
-			wantErr: false,
+			name: "Flag definition document 'flag' key does not have 'string' value (ignore this document)",
+			data: testutils.MongoFindResultFlagNoStr,
+			want: []byte(testutils.FlagKeyNotStringResult),
 		},
 		{
-			name:    "No flags found on DB",
-			want:    []byte("{}"),
-			wantErr: true,
+			name: "No flags found on DB",
+			want: []byte("{}"),
 		},
 	}
 	for _, tt := range tests {

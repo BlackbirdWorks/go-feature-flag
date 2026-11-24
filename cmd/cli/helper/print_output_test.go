@@ -3,12 +3,13 @@ package helper_test
 import (
 	"bytes"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
@@ -95,23 +96,44 @@ func TestLegacyWarner(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name  string
-		kinds []string
+		name      string
+		kinds     []string
+		wantLines []string
 	}{
-		{name: "one kind several times", kinds: []string{"flag-file", "flag-file"}},
-		{name: "two kinds", kinds: []string{"flag-file", "config-file"}},
+		{
+			name:      "one kind several times is logged once",
+			kinds:     []string{"flag-file", "flag-file"},
+			wantLines: []string{`{"level":"WARN","msg":"legacy name flag-file","legacyName":"flag-file"}`},
+		},
+		{
+			name:  "two kinds are logged once each",
+			kinds: []string{"flag-file", "config-file"},
+			wantLines: []string{
+				`{"level":"WARN","msg":"legacy name flag-file","legacyName":"flag-file"}`,
+				`{"level":"WARN","msg":"legacy name config-file","legacyName":"config-file"}`,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			w := helper.LegacyWarner()
-			require.NotNil(t, w)
-			assert.NotPanics(t, func() {
-				for _, k := range tt.kinds {
-					w.Warn(k, "legacy name")
-				}
-			})
+			var buf bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{
+				ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+					if len(groups) == 0 && a.Key == slog.TimeKey {
+						return slog.Attr{}
+					}
+
+					return a
+				},
+			}))
+			w := helper.LegacyWarnerTo(func() *slog.Logger { return logger })
+			for _, k := range tt.kinds {
+				w.Warn(k, "legacy name "+k)
+			}
+
+			assert.Equal(t, strings.Join(tt.wantLines, "\n")+"\n", buf.String())
 		})
 	}
 }

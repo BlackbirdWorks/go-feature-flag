@@ -167,6 +167,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 		name     string
 		settings func(t *testing.T) *kinesisexporter.Settings
 		nbEvents int
+		wantErr  string
 	}{
 		{
 			name: "unknown stream",
@@ -176,11 +177,13 @@ func TestE2E_Export_Errors(t *testing.T) {
 				)
 			},
 			nbEvents: 1,
+			wantErr:  "ResourceNotFoundException: Stream not found.",
 		},
 		{
 			name:     "no stream name nor ARN",
 			settings: func(*testing.T) *kinesisexporter.Settings { return kinesisexporter.NewSettings() },
 			nbEvents: 1,
+			wantErr:  "send: no StreamName or StreamArn provided",
 		},
 	}
 	for _, tt := range tests {
@@ -188,7 +191,7 @@ func TestE2E_Export_Errors(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &kinesisexporter.Exporter{AwsConfig: &cfg, Settings: tt.settings(t)}
-			require.Error(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)))
+			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(tt.nbEvents)), tt.wantErr)
 		})
 	}
 }

@@ -25,16 +25,18 @@ func Test_FlagCacheNotInit(t *testing.T) {
 
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
-	_, err := fCache.GetFlag("test-flag")
-	assert.Error(t, err, "We should have an error if the cache is not init")
+	got, err := fCache.GetFlag("test-flag")
+	assert.Nil(t, got)
+	assert.EqualError(t, err, "impossible to read the flag before the initialisation")
 }
 
 func Test_GetFlagNotExist(t *testing.T) {
 	t.Parallel()
 
 	fCache := cache.New(nil, "", nil)
-	_, err := fCache.GetFlag("not-exists-flag")
-	assert.Error(t, err, "We should have an error if the flag does not exists")
+	got, err := fCache.GetFlag("not-exists-flag")
+	assert.Equal(t, &flag.InternalFlag{}, got)
+	assert.EqualError(t, err, "flag [not-exists-flag] does not exists")
 }
 
 func Test_FlagCache(t *testing.T) {

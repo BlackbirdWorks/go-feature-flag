@@ -164,16 +164,21 @@ func TestE2E_Export_Errors(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		bucket func(t *testing.T) string
+		bucket  func(t *testing.T) string
+		wantErr string
 	}{
-		{name: "missing bucket", bucket: func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") }},
+		{
+			name:    "missing bucket",
+			bucket:  func(t *testing.T) string { return gopherstack.UniqueName(t, "nobucket") },
+			wantErr: "NoSuchBucket: The specified bucket does not exist.",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
 			e := &s3exporterv2.Exporter{Bucket: tt.bucket(t), AwsConfig: &cfg, S3Path: "x"}
-			require.Error(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)))
+			require.ErrorContains(t, e.Export(context.Background(), &fflog.FFLogger{}, events(1)), tt.wantErr)
 		})
 	}
 }

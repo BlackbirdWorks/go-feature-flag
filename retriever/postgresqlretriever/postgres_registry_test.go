@@ -13,11 +13,16 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		uri  string
+		name    string
+		uri     string
+		wantErr string
 	}{
-		{name: "invalid URI", uri: "not a postgres uri"},
-		{name: "unreachable database", uri: "postgres://user:pw@127.0.0.1:1/db?connect_timeout=1&sslmode=disable"},
+		{name: "invalid URI", uri: "not a postgres uri", wantErr: "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)"},
+		{
+			name:    "unreachable database",
+			uri:     "postgres://user:pw@127.0.0.1:1/db?connect_timeout=1&sslmode=disable",
+			wantErr: "failed to connect to `user=user database=db`: 127.0.0.1:1 (127.0.0.1): dial error: dial tcp 127.0.0.1:1: connect: connection refused",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -26,7 +31,7 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 			pools := rr.NewPoolRegistry()
 			pool, err := pools.GetPool(t.Context(), tt.uri)
 
-			require.Error(t, err)
+			require.ErrorContains(t, err, tt.wantErr)
 			assert.Nil(t, pool)
 			// nothing was registered, so releasing is a no-op
 			assert.NotPanics(t, func() { pools.ReleasePool(t.Context(), tt.uri) })
@@ -51,7 +56,7 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 
 			err := tt.r.Init(t.Context(), nil, nil)
 
-			require.Error(t, err)
+			require.EqualError(t, err, "cannot parse `not a postgres uri`: failed to parse as keyword/value (invalid keyword/value)")
 			assert.NotNil(t, tt.r.Pools, "the retriever always has a registry after Init")
 		})
 	}
