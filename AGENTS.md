@@ -15,7 +15,7 @@ divergences (in-repo `rules/` engine, no WASM/TinyGo, no bundled provider SDKs),
 - `cmd/relayproxy/`: HTTP relay proxy (Echo, Zap logging, Prometheus metrics, OpenTelemetry). Swagger in `cmd/relayproxy/docs/`, Helm chart in `cmd/relayproxy/helm-charts/relay-proxy/`.
 - `cmd/cli/`: command line (`evaluate`, `lint`, `generate`); `cmd/jsonschema-generator/`.
 - `retriever/`, `exporter/`, `notifier/`: integration packages (flag sources, evaluation-data sinks, change notifications).
-- `modules/core/`: separate Go module with flag, context and evaluation logic.
+- `modules/core/`: flag, context and evaluation logic (a directory of the root module, not a separate module).
 - `rules/`: vendored rules engine (separate module, own `LICENSE`, must be kept).
 - `internal/`, `ffcontext/`, `model/`, `cmdhelpers/`, `utils/`, `testutils/`, `testdata/`.
 - `openfeature/provider_tests/`: protocol compatibility tests of the relay proxy against real OpenFeature providers (Go, JS, Java, .NET); `make provider-tests`.
@@ -29,7 +29,7 @@ Go workspace mode is not used by CI: export `GOWORK=off`.
 ```shell
 export GOWORK=off
 make build             # relay proxy, cli, jsonschema generator, all modules
-make test-unit         # unit tests (root + modules/core + rules)
+make test-unit         # unit tests (root, which includes modules/core, + rules)
 make test-integration  # testcontainers tests (Docker)
 make test-e2e          # gopherstack e2e tests (Docker)
 make test-shards-check # CI test groups must cover every package

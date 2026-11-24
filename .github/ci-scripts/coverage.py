@@ -17,7 +17,8 @@ Standard library only; no third-party converter to pin.
 
 Merging: a block (file, range, statement count) present in several profiles is
 covered when ANY profile covers it (OR), and counted once. Profile paths are Go
-import paths; the three Go modules of the repository (root, modules/core, rules)
+import paths; the two Go modules of the repository (root, rules; modules/core is a
+directory of the root module)
 are mapped to repository-relative files through their go.mod `module` lines.
 
 Line coverage follows the semantics of the usual Go -> Cobertura converter
@@ -82,7 +83,7 @@ def compile_patterns(pats):
 
 def module_map(root):
     mods = {}
-    for d in (".", "modules/core", "rules"):
+    for d in (".", "rules"):
         gomod = os.path.join(root, d, "go.mod")
         with open(gomod, encoding="utf-8") as fh:
             m = re.search(r"^module\s+(\S+)", fh.read(), re.M)
@@ -104,9 +105,8 @@ def to_repo_path(name, mods):
 
 
 def module_of(path):
-    for d in ("modules/core", "rules"):
-        if path.startswith(d + "/"):
-            return d
+    if path.startswith("rules/"):
+        return "rules"
     return "root"
 
 

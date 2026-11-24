@@ -5,8 +5,8 @@
 # until that duration elapses.
 #
 # Usage:
-#   FUZZTIME=10s .github/ci-scripts/fuzz.sh ./rules ./modules/core ./   fuzz every package of the modules
-#   .github/ci-scripts/fuzz.sh --list ./rules ./modules/core ./         print "<module> <dir>" for each package with fuzz tests
+#   FUZZTIME=10s .github/ci-scripts/fuzz.sh ./rules ./   fuzz every package of the modules
+#   .github/ci-scripts/fuzz.sh --list ./rules ./         print "<module> <dir>" for each package with fuzz tests
 #   FUZZTIME=10s .github/ci-scripts/fuzz.sh --dir <module> <dir>        fuzz the targets of one package
 set -euo pipefail
 
@@ -30,7 +30,7 @@ fuzz_dirs() {
 	(
 		cd "$module"
 		# Skip vendor, VCS metadata, and nested modules so `./` does not
-		# fuzz ./modules/core a second time.
+		# fuzz ./rules a second time.
 		files=$(find . \( -name vendor -o -name .git \) -prune -o -type d ! -name . -exec test -f '{}/go.mod' \; -prune -o -name '*_test.go' -print)
 		if [[ -n "$files" ]]; then
 			matches=$(printf '%s\n' "$files" | xargs grep -l '^func Fuzz' || true)

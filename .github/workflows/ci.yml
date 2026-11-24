@@ -115,7 +115,8 @@ jobs:
       - uses: $/.github/actions/setup-go
       - run: make build-relayproxy-fips
 
-  # One job per module so a failure in one never hides findings in another.
+  # One job per Go module (the root module, which includes modules/core, and
+  # rules) so a failure in one never hides findings in another.
   lint:
     name: lint (${{ matrix.name }})
     needs: [changes]
@@ -130,8 +131,6 @@ jobs:
         include:
           - name: root
             module: "."
-          - name: modules/core
-            module: modules/core
           - name: rules
             module: rules
     steps:
@@ -274,7 +273,8 @@ jobs:
           name: unit-root-${{ matrix.group }}
           fail_ci_if_error: false
 
-  # `rules` and `modules/core` are separate Go modules with their own tests.
+  # `rules` is a separate Go module with its own tests (modules/core is part of
+  # the root module and runs in the root shards above).
   test-unit-modules:
     name: test (unit, ${{ matrix.module }})
     needs: [changes]
@@ -292,9 +292,6 @@ jobs:
           - module: rules
             flag: rules
             artifact: rules
-          - module: modules/core
-            flag: core
-            artifact: core
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
