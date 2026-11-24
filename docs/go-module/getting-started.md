@@ -5,6 +5,13 @@
 go get github.com/blackbirdworks/semaphore
 ```
 
+> [!NOTE]
+> The library depends on the nested module `github.com/blackbirdworks/semaphore/modules/core`. This repository builds
+> it from the local `modules/core` directory with a `replace` directive, which Go ignores when your module is the
+> consumer. `go get` therefore only works once a version of `modules/core` that the root `go.mod` requires has been
+> published (a `modules/core/vX.Y.Z` tag, or a pseudo-version of a commit of `main`). Until then, work from a checkout of
+> this repository (`replace github.com/blackbirdworks/semaphore => ../semaphore` and the same for `modules/core`).
+
 ## Create a feature flag configuration
 
 Create a new `YAML` file containing your first flag configuration.
