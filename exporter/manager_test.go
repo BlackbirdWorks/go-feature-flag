@@ -115,7 +115,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 
 			dataExporterMock := []exporter.Config{
 				{
-					FlushInterval:    10 * time.Millisecond,
+					FlushInterval:    time.Hour, // only the number of events triggers the flush, never the ticker
 					MaxEventInMemory: 100,
 					Exporter:         tt.mockExporter,
 				},
