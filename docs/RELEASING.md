@@ -39,6 +39,7 @@ chart (the Helm chart of the original project was not carried over: the owner do
    tag (made by `github-actions[bot]`, not signed: the project has no signing key) on the commit the run started
    on, and `release` publishes it. The release job runs in the same workflow run: a tag pushed with
    `GITHUB_TOKEN` does not start another run, which is why the tag is not a separate trigger here.
+   The version logic is `.github/ci-scripts/release-plan.sh`, unit tested by `make test-ci-scripts` (run in CI).
 4. Watch the run to its end before starting another: a second run started while one is active and another is
    pending replaces the pending run (one pending run per concurrency group). Runs are serialised, and each
    computes its version after the previous one finished.
@@ -121,10 +122,10 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   bad one.
 - Images: delete the bad version tags in the package settings (or `gh api -X DELETE
   /orgs/BlackbirdWorks/packages/container/semaphore/versions/<id>`), and re-point `latest` by
-  re-running the workflow of the previous good tag (`workflow_dispatch` with `release_tag` set to that tag and
+  re-running the workflow of the previous good tag (`workflow_dispatch` on that tag with `release_tag` set to it and
   `dry_run` unchecked republishes it, tags included).
 - A failed run that stopped half-way (images pushed, release not created): fix the cause and
-  re-run the failed job, or run the workflow with `release_tag` set to the same tag and `dry_run` unchecked (the `bump` input is
+  re-run the failed job, or run the workflow with "Use workflow from" set to that tag (not `main`: the attestations take their source commit from the run, and the workflow refuses otherwise), `release_tag` set to the same tag and `dry_run` unchecked (the `bump` input is
   ignored; the tag is never created or moved; if the run had already created the tag, do not run a bump again, it would
   make the next version).
   GoReleaser replaces existing release files.
