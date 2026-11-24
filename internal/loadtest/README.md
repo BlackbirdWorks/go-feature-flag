@@ -41,8 +41,8 @@ behaviour.
 
 The final line is the verdict ("memory stable", exit status 1 on FAIL):
 
-- after a warm-up (`-warmup`, default max(2, 20%) of the samples) the peak post-GC HeapInuse of the
-  last third of the samples (a bounded sawtooth has stable peaks, a leak raises them) must not exceed the first third's by more than
+- after a warm-up (`-warmup`, default max(2, 20%) of the samples) the median post-GC HeapInuse of the
+  last half of the samples (a bounded sawtooth, the events that wait for their flush, has a stable median, a leak raises it) must not exceed the first half's by more than
   max(`-heap-tolerance` (25%), 32 MiB);
 - the goroutine count must not exceed its value at the end of the warm-up by more than 64;
 - the run is aborted and fails when the live heap exceeds 6 GiB.

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,6 +20,17 @@ func samples(heap []uint64, gor []int) []Sample {
 	out := make([]Sample, len(heap))
 	for i := range heap {
 		out[i] = Sample{HeapInuse: heap[i], Goroutines: gor[i]}
+	}
+
+	return out
+}
+
+// sawtooth returns warm flat samples followed by n samples alternating between 100 and 10 MiB.
+func sawtooth(warm, n int) []uint64 {
+	const mib = 1 << 20
+	out := slices.Repeat([]uint64{10 * mib}, warm)
+	for i := range n {
+		out = append(out, uint64(10+90*(i%2))*mib)
 	}
 
 	return out
@@ -46,7 +58,15 @@ func TestJudge(t *testing.T) {
 			name:       "heap leak",
 			heap:       []uint64{50 * mib, 50 * mib, 100 * mib, 150 * mib, 200 * mib, 300 * mib, 400 * mib, 500 * mib},
 			gor:        flatG,
-			wantReason: "peak HeapInuse grows",
+			wantReason: "median HeapInuse grows",
+		},
+		{
+			// the events wait for their flush: the heap of a healthy exporter oscillates, its median does not move
+			name:     "bounded sawtooth",
+			heap:     sawtooth(2, 12),
+			gor:      slices.Repeat([]int{10}, 14),
+			opts:     Options{WarmupIntervals: 2},
+			wantPass: true,
 		},
 		{
 			name:     "small heap growth under the absolute allowance",

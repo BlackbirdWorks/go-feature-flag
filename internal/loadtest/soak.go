@@ -7,6 +7,7 @@ import (
 	"math/bits"
 	"runtime"
 	"runtime/metrics"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -43,8 +44,8 @@ type Options struct {
 	// WarmupIntervals is the number of leading samples ignored by the verdict
 	// (default max(2, 20% of the samples)).
 	WarmupIntervals int
-	// HeapTolerance is the maximum relative growth of the post-GC peak HeapInuse between the first and
-	// the last third of the measured window (default 0.25 = 25%).
+	// HeapTolerance is the maximum relative growth of the median post-GC HeapInuse between the first and
+	// the last half of the measured window (default 0.25 = 25%).
 	HeapTolerance float64
 	// HeapMinGrowthBytes is an absolute allowance under which growth never fails (default 32 MiB).
 	HeapMinGrowthBytes uint64
@@ -94,7 +95,7 @@ type Report struct {
 	Extra     map[string]int64
 	Pass      bool
 	Reasons   []string
-	// HeapGrowthBytes is the growth of the peak HeapInuse between the first and the last third of the measured window.
+	// HeapGrowthBytes is the growth of the median HeapInuse between the first and the last half of the measured window.
 	HeapGrowthBytes float64
 	// Window is the throughput and latency of the measured window; the zero value when it is too short.
 	Window Window
@@ -365,9 +366,11 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 
 // judge computes the "memory stable" verdict.
 //
-// After the warm-up, the peak post-GC HeapInuse of the last third of the samples is compared with
-// the one of the first third; the run fails when it grew by more than both HeapTolerance of the
-// first and HeapMinGrowthBytes. It also fails when the goroutine count exceeds its value at the end of
+// After the warm-up, the median post-GC HeapInuse of the last half of the samples is compared with
+// the one of the first half; the run fails when it grew by more than both HeapTolerance of the
+// first and HeapMinGrowthBytes. The median ignores the sawtooth of the events that wait for their
+// flush (a sample taken just before a flush sees the whole backlog, one just after it sees none),
+// which a peak or a single sample does not: a leak raises the median, a bounded backlog does not. It also fails when the goroutine count exceeds its value at the end of
 // the warm-up by more than GoroutineSlack.
 func judge(r *Report, o Options) {
 	r.Pass = true
@@ -386,25 +389,30 @@ func judge(r *Report, o Options) {
 	}
 	m := r.Samples[warm:]
 	// The post-GC heap of a healthy exporter is a sawtooth (the events wait for their flush), so
-	// averages and fitted lines over a handful of samples are noisy. We compare the peak of the
-	// first third of the measured window with the peak of the last third: a leak raises the
-	// peaks, a bounded sawtooth does not.
-	third := max(1, len(m)/3)
-	peak := func(ss []Sample) float64 {
-		var p uint64
-		for _, s := range ss {
-			p = max(p, s.HeapInuse)
+	// averages, peaks and fitted lines over a handful of samples are noisy: the flush interval and the
+	// sampling interval beat against each other. We compare the median of the first half of the
+	// measured window with the median of the last half: a leak raises the median, a bounded sawtooth
+	// does not.
+	half := max(1, len(m)/2)
+	median := func(ss []Sample) float64 {
+		heaps := make([]float64, len(ss))
+		for i, s := range ss {
+			heaps[i] = float64(s.HeapInuse)
 		}
-
-		return float64(p)
+		slices.Sort(heaps)
+		if mid := len(heaps) / 2; len(heaps)%2 == 1 {
+			return heaps[mid]
+		} else {
+			return (heaps[mid-1] + heaps[mid]) / 2
+		}
 	}
-	first, last := peak(m[:third]), peak(m[len(m)-third:])
+	first, last := median(m[:half]), median(m[len(m)-half:])
 	r.HeapGrowthBytes = last - first
 	allowed := max(o.HeapTolerance*first, float64(o.HeapMinGrowthBytes))
 	if r.HeapGrowthBytes > allowed {
 		r.Pass = false
 		r.Reasons = append(r.Reasons, fmt.Sprintf(
-			"peak HeapInuse grows from %.1f MiB (first third) to %.1f MiB (last third), allowed +%.1f MiB",
+			"median HeapInuse grows from %.1f MiB (first half) to %.1f MiB (last half), allowed +%.1f MiB",
 			first/(1<<20), last/(1<<20), allowed/(1<<20)))
 	}
 	// the baseline is the last warm-up sample, so growth between it and the first measured
