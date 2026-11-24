@@ -411,6 +411,33 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 			wantMeta:  map[string]any{"k": "legacy"},
 		},
 		{
+			name: "an explicit empty flagList and exporterMetadata of semaphore win over the legacy ones",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{
+					"flagList": []any{"old"}, "exporterMetadata": map[string]any{"k": "legacy"},
+				},
+				ffcontext.ReservedKey: map[string]any{"flagList": []any{}, "exporterMetadata": map[string]any{}},
+			},
+			wantFlags: []string{},
+			wantMeta:  map[string]any{},
+		},
+		{
+			name: "an explicit empty typed flagList of semaphore wins over the legacy one",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []string{"old"}},
+				ffcontext.ReservedKey:       map[string]any{"flagList": []string{}},
+			},
+			wantFlags: []string{},
+		},
+		{
+			name: "a flagList of semaphore that is not a list does not hide the legacy one",
+			attributes: map[string]any{
+				ffcontext.LegacyReservedKey: map[string]any{"flagList": []any{"old"}},
+				ffcontext.ReservedKey:       map[string]any{"flagList": "x"},
+			},
+			wantFlags: []string{"old"},
+		},
+		{
 			name: "string maps are read under both keys",
 			attributes: map[string]any{
 				ffcontext.LegacyReservedKey: map[string]string{"currentDateTime": legacyDate},
