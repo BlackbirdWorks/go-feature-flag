@@ -58,13 +58,13 @@ This flag split the usage of this flag, 20% will use the variation `my-new-featu
 ## SDK Initialisation
 First, you need to initialize the `ffclient` with the location of your backend file.
 ```go linenums="1"
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever:      &fileretriever.Retriever{
         Path: "flag-config.yaml",
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 *This example will load a file from your local computer and will refresh the flags every 3 seconds (if you omit the
 PollingInterval, the default value is 60 seconds).*
@@ -79,7 +79,7 @@ Now you can evaluate your flags anywhere in your code.
 
 ```go linenums="1"
 user := ffcontext.NewEvaluationContext("user-unique-key")
-hasFlag, _ := ffclient.BoolVariation("test-flag", user, false)
+hasFlag, _ := client.BoolVariation("test-flag", user, false)
 if hasFlag {
     // flag "test-flag" is true for the user
 } else {

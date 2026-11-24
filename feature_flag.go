@@ -15,29 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-// Init the feature flag component with the configuration of ffclient.Config
-//
-//	func main() {
-//	  err := ffclient.Init(ffclient.Config{
-//	           PollingInterval: 3 * time.Second,
-//	           Retriever: &httpretriever.Retriever{
-//	             URL:    "http://example.com/flag-config.yaml",
-//	           },
-//	         })
-//	  defer ffclient.Close()
-func Init(config Config) error {
-	var err error
-	onceFF.Do(func() {
-		var tmpFF *GoFeatureFlag
-		tmpFF, err = New(config)
-		if err == nil {
-			ff = tmpFF
-		}
-	})
-
-	return err
-}
-
 // GoFeatureFlag is the main object of the library
 // it contains the cache, the config, the updater and the exporter.
 type GoFeatureFlag struct {
@@ -69,12 +46,6 @@ type GoFeatureFlag struct {
 
 // DefaultEventQueueSize is the default value of Config.EventQueueSize.
 const DefaultEventQueueSize = 65536
-
-// ff is the default object for semaphore.
-var (
-	ff     *GoFeatureFlag
-	onceFF sync.Once
-)
 
 // New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
@@ -241,12 +212,33 @@ func (g *GoFeatureFlag) ForceRefresh() bool {
 // This function can be called explicitly to refresh the flags if you know that a change has been made in
 // the configuration.
 func (g *GoFeatureFlag) ForceRefreshWithContext(ctx context.Context) bool {
+	if g.IsOffline() {
+		return false
+	}
+
 	return g.retrieverManager.ForceRefresh(ctx)
 }
 
 // SetOffline updates the config Offline parameter.
 func (g *GoFeatureFlag) SetOffline(control bool) {
 	g.config.SetOffline(control)
+}
+
+// SetOfflineWithContext updates the config Offline parameter, and stops (going offline) or restarts
+// (going back online) the background polling of the retrievers.
+//
+// Known limitation: going back online does not restart the background polling. StopPolling
+// closes the background updater channel for good, so the StartPolling call below returns
+// immediately. Fixing this requires recreating the background updater, which is tracked
+// separately.
+func (g *GoFeatureFlag) SetOfflineWithContext(ctx context.Context, control bool) {
+	if !g.IsOffline() && control {
+		g.retrieverManager.StopPolling()
+	}
+	if g.IsOffline() && !control {
+		g.retrieverManager.StartPolling(ctx)
+	}
+	g.SetOffline(control)
 }
 
 // IsOffline allows knowing if the feature flag is in offline mode.
@@ -257,56 +249,4 @@ func (g *GoFeatureFlag) IsOffline() bool {
 // GetPollingInterval is the polling interval between two refreshes of the cache.
 func (g *GoFeatureFlag) GetPollingInterval() int64 {
 	return g.config.PollingInterval.Milliseconds()
-}
-
-// SetOffline updates the config Offline parameter.
-func SetOffline(control bool) {
-	SetOfflineWithContext(context.Background(), control)
-}
-
-// SetOfflineWithContext updates the config Offline parameter
-//
-// Known limitation: going back online does not restart the background polling. StopPolling
-// closes the background updater channel for good, so the StartPolling call below returns
-// immediately. Fixing this requires recreating the background updater, which is tracked
-// separately.
-func SetOfflineWithContext(ctx context.Context, control bool) {
-	if !ff.IsOffline() && control {
-		ff.retrieverManager.StopPolling()
-	}
-	if ff.IsOffline() && !control {
-		ff.retrieverManager.StartPolling(ctx)
-	}
-	ff.SetOffline(control)
-}
-
-// IsOffline allows knowing if the feature flag is in offline mode.
-func IsOffline() bool {
-	return ff.IsOffline()
-}
-
-// GetCacheRefreshDate gives the last refresh date of the cache.
-func GetCacheRefreshDate() time.Time {
-	if ff.IsOffline() {
-		return time.Time{}
-	}
-
-	return ff.GetCacheRefreshDate()
-}
-
-// ForceRefresh is a function that forces to call the retrievers and refresh the configuration of flags.
-// This function can be called explicitly to refresh the flags if you know that a change has been made in
-// the configuration.
-func ForceRefresh() bool {
-	if ff.IsOffline() {
-		return false
-	}
-
-	return ff.ForceRefresh()
-}
-
-// Close the component by stopping the background refresh and clean the cache.
-func Close() {
-	onceFF = sync.Once{}
-	ff.Close()
 }

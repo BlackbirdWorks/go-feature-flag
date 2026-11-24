@@ -97,7 +97,7 @@ func TestValidUseCase(t *testing.T) {
 
 	cliExport := mock.Exporter{Bulk: false}
 	// Valid use case
-	err := ffclient.Init(ffclient.Config{
+	client, err := ffclient.New(ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
 		LeveledLogger:   slog.Default(),
@@ -115,26 +115,26 @@ func TestValidUseCase(t *testing.T) {
 			},
 		},
 	})
-	defer ffclient.Close()
-
 	require.NoError(t, err)
-	user := ffcontext.NewEvaluationContext("random-key")
-	hasTestFlag, _ := ffclient.BoolVariation("test-flag", user, false)
-	assert.True(t, hasTestFlag, "User should have test flag")
-	hasUnknownFlag, _ := ffclient.BoolVariation("unknown-flag", user, false)
-	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
-	assert.NotEqual(t, time.Time{}, ffclient.GetCacheRefreshDate())
+	defer client.Close()
 
-	allFlags := ffclient.AllFlagsState(user)
+	user := ffcontext.NewEvaluationContext("random-key")
+	hasTestFlag, _ := client.BoolVariation("test-flag", user, false)
+	assert.True(t, hasTestFlag, "User should have test flag")
+	hasUnknownFlag, _ := client.BoolVariation("unknown-flag", user, false)
+	assert.False(t, hasUnknownFlag, "User should use default value if flag does not exists")
+	assert.NotEqual(t, time.Time{}, client.GetCacheRefreshDate())
+
+	allFlags := client.AllFlagsState(user)
 	assert.Len(t, allFlags.GetFlags(), 2)
 
-	ffclient.SetOffline(true)
-	assert.True(t, ffclient.IsOffline())
-	assert.False(t, ffclient.ForceRefresh())
-	ffclient.SetOffline(false)
-	assert.False(t, ffclient.IsOffline())
-	assert.True(t, ffclient.ForceRefresh())
-	ffclient.Track("toto", user, map[string]any{"key": "value"})
+	client.SetOffline(true)
+	assert.True(t, client.IsOffline())
+	assert.False(t, client.ForceRefresh())
+	client.SetOffline(false)
+	assert.False(t, client.IsOffline())
+	assert.True(t, client.ForceRefresh())
+	client.Track("toto", user, map[string]any{"key": "value"})
 	assert.Len(t, cliExport.ExportedEvents, 1)
 }
 

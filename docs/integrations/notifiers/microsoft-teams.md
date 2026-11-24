@@ -47,7 +47,7 @@ To configure your GO module to use the Microsoft Teams notifier, you need to add
 configuration to your `ffclient.Config{}` object:
 
 ```go
-err := ffclient.Init(ffclient.Config
+client, err := ffclient.New(ffclient.Config
 {
     // ...
     Notifiers: []notifier.Notifier{
@@ -56,7 +56,7 @@ err := ffclient.Init(ffclient.Config
         },
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | **Field**                  | **Mandatory** | **Description**                                   |

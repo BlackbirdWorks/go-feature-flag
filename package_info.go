@@ -19,13 +19,13 @@
 //	 )
 //
 //	 func main() {
-//		  err := ffclient.Init(ffclient.Config{
+//		  client, err := ffclient.New(ffclient.Config{
 //		      PollingInterval: 3 * time.Second,
 //		      Retriever: &httpretriever.Retriever{
 //		          URL:  "https://code.gofeatureflag.org/blob/main/testdata/flag-config.yaml",
 //		      },
 //		  })
-//		  defer ffclient.Close()
+//		  defer client.Close()
 //		  ...
 //
 // This example will load a file from an HTTP endpoint and will refresh the flags every 3 seconds.
@@ -34,7 +34,7 @@
 //
 //			  ...
 //			  evaluationContext := ffcontext.NewEvaluationContext("user-unique-key")
-//			  hasFlag, _ := ffclient.BoolVariation("test-flag", evaluationContext, false)
+//			  hasFlag, _ := client.BoolVariation("test-flag", evaluationContext, false)
 //			  if hasFlag {
 //			      //flag "test-flag" is true for the user
 //			  } else {

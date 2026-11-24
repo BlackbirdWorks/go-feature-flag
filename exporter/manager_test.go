@@ -458,14 +458,17 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	assert.NotEmpty(t, mockExporter2.GetExportedEvents())
 }
 
-//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
 func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
+	t.Parallel()
+
 	// We are running the same test multiple times to have more chance to have a race condition.
 	for i := 1; i < 20; i++ {
 		t.Run(fmt.Sprintf("ValidateNumberOfEvents #%d", i), func(t *testing.T) {
+			t.Parallel()
+
 			mockExporter := mock.Exporter{Bulk: true}
 			// Init ffclient with a file retriever.
-			err := ffclient.Init(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				LeveledLogger:   slog.Default(),
 				Context:         context.Background(),
@@ -487,10 +490,10 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 				Build()
 			user2 := ffcontext.NewEvaluationContext("332460b9-a8aa-4f7a-bc5d-9cc33632df9a")
 
-			_, _ = ffclient.BoolVariation("test-flag", user1, false)
-			_, _ = ffclient.BoolVariation("test-flag", user2, false)
-			_, _ = ffclient.StringVariation("test-flag2", user1, "defaultValue")
-			_, _ = ffclient.JSONVariation(
+			_, _ = client.BoolVariation("test-flag", user1, false)
+			_, _ = client.BoolVariation("test-flag", user2, false)
+			_, _ = client.StringVariation("test-flag2", user1, "defaultValue")
+			_, _ = client.JSONVariation(
 				"test-flag2",
 				user1,
 				map[string]any{"test": "toto"},
@@ -506,9 +509,9 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 
 			// Close() waits for the in-flight collect goroutines and then flushes, so the last
 			// 2 events are exported synchronously and this assertion needs no waiting.
-			_, _ = ffclient.BoolVariation("test-flag", user1, false)
-			_, _ = ffclient.BoolVariation("test-flag", user2, false)
-			ffclient.Close() // a flush is triggered here
+			_, _ = client.BoolVariation("test-flag", user1, false)
+			_, _ = client.BoolVariation("test-flag", user2, false)
+			client.Close() // a flush is triggered here
 			assert.Len(t, mockExporter.GetExportedEvents(), 6)
 		})
 	}
@@ -520,7 +523,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // leaks one goroutine and the events it retains per client, which is unbounded for the relay
 // proxy since it builds a client per flagset on every hot reload.
 //
-//nolint:paralleltest,tparallel // uses the process-wide ffclient singleton (ffclient.Init/Close), shared by all tests of the package; removed by the service-object refactor (follow-up PR)
+//nolint:paralleltest,tparallel // asserts on the process-wide runtime.NumGoroutine count, which other parallel tests change
 func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 	const nbManagers = 50
 	goroutinesBefore := runtime.NumGoroutine()
@@ -542,7 +545,7 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 			ffcontext.NewEvaluationContextBuilder("ABCD").Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
 		dc.Stop()
-		// ffclient.Close() can legitimately be called twice, and Stop() used to panic with
+		// Close() can legitimately be called twice, and Stop() used to panic with
 		// "close of closed channel" on the second call.
 		assert.NotPanics(t, dc.Stop)
 	}

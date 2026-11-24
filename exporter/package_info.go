@@ -2,7 +2,7 @@
 //
 // These exporters are usable in your init configuration.
 //
-//	ffclient.Init(ffclient.Config{
+//	client, err := ffclient.New(ffclient.Config{
 //	  //...
 //	   DataExporter: ffclient.DataExporter{
 //	   FlushInterval:   10 * time.Second,

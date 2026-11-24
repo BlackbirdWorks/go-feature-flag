@@ -31,12 +31,3 @@ func (g *GoFeatureFlag) Track(
 		g.trackingEventDataExporter.AddEvent(event)
 	}
 }
-
-// Track is used to track an event.
-func Track(
-	trackingEventName string,
-	ctx ffcontext.EvaluationContext,
-	trackingEventDetails exporter.TrackingEventDetails,
-) {
-	ff.Track(trackingEventName, ctx, trackingEventDetails)
-}

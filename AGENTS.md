@@ -61,4 +61,4 @@ without a coordinated migration, see `docs/migration/rename-to-semaphore.md` for
 
 ## Entry points
 
-`ffclient.Init()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.
+`ffclient.New()`, `cmd/relayproxy/main.go`, `cmd/cli/main.go`. Interfaces: `Retriever`, `Exporter`, `Notifier`.

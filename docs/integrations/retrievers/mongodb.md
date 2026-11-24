@@ -56,7 +56,7 @@ To configure your GO module to use the MongoDB retriever, you need to add the fo
 configuration to your `ffclient.Config{}` object:
 
 ```go
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
   PollingInterval: 3 * time.Second,
   Retriever: &mongodbretriever.Retriever{
     Collection: "featureFlags",
@@ -64,7 +64,7 @@ err := ffclient.Init(ffclient.Config{
     URI:        "mongodb://root:example@127.0.0.1:27017/",
   },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 | Field            |   Mandatory   | Description                                                 |

@@ -106,7 +106,7 @@ configuration to your `ffclient.Config{}` object:
 
 ```go
 awsConfig, _ := config.LoadDefaultConfig(context.Background())
-err := ffclient.Init(ffclient.Config{
+client, err := ffclient.New(ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
         Bucket: "my-featureflag-bucket",
@@ -114,7 +114,7 @@ err := ffclient.Init(ffclient.Config{
         AwsConfig: &awsConfig,
     },
 })
-defer ffclient.Close()
+defer client.Close()
 ```
 
 To load several files from a folder _(leave `Item` empty)_:
