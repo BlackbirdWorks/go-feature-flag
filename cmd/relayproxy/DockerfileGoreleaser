@@ -8,4 +8,4 @@ COPY rules/LICENSE /licenses/rules-LICENSE
 COPY internal/koanfhttpprovider/LICENSE /licenses/koanfhttpprovider-LICENSE
 EXPOSE 1031
 USER 65532:65532
-CMD ["/usr/local/bin/semaphore"]
+ENTRYPOINT ["/usr/local/bin/semaphore"]

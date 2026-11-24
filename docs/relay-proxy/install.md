@@ -34,12 +34,12 @@ Until then, build a local image from source:
 make build-relayproxy-docker   # image: semaphore:local
 ```
 
-The binary is `/usr/local/bin/semaphore` and the image sets it as `CMD` (not `ENTRYPOINT`, as before the rename), so
-the relay proxy starts with no arguments and finds its configuration in `/semaphore/` (or the legacy `/goff/`).
-To pass options, give the full command, which replaces the `CMD`:
+The binary is `/usr/local/bin/semaphore` and the image sets it as `ENTRYPOINT`, so the relay proxy starts with no
+arguments and finds its configuration in `/semaphore/` (or the legacy `/goff/`), and arguments are passed
+directly to it. To run something else, override the entrypoint with `--entrypoint`. Pass options as arguments:
 
 ```shell
-docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local /usr/local/bin/semaphore --config=/cfg/semaphore-proxy.yaml
+docker run -p 1031:1031 -v $(pwd):/cfg:ro semaphore:local --config=/cfg/semaphore-proxy.yaml
 ```
 
 ## FIPS 140-3
@@ -57,7 +57,7 @@ See [FIPS 140-3 mode](advanced-usage.md#fips-140-3-mode) for details on running 
 
 ```shell
 semaphore --version        # also -v; semaphore-cli --version for the CLI
-docker run --rm ghcr.io/blackbirdworks/semaphore:latest /usr/local/bin/semaphore --version   # the image sets CMD, not ENTRYPOINT
+docker run --rm ghcr.io/blackbirdworks/semaphore:latest --version
 ```
 
 It prints the version, commit, build date, Go version and whether the binary runs in FIPS 140 mode,

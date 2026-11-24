@@ -6,8 +6,9 @@ Helm is an invaluable tool for configuring and deploying applications to a Kuber
 
 The Helm chart lives in this repository under
 [`cmd/relayproxy/helm-charts/relay-proxy`](https://github.com/BlackbirdWorks/semaphore/tree/main/cmd/relayproxy/helm-charts/relay-proxy).
-The chart is not published to a Helm repository: install it from a local checkout, or from the
-`relay-proxy-<version>.tgz` attached to a GitHub Release (available after the first release).
+The chart is not published to a classic Helm repository. After the first release it is available as an OCI
+artifact, `helm install semaphore oci://ghcr.io/blackbirdworks/charts/relay-proxy --version 0.1.0`, and as
+`relay-proxy-<version>.tgz` attached to each GitHub Release. Until then install it from a local checkout.
 The default image is `ghcr.io/blackbirdworks/semaphore:<chart appVersion>`, published by the release
 workflow (available after the first release); until then override `image.repository` and `image.tag`
 to use an image you built. The chart is installed in CI with an image built from the same commit.
