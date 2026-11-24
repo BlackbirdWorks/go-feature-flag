@@ -9,9 +9,7 @@ import (
 
 // TestFloatOperationOperandErrors pins how operand type errors surface per operator. A mistyped operand
 // makes the comparison false for every operator, and the evaluator records a debug error for it
-// (Evaluator.LastDebugErr). FloatOperation.LE alone returns no error, so no debug error is recorded; the
-// cases marked "quirk" are what a correct LE would report. Results are identical, only the debug error
-// differs (nothing in the repository reads LastDebugErr).
+// (Evaluator.LastDebugErr), FloatOperation.LE included (issue #50). Results are identical for every operator.
 func TestFloatOperationOperandErrors(t *testing.T) {
 	t.Parallel()
 
@@ -36,12 +34,18 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 			items:    map[string]any{"x": "abc"},
 			wantDebg: true,
 		},
-		{name: "quirk: float le on a string reports nothing", rule: `x le 1.5`, items: map[string]any{"x": "abc"}},
 		{
-			name:  "quirk: not float le on a string is true, no debug error",
-			rule:  `not (x le 1.5)`,
-			items: map[string]any{"x": "abc"},
-			want:  true,
+			name:     "float le on a string reports the error",
+			rule:     `x le 1.5`,
+			items:    map[string]any{"x": "abc"},
+			wantDebg: true,
+		},
+		{
+			name:     "not float le on a string is true, with a debug error",
+			rule:     `not (x le 1.5)`,
+			items:    map[string]any{"x": "abc"},
+			want:     true,
+			wantDebg: true,
 		},
 		{
 			name:     "not float ge on a string is true, with a debug error",
