@@ -50,7 +50,7 @@ Later releases get the generated changelog between tags.
 
 Actions, "Release", Run workflow, keep `dry_run` checked (the default). It builds the snapshot
 archives for every platform, the SBOMs, all image variants for all platforms (QEMU), and publishes nothing; the archives are kept three days as the `dry-run-release` workflow
-artifact. Every pull request also runs `goreleaser check` and a snapshot build of the current
+artifact. Every pull request also runs `goreleaser check` and a snapshot build of the FIPS binary for the current
 platform as part of `ci-ok`.
 
 Locally (needs Docker with buildx, Go, goreleaser v2, syft):

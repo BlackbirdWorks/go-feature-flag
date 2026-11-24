@@ -582,10 +582,11 @@ jobs:
       - run: make provider-tests
 
   # The release configuration is exercised on every pull request so it cannot rot between
-  # releases: `goreleaser check`, then a snapshot build of every build target for the runner
-  # (regular, FIPS, CLI, lambda), which compiles the same entry points and ldflags as a
-  # release. Nothing is published; the full multi-platform snapshot and the images are built
-  # by the "Release" workflow dry run (workflow_dispatch).
+  # releases: `goreleaser check`, a snapshot build of the FIPS target for the runner (the build
+  # with its own settings; it uses the same entry point and ldflags as the others) and a
+  # compile of the Lambda target. Nothing is published. The regular and CLI binaries are
+  # compiled by the build job; the full multi-platform snapshot, all archives and every image
+  # are built only by the "Release" workflow dry run (workflow_dispatch).
   release-check:
     name: release (goreleaser check, snapshot build)
     needs: [changes]
