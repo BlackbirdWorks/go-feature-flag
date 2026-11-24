@@ -18,7 +18,7 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
-// testConfig returns a minimal HTTP relay proxy configuration listening on a free port.
+// testConfig returns a minimal HTTP relay proxy configuration. startTestServer gives it its port.
 func testConfig(t *testing.T) *config.Config {
 	t.Helper()
 
@@ -31,16 +31,26 @@ func testConfig(t *testing.T) *config.Config {
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
-			Port: testutils.GetFreePort(t),
 		},
 	}
 }
 
-// startTestServer boots a relay proxy from conf and returns its base URL. When a monitoring
-// port is configured it also waits for the monitoring server to accept connections, because
-// it is started in its own goroutine and serves the endpoints the API server no longer has.
-func startTestServer(t *testing.T, conf *config.Config) string {
+// startTestServer boots a relay proxy from conf and returns its base URL and, when withMonitoring is set, the
+// URL of its dedicated monitoring server (empty otherwise). Both servers serve on loopback listeners that were
+// bound before the server started and are kept open, so no other test can take the ports. conf gets its ports
+// from them. The function waits for the monitoring server too, because it is started in its own goroutine and
+// serves the endpoints the API server no longer has.
+func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (baseURL, monitoringURL string) {
 	t.Helper()
+	ln, port := testutils.ListenLocal(t)
+	conf.Server.Port = port
+	opts := []api.Option{api.WithListener(ln)}
+	if withMonitoring {
+		monitoringLn, monitoringPort := testutils.ListenLocal(t)
+		conf.Server.MonitoringPort = monitoringPort
+		opts = append(opts, api.WithMonitoringListener(monitoringLn))
+		monitoringURL = fmt.Sprintf("http://localhost:%d", monitoringPort)
+	}
 	log := newTestLogger(t)
 
 	metricsV2, err := metric.NewMetrics()
@@ -55,17 +65,17 @@ func startTestServer(t *testing.T, conf *config.Config) string {
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metricsV2,
-	}, log.ZapLogger)
+	}, log.ZapLogger, opts...)
 	go func() { s.StartWithContext(context.Background()) }()
 	t.Cleanup(func() { s.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://localhost:%d", conf.ServerPort(log.ZapLogger))
-	if monitoringPort := conf.EffectiveMonitoringPort(log.ZapLogger); monitoringPort != 0 {
-		waitForServer(t, fmt.Sprintf("http://localhost:%d", monitoringPort))
+	baseURL = fmt.Sprintf("http://localhost:%d", port)
+	if withMonitoring {
+		waitForServer(t, monitoringURL)
 	}
 	waitForServer(t, baseURL)
 
-	return baseURL
+	return baseURL, monitoringURL
 }
 
 // doRequest performs a request with the given headers and returns the response, the body being
@@ -89,7 +99,7 @@ func doRequest(t *testing.T, method, url string, headers map[string]string) *htt
 func Test_CORS_SimpleRequest(t *testing.T) {
 	t.Parallel()
 
-	baseURL := startTestServer(t, testConfig(t))
+	baseURL, _ := startTestServer(t, testConfig(t), false)
 
 	tests := []struct {
 		name     string
@@ -136,7 +146,7 @@ func Test_CORS_Preflight(t *testing.T) {
 	conf := testConfig(t)
 	conf.AuthorizedKeys = config.APIKeys{Evaluation: []string{"my-key"}}
 	conf.ForceReloadAPIKeys()
-	baseURL := startTestServer(t, conf)
+	baseURL, _ := startTestServer(t, conf, false)
 
 	endpoints := []string{
 		"/health",
@@ -172,9 +182,7 @@ func Test_CORS_MonitoringPort(t *testing.T) {
 	t.Parallel()
 
 	conf := testConfig(t)
-	conf.Server.MonitoringPort = testutils.GetFreePort(t)
-	startTestServer(t, conf)
-	monitoringURL := fmt.Sprintf("http://localhost:%d", conf.Server.MonitoringPort)
+	_, monitoringURL := startTestServer(t, conf, true)
 
 	resp := doRequest(t, http.MethodGet, monitoringURL+"/health", map[string]string{
 		"Origin": "https://example.com",

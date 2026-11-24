@@ -32,7 +32,7 @@ import (
 // executed with data, and the port of the server is available as {{ .Port }}. It returns the base URL.
 func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]any) string {
 	t.Helper()
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	if data == nil {
 		data = map[string]any{}
 	}
@@ -67,7 +67,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		FlagsetManager:    manager,
 		Metrics:           metrics,
 	}
-	s := api.New(proxyConf, services, log.ZapLogger)
+	s := api.New(proxyConf, services, log.ZapLogger, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {

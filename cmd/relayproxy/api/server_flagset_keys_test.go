@@ -27,7 +27,7 @@ import (
 func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
@@ -57,7 +57,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		SSEService:        sseService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metric.Metrics{},
-	}, log.ZapLogger)
+	}, log.ZapLogger, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)

@@ -27,8 +27,10 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	select {
 	case <-s.stopRequested:
 		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
-		if s.listener != nil {
-			_ = s.listener.Close()
+		for _, l := range []net.Listener{s.listener, s.monitoringListener} {
+			if l != nil {
+				_ = l.Close()
+			}
 		}
 
 		return
@@ -168,6 +170,7 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 		zap.String("address", addressMonitoring))
 	err := echo.StartConfig{
 		Address:         addressMonitoring,
+		Listener:        s.monitoringListener,
 		HideBanner:      true,
 		HidePort:        true,
 		GracefulTimeout: gracefulShutdownTimeout,

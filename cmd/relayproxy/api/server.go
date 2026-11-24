@@ -68,6 +68,13 @@ func WithListener(l net.Listener) Option {
 	return func(s *Server) { s.listener = l }
 }
 
+// WithMonitoringListener is WithListener for the monitoring server: it serves on the given bound listener
+// instead of binding the configured monitoring port. The monitoring port must still be configured (it
+// decides whether a monitoring server exists). The server owns the listener.
+func WithMonitoringListener(l net.Listener) Option {
+	return func(s *Server) { s.monitoringListener = l }
+}
+
 // WithGlobalTelemetry makes the server install its OpenTelemetry tracer provider, error handler and
 // propagator as the process-wide ones when it starts. Only the startup wiring (main) asks for it: the
 // OpenTelemetry API has no other way to give a provider to the instrumented libraries.
@@ -87,6 +94,8 @@ type Server struct {
 	installGlobalTelemetry bool
 	// listener is set by WithListener, the server then serves on it instead of listening on the configured address.
 	listener net.Listener
+	// monitoringListener is set by WithMonitoringListener, the monitoring server then serves on it.
+	monitoringListener net.Listener
 
 	// stopRequested is closed (once, by stop) when Stop is called, to gracefully shut down
 	// the servers started by StartWithContext.

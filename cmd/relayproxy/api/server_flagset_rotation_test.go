@@ -59,7 +59,7 @@ func (m routingLostManager) FlagSetName(apiKey string) (string, error) {
 func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	t.Parallel()
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
@@ -87,7 +87,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 			FlagsetManager: realManager, lostKeys: map[string]bool{"moved-key": true},
 		},
 		Metrics: metric.Metrics{},
-	}, log.ZapLogger)
+	}, log.ZapLogger, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
@@ -177,7 +177,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		return flagsets([]string{"a-key", "new-key"}, []string{"b-key", "rotating-key"})
 	}
 
-	port := testutils.GetFreePort(t)
+	ln, port := testutils.ListenLocal(t)
 	proxyConf := &config.Config{FlagSets: stateOne(), Server: config.Server{Mode: config.ServerModeHTTP, Port: port}}
 	proxyConf.ForceReloadAPIKeys()
 	log := newTestLogger(t)
@@ -189,7 +189,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
-	}, log.ZapLogger)
+	}, log.ZapLogger, api.WithListener(ln))
 	go s.StartWithContext(context.Background())
 	t.Cleanup(func() { s.Stop(context.Background()) })
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
