@@ -109,7 +109,11 @@ func Test_Swagger(t *testing.T) {
 
 				for _, path := range paths {
 					require.Len(t, bodies[path], tt.concurrent)
-					assert.NotEmpty(t, bodies[path][0])
+					if strings.HasSuffix(path, ".json") {
+						assert.True(t, json.Valid([]byte(bodies[path][0])), "%s is a complete JSON document", path)
+					} else {
+						assert.Contains(t, bodies[path][0], "openapi: ", "%s is a complete YAML document", path)
+					}
 					for _, body := range bodies[path] {
 						assert.Equal(t, bodies[path][0], body, path)
 					}

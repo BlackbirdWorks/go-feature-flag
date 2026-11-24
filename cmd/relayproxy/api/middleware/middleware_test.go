@@ -223,27 +223,46 @@ func TestETag(t *testing.T) {
 		name       string
 		entry      string
 		condition  string
+		wantBody   string
 		wantStatus int
 		failing    bool
-		wantBody   bool
 		wantETag   bool
 	}{
-		{name: "no condition", entry: "http", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
+		{name: "no condition", entry: "http", wantStatus: http.StatusOK, wantBody: `{"ok":true}`, wantETag: true},
 		{name: "matching", entry: "http", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
 		{name: "matching weak", entry: "http", condition: "weak", wantStatus: http.StatusNotModified, wantETag: true},
-		{name: "other", entry: "http", condition: "other", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
-		{name: "error untouched", entry: "http", failing: true, wantStatus: http.StatusTeapot, wantBody: true},
-		{name: "huma no condition", entry: "huma", wantStatus: http.StatusOK, wantBody: true, wantETag: true},
+		{
+			name:       "other",
+			entry:      "http",
+			condition:  "other",
+			wantStatus: http.StatusOK,
+			wantBody:   `{"ok":true}`,
+			wantETag:   true,
+		},
+		{name: "error untouched", entry: "http", failing: true, wantStatus: http.StatusTeapot, wantBody: "tea"},
+		{
+			name:       "huma no condition",
+			entry:      "huma",
+			wantStatus: http.StatusOK,
+			wantBody:   `{"name":"x"}` + "\n",
+			wantETag:   true,
+		},
 		{name: "huma matching", entry: "huma", condition: "etag", wantStatus: http.StatusNotModified, wantETag: true},
 		{
 			name:       "huma other",
 			entry:      "huma",
 			condition:  "other",
 			wantStatus: http.StatusOK,
-			wantBody:   true,
+			wantBody:   `{"name":"x"}` + "\n",
 			wantETag:   true,
 		},
-		{name: "huma error untouched", entry: "huma", failing: true, wantStatus: http.StatusTeapot, wantBody: true},
+		{
+			name:       "huma error untouched",
+			entry:      "huma",
+			failing:    true,
+			wantStatus: http.StatusTeapot,
+			wantBody:   `{"Message":"tea","Code":418}` + "\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -283,7 +302,7 @@ func TestETag(t *testing.T) {
 			}
 			rec := serve(h, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
-			assert.Equal(t, tt.wantBody, rec.Body.Len() > 0)
+			assert.Equal(t, tt.wantBody, rec.Body.String())
 			if tt.wantETag {
 				assert.Equal(t, etag, rec.Header().Get("ETag"))
 			} else {
@@ -298,12 +317,13 @@ func TestBodyDump(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		path     string
-		wantDump string
-		wantRead string
+		name       string
+		path       string
+		wantDump   string
+		wantRead   string
+		wantCalled bool
 	}{
-		{name: "dumped", path: "/x", wantDump: "hello", wantRead: "hello"},
+		{name: "dumped", path: "/x", wantDump: "hello", wantRead: "hello", wantCalled: true},
 		{name: "skipped", path: "/skip", wantRead: "hello"},
 	}
 	for _, tt := range tests {
@@ -311,15 +331,17 @@ func TestBodyDump(t *testing.T) {
 			t.Parallel()
 
 			var dumped, read string
+			var called bool
 			h := middleware.BodyDump(
 				func(r *http.Request) bool { return r.URL.Path == "/skip" },
-				func(_ *http.Request, body []byte) { dumped = string(body) },
+				func(_ *http.Request, body []byte) { called, dumped = true, string(body) },
 			)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 				b, _ := io.ReadAll(r.Body)
 				read = string(b)
 			}))
 
 			serve(h, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader("hello")))
+			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")
 			assert.Equal(t, tt.wantDump, dumped)
 			assert.Equal(t, tt.wantRead, read)
 		})
