@@ -20,8 +20,7 @@ FROM golang:1.27 AS build
 WORKDIR /src
 COPY . .
 # GOWORK=off mirrors what CI does (see Makefile): the root module contains
-# modules/core and resolves rules/ through a local replace directive, so no
-# go.work is needed here.
+# modules/core and rules/, so no go.work is needed here.
 ARG VERSION=localdev
 RUN CGO_ENABLED=0 GOWORK=off go build \
     -ldflags="-s -w -X main.version=${VERSION}" \

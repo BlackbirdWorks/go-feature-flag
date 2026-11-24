@@ -25,7 +25,7 @@ Rules enforced by CI and review:
 ## Development setup
 
 Everything is driven by the [`Makefile`](Makefile) (`make help` lists the targets). The repository is a
-two-module Go repository (root module, which includes `modules/core`, and `rules`) that CI builds with the Go workspace
+single-module Go repository (`modules/core` and `rules` are directories of the root module) that CI builds with the Go workspace
 disabled, so export `GOWORK=off` when you do not use a `go.work` file:
 
 ```shell

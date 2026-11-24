@@ -2,7 +2,7 @@ GOCMD=go
 DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
-ALL_GO_MOD_DIRS := ./rules ./
+ALL_GO_MOD_DIRS := ./
 
 # In CI we disable workspace mode.
 ifeq ($(CI),true)
@@ -19,7 +19,7 @@ WHITE  := $(shell tput -Txterm setaf 7)
 CYAN   := $(shell tput -Txterm setaf 6)
 RESET  := $(shell tput -Txterm sgr0)
 
-.PHONY: all test test-unit test-unit-root test-unit-module test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage test-ci-scripts
+.PHONY: all test test-unit test-unit-root test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage test-ci-scripts
 
 SHELL := bash
 
@@ -81,7 +81,7 @@ endif
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Tidying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod tidy);)
 
 tidy-check: tidy ## Check that go.mod and go.sum are tidy (fails if there are uncommitted changes after tidy)
-	git diff --exit-code --quiet go.mod go.sum rules/go.mod rules/go.sum
+	git diff --exit-code --quiet go.mod go.sum
 
 verify: ## Run go mod verify for all modules to validate checksums match go.sum
 	@$(foreach module, $(ALL_GO_MOD_DIRS), (echo "→ Verifying $(module)"; cd $(module) && $(GOWORK_ENV) $(GOCMD) mod verify) &&) true
@@ -115,12 +115,12 @@ generate-helm-docs: ## Generates helm documentation for the project
 
 ## Test:
 # Test types run as separate targets (and separate CI jobs):
-#   test-unit         unit tests, no docker tag (root module including modules/core, rules)
+#   test-unit         unit tests, no docker tag (the single root module, including modules/core and rules)
 #   test-integration  testcontainers tests (azurite, mongo, postgres, redis, ...)
 #   test-e2e          gopherstack-backed e2e tests (tests named *E2E*)
 # Optional variables: COVERPROFILE=<file> writes a coverage profile,
 # TEST_LOG=<file> tees the output, GROUP=<cmd|plugins|rest|all> picks the root
-# unit shard, MODULE=rules picks the module of test-unit-module.
+# unit shard.
 # On the aggregate targets (test, test-unit) the files are suffixed per suite.
 TEST_PKG_SCRIPT := .github/ci-scripts/test-pkgs.sh
 COVER_FLAGS = $(if $(COVERPROFILE),-covermode=atomic -coverprofile=$(abspath $(COVERPROFILE)) $(if $(COVERPKG),-coverpkg=$(COVERPKG)),)
@@ -130,7 +130,7 @@ GOTESTFLAGS ?=
 
 # Aggregate targets (test, test-unit) run several suites. Every suite gets its own
 # file: the suite name is appended to COVERPROFILE / TEST_LOG before the extension
-# (COVERPROFILE=cov/all.out -> cov/all-unit-root.out, cov/all-unit-rules.out, ...).
+# (COVERPROFILE=cov/all.out -> cov/all-unit-root.out, cov/all-integration.out, ...).
 suite_file = $(if $(1),$(basename $(1))-$(2)$(suffix $(1)),)
 suite_make = $(MAKE) --no-print-directory $(1) COVERPROFILE=$(call suite_file,$(COVERPROFILE),$(2)) TEST_LOG=$(call suite_file,$(TEST_LOG),$(2))
 
@@ -139,18 +139,13 @@ test: ## Run every test type (unit, integration, e2e); one coverage/log file per
 	@$(call suite_make,test-integration,integration)
 	@$(call suite_make,test-e2e,e2e)
 
-test-unit: ## Run the unit tests of all modules (no docker); one coverage/log file per module
+test-unit: ## Run the unit tests (no docker); one coverage/log file
 	@$(call suite_make,test-unit-root,unit-root)
-	@$(call suite_make,test-unit-module MODULE=rules,unit-rules)
 
 test-unit-root: ## Run the root module unit tests with the race detector (GROUP=cmd|plugins|rest|all)
 	@set -o pipefail; pkgs=$$($(TEST_PKG_SCRIPT) unit-$(GROUP)); \
 	[ -n "$$pkgs" ] || { echo "no packages in group $(GROUP)"; exit 1; }; \
 	CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race $(COVER_FLAGS) $$pkgs $(TEE)
-
-test-unit-module: ## Run the unit tests of one nested module (MODULE=rules)
-	@test -n "$(MODULE)" || { echo "usage: make test-unit-module MODULE=<dir>"; exit 1; }
-	@set -o pipefail; cd $(MODULE) && CGO_ENABLED=1 GO111MODULE=on $(GOWORK_ENV) $(GOTEST) $(GOTESTFLAGS) -v -race -tags=docker $(COVER_FLAGS) ./... $(TEE)
 
 # The plain unit tests of these packages run again here (the docker tag compiles
 # them together with the container tests). That is cheap and always correct,
@@ -227,9 +222,9 @@ lint-install:
 
 lint-run:
 	@test -n "$(MODULE)" || { echo "usage: make lint-module MODULE=<dir>"; exit 1; }
-	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=20m --config $(if $(wildcard $(MODULE)/.golangci.yml),$(abspath $(MODULE)/.golangci.yml),$(CURDIR)/.golangci.yml) ./...
+	@echo "→ Linting $(MODULE)"; cd $(MODULE) && $(CURDIR)/bin/golangci-lint run --timeout=20m --config $(CURDIR)/.golangci.yml ./...
 
-lint-module: lint-install lint-run ## Lint one module (usage: make lint-module MODULE=rules)
+lint-module: lint-install lint-run ## Lint one module (usage: make lint-module MODULE=./)
 
 # Lints every module and fails at the end if any failed (no early stop).
 lint: lint-install ## Use golintci-lint on all the modules of the project

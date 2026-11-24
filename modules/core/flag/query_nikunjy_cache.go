@@ -9,9 +9,8 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/nikunjy/rules/parser"
-
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 // nikunjyEvaluatorCache keeps one parsed *parser.Evaluator per query string. Parsing the

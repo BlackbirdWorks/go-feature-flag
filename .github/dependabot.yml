@@ -20,7 +20,6 @@ updates:
       - dependency-name: "github.com/blackbirdworks/semaphore*"
       - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
       - dependency-name: "github.com/go-feature-flag/*"
-      - dependency-name: "github.com/nikunjy/rules"
       - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     # Sibling modules share versions: group related updates in one PR.
     groups:
@@ -50,27 +49,5 @@ updates:
       - "automerge"
     commit-message:
       prefix: "chore"
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: gomod
-    directory: "/rules"
-    schedule:
-      interval: daily
-      time: "01:30"
-    open-pull-requests-limit: 20
-    labels:
-      - "dependencies"
-      - "automerge"
-    commit-message:
-      prefix: "chore"
-    # Never let a bot bump a module that is replaced by a local directory or published
-    # by the original upstream project: that would pull upstream code into this tree.
-    ignore:
-      - dependency-name: "github.com/blackbirdworks/semaphore*"
-      - dependency-name: "github.com/thomaspoignant/go-feature-flag*"
-      - dependency-name: "github.com/go-feature-flag/*"
-      - dependency-name: "github.com/nikunjy/rules"
-      - dependency-name: "github.com/thomaspoignant/koanf-http-provider"
     cooldown:
       default-days: 7

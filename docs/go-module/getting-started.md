@@ -6,36 +6,23 @@ go get github.com/blackbirdworks/semaphore
 ```
 
 > [!NOTE]
-> `modules/core` is a directory of the root module, so `go get` needs no second module. Two `replace` directives of the
-> root `go.mod` still do not apply when your module is the consumer, because Go ignores `replace` directives of
-> dependencies:
+> `modules/core` and `rules` are directories of the root module, so `go get` needs no second module. One `replace`
+> directive of the root `go.mod` still does not apply when your module is the consumer, because Go ignores `replace`
+> directives of dependencies:
 >
-> - `github.com/nikunjy/rules => ./rules` (the vendored rules engine, its own module). Your module resolves the
->   upstream `github.com/nikunjy/rules v1.5.0` from the module proxy. It compiles, but it lacks the semver
->   prerelease comparison and the parse-time rejection of invalid rule syntax that this repository relies on: the
->   tests of `modules/core/flag` fail against it (`TestRuleEvaluate` for prerelease versions and
->   `TestRule_validateNikunjyQuery` for malformed parentheses).
 > - `github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0.3`. Your module resolves
 >   `github.com/xitongsys/parquet-go v1.6.2`, which has the AWS Athena v3 (Trino) incompatibility. It only matters if
 >   you import a parquet exporter.
 >
-> `go get github.com/blackbirdworks/semaphore@<branch or commit>` (a remote revision, no local `replace`) was
-> verified to resolve and build `ffclient` and `modules/core/flag` in a fresh module, with the upstream
-> `nikunjy/rules v1.5.0` as described above.
->
-> `go get github.com/blackbirdworks/semaphore@<version>` also needs a published version: no release tag exists on
+> `go get github.com/blackbirdworks/semaphore@<version>` needs a published version: no release tag exists on
 > the repository yet, so use a pseudo-version of a commit of `main` (`@main`) until one is tagged.
-> To get the same behaviour as this repository, repeat the replacements in your `go.mod`, with a checkout of this
-> repository:
+> To get the same behaviour as this repository, repeat the replacement in your `go.mod`:
 >
 > ```
-> replace github.com/nikunjy/rules => ../semaphore/rules
 > replace github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0.3
 > ```
 >
-> Options to remove the need for the `rules` replacement (not done yet): publish `rules` as its own tagged module and
-> require it from the root `go.mod`, or fold it into the root module under a new import path and change the imports.
-> For parquet, drop `xitongsys/parquet-go` or move to a maintained fork under its own module path.
+> Or drop `xitongsys/parquet-go` or move to a maintained fork under its own module path.
 
 ## Create a feature flag configuration
 

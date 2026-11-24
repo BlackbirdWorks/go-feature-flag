@@ -11,8 +11,8 @@
 #   - ireturn.allow: gopherstack-specific entries dropped (linter not enabled).
 #   - exclusions: gopherstack's per-service path rules are dropped; paths for
 #     generated/vendored code of this repo are added (see exclusions.paths).
-#   - modules: root (incl. modules/core) is linted with this file; rules/ keeps its own
-#     rules/.golangci.yml (not linted, as before).
+#   - modules: the single root module (incl. modules/core and rules/) is linted with this file;
+#     only the antlr-generated files under rules/parser are excluded.
 #
 # This file is licensed under the terms of the MIT license https://opensource.org/license/mit
 # Copyright (c) 2021-2025 Marat Reimers
@@ -426,8 +426,6 @@ linters:
     gomoddirectives:
       replace-local: true
       replace-allow-list:
-        # the rules engine lives in rules/ of this repository
-        - github.com/nikunjy/rules
         # fix for Athena v3 parquet query issue - https://github.com/xitongsys/parquet-go/issues/547
         - github.com/xitongsys/parquet-go
         - github.com/apache/thrift

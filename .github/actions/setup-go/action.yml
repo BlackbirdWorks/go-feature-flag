@@ -38,19 +38,15 @@ runs:
         go-version-file: go.mod
         check-latest: true
         cache: ${{ inputs.cache }}
-        cache-dependency-path: |
-          go.sum
-          rules/go.sum
+        cache-dependency-path: go.sum
 
     - name: Download Go modules (retry proxy stream errors)
       if: ${{ inputs.download == 'true' }}
       shell: bash
       run: |
-        for module in . rules; do
-          ok=0
-          for i in 1 2 3 4 5; do
-            if (cd "$module" && go mod download); then ok=1; break; fi
-            sleep $((i * 15))
-          done
-          [[ "$ok" -eq 1 ]] || { echo "go mod download failed in $module"; exit 1; }
+        ok=0
+        for i in 1 2 3 4 5; do
+          if go mod download; then ok=1; break; fi
+          sleep $((i * 15))
         done
+        [[ "$ok" -eq 1 ]] || { echo "go mod download failed"; exit 1; }

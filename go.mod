@@ -11,6 +11,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.3
 	github.com/IBM/sarama v1.62.0
+	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/atc0005/go-teams-notify/v2 v2.14.0
 	github.com/aws/aws-lambda-go v1.55.1
 	github.com/aws/aws-sdk-go-v2 v1.48.0
@@ -23,6 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.53.0
 	github.com/aws/smithy-go v1.28.9
 	github.com/awslabs/aws-lambda-go-api-proxy v0.16.2
+	github.com/blang/semver/v4 v4.0.0
 	github.com/diegoholiveira/jsonlogic/v3 v3.11.0
 	github.com/dustin/go-humanize v1.1.0
 	github.com/fsouza/fake-gcs-server v1.56.1
@@ -48,7 +50,6 @@ require (
 	github.com/labstack/echo-prometheus v0.0.1
 	github.com/labstack/echo/v5 v5.4.7
 	github.com/luci/go-render v0.0.0-20160219211803-9a04cc21af0f
-	github.com/nikunjy/rules v1.5.0
 	github.com/pablor21/echo-etag/v5 v5.0.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/prometheus/client_golang v1.25.0
@@ -110,7 +111,6 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.63.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
-	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apache/arrow-go/v18 v18.9.0 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20211112161151-bc219186db40 // indirect
 	github.com/apache/thrift v0.25.0 // indirect
@@ -129,7 +129,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.53.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -309,9 +308,3 @@ require (
 // This change is needed to keep compatibility with AWS Athena v3 (Trino engine).
 // Check https://github.com/thomaspoignant/go-feature-flag/issues/4569 for more details.
 replace github.com/xitongsys/parquet-go => github.com/rudderlabs/parquet-go v0.0.3
-
-// github.com/nikunjy/rules is built from the maintained fork github.com/go-feature-flag/rules, which lives in
-// the rules/ directory of this repository (see rules/README.md for the pinned upstream commit).
-// It adds proper semver support (prerelease comparison, see https://github.com/thomaspoignant/go-feature-flag/issues/4736)
-// and rejects invalid rule syntax at parse time.
-replace github.com/nikunjy/rules => ./rules

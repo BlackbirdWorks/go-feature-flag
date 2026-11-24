@@ -115,24 +115,15 @@ jobs:
       - uses: $/.github/actions/setup-go
       - run: make build-relayproxy-fips
 
-  # One job per Go module (the root module, which includes modules/core, and
-  # rules) so a failure in one never hides findings in another.
+  # One Go module: the root module, which includes modules/core and rules.
   lint:
-    name: lint (${{ matrix.name }})
+    name: lint
     needs: [changes]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: root
-            module: "."
-          - name: rules
-            module: rules
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -140,13 +131,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: $/.github/actions/setup-go
-      - run: make lint-module MODULE="$LINT_MODULE"
-        env:
-          LINT_MODULE: ${{ matrix.module }}
+      - run: make lint
       # Optional target: it runs only once the Makefile defines it, so this
-      # job needs no change when it lands. Not module specific: root leg only.
+      # job needs no change when it lands.
       - name: Run mulint (if the target exists)
-        if: matrix.name == 'root'
         run: |
           if make -n mulint > /dev/null 2>&1; then
             make mulint
@@ -271,67 +259,6 @@ jobs:
           files: coverage/unit-root-${{ matrix.group }}.out
           flags: unit
           name: unit-root-${{ matrix.group }}
-          fail_ci_if_error: false
-
-  # `rules` is a separate Go module with its own tests (modules/core is part of
-  # the root module and runs in the root shards above).
-  test-unit-modules:
-    name: test (unit, ${{ matrix.module }})
-    needs: [changes]
-    if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - module: rules
-            flag: rules
-            artifact: rules
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          persist-credentials: false
-      - uses: $/.github/actions/setup-go
-      - name: Run unit tests with the race detector
-        env:
-          MODULE: ${{ matrix.module }}
-          ARTIFACT: ${{ matrix.artifact }}
-        run: |
-          mkdir -p test-logs coverage
-          make test-unit-module MODULE="$MODULE" \
-            COVERPROFILE="coverage/unit-$ARTIFACT.out" \
-            TEST_LOG="test-logs/unit-$ARTIFACT.log"
-      - name: Upload test log on failure
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: test-log-unit-${{ matrix.artifact }}
-          path: test-logs/
-          retention-days: 7
-          if-no-files-found: ignore
-      - name: Upload coverage profile
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-unit-${{ matrix.artifact }}
-          path: coverage/
-          retention-days: 7
-          if-no-files-found: ignore
-      - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage/unit-${{ matrix.artifact }}.out
-          flags: ${{ matrix.flag }}
-          name: unit-${{ matrix.artifact }}
           fail_ci_if_error: false
 
   # testcontainers tests (azurite, mongo, postgres, redis, ...): packages with
@@ -459,7 +386,7 @@ jobs:
   # still fails ci-ok through its own result.
   coverage:
     name: coverage
-    needs: [changes, test-unit-root, test-unit-modules, test-integration, test-e2e]
+    needs: [changes, test-unit-root, test-integration, test-e2e]
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -671,7 +598,6 @@ jobs:
       - vulncheck
       - swagger
       - test-unit-root
-      - test-unit-modules
       - test-integration
       - test-e2e
       - coverage

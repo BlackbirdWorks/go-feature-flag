@@ -50,7 +50,7 @@ PR #6565 was merged upstream before the baseline and is part of it, not carried.
 |---|---|---|---|
 | `rules/` | [github.com/go-feature-flag/rules](https://github.com/go-feature-flag/rules) | `3baa4ca8fb5ee47aca90ff6d3227fd4b0be5523b` (pull request #2 "perf: hash index for large IN lists", base `e9704fa7a06c`) | PR #2 closed (not merged) as of 2026-11-23 |
 
-Consumed through `replace github.com/nikunjy/rules => ./rules` in the root `go.mod`.
+Folded into the root Go module as the directory `rules/` (import path `github.com/blackbirdworks/semaphore/rules`); it has no `go.mod` of its own and is linted and tested like the rest of the repository. Origin: `github.com/nikunjy/rules` (MIT, Copyright (c) 2019 Nikunj Yadav), carried through `github.com/go-feature-flag/rules`.
 Re-sync: see "Re-syncing vendored rules/" in the skill. `rules/LICENSE` must stay.
 
 ## Intentional divergences
@@ -60,8 +60,8 @@ Do not port upstream changes in these areas; classify them N/A-BY-DESIGN.
 Done in this tree:
 
 - WASM/WASI build of the evaluation engine removed (`cmd/wasm`, TinyGo-specific code paths, wasm release workflows/scripts).
-- Go toolchain pinned to the latest release (`go 1.27.4`) in all modules.
-- `rules` is consumed through a local `replace` directive, not a released module version. `modules/core` is a plain directory of the root module here (upstream: a separate module).
+- Go toolchain pinned to the latest release (`go 1.27.4`).
+- `rules/` is a plain directory of the root module (import path `github.com/blackbirdworks/semaphore/rules`; upstream and the original: a separate module `github.com/nikunjy/rules` wired by a `replace`). `modules/core` is a plain directory of the root module here (upstream: a separate module).
 - Docs website, bundled OpenFeature provider SDKs (`openfeature/providers`, including the python provider's WASM submodule), `examples/` and the upstream release/community tooling removed; plain Markdown docs live in `docs/`.
 - gopherstack-based end-to-end tests (`testutils/gopherstack`, `*_e2e_test.go`, build tag `docker`).
 
@@ -73,7 +73,7 @@ Done in this tree:
 
 Planned, not done yet:
 
-- Lint rules ported from BlackbirdWorks/gopherstack (`.golangci.yml` currently differs from upstream only by the local `replace` and `rules/` entries).
+- Lint rules ported from BlackbirdWorks/gopherstack (`.golangci.yml` is the gopherstack configuration; `rules/` is linted with it, only its antlr-generated files are excluded).
 - CI reworked.
 
 ## Path and name mapping
@@ -85,6 +85,7 @@ without its Semaphore counterpart.
 |---|---|
 | `github.com/thomaspoignant/go-feature-flag` (root module) | `github.com/blackbirdworks/semaphore` |
 | `github.com/thomaspoignant/go-feature-flag/modules/core` (separate module upstream) | `github.com/blackbirdworks/semaphore/modules/core` (package directory of the root module) |
+| `github.com/nikunjy/rules` (`replace`d to `rules/` upstream) | `github.com/blackbirdworks/semaphore/rules` (package directory of the root module) |
 | `github.com/thomaspoignant/koanf-http-provider` | `github.com/blackbirdworks/semaphore/internal/koanfhttpprovider` |
 | `cmd/relayproxy/handler/goff/` | `cmd/relayproxy/handler/semaphore/` |
 | `cmd/relayproxy/api/routes_goff.go` | `cmd/relayproxy/api/routes_semaphore.go` |

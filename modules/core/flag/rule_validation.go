@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	"github.com/diegoholiveira/jsonlogic/v3"
-	"github.com/nikunjy/rules/parser"
+
+	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
 // IsValid is checking if the rule is valid.

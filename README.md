@@ -20,7 +20,7 @@ ones. See the [migration table](docs/migration/rename-to-semaphore.md).
 
 ## How it differs from upstream
 
-- The rules engine is vendored in-repo (`rules/`).
+- The rules engine is vendored in-repo (`rules/`, a directory of the root Go module).
 - No WASM / TinyGo build.
 - No bundled provider SDKs and no website: use the standard OpenFeature SDKs with OFREP, and the Markdown docs in [`docs/`](docs/README.md).
 
