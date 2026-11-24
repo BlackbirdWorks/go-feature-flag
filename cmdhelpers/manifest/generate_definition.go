@@ -9,19 +9,46 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
-func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (
+// Option configures the generation of the flag definitions.
+type Option func(*options)
+
+type options struct {
+	logger *slog.Logger
+}
+
+// WithLogger sets the logger that receives the warnings and errors about the flags that are
+// ignored. The default is slog.Default().
+func WithLogger(logger *slog.Logger) Option {
+	return func(o *options) {
+		if logger != nil {
+			o.logger = logger
+		}
+	}
+}
+
+func newOptions(opts []Option) options {
+	o := options{logger: slog.Default()}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
+	return o
+}
+
+func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
+	logger := newOptions(opts).logger
 	definitions := make(map[string]model.FlagDefinition)
 
 	for k, v := range flags {
 		v, ok := v.(*flag.InternalFlag)
 		if !ok || v == nil {
-			slog.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", k))
+			logger.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", k))
 
 			continue
 		}
 		if v.Variations == nil {
-			slog.Error(fmt.Sprintf("flag %s ignored: no variations provided", k))
+			logger.Error(fmt.Sprintf("flag %s ignored: no variations provided", k))
 
 			continue
 		}
@@ -38,7 +65,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (
 
 		defaultValue, ok := (*metadata)["defaultValue"]
 		if !ok {
-			slog.Warn(fmt.Sprintf("flag %s ignored: no default value provided", k))
+			logger.Warn(fmt.Sprintf("flag %s ignored: no default value provided", k))
 
 			continue
 		}
@@ -59,7 +86,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag) (
 	return definitions, nil
 }
 
-func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag) (
+func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
 	asFlag := make(map[string]flag.Flag, len(flags))
 	for name := range flags {
@@ -67,5 +94,5 @@ func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag) (
 		asFlag[name] = &f
 	}
 
-	return GenerateDefinitionFromFlags(asFlag)
+	return GenerateDefinitionFromFlags(asFlag, opts...)
 }

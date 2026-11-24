@@ -18,8 +18,7 @@ import (
 
 // captureHandler stores every slog record so tests can assert message content
 // and severity emitted by GenerateDefinition. The handler is wired in as the
-// default slog logger via slog.SetDefault so it intercepts the package-level
-// slog calls performed by the code under test.
+// logger passed with manifest.WithLogger.
 type captureHandler struct {
 	msgs   []string
 	levels []slog.Level
@@ -35,17 +34,12 @@ func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 func (h *captureHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *captureHandler) WithGroup(string) slog.Handler      { return h }
 
-// installCaptureLogger swaps the default slog logger for one backed by a
-// captureHandler and registers a cleanup that restores the previous default,
-// so each subtest gets an isolated capture.
-func installCaptureLogger(t *testing.T) *captureHandler {
-	t.Helper()
+// newCaptureLogger returns a logger backed by a captureHandler (one per test case, so the
+// cases can run in parallel) and the handler to inspect.
+func newCaptureLogger() (*slog.Logger, *captureHandler) {
 	h := &captureHandler{}
-	previous := slog.Default()
-	slog.SetDefault(slog.New(h))
-	t.Cleanup(func() { slog.SetDefault(previous) })
 
-	return h
+	return slog.New(h), h
 }
 
 // variationsPtr builds the *map[string]*any value expected by InternalFlag.Variations
@@ -108,8 +102,9 @@ func readGolden(t *testing.T, name string) string {
 	return string(data)
 }
 
-//nolint:paralleltest,tparallel // swaps the process-wide default slog logger (slog.SetDefault) to capture the records of the package-level slog calls in the code under test
 func TestGenerateDefinition(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		flags      map[string]flag.InternalFlag
@@ -352,9 +347,11 @@ func TestGenerateDefinition(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := installCaptureLogger(t)
+			t.Parallel()
 
-			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags)
+			logger, handler := newCaptureLogger()
+
+			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags, manifest.WithLogger(logger))
 
 			if tt.wantErr != "" {
 				require.Error(t, err)

@@ -12,8 +12,20 @@ type Logger struct {
 	config    zap.Config
 }
 
-func InitLogger() *Logger {
+// Option configures the logger.
+type Option func(*zap.Config)
+
+// WithOutputPaths sets where the logger writes (zap output paths: files, "stdout", "stderr").
+// The default is stderr.
+func WithOutputPaths(paths ...string) Option {
+	return func(c *zap.Config) { c.OutputPaths = paths }
+}
+
+func InitLogger(opts ...Option) *Logger {
 	zapConfig := zap.NewProductionConfig()
+	for _, opt := range opts {
+		opt(&zapConfig)
+	}
 	zapLogger, _ := zapConfig.Build()
 
 	logger := Logger{

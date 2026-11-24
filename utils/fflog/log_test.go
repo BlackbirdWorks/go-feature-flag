@@ -12,8 +12,9 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Error(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		msg           string
 		keysAndValues []any
@@ -27,19 +28,19 @@ func TestFFLogger_Error(t *testing.T) {
 		{
 			name: "Test Happy Path - slog",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
 				msg:           "Error message",
 				keysAndValues: nil,
 			},
-			expectedLog: "ERROR Error message" + "\n",
+			expectedLog: `level=ERROR msg="Error message"` + "\n",
 		},
 		{
 			name: "Test Happy Path - slog with keys and values",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
@@ -49,7 +50,7 @@ func TestFFLogger_Error(t *testing.T) {
 					slog.String("toto", "test"),
 				},
 			},
-			expectedLog: "ERROR Error message test=toto toto=test" + "\n",
+			expectedLog: `level=ERROR msg="Error message" test=toto toto=test` + "\n",
 		},
 		{
 			name: "Test Happy Path - legacy",
@@ -97,13 +98,27 @@ func TestFFLogger_Error(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
 
-			log.SetOutput(file)
+			legacy := tt.logger != nil && tt.logger.LeveledLogger == nil && tt.logger.LegacyLogger != nil
+			if tt.logger != nil && tt.logger.LeveledLogger != nil {
+				tt.logger.LeveledLogger = slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							return slog.Attr{}
+						}
+
+						return a
+					},
+				}))
+			}
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -116,18 +131,22 @@ func TestFFLogger_Error(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
-			if len(string(content)) >= 21 {
-				actualWithoutTimestamp := string(content)[20:]
-				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
-			} else {
-				assert.Equal(t, tt.expectedLog, string(content))
+			actual := string(content)
+			if legacy {
+				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
+				const timestampLen = len("2006/01/02 15:04:05 ")
+				if len(actual) >= timestampLen {
+					actual = actual[timestampLen:]
+				}
 			}
+			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Warn(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		msg           string
 		keysAndValues []any
@@ -141,19 +160,19 @@ func TestFFLogger_Warn(t *testing.T) {
 		{
 			name: "Test Happy Path - slog",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
 				msg:           "Warn message",
 				keysAndValues: nil,
 			},
-			expectedLog: "WARN Warn message" + "\n",
+			expectedLog: `level=WARN msg="Warn message"` + "\n",
 		},
 		{
 			name: "Test Happy Path - slog with keys and values",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
@@ -163,7 +182,7 @@ func TestFFLogger_Warn(t *testing.T) {
 					slog.String("toto", "test"),
 				},
 			},
-			expectedLog: "WARN Warn message test=toto toto=test" + "\n",
+			expectedLog: `level=WARN msg="Warn message" test=toto toto=test` + "\n",
 		},
 		{
 			name: "Test Happy Path - legacy",
@@ -211,13 +230,27 @@ func TestFFLogger_Warn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
 
-			log.SetOutput(file)
+			legacy := tt.logger != nil && tt.logger.LeveledLogger == nil && tt.logger.LegacyLogger != nil
+			if tt.logger != nil && tt.logger.LeveledLogger != nil {
+				tt.logger.LeveledLogger = slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							return slog.Attr{}
+						}
+
+						return a
+					},
+				}))
+			}
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -230,18 +263,22 @@ func TestFFLogger_Warn(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
-			if len(string(content)) >= 21 {
-				actualWithoutTimestamp := string(content)[20:]
-				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
-			} else {
-				assert.Equal(t, tt.expectedLog, string(content))
+			actual := string(content)
+			if legacy {
+				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
+				const timestampLen = len("2006/01/02 15:04:05 ")
+				if len(actual) >= timestampLen {
+					actual = actual[timestampLen:]
+				}
 			}
+			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Info(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		msg           string
 		keysAndValues []any
@@ -255,19 +292,19 @@ func TestFFLogger_Info(t *testing.T) {
 		{
 			name: "Test Happy Path - slog",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
 				msg:           "Info message",
 				keysAndValues: nil,
 			},
-			expectedLog: "INFO Info message" + "\n",
+			expectedLog: `level=INFO msg="Info message"` + "\n",
 		},
 		{
 			name: "Test Happy Path - slog with keys and values",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
@@ -277,7 +314,7 @@ func TestFFLogger_Info(t *testing.T) {
 					slog.String("toto", "test"),
 				},
 			},
-			expectedLog: "INFO Info message test=toto toto=test" + "\n",
+			expectedLog: `level=INFO msg="Info message" test=toto toto=test` + "\n",
 		},
 		{
 			name: "Test Happy Path - legacy",
@@ -325,13 +362,27 @@ func TestFFLogger_Info(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
 			defer func() {
 				_ = os.Remove(file.Name())
 			}()
 
-			log.SetOutput(file)
+			legacy := tt.logger != nil && tt.logger.LeveledLogger == nil && tt.logger.LegacyLogger != nil
+			if tt.logger != nil && tt.logger.LeveledLogger != nil {
+				tt.logger.LeveledLogger = slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							return slog.Attr{}
+						}
+
+						return a
+					},
+				}))
+			}
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -344,18 +395,22 @@ func TestFFLogger_Info(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
-			if len(string(content)) >= 21 {
-				actualWithoutTimestamp := string(content)[20:]
-				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
-			} else {
-				assert.Equal(t, tt.expectedLog, string(content))
+			actual := string(content)
+			if legacy {
+				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
+				const timestampLen = len("2006/01/02 15:04:05 ")
+				if len(actual) >= timestampLen {
+					actual = actual[timestampLen:]
+				}
 			}
+			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
 }
 
-//nolint:paralleltest,tparallel // replaces the default log output
 func TestFFLogger_Debug(t *testing.T) {
+	t.Parallel()
+
 	type fields struct {
 		msg           string
 		keysAndValues []any
@@ -369,19 +424,19 @@ func TestFFLogger_Debug(t *testing.T) {
 		{
 			name: "Test Happy Path - slog",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
 				msg:           "Debug message",
 				keysAndValues: nil,
 			},
-			expectedLog: "DEBUG Debug message" + "\n",
+			expectedLog: `level=DEBUG msg="Debug message"` + "\n",
 		},
 		{
 			name: "Test Happy Path - slog with keys and values",
 			logger: &fflog.FFLogger{
-				LeveledLogger: slog.Default(),
+				LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 				LegacyLogger:  log.New(os.Stdout, "", 0),
 			},
 			fields: fields{
@@ -391,7 +446,7 @@ func TestFFLogger_Debug(t *testing.T) {
 					slog.String("toto", "test"),
 				},
 			},
-			expectedLog: "DEBUG Debug message test=toto toto=test" + "\n",
+			expectedLog: `level=DEBUG msg="Debug message" test=toto toto=test` + "\n",
 		},
 		{
 			name: "Test Happy Path - legacy",
@@ -439,6 +494,8 @@ func TestFFLogger_Debug(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			slog.SetLogLoggerLevel(slog.LevelDebug)
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
@@ -446,7 +503,19 @@ func TestFFLogger_Debug(t *testing.T) {
 				_ = os.Remove(file.Name())
 			}()
 
-			log.SetOutput(file)
+			legacy := tt.logger != nil && tt.logger.LeveledLogger == nil && tt.logger.LegacyLogger != nil
+			if tt.logger != nil && tt.logger.LeveledLogger != nil {
+				tt.logger.LeveledLogger = slog.New(slog.NewTextHandler(file, &slog.HandlerOptions{
+					Level: slog.LevelDebug,
+					ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+						if a.Key == slog.TimeKey {
+							return slog.Attr{}
+						}
+
+						return a
+					},
+				}))
+			}
 			if tt.logger != nil && tt.logger.LegacyLogger != nil {
 				tt.logger.LegacyLogger.SetOutput(file)
 			}
@@ -459,12 +528,15 @@ func TestFFLogger_Debug(t *testing.T) {
 
 			content, err := os.ReadFile(file.Name())
 			require.NoError(t, err)
-			if len(string(content)) >= 21 {
-				actualWithoutTimestamp := string(content)[20:]
-				assert.Equal(t, tt.expectedLog, actualWithoutTimestamp)
-			} else {
-				assert.Equal(t, tt.expectedLog, string(content))
+			actual := string(content)
+			if legacy {
+				// The legacy logger prefixes the lines with the current time (yyyy/mm/dd hh:mm:ss ).
+				const timestampLen = len("2006/01/02 15:04:05 ")
+				if len(actual) >= timestampLen {
+					actual = actual[timestampLen:]
+				}
 			}
+			assert.Equal(t, tt.expectedLog, actual)
 		})
 	}
 }
@@ -482,7 +554,7 @@ func TestGetLogLogger(t *testing.T) {
 
 	l := log.New(os.Stdout, "", 0)
 	ffl := &fflog.FFLogger{
-		LeveledLogger: slog.Default(),
+		LeveledLogger: slog.New(slog.DiscardHandler), // replaced by a per-case handler writing to the case file
 		LegacyLogger:  l,
 	}
 
