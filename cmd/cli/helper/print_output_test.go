@@ -8,6 +8,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
@@ -88,4 +89,29 @@ func TestPrintFatal(t *testing.T) {
 	assert.True(t, called, "the exit function should have been called")
 	assert.Equal(t, 1, gotCode)
 	assert.Equal(t, "ERROR: error executing command: boom\n", buf.String())
+}
+
+func TestLegacyWarner(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		kinds []string
+	}{
+		{name: "one kind several times", kinds: []string{"flag-file", "flag-file"}},
+		{name: "two kinds", kinds: []string{"flag-file", "config-file"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			w := helper.LegacyWarner()
+			require.NotNil(t, w)
+			assert.NotPanics(t, func() {
+				for _, k := range tt.kinds {
+					w.Warn(k, "legacy name")
+				}
+			})
+		})
+	}
 }

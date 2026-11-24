@@ -1009,3 +1009,72 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 		})
 	}
 }
+
+func TestGoFeatureFlag_SetOfflineWithContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		offline         bool
+		wantOffline     bool
+		wantForceResult bool
+	}{
+		{name: "going offline", offline: true, wantOffline: true, wantForceResult: false},
+		{name: "staying online", offline: false, wantOffline: false, wantForceResult: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := ffclient.New(ffclient.Config{
+				PollingInterval: 1 * time.Second,
+				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			})
+			require.NoError(t, err)
+			defer client.Close()
+
+			client.SetOfflineWithContext(t.Context(), tt.offline)
+
+			assert.Equal(t, tt.wantOffline, client.IsOffline())
+			assert.Equal(t, tt.wantForceResult, client.ForceRefresh(), "an offline client does not refresh")
+		})
+	}
+}
+
+func TestGoFeatureFlag_EvaluationService(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		offline bool
+	}{
+		{name: "online client", offline: false},
+		{name: "offline client", offline: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			first, err := ffclient.New(ffclient.Config{
+				Offline:   tt.offline,
+				Retriever: &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			})
+			require.NoError(t, err)
+			defer first.Close()
+			second, err := ffclient.New(ffclient.Config{
+				Offline:   tt.offline,
+				Retriever: &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+			})
+			require.NoError(t, err)
+			defer second.Close()
+
+			assert.NotNil(t, first.EvaluationService())
+			assert.NotSame(
+				t,
+				first.EvaluationService(),
+				second.EvaluationService(),
+				"two clients never share their Service",
+			)
+		})
+	}
+}

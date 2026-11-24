@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
@@ -214,17 +215,18 @@ func TestNewErrorHandler(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		err     error
-		wantLog []observer.LoggedEntry
+		name        string
+		err         error
+		wantLevel   zapcore.Level
+		wantMessage string
+		wantContext []zapcore.Field
 	}{
 		{
-			name: "the error is logged to zap",
-			err:  errors.New("test error"),
-			wantLog: []observer.LoggedEntry{{
-				Entry:   zapcore.Entry{Level: zap.ErrorLevel, Message: "OTel error"},
-				Context: []zapcore.Field{zap.Error(errors.New("test error"))},
-			}},
+			name:        "the error is logged to zap",
+			err:         errors.New("test error"),
+			wantLevel:   zap.ErrorLevel,
+			wantMessage: "OTel error",
+			wantContext: []zapcore.Field{zap.Error(errors.New("test error"))},
 		},
 	}
 	for _, tt := range tests {
@@ -234,7 +236,11 @@ func TestNewErrorHandler(t *testing.T) {
 			obs, logs := observer.New(zap.InfoLevel)
 			newErrorHandler(zap.New(obs)).Handle(tt.err)
 
-			assert.Equal(t, tt.wantLog, logs.AllUntimed())
+			got := logs.AllUntimed()
+			require.Len(t, got, 1)
+			assert.Equal(t, tt.wantLevel, got[0].Level)
+			assert.Equal(t, tt.wantMessage, got[0].Message)
+			assert.Equal(t, tt.wantContext, got[0].Context)
 		})
 	}
 }
@@ -261,6 +267,11 @@ func TestInstall(t *testing.T) {
 	svc.Install(zap.NewNop())
 
 	assert.Same(t, svc.otelTraceProvider, otel.GetTracerProvider())
+
+	// a service that found OpenTelemetry disabled installs a no-op provider
+	disabled := NewOtelService()
+	disabled.Install(zap.NewNop())
+	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
 //nolint:paralleltest,tparallel // ExportEnvironment and t.Setenv change the process environment, which the OpenTelemetry SDK reads

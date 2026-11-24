@@ -370,7 +370,8 @@ func summarize(samples []Sample, hists [][]int64, warm, perCall int) Window {
 // the one of the first half; the run fails when it grew by more than both HeapTolerance of the
 // first and HeapMinGrowthBytes. The median ignores the sawtooth of the events that wait for their
 // flush (a sample taken just before a flush sees the whole backlog, one just after it sees none),
-// which a peak or a single sample does not: a leak raises the median, a bounded backlog does not. It also fails when the goroutine count exceeds its value at the end of
+// which a peak or a single sample does not: a leak raises the median, a bounded backlog does not.
+// It also fails when the goroutine count exceeds its value at the end of
 // the warm-up by more than GoroutineSlack.
 func judge(r *Report, o Options) {
 	r.Pass = true

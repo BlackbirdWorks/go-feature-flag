@@ -60,7 +60,7 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 		&o.maxEvents,
 		"max-events",
 		10000,
-		"exporter MaxEventInMemory (a small bounded backlog keeps the heap measuring leaks, not the events that wait for their flush)",
+		"exporter MaxEventInMemory (a small backlog keeps the heap measuring leaks, not the pending events)",
 	)
 	fs.IntVar(&o.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
 	fs.Float64Var(&o.heapTolerance, "heap-tolerance", 0.25, "relative HeapInuse growth tolerated")

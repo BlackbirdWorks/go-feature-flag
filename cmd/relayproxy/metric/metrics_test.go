@@ -247,3 +247,25 @@ func TestMetrics_IncGetManifestCall(t *testing.T) {
 	metricSrv.IncGetManifestCall()
 	assert.InDelta(t, 3.0, testutil.ToFloat64(metricSrv.getManifestCounter), 0)
 }
+
+func TestMetrics_VersionOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		version     string
+		wantOptions int
+	}{
+		{name: "no version keeps the one of the binary", version: "", wantOptions: 0},
+		{name: "a version overrides the label", version: "1.2.3", wantOptions: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Len(t, versionOptions(tt.version), tt.wantOptions)
+			_, err := NewMetrics(MetricsOpts{Version: tt.version})
+			require.NoError(t, err)
+		})
+	}
+}

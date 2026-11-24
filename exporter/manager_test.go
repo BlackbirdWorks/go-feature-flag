@@ -531,7 +531,7 @@ func goroutinesLabeled(key, value string) int {
 	}
 	want := fmt.Sprintf("%q:%q", key, value)
 	total, current := 0, 0
-	for _, line := range strings.Split(buf.String(), "\n") {
+	for line := range strings.SplitSeq(buf.String(), "\n") {
 		if n, _, ok := strings.Cut(line, " @ "); ok {
 			if v, err := strconv.Atoi(n); err == nil {
 				current = v
