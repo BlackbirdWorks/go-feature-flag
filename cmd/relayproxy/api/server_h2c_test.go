@@ -54,7 +54,7 @@ func TestServerEnableH2C(t *testing.T) {
 			fm, err := service.NewFlagsetManager(conf, log.Slog,
 				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, ws)
 			require.NoError(t, err)
-			s := api.New(conf, service.Services{
+			s := newTestServer(t, conf, service.Services{
 				MonitoringService: service.NewMonitoring(
 					fm,
 				),

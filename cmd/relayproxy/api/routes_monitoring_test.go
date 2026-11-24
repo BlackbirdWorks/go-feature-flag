@@ -74,7 +74,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 
 			flagsetManager, err := service.NewFlagsetManager(c, z, []notifier.Notifier{}, nil, nil)
 			require.NoError(t, err)
-			apiServer := api.New(c, service.Services{
+			apiServer := newTestServer(t, c, service.Services{
 				MonitoringService: service.NewMonitoring(flagsetManager),
 				WebsocketService:  stream.NewWebsocketService(),
 				FlagsetManager:    flagsetManager,

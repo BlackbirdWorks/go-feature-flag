@@ -713,6 +713,66 @@ func TestConfig_IsValid(t *testing.T) {
 			wantErr: assert.Error,
 		},
 		{
+			name: "mixed case log level",
+			fields: fields{
+				Server: config.Server{
+					Port: 8080,
+					Mode: config.ServerModeHTTP,
+				},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: "../testdata/config/valid-file.yaml",
+				},
+				LogLevel: "DeBuG",
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "warning alias log level",
+			fields: fields{
+				Server: config.Server{
+					Port: 8080,
+					Mode: config.ServerModeHTTP,
+				},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: "../testdata/config/valid-file.yaml",
+				},
+				LogLevel: "warning",
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "panic log level",
+			fields: fields{
+				Server: config.Server{
+					Port: 8080,
+					Mode: config.ServerModeHTTP,
+				},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: "../testdata/config/valid-file.yaml",
+				},
+				LogLevel: "panic",
+			},
+			wantErr: assert.NoError,
+		},
+		{
+			name: "dpanic log level",
+			fields: fields{
+				Server: config.Server{
+					Port: 8080,
+					Mode: config.ServerModeHTTP,
+				},
+				Retriever: &retrieverconf.RetrieverConf{
+					Kind: "file",
+					Path: "../testdata/config/valid-file.yaml",
+				},
+				LogLevel: "DPANIC",
+			},
+			wantErr: assert.NoError,
+		},
+		{
 			name: "log level is not set but debug is set",
 			fields: fields{
 				Server: config.Server{

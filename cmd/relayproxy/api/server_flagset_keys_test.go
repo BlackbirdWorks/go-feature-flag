@@ -51,7 +51,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(flagsetManager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,

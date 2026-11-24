@@ -35,7 +35,7 @@ func TestServer_WithListener(t *testing.T) {
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},

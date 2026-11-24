@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -493,7 +494,12 @@ func newAPIServerWithLogger(
 
 	c.AttachConfigChangeCallback(callback)
 
-	s := api.New(c, services, logger, api.WithListener(ln))
+	// a fatal error of the server fails the test and ends the goroutine of the server instead of the process.
+	exit := func() {
+		assert.Fail(t, "the server exited with a fatal error")
+		runtime.Goexit()
+	}
+	s := api.New(c, services, logger, api.WithExit(exit), api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 
 	return s, c

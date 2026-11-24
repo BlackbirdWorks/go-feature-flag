@@ -67,7 +67,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		FlagsetManager:    manager,
 		Metrics:           metrics,
 	}
-	s := api.New(proxyConf, services, log.Slog, api.WithListener(ln))
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {

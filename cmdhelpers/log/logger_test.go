@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"os"
@@ -164,16 +165,37 @@ func callerPC(t *testing.T) uintptr {
 	return pcs[0]
 }
 
+// logHere is small enough to be inlined into its caller: the caller field must still be the line that called it.
+func logHere(l *slog.Logger) {
+	l.LogAttrs(context.Background(), slog.LevelInfo, "inlined") // call site: inlined-record
+}
+
 func TestCallerField(t *testing.T) {
 	t.Parallel()
 
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	// the call sites are on the lines found by their marker, so the test does not break when lines move.
+	lineOf := func(marker string) int {
+		src, err := os.ReadFile(thisFile)
+		require.NoError(t, err)
+		for i, line := range strings.Split(string(src), "\n") {
+			if strings.HasSuffix(line, "// call site: "+marker) {
+				return i + 1
+			}
+		}
+		require.FailNow(t, "marker not found", marker)
+
+		return 0
+	}
+
 	tests := []struct {
-		wantCaller *regexp.Regexp
 		name       string
 		format     string
+		wantFormat string
 	}{
-		{name: "json", format: "json", wantCaller: regexp.MustCompile(`"caller":"log/logger_test.go:\d+"`)},
-		{name: "logfmt", format: "logfmt", wantCaller: regexp.MustCompile(`caller=log/logger_test.go:\d+ `)},
+		{name: "json", format: "json", wantFormat: `"caller":"log/logger_test.go:%d"`},
+		{name: "logfmt", format: "logfmt", wantFormat: `caller=log/logger_test.go:%d `},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -183,9 +205,13 @@ func TestCallerField(t *testing.T) {
 			logger, err := log.New(tt.format, "info", log.WithWriter(&out))
 			require.NoError(t, err)
 
-			logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "hello")
+			logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "direct") // call site: direct
+			logHere(logger.Slog)
 
-			assert.Regexp(t, tt.wantCaller, out.String())
+			lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+			require.Len(t, lines, 2)
+			assert.Contains(t, lines[0], fmt.Sprintf(tt.wantFormat, lineOf("direct")))
+			assert.Contains(t, lines[1], fmt.Sprintf(tt.wantFormat, lineOf("inlined-record")))
 		})
 	}
 }
@@ -205,7 +231,14 @@ func TestLevels(t *testing.T) {
 		{name: "error", level: "error", wantShown: []string{"error", "fatal"}},
 		{name: "fatal", level: "fatal", wantShown: []string{"fatal"}},
 		{name: "dpanic", level: "dpanic", wantShown: []string{"fatal"}},
+		{name: "mixed case", level: "DeBuG", wantShown: []string{"debug", "info", "warn", "error", "fatal"}},
+		{name: "warning alias", level: "warning", wantShown: []string{"warn", "error", "fatal"}},
+		{name: "upper warning alias", level: "WARNING", wantShown: []string{"warn", "error", "fatal"}},
+		{name: "mixed case panic", level: "PaNiC", wantShown: []string{"fatal"}},
 		{name: "unknown", level: "verbose", wantErr: log.ErrUnrecognizedLevel},
+		{name: "padded", level: " info", wantErr: log.ErrUnrecognizedLevel},
+		{name: "numeric", level: "1", wantErr: log.ErrUnrecognizedLevel},
+		{name: "warnings", level: "warnings", wantErr: log.ErrUnrecognizedLevel},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

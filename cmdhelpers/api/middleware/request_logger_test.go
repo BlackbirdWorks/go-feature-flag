@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v5"
+	echomiddleware "github.com/labstack/echo/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -311,4 +312,51 @@ func TestRequestLoggerRequestIDFromResponse(t *testing.T) {
 	require.NoError(t, middleware.RequestLogger(obs, false)(h)(c))
 
 	assert.Equal(t, "from-response", logs.All()[0].ContextMap()["request_id"])
+}
+
+// TestRequestLoggerReturnedErrors drives real requests through the echo stack to handlers that return an error or
+// panic. The logger reads the status of the response when the handler returns, before echo's error handler writes
+// the status of a returned error: the record is the "Success" one with status 200, at the debug level, exactly as
+// the zap based middleware of the previous version logged it (checked on main). The test pins that behaviour.
+func TestRequestLoggerReturnedErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		handler        func(*echo.Context) error
+		name           string
+		wantRespStatus int
+	}{
+		{name: "not found", handler: func(*echo.Context) error { return echo.NewHTTPError(http.StatusNotFound, "nf") },
+			wantRespStatus: http.StatusNotFound},
+		{
+			name:           "unauthorized",
+			handler:        func(*echo.Context) error { return echo.NewHTTPError(http.StatusUnauthorized, "no") },
+			wantRespStatus: http.StatusUnauthorized,
+		},
+		{name: "plain error", handler: func(*echo.Context) error { return errBoom },
+			wantRespStatus: http.StatusInternalServerError},
+		{name: "panic", handler: func(*echo.Context) error { panic("boom") },
+			wantRespStatus: http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			obs, logs := slogutil.NewObserver(slog.LevelDebug)
+			e := echo.New()
+			e.Use(middleware.RequestLogger(obs, false))
+			e.Use(echomiddleware.Recover())
+			e.GET("/x", tt.handler)
+			rec := httptest.NewRecorder()
+
+			e.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
+
+			assert.Equal(t, tt.wantRespStatus, rec.Code)
+			got := logs.All()
+			require.Len(t, got, 1)
+			assert.Equal(t, slog.LevelDebug, got[0].Level)
+			assert.Equal(t, "Success", got[0].Message)
+			assert.Equal(t, int64(http.StatusOK), got[0].ContextMap()["status"])
+		})
+	}
 }

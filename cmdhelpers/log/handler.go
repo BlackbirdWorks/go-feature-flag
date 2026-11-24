@@ -53,15 +53,18 @@ const (
 
 // core is what the handlers derived from each other (With, WithGroup) share.
 type core struct {
-	out    io.Writer
-	pool   sync.Pool
-	level  slog.LevelVar
-	mu     sync.Mutex
-	format atomic.Int32
+	out  io.Writer
+	pool sync.Pool
+	// sites caches the call site of each program counter, see callSite.
+	sites   map[uintptr]string
+	level   slog.LevelVar
+	sitesMu sync.RWMutex
+	mu      sync.Mutex
+	format  atomic.Int32
 }
 
 func newCore(out io.Writer) *core {
-	c := &core{out: out}
+	c := &core{out: out, sites: map[uintptr]string{}}
 	c.pool.New = func() any {
 		b := make([]byte, 0, initialBuffer)
 
@@ -132,7 +135,7 @@ func (h *handler) Handle(_ context.Context, r slog.Record) error {
 		buf = append(buf, levelName(r.Level)...)
 	}
 	if r.PC != 0 {
-		buf = appendCaller(buf, isJSON, r.PC)
+		buf = h.core.appendCaller(buf, isJSON, r.PC)
 	}
 	buf = appendKey(buf, isJSON, MessageKey)
 	buf = appendString(buf, isJSON, r.Message)
@@ -168,35 +171,56 @@ func appendSeconds(buf []byte, t time.Time) []byte {
 }
 
 // appendCaller adds the "dir/file.go:line" of the program counter.
-func appendCaller(buf []byte, isJSON bool, pc uintptr) []byte {
-	fn := runtime.FuncForPC(pc)
-	if fn == nil {
+func (c *core) appendCaller(buf []byte, isJSON bool, pc uintptr) []byte {
+	site := c.callSite(pc)
+	if site == "" {
 		return buf
-	}
-	file, line := fn.FileLine(pc)
-	// keep the last 2 elements of the path.
-	idx := lastIndexByte(file, '/')
-	if idx >= 0 {
-		for i := 1; i < callerPathElements; i++ {
-			idx = lastIndexByte(file[:idx], '/')
-			if idx < 0 {
-				break
-			}
-		}
-		file = file[idx+1:]
 	}
 	buf = appendKey(buf, isJSON, CallerKey)
 	if isJSON {
 		buf = append(buf, '"')
 	}
-	buf = appendEscaped(buf, file)
-	buf = append(buf, ':')
-	buf = strconv.AppendInt(buf, int64(line), base10)
+	buf = appendEscaped(buf, site)
 	if isJSON {
 		buf = append(buf, '"')
 	}
 
 	return buf
+}
+
+// callSite returns the "dir/file.go:line" of a program counter. The program counter is a return address that may
+// stand for inlined calls, only [runtime.CallersFrames] resolves it exactly, and it allocates: the result is
+// kept per program counter (there is one per call site), so the logging path does not allocate after the first
+// record of a call site.
+func (c *core) callSite(pc uintptr) string {
+	c.sitesMu.RLock()
+	site, ok := c.sites[pc]
+	c.sitesMu.RUnlock()
+	if ok {
+		return site
+	}
+	pcs := [1]uintptr{pc}
+	frame, _ := runtime.CallersFrames(pcs[:]).Next()
+	if frame.File != "" {
+		file := frame.File
+		// keep the last 2 elements of the path.
+		idx := lastIndexByte(file, '/')
+		if idx >= 0 {
+			for i := 1; i < callerPathElements; i++ {
+				idx = lastIndexByte(file[:idx], '/')
+				if idx < 0 {
+					break
+				}
+			}
+			file = file[idx+1:]
+		}
+		site = file + ":" + strconv.Itoa(frame.Line)
+	}
+	c.sitesMu.Lock()
+	c.sites[pc] = site
+	c.sitesMu.Unlock()
+
+	return site
 }
 
 func lastIndexByte(s string, c byte) int {

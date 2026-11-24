@@ -85,7 +85,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(realManager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(realManager),
 		WebsocketService:  wsService,
 		SSEService:        sseService,
@@ -196,7 +196,7 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
 
-	s := api.New(proxyConf, service.Services{
+	s := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
