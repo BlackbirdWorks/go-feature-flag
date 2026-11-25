@@ -13,7 +13,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -30,26 +30,26 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 
 	tests := []struct {
 		want   any
-		mutate func(f *flag.InternalFlag)
-		read   func(f flag.Flag) any
+		mutate func(f *flagdef.InternalFlag)
+		read   func(f flagdef.Flag) any
 		name   string
 	}{
 		{
 			name: "disable the flag in the snapshot",
-			mutate: func(f *flag.InternalFlag) {
+			mutate: func(f *flagdef.InternalFlag) {
 				d := true
 				f.Disable = &d
 			},
-			read: func(f flag.Flag) any { return f.IsDisable() },
+			read: func(f flagdef.Flag) any { return f.IsDisable() },
 			want: false,
 		},
 		{
 			name: "change the version in the snapshot",
-			mutate: func(f *flag.InternalFlag) {
+			mutate: func(f *flagdef.InternalFlag) {
 				v := hacked
 				f.Version = &v
 			},
-			read: func(f flag.Flag) any { return f.GetVersion() },
+			read: func(f flagdef.Flag) any { return f.GetVersion() },
 			want: "",
 		},
 	}
@@ -63,7 +63,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			f, ok := snap[flagOne].(*flag.InternalFlag)
+			f, ok := snap[flagOne].(*flagdef.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
 			delete(snap, "flag-2")
@@ -100,7 +100,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 
 				for _, f := range snap {
 					d := true
-					if iflag, ok := f.(*flag.InternalFlag); assert.True(t, ok) {
+					if iflag, ok := f.(*flagdef.InternalFlag); assert.True(t, ok) {
 						iflag.Disable = &d
 					}
 				}
@@ -155,12 +155,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		mutate func(t *testing.T, f *flag.InternalFlag)
+		mutate func(t *testing.T, f *flagdef.InternalFlag)
 		name   string
 		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
 		wantLiveChanged bool
 	}{
-		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			v := *(*f.Variations)["A"]
@@ -174,12 +174,12 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			nested["deep"] = hacked
 			kSlice[0] = hacked
 		}},
-		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
+		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
 			x := any(hacked)
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
-		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			owner, ok := (*f.Metadata)["owner"].(map[string]any)
@@ -189,7 +189,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 
 			team[0] = hacked
 		}},
-		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
+		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
 			r := &(*f.Rules)[0]
 			*r.Query = hacked
 			*r.VariationResult = hacked
@@ -201,16 +201,16 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		{
 			name:            "default rule",
 			wantLiveChanged: false,
-			mutate:          func(_ *testing.T, f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
+			mutate:          func(_ *testing.T, f *flagdef.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
 		},
 		{
 			name:            "experimentation",
 			wantLiveChanged: false,
-			mutate: func(_ *testing.T, f *flag.InternalFlag) {
+			mutate: func(_ *testing.T, f *flagdef.InternalFlag) {
 				*f.Experimentation.Start = f.Experimentation.End.Add(1)
 			},
 		},
-		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flagdef.InternalFlag) {
 			t.Helper()
 
 			step := &(*f.Scheduled)[0]
@@ -241,7 +241,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			iflag, ok := snap[fixtures.NestedKey].(*flag.InternalFlag)
+			iflag, ok := snap[fixtures.NestedKey].(*flagdef.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
 

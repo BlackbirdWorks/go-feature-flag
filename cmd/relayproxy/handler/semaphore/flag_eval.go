@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -70,7 +70,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	flagValue, _ := flagset.RawVariation(flagKey, evaluationCtx, reqBody.DefaultValue)
-	if flagValue.ErrorCode == flag.ErrorCodeFlagNotFound {
+	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
 	} else {
 		h.metrics.IncFlagEvaluation(flagKey)

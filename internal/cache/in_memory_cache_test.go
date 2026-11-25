@@ -7,7 +7,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -16,7 +16,7 @@ func TestAll(t *testing.T) {
 
 	tests := []struct {
 		param map[string]dto.DTO
-		want  map[string]flag.Flag
+		want  map[string]flagdef.Flag
 		name  string
 	}{
 		{
@@ -28,7 +28,7 @@ func TestAll(t *testing.T) {
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Percentages: &map[string]float64{
 							fixtures.VariationTrue:  40,
 							fixtures.VariationFalse: 60,
@@ -36,14 +36,14 @@ func TestAll(t *testing.T) {
 					},
 				},
 			},
-			want: map[string]flag.Flag{
-				fixtures.PlaceholderTest: &flag.InternalFlag{
+			want: map[string]flagdef.Flag{
+				fixtures.PlaceholderTest: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Percentages: &map[string]float64{
 							fixtures.VariationFalse: 60,
 							fixtures.VariationTrue:  40,
@@ -61,7 +61,7 @@ func TestAll(t *testing.T) {
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
 							fixtures.VariationTrue:  40,
@@ -75,7 +75,7 @@ func TestAll(t *testing.T) {
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationDefault: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
 							fixtures.VariationTrue:  30,
@@ -84,14 +84,14 @@ func TestAll(t *testing.T) {
 					},
 				},
 			},
-			want: map[string]flag.Flag{
-				fixtures.PlaceholderTest: &flag.InternalFlag{
+			want: map[string]flagdef.Flag{
+				fixtures.PlaceholderTest: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
 							fixtures.VariationFalse: 60,
@@ -99,13 +99,13 @@ func TestAll(t *testing.T) {
 						},
 					},
 				},
-				"test1": &flag.InternalFlag{
+				"test1": &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(false)),
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationTrue:    new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
 							fixtures.VariationFalse: 70,
@@ -118,14 +118,14 @@ func TestAll(t *testing.T) {
 		{
 			name:  "empty",
 			param: map[string]dto.DTO{},
-			want:  map[string]flag.Flag{},
+			want:  map[string]flagdef.Flag{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := cache.NewInMemoryCache(flag.NewService(), nil)
+			c := cache.NewInMemoryCache(flagdef.NewService(), nil)
 			c.Init(tt.param)
 			assert.Equal(t, tt.want, c.All())
 		})
@@ -151,7 +151,7 @@ func TestCopy(t *testing.T) {
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name: new(fixtures.RuleDefault),
 						Percentages: &map[string]float64{
 							fixtures.VariationTrue:  40,
@@ -166,7 +166,7 @@ func TestCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := cache.NewInMemoryCache(flag.NewService(), nil)
+			c := cache.NewInMemoryCache(flagdef.NewService(), nil)
 			c.Init(tt.param)
 			got := c.Copy()
 			assert.Equal(t, tt.wantEqual, assert.ObjectsAreEqual(c, got))

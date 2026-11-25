@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -41,26 +41,26 @@ func sensitiveDiffCache() notifier.DiffCache {
 	enabled := fixtures.VariationEnabled
 
 	return notifier.DiffCache{
-		Deleted: map[string]flag.Flag{
-			"deleted-flag": &flag.InternalFlag{
+		Deleted: map[string]flagdef.Flag{
+			"deleted-flag": &flagdef.InternalFlag{
 				Variations: &map[string]*any{fixtures.VariationEnabled: new(any(true))},
-				Rules: &[]flag.Rule{
+				Rules: &[]flagdef.Rule{
 					{Query: &beforeQuery, VariationResult: &enabled},
 				},
 			},
 		},
-		Added: map[string]flag.Flag{
-			"added-flag": &flag.InternalFlag{
+		Added: map[string]flagdef.Flag{
+			"added-flag": &flagdef.InternalFlag{
 				Variations: &map[string]*any{fixtures.VariationEnabled: new(any(true))},
-				Rules: &[]flag.Rule{
+				Rules: &[]flagdef.Rule{
 					{Query: &afterQuery, VariationResult: &enabled},
 				},
 			},
 		},
 		Updated: map[string]notifier.DiffUpdated{
 			"updated-flag": {
-				Before: &flag.InternalFlag{Rules: &[]flag.Rule{{Query: &beforeQuery}}},
-				After:  &flag.InternalFlag{Rules: &[]flag.Rule{{Query: &afterQuery}}},
+				Before: &flagdef.InternalFlag{Rules: &[]flagdef.Rule{{Query: &beforeQuery}}},
+				After:  &flagdef.InternalFlag{Rules: &[]flagdef.Rule{{Query: &afterQuery}}},
 			},
 		},
 	}

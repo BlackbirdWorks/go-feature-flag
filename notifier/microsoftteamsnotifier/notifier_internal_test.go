@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -32,9 +32,9 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 		{
 			name: "should call webhook and have valid results",
 			diff: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"test-flag3": &flag.InternalFlag{
-						Rules: &[]flag.Rule{
+				Added: map[string]flagdef.Flag{
+					"test-flag3": &flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new("key eq \"random-key\""),
@@ -49,7 +49,7 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 							fixtures.VariationFalse:   new(any("false")),
 							fixtures.VariationTrue:    new(any("test")),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -59,9 +59,9 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 						Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 					},
 				},
-				Deleted: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
-						Rules: &[]flag.Rule{
+				Deleted: map[string]flagdef.Flag{
+					"test-flag": &flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new("key eq \"random-key\""),
@@ -77,7 +77,7 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 							fixtures.VariationTrue:    new(any(true)),
 						},
 						Metadata: &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -85,13 +85,13 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 				},
 				Updated: map[string]notifier.DiffUpdated{
 					"test-flag2": {
-						Before: &flag.InternalFlag{
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(false)),
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
 									fixtures.VariationFalse: 0,
@@ -99,18 +99,18 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 								},
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
-							Experimentation: &flag.ExperimentationRollout{
+							Experimentation: &flagdef.ExperimentationRollout{
 								Start: new(time.Unix(1095379400, 0).UTC()),
 								End:   new(time.Unix(1095371000, 0).UTC()),
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(true)),
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							Rules: &[]flag.Rule{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new("key eq \"not-a-ke\""),
@@ -120,7 +120,7 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 									},
 								},
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -221,7 +221,7 @@ func (rt *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 }
 
 // otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestConvertToMicrosoftTeamsMessage_diffError(t *testing.T) {
 	t.Parallel()

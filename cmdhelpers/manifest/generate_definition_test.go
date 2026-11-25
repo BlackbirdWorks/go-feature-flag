@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 )
@@ -36,8 +36,8 @@ func variationsOf(values map[string]any) map[string]*any {
 	return out
 }
 
-func defaultRule(variation string) *flag.Rule {
-	return &flag.Rule{
+func defaultRule(variation string) *flagdef.Rule {
+	return &flagdef.Rule{
 		Name:            new("defaultRule"),
 		VariationResult: new(variation),
 	}
@@ -45,8 +45,8 @@ func defaultRule(variation string) *flag.Rule {
 
 // boolFlag returns a minimal boolean InternalFlag whose variations are True/False
 // and whose default rule selects the variation passed in.
-func boolFlag(defaultVariation string, metadata map[string]any) flag.InternalFlag {
-	internalFlag := flag.InternalFlag{
+func boolFlag(defaultVariation string, metadata map[string]any) flagdef.InternalFlag {
+	internalFlag := flagdef.InternalFlag{
 		Variations:  new(variationsOf(map[string]any{fixtures.VariationTrue: true, fixtures.VariationFalse: false})),
 		DefaultRule: defaultRule(defaultVariation),
 	}
@@ -62,10 +62,10 @@ func boolFlagWithExperimentation(
 	defaultVariation string,
 	metadata map[string]any,
 	experimentationStart, experimentationEnd time.Time,
-) flag.InternalFlag {
+) flagdef.InternalFlag {
 	internalFlag := boolFlag(defaultVariation, metadata)
 	s, e := experimentationStart, experimentationEnd
-	internalFlag.Experimentation = &flag.ExperimentationRollout{
+	internalFlag.Experimentation = &flagdef.ExperimentationRollout{
 		Start: &s,
 		End:   &e,
 	}
@@ -83,7 +83,7 @@ func readGolden(t *testing.T, name string) string {
 }
 
 type generateDefinitionCase struct {
-	flags      map[string]flag.InternalFlag
+	flags      map[string]flagdef.InternalFlag
 	name       string
 	goldenFile string
 	// wantErr, when non-empty, asserts the returned error contains it.
@@ -149,12 +149,12 @@ func TestGenerateDefinition(t *testing.T) {
 	runGenerateDefinitionTests(t, []generateDefinitionCase{
 		{
 			name:       "empty input produces empty manifest",
-			flags:      map[string]flag.InternalFlag{},
+			flags:      map[string]flagdef.InternalFlag{},
 			goldenFile: emptyJSON,
 		},
 		{
 			name: "boolean flag",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"boolean-flag": boolFlag(fixtures.VariationFalse, map[string]any{
 					fixtures.DefaultValue:     false,
 					fixtures.DescriptionField: "a boolean flag",
@@ -164,7 +164,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "boolean flag with experimentation",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"exp-flag": boolFlagWithExperimentation(
 					fixtures.VariationFalse,
 					map[string]any{
@@ -179,7 +179,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "string flag",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"string-flag": {
 					Variations:  new(variationsOf(map[string]any{"A": "a", "B": "b"})),
 					DefaultRule: defaultRule("A"),
@@ -193,7 +193,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "integer flag",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"int-flag": {
 					Variations:  new(variationsOf(map[string]any{one: 1, "Two": 2})),
 					DefaultRule: defaultRule(one),
@@ -207,7 +207,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "float flag without description",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"float-flag": {
 					Variations:  new(variationsOf(map[string]any{half: 0.5, "OneAndHalf": 1.5})),
 					DefaultRule: defaultRule(half),
@@ -220,7 +220,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "object flag",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"object-flag": {
 					Variations: new(variationsOf(map[string]any{
 						"A": map[string]any{fixtures.MetadataKey: "value-a"},
@@ -237,7 +237,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "int and float .0 mix resolves to integer",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"mixed-flag": {
 					Variations:  new(variationsOf(map[string]any{"Whole": 1, half: 2.0})),
 					DefaultRule: defaultRule("Whole"),
@@ -251,7 +251,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "int and non-whole float mix resolves to float",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"mixed-flag": {
 					Variations:  new(variationsOf(map[string]any{one: 1, "OneAndHalf": 1.5})),
 					DefaultRule: defaultRule(one),
@@ -265,7 +265,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "missing description metadata defaults to empty string",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"minimal-flag": boolFlag(fixtures.VariationFalse, map[string]any{
 					fixtures.DefaultValue: false,
 				}),
@@ -274,7 +274,7 @@ func TestGenerateDefinition(t *testing.T) {
 		},
 		{
 			name: "non-string description is ignored",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"weird-flag": boolFlag(fixtures.VariationFalse, map[string]any{
 					fixtures.DefaultValue:     false,
 					fixtures.DescriptionField: 42,
@@ -291,7 +291,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 	runGenerateDefinitionTests(t, []generateDefinitionCase{
 		{
 			name: "flag without metadata is skipped and logged",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"no-meta": {
 					Variations: new(variationsOf(
 						map[string]any{fixtures.VariationTrue: true, fixtures.VariationFalse: false},
@@ -304,7 +304,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "metadata without defaultValue is skipped and logged",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"no-default": boolFlag(fixtures.VariationFalse, map[string]any{
 					fixtures.DescriptionField: "no default",
 				}),
@@ -314,7 +314,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "valid flag is kept while invalid sibling is skipped",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"valid-flag": boolFlag(fixtures.VariationTrue, map[string]any{
 					fixtures.DefaultValue: true,
 				}),
@@ -327,7 +327,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "multiple valid flags are all serialized",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				"flag-a": boolFlag(fixtures.VariationTrue, map[string]any{
 					fixtures.DefaultValue: true,
 				}),
@@ -344,7 +344,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "unsupported variation type returns wrapped error",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyBad: {
 					Variations: new(variationsOf(map[string]any{
 						"Slice": []int{1, 2, 3},
@@ -359,7 +359,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "incompatible variation types return wrapped error",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyBad: {
 					Variations:  new(variationsOf(map[string]any{"A": true, "B": "string"})),
 					DefaultRule: defaultRule("A"),
@@ -372,7 +372,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		},
 		{
 			name: "empty variations map returns wrapped error",
-			flags: map[string]flag.InternalFlag{
+			flags: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyBad: {
 					Variations:  new(variationsOf(map[string]any{})),
 					DefaultRule: defaultRule(""),

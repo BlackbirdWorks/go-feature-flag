@@ -11,7 +11,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -43,7 +43,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(true)),
 						varB: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
@@ -56,7 +56,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(1)),
 						varB: new(any(2)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
@@ -75,7 +75,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(true)),
 						varB: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
@@ -88,7 +88,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(1)),
 						varB: new(any(2)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
@@ -108,7 +108,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(true)),
 						varB: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
@@ -121,7 +121,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(1.0)),
 						varB: new(any(2.0)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
@@ -141,7 +141,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(true)),
 						varB: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
@@ -154,7 +154,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(int64(1))),
 						varB: new(any(int64(2))),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{
@@ -175,7 +175,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(true)),
 						varB: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
@@ -188,7 +188,7 @@ func TestLoadConfigFile(t *testing.T) {
 						varA: new(any(1)),
 						varB: new(any(2)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(varB),
 					},
 					Metadata: &map[string]any{

@@ -17,7 +17,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -42,12 +42,12 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			subscribeFlagset: fixtures.FlagsetCamel,
 			broadcastFlagset: fixtures.FlagsetCamel,
 			diff: notifier.DiffCache{
-				Added: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("A")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 					},
 				},
 			},
@@ -58,8 +58,8 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			subscribeFlagset: fixtures.FlagsetCamel,
 			broadcastFlagset: "flagsetB",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"flag-2": &flag.InternalFlag{},
+				Deleted: map[string]flagdef.Flag{
+					"flag-2": &flagdef.InternalFlag{},
 				},
 			},
 			expectReceive: false,

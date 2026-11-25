@@ -8,7 +8,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -21,8 +21,8 @@ func Test_evaluate(t *testing.T) {
 	t.Parallel()
 
 	type args struct {
-		flagCtx         flag.Context
-		flag            flag.Flag
+		flagCtx         flagdef.Context
+		flag            flagdef.Flag
 		evaluationCtx   ffcontext.Context
 		sdkDefaultValue any
 		flagKey         string
@@ -38,18 +38,18 @@ func Test_evaluate(t *testing.T) {
 		{
 			name: "Test with a rule name",
 			args: args{
-				flag: &flag.InternalFlag{
+				flag: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"on":                  new(any(true)),
 						fixtures.VariationOff: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("on"),
 					},
 				},
 				flagKey:         fixtures.FlagKeyMy,
 				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
-				flagCtx:         flag.Context{Service: flag.NewService()},
+				flagCtx:         flagdef.Context{Service: flagdef.NewService()},
 				expectedType:    "bool",
 				sdkDefaultValue: false,
 			},
@@ -57,7 +57,7 @@ func Test_evaluate(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: "on",
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Value:         true,
 				Cacheable:     true,
 			},
@@ -66,25 +66,25 @@ func Test_evaluate(t *testing.T) {
 		{
 			name: "Test with nil value",
 			args: args{
-				flag: &flag.InternalFlag{
+				flag: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"on":                  nil,
 						fixtures.VariationOff: nil,
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("on"),
 					},
 				},
 				flagKey:         fixtures.FlagKeyMy,
 				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
-				flagCtx:         flag.Context{Service: flag.NewService()},
+				flagCtx:         flagdef.Context{Service: flagdef.NewService()},
 				expectedType:    "bool",
 				sdkDefaultValue: false,
 			},
 			want: model.VariationResult[any]{
 				VariationType: "on",
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Value:         nil,
 				Cacheable:     true,
 				TrackEvents:   true,
@@ -94,25 +94,25 @@ func Test_evaluate(t *testing.T) {
 		{
 			name: "Test with float64 value and int expected",
 			args: args{
-				flag: &flag.InternalFlag{
+				flag: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"on":                  new(any(float64(3))),
 						fixtures.VariationOff: new(any(float64(0))),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("on"),
 					},
 				},
 				flagKey:         fixtures.FlagKeyMy,
 				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
-				flagCtx:         flag.Context{Service: flag.NewService()},
+				flagCtx:         flagdef.Context{Service: flagdef.NewService()},
 				expectedType:    fixtures.IntType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
 				VariationType: "on",
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Value:         3,
 				Cacheable:     true,
 				TrackEvents:   true,
@@ -122,25 +122,25 @@ func Test_evaluate(t *testing.T) {
 		{
 			name: "Test with float64 value and int expected",
 			args: args{
-				flag: &flag.InternalFlag{
+				flag: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"on":                  new(any(float64(3))),
 						fixtures.VariationOff: new(any(float64(0))),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("on"),
 					},
 				},
 				flagKey:         fixtures.FlagKeyMy,
 				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
-				flagCtx:         flag.Context{Service: flag.NewService()},
+				flagCtx:         flagdef.Context{Service: flagdef.NewService()},
 				expectedType:    fixtures.IntType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
 				VariationType: "on",
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Value:         3,
 				Cacheable:     true,
 				TrackEvents:   true,
@@ -150,25 +150,25 @@ func Test_evaluate(t *testing.T) {
 		{
 			name: "Test with float64 value and float expected",
 			args: args{
-				flag: &flag.InternalFlag{
+				flag: &flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						"on":                  new(any(float64(3.5))),
 						fixtures.VariationOff: new(any(float64(0.3))),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new("on"),
 					},
 				},
 				flagKey:         fixtures.FlagKeyMy,
 				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
-				flagCtx:         flag.Context{Service: flag.NewService()},
+				flagCtx:         flagdef.Context{Service: flagdef.NewService()},
 				expectedType:    "float",
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
 				VariationType: "on",
 				Failed:        false,
-				Reason:        flag.ReasonStatic,
+				Reason:        flagdef.ReasonStatic,
 				Value:         3.5,
 				Cacheable:     true,
 				TrackEvents:   true,
@@ -201,12 +201,12 @@ func Test_evaluate(t *testing.T) {
 func Test_evaluate_typeMisMatch(t *testing.T) {
 	t.Parallel()
 
-	targetFlag := &flag.InternalFlag{
+	targetFlag := &flagdef.InternalFlag{
 		Variations: &map[string]*any{
 			"on":                  new(any(true)),
 			fixtures.VariationOff: new(any(false)),
 		},
-		DefaultRule: &flag.Rule{
+		DefaultRule: &flagdef.Rule{
 			VariationResult: new("on"),
 		},
 	}
@@ -214,17 +214,17 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		targetFlag,
 		fixtures.FlagKeyMy,
 		ffcontext.NewEvaluationContext(targetingKeyUUID),
-		flag.Context{Service: flag.NewService()},
+		flagdef.Context{Service: flagdef.NewService()},
 		fixtures.IntType,
 		42,
 	)
 	require.Error(t, err)
 
 	want := model.VariationResult[int]{
-		VariationType: flag.VariationSDKDefault,
+		VariationType: flagdef.VariationSDKDefault,
 		Failed:        true,
-		Reason:        flag.ReasonError,
-		ErrorCode:     flag.ErrorCodeTypeMismatch,
+		Reason:        flagdef.ReasonError,
+		ErrorCode:     flagdef.ErrorCodeTypeMismatch,
 		Value:         42,
 		TrackEvents:   true,
 	}

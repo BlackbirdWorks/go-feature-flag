@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -107,14 +107,14 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 				url:        httpWebhookExampleHook,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						testFlagThree: &flag.InternalFlag{
+					Added: map[string]flagdef.Flag{
+						testFlagThree: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
 									fixtures.VariationFalse: 95,
@@ -123,9 +123,9 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 							},
 						},
 					},
-					Deleted: map[string]flag.Flag{
-						"test-flag": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Deleted: map[string]flagdef.Flag{
+						"test-flag": &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new("key eq \"random-key\""),
@@ -140,7 +140,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -148,8 +148,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 					},
 					Updated: map[string]notifier.DiffUpdated{
 						"test-flag2": {
-							Before: &flag.InternalFlag{
-								Rules: &[]flag.Rule{
+							Before: &flagdef.InternalFlag{
+								Rules: &[]flagdef.Rule{
 									{
 										Name:  new(fixtures.RuleOne),
 										Query: new("key eq \"not-a-key\""),
@@ -164,13 +164,13 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									fixtures.VariationFalse:   new(any(false)),
 									fixtures.VariationTrue:    new(any(true)),
 								},
-								DefaultRule: &flag.Rule{
+								DefaultRule: &flagdef.Rule{
 									Name:            new(fixtures.RuleDefault),
 									VariationResult: new(fixtures.VariationDefault),
 								},
 							},
-							After: &flag.InternalFlag{
-								Rules: &[]flag.Rule{
+							After: &flagdef.InternalFlag{
+								Rules: &[]flagdef.Rule{
 									{
 										Name:  new(fixtures.RuleOne),
 										Query: new("key eq \"not-a-key\""),
@@ -185,7 +185,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 									fixtures.VariationFalse:   new(any(false)),
 									fixtures.VariationTrue:    new(any(true)),
 								},
-								DefaultRule: &flag.Rule{
+								DefaultRule: &flagdef.Rule{
 									Name:            new(fixtures.RuleDefault),
 									VariationResult: new(fixtures.VariationDefault),
 								},
@@ -206,14 +206,14 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 				url:        httpWebhookExampleHook,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						testFlagThree: &flag.InternalFlag{
+					Added: map[string]flagdef.Flag{
+						testFlagThree: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
 									fixtures.VariationFalse: 95,
@@ -222,7 +222,7 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 							},
 						},
 					},
-					Deleted: map[string]flag.Flag{},
+					Deleted: map[string]flagdef.Flag{},
 					Updated: map[string]notifier.DiffUpdated{},
 				},
 			},
@@ -289,14 +289,14 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 					protocol.HeaderAuthorization: {"Bearer auth_token"},
 				},
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						testFlagThree: &flag.InternalFlag{
+					Added: map[string]flagdef.Flag{
+						testFlagThree: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
 									fixtures.VariationFalse: 95,
@@ -305,7 +305,7 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 							},
 						},
 					},
-					Deleted: map[string]flag.Flag{},
+					Deleted: map[string]flagdef.Flag{},
 					Updated: map[string]notifier.DiffUpdated{},
 				},
 			},
@@ -318,14 +318,14 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 
 	mockHTTPClient := &testhelpers.HTTPClientMock{StatusCode: 200, ForceError: false}
 	diff := notifier.DiffCache{
-		Added: map[string]flag.Flag{
-			testFlagThree: &flag.InternalFlag{
+		Added: map[string]flagdef.Flag{
+			testFlagThree: &flagdef.InternalFlag{
 				Variations: &map[string]*any{
 					fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					Name: new(fixtures.RuleDefault),
 					Percentages: &map[string]float64{
 						fixtures.VariationFalse: 95,
@@ -334,7 +334,7 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 				},
 			},
 		},
-		Deleted: map[string]flag.Flag{},
+		Deleted: map[string]flagdef.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
 	}
 

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -80,9 +80,9 @@ func runDiscordNotifyCases(t *testing.T, tests []discordNotifyCase) {
 	}
 }
 
-func discordGenericFlag() *flag.InternalFlag {
-	return &flag.InternalFlag{
-		Rules: &[]flag.Rule{
+func discordGenericFlag() *flagdef.InternalFlag {
+	return &flagdef.InternalFlag{
+		Rules: &[]flagdef.Rule{
 			{
 				Name:  new(fixtures.RuleOne),
 				Query: new(fixtures.QueryKeyEqRandomKey),
@@ -97,7 +97,7 @@ func discordGenericFlag() *flag.InternalFlag {
 			fixtures.VariationFalse:   new(any("false")),
 			fixtures.VariationTrue:    new(any("test")),
 		},
-		DefaultRule: &flag.Rule{
+		DefaultRule: &flagdef.Rule{
 			Name:            new(fixtures.RuleDefault),
 			VariationResult: new(fixtures.VariationDefault),
 		},
@@ -122,9 +122,9 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
-						"test-flag3": &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Added: map[string]flagdef.Flag{
+						"test-flag3": &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -139,7 +139,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 								fixtures.VariationFalse:   new(any("false")),
 								fixtures.VariationTrue:    new(any("test")),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -149,9 +149,9 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
 						},
 					},
-					Deleted: map[string]flag.Flag{
-						fixtures.FlagKeyTest: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+					Deleted: map[string]flagdef.Flag{
+						fixtures.FlagKeyTest: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -167,7 +167,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 								fixtures.VariationTrue:    new(any(true)),
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: fixtures.UserJane},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -175,13 +175,13 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 					},
 					Updated: map[string]notifier.DiffUpdated{
 						"test-flag2": {
-							Before: &flag.InternalFlag{
+							Before: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
 									fixtures.VariationDefault: new(any(false)),
 									fixtures.VariationFalse:   new(any(false)),
 									fixtures.VariationTrue:    new(any(true)),
 								},
-								DefaultRule: &flag.Rule{
+								DefaultRule: &flagdef.Rule{
 									Name: new(fixtures.RuleDefault),
 									Percentages: &map[string]float64{
 										fixtures.VariationFalse: 0,
@@ -189,18 +189,18 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
-								Experimentation: &flag.ExperimentationRollout{
+								Experimentation: &flagdef.ExperimentationRollout{
 									Start: new(time.Unix(1095379400, 0).UTC()),
 									End:   new(time.Unix(1095371000, 0).UTC()),
 								},
 							},
-							After: &flag.InternalFlag{
+							After: &flagdef.InternalFlag{
 								Variations: &map[string]*any{
 									fixtures.VariationDefault: new(any("strDefault")),
 									fixtures.VariationFalse:   new(any("strFalse")),
 									fixtures.VariationTrue:    new(any("strTrue")),
 								},
-								Rules: &[]flag.Rule{
+								Rules: &[]flagdef.Rule{
 									{
 										Name:  new(fixtures.RuleOne),
 										Query: new("key eq \"not-a-ke\""),
@@ -210,7 +210,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 										},
 									},
 								},
-								DefaultRule: &flag.Rule{
+								DefaultRule: &flagdef.Rule{
 									Name:            new(fixtures.RuleDefault),
 									VariationResult: new(fixtures.VariationDefault),
 								},
@@ -233,13 +233,13 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
-					Added: map[string]flag.Flag{
+					Added: map[string]flagdef.Flag{
 						"test-flag3": genericFlag,
 						"test-flag4": genericFlag,
 						"test-flag5": genericFlag,
 						"test-flag6": genericFlag,
 					},
-					Deleted: map[string]flag.Flag{
+					Deleted: map[string]flagdef.Flag{
 						fixtures.FlagKeyTest: genericFlag,
 						"test-flag1":         genericFlag,
 						"test-flag2":         genericFlag,
@@ -344,8 +344,8 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 			embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyTest: {
-						Before: &flag.InternalFlag{Metadata: &map[string]any{}},
-						After:  &flag.InternalFlag{Metadata: &after},
+						Before: &flagdef.InternalFlag{Metadata: &map[string]any{}},
+						After:  &flagdef.InternalFlag{Metadata: &after},
 					},
 				},
 			})
@@ -359,7 +359,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 }
 
 // otherFlag is a [flag.Flag] that DescribeChanges cannot describe.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
 	t.Parallel()
@@ -383,8 +383,8 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 		}
 
 		return notifier.DiffUpdated{
-			Before: &flag.InternalFlag{Metadata: &map[string]any{}},
-			After:  &flag.InternalFlag{Metadata: &after},
+			Before: &flagdef.InternalFlag{Metadata: &map[string]any{}},
+			After:  &flagdef.InternalFlag{Metadata: &after},
 		}
 	}
 

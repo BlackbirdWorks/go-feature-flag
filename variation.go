@@ -12,7 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/evaluation"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
@@ -217,7 +217,7 @@ func (g *GoFeatureFlag) RawVariation(
 
 // getFlagFromCache try to get the flag from the cache.
 // It returns an error if the cache is not init or if the flag is not present or disabled.
-func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (*flag.InternalFlag, error) {
+func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (*flagdef.InternalFlag, error) {
 	f, err := g.retrieverManager.GetFlag(flagKey)
 	if err != nil {
 		return f, fmt.Errorf("flag %v %w", flagKey, errNotPresentOrDisabled)
@@ -271,7 +271,7 @@ func notifyVariation[T model.JSONType](
 		// the event describes the context as it was evaluated: with the configured enrichment
 		// (only what the event reads is worth merging: the exporter metadata and the anonymous status).
 		if enrichment := client.evaluationEnrichment(); changesEventFields(enrichment) {
-			ctx = flag.NewEnrichedContext(ctx, enrichment)
+			ctx = flagdef.NewEnrichedContext(ctx, enrichment)
 		}
 
 		event := exporter.NewFeatureEvent(
@@ -300,10 +300,10 @@ func getVariation[T model.JSONType](
 	if client == nil {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
-			VariationType: flag.VariationSDKDefault,
+			VariationType: flagdef.VariationSDKDefault,
 			Failed:        true,
-			Reason:        flag.ReasonError,
-			ErrorCode:     flag.ErrorCodeProviderNotReady,
+			Reason:        flagdef.ReasonError,
+			ErrorCode:     flagdef.ErrorCodeProviderNotReady,
 			ErrorDetails:  "",
 			TrackEvents:   false,
 			Version:       "",
@@ -315,9 +315,9 @@ func getVariation[T model.JSONType](
 	if client.config.Offline {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
-			VariationType: flag.VariationSDKDefault,
+			VariationType: flagdef.VariationSDKDefault,
 			Failed:        false,
-			Reason:        flag.ReasonOffline,
+			Reason:        flagdef.ReasonOffline,
 			ErrorCode:     "",
 			ErrorDetails:  "",
 			TrackEvents:   false,
@@ -331,11 +331,11 @@ func getVariation[T model.JSONType](
 	if err != nil {
 		varResult := model.VariationResult[T]{
 			Value:         sdkDefaultValue,
-			VariationType: flag.VariationSDKDefault,
-			ErrorCode:     flag.ErrorCodeFlagNotFound,
+			VariationType: flagdef.VariationSDKDefault,
+			ErrorCode:     flagdef.ErrorCodeFlagNotFound,
 			ErrorDetails:  "",
 			Failed:        true,
-			Reason:        flag.ReasonError,
+			Reason:        flagdef.ReasonError,
 			TrackEvents:   false,
 			Version:       "",
 			Metadata:      nil,
@@ -350,7 +350,7 @@ func getVariation[T model.JSONType](
 		return varResult, err
 	}
 
-	flagCtx := flag.Context{
+	flagCtx := flagdef.Context{
 		DefaultSdkValue:             sdkDefaultValue,
 		EvaluationContextEnrichment: client.evaluationEnrichment(),
 		Service:                     client.evaluationService,

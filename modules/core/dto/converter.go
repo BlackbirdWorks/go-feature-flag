@@ -1,20 +1,20 @@
 package dto
 
 import (
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // ConvertDtoToInternalFlag is converting a DTO to a flag.InternalFlag.
-func ConvertDtoToInternalFlag(dto *DTO) flag.InternalFlag {
-	var experimentation *flag.ExperimentationRollout
+func ConvertDtoToInternalFlag(dto *DTO) flagdef.InternalFlag {
+	var experimentation *flagdef.ExperimentationRollout
 	if dto.Experimentation != nil {
-		experimentation = &flag.ExperimentationRollout{
+		experimentation = &flagdef.ExperimentationRollout{
 			Start: dto.Experimentation.Start,
 			End:   dto.Experimentation.End,
 		}
 	}
 
-	return flag.InternalFlag{
+	return flagdef.InternalFlag{
 		BucketingKey:    dto.BucketingKey,
 		Variations:      dto.Variations,
 		Rules:           dto.Rules,
@@ -29,7 +29,7 @@ func ConvertDtoToInternalFlag(dto *DTO) flag.InternalFlag {
 }
 
 // ConvertInternalFlagToDto converts an internal flag to its DTO representation.
-func ConvertInternalFlagToDto(internalFlag *flag.InternalFlag) DTO {
+func ConvertInternalFlagToDto(internalFlag *flagdef.InternalFlag) DTO {
 	var experimentation *ExperimentationDto
 	if internalFlag.Experimentation != nil {
 		experimentation = &ExperimentationDto{

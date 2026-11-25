@@ -13,7 +13,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 const (
@@ -98,7 +98,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
-				var cachedFlag flag.Flag
+				var cachedFlag flagdef.Flag
 
 				for pb.Next() {
 					var err error

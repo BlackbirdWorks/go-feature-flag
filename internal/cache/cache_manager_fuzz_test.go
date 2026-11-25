@@ -10,7 +10,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // FuzzConvertToFlagStruct checks that loading any flag configuration file in the
@@ -51,7 +51,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 			return
 		}
 
-		cache.NewInMemoryCache(flag.NewService(), logger).Init(flags)
+		cache.NewInMemoryCache(flagdef.NewService(), logger).Init(flags)
 	})
 }
 
@@ -61,7 +61,7 @@ func FuzzConvertToFlagStruct(f *testing.F) {
 // once the validation rejects these rollouts.
 func hasProgressiveRolloutWithoutStep(flags map[string]dto.DTO) bool {
 	for _, flagDTO := range flags {
-		rules := []flag.Rule{}
+		rules := []flagdef.Rule{}
 		if flagDTO.Rules != nil {
 			rules = append(rules, *flagDTO.Rules...)
 		}

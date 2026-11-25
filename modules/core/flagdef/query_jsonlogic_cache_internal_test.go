@@ -1,0 +1,285 @@
+package flagdef
+
+import (
+	"bytes"
+	"encoding/json"
+	"math"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/diegoholiveira/jsonlogic/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+const (
+	dspName  = "dsp"
+	naN      = "NaN"
+	tagsName = "tags"
+	ttd      = "ttd"
+)
+
+type namedBool bool
+
+type namedString string
+
+func TestIsJSONLogicTruthy(t *testing.T) {
+	f, tr, empty := false, true, ""
+	tests := []struct {
+		name  string
+		value any
+		want  bool
+	}{
+		{name: "infinity", value: math.Inf(1)},
+		{name: naN, value: math.NaN()},
+		{name: "infinity in an array", value: []any{true, math.Inf(-1)}},
+		{name: "NaN in an object", value: map[string]any{"a": map[string]any{"b": math.NaN()}}},
+		{name: "nil slice", value: []any(nil)},
+		{name: "nil map", value: map[string]any(nil)},
+		{name: "*bool false", value: &f},
+		{name: "named bool false", value: namedBool(false)},
+		{name: "*string empty", value: &empty},
+		{name: "named string empty", value: namedString("")},
+		{name: "raw false", value: json.RawMessage(falseLiteral)},
+		{name: "*bool true", value: &tr, want: true},
+		{name: "named bool true", value: namedBool(true), want: true},
+		{name: "named string", value: namedString("x"), want: true},
+		{name: "raw 1", value: json.RawMessage("1"), want: true},
+		{name: "non-empty slice", value: []any{"a"}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isJSONLogicTruthy(tt.value))
+		})
+	}
+}
+
+func TestAsJSONData(t *testing.T) {
+	cyclicMap := map[string]any{}
+	cyclicMap["self"] = cyclicMap
+	cyclicSlice := []any{nil}
+	cyclicSlice[0] = cyclicSlice
+	tests := []struct {
+		name   string
+		value  any
+		wantOK bool
+	}{
+		{
+			name: "flat context",
+			value: map[string]any{
+				fixtures.MetadataKey: fixtures.UserKeyOne,
+				anonymous:            false,
+				dspName:              "42",
+				"score":              1.5,
+			},
+			wantOK: true,
+		},
+		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
+		{
+			name:   fixtures.NestedKey,
+			value:  map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}},
+			wantOK: true,
+		},
+		{name: "empty", value: map[string]any{}, wantOK: true},
+		{name: "nil map and slice", value: map[string]any{"m": map[string]any(nil), "s": []any(nil)}, wantOK: true},
+		{name: "invalid utf8 value", value: map[string]any{"a": "\xff"}},
+		{name: "invalid utf8 key", value: map[string]any{"\xff": "a"}},
+		{name: naN, value: map[string]any{"a": math.NaN()}},
+		{name: "infinity in array", value: []any{math.Inf(1)}},
+		{name: "json number", value: map[string]any{"a": json.Number("1")}},
+		{name: "time", value: map[string]any{"a": time.Unix(0, 0)}},
+		{name: "typed slice", value: map[string]any{"a": []string{"x"}}},
+		{name: "float32", value: map[string]any{"a": float32(0.1)}},
+		{name: "cyclic map", value: cyclicMap},
+		{name: "cyclic slice", value: cyclicSlice},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := asJSONData(tt.value, 0)
+			assert.Equal(t, tt.wantOK, ok)
+			if !tt.wantOK {
+				return
+			}
+			raw, err := json.Marshal(tt.value)
+			assert.NoError(t, err)
+			var want any
+			assert.NoError(t, json.Unmarshal(raw, &want))
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+// TestEvaluateRule_JSONLogicMatchesApply checks the cached path gives the same answer as jsonlogic.Apply.
+func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
+	queries := []string{
+		varKeyAbc,
+		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
+		`{"or": [{"==": [{"var": "anonymous"}, true]}, {"!": {"var": "missing"}}]}`,
+		`{"cat": ["t", "r", "u", "e"]}`,
+		`{"var": "floor"}`,
+		`{"var": "plan"}`,
+		`{"-": [{"var": "floor"}, {"var": "floor"}]}`,
+		`{"filter": [{"var": "tags"}, {"==": [{"var": ""}, "b"]}]}`,
+		`{"filter": [{"var": "tags"}, {"==": [{"var": ""}, "z"]}]}`,
+		`{"some": [{"var": "orgs"}, {"==": [{"var": "plan"}, "enterprise"]}]}`,
+		`{"all": [{"var": "tags"}, {"!=": [{"var": ""}, ""]}]}`,
+		`{"merge": [{"var": "tags"}, ["x"]]}`,
+		`{"if": [{"<": [{"var": "floor"}, 1]}, "", "yes"]}`,
+		`{"substr": [{"var": "key"}, 0, 0]}`,
+		`{"xxx": [{"var": "key"}, "abc"]}`,
+		`{"/": [1, {"var": "floor"}]}`,
+		`{"/": [0, {"var": "floor"}]}`,
+		`{"merge": [[{"/": [1, {"var": "floor"}]}]]}`,
+		`{"if": [true, {"nested": {"/": [1, {"var": "floor"}]}}, false]}`,
+		`{"map": [{"var": "tags"}, {"/": [1, 0]}]}`,
+		`{"*": [-1, 0]}`,
+		`{"+": [0.5, 0.5]}`,
+	}
+	ctxs := []ffcontext.Context{
+		ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
+		ffcontext.NewEvaluationContextBuilder("def").
+			AddCustom(dspName, ttd).AddCustom("floor", 1.2).
+			AddCustom(tagsName, []any{"a", "b"}).
+			AddCustom("orgs", []any{map[string]any{"id": 1}}).
+			AddCustom(fixtures.AttrPlan, map[string]any{"cat": []any{"enter", "prise"}}).
+			Build(),
+		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom(tagsName, []any{}).Build(),
+	}
+	svc := NewService()
+	for _, q := range queries {
+		for _, ctx := range ctxs {
+			t.Run(q+"/"+ctx.GetKey(), func(t *testing.T) {
+				assert.Equal(
+					t,
+					applyReference(t, q, ctx),
+					evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}),
+				)
+			})
+		}
+	}
+}
+
+func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
+	f, tr, empty := false, true, ""
+	results := map[string]any{
+		"nil_slice":    []any(nil),
+		"nil_map":      map[string]any(nil),
+		"ptr_false":    &f,
+		"named_false":  namedBool(false),
+		"ptr_empty":    &empty,
+		"named_empty":  namedString(""),
+		"raw_false":    json.RawMessage(falseLiteral),
+		"ptr_true":     &tr,
+		"named_true":   namedBool(true),
+		"named_string": namedString("x"),
+	}
+	ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyAbc)
+	svc := NewService()
+	for name, result := range results {
+		op := "goff_test_" + name
+		jsonlogic.AddOperator(op, func(_, _ any) any { return result })
+		q := `{"` + op + `": []}`
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(
+				t,
+				applyReference(t, q, ctx),
+				evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}),
+			)
+		})
+	}
+}
+
+func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
+	ctx := `{"dsp": "ttd", "floor": 1.2, "tags": ["a", "b"], "orgs": [{"plan": "enterprise"}]}`
+	for _, q := range []string{
+		varKeyAbc,
+		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
+		`{"some": [{"var": "orgs"}, {"==": [{"var": "plan"}, "enterprise"]}]}`,
+		`{"/": [1, {"var": "floor"}]}`,
+		`{"merge": [{"var": "tags"}, ["x"]]}`,
+	} {
+		f.Add(q, ctx)
+	}
+	f.Fuzz(func(t *testing.T, query, ctxJSON string) {
+		svc := NewService()
+		var attributes map[string]any
+		if json.Unmarshal([]byte(ctxJSON), &attributes) != nil {
+			return
+		}
+		compiled := svc.compiledQuery(query)
+		if compiled.format != JSONLogicQueryFormat {
+			return
+		}
+		evalCtx := evalcore.ConvertEvaluationCtxFromRequest(fixtures.MetadataKey, attributes)
+		assert.Equal(
+			t,
+			applyReference(t, compiled.trimmed, evalCtx),
+			evaluateRule(compiled, &queryContext{svc: svc, ctx: evalCtx}),
+		)
+	})
+}
+
+func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
+	query := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"==": [{"var": "inventory"}, "web"]}]}`
+	ctx := ffcontext.NewEvaluationContextBuilder("request-1").
+		AddCustom(dspName, ttd).
+		AddCustom("inventory", "web").
+		Build()
+	b.Run("jsonlogic.Apply", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			strCtx, _ := json.Marshal(evalcore.ContextToMap(ctx))
+			var result bytes.Buffer
+			_ = jsonlogic.Apply(strings.NewReader(query), bytes.NewReader(strCtx), &result)
+		}
+	})
+	b.Run("cached", func(b *testing.B) {
+		svc := NewService()
+		compiled := svc.compiledQuery(query)
+		b.ReportAllocs()
+		for b.Loop() {
+			evaluateRule(compiled, &queryContext{svc: svc, ctx: ctx})
+		}
+	})
+}
+
+func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
+	q := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"some": [{"var": "tags"}, {"==": [{"var": ""}, "b"]}]}]}`
+	svc := NewService()
+	var wg sync.WaitGroup
+	for i := range 32 {
+		wg.Go(func() {
+			dsp := []string{ttd, "xandr"}[i%2]
+			ctx := ffcontext.NewEvaluationContextBuilder("k").
+				AddCustom(dspName, dsp).
+				AddCustom(tagsName, []any{"a", "b"}).
+				Build()
+			for range 200 {
+				assert.Equal(t, dsp == ttd, evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}))
+			}
+		})
+	}
+	wg.Wait()
+}
+
+func applyReference(t *testing.T, query string, ctx ffcontext.Context) bool {
+	t.Helper()
+	strCtx, err := json.Marshal(evalcore.ContextToMap(ctx))
+	require.NoError(t, err)
+	var result bytes.Buffer
+	if jsonlogic.Apply(strings.NewReader(query), bytes.NewReader(strCtx), &result) != nil {
+		return false
+	}
+	switch strings.TrimSpace(result.String()) {
+	case falseLiteral, null, `""`, "0", "[]":
+		return false
+	default:
+		return true
+	}
+}

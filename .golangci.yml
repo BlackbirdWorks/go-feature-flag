@@ -648,8 +648,8 @@ linters:
       # verbatim copy of github.com/thomaspoignant/koanf-http-provider, see NOTICE
       - (^|/)internal/koanfhttpprovider($|/)
       # files carried from upstream (UPSTREAM.md): kept verbatim so they can be re-synced
-      - (^|/)modules/core/flag/query_jsonlogic_cache\.go$
-      - (^|/)modules/core/flag/query_jsonlogic_cache_internal_test\.go$
+      - (^|/)modules/core/flagdef/query_jsonlogic_cache\.go$
+      - (^|/)modules/core/flagdef/query_jsonlogic_cache_internal_test\.go$
       # antlr-generated files in rules/parser carry a "Code generated" header and are
       # skipped by the default generated: lax; hand-written files there are linted.
     presets:

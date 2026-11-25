@@ -10,7 +10,7 @@ import (
 	"github.com/thejerf/slogassert"
 
 	"github.com/blackbirdworks/semaphore/internal/notification"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -21,15 +21,15 @@ var (
 func TestNotificationServiceNotify(t *testing.T) {
 	t.Parallel()
 
-	yoFlags := func() map[string]flag.Flag {
-		return map[string]flag.Flag{"yo": &flag.InternalFlag{Version: new("1.0")}}
+	yoFlags := func() map[string]flagdef.Flag {
+		return map[string]flagdef.Flag{"yo": &flagdef.InternalFlag{Version: new("1.0")}}
 	}
-	yoNew := map[string]flag.Flag{"yo-new": &flag.InternalFlag{Version: new("1.0")}}
+	yoNew := map[string]flagdef.Flag{"yo-new": &flagdef.InternalFlag{Version: new("1.0")}}
 
 	tests := []struct {
 		notifierErr  error
-		oldCache     map[string]flag.Flag
-		newCache     map[string]flag.Flag
+		oldCache     map[string]flagdef.Flag
+		newCache     map[string]flagdef.Flag
 		name         string
 		wantCalls    int32
 		wantLogError bool

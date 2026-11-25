@@ -6,7 +6,7 @@ import (
 
 	"github.com/thejerf/slogassert"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -42,14 +42,14 @@ func TestLogNotifier_Notify(t *testing.T) {
 		{
 			name: "Flag deleted",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					fixtures.FlagKeyTest: &flag.InternalFlag{
+				Deleted: map[string]flagdef.Flag{
+					fixtures.FlagKeyTest: &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any(false)),
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name: new(fixtures.RuleDefault),
 							Percentages: &map[string]float64{
 								fixtures.VariationFalse: 0,
@@ -59,7 +59,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 					},
 				},
 				Updated: map[string]notifier.DiffUpdated{},
-				Added:   map[string]flag.Flag{},
+				Added:   map[string]flagdef.Flag{},
 			},
 			expectedLog: &slogassert.LogMessageMatch{
 				Message: "flag removed",
@@ -73,11 +73,11 @@ func TestLogNotifier_Notify(t *testing.T) {
 		{
 			name: "Update flag",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyTest: {
-						Before: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+						Before: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -92,18 +92,18 @@ func TestLogNotifier_Notify(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(false)),
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name: new(fixtures.RuleDefault),
 								Percentages: &map[string]float64{
 									fixtures.VariationFalse: 0,
@@ -113,7 +113,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 						},
 					},
 				},
-				Added: map[string]flag.Flag{},
+				Added: map[string]flagdef.Flag{},
 			},
 			expectedLog: &slogassert.LogMessageMatch{
 				Message: "flag updated",
@@ -127,11 +127,11 @@ func TestLogNotifier_Notify(t *testing.T) {
 		{
 			name: "Disable flag",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyTest: {
-						Before: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+						Before: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -146,13 +146,13 @@ func TestLogNotifier_Notify(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
 						},
-						After: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+						After: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -167,7 +167,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -175,7 +175,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 						},
 					},
 				},
-				Added: map[string]flag.Flag{},
+				Added: map[string]flagdef.Flag{},
 			},
 			expectedLog: &slogassert.LogMessageMatch{
 				Message: "flag is turned OFF",
@@ -196,11 +196,11 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 		{
 			name: "Add flag",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{},
-				Added: map[string]flag.Flag{
-					"add-test-flag": &flag.InternalFlag{
-						Rules: &[]flag.Rule{
+				Added: map[string]flagdef.Flag{
+					"add-test-flag": &flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -215,7 +215,7 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -234,11 +234,11 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 		{
 			name: "Enable flag",
 			diff: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{},
+				Deleted: map[string]flagdef.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyTest: {
-						After: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+						After: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -253,13 +253,13 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
 						},
-						Before: &flag.InternalFlag{
-							Rules: &[]flag.Rule{
+						Before: &flagdef.InternalFlag{
+							Rules: &[]flagdef.Rule{
 								{
 									Name:  new(fixtures.RuleOne),
 									Query: new(fixtures.QueryKeyEqRandomKey),
@@ -274,7 +274,7 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 								fixtures.VariationFalse:   new(any(false)),
 								fixtures.VariationTrue:    new(any(true)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								Name:            new(fixtures.RuleDefault),
 								VariationResult: new(fixtures.VariationDefault),
 							},
@@ -282,7 +282,7 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 						},
 					},
 				},
-				Added: map[string]flag.Flag{},
+				Added: map[string]flagdef.Flag{},
 			},
 			expectedLog: &slogassert.LogMessageMatch{
 				Message: "flag is turned ON",

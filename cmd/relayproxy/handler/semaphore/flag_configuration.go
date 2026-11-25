@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // FlagConfigurationAPICtrl serves the flag configuration API of the relay proxy.
@@ -47,10 +47,10 @@ const (
 
 // FlagConfigurationResponse is the response body of the flag configuration API.
 type FlagConfigurationResponse struct {
-	Flags                       map[string]flag.Flag `json:"flags,omitempty"`
-	EvaluationContextEnrichment map[string]any       `json:"evaluationContextEnrichment,omitempty"`
-	ErrorCode                   string               `json:"errorCode,omitempty"`
-	ErrorDetails                string               `json:"errorDetails,omitempty"`
+	Flags                       map[string]flagdef.Flag `json:"flags,omitempty"`
+	EvaluationContextEnrichment map[string]any          `json:"evaluationContextEnrichment,omitempty"`
+	ErrorCode                   string                  `json:"errorCode,omitempty"`
+	ErrorDetails                string                  `json:"errorDetails,omitempty"`
 }
 
 // FlagConfigurationInput is the request of the flag configuration endpoint.
@@ -117,7 +117,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 
 	// filter if we have a list of flags in the request.
 	if len(reqBody.Flags) > 0 {
-		tmpFlags := map[string]flag.Flag{}
+		tmpFlags := map[string]flagdef.Flag{}
 
 		for _, flagKey := range reqBody.Flags {
 			if _, ok := flags[flagKey]; ok {

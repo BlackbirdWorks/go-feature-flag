@@ -9,7 +9,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 )
 
 // FlagChangeAPICtrl is the controller of the endpoint to poll to know if the flags changed.
@@ -75,8 +75,8 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 			)
 		}
 
-		flagHashes[key] = utils.Hash(string(jsonFlag))
+		flagHashes[key] = evalcore.Hash(string(jsonFlag))
 	}
 
-	return &FlagChangeOutput{Body: FlagChangeResponse{Hash: utils.Hash(string(res)), Flags: flagHashes}}, nil
+	return &FlagChangeOutput{Body: FlagChangeResponse{Hash: evalcore.Hash(string(res)), Flags: flagHashes}}, nil
 }

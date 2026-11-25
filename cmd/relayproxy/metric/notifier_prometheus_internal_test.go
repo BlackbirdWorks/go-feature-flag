@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -25,19 +25,19 @@ func TestPrometheusNotifier_with_diff(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{
-			fixtures.FlagKeyTest: &flag.InternalFlag{},
+		Deleted: map[string]flagdef.Flag{
+			fixtures.FlagKeyTest: &flagdef.InternalFlag{},
 		},
 		Updated: map[string]notifier.DiffUpdated{
 			fixtures.FlagKeyTestSecond: {
-				Before: &flag.InternalFlag{},
-				After:  &flag.InternalFlag{},
+				Before: &flagdef.InternalFlag{},
+				After:  &flagdef.InternalFlag{},
 			},
 		},
-		Added: map[string]flag.Flag{
-			testFlagAddOne:   &flag.InternalFlag{},
-			testFlagAddTwo:   &flag.InternalFlag{},
-			testFlagAddThree: &flag.InternalFlag{},
+		Added: map[string]flagdef.Flag{
+			testFlagAddOne:   &flagdef.InternalFlag{},
+			testFlagAddTwo:   &flagdef.InternalFlag{},
+			testFlagAddThree: &flagdef.InternalFlag{},
 		},
 	}
 
@@ -83,9 +83,9 @@ func TestPrometheusNotifier_no_diff(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{},
+		Deleted: map[string]flagdef.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
-		Added:   map[string]flag.Flag{},
+		Added:   map[string]flagdef.Flag{},
 	}
 
 	n := NewPrometheusNotifier(metrics)

@@ -2,13 +2,13 @@ package ofrep
 
 import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // NewEvaluateError returns the OFREP error response for a failed flag evaluation.
 func NewEvaluateError(
 	key string,
-	errorCode flag.ErrorCode,
+	errorCode flagdef.ErrorCode,
 	errorDetails string,
 ) *model.OFREPEvaluateResponseError {
 	return &model.OFREPEvaluateResponseError{
@@ -20,7 +20,7 @@ func NewEvaluateError(
 
 // NewOFREPCommonError returns the OFREP error response shared by the OFREP endpoints.
 func NewOFREPCommonError(
-	errorCode flag.ErrorCode,
+	errorCode flagdef.ErrorCode,
 	errorDetails string,
 ) *model.OFREPCommonResponseError {
 	return &model.OFREPCommonResponseError{

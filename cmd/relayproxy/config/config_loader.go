@@ -23,7 +23,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	httpprovider "github.com/blackbirdworks/semaphore/internal/koanfhttpprovider"
 	"github.com/blackbirdworks/semaphore/modules/core/legacy"
-	"github.com/blackbirdworks/semaphore/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 )
 
 const (
@@ -534,7 +534,7 @@ func processExporters(proxyConf *Config) {
 	for i := range *proxyConf.Exporters {
 		addresses := (*proxyConf.Exporters)[i].Kafka.Addresses
 		if len(addresses) == 0 || (len(addresses) == 1 && strings.Contains(addresses[0], ",")) {
-			(*proxyConf.Exporters)[i].Kafka.Addresses = utils.StringToArray(addresses)
+			(*proxyConf.Exporters)[i].Kafka.Addresses = stringsx.StringToArray(addresses)
 		}
 	}
 }

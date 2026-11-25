@@ -23,7 +23,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -78,19 +78,19 @@ func Test_SSE_FlagChange(t *testing.T) {
 			flagChange: notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyMy: {
-						Before: &flag.InternalFlag{
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: new("A")},
+							DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{VariationResult: new("B")},
+							DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 						},
 					},
 				},
@@ -100,20 +100,20 @@ func Test_SSE_FlagChange(t *testing.T) {
 		{
 			name: "add and delete flags at the same time",
 			flagChange: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Deleted: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("A")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 					},
 				},
-				Added: map[string]flag.Flag{
-					"flag-2": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-2": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"B": new(any(false)),
 						},
-						DefaultRule: &flag.Rule{VariationResult: new("B")},
+						DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 					},
 				},
 			},
@@ -235,7 +235,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 
 	// Broadcast to flagsetB -- the client on flagsetA should NOT receive it.
 	require.NoError(t, sseService.BroadcastFlagChanges("flagsetB", notifier.DiffCache{
-		Added: map[string]flag.Flag{wrongFlag: &flag.InternalFlag{}},
+		Added: map[string]flagdef.Flag{wrongFlag: &flagdef.InternalFlag{}},
 	}))
 
 	// Broadcast to flagsetA -- the client should receive this one.
@@ -243,7 +243,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	afterWrongBroadcast := clock.Now().UnixNano()
 
 	require.NoError(t, sseService.BroadcastFlagChanges(fixtures.FlagsetCamel, notifier.DiffCache{
-		Added: map[string]flag.Flag{rightFlag: &flag.InternalFlag{}},
+		Added: map[string]flagdef.Flag{rightFlag: &flagdef.InternalFlag{}},
 	}))
 
 	event := readSSEEvent(t, resp)

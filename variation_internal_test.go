@@ -17,7 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/model/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -69,7 +69,7 @@ var (
 )
 
 type cacheMock struct {
-	flag *flag.InternalFlag
+	flag *flagdef.InternalFlag
 	err  error
 }
 
@@ -90,7 +90,7 @@ type variationCase[T any, R any] struct {
 	wantErr     bool
 }
 
-func NewCacheMock(flg *flag.InternalFlag, err error) *cacheMock {
+func NewCacheMock(flg *flagdef.InternalFlag, err error) *cacheMock {
 	return &cacheMock{
 		flag: flg,
 		err:  err,
@@ -109,13 +109,13 @@ func (*cacheMock) UpdateCache(_ map[string]dto.DTO, _ *slog.Logger, _ bool) erro
 }
 
 func (*cacheMock) Close() {}
-func (c *cacheMock) GetFlag(_ string) (*flag.InternalFlag, error) {
+func (c *cacheMock) GetFlag(_ string) (*flagdef.InternalFlag, error) {
 	return c.flag, c.err
 }
 
-func (*cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, assert.AnError }
+func (*cacheMock) AllFlags() (map[string]flagdef.Flag, error) { return nil, assert.AnError }
 
-func (*cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, assert.AnError }
+func (*cacheMock) AllFlagsReadOnly() (map[string]flagdef.Flag, error) { return nil, assert.AnError }
 
 // assertExpectedLog waits for the async logger to flush and asserts that a log
 // message containing expectedLog was emitted. It is a no-op when expectedLog is
@@ -159,7 +159,7 @@ func newVariationTestClient(
 	ffLogger := logger
 
 	return &GoFeatureFlag{
-		evaluationService: flag.NewService(),
+		evaluationService: flagdef.NewService(),
 		retrieverManager:  retriever.NewManager(mgrCfg, []retriever.Retriever{}, cacheMock, ffLogger),
 		config: Config{
 			PollingInterval: 0,
@@ -253,17 +253,17 @@ func TestBoolVariation(t *testing.T) {
 				flagKey:       keyNotExist,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  false,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VarTrue:  new(any(true)),
 						fixtures.VarFalse: new(any(false)),
 					},
-					Rules: &[]flag.Rule{{
+					Rules: &[]flagdef.Rule{{
 						Query:       new(fixtures.QueryKeyEqKey),
 						Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					},
 					BucketingKey: nil,
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.VarFalse),
 					},
 				}, nil),
@@ -278,7 +278,7 @@ func TestBoolVariation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -293,7 +293,7 @@ func TestBoolVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errImpossibleToReadThe),
 			},
 			want:        true,
@@ -307,7 +307,7 @@ func TestBoolVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errFlagKeyNotExist,
 				),
 			},
@@ -321,8 +321,8 @@ func TestBoolVariation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -337,7 +337,7 @@ func TestBoolVariation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationTrue:    new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -362,8 +362,8 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -378,7 +378,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationTrue:    new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -394,8 +394,8 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(randomKeySsssOne),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.AnonymousEqTrue),
@@ -410,7 +410,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationTrue:    new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -426,8 +426,8 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -442,7 +442,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 						fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -458,8 +458,8 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  true,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -474,7 +474,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(false)),
 						fixtures.VariationTrue:    new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -492,7 +492,7 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  false,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -519,17 +519,17 @@ func TestBoolVariationDetails(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  false,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -543,14 +543,14 @@ func TestBoolVariationDetails(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[bool]{
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -565,7 +565,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				wantErr:     true,
@@ -578,7 +578,7 @@ func TestBoolVariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -591,8 +591,8 @@ func TestBoolVariationDetails(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -607,7 +607,7 @@ func TestBoolVariationDetails(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -616,7 +616,7 @@ func TestBoolVariationDetails(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -643,8 +643,8 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -659,7 +659,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -668,7 +668,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -685,8 +685,8 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -701,7 +701,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -710,7 +710,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -727,8 +727,8 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Query: new(fixtures.QueryKeyEqRandomKey),
 								Percentages: &map[string]float64{
@@ -742,7 +742,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -751,7 +751,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -765,8 +765,8 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -781,7 +781,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 							fixtures.VariationFalse:   new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -790,7 +790,7 @@ func TestBoolVariationDetails_RuleMetadata(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatchSplit,
+					Reason:        flagdef.ReasonTargetingMatchSplit,
 					Value:         false,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -820,8 +820,8 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -836,17 +836,17 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
 					}, nil),
 				},
 				want: model.VariationResult[bool]{
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        true,
-					Reason:        flag.ReasonError,
-					ErrorCode:     flag.ErrorCodeTypeMismatch,
+					Reason:        flagdef.ReasonError,
+					ErrorCode:     flagdef.ErrorCodeTypeMismatch,
 					Value:         false,
 					TrackEvents:   true,
 				},
@@ -860,14 +860,14 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  false,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[bool]{
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonOffline,
+					Reason:        flagdef.ReasonOffline,
 					Value:         false,
 					TrackEvents:   false,
 				},
@@ -880,12 +880,12 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(""),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"on":                  new(any(true)),
 							fixtures.VariationOff: new(any(false)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new("on"),
 						},
 					}, nil),
@@ -893,7 +893,7 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: "on",
 					Failed:        false,
-					Reason:        flag.ReasonStatic,
+					Reason:        flagdef.ReasonStatic,
 					Value:         true,
 					TrackEvents:   true,
 					Cacheable:     true,
@@ -907,12 +907,12 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(""),
 					defaultValue:  false,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"on":                  new(any(true)),
 							fixtures.VariationOff: new(any(false)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Percentages: &map[string]float64{
 								"on":                  100,
 								fixtures.VariationOff: 0,
@@ -923,8 +923,8 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 				want: model.VariationResult[bool]{
 					VariationType: "SdkDefault",
 					Failed:        true,
-					Reason:        flag.ReasonError,
-					ErrorCode:     flag.ErrorCodeTargetingKeyMissing,
+					Reason:        flagdef.ReasonError,
+					ErrorCode:     flagdef.ErrorCodeTargetingKeyMissing,
 					ErrorDetails:  "Error: Empty targeting key",
 					Value:         false,
 					TrackEvents:   true,
@@ -959,17 +959,17 @@ func TestFloat64Variation(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  123.3,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -984,7 +984,7 @@ func TestFloat64Variation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  120.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -999,7 +999,7 @@ func TestFloat64Variation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				want:        118.12,
@@ -1013,7 +1013,7 @@ func TestFloat64Variation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -1027,8 +1027,8 @@ func TestFloat64Variation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -1043,7 +1043,7 @@ func TestFloat64Variation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1079,8 +1079,8 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1095,7 +1095,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1111,8 +1111,8 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -1127,7 +1127,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1143,8 +1143,8 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1159,7 +1159,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1175,8 +1175,8 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1191,7 +1191,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1209,7 +1209,7 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -1236,17 +1236,17 @@ func TestFloat64VariationDetails(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  123.3,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -1260,16 +1260,16 @@ func TestFloat64VariationDetails(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  120.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[float64]{
 					Value:         120.12,
 					TrackEvents:   true,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -1282,7 +1282,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				wantErr:     true,
@@ -1295,7 +1295,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -1308,8 +1308,8 @@ func TestFloat64VariationDetails(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -1324,7 +1324,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1335,7 +1335,7 @@ func TestFloat64VariationDetails(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -1360,8 +1360,8 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1376,7 +1376,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1387,7 +1387,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -1402,8 +1402,8 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -1418,7 +1418,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(121.12)),
 							fixtures.VariationTrue:    new(any(120.12)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1429,7 +1429,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatchSplit,
+					Reason:        flagdef.ReasonTargetingMatchSplit,
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -1444,8 +1444,8 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1460,7 +1460,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1471,7 +1471,7 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 				},
 				wantErr:     true,
 				expectedLog: `user="random-key-ssss1", flag="test-flag", value="118.12", variation="SdkDefault"`,
@@ -1483,16 +1483,16 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118.12,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[float64]{
 					Value:         118.12,
 					TrackEvents:   false,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonOffline,
+					Reason:        flagdef.ReasonOffline,
 				},
 				wantErr:     false,
 				expectedLog: "",
@@ -1523,17 +1523,17 @@ func TestJSONArrayVariation(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -1548,7 +1548,7 @@ func TestJSONArrayVariation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -1563,7 +1563,7 @@ func TestJSONArrayVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				want:    []any{fixtures.PlaceholderToto},
@@ -1578,7 +1578,7 @@ func TestJSONArrayVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -1593,8 +1593,8 @@ func TestJSONArrayVariation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -1609,7 +1609,7 @@ func TestJSONArrayVariation(t *testing.T) {
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1645,8 +1645,8 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1661,7 +1661,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1677,13 +1677,13 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name: new(fixtures.RuleDefault),
 							Percentages: &map[string]float64{
 								fixtures.VariationFalse: 90,
@@ -1702,8 +1702,8 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -1718,7 +1718,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1736,13 +1736,13 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name: new(fixtures.RuleDefault),
 							Percentages: &map[string]float64{
 								fixtures.VariationFalse: 0,
@@ -1763,7 +1763,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -1797,17 +1797,17 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -1821,15 +1821,15 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[[]any]{
 					TrackEvents:   true,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Value:         []any{fixtures.PlaceholderToto},
 					Cacheable:     true,
 				},
@@ -1843,7 +1843,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				wantErr: true,
@@ -1857,7 +1857,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -1871,8 +1871,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -1887,7 +1887,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1897,7 +1897,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Value:         []any{fixtures.FlagsetDefault},
 					Cacheable:     true,
 				},
@@ -1930,8 +1930,8 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -1946,7 +1946,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -1956,7 +1956,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         []any{fixtures.TrueLiteral},
 					Cacheable:     true,
 					Metadata: map[string]any{
@@ -1972,13 +1972,13 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
 							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
 							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name: new(fixtures.RuleDefault),
 							Percentages: &map[string]float64{
 								fixtures.VariationFalse: 90,
@@ -1991,7 +1991,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
-					Reason:        flag.ReasonSplit,
+					Reason:        flagdef.ReasonSplit,
 					Value:         []any{fixtures.FalseLiteral},
 					Cacheable:     true,
 				},
@@ -2004,8 +2004,8 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -2020,7 +2020,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -2030,7 +2030,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Value:         []any{fixtures.PlaceholderToto},
 				},
 				wantErr: true,
@@ -2045,15 +2045,15 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  []any{fixtures.PlaceholderToto},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[[]any]{
 					TrackEvents:   false,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonOffline,
+					Reason:        flagdef.ReasonOffline,
 					Value:         []any{fixtures.PlaceholderToto},
 				},
 				wantErr:     false,
@@ -2078,17 +2078,17 @@ func TestJSONVariation(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -2103,7 +2103,7 @@ func TestJSONVariation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -2118,7 +2118,7 @@ func TestJSONVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				want:        map[string]any{defaultNotkey: true},
@@ -2132,7 +2132,7 @@ func TestJSONVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
@@ -2146,8 +2146,8 @@ func TestJSONVariation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -2162,7 +2162,7 @@ func TestJSONVariation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -2191,8 +2191,8 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -2207,7 +2207,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -2223,8 +2223,8 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -2239,7 +2239,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -2255,8 +2255,8 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -2271,7 +2271,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -2288,7 +2288,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{defaultNotkey: true},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
@@ -2324,15 +2324,15 @@ func TestJSONVariationDetails(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  map[string]any{defaultNotkey: true},
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[map[string]any]{
 				TrackEvents:   true,
-				VariationType: flag.VariationSDKDefault,
+				VariationType: flagdef.VariationSDKDefault,
 				Failed:        false,
-				Reason:        flag.ReasonDisabled,
+				Reason:        flagdef.ReasonDisabled,
 				Value:         map[string]any{defaultNotkey: true},
 				Cacheable:     true,
 			},
@@ -2345,8 +2345,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  map[string]any{defaultNotkey: true},
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -2361,7 +2361,7 @@ func TestJSONVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2371,7 +2371,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationDefault,
 				Failed:        false,
-				Reason:        flag.ReasonDefault,
+				Reason:        flagdef.ReasonDefault,
 				Value:         map[string]any{fixtures.FlagsetDefault: true},
 				Cacheable:     true,
 			},
@@ -2384,8 +2384,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  map[string]any{defaultNotkey: true},
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -2400,7 +2400,7 @@ func TestJSONVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2410,7 +2410,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationTrue,
 				Failed:        false,
-				Reason:        flag.ReasonTargetingMatch,
+				Reason:        flagdef.ReasonTargetingMatch,
 				Value:         map[string]any{fixtures.TrueLiteral: true},
 				Cacheable:     true,
 				Metadata: map[string]any{
@@ -2426,8 +2426,8 @@ func TestJSONVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(randomKeySsssOne),
 				defaultValue:  map[string]any{defaultNotkey: true},
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.AnonymousEqTrue),
@@ -2442,7 +2442,7 @@ func TestJSONVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
 						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2452,7 +2452,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationFalse,
 				Failed:        false,
-				Reason:        flag.ReasonTargetingMatchSplit,
+				Reason:        flagdef.ReasonTargetingMatchSplit,
 				Value:         map[string]any{fixtures.FalseLiteral: true},
 				Cacheable:     true,
 				Metadata: map[string]any{
@@ -2469,15 +2469,15 @@ func TestJSONVariationDetails(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  map[string]any{defaultNotkey: true},
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[map[string]any]{
 				TrackEvents:   false,
-				VariationType: flag.VariationSDKDefault,
+				VariationType: flagdef.VariationSDKDefault,
 				Failed:        false,
-				Reason:        flag.ReasonOffline,
+				Reason:        flagdef.ReasonOffline,
 				Value:         map[string]any{defaultNotkey: true},
 			},
 			wantErr:     false,
@@ -2502,7 +2502,7 @@ func TestJSONVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				client = &GoFeatureFlag{
-					evaluationService: flag.NewService(),
+					evaluationService: flagdef.NewService(),
 					retrieverManager: retriever.NewManager(
 						mgrCfg,
 						[]retriever.Retriever{},
@@ -2557,17 +2557,17 @@ func TestStringVariation(t *testing.T) {
 				flagKey:       keyNotExist,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  "",
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VarTrue:  new(any(true)),
 						fixtures.VarFalse: new(any(false)),
 					},
-					Rules: &[]flag.Rule{{
+					Rules: &[]flagdef.Rule{{
 						Query:       new(fixtures.QueryKeyEqKey),
 						Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					},
 					BucketingKey: nil,
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.VarFalse),
 					},
 				}, nil),
@@ -2582,7 +2582,7 @@ func TestStringVariation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -2597,7 +2597,7 @@ func TestStringVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errImpossibleToReadThe),
 			},
 			want:        defaultNotkey,
@@ -2611,7 +2611,7 @@ func TestStringVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errFlagKeyNotExist,
 				),
 			},
@@ -2626,8 +2626,8 @@ func TestStringVariation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -2642,7 +2642,7 @@ func TestStringVariation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2667,8 +2667,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -2683,7 +2683,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2699,8 +2699,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(randomKeySsssOne),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.AnonymousEqTrue),
@@ -2715,7 +2715,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2731,8 +2731,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -2747,7 +2747,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(2)),
 						fixtures.VariationTrue:    new(any(3)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2764,7 +2764,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -2780,8 +2780,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 					AddCustom("version", "1.0.0-2345").
 					Build(),
 				defaultValue: fixtures.FlagsetDefault,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:            new("semver_rule"),
 							Query:           new("version gt \"1.0.0-1234\""),
@@ -2792,7 +2792,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 						"prerelease":            new(any("newer-prerelease")),
 						fixtures.FlagsetDefault: new(any("default-value")),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.FlagsetDefault),
 					},
@@ -2830,15 +2830,15 @@ func TestStringVariationDetails(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[string]{
 				TrackEvents:   true,
-				VariationType: flag.VariationSDKDefault,
+				VariationType: flagdef.VariationSDKDefault,
 				Failed:        false,
-				Reason:        flag.ReasonDisabled,
+				Reason:        flagdef.ReasonDisabled,
 				Value:         defaultNotkey,
 				Cacheable:     true,
 			},
@@ -2851,8 +2851,8 @@ func TestStringVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -2867,7 +2867,7 @@ func TestStringVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2877,7 +2877,7 @@ func TestStringVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationDefault,
 				Failed:        false,
-				Reason:        flag.ReasonDefault,
+				Reason:        flagdef.ReasonDefault,
 				Value:         fixtures.FlagsetDefault,
 				Cacheable:     true,
 			},
@@ -2890,8 +2890,8 @@ func TestStringVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -2906,7 +2906,7 @@ func TestStringVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2916,7 +2916,7 @@ func TestStringVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationTrue,
 				Failed:        false,
-				Reason:        flag.ReasonTargetingMatch,
+				Reason:        flagdef.ReasonTargetingMatch,
 				Value:         fixtures.TrueLiteral,
 				Cacheable:     true,
 				Metadata: map[string]any{
@@ -2932,8 +2932,8 @@ func TestStringVariationDetails(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(randomKeySsssOne),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.AnonymousEqTrue),
@@ -2948,7 +2948,7 @@ func TestStringVariationDetails(t *testing.T) {
 						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -2958,7 +2958,7 @@ func TestStringVariationDetails(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: fixtures.VariationFalse,
 				Failed:        false,
-				Reason:        flag.ReasonTargetingMatchSplit,
+				Reason:        flagdef.ReasonTargetingMatchSplit,
 				Value:         fixtures.FalseLiteral,
 				Cacheable:     true,
 				Metadata: map[string]any{
@@ -2975,15 +2975,15 @@ func TestStringVariationDetails(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  defaultNotkey,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
 			want: model.VariationResult[string]{
 				TrackEvents:   false,
-				VariationType: flag.VariationSDKDefault,
+				VariationType: flagdef.VariationSDKDefault,
 				Failed:        false,
-				Reason:        flag.ReasonOffline,
+				Reason:        flagdef.ReasonOffline,
 				Value:         defaultNotkey,
 			},
 			wantErr:     false,
@@ -3008,7 +3008,7 @@ func TestStringVariationDetails(t *testing.T) {
 					PollingInterval:         500,
 				}
 				client = &GoFeatureFlag{
-					evaluationService: flag.NewService(),
+					evaluationService: flagdef.NewService(),
 					retrieverManager: retriever.NewManager(
 						mgrCfg,
 						[]retriever.Retriever{},
@@ -3062,17 +3062,17 @@ func TestIntVariation(t *testing.T) {
 				flagKey:       keyNotExist,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  1,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VarTrue:  new(any(true)),
 						fixtures.VarFalse: new(any(false)),
 					},
-					Rules: &[]flag.Rule{{
+					Rules: &[]flagdef.Rule{{
 						Query:       new(fixtures.QueryKeyEqKey),
 						Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					},
 					BucketingKey: nil,
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.VarFalse),
 					},
 				}, nil),
@@ -3087,7 +3087,7 @@ func TestIntVariation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  125,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -3102,7 +3102,7 @@ func TestIntVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errImpossibleToReadThe),
 			},
 			want:        118,
@@ -3116,7 +3116,7 @@ func TestIntVariation(t *testing.T) {
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  118,
 				cacheMock: NewCacheMock(
-					&flag.InternalFlag{},
+					&flagdef.InternalFlag{},
 					errFlagKeyNotExist,
 				),
 			},
@@ -3130,8 +3130,8 @@ func TestIntVariation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  118,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -3146,7 +3146,7 @@ func TestIntVariation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(120)),
 						fixtures.VariationFalse:   new(any(121)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -3171,8 +3171,8 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  118,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3187,7 +3187,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(120)),
 						fixtures.VariationFalse:   new(any(121)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -3203,8 +3203,8 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(randomKeySsssOne),
 				defaultValue:  118,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.AnonymousEqTrue),
@@ -3219,7 +3219,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(120)),
 						fixtures.VariationFalse:   new(any(121)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -3235,8 +3235,8 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
 				defaultValue:  118,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqKey),
@@ -3251,7 +3251,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
 						fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -3267,8 +3267,8 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       fixtures.FlagKeyTest,
 				evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 				defaultValue:  118,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
-					Rules: &[]flag.Rule{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
+					Rules: &[]flagdef.Rule{
 						{
 							Name:  new(fixtures.RuleOne),
 							Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3283,7 +3283,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 						fixtures.VariationTrue:    new(any(120.1)),
 						fixtures.VariationFalse:   new(any(121.1)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						Name:            new(fixtures.RuleDefault),
 						VariationResult: new(fixtures.VariationDefault),
 					},
@@ -3300,7 +3300,7 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 				flagKey:       disableFlag,
 				evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 				defaultValue:  125,
-				cacheMock: NewCacheMock(&flag.InternalFlag{
+				cacheMock: NewCacheMock(&flagdef.InternalFlag{
 					Disable: new(true),
 				}, nil),
 			},
@@ -3327,15 +3327,15 @@ func TestIntVariationDetails(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  125,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[int]{
 					TrackEvents:   true,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Value:         125,
 					Cacheable:     true,
 				},
@@ -3348,8 +3348,8 @@ func TestIntVariationDetails(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  118,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -3364,7 +3364,7 @@ func TestIntVariationDetails(t *testing.T) {
 							fixtures.VariationTrue:    new(any(120)),
 							fixtures.VariationFalse:   new(any(121)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3374,7 +3374,7 @@ func TestIntVariationDetails(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Value:         119,
 					Cacheable:     true,
 				},
@@ -3400,8 +3400,8 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  118,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3416,7 +3416,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(120)),
 							fixtures.VariationFalse:   new(any(121)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3426,7 +3426,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         120,
 					Cacheable:     true,
 					Metadata: map[string]any{
@@ -3442,8 +3442,8 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  118,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -3458,7 +3458,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(120)),
 							fixtures.VariationFalse:   new(any(121)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3468,7 +3468,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatchSplit,
+					Reason:        flagdef.ReasonTargetingMatchSplit,
 					Value:         121,
 					Cacheable:     true,
 					Metadata: map[string]any{
@@ -3484,8 +3484,8 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  118,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3500,7 +3500,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:    new(any(120.1)),
 							fixtures.VariationFalse:   new(any(121.1)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3510,7 +3510,7 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					TrackEvents:   true,
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Value:         120,
 					Cacheable:     true,
 					Metadata: map[string]any{
@@ -3527,15 +3527,15 @@ func TestIntVariationDetails_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  125,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.VariationResult[int]{
 					TrackEvents:   false,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonOffline,
+					Reason:        flagdef.ReasonOffline,
 					Value:         125,
 				},
 				wantErr:     false,
@@ -3567,17 +3567,17 @@ func TestRawVariation(t *testing.T) {
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  "",
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VarTrue:  new(any(true)),
 							fixtures.VarFalse: new(any(false)),
 						},
-						Rules: &[]flag.Rule{{
+						Rules: &[]flagdef.Rule{{
 							Query:       new(fixtures.QueryKeyEqKey),
 							Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 						},
 						BucketingKey: nil,
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarFalse),
 						},
 					}, nil),
@@ -3585,10 +3585,10 @@ func TestRawVariation(t *testing.T) {
 				},
 				wantErr: true,
 				want: model.RawVarResult{
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        true,
-					Reason:        flag.ReasonError,
-					ErrorCode:     flag.ErrorCodeProviderNotReady,
+					Reason:        flagdef.ReasonError,
+					ErrorCode:     flagdef.ErrorCodeProviderNotReady,
 					Value:         "",
 				},
 			},
@@ -3598,16 +3598,16 @@ func TestRawVariation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.RawVarResult{
 					Value:         true,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
 					TrackEvents:   true,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -3620,16 +3620,16 @@ func TestRawVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  "defaultValue",
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errImpossibleToReadThe),
 				},
 				want: model.RawVarResult{
 					Value:         "defaultValue",
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        true,
 					TrackEvents:   true,
-					Reason:        flag.ReasonError,
-					ErrorCode:     flag.ErrorCodeFlagNotFound,
+					Reason:        flagdef.ReasonError,
+					ErrorCode:     flagdef.ErrorCodeFlagNotFound,
 					Cacheable:     false,
 				},
 				wantErr:     true,
@@ -3642,17 +3642,17 @@ func TestRawVariation(t *testing.T) {
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  123456,
 					cacheMock: NewCacheMock(
-						&flag.InternalFlag{},
+						&flagdef.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
 				want: model.RawVarResult{
 					Value:         123456,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        true,
 					TrackEvents:   true,
-					Reason:        flag.ReasonError,
-					ErrorCode:     flag.ErrorCodeFlagNotFound,
+					Reason:        flagdef.ReasonError,
+					ErrorCode:     flagdef.ErrorCodeFlagNotFound,
 				},
 				wantErr:     true,
 				expectedLog: `user="random-key", flag="key-not-exist", value="123456", variation="SdkDefault"`,
@@ -3663,8 +3663,8 @@ func TestRawVariation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqKey),
@@ -3681,7 +3681,7 @@ func TestRawVariation(t *testing.T) {
 							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
 							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3692,7 +3692,7 @@ func TestRawVariation(t *testing.T) {
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					TrackEvents:   true,
-					Reason:        flag.ReasonDefault,
+					Reason:        flagdef.ReasonDefault,
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -3724,8 +3724,8 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3742,7 +3742,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
 							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3753,7 +3753,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
 					TrackEvents:   true,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -3768,8 +3768,8 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
 					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
-					cacheMock: NewCacheMock(&flag.InternalFlag{
-						Rules: &[]flag.Rule{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.AnonymousEqTrue),
@@ -3786,7 +3786,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							fixtures.VariationTrue:  new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
 							fixtures.VariationFalse: new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3797,7 +3797,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
 					TrackEvents:   true,
-					Reason:        flag.ReasonTargetingMatchSplit,
+					Reason:        flagdef.ReasonTargetingMatchSplit,
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -3812,13 +3812,13 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
 					defaultValue:  true,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any(false)),
 							fixtures.VariationTrue:    new(any(true)),
 							fixtures.VariationFalse:   new(any(false)),
 						},
-						Rules: &[]flag.Rule{
+						Rules: &[]flagdef.Rule{
 							{
 								Name:  new(fixtures.RuleOne),
 								Query: new(fixtures.QueryKeyEqRandomKey),
@@ -3828,7 +3828,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 								},
 							},
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							Name:            new(fixtures.RuleDefault),
 							VariationResult: new(fixtures.VariationDefault),
 						},
@@ -3840,7 +3840,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
 					TrackEvents:   false,
-					Reason:        flag.ReasonTargetingMatch,
+					Reason:        flagdef.ReasonTargetingMatch,
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -3856,16 +3856,16 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  false,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.RawVarResult{
 					Value:         false,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
 					TrackEvents:   false,
-					Reason:        flag.ReasonOffline,
+					Reason:        flagdef.ReasonOffline,
 				},
 				wantErr:     false,
 				expectedLog: "",
@@ -3876,15 +3876,15 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
 					defaultValue:  nil,
-					cacheMock: NewCacheMock(&flag.InternalFlag{
+					cacheMock: NewCacheMock(&flagdef.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
 				want: model.RawVarResult{
 					TrackEvents:   true,
-					VariationType: flag.VariationSDKDefault,
+					VariationType: flagdef.VariationSDKDefault,
 					Failed:        false,
-					Reason:        flag.ReasonDisabled,
+					Reason:        flagdef.ReasonDisabled,
 					Value:         nil,
 					Cacheable:     true,
 				},

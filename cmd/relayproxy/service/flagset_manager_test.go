@@ -19,9 +19,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -229,7 +229,7 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 			config: &config.Config{
 				Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: flagConfig},
 			},
-			wantFlagsets: []string{utils.DefaultFlagSetName},
+			wantFlagsets: []string{stringsx.DefaultFlagSetName},
 		},
 		{
 			name: "flagsets mode",

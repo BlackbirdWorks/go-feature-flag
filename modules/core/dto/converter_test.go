@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -23,7 +23,7 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 
 	tests := []struct {
 		input    dto.DTO
-		expected flag.InternalFlag
+		expected flagdef.InternalFlag
 		name     string
 	}{
 		{
@@ -34,22 +34,22 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 					fixtures.VarOne: new(any(fixtures.VarOne)),
 					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
-				Rules: &[]flag.Rule{{
+				Rules: &[]flagdef.Rule{{
 					Name:        new(fixtures.RuleOne),
 					Query:       new(fixtures.QueryKeyEqKey),
 					Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					{
 						Name:  new(fixtures.RuleTwo),
 						Query: new(keyEqKeyTwo),
-						ProgressiveRollout: &flag.ProgressiveRollout{
-							Initial: &flag.ProgressiveRolloutStep{
+						ProgressiveRollout: &flagdef.ProgressiveRollout{
+							Initial: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
-							End: &flag.ProgressiveRolloutStep{
+							End: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date: new(
@@ -64,13 +64,13 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						VariationResult: new(fixtures.VarTwo),
 					},
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new(fixtures.VarOne),
 				},
-				Scheduled: &[]flag.ScheduledStep{
+				Scheduled: &[]flagdef.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarTwo),
 						},
 					},
@@ -84,28 +84,28 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 				Disable:     new(false),
 				Version:     new("v1"),
 			},
-			expected: flag.InternalFlag{
+			expected: flagdef.InternalFlag{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
 					fixtures.VarOne: new(any(fixtures.VarOne)),
 					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
-				Rules: &[]flag.Rule{{
+				Rules: &[]flagdef.Rule{{
 					Name:        new(fixtures.RuleOne),
 					Query:       new(fixtures.QueryKeyEqKey),
 					Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					{
 						Name:  new(fixtures.RuleTwo),
 						Query: new(keyEqKeyTwo),
-						ProgressiveRollout: &flag.ProgressiveRollout{
-							Initial: &flag.ProgressiveRolloutStep{
+						ProgressiveRollout: &flagdef.ProgressiveRollout{
+							Initial: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
-							End: &flag.ProgressiveRolloutStep{
+							End: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date: new(
@@ -120,21 +120,21 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						VariationResult: new(fixtures.VarTwo),
 					},
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new(fixtures.VarOne),
 				},
 				TrackEvents: new(true),
 				Disable:     new(false),
 				Version:     new("v1"),
-				Scheduled: &[]flag.ScheduledStep{
+				Scheduled: &[]flagdef.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
-				Experimentation: &flag.ExperimentationRollout{
+				Experimentation: &flagdef.ExperimentationRollout{
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
@@ -144,7 +144,7 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 		{
 			name:     "nil input",
 			input:    dto.DTO{},
-			expected: flag.InternalFlag{},
+			expected: flagdef.InternalFlag{},
 		},
 	}
 	for _, tt := range tests {
@@ -162,18 +162,18 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 
 	tests := []struct {
 		expected dto.DTO
-		input    flag.InternalFlag
+		input    flagdef.InternalFlag
 		name     string
 	}{
 		{
 			name: "all fields set",
-			input: flag.InternalFlag{
+			input: flagdef.InternalFlag{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
 					fixtures.VarOne: new(any(fixtures.VarOne)),
 					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
-				Rules: &[]flag.Rule{
+				Rules: &[]flagdef.Rule{
 					{
 						Name:        new(fixtures.RuleOne),
 						Query:       new(fixtures.QueryKeyEqKey),
@@ -182,13 +182,13 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 					{
 						Name:  new(fixtures.RuleTwo),
 						Query: new(keyEqKeyTwo),
-						ProgressiveRollout: &flag.ProgressiveRollout{
-							Initial: &flag.ProgressiveRolloutStep{
+						ProgressiveRollout: &flagdef.ProgressiveRollout{
+							Initial: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
-							End: &flag.ProgressiveRolloutStep{
+							End: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
@@ -201,18 +201,18 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 						VariationResult: new(fixtures.VarTwo),
 					},
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new(fixtures.VarOne),
 				},
-				Scheduled: &[]flag.ScheduledStep{
+				Scheduled: &[]flagdef.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
-				Experimentation: &flag.ExperimentationRollout{
+				Experimentation: &flagdef.ExperimentationRollout{
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
@@ -227,7 +227,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 					fixtures.VarOne: new(any(fixtures.VarOne)),
 					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
-				Rules: &[]flag.Rule{
+				Rules: &[]flagdef.Rule{
 					{
 						Name:        new(fixtures.RuleOne),
 						Query:       new(fixtures.QueryKeyEqKey),
@@ -236,13 +236,13 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 					{
 						Name:  new(fixtures.RuleTwo),
 						Query: new(keyEqKeyTwo),
-						ProgressiveRollout: &flag.ProgressiveRollout{
-							Initial: &flag.ProgressiveRolloutStep{
+						ProgressiveRollout: &flagdef.ProgressiveRollout{
+							Initial: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
-							End: &flag.ProgressiveRolloutStep{
+							End: &flagdef.ProgressiveRolloutStep{
 								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
@@ -255,13 +255,13 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 						VariationResult: new(fixtures.VarTwo),
 					},
 				},
-				DefaultRule: &flag.Rule{
+				DefaultRule: &flagdef.Rule{
 					VariationResult: new(fixtures.VarOne),
 				},
-				Scheduled: &[]flag.ScheduledStep{
+				Scheduled: &[]flagdef.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new(fixtures.VarTwo),
 						},
 					},
@@ -278,7 +278,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 		},
 		{
 			name: "nil experimentation",
-			input: flag.InternalFlag{
+			input: flagdef.InternalFlag{
 				Experimentation: nil,
 				Version:         new("v1"),
 			},
@@ -288,7 +288,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 		},
 		{
 			name:     "empty input",
-			input:    flag.InternalFlag{},
+			input:    flagdef.InternalFlag{},
 			expected: dto.DTO{},
 		},
 	}

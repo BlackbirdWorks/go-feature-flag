@@ -14,8 +14,8 @@ import (
 	rerr "github.com/blackbirdworks/semaphore/cmdhelpers/err"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -285,7 +285,7 @@ func runEvaluate(
 		context.Background(),
 		r,
 		logger,
-		utils.DefaultFlagSetName,
+		stringsx.DefaultFlagSetName,
 	)
 	if tryInitializeWithFlagsetErr != nil {
 		return tryInitializeWithFlagsetErr

@@ -13,7 +13,7 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
@@ -384,8 +384,8 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
 
 	defer goff.Close()
 
-	steps := func(flags map[string]flag.Flag) *[]flag.ScheduledStep {
-		f, ok := flags["scheduled"].(*flag.InternalFlag)
+	steps := func(flags map[string]flagdef.Flag) *[]flagdef.ScheduledStep {
+		f, ok := flags["scheduled"].(*flagdef.InternalFlag)
 		require.True(t, ok)
 		require.NotNil(t, f.Scheduled)
 

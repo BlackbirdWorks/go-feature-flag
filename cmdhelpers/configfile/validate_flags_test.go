@@ -9,7 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -23,11 +23,11 @@ func TestValidateFlags(t *testing.T) {
 
 	panicking := dto.DTO{
 		Variations:  &map[string]*any{"a": new(any(true))},
-		DefaultRule: &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{}},
+		DefaultRule: &flagdef.Rule{ProgressiveRollout: &flagdef.ProgressiveRollout{}},
 	}
 	valid := dto.DTO{
 		Variations:  &map[string]*any{"a": new(any(true))},
-		DefaultRule: &flag.Rule{VariationResult: new("a")},
+		DefaultRule: &flagdef.Rule{VariationResult: new("a")},
 	}
 	invalid := dto.DTO{Variations: &map[string]*any{"a": new(any(true))}}
 

@@ -8,7 +8,7 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
-	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
@@ -79,7 +79,7 @@ func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) 
 		targetingKey = ""
 	}
 
-	convertedEvaluationCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, ctxAsMap)
+	convertedEvaluationCtx := evalcore.ConvertEvaluationCtxFromRequest(targetingKey, ctxAsMap)
 
 	return convertedEvaluationCtx, nil
 }

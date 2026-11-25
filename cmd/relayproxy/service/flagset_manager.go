@@ -21,8 +21,8 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/cmdlog"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -149,7 +149,7 @@ func newFlagsetManagerWithDefaultConfig(
 	sseService stream.SSEService, wsService stream.WebsocketService,
 ) (*FlagsetManagerImpl, error) {
 	defaultFlagSet := config.FlagSet{
-		Name:                            utils.DefaultFlagSetName,
+		Name:                            stringsx.DefaultFlagSetName,
 		Retriever:                       cfg.Retriever,
 		Retrievers:                      cfg.Retrievers,
 		Notifiers:                       cfg.Notifiers,
@@ -164,7 +164,7 @@ func newFlagsetManagerWithDefaultConfig(
 		EvaluationContextEnrichment:     cfg.EvaluationContextEnrichment,
 		PersistentFlagConfigurationFile: cfg.PersistentFlagConfigurationFile,
 	}
-	allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, utils.DefaultFlagSetName)
+	allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, stringsx.DefaultFlagSetName)
 
 	client, err := NewGoFeatureFlagClient(&defaultFlagSet, logger, allNotifiers)
 	if err != nil {
@@ -227,7 +227,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		if !isNamedFlagset(flagset) {
 			flagSetName = uuid.New().String()
 
-			if flagset.Name == utils.DefaultFlagSetName {
+			if flagset.Name == stringsx.DefaultFlagSetName {
 				logger.LogAttrs(context.Background(), slog.LevelWarn, defaultNamedFlagsetWarning,
 					slog.String("flagset", flagSetName))
 			} else {
@@ -324,7 +324,7 @@ func (m *FlagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 		return "", errNoFlagSetAssociated
 	}
 
-	return utils.DefaultFlagSetName, nil
+	return stringsx.DefaultFlagSetName, nil
 }
 
 // AllFlagSets returns the flag sets of the flagset manager.
@@ -349,7 +349,7 @@ func (m *FlagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 	}
 
 	return map[string]*ffclient.GoFeatureFlag{
-		utils.DefaultFlagSetName: m.DefaultFlagSet,
+		stringsx.DefaultFlagSetName: m.DefaultFlagSet,
 	}, nil
 }
 
@@ -520,7 +520,7 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 // managed at runtime. Flagsets without a name (or named "default") get a generated name at
 // startup and cannot be added, removed or have their API keys changed at runtime.
 func isNamedFlagset(flagset *config.FlagSet) bool {
-	return flagset.Name != "" && flagset.Name != utils.DefaultFlagSetName
+	return flagset.Name != "" && flagset.Name != stringsx.DefaultFlagSetName
 }
 
 // indexNamedFlagsets indexes the given flagsets by their name, ignoring flagsets that do not

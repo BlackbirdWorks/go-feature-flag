@@ -54,7 +54,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 
 ## Performance
 
-- The evaluation hot path must not regress: `rules/`, `modules/core/flag`, `modules/core/ffcontext`, `internal/cache`, the
+- The evaluation hot path must not regress: `rules/`, `modules/core/flagdef`, `modules/core/ffcontext`, `internal/cache`, the
   root `variation*.go`, and the relay evaluation handlers (OFREP and eval). Allocations per operation must not increase.
 - Some code there keeps a faster hand-written form under a `//nolint` with a measured reason (for example loops instead of
   `slices.Contains`, exact error type checks instead of `errors.As`). Do not modernise it.
@@ -63,7 +63,7 @@ Poignant (MIT); see `UPSTREAM.md` for the baseline and the intentional divergenc
 - Benchmark before and after with test binaries built once and run interleaved on pinned CPUs:
 
 ```shell
-go test -c -o base/parser.test ./rules/parser        # same for ./modules/core/flag, ./internal/cache
+go test -c -o base/parser.test ./rules/parser        # same for ./modules/core/flagdef, ./internal/cache
 go test -c -tags=bench -o base/root.test .           # scenario benchmarks of the root package
 taskset -c 2,3 ./base/parser.test -test.run '^$' -test.bench . -test.benchmem -test.count 10 -test.cpu 1 > base.txt
 taskset -c 2,3 ./new/parser.test  -test.run '^$' -test.bench . -test.benchmem -test.count 10 -test.cpu 1 > new.txt

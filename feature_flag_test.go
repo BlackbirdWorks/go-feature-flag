@@ -14,7 +14,7 @@ import (
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -68,12 +68,12 @@ func TestMultipleRetrievers(t *testing.T) {
 	flagRes1, err := client.BoolVariationDetails(fooFlag, user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes1.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
 
 	flagRes2, err := client.BoolVariationDetails(fixtures.FlagKeyTest, user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
 }
 func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	t.Parallel()
@@ -94,12 +94,12 @@ func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	flagRes1, err := client.BoolVariationDetails(fixtures.FlagKeyMy, user, false)
 	require.NoError(t, err)
 	assert.False(t, flagRes1.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes1.ErrorCode)
 
 	flagRes2, err := client.BoolVariationDetails("my-3rd-flag", user, false)
 	require.NoError(t, err)
 	assert.True(t, flagRes2.Value)
-	assert.NotEqual(t, flag.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
+	assert.NotEqual(t, flagdef.ErrorCodeFlagNotFound, flagRes2.ErrorCode)
 }
 
 func TestValidUseCase(t *testing.T) {
@@ -468,8 +468,8 @@ func TestInvalidConfAndRetrieverError(t *testing.T) {
 		TrackEvents:   true,
 		VariationType: "SdkDefault",
 		Failed:        true,
-		Reason:        flag.ReasonError,
-		ErrorCode:     flag.ErrorCodeFlagNotFound,
+		Reason:        flagdef.ReasonError,
+		ErrorCode:     flagdef.ErrorCodeFlagNotFound,
 		Value:         false,
 	}, got)
 }
@@ -927,8 +927,8 @@ func TestUseCustomBucketingKey(t *testing.T) {
 			TrackEvents:   true,
 			VariationType: "SdkDefault",
 			Failed:        true,
-			Reason:        flag.ReasonError,
-			ErrorCode:     flag.ErrorCodeTargetingKeyMissing,
+			Reason:        flagdef.ReasonError,
+			ErrorCode:     flagdef.ErrorCodeTargetingKeyMissing,
 			ErrorDetails:  "impossible to find bucketingKey in context: nested key not found: teamId",
 		}
 		assert.Equal(t, want, got)
@@ -951,7 +951,7 @@ func TestUseCustomBucketingKey(t *testing.T) {
 			TrackEvents:   true,
 			VariationType: "variation_A",
 			Failed:        false,
-			Reason:        flag.ReasonStatic,
+			Reason:        flagdef.ReasonStatic,
 			Cacheable:     true,
 		}
 		assert.Equal(t, want, got)

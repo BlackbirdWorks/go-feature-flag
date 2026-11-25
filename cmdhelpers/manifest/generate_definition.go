@@ -6,7 +6,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // Option configures the generation of the flag definitions.
@@ -36,13 +36,13 @@ func newOptions(opts []Option) options {
 }
 
 // GenerateDefinitionFromFlags builds the flag definitions of the manifest from flags.
-func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
+func GenerateDefinitionFromFlags(flags map[string]flagdef.Flag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
 	logger := newOptions(opts).logger
 	definitions := make(map[string]model.FlagDefinition)
 
 	for flagName, rawFlag := range flags {
-		internalFlag, ok := rawFlag.(*flag.InternalFlag)
+		internalFlag, ok := rawFlag.(*flagdef.InternalFlag)
 		if !ok || internalFlag == nil {
 			logger.Error("unexpected flag type, expected InternalFlag", slog.String("flag", flagName))
 
@@ -90,9 +90,9 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 }
 
 // GenerateDefinitionFromInternalFlags builds the flag definitions of the manifest from internal flags.
-func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag, opts ...Option) (
+func GenerateDefinitionFromInternalFlags(flags map[string]flagdef.InternalFlag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
-	asFlag := make(map[string]flag.Flag, len(flags))
+	asFlag := make(map[string]flagdef.Flag, len(flags))
 	for name := range flags {
 		f := flags[name]
 		asFlag[name] = &f

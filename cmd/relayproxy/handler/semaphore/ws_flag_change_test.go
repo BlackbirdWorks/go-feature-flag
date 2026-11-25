@@ -18,7 +18,7 @@ import (
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -55,21 +55,21 @@ func Test_websocket_flag_change(t *testing.T) {
 				Added:   nil,
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyMy: {
-						Before: &flag.InternalFlag{
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								VariationResult: new("A"),
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								VariationResult: new("B"),
 							},
 						},
@@ -83,45 +83,45 @@ func Test_websocket_flag_change(t *testing.T) {
 		{
 			name: "Update remove and add flag at the same time",
 			flagChange: notifier.DiffCache{
-				Deleted: map[string]flag.Flag{
-					"flag-1": &flag.InternalFlag{
+				Deleted: map[string]flagdef.Flag{
+					"flag-1": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 							"B": new(any(false)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new("A"),
 						},
 					},
 				},
-				Added: map[string]flag.Flag{
-					"flag-2": &flag.InternalFlag{
+				Added: map[string]flagdef.Flag{
+					"flag-2": &flagdef.InternalFlag{
 						Variations: &map[string]*any{
 							"A": new(any(true)),
 							"B": new(any(false)),
 						},
-						DefaultRule: &flag.Rule{
+						DefaultRule: &flagdef.Rule{
 							VariationResult: new("A"),
 						},
 					},
 				},
 				Updated: map[string]notifier.DiffUpdated{
 					fixtures.FlagKeyMy: {
-						Before: &flag.InternalFlag{
+						Before: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								VariationResult: new("A"),
 							},
 						},
-						After: &flag.InternalFlag{
+						After: &flagdef.InternalFlag{
 							Variations: &map[string]*any{
 								"A": new(any(true)),
 								"B": new(any(false)),
 							},
-							DefaultRule: &flag.Rule{
+							DefaultRule: &flagdef.Rule{
 								VariationResult: new("B"),
 							},
 						},
@@ -313,11 +313,11 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
 			fixtures.FlagKeyMy: {
-				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: new("A")},
+				Before: &flagdef.InternalFlag{
+					DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 				},
-				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: new("B")},
+				After: &flagdef.InternalFlag{
+					DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 				},
 			},
 		},
@@ -394,11 +394,11 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	diff := notifier.DiffCache{
 		Updated: map[string]notifier.DiffUpdated{
 			fixtures.FlagKeyMy: {
-				Before: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: new("A")},
+				Before: &flagdef.InternalFlag{
+					DefaultRule: &flagdef.Rule{VariationResult: new("A")},
 				},
-				After: &flag.InternalFlag{
-					DefaultRule: &flag.Rule{VariationResult: new("B")},
+				After: &flagdef.InternalFlag{
+					DefaultRule: &flagdef.Rule{VariationResult: new("B")},
 				},
 			},
 		},
@@ -478,7 +478,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			}()
 
 			diff := func(flagName string) notifier.DiffCache {
-				return notifier.DiffCache{Added: map[string]flag.Flag{flagName: &flag.InternalFlag{}}}
+				return notifier.DiffCache{Added: map[string]flagdef.Flag{flagName: &flagdef.InternalFlag{}}}
 			}
 
 			// Broadcast until a message is received, it proves the connection is registered.

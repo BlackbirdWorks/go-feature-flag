@@ -17,7 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
@@ -43,7 +43,7 @@ func Test_GetFlagNotExist(t *testing.T) {
 
 	fCache := cache.New(nil, "", nil)
 	got, err := fCache.GetFlag("not-exists-flag")
-	assert.Equal(t, &flag.InternalFlag{}, got)
+	assert.Equal(t, &flagdef.InternalFlag{}, got)
 	assert.EqualError(t, err, "flag [not-exists-flag] does not exists")
 }
 
@@ -90,18 +90,18 @@ test-flag:
 	tomlFile := []byte(`[test-flag]
 trackEvents = false
 
-  [test-flag.variations]
+  [test-flagdef.variations]
   true_var = true
   false_var = false
 
-  [[test-flag.targeting]]
+  [[test-flagdef.targeting]]
   query = 'key eq "random-key"'
 
-    [test-flag.targeting.percentage]
+    [test-flagdef.targeting.percentage]
     true_var = 100.00
     false_var = 0.00
 
-  [test-flag.defaultRule]
+  [test-flagdef.defaultRule]
   variation = "false_var"`)
 
 	type args struct {
@@ -109,7 +109,7 @@ trackEvents = false
 	}
 
 	tests := []struct {
-		expected   map[string]flag.InternalFlag
+		expected   map[string]flagdef.InternalFlag
 		name       string
 		flagFormat string
 		args       args
@@ -121,9 +121,9 @@ trackEvents = false
 			args: args{
 				loadedFlags: yamlFile,
 			},
-			expected: map[string]flag.InternalFlag{
+			expected: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyTest: {
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -136,7 +136,7 @@ trackEvents = false
 						fixtures.FalseVar: new(any(false)),
 						trueVar:           new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -168,9 +168,9 @@ test-flag:
 				loadedFlags: jsonFile,
 			},
 			flagFormat: protocol.FormatJSON,
-			expected: map[string]flag.InternalFlag{
+			expected: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyTest: {
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -183,7 +183,7 @@ test-flag:
 						fixtures.FalseVar: new(any(false)),
 						trueVar:           new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -222,9 +222,9 @@ test-flag:
 				loadedFlags: tomlFile,
 			},
 			flagFormat: protocol.FormatTOML,
-			expected: map[string]flag.InternalFlag{
+			expected: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyTest: {
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -237,7 +237,7 @@ test-flag:
 						fixtures.FalseVar: new(any(false)),
 						trueVar:           new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -251,13 +251,13 @@ test-flag:
 				loadedFlags: []byte(`
 [test-flag]
 trackEvents = false
-[test-flag.variations]
+[test-flagdef.variations]
 true_var = true
 false_var = false
-[[test-flag.targeting]]
+[[test-flagdef.targeting]]
 query = 'key eq "random-key"'
 percentage = "toto
-[test-flag.defaultRule]
+[test-flagdef.defaultRule]
 variation = "false_var"
 `),
 			},
@@ -333,7 +333,7 @@ test-flag:
 	}
 
 	tests := []struct {
-		expected   map[string]flag.InternalFlag
+		expected   map[string]flagdef.InternalFlag
 		name       string
 		flagFormat string
 		args       args
@@ -345,13 +345,13 @@ test-flag:
 			args: args{
 				loadedFlags: yamlFile,
 			},
-			expected: map[string]flag.InternalFlag{
+			expected: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						fixtures.FalseVar: new(any(false)),
 						trueVar:           new(any(true)),
 					},
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -360,7 +360,7 @@ test-flag:
 							},
 						},
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -400,13 +400,13 @@ test-flag2:
   trackEvents: false
 `),
 			},
-			expected: map[string]flag.InternalFlag{
+			expected: map[string]flagdef.InternalFlag{
 				fixtures.FlagKeyTest: {
 					Variations: &map[string]*any{
 						fixtures.FalseVar: new(any(false)),
 						trueVar:           new(any(true)),
 					},
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -415,7 +415,7 @@ test-flag2:
 							},
 						},
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -425,7 +425,7 @@ test-flag2:
 						fixtures.FalseVar: new(any(fixtures.FalseLiteral)),
 						trueVar:           new(any(fixtures.TrueLiteral)),
 					},
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{
 							Query: new(fixtures.QueryKeyEqRandomKey),
 							Percentages: &map[string]float64{
@@ -434,7 +434,7 @@ test-flag2:
 							},
 						},
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseVar),
 					},
 					TrackEvents: new(false),
@@ -448,7 +448,7 @@ test-flag2:
 			args: args{
 				loadedFlags: []byte(``),
 			},
-			expected: map[string]flag.InternalFlag{},
+			expected: map[string]flagdef.InternalFlag{},
 			wantErr:  false,
 		},
 	}
@@ -592,7 +592,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 			initialFlags: map[string]dto.DTO{
 				fixtures.FlagKeyOne: {
 					Variations: &map[string]*any{},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.TrueLiteral),
 					},
 				},
@@ -602,7 +602,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.TrueLiteral: new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.TrueLiteral),
 					},
 				},
@@ -610,7 +610,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.FalseLiteral: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseLiteral),
 					},
 				},
@@ -625,7 +625,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.TrueLiteral: new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.TrueLiteral),
 					},
 				},
@@ -639,7 +639,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.TrueLiteral: new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.TrueLiteral),
 					},
 				},
@@ -647,7 +647,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.FalseLiteral: new(any(false)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.FalseLiteral),
 					},
 				},
@@ -657,7 +657,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 					Variations: &map[string]*any{
 						fixtures.TrueLiteral: new(any(true)),
 					},
-					DefaultRule: &flag.Rule{
+					DefaultRule: &flagdef.Rule{
 						VariationResult: new(fixtures.TrueLiteral),
 					},
 				},

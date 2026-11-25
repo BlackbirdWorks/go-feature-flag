@@ -12,7 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/protocol"
 	"github.com/blackbirdworks/semaphore/internal/signer"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -77,7 +77,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 
 			for _, key := range []string{"first-flag", "second-flag"} {
 				go func() {
-					results <- whNotifier.Notify(notifier.DiffCache{Added: map[string]flag.Flag{key: &flag.InternalFlag{}}})
+					results <- whNotifier.Notify(notifier.DiffCache{Added: map[string]flagdef.Flag{key: &flagdef.InternalFlag{}}})
 				}()
 
 				select {

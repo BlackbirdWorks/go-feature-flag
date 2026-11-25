@@ -11,8 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -225,7 +225,7 @@ func (r *Retriever) getColumnNames() map[string]string {
 }
 
 func (r *Retriever) getFlagset() string {
-	if r.flagset != nil && *r.flagset != "" && *r.flagset != utils.DefaultFlagSetName {
+	if r.flagset != nil && *r.flagset != "" && *r.flagset != stringsx.DefaultFlagSetName {
 		return *r.flagset
 	}
 

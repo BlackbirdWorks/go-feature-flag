@@ -13,7 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
@@ -162,7 +162,7 @@ func (m *Manager) GetCacheRefreshDate() time.Time {
 }
 
 // GetFlag returns the flag from the cache with the current state when calling this method.
-func (m *Manager) GetFlag(flagKey string) (*flag.InternalFlag, error) {
+func (m *Manager) GetFlag(flagKey string) (*flagdef.InternalFlag, error) {
 	res, err := m.cacheManager.GetFlag(flagKey)
 	if err != nil {
 		return res, fmt.Errorf("getting the flag from the cache: %w", err)
@@ -174,7 +174,7 @@ func (m *Manager) GetFlag(flagKey string) (*flag.InternalFlag, error) {
 // GetFlagsFromCache returns all the flags present in the cache with their
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned.
-func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
+func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flagdef.Flag, error) {
 	if m == nil || m.cacheManager == nil {
 		return nil, errCacheIsNotInitialized
 	}
@@ -189,7 +189,7 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 
 // GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
 // callers inside the module that only read them (evaluation of all the flags).
-func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flagdef.Flag, error) {
 	if m == nil || m.cacheManager == nil {
 		return nil, errCacheIsNotInitialized
 	}

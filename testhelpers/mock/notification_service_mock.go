@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // NotificationService is a mock notification service that counts its calls.
@@ -15,7 +15,7 @@ type NotificationService struct {
 }
 
 // Notify records a call to the notification service.
-func (n *NotificationService) Notify(_, _ map[string]flag.Flag, _ *slog.Logger) {
+func (n *NotificationService) Notify(_, _ map[string]flagdef.Flag, _ *slog.Logger) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 

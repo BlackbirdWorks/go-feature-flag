@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -264,15 +264,15 @@ func TestIsEffectivelyDisabled_FallsBackToRawStateOnEvaluationError(t *testing.T
 	t.Parallel()
 
 	// No defaultRule makes the evaluation fail after the scheduled step re-enabled the flag.
-	targetFlag := &flag.InternalFlag{
+	targetFlag := &flagdef.InternalFlag{
 		Variations: &map[string]*any{"enabled": new(any(true))},
 		Disable:    new(true),
-		Scheduled: &[]flag.ScheduledStep{{
+		Scheduled: &[]flagdef.ScheduledStep{{
 			Disable: new(false),
 			Date:    new(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)),
 		}},
 	}
-	assert.True(t, isEffectivelyDisabled(flag.NewService(), "no-default-rule", targetFlag))
+	assert.True(t, isEffectivelyDisabled(flagdef.NewService(), "no-default-rule", targetFlag))
 }
 
 func TestFlagLoaded_RegisterIsNoopWithoutRegistryOrSource(t *testing.T) {

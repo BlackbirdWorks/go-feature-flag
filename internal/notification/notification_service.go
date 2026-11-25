@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
@@ -15,7 +15,7 @@ var _ Service = (*ServiceImpl)(nil)
 // Service dispatches flag change notifications to the notifiers.
 type Service interface {
 	Close()
-	Notify(oldCache, newCache map[string]flag.Flag, log *slog.Logger)
+	Notify(oldCache, newCache map[string]flagdef.Flag, log *slog.Logger)
 }
 
 // ServiceImpl is the default Service implementation.
@@ -36,7 +36,7 @@ func NewService(notifiers []notifier.Notifier) *ServiceImpl {
 // oldCache is the old cache of the flags.
 // newCache is the new cache of the flags.
 // log is the logger to use.
-func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *slog.Logger) {
+func (c *ServiceImpl) Notify(oldCache, newCache map[string]flagdef.Flag, log *slog.Logger) {
 	diff := c.getDifferences(oldCache, newCache)
 	if diff.HasDiff() {
 		for _, n := range c.Notifiers {
@@ -63,10 +63,10 @@ func (c *ServiceImpl) Close() {
 
 // getDifferences is checking what are the difference in the updated cache.
 func (*ServiceImpl) getDifferences(
-	oldCache, newCache map[string]flag.Flag) notifier.DiffCache {
+	oldCache, newCache map[string]flagdef.Flag) notifier.DiffCache {
 	diff := notifier.DiffCache{
-		Deleted: map[string]flag.Flag{},
-		Added:   map[string]flag.Flag{},
+		Deleted: map[string]flagdef.Flag{},
+		Added:   map[string]flagdef.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
 	}
 

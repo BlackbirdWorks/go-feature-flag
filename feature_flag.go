@@ -12,7 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 )
@@ -28,7 +28,7 @@ type GoFeatureFlag struct {
 	// evaluationService owns the caches of the flag evaluation (parsed queries, scheduled rollouts, ...).
 	// It is created with the client, shared by the cache that validates the flags and by the
 	// evaluations, and released by Close.
-	evaluationService *flag.Service
+	evaluationService *flagdef.Service
 	// eventQueue is the bounded queue between the evaluations and the goroutine that adds the
 	// events in the exporter, so that an evaluation never blocks on (nor spawns a goroutine for)
 	// the exporter. It is nil when there is no exporter for the evaluation events.
@@ -71,7 +71,7 @@ func NewWithContext(ctx context.Context, given *Config) (*GoFeatureFlag, error) 
 	goFF := &GoFeatureFlag{
 		config:            config,
 		evalExporterWg:    sync.WaitGroup{},
-		evaluationService: flag.NewService(flag.WithLogger(config.serviceLogger())),
+		evaluationService: flagdef.NewService(flagdef.WithLogger(config.serviceLogger())),
 	}
 
 	if config.Offline {
@@ -108,7 +108,7 @@ const errInitRetrieversFormat = "impossible to initialize the retrievers, please
 
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(
-	ctx context.Context, config *Config, evaluationService *flag.Service,
+	ctx context.Context, config *Config, evaluationService *flagdef.Service,
 ) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
@@ -242,7 +242,7 @@ func (g *GoFeatureFlag) GetCacheRefreshDate() time.Time {
 // EvaluationService returns the evaluation service of the client: the owner of the caches that
 // evaluating (and validating) its flags uses. Pass it in flag.Context.Service when you evaluate the
 // flags that GetFlagsFromCache returns. It is never nil.
-func (g *GoFeatureFlag) EvaluationService() *flag.Service {
+func (g *GoFeatureFlag) EvaluationService() *flagdef.Service {
 	return g.evaluationService
 }
 

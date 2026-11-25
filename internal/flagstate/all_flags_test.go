@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -26,7 +26,7 @@ func TestAllFlags(t *testing.T) {
 		VariationType: "var_a",
 		TrackEvents:   false,
 		Failed:        false,
-		Reason:        flag.ReasonStatic,
+		Reason:        flagdef.ReasonStatic,
 	}
 	afs.AddFlag(fixtures.UserKeyMy, &state1)
 	assert.Len(t, afs.GetFlags(), 1)
@@ -38,9 +38,9 @@ func TestAllFlags(t *testing.T) {
 		VariationType: "var_a",
 		TrackEvents:   false,
 		Failed:        true,
-		ErrorCode:     flag.ErrorCodeTargetingKeyMissing,
+		ErrorCode:     flagdef.ErrorCodeTargetingKeyMissing,
 		ErrorDetails:  "The targeting key is missing",
-		Reason:        flag.ReasonError,
+		Reason:        flagdef.ReasonError,
 	}
 	afs.AddFlag("my-key-2", &fs2)
 	assert.Len(t, afs.GetFlags(), 2)

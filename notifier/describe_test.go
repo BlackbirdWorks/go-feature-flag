@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -27,8 +27,8 @@ const (
 
 type describeChangesCase struct {
 	name   string
-	setup  func(f *flag.InternalFlag)
-	update func(f *flag.InternalFlag)
+	setup  func(f *flagdef.InternalFlag)
+	update func(f *flagdef.InternalFlag)
 	want   []string
 }
 
@@ -45,13 +45,13 @@ func TestDescribeChanges(t *testing.T) {
 	)
 }
 
-func describeBaseFlag() *flag.InternalFlag {
-	return &flag.InternalFlag{
+func describeBaseFlag() *flagdef.InternalFlag {
+	return &flagdef.InternalFlag{
 		Variations: &map[string]*any{
 			"on":                  new(any(true)),
 			fixtures.VariationOff: new(any(false)),
 		},
-		Rules: &[]flag.Rule{
+		Rules: &[]flagdef.Rule{
 			{
 				Name:            new("internal"),
 				Query:           new(`email ew "@example.com"`),
@@ -63,7 +63,7 @@ func describeBaseFlag() *flag.InternalFlag {
 				VariationResult: new("on"),
 			},
 		},
-		DefaultRule: &flag.Rule{
+		DefaultRule: &flagdef.Rule{
 			Percentages: &map[string]float64{"on": 20, fixtures.VariationOff: 80},
 		},
 		Version:  new("1.0"),
@@ -98,25 +98,25 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 	return []describeChangesCase{
 		{
 			name:   "should describe a disabled flag",
-			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
+			update: func(f *flagdef.InternalFlag) { f.Disable = new(true) },
 			want:   []string{"Flag disabled"},
 		},
 		{
 			name:   "should describe turning off event tracking",
-			update: func(f *flag.InternalFlag) { f.TrackEvents = new(false) },
+			update: func(f *flagdef.InternalFlag) { f.TrackEvents = new(false) },
 			want:   []string{"Event tracking turned off"},
 		},
 		{
 			name: "should describe a percentage change on the default rule",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.DefaultRule.Percentages = &map[string]float64{"on": 50, fixtures.VariationOff: 50}
 			},
 			want: []string{"Default rule now serves `off` 50%, `on` 50% (was `off` 80%, `on` 20%)"},
 		},
 		{
 			name: "should describe a rule added first without reporting the other rules as changed",
-			update: func(f *flag.InternalFlag) {
-				*f.Rules = append([]flag.Rule{{
+			update: func(f *flagdef.InternalFlag) {
+				*f.Rules = append([]flagdef.Rule{{
 					Name:            new("canada"),
 					Query:           new(`country eq "CA"`),
 					VariationResult: new(fixtures.VariationOff),
@@ -126,12 +126,12 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name:   "should describe a removed rule",
-			update: func(f *flag.InternalFlag) { *f.Rules = (*f.Rules)[:1] },
+			update: func(f *flagdef.InternalFlag) { *f.Rules = (*f.Rules)[:1] },
 			want:   []string{"Targeting rule `beta` removed"},
 		},
 		{
 			name: "should describe an edited rule query and result",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].Query = new(`beta eq true and country eq "US"`)
 				(*f.Rules)[1].VariationResult = nil
 				(*f.Rules)[1].Percentages = &map[string]float64{"on": 10, fixtures.VariationOff: 90}
@@ -143,20 +143,20 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name:   "should describe a disabled rule",
-			update: func(f *flag.InternalFlag) { (*f.Rules)[0].Disable = new(true) },
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[0].Disable = new(true) },
 			want:   []string{"Targeting rule `internal` disabled"},
 		},
 		{
 			name: "should describe reordered rules",
-			update: func(f *flag.InternalFlag) {
-				*f.Rules = []flag.Rule{(*f.Rules)[1], (*f.Rules)[0]}
+			update: func(f *flagdef.InternalFlag) {
+				*f.Rules = []flagdef.Rule{(*f.Rules)[1], (*f.Rules)[0]}
 			},
 			want: []string{"Targeting rules reordered: `beta`, `internal`"},
 		},
 		{
 			name: "should pair unnamed rules by position",
-			update: func(f *flag.InternalFlag) {
-				f.Rules = &[]flag.Rule{{
+			update: func(f *flagdef.InternalFlag) {
+				f.Rules = &[]flagdef.Rule{{
 					Query:           new(`plan eq "pro"`),
 					VariationResult: new("on"),
 				}}
@@ -169,7 +169,7 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe variation changes",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Variations)["on"] = new(any("enabled"))
 				(*f.Variations)["legacy"] = new(any(map[string]any{"color": "blue"}))
 				delete(*f.Variations, fixtures.VariationOff)
@@ -182,14 +182,14 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe a progressive rollout on the default rule",
-			update: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{
-					Initial: &flag.ProgressiveRolloutStep{
+			update: func(f *flagdef.InternalFlag) {
+				f.DefaultRule = &flagdef.Rule{ProgressiveRollout: &flagdef.ProgressiveRollout{
+					Initial: &flagdef.ProgressiveRolloutStep{
 						Variation:  new(fixtures.VariationOff),
 						Percentage: new(float64(0)),
 						Date:       &start,
 					},
-					End: &flag.ProgressiveRolloutStep{
+					End: &flagdef.ProgressiveRolloutStep{
 						Variation:  new("on"),
 						Percentage: new(float64(100)),
 						Date:       &end,
@@ -203,14 +203,14 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe a new experimentation window",
-			update: func(f *flag.InternalFlag) {
-				f.Experimentation = &flag.ExperimentationRollout{Start: &start, End: &end}
+			update: func(f *flagdef.InternalFlag) {
+				f.Experimentation = &flagdef.ExperimentationRollout{Start: &start, End: &end}
 			},
 			want: []string{"Experimentation scheduled from 2026-10-05 09:00 UTC to 2026-10-12 09:00 UTC"},
 		},
 		{
 			name: "should describe version, bucketing key and metadata changes",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.Version = new("1.1")
 				f.BucketingKey = new("teamId")
 				f.Metadata = &map[string]any{owner: growth, "jira": "PAY-123"}
@@ -224,8 +224,8 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe a new scheduled rollout",
-			update: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			update: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(false)},
 					{Date: &end, Disable: new(true)},
 				}
@@ -237,24 +237,24 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe a moved scheduled step",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(true)},
 				}
 			},
-			update: func(f *flag.InternalFlag) { (*f.Scheduled)[0].Date = &end },
+			update: func(f *flagdef.InternalFlag) { (*f.Scheduled)[0].Date = &end },
 			want:   []string{"Scheduled step moved from 2026-10-05 09:00 UTC to 2026-10-12 09:00 UTC"},
 		},
 		{
 			name: "should describe what an edited scheduled step sets",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(true)},
 				}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Scheduled)[0].Disable = nil
-				(*f.Scheduled)[0].Rules = &[]flag.Rule{{
+				(*f.Scheduled)[0].Rules = &[]flagdef.Rule{{
 					Name:        new(beta),
 					Percentages: &map[string]float64{"on": 100},
 				}}
@@ -266,28 +266,28 @@ func describeChangesCoreCases(start, end time.Time) []describeChangesCase {
 		},
 		{
 			name: "should describe a removed scheduled step",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(true)},
 					{Date: &end, Disable: new(false)},
 				}
 			},
-			update: func(f *flag.InternalFlag) { *f.Scheduled = (*f.Scheduled)[:1] },
+			update: func(f *flagdef.InternalFlag) { *f.Scheduled = (*f.Scheduled)[:1] },
 			want:   []string{"Scheduled step on 2026-10-12 09:00 UTC removed"},
 		},
 		{
 			name: "should describe a renamed rule",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].Name = new("beta-users")
 			},
 			want: []string{"Targeting rule `beta` renamed to `beta-users`"},
 		},
 		{
 			name: "should describe naming an unnamed rule",
-			setup: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].Name = nil
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].Name = new(beta)
 			},
 			want: []string{"Targeting rule #2 renamed to `beta`"},
@@ -299,20 +299,20 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 	return []describeChangesCase{
 		{
 			name:   "should describe a value written out that is already the default",
-			update: func(f *flag.InternalFlag) { f.Disable = new(false) },
+			update: func(f *flagdef.InternalFlag) { f.Disable = new(false) },
 			want:   []string{"Flag: `disable: false` added (already the default)"},
 		},
 		{
 			name: "should describe a default value removed from a rule",
-			setup: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[0].Disable = new(false)
 			},
-			update: func(f *flag.InternalFlag) { (*f.Rules)[0].Disable = nil },
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[0].Disable = nil },
 			want:   []string{"Targeting rule `internal`: `disable: false` removed (already the default)"},
 		},
 		{
 			name: "should describe default rule fields that evaluation ignores",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.DefaultRule.Query = new(`country eq "FR"`)
 				f.DefaultRule.Disable = new(true)
 			},
@@ -323,7 +323,7 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name: "should describe every change when several fields change together",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.Disable = new(true)
 				f.DefaultRule.Name = new("default")
 			},
@@ -331,17 +331,17 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name:   "should describe a renamed default rule",
-			update: func(f *flag.InternalFlag) { f.DefaultRule.Name = new("default") },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule.Name = new("default") },
 			want:   []string{"Default rule name set to `default`"},
 		},
 		{
 			name: "should show seconds so close dates do not read the same",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.Version = new("1.1")
-				f.Experimentation = &flag.ExperimentationRollout{End: new(start.Add(50 * time.Second))}
+				f.Experimentation = &flagdef.ExperimentationRollout{End: new(start.Add(50 * time.Second))}
 			},
-			setup: func(f *flag.InternalFlag) {
-				f.Experimentation = &flag.ExperimentationRollout{End: new(start.Add(10 * time.Second))}
+			setup: func(f *flagdef.InternalFlag) {
+				f.Experimentation = &flagdef.ExperimentationRollout{End: new(start.Add(10 * time.Second))}
 			},
 			want: []string{
 				"Version changed from `1.0` to `1.1`",
@@ -350,40 +350,40 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name: "should keep a rule named like a position apart from the unnamed rule at that position",
-			setup: func(f *flag.InternalFlag) {
-				f.Rules = &[]flag.Rule{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Rules = &[]flagdef.Rule{
 					{Name: new("#2"), Query: new(aEqOne), VariationResult: new("on")},
 					{Query: new(bEqOne), VariationResult: new("on")},
 				}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[0].VariationResult = new(fixtures.VariationOff)
 			},
 			want: []string{"Targeting rule `#2` now serves `off` (was `on`)"},
 		},
 		{
 			name: "should pair rules sharing a name by position",
-			setup: func(f *flag.InternalFlag) {
-				f.Rules = &[]flag.Rule{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Rules = &[]flagdef.Rule{
 					{Name: new(beta), Query: new(aEqOne), VariationResult: new("on")},
 					{Name: new(beta), Query: new(bEqOne), VariationResult: new("on")},
 				}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].VariationResult = new(fixtures.VariationOff)
 			},
 			want: []string{"Targeting rule #2 now serves `off` (was `on`)"},
 		},
 		{
 			name: "should describe a scheduled step as a partial update",
-			update: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
+			update: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
 					Date: &start,
-					Rules: &[]flag.Rule{{
+					Rules: &[]flagdef.Rule{{
 						Name:  new(beta),
 						Query: new(`beta eq true and plan eq "pro"`),
 					}},
-					DefaultRule: &flag.Rule{Percentages: &map[string]float64{"on": 50, fixtures.VariationOff: -1}},
+					DefaultRule: &flagdef.Rule{Percentages: &map[string]float64{"on": 50, fixtures.VariationOff: -1}},
 					Metadata:    &map[string]any{owner: growth},
 				}}
 			},
@@ -396,39 +396,39 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name: "should describe a step that stops updating a rule",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
 					Date:  &start,
-					Rules: &[]flag.Rule{{Name: new(beta), VariationResult: new(fixtures.VariationOff)}},
+					Rules: &[]flagdef.Rule{{Name: new(beta), VariationResult: new(fixtures.VariationOff)}},
 				}}
 			},
-			update: func(f *flag.InternalFlag) { (*f.Scheduled)[0].Rules = nil },
+			update: func(f *flagdef.InternalFlag) { (*f.Scheduled)[0].Rules = nil },
 			want:   []string{"Scheduled step on 2026-10-05 09:00 UTC: Targeting rule `beta` no longer changed"},
 		},
 		{
 			name: "should describe a variation the rule does not serve from",
-			setup: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) {
 				f.DefaultRule.VariationResult = new("on")
 			},
-			update: func(f *flag.InternalFlag) { f.DefaultRule.VariationResult = new(fixtures.VariationOff) },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule.VariationResult = new(fixtures.VariationOff) },
 			want: []string{
 				"Default rule variation changed from `\"on\"` to `\"off\"` (not used: the rule serves percentages)",
 			},
 		},
 		{
 			name:   "should describe empty percentages",
-			setup:  func(f *flag.InternalFlag) { (*f.Rules)[0].Percentages = nil },
-			update: func(f *flag.InternalFlag) { (*f.Rules)[0].Percentages = &map[string]float64{} },
+			setup:  func(f *flagdef.InternalFlag) { (*f.Rules)[0].Percentages = nil },
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[0].Percentages = &map[string]float64{} },
 			want: []string{
 				"Targeting rule `internal` percentages changed from `null` to `{}` (not used: empty percentages are ignored)",
 			},
 		},
 		{
 			name: "should describe a step that sets only the experimentation end",
-			update: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
+			update: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
 					Date:            &start,
-					Experimentation: &flag.ExperimentationRollout{End: &end},
+					Experimentation: &flagdef.ExperimentationRollout{End: &end},
 				}}
 			},
 			want: []string{
@@ -437,19 +437,19 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name:   "should describe a removed version and bucketing key",
-			setup:  func(f *flag.InternalFlag) { f.BucketingKey = new("teamId") },
-			update: func(f *flag.InternalFlag) { f.Version = nil; f.BucketingKey = nil },
+			setup:  func(f *flagdef.InternalFlag) { f.BucketingKey = new("teamId") },
+			update: func(f *flagdef.InternalFlag) { f.Version = nil; f.BucketingKey = nil },
 			want:   []string{"Version removed (was `1.0`)", "Bucketing key removed (was `teamId`)"},
 		},
 		{
 			name:   "should describe a removed metadata key",
-			update: func(f *flag.InternalFlag) { f.Metadata = nil },
+			update: func(f *flagdef.InternalFlag) { f.Metadata = nil },
 			want:   []string{"Metadata `owner` removed (was `\"payments\"`)"},
 		},
 		{
 			name:  "should describe a rule query added and removed",
-			setup: func(f *flag.InternalFlag) { (*f.Rules)[1].Query = nil },
-			update: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) { (*f.Rules)[1].Query = nil },
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[0].Query = nil
 				(*f.Rules)[1].Query = new(`plan eq "pro"`)
 			},
@@ -460,41 +460,41 @@ func describeChangesRuleAndDefaultCases(start, end time.Time) []describeChangesC
 		},
 		{
 			name: "should describe a disabled rule added with no variation",
-			update: func(f *flag.InternalFlag) {
-				*f.Rules = append(*f.Rules, flag.Rule{Name: new("draft"), Disable: new(true)})
+			update: func(f *flagdef.InternalFlag) {
+				*f.Rules = append(*f.Rules, flagdef.Rule{Name: new("draft"), Disable: new(true)})
 			},
 			want: []string{"Targeting rule `draft` added: serves no variation (disabled)"},
 		},
 		{
 			name: "should describe a removed default rule query",
-			setup: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) {
 				f.DefaultRule.Query = new(aEqOne)
 			},
-			update: func(f *flag.InternalFlag) { f.DefaultRule.Query = nil },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule.Query = nil },
 			want:   []string{"Default rule query removed (was `a eq 1`) (ignored for the default rule)"},
 		},
 		{
 			name:   "should describe a removed default rule",
-			update: func(f *flag.InternalFlag) { f.DefaultRule = nil },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule = nil },
 			want:   []string{"Default rule removed (was serving `off` 80%, `on` 20%)"},
 		},
 		{
 			name:   "should describe a new default rule",
-			setup:  func(f *flag.InternalFlag) { f.DefaultRule = nil },
-			update: func(f *flag.InternalFlag) { f.DefaultRule = &flag.Rule{VariationResult: new("on")} },
+			setup:  func(f *flagdef.InternalFlag) { f.DefaultRule = nil },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule = &flagdef.Rule{VariationResult: new("on")} },
 			want:   []string{"Default rule set to serve `on`"},
 		},
 		{
 			name: "should describe a variation that a progressive rollout overrides",
-			setup: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{
+			setup: func(f *flagdef.InternalFlag) {
+				f.DefaultRule = &flagdef.Rule{
 					VariationResult: new("on"),
-					ProgressiveRollout: &flag.ProgressiveRollout{
-						End: &flag.ProgressiveRolloutStep{Variation: new("on")},
+					ProgressiveRollout: &flagdef.ProgressiveRollout{
+						End: &flagdef.ProgressiveRolloutStep{Variation: new("on")},
 					},
 				}
 			},
-			update: func(f *flag.InternalFlag) { f.DefaultRule.VariationResult = new(fixtures.VariationOff) },
+			update: func(f *flagdef.InternalFlag) { f.DefaultRule.VariationResult = new(fixtures.VariationOff) },
 			want: []string{
 				"Default rule variation changed from `\"on\"` to `\"off\"` (not used: the rule serves a progressive rollout)",
 			},
@@ -506,36 +506,36 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 	return []describeChangesCase{
 		{
 			name: "should describe experimentation windows with one date or none",
-			setup: func(f *flag.InternalFlag) {
-				f.Experimentation = &flag.ExperimentationRollout{Start: &start}
+			setup: func(f *flagdef.InternalFlag) {
+				f.Experimentation = &flagdef.ExperimentationRollout{Start: &start}
 			},
-			update: func(f *flag.InternalFlag) { f.Experimentation = &flag.ExperimentationRollout{} },
+			update: func(f *flagdef.InternalFlag) { f.Experimentation = &flagdef.ExperimentationRollout{} },
 			want:   []string{"Experimentation now runs with no dates (was from 2026-10-05 09:00 UTC)"},
 		},
 		{
 			name: "should describe a step that changes rules, the default rule and variations",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
 					Date:        &start,
 					Version:     new("2.0"),
 					Variations:  &map[string]*any{"legacy": new(any("x"))},
-					Rules:       &[]flag.Rule{{Name: new(beta), VariationResult: new("on")}},
-					DefaultRule: &flag.Rule{VariationResult: new("on")},
-					Experimentation: &flag.ExperimentationRollout{
+					Rules:       &[]flagdef.Rule{{Name: new(beta), VariationResult: new("on")}},
+					DefaultRule: &flagdef.Rule{VariationResult: new("on")},
+					Experimentation: &flagdef.ExperimentationRollout{
 						Start: &start,
 						End:   &end,
 					},
 				}}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				step := &(*f.Scheduled)[0]
 				step.Version = nil
 				step.Variations = &map[string]*any{"next": new(any("y"))}
-				step.Rules = &[]flag.Rule{
+				step.Rules = &[]flagdef.Rule{
 					{Name: new(beta), VariationResult: new(fixtures.VariationOff), Disable: new(false)},
 				}
 				step.DefaultRule = nil
-				step.Experimentation = &flag.ExperimentationRollout{End: new(end.Add(time.Hour))}
+				step.Experimentation = &flagdef.ExperimentationRollout{End: new(end.Add(time.Hour))}
 			},
 			want: []string{
 				"Scheduled step on 2026-10-05 09:00 UTC: Version no longer set",
@@ -551,14 +551,14 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 		},
 		{
 			name: "should describe a step that starts updating the default rule",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{Date: &start, DefaultRule: &flag.Rule{}}}
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{Date: &start, DefaultRule: &flagdef.Rule{}}}
 			},
-			update: func(f *flag.InternalFlag) {
-				(*f.Scheduled)[0].DefaultRule = &flag.Rule{
-					ProgressiveRollout: &flag.ProgressiveRollout{
-						Initial: &flag.ProgressiveRolloutStep{Percentage: new(float64(10))},
-						End:     &flag.ProgressiveRolloutStep{},
+			update: func(f *flagdef.InternalFlag) {
+				(*f.Scheduled)[0].DefaultRule = &flagdef.Rule{
+					ProgressiveRollout: &flagdef.ProgressiveRollout{
+						Initial: &flagdef.ProgressiveRolloutStep{Percentage: new(float64(10))},
+						End:     &flagdef.ProgressiveRolloutStep{},
 					},
 				}
 			},
@@ -569,10 +569,10 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 		},
 		{
 			name: "should describe a step without a date and a nested schedule",
-			update: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
-					DefaultRule: &flag.Rule{},
-					Scheduled:   &[]flag.ScheduledStep{{Date: &end}},
+			update: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
+					DefaultRule: &flagdef.Rule{},
+					Scheduled:   &[]flagdef.ScheduledStep{{Date: &end}},
 				}}
 			},
 			want: []string{
@@ -582,18 +582,18 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 		},
 		{
 			name:   "should describe a variation with no value",
-			update: func(f *flag.InternalFlag) { (*f.Variations)["empty"] = nil },
+			update: func(f *flagdef.InternalFlag) { (*f.Variations)["empty"] = nil },
 			want:   []string{"Variation `empty` added: `null`"},
 		},
 		{
 			name: "should pair scheduled steps by date when one is inserted before the others",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &end, Disable: new(true)},
 				}
 			},
-			update: func(f *flag.InternalFlag) {
-				*f.Scheduled = append([]flag.ScheduledStep{
+			update: func(f *flagdef.InternalFlag) {
+				*f.Scheduled = append([]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(false)},
 				}, *f.Scheduled...)
 			},
@@ -601,47 +601,47 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 		},
 		{
 			name: "should pair reordered scheduled steps by date",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{
 					{Date: &start, Disable: new(false)},
 					{Date: &end, Disable: new(true)},
 				}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Scheduled)[0], (*f.Scheduled)[1] = (*f.Scheduled)[1], (*f.Scheduled)[0]
 			},
 			want: nil,
 		},
 		{
 			name:   "should keep backticks in a value inside the inline code",
-			update: func(f *flag.InternalFlag) { (*f.Rules)[1].Query = new("name eq `x`") },
+			update: func(f *flagdef.InternalFlag) { (*f.Rules)[1].Query = new("name eq `x`") },
 			want:   []string{"Targeting rule `beta` now matches `` name eq `x` `` (was `beta eq true`)"},
 		},
 		{
 			name:   "should pad inline code when a value starts with a backtick",
-			update: func(f *flag.InternalFlag) { f.Version = new("`1.1``") },
+			update: func(f *flagdef.InternalFlag) { f.Version = new("`1.1``") },
 			want:   []string{"Version changed from `1.0` to ``` `1.1`` ```"},
 		},
 		{
 			name:  "should say a rule that stays disabled is disabled when what it serves changes",
-			setup: func(f *flag.InternalFlag) { (*f.Rules)[1].Disable = new(true) },
-			update: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) { (*f.Rules)[1].Disable = new(true) },
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Rules)[1].VariationResult = new(fixtures.VariationOff)
 			},
 			want: []string{"Targeting rule `beta` now serves `off` (was `on`) (the rule is disabled)"},
 		},
 		{
 			name: "should describe rules reordered in a scheduled step",
-			setup: func(f *flag.InternalFlag) {
-				f.Scheduled = &[]flag.ScheduledStep{{
+			setup: func(f *flagdef.InternalFlag) {
+				f.Scheduled = &[]flagdef.ScheduledStep{{
 					Date: &start,
-					Rules: &[]flag.Rule{
+					Rules: &[]flagdef.Rule{
 						{Name: new("a"), Query: new(aEqOne), VariationResult: new("on")},
 						{Name: new("b"), Query: new(bEqOne), VariationResult: new(fixtures.VariationOff)},
 					},
 				}}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				rules := (*f.Scheduled)[0].Rules
 				(*rules)[0], (*rules)[1] = (*rules)[1], (*rules)[0]
 			},
@@ -649,29 +649,29 @@ func describeChangesScheduleAndMetaCases(start, end time.Time) []describeChanges
 		},
 		{
 			name: "should show negative percentages outside scheduled steps",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.DefaultRule.Percentages = &map[string]float64{"on": -1, fixtures.VariationOff: 101}
 			},
 			want: []string{"Default rule now serves `off` 101%, `on` -1% (was `off` 80%, `on` 20%)"},
 		},
 		{
 			name: "should not list updatedBy among the metadata changes",
-			setup: func(f *flag.InternalFlag) {
+			setup: func(f *flagdef.InternalFlag) {
 				f.Metadata = &map[string]any{owner: payments, notifier.UpdatedByMetadataKey: "john"}
 			},
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.Metadata = &map[string]any{owner: growth, notifier.UpdatedByMetadataKey: fixtures.UserJane}
 			},
 			want: []string{"Metadata `owner` changed from `\"payments\"` to `\"growth\"`"},
 		},
 		{
 			name:   "should not list an added updatedBy",
-			update: func(f *flag.InternalFlag) { (*f.Metadata)[notifier.UpdatedByMetadataKey] = fixtures.UserJane },
+			update: func(f *flagdef.InternalFlag) { (*f.Metadata)[notifier.UpdatedByMetadataKey] = fixtures.UserJane },
 			want:   nil,
 		},
 		{
 			name:   "should return nothing for an unchanged flag",
-			update: func(_ *flag.InternalFlag) {},
+			update: func(_ *flagdef.InternalFlag) {},
 			want:   nil,
 		},
 	}
@@ -730,32 +730,32 @@ func TestChangeList(t *testing.T) {
 }
 
 // otherFlag is a [flag.Flag] that is not a *flag.InternalFlag.
-type otherFlag struct{ flag.Flag }
+type otherFlag struct{ flagdef.Flag }
 
 func TestDescribeChanges_unsupportedFlag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name          string
-		before, after flag.Flag
+		before, after flagdef.Flag
 		wantErr       string
 	}{
 		{
 			name:    "should refuse another flag type before",
 			before:  otherFlag{},
-			after:   &flag.InternalFlag{},
+			after:   &flagdef.InternalFlag{},
 			wantErr: impossibleToDescribeChanges,
 		},
 		{
 			name:    "should refuse another flag type after",
-			before:  &flag.InternalFlag{},
+			before:  &flagdef.InternalFlag{},
 			after:   otherFlag{},
 			wantErr: impossibleToDescribeChanges,
 		},
 		{
 			name:    "should refuse a nil flag",
-			before:  (*flag.InternalFlag)(nil),
-			after:   &flag.InternalFlag{},
+			before:  (*flagdef.InternalFlag)(nil),
+			after:   &flagdef.InternalFlag{},
 			wantErr: impossibleToDescribeChanges,
 		},
 	}
@@ -782,13 +782,13 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 	}{
 		{
 			name: fixtures.FlagKeyBare,
-			typ:  reflect.TypeFor[flag.InternalFlag](),
+			typ:  reflect.TypeFor[flagdef.InternalFlag](),
 			wantHandled: []string{"BucketingKey", "DefaultRule", disable, "Experimentation", "Metadata",
 				"Rules", "Scheduled", "TrackEvents", "Variations", "Version"},
 		},
 		{
 			name: "rule",
-			typ:  reflect.TypeFor[flag.Rule](),
+			typ:  reflect.TypeFor[flagdef.Rule](),
 			wantHandled: []string{
 				disable,
 				"Name",
@@ -801,22 +801,22 @@ func TestDescribeChanges_coversEveryField(t *testing.T) {
 		},
 		{
 			name:        "progressive rollout",
-			typ:         reflect.TypeFor[flag.ProgressiveRollout](),
+			typ:         reflect.TypeFor[flagdef.ProgressiveRollout](),
 			wantHandled: []string{"End", "Initial"},
 		},
 		{
 			name:        "progressive rollout step",
-			typ:         reflect.TypeFor[flag.ProgressiveRolloutStep](),
+			typ:         reflect.TypeFor[flagdef.ProgressiveRolloutStep](),
 			wantHandled: []string{"Date", "Percentage", "Variation"},
 		},
 		{
 			name:        "experimentation",
-			typ:         reflect.TypeFor[flag.ExperimentationRollout](),
+			typ:         reflect.TypeFor[flagdef.ExperimentationRollout](),
 			wantHandled: []string{"End", "Start"},
 		},
 		{
 			name:        "scheduled step",
-			typ:         reflect.TypeFor[flag.ScheduledStep](),
+			typ:         reflect.TypeFor[flagdef.ScheduledStep](),
 			wantHandled: []string{"Date", "InternalFlag"},
 		},
 	}
@@ -841,19 +841,19 @@ func TestDescribeChangesPlain(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		update func(f *flag.InternalFlag)
+		update func(f *flagdef.InternalFlag)
 		want   []string
 	}{
 		{
 			name: "should describe changes without inline code",
-			update: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{VariationResult: new("on")}
+			update: func(f *flagdef.InternalFlag) {
+				f.DefaultRule = &flagdef.Rule{VariationResult: new("on")}
 			},
 			want: []string{"Default rule now serves on (was off)"},
 		},
 		{
 			name:   "should keep backticks that are part of a value",
-			update: func(f *flag.InternalFlag) { f.Metadata = &map[string]any{owner: "a`"} },
+			update: func(f *flagdef.InternalFlag) { f.Metadata = &map[string]any{owner: "a`"} },
 			want:   []string{"Metadata owner changed from \"a\" to \"a`\""},
 		},
 	}
@@ -861,12 +861,12 @@ func TestDescribeChangesPlain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			before := &flag.InternalFlag{
-				DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
+			before := &flagdef.InternalFlag{
+				DefaultRule: &flagdef.Rule{VariationResult: new(fixtures.VariationOff)},
 				Metadata:    &map[string]any{owner: "a"},
 			}
-			after := &flag.InternalFlag{
-				DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
+			after := &flagdef.InternalFlag{
+				DefaultRule: &flagdef.Rule{VariationResult: new(fixtures.VariationOff)},
 				Metadata:    &map[string]any{owner: "a"},
 			}
 			tt.update(after)
@@ -880,13 +880,13 @@ func TestDescribeChangesPlain(t *testing.T) {
 func TestUpdatedBy(t *testing.T) {
 	t.Parallel()
 
-	withMetadata := func(metadata map[string]any) *flag.InternalFlag {
-		return &flag.InternalFlag{Metadata: &metadata}
+	withMetadata := func(metadata map[string]any) *flagdef.InternalFlag {
+		return &flagdef.InternalFlag{Metadata: &metadata}
 	}
 
 	tests := []struct {
 		name       string
-		flag       flag.Flag
+		flag       flagdef.Flag
 		want       string
 		wantSuffix string
 	}{
@@ -900,7 +900,7 @@ func TestUpdatedBy(t *testing.T) {
 			name: "should return nothing when updatedBy is absent",
 			flag: withMetadata(map[string]any{owner: payments}),
 		},
-		{name: "should return nothing without metadata", flag: &flag.InternalFlag{}},
+		{name: "should return nothing without metadata", flag: &flagdef.InternalFlag{}},
 		{
 			name: "should return nothing when updatedBy is empty",
 			flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: ""}),
@@ -913,7 +913,7 @@ func TestUpdatedBy(t *testing.T) {
 			name: "should return nothing when updatedBy is not a string",
 			flag: withMetadata(map[string]any{notifier.UpdatedByMetadataKey: 42}),
 		},
-		{name: "should return nothing for a nil flag", flag: (*flag.InternalFlag)(nil)},
+		{name: "should return nothing for a nil flag", flag: (*flagdef.InternalFlag)(nil)},
 		{name: "should return nothing for another flag type", flag: otherFlag{}},
 	}
 	for _, tt := range tests {

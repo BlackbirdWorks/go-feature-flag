@@ -14,7 +14,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest"
 	"github.com/blackbirdworks/semaphore/model/dto"
 	dtocore "github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -53,7 +53,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
 
-	flags := make(map[string]flag.InternalFlag)
+	flags := make(map[string]flagdef.InternalFlag)
 	for k, v := range m.dtos {
 		flags[k] = dtocore.ConvertDtoToInternalFlag(&v)
 	}

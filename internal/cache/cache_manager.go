@@ -19,7 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 var (
@@ -32,12 +32,12 @@ var _ Manager = (*ManagerImpl)(nil)
 type Manager interface {
 	UpdateCache(newFlags map[string]dto.DTO, log *slog.Logger, notifyChanges bool) error
 	Close()
-	GetFlag(key string) (*flag.InternalFlag, error)
+	GetFlag(key string) (*flagdef.InternalFlag, error)
 	// AllFlags returns a snapshot of the flags that the caller is free to change.
-	AllFlags() (map[string]flag.Flag, error)
+	AllFlags() (map[string]flagdef.Flag, error)
 	// AllFlagsReadOnly returns the flags of the cache without copying them (cheap): the caller must only
 	// read them, and must not keep them or hand them to code that does not.
-	AllFlagsReadOnly() (map[string]flag.Flag, error)
+	AllFlagsReadOnly() (map[string]flagdef.Flag, error)
 	GetLatestUpdateDate() time.Time
 }
 
@@ -57,7 +57,7 @@ type ManagerImpl struct {
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
 	// service validates the flags that are loaded, and owns the parses of their queries.
-	service *flag.Service
+	service *flagdef.Service
 }
 
 // Option customizes the ManagerImpl that New creates.
@@ -65,7 +65,7 @@ type Option func(*ManagerImpl)
 
 // WithService makes the manager validate its flags with svc, which the caller owns (and closes).
 // By default the manager creates a Service of its own.
-func WithService(svc *flag.Service) Option {
+func WithService(svc *flagdef.Service) Option {
 	return func(m *ManagerImpl) { m.service = svc }
 }
 
@@ -89,7 +89,7 @@ func New(
 	}
 
 	if mgr.service == nil {
-		mgr.service = flag.NewService()
+		mgr.service = flagdef.NewService()
 	}
 
 	mgr.inMemoryCache.Store(NewInMemoryCache(mgr.service, logger))
@@ -133,7 +133,7 @@ func (c *ManagerImpl) UpdateCache(
 	newCache := NewInMemoryCache(c.service, c.logger)
 	newCache.Init(newFlags)
 	newCacheFlags := newCache.All()
-	oldCacheFlags := map[string]flag.Flag{}
+	oldCacheFlags := map[string]flagdef.Flag{}
 
 	c.mutex.Lock()
 	old := c.inMemoryCache.Swap(newCache)
@@ -173,7 +173,7 @@ func (c *ManagerImpl) Close() {
 }
 
 // GetFlag returns the cached flag with the given key, or an error if the flag does not exist.
-func (c *ManagerImpl) GetFlag(key string) (*flag.InternalFlag, error) {
+func (c *ManagerImpl) GetFlag(key string) (*flagdef.InternalFlag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -183,7 +183,7 @@ func (c *ManagerImpl) GetFlag(key string) (*flag.InternalFlag, error) {
 }
 
 // AllFlags returns a copy of all the cached flags.
-func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
+func (c *ManagerImpl) AllFlags() (map[string]flagdef.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -193,7 +193,7 @@ func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 }
 
 // AllFlagsReadOnly returns all the cached flags without copying them, and callers must not modify them.
-func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
+func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flagdef.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
@@ -214,7 +214,7 @@ func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 // It is useful to have a fallback in case of a problem with the retrievers, such as a network issue.
 //
 // The persistence is done in a goroutine to not block the main thread.
-func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
+func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flagdef.Flag) {
 	c.persistWg.Go(func() {
 		_, statErr := os.Stat(c.persistentFlagConfigurationFile)
 		if !os.IsNotExist(statErr) && cmp.Equal(oldCache, newCache) {

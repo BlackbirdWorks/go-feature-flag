@@ -1,0 +1,65 @@
+package flagdef_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
+)
+
+func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
+	t.Parallel()
+
+	type args struct {
+		value any
+		key   string
+	}
+
+	tests := []struct {
+		args                        args
+		expected                    any
+		EvaluationContextEnrichment map[string]any
+		name                        string
+	}{
+		{
+			name:                        "Add a new key to a nil map",
+			EvaluationContextEnrichment: nil,
+			args: args{
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
+			},
+			expected: fixtures.EnvProd,
+		},
+		{
+			name:                        "Add a new key to an existing map",
+			EvaluationContextEnrichment: map[string]any{"john": "doe"},
+			args: args{
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
+			},
+			expected: fixtures.EnvProd,
+		},
+		{
+			name:                        "Override an existing key",
+			EvaluationContextEnrichment: map[string]any{fixtures.AttrEnv: "dev"},
+			args: args{
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
+			},
+			expected: fixtures.EnvProd,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := &flagdef.Context{Service: flagdef.NewService(),
+				EvaluationContextEnrichment: tt.EvaluationContextEnrichment,
+			}
+			s.AddIntoEvaluationContextEnrichment(tt.args.key, tt.args.value)
+			assert.Equal(t, tt.expected, s.EvaluationContextEnrichment[tt.args.key])
+		})
+	}
+}

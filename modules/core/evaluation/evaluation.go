@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
@@ -16,10 +16,10 @@ var errWrongVariationUsed = errors.New("wrong variation used for flag")
 
 // Evaluate evaluates the flag against the evaluation context and returns the variation result.
 func Evaluate[T model.JSONType](
-	targetFlag flag.Flag,
+	targetFlag flagdef.Flag,
 	flagKey string,
 	evaluationCtx ffcontext.Context,
-	flagCtx flag.Context,
+	flagCtx flagdef.Context,
 	expectedType string,
 	sdkDefaultValue T) (model.VariationResult[T], error) {
 	flagValue, resolutionDetails := targetFlag.Value(flagKey, evaluationCtx, flagCtx)
@@ -47,9 +47,9 @@ func Evaluate[T model.JSONType](
 		if val != nil {
 			return model.VariationResult[T]{
 				Value:         sdkDefaultValue,
-				VariationType: flag.VariationSDKDefault,
-				Reason:        flag.ReasonError,
-				ErrorCode:     flag.ErrorCodeTypeMismatch,
+				VariationType: flagdef.VariationSDKDefault,
+				Reason:        flagdef.ReasonError,
+				ErrorCode:     flagdef.ErrorCodeTypeMismatch,
 				ErrorDetails:  "",
 				Failed:        true,
 				TrackEvents:   targetFlag.IsTrackEvents(),

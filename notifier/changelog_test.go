@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
@@ -17,31 +17,31 @@ func TestFlagChanges(t *testing.T) {
 
 	start := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 	end := start.Add(7 * 24 * time.Hour)
-	baseFlag := func() *flag.InternalFlag {
-		return &flag.InternalFlag{
+	baseFlag := func() *flagdef.InternalFlag {
+		return &flagdef.InternalFlag{
 			Variations: &map[string]*any{
 				"on":                  new(any(true)),
 				fixtures.VariationOff: new(any(false)),
 			},
-			DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
+			DefaultRule: &flagdef.Rule{VariationResult: new(fixtures.VariationOff)},
 			Metadata:    &map[string]any{"team": payments},
 		}
 	}
 
 	tests := []struct {
 		name   string
-		update func(f *flag.InternalFlag)
+		update func(f *flagdef.InternalFlag)
 		want   []notifier.FieldChange
 	}{
 		{
 			name:   "should show a disabled flag without pointer syntax",
-			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
+			update: func(f *flagdef.InternalFlag) { f.Disable = new(true) },
 			want:   []notifier.FieldChange{{Path: disable, From: fixtures.NullLiteral, To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
-			update: func(f *flag.InternalFlag) {
-				f.Rules = &[]flag.Rule{{
+			update: func(f *flagdef.InternalFlag) {
+				f.Rules = &[]flagdef.Rule{{
 					Name:            new(beta),
 					Query:           new(`country eq "FR"`),
 					VariationResult: new("on"),
@@ -55,8 +55,8 @@ func TestFlagChanges(t *testing.T) {
 		},
 		{
 			name: "should show a percentage rollout sorted by path",
-			update: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{Percentages: &map[string]float64{"on": 10, fixtures.VariationOff: 90}}
+			update: func(f *flagdef.InternalFlag) {
+				f.DefaultRule = &flagdef.Rule{Percentages: &map[string]float64{"on": 10, fixtures.VariationOff: 90}}
 			},
 			want: []notifier.FieldChange{
 				{Path: "DefaultRule.Percentages", From: fixtures.NullLiteral, To: `{"off":90,"on":10}`},
@@ -65,8 +65,8 @@ func TestFlagChanges(t *testing.T) {
 		},
 		{
 			name: "should show dates as RFC 3339",
-			update: func(f *flag.InternalFlag) {
-				f.Experimentation = &flag.ExperimentationRollout{Start: &start, End: &end}
+			update: func(f *flagdef.InternalFlag) {
+				f.Experimentation = &flagdef.ExperimentationRollout{Start: &start, End: &end}
 			},
 			want: []notifier.FieldChange{{
 				Path: "Experimentation",
@@ -76,26 +76,26 @@ func TestFlagChanges(t *testing.T) {
 		},
 		{
 			name: "should report a metadata key that was added",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				f.Metadata = &map[string]any{"team": payments, owner: fixtures.UserJane}
 			},
 			want: []notifier.FieldChange{{Path: "Metadata.owner", From: fixtures.NullLiteral, To: `"jane"`}},
 		},
 		{
 			name:   "should report a metadata key that was removed",
-			update: func(f *flag.InternalFlag) { f.Metadata = &map[string]any{} },
+			update: func(f *flagdef.InternalFlag) { f.Metadata = &map[string]any{} },
 			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: fixtures.NullLiteral}},
 		},
 		{
 			name: "should report a variation that was added",
-			update: func(f *flag.InternalFlag) {
+			update: func(f *flagdef.InternalFlag) {
 				(*f.Variations)[beta] = new(any("blue"))
 			},
 			want: []notifier.FieldChange{{Path: "Variations.beta", From: fixtures.NullLiteral, To: `"blue"`}},
 		},
 		{
 			name:   "should return nothing when the flag did not change",
-			update: func(_ *flag.InternalFlag) {},
+			update: func(_ *flagdef.InternalFlag) {},
 			want:   []notifier.FieldChange{},
 		},
 	}
@@ -115,8 +115,8 @@ func TestFlagChanges(t *testing.T) {
 func TestFlagChanges_error(t *testing.T) {
 	t.Parallel()
 
-	before := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
-	after := &flag.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
+	before := &flagdef.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
+	after := &flagdef.InternalFlag{Metadata: &map[string]any{"hook": func() {}}}
 	got, err := notifier.FlagChanges(before, after)
 	require.ErrorContains(t, err, "impossible to compute flag changes")
 	assert.Nil(t, got)

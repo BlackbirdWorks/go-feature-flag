@@ -6,7 +6,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
-	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 // GetFlagStates is evaluating all the flags in flagsToEvaluate based on the context provided.
@@ -24,7 +24,7 @@ func (g *GoFeatureFlag) GetFlagStates(
 	}
 
 	// prepare evaluation context enrichment
-	flagCtx := flag.Context{
+	flagCtx := flagdef.Context{
 		EvaluationContextEnrichment: g.evaluationEnrichment(),
 		DefaultSdkValue:             nil,
 		Service:                     g.evaluationService,
@@ -78,7 +78,7 @@ func (g *GoFeatureFlag) AllFlagsState(evaluationCtx ffcontext.Context) flagstate
 // GetFlagsFromCache returns all the flags present in the cache with their
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned.
-func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flag.Flag, error) {
+func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flagdef.Flag, error) {
 	return g.GetFlagsFromCacheWithContext(context.Background())
 }
 
@@ -87,7 +87,7 @@ func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flag.Flag, error) {
 // look at them) and must not change them, nor hand them to code that does.
 // It is the cheap way to evaluate every flag again and again, a copy rebuilds the state that
 // is memoized for the scheduled rollouts.
-func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error) {
+func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flagdef.Flag, error) {
 	res, err := g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
 	if err != nil {
 		return res, fmt.Errorf("getting the flags from the cache: %w", err)
@@ -99,7 +99,7 @@ func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error
 // GetFlagsFromCacheWithContext returns all the flags present in the cache with their
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned. The provided context is used for the operation.
-func (g *GoFeatureFlag) GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flag.Flag, error) {
+func (g *GoFeatureFlag) GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flagdef.Flag, error) {
 	res, err := g.retrieverManager.GetFlagsFromCache(ctx)
 	if err != nil {
 		return res, fmt.Errorf("getting the flags from the cache: %w", err)

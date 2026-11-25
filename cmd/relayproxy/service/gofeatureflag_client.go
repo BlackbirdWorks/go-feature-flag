@@ -34,9 +34,9 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/microsoftteamsnotifier"
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 var (
@@ -280,7 +280,7 @@ func releaseSharedPollerRetrievers(retrievers []retriever.Retriever, retErr erro
 // initLeveledLogger initializes the leveled logger
 // it will add the flagset name as a contextual attribute if it is not the default flagset.
 func initLeveledLogger(c *config.FlagSet, logger *slog.Logger) *slog.Logger {
-	if c.Name != "" && c.Name != utils.DefaultFlagSetName {
+	if c.Name != "" && c.Name != stringsx.DefaultFlagSetName {
 		return logger.With(slog.String("flagset", c.Name))
 	}
 

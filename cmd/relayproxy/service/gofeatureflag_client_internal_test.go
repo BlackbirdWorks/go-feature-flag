@@ -47,10 +47,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier/microsoftteamsnotifier"
 	"github.com/blackbirdworks/semaphore/notifier/slacknotifier"
 	"github.com/blackbirdworks/semaphore/notifier/webhooknotifier"
+	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils"
 )
 
 const (
@@ -984,7 +984,7 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 		}{
 			{
 				name:        "default flagset name should not add attribute",
-				flagsetName: utils.DefaultFlagSetName,
+				flagsetName: stringsx.DefaultFlagSetName,
 				wantLog:     "{\"msg\":\"test message\"}\n",
 			},
 			{
