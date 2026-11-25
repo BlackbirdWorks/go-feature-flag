@@ -625,15 +625,15 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
 
-				err := os.MkdirAll(fields.OutputDir, 0755)
+				err := os.MkdirAll(fields.OutputDir, 0o755)
 				require.NoError(t, err)
-				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
+				err = os.Chmod(fields.OutputDir, 0o000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 
-				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
+				err := os.Chmod(fields.OutputDir, 0o755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},
@@ -669,15 +669,15 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 				// Only the dedicated parent of this case loses its permissions, the other
 				// cases of this table run in parallel in sibling directories of tempDir.
 				parent := filepath.Dir(fields.OutputDir)
-				err := os.MkdirAll(parent, 0755)
+				err := os.MkdirAll(parent, 0o755)
 				require.NoError(t, err)
-				err = os.Chmod(parent, 0000) // Remove all permissions
+				err = os.Chmod(parent, 0o000) // Remove all permissions
 				assert.NoError(t, err)
 			},
 			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 
-				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
+				err := os.Chmod(filepath.Dir(fields.OutputDir), 0o755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
 		},

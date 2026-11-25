@@ -90,7 +90,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
-			errWF := os.WriteFile(file.Name(), content, 0644)
+			errWF := os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 			file.Close()
 
@@ -131,7 +131,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			content, err = os.ReadFile(testdataDir + "/config_flags_v2.yaml")
 			require.NoError(t, err)
 
-			errWF = os.WriteFile(file.Name(), content, 0644)
+			errWF = os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 
 			// the poller of the retriever picks the new file up: wait for the answer to change
@@ -216,7 +216,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
-			errWF := os.WriteFile(file.Name(), content, 0644)
+			errWF := os.WriteFile(file.Name(), content, 0o644)
 			require.NoError(t, errWF)
 			file.Close()
 

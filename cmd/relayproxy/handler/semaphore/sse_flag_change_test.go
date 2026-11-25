@@ -151,7 +151,7 @@ func Test_SSE_FlagChange(t *testing.T) {
 			defer srv.Close()
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-				srv.URL+"/stream/v1/sse/flag/change", nil)
+				srv.URL+"/stream/v1/sse/flag/change", http.NoBody)
 			require.NoError(t, err)
 
 			resp, err := (&http.Client{}).Do(req)
@@ -215,7 +215,7 @@ func Test_SSE_FlagChange_FlagsetScoping(t *testing.T) {
 	defer srv.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", nil)
+		srv.URL+"/stream/v1/sse/flag/change?apiKey=key-a", http.NoBody)
 	require.NoError(t, err)
 
 	resp, err := (&http.Client{}).Do(req)
@@ -330,7 +330,7 @@ func Test_SSE_FlagChange_Errors(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 			require.NoError(t, err)
 
 			resp, err := (&http.Client{}).Do(req)

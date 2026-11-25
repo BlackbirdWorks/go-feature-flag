@@ -42,7 +42,7 @@ func TestRedactURLError(t *testing.T) {
 	)
 	require.Error(t, parseErr)
 
-	req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, closedURL+"/SECRETMARKER-token", nil)
+	req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, closedURL+"/SECRETMARKER-token", http.NoBody)
 	require.NoError(t, reqErr)
 	resp, doErr := http.DefaultClient.Do(req)
 	if resp != nil {
@@ -199,7 +199,7 @@ func TestRedactURLError_UnparsableURLs(t *testing.T) {
 			require.Error(t, parseErr)
 			require.Contains(t, parseErr.Error(), sECRETMARKER, "the shape must make url.Parse quote the input")
 
-			_, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, nil)
+			_, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, http.NoBody)
 			require.Error(t, reqErr)
 
 			assert.Equal(t, tt.wantMessage, internal.RedactURLError(parseErr).Error())

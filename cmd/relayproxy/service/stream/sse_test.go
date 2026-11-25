@@ -194,7 +194,7 @@ func TestSSEService_Close(t *testing.T) {
 					}
 				})
 
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+streamFlagsetA, nil)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+streamFlagsetA, http.NoBody)
 				require.NoError(t, err)
 				resp, err := (&http.Client{}).Do(req)
 				require.NoError(t, err)
@@ -281,7 +281,7 @@ func TestSSEService_Comments(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(sseService.ServeHTTP))
 			defer srv.Close()
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+tt.query, http.NoBody)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)

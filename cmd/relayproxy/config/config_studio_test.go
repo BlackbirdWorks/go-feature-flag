@@ -228,7 +228,7 @@ flagSets:
 
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			if tt.cache != "" {
-				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0600))
+				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0o600))
 			}
 
 			environ := make([]string, 0, len(tt.env))

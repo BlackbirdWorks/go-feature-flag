@@ -94,7 +94,7 @@ func newTestServer(
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
@@ -159,7 +159,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
@@ -168,7 +168,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	req3, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, nil)
+	req3, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, http.NoBody)
 	require.NoError(t, err)
 	responseM, err := http.DefaultClient.Do(req3)
 	require.NoError(t, err)
@@ -177,7 +177,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
-	req4, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	req4, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, http.NoBody)
 	require.NoError(t, err)
 	responseI, err := http.DefaultClient.Do(req4)
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	waitForServer(t, baseURL)
 	waitForServer(t, monitoringURL)
 
-	req5, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req5, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req5)
 	require.NoError(t, err)
@@ -259,7 +259,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	req6, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, nil)
+	req6, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, http.NoBody)
 	require.NoError(t, err)
 	responseM, err := http.DefaultClient.Do(req6)
 	require.NoError(t, err)
@@ -268,7 +268,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, responseM.StatusCode)
 
-	req7, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	req7, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, http.NoBody)
 	require.NoError(t, err)
 	responseI, err := http.DefaultClient.Do(req7)
 	require.NoError(t, err)
@@ -277,7 +277,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, responseI.StatusCode)
 
-	req8, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, nil)
+	req8, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, http.NoBody)
 	require.NoError(t, err)
 	responseH1, err := http.DefaultClient.Do(req8)
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
-	req9, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, nil)
+	req9, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, http.NoBody)
 	require.NoError(t, err)
 	responseM1, err := http.DefaultClient.Do(req9)
 	require.NoError(t, err)
@@ -295,7 +295,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
-	req10, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, nil)
+	req10, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, http.NoBody)
 	require.NoError(t, err)
 	responseI1, err := http.DefaultClient.Do(req10)
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req11, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req11, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req11)
 	require.NoError(t, err)
@@ -497,7 +497,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req12, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req12, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	response, err := http.DefaultClient.Do(req12)
 	require.NoError(t, err)
@@ -584,7 +584,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
 				t.Helper()
 
-				request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+adminV1Retriever, nil)
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+adminV1Retriever, http.NoBody)
 				require.NoError(t, err)
 				request.Header.Add(contentType, applicationJSON)
 
@@ -770,7 +770,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test health endpoint
-	req13, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, nil)
+	req13, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, http.NoBody)
 	require.NoError(t, err)
 	response, err := client.Do(req13)
 	require.NoError(t, err)
@@ -780,7 +780,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test metrics endpoint
-	req14, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/metrics", nil)
+	req14, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/metrics", http.NoBody)
 	require.NoError(t, err)
 	responseM, err := client.Do(req14)
 	require.NoError(t, err)
@@ -790,7 +790,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
 	// Test info endpoint
-	req15, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/info", nil)
+	req15, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/info", http.NoBody)
 	require.NoError(t, err)
 	responseI, err := client.Do(req15)
 	require.NoError(t, err)
@@ -877,7 +877,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	waitForServer(t, monitoringURL)
 
 	// Test health endpoint
-	req16, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, nil)
+	req16, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, http.NoBody)
 	require.NoError(t, err)
 	responseH1, err := http.DefaultClient.Do(req16)
 	require.NoError(t, err)
@@ -887,7 +887,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	// Test metrics endpoint
-	req17, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, nil)
+	req17, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, http.NoBody)
 	require.NoError(t, err)
 	responseM1, err := http.DefaultClient.Do(req17)
 	require.NoError(t, err)
@@ -897,7 +897,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
 	// Test info endpoint
-	req18, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, nil)
+	req18, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, http.NoBody)
 	require.NoError(t, err)
 	responseI, err := http.DefaultClient.Do(req18)
 	require.NoError(t, err)
@@ -1176,7 +1176,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			if tt.body != "" {
 				req, err = http.NewRequestWithContext(t.Context(), tt.method, tt.endpoint, strings.NewReader(tt.body))
 			} else {
-				req, err = http.NewRequestWithContext(t.Context(), tt.method, tt.endpoint, nil)
+				req, err = http.NewRequestWithContext(t.Context(), tt.method, tt.endpoint, http.NoBody)
 			}
 
 			require.NoError(t, err)
@@ -1286,7 +1286,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Create a Unix socket HTTP client
 			client := newUnixSocketHTTPClient(socketPath)
 
-			req19, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, nil)
+			req19, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, http.NoBody)
 			require.NoError(t, err)
 			response, err := client.Do(req19)
 			require.NoError(t, err)
@@ -1355,14 +1355,14 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	waitForServer(t, baseURL)
 
 	// Make some requests to generate histogram data
-	req20, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req20, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	healthResp, err := http.DefaultClient.Do(req20)
 	require.NoError(t, err)
 
 	_ = healthResp.Body.Close()
 
-	req21, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	req21, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, http.NoBody)
 	require.NoError(t, err)
 	infoResp, err := http.DefaultClient.Do(req21)
 	require.NoError(t, err)
@@ -1370,7 +1370,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	_ = infoResp.Body.Close()
 
 	// Scrape /metrics with protobuf Accept header
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+metrics2, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+metrics2, http.NoBody)
 	require.NoError(t, err)
 	req.Header.Set(
 		"Accept",
@@ -1476,7 +1476,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health", port), nil)
+		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health", port), http.NoBody)
 		require.NoError(t, getErr)
 		resp, getErr := http.DefaultClient.Do(req22)
 		if getErr != nil {

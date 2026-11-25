@@ -446,7 +446,7 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			assert.LessOrEqual(t, total, maxDiscordTotal)
 
 			description := func(key string) string {
-				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag \"%s\" updated", key), maxDiscordTitle)]
+				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag %q updated", key), maxDiscordTitle)]
 				require.True(t, ok, "no embed for %s", key)
 
 				return d

@@ -86,7 +86,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 				}
 			})
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream="+tt.flagsetName, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream="+tt.flagsetName, http.NoBody)
 			require.NoError(t, err)
 			resp, err := (&http.Client{}).Do(req)
 			require.NoError(t, err)

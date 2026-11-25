@@ -51,7 +51,7 @@ func TestServer_WithListener(t *testing.T) {
 
 	baseURL := fmt.Sprintf(http12700, port)
 	waitForServer(t, baseURL)
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

@@ -87,7 +87,7 @@ func TestServerEnableH2C(t *testing.T) {
 			client := &http.Client{Transport: &http.Transport{Protocols: &protos}}
 			defer client.CloseIdleConnections()
 
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+health2, nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+health2, http.NoBody)
 			require.NoError(t, err)
 
 			resp, err := client.Do(req)

@@ -1270,7 +1270,7 @@ func (m *mockRedshiftDataClient) lastStatementID() *string {
 	return m.statementID(len(m.executed))
 }
 
-var paramRegex = regexp.MustCompile(`:p[0-9]+`)
+var paramRegex = regexp.MustCompile(`:p\d+`)
 
 func paramsMap(params []types.SqlParameter) map[string]string {
 	res := make(map[string]string, len(params))

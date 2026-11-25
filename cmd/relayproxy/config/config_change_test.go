@@ -576,7 +576,7 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 func waitForHealth(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", nil)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", http.NoBody)
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {

@@ -470,7 +470,7 @@ func assertCollidingQueriesApply(t *testing.T, svc *Service, flags []*InternalFl
 
 			for j := range count {
 				want := fmt.Sprintf("collide-%d", j)
-				assert.Equal(t, r.GetQuery() == fmt.Sprintf(`key eq "%s"`, want), applies(svc, r, want))
+				assert.Equal(t, r.GetQuery() == fmt.Sprintf("key eq %q", want), applies(svc, r, want))
 			}
 		}
 	}

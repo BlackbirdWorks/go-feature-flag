@@ -353,6 +353,6 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 func TestGoogleCloudStorage_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := gcstorageexporter.Exporter{}
-	assert.True(t, exporter.IsBulk(), "exporter is a bulk exporter")
+	exp := gcstorageexporter.Exporter{}
+	assert.True(t, exp.IsBulk(), "exporter is a bulk exporter")
 }

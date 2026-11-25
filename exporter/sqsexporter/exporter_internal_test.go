@@ -49,8 +49,8 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 func TestSQSIsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := Exporter{}
-	assert.False(t, exporter.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
+	exp := Exporter{}
+	assert.False(t, exp.IsBulk(), "DeprecatedExporterV1 is not a bulk exporter")
 }
 
 func TestExporterExport(t *testing.T) {

@@ -1176,7 +1176,7 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
 
-	retriever := &retrieverconf.RetrieverConf{Kind: file2, Path: testdataSemaphoreConfigurationFlags}
+	rtr := &retrieverconf.RetrieverConf{Kind: file2, Path: testdataSemaphoreConfigurationFlags}
 
 	tests := []struct {
 		name     string
@@ -1193,7 +1193,7 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 			t.Parallel()
 
 			fs := &config.FlagSet{Name: "fs",
-				Retriever: retriever, ExporterCleanQueueInterval: tt.flagset}
+				Retriever: rtr, ExporterCleanQueueInterval: tt.flagset}
 
 			var got time.Duration
 

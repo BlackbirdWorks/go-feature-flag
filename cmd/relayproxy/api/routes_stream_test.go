@@ -65,7 +65,7 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 
 	waitForServer(t, fmt.Sprintf(httpLocalhostD, cfg.ServerPort(logger)))
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)), nil)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://localhost:%d/ws/v1/flag/change", cfg.ServerPort(logger)), http.NoBody)
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)

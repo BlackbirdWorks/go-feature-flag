@@ -41,7 +41,7 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 		got  func(t *testing.T) string
 		name string
 	}{
-		{name: "Sprint", got: func(*testing.T) string { return fmt.Sprint(sample.APIKey) }},
+		{name: "Sprint", got: func(*testing.T) string { return sample.APIKey.String() }},
 		{name: "%v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%v", sample) }},
 		{name: "%+v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%+v", sample) }},
 		{name: "%#v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%#v", sample) }},

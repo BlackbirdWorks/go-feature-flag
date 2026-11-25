@@ -112,9 +112,9 @@ type variationCase[T any, R any] struct {
 	wantErr     bool
 }
 
-func NewCacheMock(flag flag.Flag, err error) *cacheMock {
+func NewCacheMock(flg flag.Flag, err error) *cacheMock {
 	return &cacheMock{
-		flag: flag,
+		flag: flg,
 		err:  err,
 	}
 }
@@ -3925,7 +3925,7 @@ flag1:
  defaultRule:
    variation: disabled
 
-`), 0644)
+`), 0o644)
 	require.NoError(t, err)
 
 	goff, err := New(Config{

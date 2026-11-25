@@ -527,7 +527,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 
 	var callCount atomic.Int32
 
-	exporter := &Exporter{
+	exp := &Exporter{
 		ProjectID: fakeProject,
 		DatasetID: fakeDataset,
 		newClientFunc: func(
@@ -548,7 +548,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	for range goroutines {
 		wg.Go(func() {
-			errs <- exporter.initClient(context.TODO())
+			errs <- exp.initClient(context.TODO())
 		})
 	}
 
@@ -560,7 +560,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(1), callCount.Load())
-	assert.Same(t, client, exporter.client)
+	assert.Same(t, client, exp.client)
 }
 
 func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {

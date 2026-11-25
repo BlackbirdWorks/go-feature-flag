@@ -470,6 +470,6 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 func TestS3_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := Exporter{}
-	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
+	exp := Exporter{}
+	assert.True(t, exp.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }

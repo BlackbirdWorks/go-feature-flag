@@ -2909,7 +2909,7 @@ func TestInternalFlag_IsValid(t *testing.T) {
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"A": 00,
+						"A": 0o0,
 						"B": 0,
 					},
 				},
@@ -2955,8 +2955,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"A": 00,
-						"B": 00,
+						"A": 0o0,
+						"B": 0o0,
 					},
 				},
 				Metadata: &map[string]any{
@@ -2968,7 +2968,7 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 						Name:  new(rule1),
 						Query: new(keyEq5),
 						Percentages: &map[string]float64{
-							"A": 00,
+							"A": 0o0,
 							"B": 0,
 						},
 					},

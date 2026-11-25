@@ -248,7 +248,7 @@ func TestLoadConfigFile(t *testing.T) {
 				dir := t.TempDir()
 				content, err := os.ReadFile(tt.inputFilePath)
 				require.NoError(t, err)
-				err = os.WriteFile(filepath.Join(dir, flagsGoffYaml), content, 0600)
+				err = os.WriteFile(filepath.Join(dir, flagsGoffYaml), content, 0o600)
 				require.NoError(t, err)
 
 				tt.inputFilePath = ""

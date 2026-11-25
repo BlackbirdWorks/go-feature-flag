@@ -100,8 +100,8 @@ func runWebhookExportTests(t *testing.T, tests []webhookExportCase) {
 func TestWebhook_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := Exporter{}
-	assert.True(t, exporter.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
+	exp := Exporter{}
+	assert.True(t, exp.IsBulk(), "DeprecatedExporterV1 is a bulk exporter")
 }
 
 func TestWebhook_Export(t *testing.T) {

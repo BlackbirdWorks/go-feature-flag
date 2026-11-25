@@ -61,7 +61,7 @@ func (s testStringer) String() string { return s.s }
 // Evaluator.Process did before rules were compiled.
 //
 //nolint:nonamedreturns // recover sets the result
-func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr error, debugErr error) {
+func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retErr, debugErr error) {
 	defer func() {
 		if info := recover(); info != nil {
 			retErr = recoveredPanicError{info: info}

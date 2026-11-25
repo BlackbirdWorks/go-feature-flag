@@ -1,6 +1,7 @@
 package cache_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -251,7 +252,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			assert.Equal(
 				t,
 				tt.wantLiveChanged,
-				string(before) != string(after),
+				!bytes.Equal(before, after),
 				"the live flag is not changed through the snapshot",
 			)
 		})

@@ -148,6 +148,6 @@ func TestLog_Export(t *testing.T) {
 func TestLog_IsBulk(t *testing.T) {
 	t.Parallel()
 
-	exporter := logsexporter.Exporter{}
-	assert.False(t, exporter.IsBulk(), "File exporter is not a bulk exporter")
+	exp := logsexporter.Exporter{}
+	assert.False(t, exp.IsBulk(), "File exporter is not a bulk exporter")
 }

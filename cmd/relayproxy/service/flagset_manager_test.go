@@ -364,7 +364,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: testFlagset,
@@ -378,7 +378,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -413,7 +413,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
 				Kind: file2,
@@ -422,7 +422,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -447,7 +447,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: testFlagset1,
@@ -469,7 +469,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -485,7 +485,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	t.Run("flagset mode using default flagset name", func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: defaultFlagset,
@@ -507,7 +507,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -524,7 +524,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
 				Kind: file2,
@@ -533,7 +533,7 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -555,7 +555,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
 				Kind: file2,
@@ -564,7 +564,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -580,7 +580,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: testFlagset,
@@ -594,7 +594,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -614,7 +614,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
 				Kind: file2,
@@ -623,7 +623,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -636,7 +636,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: testFlagset,
@@ -650,7 +650,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
@@ -670,7 +670,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		t.Parallel()
 
 		outputDir := t.TempDir()
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
 				Kind: file2,
@@ -680,7 +680,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 		assert.NotNil(t, manager)
 
@@ -694,7 +694,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		t.Parallel()
 
 		outputDir := t.TempDir()
-		config := &config.Config{
+		conf := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name: testFlagset,
@@ -709,7 +709,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
-		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
+		manager, err := service.NewFlagsetManager(conf, logger, notifiers, nil, nil)
 		require.NoError(t, err, failedToCreateFlagsetManager)
 		assert.NotNil(t, manager)
 
