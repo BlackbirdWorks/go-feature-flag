@@ -15,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -46,7 +45,7 @@ type ManagerConfig struct {
 type Manager struct {
 	cacheManager     cache.Manager
 	bgUpdater        backgroundUpdater
-	logger           *fflog.FFLogger
+	logger           *slog.Logger
 	retrievers       []Retriever
 	onErrorRetriever []Retriever
 	config           ManagerConfig
@@ -59,7 +58,7 @@ type Manager struct {
 
 // NewManager create a new Manager.
 func NewManager(
-	config ManagerConfig, retrievers []Retriever, cacheManager cache.Manager, logger *fflog.FFLogger) *Manager {
+	config ManagerConfig, retrievers []Retriever, cacheManager cache.Manager, logger *slog.Logger) *Manager {
 	return &Manager{
 		retrievers:       retrievers,
 		onErrorRetriever: make([]Retriever, 0),

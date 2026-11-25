@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -46,7 +46,7 @@ type Retriever struct {
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
-func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *Retriever) Init(_ context.Context, _ *slog.Logger) error {
 	if r.AccountName == "" {
 		return errUnableToConnectTo
 	}

@@ -13,7 +13,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -42,7 +41,7 @@ type Retriever struct {
 	// connections (the flag sets of a relay proxy) are given the same registry; when nil, the retriever
 	// creates one of its own at Init.
 	Pools       *PoolRegistry
-	logger      *fflog.FFLogger
+	logger      *slog.Logger
 	columnNames map[string]string
 	pool        *pgxpool.Pool
 	flagset     *string
@@ -52,7 +51,7 @@ type Retriever struct {
 }
 
 // Init connects to PostgreSQL and prepares the retriever for the flagset.
-func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {
+func (r *Retriever) Init(ctx context.Context, logger *slog.Logger, flagset *string) error {
 	r.status = retriever.RetrieverNotReady
 
 	r.logger = logger

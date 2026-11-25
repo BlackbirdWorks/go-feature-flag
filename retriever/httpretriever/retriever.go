@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -61,7 +61,7 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 }
 
 // Init is initializing the retriever to start fetching the flags configuration.
-func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *Retriever) Init(_ context.Context, _ *slog.Logger) error {
 	r.status = retriever.RetrieverNotReady
 
 	_, err := r.getHTTPClient()

@@ -3,8 +3,7 @@ package retriever
 import (
 	"context"
 	"log"
-
-	"github.com/blackbirdworks/semaphore/utils/fflog"
+	"log/slog"
 )
 
 // Retriever is the interface to create a Retriever to load you flags.
@@ -33,14 +32,14 @@ type InitializableRetrieverLegacy interface {
 // InitializableRetriever is an extended version of the retriever that can be initialized and shutdown.
 type InitializableRetriever interface {
 	CommonInitializableRetriever
-	Init(ctx context.Context, logger *fflog.FFLogger) error
+	Init(ctx context.Context, logger *slog.Logger) error
 }
 
 // InitializableRetrieverWithFlagset is an extended version of the retriever that can be initialized and shutdown.
 // It is used to initialize the retriever with a specific flagset.
 type InitializableRetrieverWithFlagset interface {
 	CommonInitializableRetriever
-	Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error
+	Init(ctx context.Context, logger *slog.Logger, flagset *string) error
 }
 
 // CommonInitializableRetriever is the common interface for all versions of

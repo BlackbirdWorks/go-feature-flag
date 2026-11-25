@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,7 +23,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/retriever/shared"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -89,7 +89,7 @@ type installationTokenResponse struct {
 }
 
 // Init validates the authentication configuration.
-func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *Retriever) Init(_ context.Context, _ *slog.Logger) error {
 	r.status = retriever.RetrieverNotReady
 
 	err := r.validateAppAuth()

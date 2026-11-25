@@ -17,7 +17,6 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -44,9 +43,9 @@ func (failingRetriever) Retrieve(context.Context) ([]byte, error) {
 // shutdownFailingRetriever retrieves flags but cannot be shut down.
 type shutdownFailingRetriever struct{ countingRetriever }
 
-func (*shutdownFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return nil }
-func (*shutdownFailingRetriever) Shutdown(context.Context) error              { return errCannotClose }
-func (*shutdownFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverReady }
+func (*shutdownFailingRetriever) Init(context.Context, *slog.Logger) error { return nil }
+func (*shutdownFailingRetriever) Shutdown(context.Context) error           { return errCannotClose }
+func (*shutdownFailingRetriever) Status() retriever.Status                 { return retriever.RetrieverReady }
 
 func newErrorManager(r retriever.Retriever, conf retriever.ManagerConfig) *retriever.Manager {
 	logger := slog.New(slog.DiscardHandler)
@@ -180,6 +179,6 @@ func TestManagerInitFailsWhenARetrieverCannotInitialise(t *testing.T) {
 
 type initFailingRetriever struct{ countingRetriever }
 
-func (*initFailingRetriever) Init(context.Context, *fflog.FFLogger) error { return errNo }
-func (*initFailingRetriever) Shutdown(context.Context) error              { return nil }
-func (*initFailingRetriever) Status() retriever.Status                    { return retriever.RetrieverNotReady }
+func (*initFailingRetriever) Init(context.Context, *slog.Logger) error { return errNo }
+func (*initFailingRetriever) Shutdown(context.Context) error           { return nil }
+func (*initFailingRetriever) Status() retriever.Status                 { return retriever.RetrieverNotReady }

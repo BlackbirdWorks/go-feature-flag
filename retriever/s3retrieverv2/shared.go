@@ -19,7 +19,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -269,7 +268,7 @@ type SharedItemRetriever struct {
 }
 
 // Init registers the item in the group.
-func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *SharedItemRetriever) Init(_ context.Context, _ *slog.Logger) error {
 	if r.item == "" {
 		r.status.Store(retriever.RetrieverError)
 
