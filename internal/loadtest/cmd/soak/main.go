@@ -99,6 +99,8 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 }
 
 // newTarget builds the target selected by the options.
+//
+//nolint:ireturn // factory: selects the load test target implementation from the options at runtime
 func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 	mode, err := loadtest.ParseExporterMode(opts.exporter)
 	if err != nil {

@@ -22,6 +22,8 @@ type enrichedContext struct {
 // EnrichContext returns the context seen with the enrichment merged in its custom attributes
 // (see enrichedContext), or the context itself when there is nothing to merge. The context of the
 // caller is never modified.
+//
+//nolint:ireturn // returns either the context of the caller or the enriched wrapper, selected at runtime
 func EnrichContext(ctx ffcontext.Context, enrichment map[string]any) ffcontext.Context {
 	if len(enrichment) == 0 {
 		return ctx

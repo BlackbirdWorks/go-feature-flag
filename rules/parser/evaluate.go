@@ -58,6 +58,7 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 	}, nil
 }
 
+//nolint:ireturn // returns the antlr.ParseTree that the generated parser constructs, which only exposes the interface
 func parseRule(rule string) (antlr.ParseTree, error) {
 	input := antlr.NewInputStream(normalizeRuleInput(rule))
 	lex := NewJsonQueryLexer(input)
@@ -213,6 +214,8 @@ func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }
 
 // assertType returns v as a T. A mismatch is a bug of the evaluator, not a bad rule: it panics, and the recover of
 // the evaluation reports it as an error, as the unchecked type assertion it replaces did.
+//
+//nolint:ireturn // generic: the result is a type parameter
 func assertType[T any](v any) T {
 	res, ok := v.(T)
 	if !ok {

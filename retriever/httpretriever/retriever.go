@@ -118,6 +118,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return body, nil
 }
 
+//nolint:ireturn // returns the injectable HTTPClient of the retriever (a test seam)
 func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	if r.httpClient != nil {
 		return r.httpClient, nil

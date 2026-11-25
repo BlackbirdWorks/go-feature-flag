@@ -63,6 +63,8 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 }
 
 // createClient creates the Kubernetes client of the retriever.
+//
+//nolint:ireturn // returns the kubernetes.Interface of the injectable newClient factory
 func (s *Retriever) createClient() (kubernetes.Interface, error) {
 	if s.newClient != nil {
 		return s.newClient(&s.ClientConfig)

@@ -814,6 +814,7 @@ func equalPtr[T comparable](a, b *T) bool {
 	return *a == *b
 }
 
+//nolint:ireturn // generic: the result is a type parameter
 func derefOr[T any](p *T, fallback T) T {
 	if p == nil {
 		return fallback

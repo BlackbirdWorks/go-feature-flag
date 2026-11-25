@@ -163,6 +163,7 @@ func (c *ManagerImpl) Close() {
 	}
 }
 
+//nolint:ireturn // implements cache.Manager, returns the flag.Flag stored in the cache
 func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
