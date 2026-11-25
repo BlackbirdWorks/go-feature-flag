@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/accesslog"
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/danielgtaylor/huma/v2"
 
@@ -54,10 +55,13 @@ func RecordError(ctx context.Context, err error) {
 // errorKey is the name of the attribute that carries the error of the request.
 const errorKey = "error"
 
-// AccessLog writes the access log record of a request, the one [LogRequest] defines, from what the logging
-// middleware of huma-middleware knows about it. It is the function given to logging.WithAccessLogFunc.
-func AccessLog() func(ctx context.Context, l *slog.Logger, r logging.Record) {
-	return func(ctx context.Context, l *slog.Logger, r logging.Record) {
+// AccessLog writes the access log record of a request, the one [LogRequest] defines, from what the accesslog
+// middleware of huma-middleware knows about it. It is the function given to accesslog.WithRecordFunc: the record is
+// pooled, everything is copied during the call. The error of the request ([RecordError]) is not read from the
+// record: the logger the function receives is the one of the request logger, which adds the attributes of the request
+// (the error among them) to the line.
+func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
+	return func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
 		rec := RequestRecord{
 			RemoteIP:  remoteIP(r.RemoteAddr),
 			Latency:   r.Duration,
@@ -68,11 +72,6 @@ func AccessLog() func(ctx context.Context, l *slog.Logger, r logging.Record) {
 			RequestID: r.RequestID,
 			Status:    r.Status,
 			Size:      r.Size,
-		}
-		for _, a := range r.Extra {
-			if err, ok := a.Value.Any().(error); ok && a.Key == errorKey {
-				rec.Err = err
-			}
 		}
 		LogRequest(ctx, l, &rec)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -143,8 +142,7 @@ func Test_websocket_flag_change(t *testing.T) {
 				}
 			}()
 
-			log := slog.New(slog.DiscardHandler)
-			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), log)
+			ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 			e := http.NewServeMux()
 			e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
 			testServer := httptest.NewServer(e)
@@ -246,7 +244,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
 	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.Handler, false))
 	testServer := httptest.NewServer(e)
@@ -337,7 +335,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 		}
 	}()
 
-	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr(), slog.New(slog.DiscardHandler))
+	ctrl := controller.NewWsFlagChange(websocketService, newDefaultFlagsetMgr())
 	e := http.NewServeMux()
 	e.Handle("GET /ws/v1/flag/change", helper.Handle(ctrl.LegacyHandler, false))
 	testServer := httptest.NewServer(e)
@@ -408,7 +406,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			defer websocketService.Close()
 
 			flagsetMgr := &mockFlagsetManagerSSE{flagsetName: "flagsetA", isDefault: false}
-			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
+			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
 			testServer := httptest.NewServer(e)
@@ -518,7 +516,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 				isDefault: false,
 				err:       errNoFlagSetAssociated,
 			}
-			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr, slog.New(slog.DiscardHandler))
+			ctrl := controller.NewWsFlagChange(websocketService, flagsetMgr)
 			e := http.NewServeMux()
 			e.Handle("GET /ws", helper.Handle(tt.handler(ctrl), false))
 			testServer := httptest.NewServer(e)

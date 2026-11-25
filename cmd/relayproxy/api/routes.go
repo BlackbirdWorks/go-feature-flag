@@ -187,8 +187,8 @@ func (s *Server) addAPIRoutes(rs *routeSet) {
 		s.config.OfrepEventStream,
 		ofrep.WithLegacyMetadataOnly(s.config.DisableSemaphoreMetadata),
 	)
-	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics, s.logger)
-	cEvalDataCollector := controller.NewCollectEvalData(s.services.FlagsetManager, s.services.Metrics, s.logger)
+	cManifest := manifest.NewManifest(s.services.FlagsetManager, s.services.Metrics)
+	cEvalDataCollector := controller.NewCollectEvalData(s.services.FlagsetManager, s.services.Metrics)
 	cRetrieverRefresh := controller.NewForceFlagsRefresh(s.services.FlagsetManager, s.services.Metrics)
 	cValidateFlags := controller.NewValidateFlags(
 		s.config.Version,
@@ -197,8 +197,8 @@ func (s *Server) addAPIRoutes(rs *routeSet) {
 	)
 	cFlagChangeAPI := controller.NewAPIFlagChange(s.services.FlagsetManager, s.services.Metrics)
 	cFlagConfiguration := controller.NewAPIFlagConfiguration(s.services.FlagsetManager, s.services.Metrics)
-	cWsFlagChange := controller.NewWsFlagChange(s.services.WebsocketService, s.services.FlagsetManager, s.logger)
-	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.services.FlagsetManager, s.logger)
+	cWsFlagChange := controller.NewWsFlagChange(s.services.WebsocketService, s.services.FlagsetManager)
+	cSSEFlagChange := controller.NewSSEFlagChange(s.services.SSEService, s.services.FlagsetManager)
 
 	// /v1: the evaluation API
 	op := operationAllFlags(api)

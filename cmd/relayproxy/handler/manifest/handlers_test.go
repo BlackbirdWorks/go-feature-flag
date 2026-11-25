@@ -57,7 +57,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 	require.NoError(t, err, "failed to create flagset manager")
 	defer flagsetManager.Close()
 
-	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
+	ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{})
 	out, err := ctrl.GetManifest(t.Context(), &manifest.Input{})
 	require.NoError(t, err)
 	assert.Equal(
@@ -166,7 +166,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
+			ctrl := manifest.NewManifest(flagsetManager, metric.Metrics{})
 			out, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{
 				Request: controller.NewRequest(tt.apiKey, ""),
 			})
@@ -203,7 +203,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 func TestManifestCtrl_GetManifest_NilFlagsetManager(t *testing.T) {
 	t.Parallel()
 
-	ctrl := manifest.NewManifest(nil, metric.Metrics{}, slog.New(slog.DiscardHandler))
+	ctrl := manifest.NewManifest(nil, metric.Metrics{})
 	_, handlerErr := ctrl.GetManifest(t.Context(), &manifest.Input{})
 
 	require.Error(t, handlerErr, "handler should return an error when flagset manager is nil")

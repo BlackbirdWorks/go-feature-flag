@@ -2,8 +2,11 @@ package helper
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -48,6 +51,9 @@ func FlagSet(flagsetManager service.FlagsetManager, apiKey string) (*ffclient.Go
 	return flagset, nil
 }
 
+// flagSetLogKey is the attribute of the logs of a request that carries the name of its flag set, once it is known.
+const flagSetLogKey = "flagset"
+
 // contextKey is the type of the keys of the values the authentication keeps in the context of a request.
 type contextKey int
 
@@ -80,6 +86,8 @@ func AuthenticateFlagSetName(
 		return ctx, false
 	}
 
+	logging.AddAttrs(ctx, slog.String(flagSetLogKey, name))
+
 	return context.WithValue(ctx, resolvedFlagSetNameKey, name), true
 }
 
@@ -95,11 +103,17 @@ func RequestFlagSet(
 	return FlagSet(flagsetManager, apiKey)
 }
 
-// RequestFlagSetName returns the name of the flag set of the request, like RequestFlagSet.
+// RequestFlagSetName returns the name of the flag set of the request, like RequestFlagSet. The name is added to the
+// logs of the request when it is looked up here: the authentication did it when it resolved the name.
 func RequestFlagSetName(ctx context.Context, flagsetManager service.FlagsetManager, apiKey string) (string, error) {
 	if name, ok := ctx.Value(resolvedFlagSetNameKey).(string); ok {
 		return name, nil
 	}
 
-	return flagsetManager.FlagSetName(apiKey)
+	name, err := flagsetManager.FlagSetName(apiKey)
+	if err == nil {
+		logging.AddAttrs(ctx, slog.String(flagSetLogKey, name))
+	}
+
+	return name, err
 }

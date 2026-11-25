@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/accesslog"
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +21,13 @@ import (
 // requestLogger is the access log of a plain handler, as the relay proxy builds it.
 func requestLogger(logger *slog.Logger, debug bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return logging.Handler(next,
-			logging.WithLogger(logger),
-			logging.WithAccessLogFunc(middleware.AccessLog()),
-			logging.WithRequestSkip(middleware.SkipRequest(debug)),
+		access := accesslog.Handler(
+			accesslog.WithLogger(logger),
+			accesslog.WithRecordFunc(middleware.AccessLog()),
+			accesslog.WithRequestSkip(middleware.SkipRequest(debug)),
 		)
+
+		return logging.Handler(access(next), logging.WithLogger(logger))
 	}
 }
 
