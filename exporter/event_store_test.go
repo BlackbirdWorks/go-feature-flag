@@ -92,8 +92,7 @@ func Test_SingleConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), got)
 
 	// restart producing
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
+	ctx2 := t.Context()
 
 	go startEventProducer(ctx2, eventStore, 91, false)
 
@@ -196,8 +195,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 
 	defer eventStore.Stop()
 	// start producer
-	ctx, cancelProducer1 := context.WithCancel(context.Background())
-	defer cancelProducer1()
+	ctx := t.Context()
 
 	go startEventProducer(ctx, eventStore, 100000, true)
 

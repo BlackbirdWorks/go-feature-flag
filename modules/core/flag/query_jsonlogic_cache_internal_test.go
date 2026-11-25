@@ -237,9 +237,7 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 	svc := NewService()
 	var wg sync.WaitGroup
 	for i := range 32 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			dsp := []string{"ttd", "xandr"}[i%2]
 			ctx := ffcontext.NewEvaluationContextBuilder("k").
 				AddCustom("dsp", dsp).
@@ -248,7 +246,7 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 			for range 200 {
 				assert.Equal(t, dsp == "ttd", evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}))
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

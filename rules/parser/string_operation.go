@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -100,12 +101,9 @@ func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
 	if !ok {
 		return ok, newInvalidOperandError(right, rightVal)
 	}
-	// an explicit loop: slices.Contains is measurably slower on this evaluation path
-	//nolint:modernize // evaluation hot path: explicit loop is measurably faster than slices.Contains
-	for _, val := range rightVal {
-		if leftVal == val {
-			return true, nil
-		}
+
+	if slices.Contains(rightVal, leftVal) {
+		return true, nil
 	}
 
 	return false, nil

@@ -564,14 +564,12 @@ func parsePlainVersion(raw string) (semver.Version, bool) {
 	var ver semver.Version
 
 	core := raw
-	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
-	//nolint:modernize // evaluation hot path: strings.IndexByte avoids strings.Cut overhead per semver eval
-	if i := strings.IndexByte(raw, '+'); i >= 0 {
-		if !validBuild(raw[i+1:]) {
+	if before, after, ok := strings.Cut(raw, "+"); ok {
+		if !validBuild(after) {
 			return ver, false
 		}
 
-		core = raw[:i]
+		core = before
 	}
 
 	var nums [3]uint64
