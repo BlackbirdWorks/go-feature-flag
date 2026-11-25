@@ -87,14 +87,14 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 }
 
 // newTarget builds the target selected by the options.
-func newTarget(o options) (loadtest.Target, error) {
+func newTarget(ctx context.Context, o options) (loadtest.Target, error) {
 	mode, err := loadtest.ParseExporterMode(o.exporter)
 	if err != nil {
 		return nil, err
 	}
 	switch o.target {
 	case "library":
-		return loadtest.NewLibraryTarget(loadtest.LibraryOptions{
+		return loadtest.NewLibraryTarget(ctx, loadtest.LibraryOptions{
 			FlagKey: o.flagKey, ExporterMode: mode,
 			FlushInterval: time.Duration(o.flushMs) * time.Millisecond, MaxEventInMemory: o.maxEvents,
 		})
@@ -107,6 +107,7 @@ func newTarget(o options) (loadtest.Target, error) {
 			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, o.protocol)
 		}
 
+		//nolint:contextcheck // relay.Target owns its own loopback server lifecycle stopped by Target.Close
 		return relay.NewTarget(relay.Options{
 			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: o.protocol == "h2c",
 			FlushIntervalMs: o.flushMs, MaxEventInMemory: o.maxEvents,
@@ -155,7 +156,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		defer stop()
 	}
-	t, err := newTarget(o)
+	t, err := newTarget(ctx, o)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
 

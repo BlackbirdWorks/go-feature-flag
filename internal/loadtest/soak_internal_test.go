@@ -309,7 +309,7 @@ func TestFlagKeyAndYAML(t *testing.T) {
 
 func TestLibraryTarget(t *testing.T) {
 	t.Parallel()
-	lt, err := NewLibraryTarget(LibraryOptions{
+	lt, err := NewLibraryTarget(t.Context(), LibraryOptions{
 		FlagKey: "rule-bool-track", ExporterMode: ExporterDiscard, FlushInterval: 20 * time.Millisecond,
 	})
 	require.NoError(t, err)

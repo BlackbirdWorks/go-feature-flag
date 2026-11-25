@@ -102,13 +102,13 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 		attribute.String("feature_flag.version", f.Version),
 		attribute.String("feature_flag.source", f.Source),
 	)
-	logger.Debug("Exporting feature flag evaluation")
+	logger.DebugContext(ctx, "Exporting feature flag evaluation")
 
 	// Value (safe stringification)
 	if f.Value != nil {
 		if b, err := json.Marshal(f.Value); err != nil {
 			if logger != nil {
-				logger.Debug("failed to marshal feature flag value for otel attribute", "error", err)
+				logger.DebugContext(ctx, "failed to marshal feature flag value for otel attribute", "error", err)
 			}
 		} else {
 			attributes = append(attributes, attribute.String("feature_flag.value", string(b)))
@@ -134,7 +134,7 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 		}
 	}
 
-	logger.Debug("Setting span attributes for feature flag evaluation")
+	logger.DebugContext(ctx, "Setting span attributes for feature flag evaluation")
 	// Apply all attributes in a single call to reduce overhead.
 	if len(attributes) > 0 {
 		span.SetAttributes(attributes...)
@@ -146,5 +146,5 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 	} else {
 		span.SetStatus(codes.Ok, "evaluation successful")
 	}
-	logger.Debug("Feature flag evaluation span status set")
+	logger.DebugContext(ctx, "Feature flag evaluation span status set")
 }

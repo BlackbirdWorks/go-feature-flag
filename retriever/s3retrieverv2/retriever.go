@@ -84,6 +84,8 @@ type Retriever struct {
 // Pattern, Recursive) and the logger are unchanged, otherwise it starts clean.
 // The S3 clients are only built once: AwsConfig and S3ClientOptions changed after a first Init
 // are ignored until Shutdown.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -136,6 +138,8 @@ func (s *Retriever) Status() retriever.Status {
 }
 
 // Retrieve is the function in charge of fetching the flag configuration.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()

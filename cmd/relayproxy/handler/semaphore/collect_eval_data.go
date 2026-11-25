@@ -107,7 +107,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 		switch event["kind"] {
 		case "tracking":
-			e, err := convertTrackingEvent(event, logger)
+			e, err := convertTrackingEvent(ctx, event, logger)
 			if err != nil {
 				logger.LogAttrs(ctx, slog.LevelError,
 					"impossible to convert the event to a tracking event",
@@ -119,7 +119,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 			flagset.CollectTrackingEventData(e)
 			counterTracking++
 		default:
-			e, err := convertFeatureEvent(event, reqBody.Meta, logger)
+			e, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
 			if err != nil {
 				logger.LogAttrs(
 					ctx,
@@ -147,6 +147,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 }
 
 func convertTrackingEvent(
+	ctx context.Context,
 	event map[string]any,
 	logger *slog.Logger,
 ) (exporter.TrackingEvent, error) {
@@ -159,12 +160,14 @@ func convertTrackingEvent(
 	if err != nil {
 		return exporter.TrackingEvent{}, err
 	}
-	e.CreationDate = formatCreationDate(e.CreationDate, logger)
+	e.CreationDate = formatCreationDate(ctx, e.CreationDate, logger)
 
 	return e, nil
 }
 
-func convertFeatureEvent(event map[string]any,
+func convertFeatureEvent(
+	ctx context.Context,
+	event map[string]any,
 	metadata exporter.FeatureEventMetadata,
 	logger *slog.Logger) (exporter.FeatureEvent, error) {
 	var e exporter.FeatureEvent
@@ -178,14 +181,14 @@ func convertFeatureEvent(event map[string]any,
 	if metadata != nil {
 		e.Metadata = metadata
 	}
-	e.CreationDate = formatCreationDate(e.CreationDate, logger)
+	e.CreationDate = formatCreationDate(ctx, e.CreationDate, logger)
 
 	return e, nil
 }
 
-func formatCreationDate(input int64, logger *slog.Logger) int64 {
+func formatCreationDate(ctx context.Context, input int64, logger *slog.Logger) int64 {
 	if input > maxCreationDateSeconds {
-		logger.LogAttrs(context.Background(), slog.LevelWarn,
+		logger.LogAttrs(ctx, slog.LevelWarn,
 			"creationDate received is in milliseconds, we convert it to seconds",
 			slog.Int64("creationDate", input))
 		// if we receive a timestamp in milliseconds, we convert it to seconds

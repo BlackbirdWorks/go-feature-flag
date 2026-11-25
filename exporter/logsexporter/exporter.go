@@ -30,7 +30,7 @@ type Exporter struct {
 
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
-	_ context.Context,
+	ctx context.Context,
 	logger *fflog.FFLogger,
 	events []exporter.ExportableEvent,
 ) error {
@@ -47,7 +47,7 @@ func (f *Exporter) Export(
 		if err != nil {
 			return err
 		}
-		logger.Info(string(log))
+		logger.InfoContext(ctx, string(log))
 	}
 
 	return nil

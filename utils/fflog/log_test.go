@@ -1,6 +1,7 @@
 package fflog_test
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
@@ -11,6 +12,25 @@ import (
 
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
+
+type ctxKey string
+
+type ctxCaptureHandler struct {
+	slog.Handler
+
+	gotVal any
+	key    ctxKey
+	nonNil bool
+}
+
+func (h *ctxCaptureHandler) Handle(ctx context.Context, r slog.Record) error {
+	h.nonNil = ctx != nil
+	if ctx != nil {
+		h.gotVal = ctx.Value(h.key)
+	}
+
+	return h.Handler.Handle(ctx, r)
+}
 
 func TestFFLogger_Error(t *testing.T) {
 	t.Parallel()
@@ -564,4 +584,183 @@ func TestGetLogLogger(t *testing.T) {
 
 	assert.NotEqual(t, ffl.GetLogLogger(slog.LevelInfo), l)
 	assert.Equal(t, ffl2.GetLogLogger(slog.LevelInfo), l)
+}
+
+func TestFFLogger_ContextMethods(t *testing.T) {
+	t.Parallel()
+
+	const key = ctxKey("req-id")
+	type methodCall func(l *fflog.FFLogger, ctx context.Context, msg string, args ...any)
+
+	tests := []struct {
+		call        methodCall
+		name        string
+		msg         string
+		wantLog     string
+		wantCtxVal  any
+		args        []any
+		useLegacy   bool
+		nilLogger   bool
+		emptyLogger bool
+		nilCtx      bool
+	}{
+		{
+			name:       "ErrorContext with slog",
+			call:       (*fflog.FFLogger).ErrorContext,
+			msg:        "err msg",
+			args:       []any{slog.String("k", "v")},
+			wantLog:    `level=ERROR msg="err msg" k=v` + "\n",
+			wantCtxVal: "req-1",
+		},
+		{
+			name:       "WarnContext with slog",
+			call:       (*fflog.FFLogger).WarnContext,
+			msg:        "warn msg",
+			wantLog:    `level=WARN msg="warn msg"` + "\n",
+			wantCtxVal: "req-1",
+		},
+		{
+			name:       "InfoContext with slog",
+			call:       (*fflog.FFLogger).InfoContext,
+			msg:        "info msg",
+			wantLog:    `level=INFO msg="info msg"` + "\n",
+			wantCtxVal: "req-1",
+		},
+		{
+			name:       "DebugContext with slog",
+			call:       (*fflog.FFLogger).DebugContext,
+			msg:        "debug msg",
+			wantLog:    `level=DEBUG msg="debug msg"` + "\n",
+			wantCtxVal: "req-1",
+		},
+		{
+			name:    "ErrorContext with nil ctx falls back to background",
+			call:    (*fflog.FFLogger).ErrorContext,
+			msg:     "err nil",
+			nilCtx:  true,
+			wantLog: `level=ERROR msg="err nil"` + "\n",
+		},
+		{
+			name:    "WarnContext with nil ctx falls back to background",
+			call:    (*fflog.FFLogger).WarnContext,
+			msg:     "warn nil",
+			nilCtx:  true,
+			wantLog: `level=WARN msg="warn nil"` + "\n",
+		},
+		{
+			name:    "InfoContext with nil ctx falls back to background",
+			call:    (*fflog.FFLogger).InfoContext,
+			msg:     "info nil",
+			nilCtx:  true,
+			wantLog: `level=INFO msg="info nil"` + "\n",
+		},
+		{
+			name:    "DebugContext with nil ctx falls back to background",
+			call:    (*fflog.FFLogger).DebugContext,
+			msg:     "debug nil",
+			nilCtx:  true,
+			wantLog: `level=DEBUG msg="debug nil"` + "\n",
+		},
+		{
+			name:      "ErrorContext with legacy logger",
+			call:      (*fflog.FFLogger).ErrorContext,
+			msg:       "err legacy",
+			useLegacy: true,
+			wantLog:   "ERROR err legacy\n",
+		},
+		{
+			name:      "WarnContext with legacy logger",
+			call:      (*fflog.FFLogger).WarnContext,
+			msg:       "warn legacy",
+			useLegacy: true,
+			wantLog:   "WARN warn legacy\n",
+		},
+		{
+			name:      "InfoContext with legacy logger",
+			call:      (*fflog.FFLogger).InfoContext,
+			msg:       "info legacy",
+			useLegacy: true,
+			wantLog:   "INFO info legacy\n",
+		},
+		{
+			name:      "DebugContext with legacy logger",
+			call:      (*fflog.FFLogger).DebugContext,
+			msg:       "debug legacy",
+			useLegacy: true,
+			wantLog:   "DEBUG debug legacy\n",
+		},
+		{
+			name:      "nil FFLogger does not panic",
+			call:      (*fflog.FFLogger).ErrorContext,
+			msg:       "ignored",
+			nilLogger: true,
+			wantLog:   "",
+		},
+		{
+			name:        "empty FFLogger does not panic",
+			call:        (*fflog.FFLogger).InfoContext,
+			msg:         "ignored",
+			emptyLogger: true,
+			wantLog:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			file, err := os.CreateTemp(t.TempDir(), "")
+			require.NoError(t, err)
+			defer func() {
+				_ = os.Remove(file.Name())
+			}()
+
+			var logger *fflog.FFLogger
+			var capture *ctxCaptureHandler
+			switch {
+			case tt.nilLogger:
+				logger = nil
+			case tt.emptyLogger:
+				logger = &fflog.FFLogger{}
+			case tt.useLegacy:
+				logger = &fflog.FFLogger{LegacyLogger: log.New(file, "", 0)}
+			default:
+				capture = &ctxCaptureHandler{
+					key: key,
+					Handler: slog.NewTextHandler(file, &slog.HandlerOptions{
+						Level: slog.LevelDebug,
+						ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+							if a.Key == slog.TimeKey {
+								return slog.Attr{}
+							}
+
+							return a
+						},
+					}),
+				}
+				logger = &fflog.FFLogger{LeveledLogger: slog.New(capture)}
+			}
+
+			var ctx context.Context
+			if !tt.nilCtx {
+				ctx = context.WithValue(t.Context(), key, "req-1")
+			}
+			tt.call(logger, ctx, tt.msg, tt.args...)
+
+			content, err := os.ReadFile(file.Name())
+			require.NoError(t, err)
+			actual := string(content)
+			if tt.useLegacy {
+				const timestampLen = len("2006/01/02 15:04:05 ")
+				if len(actual) >= timestampLen {
+					actual = actual[timestampLen:]
+				}
+			}
+			assert.Equal(t, tt.wantLog, actual)
+			if capture != nil {
+				assert.True(t, capture.nonNil)
+				assert.Equal(t, tt.wantCtxVal, capture.gotVal)
+			}
+		})
+	}
 }

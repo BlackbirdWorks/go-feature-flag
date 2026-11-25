@@ -168,7 +168,7 @@ func (e *Exporter) Export(
 		}
 
 		if len(formattedEvent) >= Mb {
-			logger.Error("format: Event is too large, skipping", "size", len(formattedEvent))
+			logger.ErrorContext(ctx, "format: Event is too large, skipping", "size", len(formattedEvent))
 
 			continue
 		}
@@ -364,7 +364,7 @@ func (e *Exporter) sendChunk(
 		if len(retry) == 0 {
 			return nil
 		}
-		logger.Warn("send: some records were rejected by Kinesis",
+		logger.WarnContext(ctx, "send: some records were rejected by Kinesis",
 			"failed", len(retry), "total", total, "attempt", attempt)
 
 		if attempt >= maxAttempts {

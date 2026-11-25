@@ -95,7 +95,8 @@ func (m *Manager) StartPolling(ctx context.Context) {
 		case <-m.bgUpdater.ticker.C:
 			err := m.retrieveFlagsAndUpdateCache(ctx, false)
 			if err != nil {
-				m.logger.Error(
+				m.logger.ErrorContext(
+					ctx,
 					"Error while updating the cache.",
 					slog.Any("error", err.Error()),
 				)
@@ -178,7 +179,8 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 func (m *Manager) ForceRefresh(ctx context.Context) bool {
 	err := m.retrieveFlagsAndUpdateCache(ctx, false)
 	if err != nil {
-		m.logger.Error(
+		m.logger.ErrorContext(
+			ctx,
 			"Error while force updating the cache.",
 			slog.Any("error", err.Error()),
 		)
@@ -256,18 +258,20 @@ func (m *Manager) retrieveFlagsAndUpdateCache(ctx context.Context, isInit bool) 
 		return err
 	}
 
-	return m.updateCacheWithRetriever(newFlags, isInit)
+	return m.updateCacheWithRetriever(ctx, newFlags, isInit)
 }
 
 // updateCacheWithRetriever is a function that will update the cache with the new flags received from the retriever.
-func (m *Manager) updateCacheWithRetriever(newFlags map[string]dto.DTO, isInit bool) error {
+func (m *Manager) updateCacheWithRetriever(
+	ctx context.Context, newFlags map[string]dto.DTO, isInit bool,
+) error {
 	err := m.cacheManager.UpdateCache(
 		newFlags,
 		m.logger,
 		!isInit || !m.config.DisableNotifierOnInit,
 	)
 	if err != nil {
-		m.logger.Error("error: impossible to update the cache of the flags: %v", err)
+		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
 
 		return err
 	}
@@ -292,7 +296,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 		)
 	default:
 		// We accept to start with a retriever error, we will serve only default value
-		m.logger.Error("Impossible to retrieve the flags, starting with the "+
+		m.logger.ErrorContext(ctx, "Impossible to retrieve the flags, starting with the "+
 			"retriever error", slog.Any("error", err.Error()))
 	}
 
@@ -304,7 +308,8 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 // This function will look at any pre-existent persistent configuration and start with it.
 func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	if m.config.PersistentFlagConfigurationFile != "" {
-		m.logger.Error(
+		m.logger.ErrorContext(
+			ctx,
 			"Impossible to retrieve your flag configuration, trying to use the persistent"+
 				" flag configuration file.",
 			slog.String("path", m.config.PersistentFlagConfigurationFile),
@@ -317,9 +322,9 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 				return retrieveErr
 			}
 
-			return m.updateCacheWithRetriever(newFlags, true)
+			return m.updateCacheWithRetriever(ctx, newFlags, true)
 		}
-		m.logger.Warn("No persistent flag configuration found",
+		m.logger.WarnContext(ctx, "No persistent flag configuration found",
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
 

@@ -159,6 +159,8 @@ func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, erro
 }
 
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
 		return nil, errImpossibleToInitShared
@@ -278,6 +280,8 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 
 // Shutdown removes the item from the group. It waits for the refresh of the item in flight (until
 // ctx is done), so the consumer can be closed safely afterwards.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -298,6 +302,8 @@ func (r *SharedItemRetriever) Status() retriever.Status {
 }
 
 // Retrieve returns the content of the item.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -509,6 +515,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 
 			return item, err
 		}
+		//nolint:contextcheck // shared listing uses group lifecycle context so one cancelled caller does not abort others
 		fl := g.listingLocked()
 		g.mu.Unlock()
 
@@ -666,6 +673,7 @@ func (g *SharedItems) content(
 	if dl == nil {
 		dl = &sharedDownload{done: make(chan struct{})}
 		c.dl = dl
+		//nolint:contextcheck // shared download uses group lifecycle context so one cancelled caller does not abort others
 		go g.runDownload(g.activeChan(), c, dl, key)
 	}
 	c.mu.Unlock()
@@ -758,6 +766,7 @@ func (g *SharedItems) nextDelay() time.Duration {
 // logged, the next poll tries again.
 func (g *SharedItems) pollOnce(ctx context.Context) {
 	g.mu.Lock()
+	//nolint:contextcheck // shared listing uses group lifecycle context independent of caller cancellation
 	fl := g.listingLocked()
 	logger := g.logger
 	g.mu.Unlock()

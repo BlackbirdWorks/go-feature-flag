@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,7 +37,7 @@ type LibraryOptions struct {
 }
 
 // NewLibraryTarget starts a library client on the generated flags.
-func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
+func NewLibraryTarget(ctx context.Context, o LibraryOptions) (*LibraryTarget, error) {
 	dir, err := os.MkdirTemp("", "ffsoak")
 	if err != nil {
 		return nil, err
@@ -52,7 +53,7 @@ func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
 		o.MaxEventInMemory = 100000
 	}
 	exp := NewExporter(o.ExporterMode)
-	c, err := ffclient.New(ffclient.Config{
+	c, err := ffclient.NewWithContext(ctx, ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 		DataExporter: ffclient.DataExporter{

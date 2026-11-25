@@ -93,6 +93,7 @@ linters:
     - bodyclose # checks whether HTTP response body is closed successfully
     - canonicalheader # checks whether net/http.Header uses canonical header
     - containedctx # checks for structs containing context.Context fields
+    - contextcheck # checks whether functions use a non-inherited context
     - copyloopvar # detects places where loop variables are copied (Go 1.22+)
     - cyclop # checks function and package cyclomatic complexity
     - depguard # checks if package imports are in a list of acceptable packages
@@ -196,7 +197,6 @@ linters:
 
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
-    - contextcheck # false positives on callbacks and constructors; 43 findings
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
     - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen

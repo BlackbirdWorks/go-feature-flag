@@ -236,7 +236,7 @@ func (e *Exporter) Export(
 	logger *fflog.FFLogger,
 	events []exporter.ExportableEvent,
 ) error {
-	rows, eventType, err := buildRows(logger, events)
+	rows, eventType, err := buildRows(ctx, logger, events)
 	if err != nil {
 		return err
 	}
@@ -254,7 +254,7 @@ func (e *Exporter) Export(
 
 	rows, skippedKeys := prepareRows(columns, rows, len(insertPrefix(table, columns)))
 	if len(skippedKeys) > 0 {
-		logger.Warn("redshift exporter: events skipped because they are too large for Redshift",
+		logger.WarnContext(ctx, "redshift exporter: events skipped because they are too large for Redshift",
 			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys))
 	}
 	if len(rows) == 0 {
@@ -521,7 +521,7 @@ func statementError(output *redshiftdata.DescribeStatementOutput) string {
 // Events this exporter does not handle are skipped. Events that cannot be converted to JSON
 // (e.g. a NaN value) are skipped with a warning: a failed export is retried with the same
 // events, so a single invalid event would block the exporter forever.
-func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row, string, error) {
+func buildRows(ctx context.Context, logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row, string, error) {
 	rows := make([]row, 0, len(events))
 	eventType := ""
 	var skippedKeys []string
@@ -557,7 +557,7 @@ func buildRows(logger *fflog.FFLogger, events []exporter.ExportableEvent) ([]row
 		rows = append(rows, row{key: event.GetKey(), values: values})
 	}
 	if len(skippedKeys) > 0 {
-		logger.Warn("redshift exporter: events skipped because they cannot be converted to JSON",
+		logger.WarnContext(ctx, "redshift exporter: events skipped because they cannot be converted to JSON",
 			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys), "error", firstErr.Error())
 	}
 

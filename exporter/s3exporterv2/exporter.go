@@ -59,7 +59,7 @@ type Exporter struct {
 
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
-	ctx context.Context,
+	ctx context.Context, //nolint:contextcheck // defensive fallback when a caller passes a nil context
 	logger *fflog.FFLogger,
 	events []exporter.ExportableEvent,
 ) error {
@@ -103,7 +103,8 @@ func (f *Exporter) Export(
 		// read file
 		of, openErr := os.Open(outputDir + "/" + file.Name())
 		if openErr != nil {
-			logger.Error(
+			logger.ErrorContext(
+				ctx,
 				"[S3Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()),
 			)
@@ -166,7 +167,7 @@ func (f *Exporter) uploadFile(
 	if result.Location != nil {
 		location = *result.Location
 	}
-	logger.Info("[S3Exporter] file uploaded.", slog.String("location", location))
+	logger.InfoContext(ctx, "[S3Exporter] file uploaded.", slog.String("location", location))
 
 	return nil
 }

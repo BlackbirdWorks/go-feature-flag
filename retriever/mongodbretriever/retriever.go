@@ -123,10 +123,10 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			if str, isString := val.(string); isString {
 				ffDocs[str] = doc
 			} else {
-				r.logger.Error("flag key does not have a string as value")
+				r.logger.ErrorContext(ctx, "flag key does not have a string as value")
 			}
 		} else {
-			r.logger.Error("no 'flag' entry found")
+			r.logger.ErrorContext(ctx, "no 'flag' entry found")
 		}
 	}
 

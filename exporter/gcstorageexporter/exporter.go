@@ -106,7 +106,7 @@ func (f *Exporter) Export(
 	for _, file := range files {
 		of, openErr := os.Open(path.Clean(outputDir + "/" + file.Name()))
 		if openErr != nil {
-			logger.Error("[GCP Exporter] impossible to open the file",
+			logger.ErrorContext(ctx, "[GCP Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()))
 
 			continue

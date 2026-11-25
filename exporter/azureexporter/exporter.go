@@ -94,7 +94,8 @@ func (f *Exporter) Export(
 		fileName := file.Name()
 		of, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
 		if openErr != nil {
-			logger.Error(
+			logger.ErrorContext(
+				ctx,
 				"[Azure Exporter] impossible to open file",
 				slog.String("path", outputDir+"/"+fileName),
 			)
@@ -154,7 +155,8 @@ func (f *Exporter) uploadFile(
 	}
 
 	if _, err := client.UploadFile(ctx, f.Container, source, of, nil); err != nil {
-		logger.Error(
+		logger.ErrorContext(
+			ctx,
 			"[Azure Exporter] failed to upload file",
 			slog.String("path", outputDir+"/"+fileName),
 		)
@@ -162,7 +164,8 @@ func (f *Exporter) uploadFile(
 		return err
 	}
 
-	logger.Info(
+	logger.InfoContext(
+		ctx,
 		"[Azure Exporter] file uploaded.",
 		slog.String("location", f.Container+"/"+fileName),
 	)

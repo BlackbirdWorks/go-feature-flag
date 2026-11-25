@@ -59,6 +59,8 @@ func New(config Config) (*GoFeatureFlag, error) {
 }
 
 // NewWithContext creates a new semaphore instance using ctx to initialize the configured retrievers.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -186,6 +188,8 @@ func (g *GoFeatureFlag) Close() {
 // CloseWithContext waits until background workers are done, passing ctx to retriever shutdown.
 // The events of the evaluations that finish while CloseWithContext runs are exported by its final flush;
 // an evaluation that finishes after CloseWithContext has returned has nowhere to send its event.
+//
+//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
 	if g == nil {
 		return

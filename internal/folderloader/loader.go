@@ -160,7 +160,7 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 		return nil, checkFormatsErr
 	}
 	if len(keys) == 0 {
-		l.opts.Logger.Warn(l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
+		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
 	if refreshCacheErr := l.refreshCache(ctx, keys, files); refreshCacheErr != nil {
@@ -311,14 +311,14 @@ func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 			res[e.Key] = e.Version
 		}
 	}
-	l.warnSkipped(skipped)
+	l.warnSkipped(ctx, skipped)
 
 	return res, nil
 }
 
 // warnSkipped logs the keys newly skipped, and remembers the skipped keys of this poll. A key is
 // logged once while it stays skipped, and again if it disappears and comes back.
-func (l *Loader) warnSkipped(skipped map[string]struct{}) {
+func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 	newKeys := make([]string, 0, len(skipped))
 	for key := range skipped {
 		if _, known := l.skipped[key]; !known {
@@ -327,7 +327,7 @@ func (l *Loader) warnSkipped(skipped map[string]struct{}) {
 	}
 	sort.Strings(newKeys)
 	for _, key := range newKeys {
-		l.opts.Logger.Warn(l.logPrefix()+": file skipped because of its unsupported extension "+
+		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
 			"(supported: .json, .yaml, .yml, .toml)", l.locationKey(), l.opts.Location, "key", key)
 	}
 	l.skipped = skipped
