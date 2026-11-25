@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever"
 )
 
+const (
+	usWest2 = "us-west-2"
+)
+
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
 func TestRetriever_Init_RealClients(t *testing.T) {
 	useAccelerate := []func(*s3.Options){func(o *s3.Options) { o.UseAccelerate = true }}
@@ -36,12 +40,12 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 		{
 			name:       "item mode with no AwsConfig",
 			r:          func() *Retriever { return &Retriever{Bucket: "b", Item: "i"} },
-			wantRegion: "us-west-2",
+			wantRegion: usWest2,
 		},
 		{
 			name:       "prefix mode builds a lister",
 			r:          func() *Retriever { return &Retriever{Bucket: "b", Prefix: "f/"} },
-			wantRegion: "us-west-2",
+			wantRegion: usWest2,
 			wantLister: true,
 		},
 		{
@@ -53,7 +57,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 		{
 			name:           "with S3 client options",
 			r:              func() *Retriever { return &Retriever{Bucket: "b", Prefix: "f/", S3ClientOptions: useAccelerate} },
-			wantRegion:     "us-west-2",
+			wantRegion:     usWest2,
 			wantLister:     true,
 			wantAccelerate: true,
 		},
@@ -61,7 +65,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 			name:       "nil context",
 			r:          func() *Retriever { return &Retriever{Bucket: "b", Item: "i"} },
 			nilCtx:     true,
-			wantRegion: "us-west-2",
+			wantRegion: usWest2,
 		},
 		{
 			name:    "default AWS config cannot be loaded",
@@ -72,7 +76,7 @@ func TestRetriever_Init_RealClients(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv("AWS_REGION", "us-west-2")
+			t.Setenv("AWS_REGION", usWest2)
 
 			for k, v := range tt.env {
 				t.Setenv(k, v)

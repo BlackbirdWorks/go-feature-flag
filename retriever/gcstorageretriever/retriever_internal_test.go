@@ -12,13 +12,18 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	flagConfigYaml         = "flag-config.yaml"
+	testdataFlagConfigYaml = "testdata/flag-config.yaml"
+)
+
 func TestRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
 	bucketFiles := map[string]string{
-		"testdata/flag-config.yaml": "flag-config.yaml",
+		testdataFlagConfigYaml: flagConfigYaml,
 	}
 
 	bucketName := "flags"
@@ -52,9 +57,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: flagConfigYaml,
 			},
-			want: "testdata/flag-config.yaml",
+			want: testdataFlagConfigYaml,
 		},
 		{
 			name: "get content from cache",
@@ -64,9 +69,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: flagConfigYaml,
 			},
-			want:          "testdata/flag-config.yaml",
+			want:          testdataFlagConfigYaml,
 			wantFromCache: true,
 		},
 		{
@@ -75,14 +80,14 @@ func TestRetriever_Retrieve(t *testing.T) {
 				bucket: bucketName,
 				files:  bucketFiles,
 				updatedFiles: map[string]string{
-					"testdata/flag-config-updated.yaml": "flag-config.yaml",
+					"testdata/flag-config-updated.yaml": flagConfigYaml,
 				},
 			},
 			fields: fields{
 				Bucket: bucketName,
-				Object: "flag-config.yaml",
+				Object: flagConfigYaml,
 			},
-			want:            "testdata/flag-config.yaml",
+			want:            testdataFlagConfigYaml,
 			wantWhenUpdated: "testdata/flag-config-updated.yaml",
 			wantUpdated:     true,
 		},

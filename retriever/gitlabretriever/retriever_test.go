@@ -13,6 +13,15 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
+const (
+	aaGoFeatureFlags = "aa/go-feature-flags-config"
+	featureAddFlags  = "feature/add+flags"
+	flagConfigYaml   = "flag-config.yaml"
+	flagsYaml        = "flags.yaml"
+	httpsGitlabCom   = "https://gitlab.com"
+	refFeature2Fadd  = "ref=feature%2Fadd%2Bflags"
+)
+
 func sampleText() string {
 	return `test-flag:
   variations:
@@ -50,9 +59,9 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				baseURL:        "https://gitlab.com",
-				repositorySlug: "aa/go-feature-flags-config",
-				filePath:       "flag-config.yaml",
+				baseURL:        httpsGitlabCom,
+				repositorySlug: aaGoFeatureFlags,
+				filePath:       flagConfigYaml,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -61,9 +70,9 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Success with context",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				baseURL:        "https://gitlab.com",
-				repositorySlug: "aa/go-feature-flags-config",
-				filePath:       "flag-config.yaml",
+				baseURL:        httpsGitlabCom,
+				repositorySlug: aaGoFeatureFlags,
+				filePath:       flagConfigYaml,
 				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
@@ -73,9 +82,9 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Success with default method",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				baseURL:        "https://gitlab.com",
-				repositorySlug: "aa/go-feature-flags-config",
-				filePath:       "flag-config.yaml",
+				baseURL:        httpsGitlabCom,
+				repositorySlug: aaGoFeatureFlags,
+				filePath:       flagConfigYaml,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -85,7 +94,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				baseURL:        "https://gitlab.com/error",
-				repositorySlug: "aa/go-feature-flags-config",
+				repositorySlug: aaGoFeatureFlags,
 				filePath:       "bad-file/file.yaml",
 				branch:         "error",
 			},
@@ -96,7 +105,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient: mock.HTTP{},
 				baseURL:    "",
-				filePath:   "flag-config.yaml",
+				filePath:   flagConfigYaml,
 			},
 			wantErr: true,
 		},
@@ -113,10 +122,10 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Use gitlab token",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				baseURL:        "https://gitlab.com",
-				filePath:       "flag-config.yaml",
+				baseURL:        httpsGitlabCom,
+				filePath:       flagConfigYaml,
 				gitlabToken:    "XXX",
-				repositorySlug: "aa/go-feature-flags-config",
+				repositorySlug: aaGoFeatureFlags,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -126,9 +135,9 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				baseURL:        "https://user:abc{DEf1=ghi@example.com:5432/",
-				filePath:       "flag-config.yaml",
+				filePath:       flagConfigYaml,
 				gitlabToken:    "XXX",
-				repositorySlug: "aa/go-feature-flags-config",
+				repositorySlug: aaGoFeatureFlags,
 			},
 			want:    []byte(sampleText()),
 			wantErr: true,
@@ -137,8 +146,8 @@ func Test_gitlab_Retrieve(t *testing.T) {
 			name: "Use default values",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				filePath:       "flag-config.yaml",
-				repositorySlug: "aa/go-feature-flags-config",
+				filePath:       flagConfigYaml,
+				repositorySlug: aaGoFeatureFlags,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -202,56 +211,56 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 	}{
 		{
 			name:            "simple filename",
-			filePath:        "flags.yaml",
-			branch:          "feature/add+flags",
+			filePath:        flagsYaml,
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "nested path",
 			filePath:        "config/flags.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "config%2Fflags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "spaces in directory and filename",
 			filePath:        "flag configs/my flags.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flag%20configs%2Fmy%20flags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "literal plus sign",
 			filePath:        "flags/my+flags.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flags%2Fmy%2Bflags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "literal percent encoding",
 			filePath:        "flags/my%20flags.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flags%2Fmy%2520flags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "query and fragment delimiters",
 			filePath:        "flags/my?#flags.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flags%2Fmy%3F%23flags.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "non-ASCII filename",
 			filePath:        "flags/caf\u00e9.yaml",
-			branch:          "feature/add+flags",
+			branch:          featureAddFlags,
 			wantEscapedPath: projectPath + "flags%2Fcaf%C3%A9.yaml/raw",
-			wantRawQuery:    "ref=feature%2Fadd%2Bflags",
+			wantRawQuery:    refFeature2Fadd,
 		},
 		{
 			name:            "default branch",
-			filePath:        "flags.yaml",
+			filePath:        flagsYaml,
 			wantEscapedPath: projectPath + "flags.yaml/raw",
 			wantRawQuery:    "ref=main",
 		},
@@ -283,7 +292,7 @@ func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
 
 	h := gitlabretriever.Retriever{
 		BaseURL:        "https://user:SECRETMARKER@gitlab.example.com:bad/?token=SECRETMARKER",
-		FilePath:       "flags.yaml",
+		FilePath:       flagsYaml,
 		RepositorySlug: "team/config",
 	}
 	_, err := h.Retrieve(context.Background())

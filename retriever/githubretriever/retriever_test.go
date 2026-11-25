@@ -15,6 +15,26 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
+const (
+	bearer                 = "Bearer "
+	configFlagsYaml        = "config/flags.yaml"
+	myorgMyrepo            = "myorg/myrepo"
+	testFlagVariationsTrue = `test-flag:
+  variations:
+    true_var: true
+    false_var: false
+  targeting:
+    - query: key eq "random-key"
+      percentage:
+        true_var: 0
+        false_var: 100
+  defaultRule:
+    variation: false_var	
+`
+	testdataFlagConfigYaml      = "testdata/flag-config.yaml"
+	thomaspoignantGoFeatureFlag = "thomaspoignant/go-feature-flag"
+)
+
 func Test_github_Retrieve(t *testing.T) {
 	t.Parallel()
 
@@ -39,71 +59,38 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
 			name: "Success with context",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 				withCtx:        true,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
 			name: "Success with default method",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
 			name: "HTTP Error",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
+				repositorySlug: thomaspoignantGoFeatureFlag,
 				filePath:       "testdata/error",
 			},
 			wantErr: true,
@@ -113,7 +100,7 @@ func Test_github_Retrieve(t *testing.T) {
 			fields: fields{
 				httpClient:     mock.HTTP{},
 				repositorySlug: "",
-				filePath:       "testdata/flag-config.yaml",
+				filePath:       testdataFlagConfigYaml,
 			},
 			wantErr: true,
 		},
@@ -121,7 +108,7 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Error missing file path",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
+				repositorySlug: thomaspoignantGoFeatureFlag,
 				filePath:       "",
 			},
 			wantErr: true,
@@ -130,8 +117,8 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Ratelimiting",
 			fields: fields{
 				httpClient:     mock.HTTP{RateLimit: true, EndRatelimit: endRatelimit},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 			},
 			errMsg: "request to https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config." +
 				"yaml?ref=main failed with code 429. GitHub Headers: map[X-Content-Type-Options:nosniff " +
@@ -147,22 +134,11 @@ func Test_github_Retrieve(t *testing.T) {
 			name: "Use GitHub token",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 				githubToken:    "XXX_GH_TOKEN",
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 	}
@@ -204,8 +180,8 @@ func Test_github_Retrieve(t *testing.T) {
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
-						"Bearer "+tt.fields.githubToken,
-						tt.fields.httpClient.Req.Header.Get("Authorization"),
+						bearer+tt.fields.githubToken,
+						tt.fields.httpClient.Req.Header.Get(authorization2),
 					)
 				}
 			}
@@ -236,23 +212,12 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise base URL",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "myorg/myrepo",
-				filePath:       "config/flags.yaml",
-				githubToken:    "ghp_token",
+				repositorySlug: myorgMyrepo,
+				filePath:       configFlagsYaml,
+				githubToken:    ghpToken,
 				baseURL:        "https://github.acme.com/api/v3",
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:        []byte(testFlagVariationsTrue),
 			wantErr:     false,
 			expectedURL: "https://github.acme.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=main",
 		},
@@ -260,21 +225,10 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "Default GitHub API URL (empty BaseURL)",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "thomaspoignant/go-feature-flag",
-				filePath:       "testdata/flag-config.yaml",
+				repositorySlug: thomaspoignantGoFeatureFlag,
+				filePath:       testdataFlagConfigYaml,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 			expectedURL: "https://api.github.com/repos/thomaspoignant/go-feature-flag/contents/testdata/flag-config.yaml?r" +
 				"ef=main",
@@ -283,23 +237,12 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise with different branch",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "myorg/myrepo",
-				filePath:       "config/flags.yaml",
+				repositorySlug: myorgMyrepo,
+				filePath:       configFlagsYaml,
 				baseURL:        "https://github.enterprise.com/api/v3",
 				branch:         "develop",
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:        []byte(testFlagVariationsTrue),
 			wantErr:     false,
 			expectedURL: "https://github.enterprise.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=develop",
 		},
@@ -307,30 +250,19 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "GitHub Enterprise with trailing slash in BaseURL",
 			fields: fields{
 				httpClient:     mock.HTTP{},
-				repositorySlug: "myorg/myrepo",
-				filePath:       "config/flags.yaml",
+				repositorySlug: myorgMyrepo,
+				filePath:       configFlagsYaml,
 				baseURL:        "https://github.acme.com/api/v3/",
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:        []byte(testFlagVariationsTrue),
 			wantErr:     false,
 			expectedURL: "https://github.acme.com/api/v3/repos/myorg/myrepo/contents/config/flags.yaml?ref=main",
 		},
 		{
 			name: "Invalid base URL",
 			fields: fields{
-				repositorySlug: "myorg/myrepo",
-				filePath:       "config/flags.yaml",
+				repositorySlug: myorgMyrepo,
+				filePath:       configFlagsYaml,
 				baseURL:        ":invalid:url",
 			},
 			want:    nil,
@@ -339,7 +271,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		{
 			name: "Path traversal in FilePath",
 			fields: fields{
-				repositorySlug: "myorg/myrepo",
+				repositorySlug: myorgMyrepo,
 				filePath:       "../../../etc/passwd",
 			},
 			want:    nil,
@@ -349,7 +281,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 			name: "Path traversal in RepositorySlug",
 			fields: fields{
 				repositorySlug: "../../../etc/passwd",
-				filePath:       "config/flags.yaml",
+				filePath:       configFlagsYaml,
 			},
 			want:    nil,
 			wantErr: true,
@@ -378,8 +310,8 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
-						"Bearer "+tt.fields.githubToken,
-						tt.fields.httpClient.Req.Header.Get("Authorization"),
+						bearer+tt.fields.githubToken,
+						tt.fields.httpClient.Req.Header.Get(authorization2),
 					)
 				}
 			}
@@ -391,8 +323,8 @@ func TestRateLimiting(t *testing.T) {
 	t.Parallel()
 
 	ret := githubretriever.Retriever{
-		RepositorySlug: "thomaspoignant/go-feature-flag",
-		FilePath:       "testdata/flag-config.yaml",
+		RepositorySlug: thomaspoignantGoFeatureFlag,
+		FilePath:       testdataFlagConfigYaml,
 	}
 
 	httpClient := &mock.HTTP{}
@@ -424,6 +356,6 @@ func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
 	}
 	_, err := h.Retrieve(context.Background())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid base URL")
+	assert.Contains(t, err.Error(), invalidBaseURL)
 	assert.NotContains(t, err.Error(), "SECRETMARKER")
 }

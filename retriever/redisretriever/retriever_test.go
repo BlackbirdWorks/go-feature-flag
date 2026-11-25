@@ -19,6 +19,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/redisretriever"
 )
 
+const (
+	flag1Json = "flag1.json"
+)
+
 func Test_Redis_Retrieve(t *testing.T) {
 	t.Parallel()
 
@@ -30,19 +34,19 @@ func Test_Redis_Retrieve(t *testing.T) {
 	}{
 		{
 			name:        "flags with prefix",
-			flagsToLoad: []string{"flag1.json", "flag2.json"},
+			flagsToLoad: []string{flag1Json, "flag2.json"},
 			prefix:      "goff:",
 			wantErr:     assert.NoError,
 		},
 		{
 			name:        "flags without prefix",
-			flagsToLoad: []string{"flag1.json", "flag2.json"},
+			flagsToLoad: []string{flag1Json, "flag2.json"},
 			prefix:      "",
 			wantErr:     assert.NoError,
 		},
 		{
 			name:        "flags with invalid json",
-			flagsToLoad: []string{"flag1.json", " flag2.json", "invalid-json.json"},
+			flagsToLoad: []string{flag1Json, " flag2.json", "invalid-json.json"},
 			prefix:      "",
 			wantErr:     assert.Error,
 		},
@@ -149,7 +153,7 @@ func TestRedisStatus(t *testing.T) {
 func TestRedisShutdown(t *testing.T) {
 	t.Parallel()
 
-	options := startRedisAndAddData(t, []string{"flag1.json"}, "")
+	options := startRedisAndAddData(t, []string{flag1Json}, "")
 
 	t.Run("should close connection successfully", func(t *testing.T) {
 		t.Parallel()

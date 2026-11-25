@@ -22,6 +22,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	collection = "collection"
+	database   = "database"
+)
+
 func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
 
@@ -66,7 +71,7 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 				client, connectErr := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
 				require.NoError(t, connectErr)
 
-				coll := client.Database("database").Collection("collection")
+				coll := client.Database(database).Collection(collection)
 
 				var documents []bson.M
 
@@ -82,8 +87,8 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			// retriever
 			mdb := mongodbretriever.Retriever{
 				URI:        uri,
-				Collection: "collection",
-				Database:   "database",
+				Collection: collection,
+				Database:   database,
 			}
 			assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 			err = mdb.Init(context.TODO(), &fflog.FFLogger{})
@@ -115,8 +120,8 @@ func Test_MongoDBRetriever_InvalidURI(t *testing.T) {
 
 	mdb := mongodbretriever.Retriever{
 		URI:        "invalidURI",
-		Collection: "collection",
-		Database:   "database",
+		Collection: collection,
+		Database:   database,
 	}
 	assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 	err := mdb.Init(context.TODO(), &fflog.FFLogger{})

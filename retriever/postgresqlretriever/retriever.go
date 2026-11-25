@@ -16,6 +16,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	config2   = "config"
+	flagName2 = "flag_name"
+	flagset2  = "flagset"
+)
+
 var (
 	errDatabaseConnectionPoolIs = errors.New("database connection pool is not initialized")
 )
@@ -23,9 +29,9 @@ var (
 // defaultColumns returns the names of the columns when the configuration does not set them.
 func defaultColumns() map[string]string {
 	return map[string]string{
-		"flag_name": "flag_name",
-		"flagset":   "flagset",
-		"config":    "config",
+		flagName2: flagName2,
+		flagset2:  flagset2,
+		config2:   config2,
 	}
 }
 
@@ -184,10 +190,10 @@ func (r *Retriever) OutputFormat() string {
 func (r *Retriever) buildQuery() string {
 	var query string
 
-	flagNameCol := pgx.Identifier{r.columns["flag_name"]}.Sanitize()
-	configCol := pgx.Identifier{r.columns["config"]}.Sanitize()
+	flagNameCol := pgx.Identifier{r.columns[flagName2]}.Sanitize()
+	configCol := pgx.Identifier{r.columns[config2]}.Sanitize()
 	tableCol := pgx.Identifier{r.Table}.Sanitize()
-	flagsetCol := pgx.Identifier{r.columns["flagset"]}.Sanitize()
+	flagsetCol := pgx.Identifier{r.columns[flagset2]}.Sanitize()
 
 	if r.getFlagset() != "" {
 		query = fmt.Sprintf("SELECT %s, %s FROM %s WHERE %s = $1 ORDER BY %s",

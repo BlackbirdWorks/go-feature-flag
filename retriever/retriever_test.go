@@ -15,10 +15,10 @@ import (
 func TestMixLegacyTypesOfRetrievers(t *testing.T) {
 	t.Parallel()
 
-	simple := mockretriever.NewSimpleRetriever("simple")
-	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy("legacy")
-	initRetriever := mockretriever.NewInitializableRetriever("standard")
-	intRetrieverFlagset := mockretriever.NewInitializableRetrieverWithFlagset("flagset")
+	simple := mockretriever.NewSimpleRetriever(simple2)
+	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy(legacy2)
+	initRetriever := mockretriever.NewInitializableRetriever(standard2)
+	intRetrieverFlagset := mockretriever.NewInitializableRetrieverWithFlagset(flagset2)
 	goff, err := ffclient.New(ffclient.Config{
 		PollingInterval: 10 * time.Second,
 		Retrievers: []retriever.Retriever{

@@ -14,6 +14,24 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
+const (
+	applicationJson          = "application/json"
+	contentType              = "Content-Type"
+	httpLocalhostExampleFile = "http://localhost.example/file"
+	testFlagVariationsTrue   = `test-flag:
+  variations:
+    true_var: true
+    false_var: false
+  targeting:
+    - query: key eq "random-key"
+      percentage:
+        true_var: 0
+        false_var: 100
+  defaultRule:
+    variation: false_var	
+`
+)
+
 func Test_httpRetriever_Retrieve(t *testing.T) {
 	t.Parallel()
 
@@ -36,69 +54,36 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 			name: "Success",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
 			name: "Success with context",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
 				withCtx:    true,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
 			name: "Success with default method",
 			fields: fields{
 				httpClient: mock.HTTP{},
-				url:        "http://localhost.example/file",
+				url:        httpLocalhostExampleFile,
 				body:       "",
 				header:     nil,
 			},
-			want: []byte(`test-flag:
-  variations:
-    true_var: true
-    false_var: false
-  targeting:
-    - query: key eq "random-key"
-      percentage:
-        true_var: 0
-        false_var: 100
-  defaultRule:
-    variation: false_var	
-`),
+			want:    []byte(testFlagVariationsTrue),
 			wantErr: false,
 		},
 		{
@@ -108,7 +93,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/httpError",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{contentType: {applicationJson}},
 			},
 			wantErr: true,
 		},
@@ -119,7 +104,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/error",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{contentType: {applicationJson}},
 			},
 			wantErr: true,
 		},
@@ -130,7 +115,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{"Content-Type": {"application/json"}},
+				header:     map[string][]string{contentType: {applicationJson}},
 			},
 			wantErr: true,
 		},

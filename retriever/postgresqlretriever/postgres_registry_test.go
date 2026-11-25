@@ -9,6 +9,10 @@ import (
 	rr "github.com/blackbirdworks/semaphore/retriever/postgresqlretriever"
 )
 
+const (
+	notAPostgresUri = "not a postgres uri"
+)
+
 const wantParseErr = "creating the PostgreSQL pool: cannot parse `not a postgres uri`: " +
 	"failed to parse as keyword/value (invalid keyword/value)"
 
@@ -22,7 +26,7 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 	}{
 		{
 			name:    "invalid URI",
-			uri:     "not a postgres uri",
+			uri:     notAPostgresUri,
 			wantErr: wantParseErr,
 		},
 		{
@@ -60,11 +64,11 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 		wantShared bool
 	}{
 		{
-			name: "with the registry of the caller", r: &rr.Retriever{URI: "not a postgres uri", Pools: pools},
+			name: "with the registry of the caller", r: &rr.Retriever{URI: notAPostgresUri, Pools: pools},
 			wantShared: true, wantErr: wantParseErr,
 		},
 		{
-			name: "with its own registry", r: &rr.Retriever{URI: "not a postgres uri"},
+			name: "with its own registry", r: &rr.Retriever{URI: notAPostgresUri},
 			wantShared: false, wantErr: wantParseErr,
 		},
 	}

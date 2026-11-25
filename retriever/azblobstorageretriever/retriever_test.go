@@ -20,6 +20,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	fixture0000    = "0.0.0.0"
+	flagConfigYaml = "flag-config.yaml"
+)
+
 const containerName = "testcontainer"
 
 func TestAzureBlobStorageRetriever(t *testing.T) {
@@ -39,7 +44,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 				Container:   containerName,
 				AccountName: azurite.AccountName,
 				AccountKey:  azurite.AccountKey,
-				Object:      "flag-config.yaml",
+				Object:      flagConfigYaml,
 			},
 		},
 		{
@@ -48,7 +53,7 @@ func TestAzureBlobStorageRetriever(t *testing.T) {
 				Container:   containerName,
 				AccountName: azurite.AccountName,
 				AccountKey:  azurite.AccountKey,
-				Object:      "flag-config.yaml",
+				Object:      flagConfigYaml,
 			},
 			want:    "./testdata/flag-config.yaml",
 			wantErr: false,
@@ -114,7 +119,7 @@ func TestInit(t *testing.T) {
 		retriever := azblobretriever.Retriever{
 			Container:  containerName,
 			AccountKey: azurite.AccountKey,
-			Object:     "flag-config.yaml",
+			Object:     flagConfigYaml,
 		}
 		err := retriever.Init(context.Background(), &fflog.FFLogger{LeveledLogger: slog.Default()})
 		assert.EqualError(t, err, "unable to connect to Azure Blob Storage, \"AccountName\" cannot be empty")
@@ -127,7 +132,7 @@ func TestInit(t *testing.T) {
 			Container:   containerName,
 			AccountName: azurite.AccountName,
 			AccountKey:  azurite.AccountKey,
-			Object:      "flag-config.yaml",
+			Object:      flagConfigYaml,
 		}
 		got, err := retriever.Retrieve(context.Background())
 		assert.Nil(t, got)
@@ -145,11 +150,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			"0.0.0.0",
+			fixture0000,
 			"--queueHost",
-			"0.0.0.0",
+			fixture0000,
 			"--tableHost",
-			"0.0.0.0",
+			fixture0000,
 			"--skipApiVersionCheck",
 		),
 	)
@@ -168,7 +173,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	_, err = client.CreateContainer(context.TODO(), containerName, nil)
 	require.NoError(t, err)
 
-	blobName := "flag-config.yaml"
+	blobName := flagConfigYaml
 	blob, err := os.ReadFile(fmt.Sprintf("./testdata/%s", blobName))
 	require.NoError(t, err)
 

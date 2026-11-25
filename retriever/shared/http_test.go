@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/shared"
 )
 
+const (
+	buildingTheHTTPAPI = `building the HTTP API request: parse "[REDACTED]": invalid URL`
+)
+
 var (
 	errConnectionRefused       = errors.New("connection refused")
 	errStoppedAfter10Redirects = errors.New("stopped after 10 redirects")
@@ -44,19 +48,19 @@ func TestCallHTTPAPI_ErrorsDoNotLeakURL(t *testing.T) {
 			name:    "unparsable url (invalid port)",
 			url:     "https://user:SECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 		{
 			name:    "unparsable url (invalid escape)",
 			url:     "https://u:p@h/%zzSECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 		{
 			name:    "unparsable url (control character)",
 			url:     "https://h/\x7fSECRETMARKER",
 			method:  http.MethodGet,
-			wantErr: `building the HTTP API request: parse "[REDACTED]": invalid URL`,
+			wantErr: buildingTheHTTPAPI,
 		},
 	}
 	for _, tt := range tests {
