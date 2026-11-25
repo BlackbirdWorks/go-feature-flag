@@ -22,7 +22,7 @@ func (sink) Write(p []byte) (int, error) { return len(p), nil }
 
 // logFiveAttrs is the record of the benchmarks: 5 typed attributes, like a request log line.
 func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
-	l.LogAttrs(ctx, level, fixtures.LogKeyRequest,
+	l.LogAttrs(ctx, level, "request",
 		slog.String("remote_ip", "10.0.0.1"),
 		slog.String("host", "localhost:1031"),
 		slog.Int("status", 200),

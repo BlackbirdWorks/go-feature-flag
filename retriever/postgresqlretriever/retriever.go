@@ -68,7 +68,7 @@ func (r *Retriever) Init(ctx context.Context, logger *slog.Logger, flagset *stri
 
 	if r.pool == nil {
 		r.logger.InfoContext(ctx, "Initializing PostgreSQL retriever")
-		r.logger.DebugContext(ctx, "Using columns", "columns", r.columnNames)
+		r.logger.DebugContext(ctx, "Using columns", slog.Any("columns", r.columnNames))
 
 		pool, err := r.Pools.GetPool(ctx, r.URI)
 		if err != nil {
@@ -140,7 +140,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		scanErr := rows.Scan(&flagName, &configData)
 		if scanErr != nil {
-			r.logger.ErrorContext(ctx, "Failed to scan row", "error", scanErr)
+			r.logger.ErrorContext(ctx, "Failed to scan row", slog.Any("error", scanErr))
 
 			continue
 		}
@@ -150,7 +150,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 		unmarshalErr := json.Unmarshal(configData, &config)
 		if unmarshalErr != nil {
-			r.logger.ErrorContext(ctx, "Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
+			r.logger.ErrorContext(ctx, "Failed to unmarshal config data",
+				slog.Any("error", unmarshalErr), slog.String("flagName", flagName))
 
 			continue
 		}
@@ -175,7 +176,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal flag configurations: %w", err)
 	}
 
-	r.logger.DebugContext(ctx, "Retrieved flags from PostgreSQL", "count", len(flagConfigs))
+	r.logger.DebugContext(ctx, "Retrieved flags from PostgreSQL", slog.Int("count", len(flagConfigs)))
 
 	return result, nil
 }

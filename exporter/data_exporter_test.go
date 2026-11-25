@@ -56,7 +56,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	}
 
 	logFile, _ := os.CreateTemp(t.TempDir(), "")
-	textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
+	textHandler := slogutil.PlainHandler{Writer: logFile}
 	logger := slog.New(&textHandler)
 
 	defer func() { _ = os.Remove(logFile.Name()) }()
@@ -73,7 +73,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	assert.Empty(t, exporterMock.GetExportedEvents())
 
 	logContent, _ := os.ReadFile(logFile.Name())
-	assert.Equal(t, "error\n", string(logContent))
+	assert.Equal(t, "error while exporting the pending events error=error\n", string(logContent))
 }
 
 func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
@@ -87,7 +87,8 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 		{
 			name:        deprecatedExporter,
 			exporter:    &mock.ExporterDeprecated{},
-			expectedLog: "trying to send unknown object to the exporter (deprecated)\n",
+			expectedLog: "error while exporting the pending events error=trying to send unknown object to the exporter " +
+				"(deprecated)\n",
 		},
 	}
 
@@ -101,7 +102,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
-			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
+			textHandler := slogutil.PlainHandler{Writer: logFile}
 			logger := slog.New(&textHandler)
 
 			defer func() { _ = os.Remove(logFile.Name()) }()
@@ -139,13 +140,14 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 		{
 			name:        "classic exporter",
 			exporter:    &mock.Exporter{Err: errError, ExpectedNumberErr: 1},
-			expectedLog: "error while exporting data: error\n",
+			expectedLog: "error while exporting the pending events error=error while exporting data: error\n",
 		},
 		{
 			name:     deprecatedExporter,
 			exporter: &mock.ExporterDeprecated{Err: errError, ExpectedNumberErr: 1},
 			expectedLog: "You are using an exporter with the old logger.Please update your custom exporter to comply to th" +
-				"e new Exporter interface.\nerror while exporting data (deprecated): error\n",
+				"e new Exporter interface.\nerror while exporting the pending events " +
+				"error=error while exporting data (deprecated): error\n",
 		},
 	}
 
@@ -159,7 +161,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
-			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
+			textHandler := slogutil.PlainHandler{Writer: logFile}
 			logger := slog.New(&textHandler)
 
 			defer func() { _ = os.Remove(logFile.Name()) }()

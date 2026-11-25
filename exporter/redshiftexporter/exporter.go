@@ -258,7 +258,7 @@ func (e *Exporter) Export(
 	rows, skippedKeys := prepareRows(columns, rows, len(insertPrefix(table, columns)))
 	if len(skippedKeys) > 0 {
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they are too large for Redshift",
-			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys))
+			slog.Int("count", len(skippedKeys)), slog.Any("keys", uniqueKeys(skippedKeys)))
 	}
 
 	if len(rows) == 0 {
@@ -603,7 +603,8 @@ func buildRows(ctx context.Context, logger *slog.Logger, events []exporter.Expor
 
 	if len(skippedKeys) > 0 {
 		logger.WarnContext(ctx, "redshift exporter: events skipped because they cannot be converted to JSON",
-			"count", len(skippedKeys), "keys", uniqueKeys(skippedKeys), "error", firstErr.Error())
+			slog.Int("count", len(skippedKeys)), slog.Any("keys", uniqueKeys(skippedKeys)),
+			slog.String("error", firstErr.Error()))
 	}
 
 	return rows, eventType, nil

@@ -810,7 +810,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			opts:        folderloader.Options{Prefix: "f/", Location: "loc"},
 			wantList:    `unable to list objects with prefix "f/", store: boom`,
 			wantGet:     `unable to download item "f/a.yaml", kaboom`,
-			wantLogs:    []string{"folder loader: no supported file", "location=loc"},
+			wantLogs:    []string{"no supported file", `loader="folder loader"`, "location=loc"},
 			wantNotLogs: []string{"bucket="},
 		},
 		{
@@ -820,7 +820,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			},
 			wantList: `unable to list objects from S3 with prefix "f/", store: boom`,
 			wantGet:  `unable to download item from S3 "f/a.yaml", kaboom`,
-			wantLogs: []string{"S3 retriever: no supported file", "bucket=loc"},
+			wantLogs: []string{"no supported file", `loader="S3 retriever"`, "bucket=loc"},
 		},
 	}
 	for _, tt := range tests {

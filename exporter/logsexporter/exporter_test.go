@@ -49,7 +49,8 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", " +
+				"value=\"YO\"\n",
 		},
 		{
 			name: "Custom format",
@@ -68,7 +69,7 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "key=\"random-key\"\n",
+			expectedLog: "feature event event=key=\"random-key\"\n",
 		},
 		{
 			name: "LogFormat error",
@@ -87,7 +88,7 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 		},
 		{
 			name: "Field does not exist",
@@ -106,7 +107,7 @@ func TestLog_Export(t *testing.T) {
 					Default:      false,
 				},
 			}},
-			expectedLog: "^\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
+			expectedLog: "^feature event event=\\[" + testhelpers.RFC3339Regex + "\\] user=\"ABCD\", flag=\"random-key\", value=\"YO\"\n",
 			wantErr:     true,
 		},
 	}
@@ -119,7 +120,7 @@ func TestLog_Export(t *testing.T) {
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
-			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
+			textHandler := slogutil.PlainHandler{Writer: logFile}
 			logger := slog.New(&textHandler)
 			err := logsExp.Export(context.Background(), logger, tt.args.featureEvents)
 

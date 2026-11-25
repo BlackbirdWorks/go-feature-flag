@@ -131,7 +131,7 @@ func (d *dataExporterImpl[T]) flushQueue() error {
 	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)
 	if err != nil {
 		if d != nil && d.logger != nil {
-			d.logger.Error(err.Error())
+			d.logger.Error("error while exporting the pending events", slog.String("error", err.Error()))
 		}
 
 		return fmt.Errorf("process pending events: %w", err)

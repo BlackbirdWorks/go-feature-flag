@@ -51,7 +51,7 @@ func (f *Exporter) Export(
 			return fmt.Errorf("format log event: %w", err)
 		}
 
-		logger.InfoContext(ctx, string(log))
+		logger.InfoContext(ctx, "feature event", slog.String("event", string(log)))
 	}
 
 	return nil

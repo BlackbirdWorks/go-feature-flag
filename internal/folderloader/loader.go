@@ -169,8 +169,9 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	}
 
 	if len(keys) == 0 {
-		l.logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
-			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
+		l.logger.LogAttrs(ctx, slog.LevelWarn, "no supported file matches the prefix, the flag set is empty",
+			slog.String("loader", l.logPrefix()), slog.String(l.locationKey(), l.opts.Location),
+			slog.String("prefix", l.prefix), slog.String("pattern", l.opts.Pattern))
 	}
 
 	refreshCacheErr := l.refreshCache(ctx, keys, files)
@@ -357,8 +358,10 @@ func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 	slices.Sort(newKeys)
 
 	for _, key := range newKeys {
-		l.logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
-			"(supported: .json, .yaml, .yml, .toml)", l.locationKey(), l.opts.Location, "key", key)
+		l.logger.LogAttrs(ctx, slog.LevelWarn,
+			"file skipped because of its unsupported extension (supported: .json, .yaml, .yml, .toml)",
+			slog.String("loader", l.logPrefix()), slog.String(l.locationKey(), l.opts.Location),
+			slog.String("key", key))
 	}
 
 	l.skipped = skipped

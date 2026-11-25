@@ -603,7 +603,8 @@ func TestRetriever_Shutdown(t *testing.T) {
 	_, err = r.Retrieve(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 2, strings.Count(logs.String(), "key=f/readme.txt"))
-	assert.Contains(t, logs.String(), "S3 retriever: file skipped")
+	assert.Contains(t, logs.String(), "file skipped")
+	assert.Contains(t, logs.String(), `loader="S3 retriever"`)
 	assert.Contains(t, logs.String(), "bucket=b")
 }
 

@@ -298,7 +298,12 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	}
 	// check that the first 100 events are exported
 	assert.Equal(t, want[:100], mockExporter.GetExportedEvents()[:100])
-	handler.AssertMessage("error while exporting data: random err")
+	handler.AssertPrecise(slogassert.LogMessageMatch{
+		Message:       "error while exporting the pending events",
+		Level:         slog.LevelError,
+		Attrs:         map[string]any{"error": "error while exporting data: random err"},
+		AllAttrsMatch: true,
+	})
 }
 
 func TestDataExporterManager_nonBulkExporter(t *testing.T) {

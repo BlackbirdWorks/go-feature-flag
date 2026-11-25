@@ -136,7 +136,9 @@ func assertExpectedLog(t *testing.T, handler *slogassert.Handler, expectedLog st
 
 	require.Eventually(t, func() bool {
 		return handler.Assert(func(message slogassert.LogMessage) bool {
-			return strings.Contains(message.Message, expectedLog)
+			// the logs exporter logs the formatted event as the "event" attribute
+			return strings.Contains(message.Message, expectedLog) ||
+				strings.Contains(message.Attrs["event"].String(), expectedLog)
 		}) > 0
 	}, 2*time.Second, 20*time.Millisecond,
 		"no log message containing %q was emitted", expectedLog)
