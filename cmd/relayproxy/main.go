@@ -181,7 +181,11 @@ func main() {
 
 // fatal logs the message at the fatal level and exits the process.
 func fatal(logger *slog.Logger, msg string, attrs ...slog.Attr) {
-	logger.LogAttrs(context.Background(), log.LevelFatal, "fatal error in relay proxy", append([]slog.Attr{slog.String("reason", msg)}, attrs...)...)
+	logger.LogAttrs(
+		context.Background(),
+		log.LevelFatal,
+		"fatal error in relay proxy",
+		append([]slog.Attr{slog.String("reason", msg)}, attrs...)...)
 	os.Exit(1)
 }
 

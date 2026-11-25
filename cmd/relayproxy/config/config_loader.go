@@ -103,7 +103,13 @@ func NewConfigLoader(
 
 	if configLoader.warner == nil {
 		configLoader.warner = legacy.NewWarner(func(kind, message string) {
-			log.LogAttrs(context.Background(), slog.LevelWarn, legacyWarningMessage, slog.String("legacyName", kind), slog.String("warning", message))
+			log.LogAttrs(
+				context.Background(),
+				slog.LevelWarn,
+				legacyWarningMessage,
+				slog.String("legacyName", kind),
+				slog.String("warning", message),
+			)
 		})
 	}
 

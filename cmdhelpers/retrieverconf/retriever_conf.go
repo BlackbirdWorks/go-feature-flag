@@ -139,7 +139,15 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		if c.Path == "" {
 			return missingProperty("path", string(c.Kind))
 		}
-	case HTTPRetriever, GitHubRetriever, GitlabRetriever, KubernetesRetriever, MongoDBRetriever, RedisRetriever, BitbucketRetriever, AzBlobStorageRetriever, PostgreSQLRetriever:
+	case HTTPRetriever,
+		GitHubRetriever,
+		GitlabRetriever,
+		KubernetesRetriever,
+		MongoDBRetriever,
+		RedisRetriever,
+		BitbucketRetriever,
+		AzBlobStorageRetriever,
+		PostgreSQLRetriever:
 		// not a storage retriever
 	}
 

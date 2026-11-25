@@ -110,7 +110,14 @@ func (c *ExporterConf) validateStorage() error {
 		if c.EndpointURL == "" {
 			return invalidExporterf("no \"endpointUrl\" property found for kind \"%s\"", c.Kind)
 		}
-	case LogExporter, SQSExporter, KafkaExporter, PubSubExporter, BigQueryExporter, RedshiftExporter, AzureExporter, OpenTelemetryExporter:
+	case LogExporter,
+		SQSExporter,
+		KafkaExporter,
+		PubSubExporter,
+		BigQueryExporter,
+		RedshiftExporter,
+		AzureExporter,
+		OpenTelemetryExporter:
 		// the other kinds are checked after the parquet codec
 	}
 
@@ -136,7 +143,15 @@ func (c *ExporterConf) validateMessaging() error {
 		if c.ProjectID == "" || c.DatasetID == "" {
 			return invalidExporterf("\"projectID\" and \"datasetID\" are required for kind \"%s\"", c.Kind)
 		}
-	case FileExporter, WebhookExporter, LogExporter, S3Exporter, KinesisExporter, GoogleStorageExporter, RedshiftExporter, AzureExporter, OpenTelemetryExporter:
+	case FileExporter,
+		WebhookExporter,
+		LogExporter,
+		S3Exporter,
+		KinesisExporter,
+		GoogleStorageExporter,
+		RedshiftExporter,
+		AzureExporter,
+		OpenTelemetryExporter:
 		// the other kinds have nothing more to check here
 	}
 
