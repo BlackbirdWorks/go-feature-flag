@@ -38,7 +38,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		helper.LegacyWarner(),
 	)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, fmt.Errorf("loading the configuration of the manifest: %w", err)
 	}
 
 	return Manifest{
@@ -65,7 +65,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	}
 
 	if err != nil {
-		return output, err
+		return output, fmt.Errorf("generating the definitions of the manifest: %w", err)
 	}
 
 	manifest := model.FlagManifest{

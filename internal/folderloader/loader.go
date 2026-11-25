@@ -318,7 +318,7 @@ func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
 func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 	entries, err := l.store.List(ctx, l.prefix, l.opts.Recursive)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: %w", err)
 	}
 
 	res := make(map[string]string)

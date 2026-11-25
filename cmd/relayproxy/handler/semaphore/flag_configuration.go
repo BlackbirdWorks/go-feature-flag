@@ -91,7 +91,7 @@ func (h *FlagConfigurationAPICtrl) Handle(
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the flag configuration: %w", httpErr)
 	}
 
 	flags, err := flagset.GetFlagsFromCache()

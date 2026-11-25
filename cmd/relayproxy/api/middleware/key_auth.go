@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -123,7 +124,7 @@ func (k KeyAuth) authenticate(
 
 	out, ok := k.cfg.Validator(ctx, key)
 	if !ok {
-		return ctx, errKeyInvalid
+		return ctx, fmt.Errorf("authenticating the API key: %w", errKeyInvalid)
 	}
 
 	return out, nil

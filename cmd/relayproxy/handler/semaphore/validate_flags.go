@@ -59,14 +59,17 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 
 	format, maxSize, ok := h.formatFromContentType(r.Header.Get(helper.HeaderContentType))
 	if !ok {
-		return outcomeError, helper.NewHTTPError(
+		return outcomeError, fmt.Errorf("checking the content type of the flags to validate: %w", helper.NewHTTPError(
 			http.StatusUnsupportedMediaType,
 			"unsupported or missing Content-Type, use application/json, application/yaml or application/toml",
-		)
+		))
 	}
 
 	if r.ContentLength > maxSize {
-		return outcomeError, helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
+		return outcomeError, fmt.Errorf(
+			"checking the size of the flags to validate: %w",
+			helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format)),
+		)
 	}
 
 	body := http.MaxBytesReader(w, r.Body, maxSize)
@@ -74,10 +77,16 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 	data, err := io.ReadAll(body)
 	if err != nil {
 		if _, isMaxBytes := errors.AsType[*http.MaxBytesError](err); isMaxBytes {
-			return outcomeError, helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format))
+			return outcomeError, fmt.Errorf(
+				"reading the flags to validate: %w",
+				helper.NewHTTPError(http.StatusRequestEntityTooLarge, tooLargeMessage(maxSize, format)),
+			)
 		}
 
-		return outcomeError, helper.NewHTTPError(http.StatusBadRequest, "impossible to read the request body")
+		return outcomeError, fmt.Errorf(
+			"reading the flags to validate: %w",
+			helper.NewHTTPError(http.StatusBadRequest, "impossible to read the request body"),
+		)
 	}
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
@@ -87,7 +96,10 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 
 	flags, err := configfile.ParseConfig(data, format)
 	if err != nil {
-		return outcomeError, helper.NewHTTPError(http.StatusBadRequest, err.Error())
+		return outcomeError, fmt.Errorf(
+			"decoding the flags to validate: %w",
+			helper.NewHTTPError(http.StatusBadRequest, err.Error()),
+		)
 	}
 
 	resp := FlagValidationResponse{
@@ -116,7 +128,12 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 		outcome = metric.ValidateFlagsOutcomeInvalid
 	}
 
-	return outcome, helper.WriteJSON(w, status, resp)
+	werr := helper.WriteJSON(w, status, resp)
+	if werr != nil {
+		return outcome, fmt.Errorf("writing the validation response: %w", werr)
+	}
+
+	return outcome, nil
 }
 
 // formatFromContentType returns the flag file format matching the content type and the maximum

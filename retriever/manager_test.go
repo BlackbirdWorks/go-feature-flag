@@ -314,8 +314,8 @@ variation = "A"
 			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat: "",
 			globalFmt:  "yaml",
-			wantErr: "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  lin" +
-				"e 1: cannot unmarshal !!seq into map[string]dto.DTO",
+			wantErr: "impossible to retrieve the flags, please check your configuration: decoding the flags: " +
+				"yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 

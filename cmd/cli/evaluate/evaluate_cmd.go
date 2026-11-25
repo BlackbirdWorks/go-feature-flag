@@ -245,7 +245,7 @@ func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) err
 			return cliMessageError(rcErr.CliErrorMessage())
 		}
 
-		return err
+		return fmt.Errorf("validating the retriever of the command: %w", err)
 	}
 
 	if flags.checkMode {
@@ -265,7 +265,7 @@ func runEvaluate(
 
 	r, err := retrieverInit.Retriever(&retrieverConf)
 	if err != nil {
-		return err
+		return fmt.Errorf("initializing the retriever of the command: %w", err)
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}

@@ -624,7 +624,7 @@ func runListError(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 func runDownloadError(t *testing.T, _ *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
 	_, err := r["p2/flags.yaml"].Retrieve(t.Context())
-	assert.ErrorContains(t, err, "unable to download item from S3 \"p2/flags.yaml\", denied")
+	assert.ErrorContains(t, err, "unable to download item from S3 \"p2/flags.yaml\", S3 downloader: denied")
 }
 
 func runNoDownloadETag(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {

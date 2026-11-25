@@ -597,7 +597,7 @@ func errorAndEmptyCases() []loadCase {
 			name:  "list error",
 			setup: func(s *fakeStore) { s.listErr = errBoom },
 			opts:  folderloader.Options{Prefix: "f/"},
-			steps: []step{{wantErr: `unable to list objects with prefix "f/", boom`}},
+			steps: []step{{wantErr: `unable to list objects with prefix "f/", store: boom`}},
 		},
 		{
 			name: "download error",
@@ -792,7 +792,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 		{
 			name:        "neutral wording",
 			opts:        folderloader.Options{Prefix: "f/", Location: "loc"},
-			wantList:    `unable to list objects with prefix "f/", boom`,
+			wantList:    `unable to list objects with prefix "f/", store: boom`,
 			wantGet:     `unable to download item "f/a.yaml", kaboom`,
 			wantLogs:    []string{"folder loader: no supported file", "location=loc"},
 			wantNotLogs: []string{"bucket="},
@@ -802,7 +802,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			opts: folderloader.Options{
 				Prefix: "f/", Location: "loc", Provider: "S3", LocationKey: "bucket",
 			},
-			wantList: `unable to list objects from S3 with prefix "f/", boom`,
+			wantList: `unable to list objects from S3 with prefix "f/", store: boom`,
 			wantGet:  `unable to download item from S3 "f/a.yaml", kaboom`,
 			wantLogs: []string{"S3 retriever: no supported file", "bucket=loc"},
 		},

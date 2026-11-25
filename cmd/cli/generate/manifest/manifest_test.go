@@ -25,7 +25,7 @@ func TestNewManifest(t *testing.T) {
 			name:           "should error if config file does not exist",
 			config:         "testdata/invalid.yaml",
 			setDestination: true,
-			wantErr:        "impossible to find config file testdata/invalid.yaml",
+			wantErr:        "loading the configuration of the manifest: impossible to find config file testdata/invalid.yaml",
 		},
 		{
 			name:           "should generate the manifest if config file exists",

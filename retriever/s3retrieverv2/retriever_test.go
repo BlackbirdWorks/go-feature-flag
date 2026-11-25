@@ -240,7 +240,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errBoom },
 			r:     cfg{Prefix: "f/"},
 			steps: []step{
-				{wantErr: `unable to list objects from S3 with prefix "f/", listing a page of objects: boom`},
+				{wantErr: `unable to list objects from S3 with prefix "f/", store: listing a page of objects: boom`},
 			},
 		},
 		{
@@ -250,7 +250,7 @@ func TestRetriever_Retrieve(t *testing.T) {
 				m.DownloadErr = errKaboom
 			},
 			r:     cfg{Prefix: "f/"},
-			steps: []step{{wantErr: `unable to download item from S3 "f/a.yaml", kaboom`}},
+			steps: []step{{wantErr: `unable to download item from S3 "f/a.yaml", S3 downloader: kaboom`}},
 		},
 		{
 			name: "concurrent calls are serialized",

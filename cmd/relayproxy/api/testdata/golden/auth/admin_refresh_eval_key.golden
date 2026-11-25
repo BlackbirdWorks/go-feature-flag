@@ -4,4 +4,4 @@ Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden
 ---
-"{\"message\":\"code=401, message=invalid key\"}\n"
+"{\"message\":\"authenticating the API key: code=401, message=invalid key\"}\n"

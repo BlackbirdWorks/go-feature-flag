@@ -4,4 +4,4 @@ Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden
 ---
-"{\"message\":\"could not parse file (json): unexpected end of JSON input\"}\n"
+"{\"message\":\"could not parse file (json): decoding the flags: unexpected end of JSON input\"}\n"

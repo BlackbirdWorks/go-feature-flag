@@ -426,7 +426,7 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("waiting to retry the Kinesis export: %w", ctx.Err())
 	case <-t.C:
 		return nil
 	}

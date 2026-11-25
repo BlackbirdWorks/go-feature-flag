@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel"
@@ -34,7 +35,7 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading the request of all flags: %w", err)
 	}
 	// validation that we have a reqBody key
 	assertErr := assertRequest(reqBody)
@@ -54,7 +55,7 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
-		return httpErr
+		return fmt.Errorf("getting the flag set of all flags: %w", httpErr)
 	}
 
 	var allFlags flagstate.AllFlags
@@ -80,5 +81,10 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 		attribute.Int("AllFlagsState.numberEvaluation", len(allFlags.GetFlags())),
 	)
 
-	return helper.WriteJSON(w, http.StatusOK, allFlags)
+	werr := helper.WriteJSON(w, http.StatusOK, allFlags)
+	if werr != nil {
+		return fmt.Errorf("writing the response of all flags: %w", werr)
+	}
+
+	return nil
 }

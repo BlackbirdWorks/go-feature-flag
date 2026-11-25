@@ -95,7 +95,10 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
 	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, r.URL.Query().Get("apiKey"))
 	if err != nil {
-		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
+		return fmt.Errorf(
+			"binding the request of the flag change websocket: %w",
+			helper.NewHTTPError(http.StatusBadRequest, err.Error()),
+		)
 	}
 
 	conn, err := f.upgrader.Upgrade(w, r, nil)

@@ -329,6 +329,6 @@ func TestWebhook_Export_impossibleToParse(t *testing.T) {
 	assert.EqualError(
 		t,
 		err,
-		"parse \"[REDACTED]\": invalid URL",
+		"building the webhook request: parse \"[REDACTED]\": invalid URL",
 	)
 }

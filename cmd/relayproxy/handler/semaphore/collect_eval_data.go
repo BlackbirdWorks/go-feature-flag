@@ -67,13 +67,16 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 
 	bindErr := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
 	if bindErr != nil {
-		return nil, helper.NewHTTPError(
+		return nil, fmt.Errorf("binding the evaluation data: %w", helper.NewHTTPError(
 			http.StatusBadRequest,
-			fmt.Sprintf("collectEvalData: invalid input data %v", bindErr))
+			fmt.Sprintf("collectEvalData: invalid input data %v", bindErr)))
 	}
 
 	if reqBody.Events == nil {
-		return nil, helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")
+		return nil, fmt.Errorf(
+			"checking the evaluation data: %w",
+			helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data"),
+		)
 	}
 
 	span.SetAttributes(attribute.Int("collectEventData.eventCollectionSize", len(reqBody.Events)))
@@ -82,7 +85,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
 	flagset, httpErr := helper.FlagSet(h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the evaluation data: %w", httpErr)
 	}
 
 	logger := logging.FromContext(ctx)

@@ -145,7 +145,7 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 	if opts.ExporterMode != "" {
 		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
 		if parseErr != nil {
-			return parseErr
+			return fmt.Errorf("parsing the exporter mode of the target: %w", parseErr)
 		}
 	}
 

@@ -61,5 +61,10 @@ func validateFlag(svc *flag.Service, flagDto dto.DTO) (err error) {
 
 	f := flagDto.Convert()
 
-	return f.IsValid(svc)
+	werr := f.IsValid(svc)
+	if werr != nil {
+		return fmt.Errorf("validating the flag: %w", werr)
+	}
+
+	return nil
 }

@@ -163,7 +163,12 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			return nil, errListerIsNotInitialized
 		}
 
-		return s.loader.Load().Load(ctx)
+		res, err := s.loader.Load().Load(ctx)
+		if err != nil {
+			return res, fmt.Errorf("loading the S3 folder: %w", err)
+		}
+
+		return res, nil
 	}
 
 	if s.Item == "" {
@@ -188,7 +193,7 @@ func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([
 		WriterAt: writerAt,
 	})
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("S3 downloader: %w", err)
 	}
 
 	return writerAt.Bytes(), aws.ToString(out.ETag), nil

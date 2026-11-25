@@ -3,6 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -109,8 +110,11 @@ func ConvertToFlagStruct(
 		err = yaml.Unmarshal(loadedFlags, &newFlags)
 	}
 
-	//nolint:wrapcheck // the callers add the format context (could not parse file (json)), a second prefix would stack
-	return newFlags, err
+	if err != nil {
+		return newFlags, fmt.Errorf("decoding the flags: %w", err)
+	}
+
+	return newFlags, nil
 }
 
 func (c *ManagerImpl) UpdateCache(

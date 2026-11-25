@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -32,10 +33,10 @@ func assertRequest(u *model.AllFlagRequest) *helper.HTTPError {
 func evaluationContextFromRequest(req *model.AllFlagRequest) (ffcontext.EvaluationContext, error) {
 	if req == nil || req.EvaluationContext == nil {
 		return ffcontext.EvaluationContext{},
-			helper.NewHTTPError(
+			fmt.Errorf("converting the request to an evaluation context: %w", helper.NewHTTPError(
 				http.StatusBadRequest,
 				"evaluationContextFromRequest: impossible to convert the request, evaluationContext missing",
-			)
+			))
 	}
 
 	u := req.EvaluationContext

@@ -159,7 +159,12 @@ func (m *Manager) GetCacheRefreshDate() time.Time {
 
 // GetFlag returns the flag from the cache with the current state when calling this method.
 func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
-	return m.cacheManager.GetFlag(flagKey)
+	res, err := m.cacheManager.GetFlag(flagKey)
+	if err != nil {
+		return res, fmt.Errorf("getting the flag from the cache: %w", err)
+	}
+
+	return res, nil
 }
 
 // GetFlagsFromCache returns all the flags present in the cache with their
@@ -170,7 +175,12 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 		return nil, errCacheIsNotInitialized
 	}
 
-	return m.cacheManager.AllFlags()
+	res, err := m.cacheManager.AllFlags()
+	if err != nil {
+		return res, fmt.Errorf("getting all the flags from the cache: %w", err)
+	}
+
+	return res, nil
 }
 
 // GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
@@ -180,7 +190,12 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 		return nil, errCacheIsNotInitialized
 	}
 
-	return m.cacheManager.AllFlagsReadOnly()
+	res, err := m.cacheManager.AllFlagsReadOnly()
+	if err != nil {
+		return res, fmt.Errorf("getting all the flags from the cache: %w", err)
+	}
+
+	return res, nil
 }
 
 func (m *Manager) ForceRefresh(ctx context.Context) bool {
@@ -281,7 +296,7 @@ func (m *Manager) updateCacheWithRetriever(
 	if err != nil {
 		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
 
-		return err
+		return fmt.Errorf("updating the cache of the flags: %w", err)
 	}
 
 	return nil

@@ -78,7 +78,7 @@ func TestCmdEvaluate(t *testing.T) {
 				"yaml",
 			},
 			wantErr:     assert.Error,
-			expectedErr: "flag non-existent-flag is not present or disabled",
+			expectedErr: "evaluating the flag: flag non-existent-flag is not present or disabled",
 		},
 		{
 			name: "should return all flags if no flag is provided",

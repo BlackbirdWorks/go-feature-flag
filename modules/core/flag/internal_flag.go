@@ -219,7 +219,7 @@ func validateVariationTypes(variations map[string]*any) error {
 
 		currentType, err := utils.JSONTypeExtractor(*value)
 		if err != nil {
-			return err
+			return fmt.Errorf("extracting the type of the variation: %w", err)
 		}
 
 		if expectedVarType == "" {

@@ -3269,8 +3269,9 @@ func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
 					VariationResult: new("A"),
 				},
 			},
-			errorMsg: "invalid query: invalid rule \"invalid\": line 1:7 no viable alternative at input 'invalid'",
-			wantErr:  assert.Error,
+			errorMsg: "invalid query: parsing the query: invalid rule \"invalid\": " +
+				"line 1:7 no viable alternative at input 'invalid'",
+			wantErr: assert.Error,
 		},
 	})
 }

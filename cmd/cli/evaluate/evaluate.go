@@ -53,7 +53,12 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 		FileFormat:            e.fileFormat,
 	}
 
-	return ffclient.New(cfg)
+	goff, err := ffclient.New(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initializing the evaluation client: %w", err)
+	}
+
+	return goff, nil
 }
 
 // parseEvaluationContext parses the evaluation context from the command line arguments.
@@ -87,7 +92,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 
 	flags, err := goff.GetFlagsFromCache()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting the flags of the configuration: %w", err)
 	}
 
 	listFlags := make([]string, 0, len(flags))
@@ -107,7 +112,7 @@ func (e evaluate) evaluateFlags(
 	for _, flag := range listFlags {
 		res, err := goff.RawVariation(flag, convertedEvaluationCtx, nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("evaluating the flag: %w", err)
 		}
 
 		result[flag] = res

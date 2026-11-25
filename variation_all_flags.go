@@ -2,6 +2,7 @@ package ffclient
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
@@ -89,12 +90,22 @@ func (g *GoFeatureFlag) GetFlagsFromCache() (map[string]flag.Flag, error) {
 // It is the cheap way to evaluate every flag again and again, a copy rebuilds the state that
 // is memoized for the scheduled rollouts.
 func (g *GoFeatureFlag) GetFlagsFromCacheReadOnly() (map[string]flag.Flag, error) {
-	return g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
+	res, err := g.retrieverManager.GetFlagsFromCacheReadOnly(context.Background())
+	if err != nil {
+		return res, fmt.Errorf("getting the flags from the cache: %w", err)
+	}
+
+	return res, nil
 }
 
 // GetFlagsFromCacheWithContext returns all the flags present in the cache with their
 // current state when calling this method. If cache hasn't been initialized, an
 // error reporting this is returned. The provided context is used for the operation.
 func (g *GoFeatureFlag) GetFlagsFromCacheWithContext(ctx context.Context) (map[string]flag.Flag, error) {
-	return g.retrieverManager.GetFlagsFromCache(ctx)
+	res, err := g.retrieverManager.GetFlagsFromCache(ctx)
+	if err != nil {
+		return res, fmt.Errorf("getting the flags from the cache: %w", err)
+	}
+
+	return res, nil
 }

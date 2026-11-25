@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -106,6 +107,6 @@ func (w *WebsocketServiceImpl) WaitForCleanup(timeout time.Duration) error {
 	case <-w.closed:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("waiting for the cleanup of the websocket connections: %w", ctx.Err())
 	}
 }

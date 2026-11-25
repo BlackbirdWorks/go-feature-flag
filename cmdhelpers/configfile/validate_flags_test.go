@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	errMissingDefaultRule          = errors.New("missing default rule")
+	errMissingDefaultRule          = errors.New("validating the flag: missing default rule")
 	errInternalValidationErrorFlag = errors.New("internal validation error: flag definition could not be validated")
 )
 
@@ -66,7 +66,7 @@ func TestValidateFlags(t *testing.T) {
 			for i, w := range tt.want {
 				assert.Equal(t, w.Flag, got[i].Flag)
 				// modules/core only panics on an empty progressive rollout before its nil guard is released.
-				if got[i].Err.Error() == "invalid progressive rollout, initial and end steps are required" {
+				if got[i].Err.Error() == "validating the flag: invalid progressive rollout, initial and end steps are required" {
 					got[i].Err = w.Err
 				}
 

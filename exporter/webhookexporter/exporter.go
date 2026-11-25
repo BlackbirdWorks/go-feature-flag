@@ -110,7 +110,7 @@ func (f *Exporter) Export(
 	request, err := http.NewRequestWithContext(
 		ctx, http.MethodPost, f.EndpointURL, io.NopCloser(bytes.NewReader(payload)))
 	if err != nil {
-		return internal.RedactURLError(err)
+		return fmt.Errorf("building the webhook request: %w", internal.RedactURLError(err))
 	}
 
 	request.Header = f.Headers
@@ -118,7 +118,7 @@ func (f *Exporter) Export(
 	// Log if something went wrong while calling the webhook.
 	if err != nil {
 		// the endpoint URL may carry a secret and net/http errors embed it.
-		return internal.RedactURLError(err)
+		return fmt.Errorf("calling the webhook: %w", internal.RedactURLError(err))
 	}
 
 	defer func() { _ = response.Body.Close() }()

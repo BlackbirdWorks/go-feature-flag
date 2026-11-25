@@ -427,7 +427,7 @@ func TestInvalidConf(t *testing.T) {
 	assert.Equal(
 		t,
 		"impossible to initialize the retrievers, please check your configuration: impossible to retrieve the flags, pl"+
-			"ease check your configuration: yaml: line 43: did not find expected ',' or '}'",
+			"ease check your configuration: decoding the flags: yaml: line 43: did not find expected ',' or '}'",
 		err.Error(),
 	)
 }

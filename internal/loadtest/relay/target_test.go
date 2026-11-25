@@ -80,7 +80,7 @@ func TestNewTarget_RejectsInvalidCombinations(t *testing.T) {
 			name:    "unknown exporter",
 			ep:      relay.SemaphoreEval,
 			mode:    loadtest.ExporterMode("flaky"),
-			wantErr: `unknown exporter "flaky" (want discard | slow | failing)`,
+			wantErr: `parsing the exporter mode of the target: unknown exporter "flaky" (want discard | slow | failing)`,
 		},
 		{
 			name: "slow exporter on semaphore bulk",

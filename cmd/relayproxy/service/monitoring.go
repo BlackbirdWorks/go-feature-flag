@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
@@ -44,7 +45,7 @@ func (m *MonitoringImpl) Info() (model.InfoResponse, error) {
 
 	flagSets, err := m.flagsetManager.AllFlagSets()
 	if err != nil {
-		return model.InfoResponse{}, err
+		return model.InfoResponse{}, fmt.Errorf("listing the flag sets for the information: %w", err)
 	}
 
 	if m.flagsetManager.IsDefaultFlagSet() {

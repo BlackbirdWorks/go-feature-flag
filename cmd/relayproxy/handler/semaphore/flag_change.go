@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -44,17 +45,23 @@ type FlagChangeOutput struct {
 func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*FlagChangeOutput, error) {
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the flag change: %w", httpErr)
 	}
 
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
-		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, fmt.Errorf(
+			"reading the flags of the flag change: %w",
+			helper.NewHTTPError(http.StatusInternalServerError, err.Error()),
+		)
 	}
 
 	res, err := json.Marshal(flags)
 	if err != nil {
-		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, fmt.Errorf(
+			"computing the hash of the flag change: %w",
+			helper.NewHTTPError(http.StatusInternalServerError, err.Error()),
+		)
 	}
 
 	flagHashes := map[string]uint32{}
@@ -62,7 +69,10 @@ func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*F
 	for key, flag := range flags {
 		jsonFlag, marshalErr := json.Marshal(flag)
 		if marshalErr != nil {
-			return nil, helper.NewHTTPError(http.StatusInternalServerError, marshalErr.Error())
+			return nil, fmt.Errorf(
+				"encoding the flag change: %w",
+				helper.NewHTTPError(http.StatusInternalServerError, marshalErr.Error()),
+			)
 		}
 
 		flagHashes[key] = utils.Hash(string(jsonFlag))

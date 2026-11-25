@@ -128,7 +128,7 @@ func validateLogLevel(logLevel string) error {
 
 	_, err := cmdlog.ParseLevel(logLevel)
 	if err != nil {
-		return err
+		return fmt.Errorf("validating the log level: %w", err)
 	}
 
 	return nil
@@ -224,7 +224,7 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 	if retriever != nil {
 		err := retriever.IsValid()
 		if err != nil {
-			return err
+			return fmt.Errorf("validating the retriever of the configuration: %w", err)
 		}
 	}
 

@@ -125,19 +125,19 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 		}
 
 		if c.Bucket == "" {
-			return err.NewRetrieverConfError("bucket", string(c.Kind))
+			return missingProperty("bucket", string(c.Kind))
 		}
 	case GoogleStorageRetriever:
 		if c.Object == "" {
-			return err.NewRetrieverConfError("object", string(c.Kind))
+			return missingProperty("object", string(c.Kind))
 		}
 
 		if c.Bucket == "" {
-			return err.NewRetrieverConfError("bucket", string(c.Kind))
+			return missingProperty("bucket", string(c.Kind))
 		}
 	case FileRetriever:
 		if c.Path == "" {
-			return err.NewRetrieverConfError("path", string(c.Kind))
+			return missingProperty("path", string(c.Kind))
 		}
 	default:
 		// not a storage retriever
@@ -148,15 +148,15 @@ func (c *RetrieverConf) validateStorageRetriever() error {
 
 func (c *RetrieverConf) validateHTTPRetriever() error {
 	if c.URL == "" {
-		return err.NewRetrieverConfError("url", string(c.Kind))
+		return missingProperty("url", string(c.Kind))
 	}
 
 	if c.HTTPClientCertPath != "" && c.HTTPClientKeyPath == "" {
-		return err.NewRetrieverConfError("clientKeyPath", string(c.Kind))
+		return missingProperty("clientKeyPath", string(c.Kind))
 	}
 
 	if c.HTTPClientCertPath == "" && c.HTTPClientKeyPath != "" {
-		return err.NewRetrieverConfError("clientCertPath", string(c.Kind))
+		return missingProperty("clientCertPath", string(c.Kind))
 	}
 
 	return nil
@@ -165,11 +165,11 @@ func (c *RetrieverConf) validateHTTPRetriever() error {
 // validatePostgreSQLRetriever validates the configuration of the postgresql retriever.
 func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 	if c.URI == "" {
-		return err.NewRetrieverConfError("uri", string(c.Kind))
+		return missingProperty("uri", string(c.Kind))
 	}
 
 	if c.Table == "" {
-		return err.NewRetrieverConfError("table", string(c.Kind))
+		return missingProperty("table", string(c.Kind))
 	}
 
 	return nil
@@ -177,11 +177,11 @@ func (c *RetrieverConf) validatePostgreSQLRetriever() error {
 
 func (c *RetrieverConf) validateGitRetriever() error {
 	if c.RepositorySlug == "" {
-		return err.NewRetrieverConfError("repositorySlug", string(c.Kind))
+		return missingProperty("repositorySlug", string(c.Kind))
 	}
 
 	if c.Path == "" {
-		return err.NewRetrieverConfError("path", string(c.Kind))
+		return missingProperty("path", string(c.Kind))
 	}
 
 	if c.Kind == GitHubRetriever {
@@ -205,15 +205,15 @@ func (c *RetrieverConf) validateGitHubAuth() error {
 
 	if hasAppFields {
 		if c.GitHubAppID == 0 {
-			return err.NewRetrieverConfError("githubAppId", string(c.Kind))
+			return missingProperty("githubAppId", string(c.Kind))
 		}
 
 		if c.GitHubInstallationID == 0 {
-			return err.NewRetrieverConfError("githubInstallationId", string(c.Kind))
+			return missingProperty("githubInstallationId", string(c.Kind))
 		}
 
 		if c.GitHubAppPrivateKey == "" && c.GitHubAppPrivateKeyFile == "" {
-			return err.NewRetrieverConfError(
+			return missingProperty(
 				"githubAppPrivateKey or githubAppPrivateKeyFile", string(c.Kind),
 			)
 		}
@@ -224,15 +224,15 @@ func (c *RetrieverConf) validateGitHubAuth() error {
 
 func (c *RetrieverConf) validateKubernetesRetriever() error {
 	if c.ConfigMap == "" {
-		return err.NewRetrieverConfError("configmap", string(c.Kind))
+		return missingProperty("configmap", string(c.Kind))
 	}
 
 	if c.Namespace == "" {
-		return err.NewRetrieverConfError("namespace", string(c.Kind))
+		return missingProperty("namespace", string(c.Kind))
 	}
 
 	if c.Key == "" {
-		return err.NewRetrieverConfError("key", string(c.Kind))
+		return missingProperty("key", string(c.Kind))
 	}
 
 	return nil
@@ -240,15 +240,15 @@ func (c *RetrieverConf) validateKubernetesRetriever() error {
 
 func (c *RetrieverConf) validateMongoDBRetriever() error {
 	if c.Collection == "" {
-		return err.NewRetrieverConfError("collection", string(c.Kind))
+		return missingProperty("collection", string(c.Kind))
 	}
 
 	if c.Database == "" {
-		return err.NewRetrieverConfError("database", string(c.Kind))
+		return missingProperty("database", string(c.Kind))
 	}
 
 	if c.URI == "" {
-		return err.NewRetrieverConfError("uri", string(c.Kind))
+		return missingProperty("uri", string(c.Kind))
 	}
 
 	return nil
@@ -256,11 +256,11 @@ func (c *RetrieverConf) validateMongoDBRetriever() error {
 
 func (c *RetrieverConf) validateRedisRetriever() error {
 	if c.RedisOptions == nil {
-		return err.NewRetrieverConfError("redisOptions", string(c.Kind))
+		return missingProperty("redisOptions", string(c.Kind))
 	}
 
 	if c.RedisOptions.Addr == "" {
-		return err.NewRetrieverConfError("redisOptions.addr", string(c.Kind))
+		return missingProperty("redisOptions.addr", string(c.Kind))
 	}
 
 	return nil
@@ -268,15 +268,15 @@ func (c *RetrieverConf) validateRedisRetriever() error {
 
 func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 	if c.AccountName == "" {
-		return err.NewRetrieverConfError("accountName", string(c.Kind))
+		return missingProperty("accountName", string(c.Kind))
 	}
 
 	if c.Container == "" {
-		return err.NewRetrieverConfError("container", string(c.Kind))
+		return missingProperty("container", string(c.Kind))
 	}
 
 	if c.Object == "" {
-		return err.NewRetrieverConfError("object", string(c.Kind))
+		return missingProperty("object", string(c.Kind))
 	}
 
 	return nil
@@ -320,4 +320,9 @@ func (c *RetrieverConf) validateS3Retriever() error {
 	}
 
 	return nil
+}
+
+// missingProperty is the error of a retriever of the kind that has no value for property.
+func missingProperty(property, kind string) error {
+	return fmt.Errorf("validating the retriever configuration: %w", err.NewRetrieverConfError(property, kind))
 }

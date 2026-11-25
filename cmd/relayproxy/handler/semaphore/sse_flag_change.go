@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -35,7 +36,10 @@ func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	flagsetName, err := helper.RequestFlagSetName(r.Context(), h.flagsetManager, apiKey)
 	if err != nil {
-		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
+		return fmt.Errorf(
+			"binding the request of the flag change stream: %w",
+			helper.NewHTTPError(http.StatusBadRequest, err.Error()),
+		)
 	}
 
 	logging.FromContext(r.Context()).LogAttrs(

@@ -36,8 +36,8 @@ func TestCmdLint(t *testing.T) {
 			name:    "invalid configuration",
 			args:    []string{"testdata/invalid.json", "--format=json"},
 			wantErr: assert.Error,
-			expectedStderr: "ERROR: testdata/invalid.json: could not parse file (json): invalid character ':' after top" +
-				"-level value\n",
+			expectedStderr: "ERROR: testdata/invalid.json: could not parse file (json): decoding the flags: " +
+				"invalid character ':' after top-level value\n",
 			expectedErrString: "invalid Semaphore configuration",
 		},
 		{

@@ -2,6 +2,7 @@ package helper
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -112,9 +113,11 @@ func RequestFlagSetName(ctx context.Context, flagsetManager service.FlagsetManag
 	}
 
 	name, err := flagsetManager.FlagSetName(apiKey)
-	if err == nil {
-		logging.AddAttrs(ctx, slog.String(flagSetLogKey, name))
+	if err != nil {
+		return name, fmt.Errorf("resolving the name of the flag set: %w", err)
 	}
 
-	return name, err
+	logging.AddAttrs(ctx, slog.String(flagSetLogKey, name))
+
+	return name, nil
 }

@@ -80,10 +80,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 
 	retrieverManager, err := initializeRetrieverManager(ctx, config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
-		return nil, fmt.Errorf(
-			"impossible to initialize the retrievers, please check your configuration: %w",
-			err,
-		)
+		return nil, err
 	}
 
 	goFF.retrieverManager = retrieverManager
@@ -103,13 +100,16 @@ func initializeNotificationService(config Config) *notification.ServiceImpl {
 	return notification.NewService(notifiers)
 }
 
+// errInitRetrieversFormat is the format of the error of the initialization of the retrievers.
+const errInitRetrieversFormat = "impossible to initialize the retrievers, please check your configuration: %w"
+
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(
 	ctx context.Context, config Config, evaluationService *flag.Service,
 ) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(errInitRetrieversFormat, err)
 	}
 
 	mngrConfig := retriever.ManagerConfig{
@@ -132,9 +132,13 @@ func initializeRetrieverManager(
 	)
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
-	err = manager.Init(ctx)
 
-	return manager, err
+	err = manager.Init(ctx)
+	if err != nil {
+		return manager, fmt.Errorf(errInitRetrieversFormat, err)
+	}
+
+	return manager, nil
 }
 
 func initializeDataExporters(config Config, logger *fflog.FFLogger) (

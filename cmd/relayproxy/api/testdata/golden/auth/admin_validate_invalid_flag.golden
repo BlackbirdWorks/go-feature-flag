@@ -4,4 +4,4 @@ Vary: Origin
 X-Gofeatureflag-Version: v0.0.0-golden
 X-Semaphore-Version: v0.0.0-golden
 ---
-"{\"version\":\"v0.0.0-golden\",\"errors\":[{\"flag\":\"f\",\"message\":\"invalid variation: zzz does not exist\"}],\"valid\":false}\n"
+"{\"version\":\"v0.0.0-golden\",\"errors\":[{\"flag\":\"f\",\"message\":\"validating the flag: invalid variation: zzz does not exist\"}],\"valid\":false}\n"

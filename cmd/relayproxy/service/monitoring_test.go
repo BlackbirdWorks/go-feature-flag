@@ -243,7 +243,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		monitoring := service.NewMonitoring(mockManager)
 		info, err := monitoring.Info()
 		require.Error(t, err, "Expected error from FlagSets")
-		assert.Equal(t, "failed to get flagsets", err.Error())
+		assert.Equal(t, "listing the flag sets for the information: failed to get flagsets", err.Error())
 		assert.Equal(t, model.InfoResponse{}, info, "Expected empty InfoResponse")
 	})
 

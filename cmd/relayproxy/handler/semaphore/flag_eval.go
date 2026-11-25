@@ -45,7 +45,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	err := helper.BindBody(r, reqBody)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading the request of the flag evaluation: %w", err)
 	}
 
 	// validation that we have a reqBody key
@@ -66,7 +66,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetMngr, helper.APIKey(r))
 	if httpErr != nil {
-		return httpErr
+		return fmt.Errorf("getting the flag set of the flag evaluation: %w", httpErr)
 	}
 
 	flagValue, _ := flagset.RawVariation(flagKey, evaluationCtx, reqBody.DefaultValue)
@@ -94,5 +94,10 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 
-	return helper.WriteJSON(w, http.StatusOK, flagValue)
+	werr := helper.WriteJSON(w, http.StatusOK, flagValue)
+	if werr != nil {
+		return fmt.Errorf("writing the response of the flag evaluation: %w", werr)
+	}
+
+	return nil
 }

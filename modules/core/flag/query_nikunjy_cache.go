@@ -157,7 +157,7 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 
 	eval, err := parser.NewEvaluator(query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing the query: %w", err)
 	}
 
 	actual, _ := c.entries.LoadOrStore(query, eval)

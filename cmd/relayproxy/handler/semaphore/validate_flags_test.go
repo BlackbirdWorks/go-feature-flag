@@ -192,14 +192,14 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			name: "invalid flags sorted by key", contentType: "application/json", body: invalidJSON,
 			wantStatus: http.StatusUnprocessableEntity,
 			wantErrors: []controller.FlagValidationError{
-				{Flag: "flag-a", Message: "missing default rule"},
-				{Flag: "flag-b", Message: "missing default rule"},
+				{Flag: "flag-a", Message: "validating the flag: missing default rule"},
+				{Flag: "flag-b", Message: "validating the flag: missing default rule"},
 			},
 		},
 		{
 			name: "panicking flag definition", contentType: "application/json",
 			body:       `{"f":{"variations":{"a":true},"defaultRule":{"progressiveRollout":{}}}}`,
-			altMessage: "invalid progressive rollout, initial and end steps are required",
+			altMessage: "validating the flag: invalid progressive rollout, initial and end steps are required",
 			wantStatus: http.StatusUnprocessableEntity,
 			wantErrors: []controller.FlagValidationError{{
 				Flag:    "f",

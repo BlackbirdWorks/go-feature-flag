@@ -547,7 +547,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 		select {
 		case <-flight.done:
 		case <-ctx.Done():
-			return listedItem{}, ctx.Err()
+			return listedItem{}, fmt.Errorf("waiting for the listing of the S3 bucket: %w", ctx.Err())
 		}
 		// the waiters use the result of the listing they waited for, even if it is already older
 		// than the TTL (a slow listing), as long as it covers the key.
@@ -730,7 +730,7 @@ func (g *SharedItems) content(
 	case <-dlOp.done:
 		return dlOp.data, dlOp.etag, dlOp.err
 	case <-ctx.Done():
-		return nil, "", ctx.Err()
+		return nil, "", fmt.Errorf("waiting for the download of the S3 object: %w", ctx.Err())
 	}
 }
 
@@ -769,7 +769,7 @@ func (g *SharedItems) download(
 	case <-active:
 		return nil, "", time.Time{}, context.Canceled
 	case <-base.Done():
-		return nil, "", time.Time{}, base.Err()
+		return nil, "", time.Time{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
 	}
 	// Check active directly as well because activeContext cancels base asynchronously when active closes.
 	select {
