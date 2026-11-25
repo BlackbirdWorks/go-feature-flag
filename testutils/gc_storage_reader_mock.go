@@ -19,6 +19,7 @@ type GCStorageReaderMock struct {
 	ShouldFail bool
 }
 
+// Close does nothing and always returns nil.
 func (*GCStorageReaderMock) Close() error {
 	return nil
 }
