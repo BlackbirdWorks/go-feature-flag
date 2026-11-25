@@ -51,7 +51,7 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval:             time.Hour,
 				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				Environment:                 tt.environment,

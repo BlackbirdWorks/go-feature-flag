@@ -19,7 +19,7 @@ configuration keys and the CLI output are unchanged.
 | `ffclient.GetCacheRefreshDate`, `ffclient.ForceRefresh` | the methods on the client (`ForceRefresh` returns `false` while offline) |
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever:       &fileretriever.Retriever{Path: "flag-config.yaml"},
 })

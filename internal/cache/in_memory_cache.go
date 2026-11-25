@@ -39,7 +39,8 @@ func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache 
 func (fc *InMemoryCache) Copy() *InMemoryCache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
-		inMemoryCache.addFlag(k, *v)
+		flagCopy := *v
+		inMemoryCache.addFlag(k, &flagCopy)
 	}
 
 	return inMemoryCache
@@ -75,10 +76,10 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	fc.Flags = cache
 }
 
-func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
+func (fc *InMemoryCache) addFlag(key string, value *flag.InternalFlag) {
 	err := value.IsValid(fc.Service)
 	if err == nil {
-		fc.Flags[key] = &value
+		fc.Flags[key] = value
 	} else {
 		fc.Logger.Error("[cache] invalid configuration for flag",
 			slog.String("key", key), slog.Any("error", err.Error()))

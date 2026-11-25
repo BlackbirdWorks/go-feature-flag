@@ -31,7 +31,7 @@ To configure your GO module to use the Azure Blob Storage retriever, you need to
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &azblobretriever.Retriever{
         Container:    "your-container",

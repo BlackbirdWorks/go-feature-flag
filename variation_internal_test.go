@@ -3909,7 +3909,7 @@ flag1:
 `), 0o644)
 	require.NoError(t, err)
 
-	goff, err := New(Config{
+	goff, err := New(&Config{
 		PollingInterval: 500 * time.Millisecond,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		EvaluationContextEnrichment: map[string]any{
@@ -3929,7 +3929,7 @@ flag1:
 	allFlags := goff.AllFlagsState(ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyMy).Build())
 	assert.Equal(t, true, allFlags.GetFlags()[fixtures.FlagKeyOne].Value)
 
-	goff2, err2 := New(Config{
+	goff2, err2 := New(&Config{
 		PollingInterval: 500 * time.Millisecond,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		Environment:     staging,
@@ -3951,7 +3951,7 @@ flag1:
 	assert.Equal(t, true, allFlags2.GetFlags()[fixtures.FlagKeyOne].Value)
 
 	// Explicit environment should override the environment from the enrichment
-	goff3, err4 := New(Config{
+	goff3, err4 := New(&Config{
 		PollingInterval: 500 * time.Millisecond,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		Environment:     staging,

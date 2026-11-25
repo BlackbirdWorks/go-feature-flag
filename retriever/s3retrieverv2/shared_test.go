@@ -244,7 +244,7 @@ func (b *fakeBucket) matchingKeys(input *s3.ListObjectsV2Input) []string {
 
 func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {
 	t.Helper()
-	g, err := s3retrieverv2.NewSharedItems(t.Context(), s3retrieverv2.SharedItemsOptions{
+	g, err := s3retrieverv2.NewSharedItems(t.Context(), &s3retrieverv2.SharedItemsOptions{
 		Bucket: fixtures.FlagsDir, Lister: b, Downloader: b,
 	})
 	require.NoError(t, err)
@@ -288,7 +288,7 @@ func TestNewSharedItems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			group, err := s3retrieverv2.NewSharedItems(t.Context(), tt.opts)
+			group, err := s3retrieverv2.NewSharedItems(t.Context(), &tt.opts)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 

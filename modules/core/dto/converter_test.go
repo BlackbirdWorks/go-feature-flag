@@ -296,7 +296,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := dto.ConvertInternalFlagToDto(tt.input)
+			result := dto.ConvertInternalFlagToDto(&tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -19,6 +19,7 @@ func NewEvaluationContextBuilder(key string) *EvaluationContextBuilder {
 }
 
 // Anonymous marks the evaluation context as anonymous and returns the builder.
+//
 // Deprecated: Anonymous is to flag the context for an anonymous context or not.
 // This function is here for compatibility reason, please consider using AddCustom("anonymous", true)
 // instead of using this function.

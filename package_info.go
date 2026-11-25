@@ -19,7 +19,7 @@
 //	 )
 //
 //	 func main() {
-//		  client, err := ffclient.New(ffclient.Config{
+//		  client, err := ffclient.New(&ffclient.Config{
 //		      PollingInterval: 3 * time.Second,
 //		      Retriever: &httpretriever.Retriever{
 //		          URL:  "https://code.gofeatureflag.org/blob/main/testdata/flag-config.yaml",

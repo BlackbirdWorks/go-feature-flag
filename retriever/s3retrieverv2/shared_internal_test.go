@@ -29,7 +29,7 @@ func TestNewSharedItems_DefaultConfigError(t *testing.T) {
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
 	//nolint:staticcheck // a nil context is tolerated on purpose
-	_, err := NewSharedItems(nil, SharedItemsOptions{Bucket: "b"})
+	_, err := NewSharedItems(nil, &SharedItemsOptions{Bucket: "b"})
 	assert.ErrorContains(t, err, "impossible to init shared S3 items")
 }
 
@@ -50,7 +50,7 @@ func (emptyBucket) DownloadObject(
 
 func TestSharedItems_etagOf(t *testing.T) {
 	t.Parallel()
-	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), &SharedItemsOptions{
 		Bucket: "b", Lister: emptyBucket{}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func (u unrelatedBucket) ListObjectsV2(
 
 func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 	t.Parallel()
-	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), &SharedItemsOptions{
 		Bucket: "b", Lister: unrelatedBucket{n: 5000}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)

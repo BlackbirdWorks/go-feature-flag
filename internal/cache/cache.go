@@ -8,7 +8,7 @@ import (
 // Cache is the interface to represent a cache in the system.
 type Cache interface {
 	// addFlag add a flag in the cache
-	addFlag(key string, value flag.InternalFlag)
+	addFlag(key string, value *flag.InternalFlag)
 
 	// getFlag get a specific flag by the flag key
 	getFlag(key string) (flag.Flag, error)

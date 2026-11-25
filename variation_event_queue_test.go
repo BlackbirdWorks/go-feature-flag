@@ -115,7 +115,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 				}
 			}
 			before := runtime.NumGoroutine()
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: flagFile},
 				EventQueueSize:  tt.queueSize,

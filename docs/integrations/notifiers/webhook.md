@@ -121,7 +121,7 @@ To configure your GO module to use the Webhook notifier, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     // ...
     Notifiers: []notifier.Notifier{
         &webhooknotifier.Notifier{

@@ -53,7 +53,7 @@ func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
 		FileFormat:            e.fileFormat,
 	}
 
-	goff, err := ffclient.New(cfg)
+	goff, err := ffclient.New(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initializing the evaluation client: %w", err)
 	}

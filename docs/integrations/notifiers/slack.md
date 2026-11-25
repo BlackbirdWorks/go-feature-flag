@@ -48,7 +48,7 @@ To configure your GO module to use the Slack notifier, you need to add the follo
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     // ...
     Notifiers: []notifier.Notifier{
         &slacknotifier.Notifier{

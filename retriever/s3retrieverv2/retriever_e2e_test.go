@@ -387,7 +387,7 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 			// an unrelated object under the listing prefix must not be downloaded or break anything
 			srv.PutObject(t, bucket, tt.prefixA+"unrelated.txt", []byte("hello"))
 
-			group, err := s3retrieverv2.NewSharedItems(context.Background(), s3retrieverv2.SharedItemsOptions{
+			group, err := s3retrieverv2.NewSharedItems(context.Background(), &s3retrieverv2.SharedItemsOptions{
 				Bucket: bucket, AwsConfig: &cfg,
 			})
 			require.NoError(t, err)
@@ -479,7 +479,7 @@ func TestE2E_SharedItems_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			cfg := srv.MustAwsConfig(t)
-			group, err := s3retrieverv2.NewSharedItems(context.Background(), s3retrieverv2.SharedItemsOptions{
+			group, err := s3retrieverv2.NewSharedItems(context.Background(), &s3retrieverv2.SharedItemsOptions{
 				Bucket: tt.bucket(t), AwsConfig: &cfg,
 			})
 			require.NoError(t, err)

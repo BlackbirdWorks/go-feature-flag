@@ -376,7 +376,8 @@ func runRetrieveCase(t *testing.T, setup func(*testhelpers.S3PrefixMock), conf c
 
 	t.Cleanup(func() { _ = r.Shutdown(t.Context()) })
 
-	for i, currStep := range steps {
+	for i := range steps {
+		currStep := &steps[i]
 		if currStep.mutate != nil {
 			currStep.mutate(mockS3)
 		}
@@ -411,7 +412,7 @@ func runRetrieveCase(t *testing.T, setup func(*testhelpers.S3PrefixMock), conf c
 }
 
 // retrieveN calls Retrieve currStep.concurrent times (at least once) at the same time.
-func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byte, []error) {
+func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep *step) ([][]byte, []error) {
 	t.Helper()
 
 	calls := max(currStep.concurrent, 1)
@@ -439,7 +440,7 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byt
 	return results, errs
 }
 
-func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step, got []byte, err error, i int) {
+func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep *step, got []byte, err error, i int) {
 	t.Helper()
 
 	if currStep.wantErr != "" {
@@ -464,7 +465,7 @@ func checkResult(t *testing.T, r *s3retrieverv2.Retriever, _ int, currStep step,
 	}
 }
 
-func checkPrefixOutput(t *testing.T, format string, currStep step, got []byte, i int) {
+func checkPrefixOutput(t *testing.T, format string, currStep *step, got []byte, i int) {
 	t.Helper()
 
 	flags, err := cache.ConvertToFlagStruct(got, format)

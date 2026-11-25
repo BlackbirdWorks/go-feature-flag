@@ -478,17 +478,17 @@ func (d *describer) scheduled(before, after *[]flag.ScheduledStep) {
 				content = strings.Join(lines, "; ")
 			}
 
-			d.addf("Scheduled step %s added: %s", stepLabel(afterSteps[afterIdx], afterIdx), content)
+			d.addf("Scheduled step %s added: %s", stepLabel(&afterSteps[afterIdx], afterIdx), content)
 
 			continue
 		}
 
-		if oldDate, newDate := stepDate(b[i], i), stepDate(afterSteps[afterIdx], afterIdx); oldDate != newDate {
+		if oldDate, newDate := stepDate(&b[i], i), stepDate(&afterSteps[afterIdx], afterIdx); oldDate != newDate {
 			d.addf("Scheduled step moved from %s to %s", oldDate, newDate)
 		}
 
 		for _, line := range d.stepLines(&b[i].InternalFlag, &afterSteps[afterIdx].InternalFlag) {
-			d.addf("Scheduled step %s: %s", stepLabel(afterSteps[afterIdx], afterIdx), line)
+			d.addf("Scheduled step %s: %s", stepLabel(&afterSteps[afterIdx], afterIdx), line)
 		}
 	}
 
@@ -499,7 +499,7 @@ func (d *describer) scheduled(before, after *[]flag.ScheduledStep) {
 
 	for i := range b {
 		if !kept[i] {
-			d.addf("Scheduled step %s removed", stepLabel(b[i], i))
+			d.addf("Scheduled step %s removed", stepLabel(&b[i], i))
 		}
 	}
 }
@@ -679,7 +679,7 @@ func describeWindow(window *flag.ExperimentationRollout) string {
 }
 
 // stepLabel names a scheduled step by its date, or by its position when it has none.
-func stepLabel(step flag.ScheduledStep, index int) string {
+func stepLabel(step *flag.ScheduledStep, index int) string {
 	if step.Date == nil {
 		return stepDate(step, index)
 	}
@@ -687,7 +687,7 @@ func stepLabel(step flag.ScheduledStep, index int) string {
 	return "on " + stepDate(step, index)
 }
 
-func stepDate(step flag.ScheduledStep, index int) string {
+func stepDate(step *flag.ScheduledStep, index int) string {
 	if step.Date == nil {
 		return "#" + strconv.Itoa(index+1)
 	}

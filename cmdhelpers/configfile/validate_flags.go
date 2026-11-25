@@ -40,7 +40,8 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 	defer svc.Close()
 
 	for _, key := range slices.Sorted(maps.Keys(flags)) {
-		err := validateFlag(svc, flags[key])
+		flagDto := flags[key]
+		err := validateFlag(svc, &flagDto)
 		if err != nil {
 			errs = append(errs, FlagError{Flag: key, Err: err})
 		}
@@ -52,7 +53,7 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 // validateFlag converts and validates a single flag.
 // The recover guards against panics in the IsValid method of modules/core (for example on partially
 // filled rollout definitions): such a flag is reported as invalid instead of crashing the caller.
-func validateFlag(svc *flag.Service, flagDto dto.DTO) (err error) {
+func validateFlag(svc *flag.Service, flagDto *dto.DTO) (err error) {
 	defer func() {
 		if recover() != nil {
 			err = errInternalValidation

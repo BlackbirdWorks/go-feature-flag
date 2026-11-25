@@ -32,7 +32,7 @@ func defaultSharedItemsFactory(ctx context.Context, bucket string) (*s3retriever
 		return nil, fmt.Errorf("load AWS default config: %w", err)
 	}
 
-	items, err := s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+	items, err := s3retrieverv2.NewSharedItems(ctx, &s3retrieverv2.SharedItemsOptions{
 		Bucket:          bucket,
 		AwsConfig:       &awsConfig,
 		Lister:          nil,

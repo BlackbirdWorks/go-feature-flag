@@ -71,7 +71,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 			}
 			defer release()
 
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				LeveledLogger:   slog.New(sink),

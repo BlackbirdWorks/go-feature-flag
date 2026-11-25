@@ -101,7 +101,7 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 // newTarget builds the target selected by the options.
 //
 //nolint:ireturn // factory: selects the load test target implementation from the options at runtime
-func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
+func newTarget(ctx context.Context, opts *options) (loadtest.Target, error) {
 	mode, err := loadtest.ParseExporterMode(opts.exporter)
 	if err != nil {
 		return nil, fmt.Errorf("parse exporter mode: %w", err)
@@ -188,7 +188,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		defer stop()
 	}
 
-	t, err := newTarget(ctx, opts)
+	t, err := newTarget(ctx, &opts)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
 
@@ -204,7 +204,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	_, _ = fmt.Fprintf(stdout, "# %s GOMAXPROCS=%d %s duration=%s\n",
 		name, runtime.GOMAXPROCS(0), runtime.Version(), opts.duration)
 
-	rep := loadtest.Run(ctx, t, loadtest.Options{
+	rep := loadtest.Run(ctx, t, &loadtest.Options{
 		Name: name, Duration: opts.duration, Interval: opts.interval, Workers: opts.workers,
 		WarmupIntervals: opts.warmup, HeapTolerance: opts.heapTolerance,
 	}, stdout)

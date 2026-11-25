@@ -54,13 +54,13 @@ type clientOptions struct {
 	// postgresPools shares the connection pools of the PostgreSQL retrievers of the clients created with it.
 	postgresPools *postgresqlretriever.PoolRegistry
 	// newClient builds the engine client. It defaults to ffclient.New and is replaced only by tests.
-	newClient func(ffclient.Config) (*ffclient.GoFeatureFlag, error)
+	newClient func(*ffclient.Config) (*ffclient.GoFeatureFlag, error)
 	// defaultExporterCleanQueueInterval is used when the flagset does not set its own exporterCleanQueueInterval.
 	defaultExporterCleanQueueInterval time.Duration
 }
 
 // withClientFactory replaces the function building the engine client (tests observe the configuration it receives).
-func withClientFactory(f func(ffclient.Config) (*ffclient.GoFeatureFlag, error)) clientOption {
+func withClientFactory(f func(*ffclient.Config) (*ffclient.GoFeatureFlag, error)) clientOption {
 	return func(o *clientOptions) { o.newClient = f }
 }
 
@@ -214,7 +214,7 @@ func newGoFeatureFlagClient(
 		newClient = ffclient.New
 	}
 
-	client, err := newClient(clientCfg)
+	client, err := newClient(&clientCfg)
 	if err != nil {
 		return nil, err
 	}

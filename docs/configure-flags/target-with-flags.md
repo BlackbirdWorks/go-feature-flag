@@ -138,7 +138,7 @@ When you initialise `semaphore` you can set an **environment** for this Semaphor
 ### GO Module
 
     ```go
-    client, err := ffclient.New(ffclient.Config{
+    client, err := ffclient.New(&ffclient.Config{
       // ...
       // highlight-next-line
       Environment:    "prod",

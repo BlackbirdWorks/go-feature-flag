@@ -59,5 +59,5 @@ func (d *DTO) Convert() flag.InternalFlag {
 		return flag.InternalFlag{}
 	}
 
-	return ConvertDtoToInternalFlag(*d)
+	return ConvertDtoToInternalFlag(d)
 }

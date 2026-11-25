@@ -33,7 +33,7 @@ To configure your GO module to use the HTTP(S) retriever, you need to add the fo
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &httpretriever.Retriever{
         URL:    "http://example.com/flag-config.yaml",

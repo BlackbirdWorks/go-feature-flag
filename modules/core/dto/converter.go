@@ -5,7 +5,7 @@ import (
 )
 
 // ConvertDtoToInternalFlag is converting a DTO to a flag.InternalFlag.
-func ConvertDtoToInternalFlag(dto DTO) flag.InternalFlag {
+func ConvertDtoToInternalFlag(dto *DTO) flag.InternalFlag {
 	var experimentation *flag.ExperimentationRollout
 	if dto.Experimentation != nil {
 		experimentation = &flag.ExperimentationRollout{
@@ -29,7 +29,7 @@ func ConvertDtoToInternalFlag(dto DTO) flag.InternalFlag {
 }
 
 // ConvertInternalFlagToDto converts an internal flag to its DTO representation.
-func ConvertInternalFlagToDto(internalFlag flag.InternalFlag) DTO {
+func ConvertInternalFlagToDto(internalFlag *flag.InternalFlag) DTO {
 	var experimentation *ExperimentationDto
 	if internalFlag.Experimentation != nil {
 		experimentation = &ExperimentationDto{

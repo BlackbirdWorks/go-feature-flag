@@ -32,7 +32,7 @@ configuration to your `ffclient.Config{}` object:
 ```go
 import 	"github.com/blackbirdworks/semaphore/retriever/file"
 // ...
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &fileretriever.Retriever{
         Path: "/semaphore/my-flags.yaml",

@@ -27,7 +27,7 @@ During the initialization you must give a [`ffclient.Config{}`](https://pkg.go.d
 
 ## Example
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     LeveledLogger:   slog.Default(),
     Context:         context.Background(),
@@ -70,7 +70,7 @@ All the functions are methods of a [`GoFeatureFlag`](https://pkg.go.dev/github.c
 Inside a function that returns an error, initialize each client and check the result before using it:
 
 ```go showLineNumbers
-x, err := ffclient.New(ffclient.Config{
+x, err := ffclient.New(&ffclient.Config{
     Retriever: &httpretriever.Retriever{URL: "http://example.com/flag-config.yaml"},
 })
 if err != nil {
@@ -78,7 +78,7 @@ if err != nil {
 }
 defer x.Close()
 
-y, err := ffclient.New(ffclient.Config{
+y, err := ffclient.New(&ffclient.Config{
     Retriever: &httpretriever.Retriever{URL: "http://example.com/test2.yaml"},
 })
 if err != nil {

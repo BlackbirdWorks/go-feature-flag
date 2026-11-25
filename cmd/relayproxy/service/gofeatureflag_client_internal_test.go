@@ -1190,7 +1190,7 @@ func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T
 
 			client, err := newGoFeatureFlagClient(fs, slog.New(slog.DiscardHandler), nil,
 				withDefaultExporterCleanQueueInterval(tt.fallback),
-				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+				withClientFactory(func(c *ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					got = c.ExporterCleanQueueInterval
 
 					return ffclient.New(c)

@@ -22,7 +22,7 @@ func TestValidTrackingEvent(t *testing.T) {
 	t.Parallel()
 
 	exp := mock.TrackingEventExporter{Bulk: false}
-	goff, err := ffclient.New(ffclient.Config{
+	goff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 500 * time.Millisecond,
 		Retriever:       &fileretriever.Retriever{Path: "./testdata/flag-config.yaml"},
 		DataExporters: []ffclient.DataExporter{

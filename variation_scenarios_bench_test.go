@@ -38,7 +38,7 @@ func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFe
 		}
 	}
 
-	c, err := ffclient.New(cfg)
+	c, err := ffclient.New(&cfg)
 	require.NoError(b, err)
 
 	return c

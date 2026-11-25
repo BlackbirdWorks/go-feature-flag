@@ -91,8 +91,8 @@ type Loader struct {
 }
 
 // New creates a Loader reading the files from store.
-func New(store Store, opts Options) *Loader {
-	return &Loader{store: store, opts: opts, prefix: normalizePrefix(opts.Prefix)}
+func New(store Store, opts *Options) *Loader {
+	return &Loader{store: store, opts: *opts, prefix: normalizePrefix(opts.Prefix)}
 }
 
 // normalizePrefix returns the prefix as sent to the store: keys never start with "/", so leading
@@ -123,8 +123,8 @@ func normalizeVersion(v string) string {
 // output format are kept (ex: when a retriever is initialized again with the same settings).
 // Otherwise it returns a new Loader on store, which starts clean because the selection of files
 // changed. The store of l is kept as is when l is reused, it must be equivalent to store.
-func Reuse(l *Loader, store Store, opts Options) *Loader {
-	if l != nil && l.opts == opts {
+func Reuse(l *Loader, store Store, opts *Options) *Loader {
+	if l != nil && l.opts == *opts {
 		return l
 	}
 

@@ -123,7 +123,7 @@ func TestJudge(t *testing.T) {
 			}
 
 			r := &Report{Samples: samples(tt.heap, tt.gor)}
-			judge(r, opts)
+			judge(r, &opts)
 			assert.Equal(t, tt.wantPass, r.Pass, "reasons: %v", r.Reasons)
 
 			if tt.wantReason != "" {
@@ -140,7 +140,7 @@ func TestJudge_EvaluationErrorsFail(t *testing.T) {
 	g := []int{10, 10, 10, 10, 10, 10}
 	h := []uint64{1, 1, 1, 1, 1, 1}
 	r := &Report{Samples: samples(h, g), TotalEval: 100, TotalErr: 7}
-	judge(r, Options{HeapTolerance: 0.25, HeapMinGrowthBytes: 1 << 30, GoroutineSlack: 64})
+	judge(r, &Options{HeapTolerance: 0.25, HeapMinGrowthBytes: 1 << 30, GoroutineSlack: 64})
 	assert.False(t, r.Pass)
 	require.Len(t, r.Reasons, 1)
 	assert.Contains(t, r.Reasons[0], "7 of 100 evaluations failed")
@@ -246,7 +246,7 @@ func TestRun_CountsEvaluationsAndErrors(t *testing.T) {
 
 	var out bytes.Buffer
 
-	rep := Run(context.Background(), target, Options{
+	rep := Run(context.Background(), target, &Options{
 		Name: "fake", Duration: 600 * time.Millisecond, Interval: 50 * time.Millisecond, Workers: 2,
 		WarmupIntervals: 2, HeapMinGrowthBytes: 1 << 30,
 	}, &out)
@@ -277,7 +277,7 @@ func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 
 	done := make(chan Report, 1)
 	go func() {
-		done <- Run(ctx, &fakeTarget{}, Options{Duration: time.Hour, Interval: time.Hour, Workers: 2}, nil)
+		done <- Run(ctx, &fakeTarget{}, &Options{Duration: time.Hour, Interval: time.Hour, Workers: 2}, nil)
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -295,7 +295,7 @@ func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 func TestRun_AbortsOnHeapCap(t *testing.T) {
 	t.Parallel()
 
-	rep := Run(context.Background(), &fakeTarget{}, Options{
+	rep := Run(context.Background(), &fakeTarget{}, &Options{
 		Duration: 5 * time.Second, Interval: time.Second, Workers: 1, MaxHeapBytes: 1,
 	}, nil)
 	assert.False(t, rep.Pass)
@@ -390,9 +390,9 @@ func TestFlagsPerCall(t *testing.T) {
 
 func TestWarmupCount(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, 2, warmupCount(5, Options{}), "at least two samples")
-	assert.Equal(t, 6, warmupCount(30, Options{}), "20 percent of the samples")
-	assert.Equal(t, 4, warmupCount(30, Options{WarmupIntervals: 4}), "explicit value wins")
+	assert.Equal(t, 2, warmupCount(5, &Options{}), "at least two samples")
+	assert.Equal(t, 6, warmupCount(30, &Options{}), "20 percent of the samples")
+	assert.Equal(t, 4, warmupCount(30, &Options{WarmupIntervals: 4}), "explicit value wins")
 }
 
 func TestSummarize(t *testing.T) {
@@ -440,16 +440,16 @@ func TestSummaryPrintsTheWindow(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	Report{Name: "x", Pass: true, Window: Window{
+	(&Report{Name: "x", Pass: true, Window: Window{
 		Samples: 4, CallsPerSec: 100, FlagsPerCall: 3, FlagsPerSec: 300, Errors: 2,
 		P50: 100 * time.Microsecond, P95: 200 * time.Microsecond, P99: 300 * time.Microsecond,
-	}}.Summary(&buf)
+	}}).Summary(&buf)
 	out := buf.String()
 	assert.Contains(t, out, "100 calls/s, 300 flags/s (3 per call)")
 	assert.Contains(t, out, "2 errors")
 	assert.Contains(t, out, "p95 200.0us")
 
 	buf.Reset()
-	Report{Name: "y", Pass: true}.Summary(&buf)
+	(&Report{Name: "y", Pass: true}).Summary(&buf)
 	assert.NotContains(t, buf.String(), "window (")
 }

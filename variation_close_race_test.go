@@ -93,7 +93,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 				}
 			}
 			second := &queueTestExporter{bulk: tt.bulk}
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				DataExporters: []ffclient.DataExporter{

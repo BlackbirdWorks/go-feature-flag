@@ -36,7 +36,7 @@ const (
 func TestStartWithoutRetriever(t *testing.T) {
 	t.Parallel()
 
-	got, err := ffclient.New(ffclient.Config{
+	got, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 	})
@@ -52,7 +52,7 @@ func TestStartWithoutRetriever(t *testing.T) {
 func TestMultipleRetrievers(t *testing.T) {
 	t.Parallel()
 
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 		Retrievers: []retriever.Retriever{
@@ -78,7 +78,7 @@ func TestMultipleRetrievers(t *testing.T) {
 func TestMultipleRetrieversWithOverrideFlag(t *testing.T) {
 	t.Parallel()
 
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 60 * time.Second,
 		LeveledLogger:   slog.Default(),
 		Retriever:       &fileretriever.Retriever{Path: "testdata/multiple_files/config-1.yaml"},
@@ -107,7 +107,7 @@ func TestValidUseCase(t *testing.T) {
 
 	cliExport := mock.Exporter{Bulk: false}
 	// Valid use case
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
@@ -154,7 +154,7 @@ func TestValidUseCaseToml(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.toml"},
 		LeveledLogger:   slog.Default(),
@@ -176,7 +176,7 @@ func TestValidUseCaseJson(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.json"},
 		LeveledLogger:   slog.Default(),
@@ -199,7 +199,7 @@ func TestValidUseCaseMultilineQueryJson(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/flag-config-multiline-query.json",
@@ -223,7 +223,7 @@ func TestValidUseCaseMultilineQueryJson(t *testing.T) {
 func Test2GoFeatureFlagInstance(t *testing.T) {
 	t.Parallel()
 
-	gffClient1, err := ffclient.New(ffclient.Config{
+	gffClient1, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
@@ -232,7 +232,7 @@ func Test2GoFeatureFlagInstance(t *testing.T) {
 
 	defer gffClient1.Close()
 
-	gffClient2, err2 := ffclient.New(ffclient.Config{
+	gffClient2, err2 := ffclient.New(&ffclient.Config{
 		PollingInterval: 10 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/test-instance2.yaml"},
 		LeveledLogger:   slog.Default(),
@@ -271,7 +271,7 @@ test-flag:
 	flagFile, _ := os.CreateTemp(t.TempDir(), "")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
-	gffClient1, _ := ffclient.New(ffclient.Config{
+	gffClient1, _ := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: flagFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -338,7 +338,7 @@ test-flag:
 	flagFile, _ := os.CreateTemp(t.TempDir(), "impossible")
 	_ = os.WriteFile(flagFile.Name(), []byte(initialFileContent), os.ModePerm)
 
-	gffClient1, _ := ffclient.New(ffclient.Config{
+	gffClient1, _ := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: flagFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -390,7 +390,7 @@ test-flag:
 	tempDir := t.TempDir()
 
 	flagFilePath := tempDir + "_FlagFileUnreachable.yaml"
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval:         1 * time.Second,
 		Retriever:               &fileretriever.Retriever{Path: flagFilePath},
 		LeveledLogger:           slog.Default(),
@@ -426,7 +426,7 @@ test-flag:
 func TestInvalidConf(t *testing.T) {
 	t.Parallel()
 
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/invalid-flag-config.json"},
 		LeveledLogger:   slog.Default(),
@@ -446,7 +446,7 @@ func TestInvalidConf(t *testing.T) {
 func TestInvalidConfAndRetrieverError(t *testing.T) {
 	t.Parallel()
 
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/invalid-flag-config.json",
@@ -478,7 +478,7 @@ func TestValidUseCaseBigFlagFile(t *testing.T) {
 	t.Parallel()
 
 	// Valid use case
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config-big.yaml"},
 	})
@@ -506,7 +506,7 @@ func TestInitializableRetrieverWithRetrieverReady(t *testing.T) {
 	require.NoError(t, err)
 
 	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverReady)
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
 	})
@@ -533,7 +533,7 @@ func TestInitializableRetrieverWithRetrieverNotReady(t *testing.T) {
 	require.NoError(t, err)
 
 	r := mockretriever.NewFileInitializableRetriever(tmpFile.Name(), retriever.RetrieverNotReady)
-	gff, err := ffclient.New(ffclient.Config{
+	gff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 5 * time.Second,
 		Retriever:       r,
 	})
@@ -584,7 +584,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gff, err := ffclient.New(ffclient.Config{
+			gff, err := ffclient.New(&ffclient.Config{
 				PollingInterval: tt.fields.pollingInterval,
 				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				Offline:         tt.offline,
@@ -622,7 +622,7 @@ func TestGoFeatureFlag_GetCacheRefreshDate(t *testing.T) {
 func TestGoFeatureFlag_SetOffline(t *testing.T) {
 	t.Parallel()
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 		LeveledLogger:   slog.Default(),
@@ -675,7 +675,7 @@ func Test_GetPollingInterval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			goff, err := ffclient.New(ffclient.Config{
+			goff, err := ffclient.New(&ffclient.Config{
 				PollingInterval: tt.pollingInterval,
 				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
@@ -700,7 +700,7 @@ func Test_ForceRefreshCache(t *testing.T) {
 	err = os.WriteFile(tempFile.Name(), content, os.ModePerm)
 	require.NoError(t, err)
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 15 * time.Minute,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -782,7 +782,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(configFile1.Name(), content, os.ModePerm))
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval:                 pollingInterval,
 		Retriever:                       &fileretriever.Retriever{Path: configFile1.Name()},
 		LeveledLogger:                   slog.Default(),
@@ -845,7 +845,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 	require.NoError(t, os.Remove(configFile2.Name()))
 	t.Cleanup(func() { _ = os.Remove(configFile2.Name()) })
 
-	gffClient2, err := ffclient.New(ffclient.Config{
+	gffClient2, err := ffclient.New(&ffclient.Config{
 		PollingInterval:                 pollingInterval,
 		Retriever:                       &fileretriever.Retriever{Path: configFile2.Name()},
 		LeveledLogger:                   slog.Default(),
@@ -902,7 +902,7 @@ func Test_PersistFlagConfigurationOnDisk(t *testing.T) {
 func TestUseCustomBucketingKey(t *testing.T) {
 	t.Parallel()
 
-	gffClient, err := ffclient.New(ffclient.Config{
+	gffClient, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever: &fileretriever.Retriever{
 			Path: "testdata/flag-config-custom-bucketingkey.yaml",
@@ -1002,7 +1002,7 @@ func Test_DisableNotifierOnInit(t *testing.T) {
 			mockNotifier := &mock.Notifier{}
 			tt.config.Notifiers = []notifier.Notifier{mockNotifier}
 
-			gffClient, err := ffclient.New(*tt.config)
+			gffClient, err := ffclient.New(&*tt.config)
 			require.NoError(t, err)
 
 			defer gffClient.Close()
@@ -1028,7 +1028,7 @@ func TestStartWithNegativeIntervalToDisablePolling(t *testing.T) {
 	err = os.WriteFile(tempFile.Name(), content, os.ModePerm)
 	require.NoError(t, err)
 
-	goff, err := ffclient.New(ffclient.Config{
+	goff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: -1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: tempFile.Name()},
 		LeveledLogger:   slog.Default(),
@@ -1083,7 +1083,7 @@ func TestGoFeatureFlag_GetEvaluationContextEnrichment(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			gff, err := ffclient.New(ffclient.Config{
+			gff, err := ffclient.New(&ffclient.Config{
 				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				EvaluationContextEnrichment: tt.enrichment,
 			})
@@ -1111,7 +1111,7 @@ func TestGoFeatureFlag_SetOfflineWithContext(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: 1 * time.Second,
 				Retriever:       &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
@@ -1143,7 +1143,7 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			first, err := ffclient.New(ffclient.Config{
+			first, err := ffclient.New(&ffclient.Config{
 				Offline:   tt.offline,
 				Retriever: &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})
@@ -1151,7 +1151,7 @@ func TestGoFeatureFlag_EvaluationService(t *testing.T) {
 
 			defer first.Close()
 
-			second, err := ffclient.New(ffclient.Config{
+			second, err := ffclient.New(&ffclient.Config{
 				Offline:   tt.offline,
 				Retriever: &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 			})

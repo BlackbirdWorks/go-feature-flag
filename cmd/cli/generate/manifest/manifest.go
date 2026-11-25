@@ -55,7 +55,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 
 	flags := make(map[string]flag.InternalFlag)
 	for k, v := range m.dtos {
-		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
+		flags[k] = dtoCore.ConvertDtoToInternalFlag(&v)
 	}
 
 	output := helper.Output{}

@@ -155,13 +155,13 @@ func TestAllFlagsState(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 			}
 
@@ -266,13 +266,13 @@ func TestGetFlagStates(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 			}
 
@@ -346,7 +346,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				err  error
 			)
 			if tt.initModule {
-				goff, err = ffclient.New(tt.config)
+				goff, err = ffclient.New(&tt.config)
 				require.NoError(t, err)
 
 				defer goff.Close()
@@ -357,7 +357,7 @@ func TestAllFlagsFromCache(t *testing.T) {
 				assert.Len(t, flags, tt.wantFlags)
 			} else {
 				// we close directly so we can test with module not init
-				goff, _ = ffclient.New(tt.config)
+				goff, _ = ffclient.New(&tt.config)
 				goff.Close()
 
 				_, getFlagsFromCacheErr := goff.GetFlagsFromCache()
@@ -379,7 +379,7 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
     - date: 2999-01-01T00:00:00Z
       defaultRule: {variation: B}
 `), 0o600))
-	goff, err := ffclient.New(ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
+	goff, err := ffclient.New(&ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
 	require.NoError(t, err)
 
 	defer goff.Close()

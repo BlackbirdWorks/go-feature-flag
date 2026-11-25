@@ -106,8 +106,8 @@ func (m *ExporterDeprecated) GetExportedEvents() []exporter.ExportableEvent {
 	defer m.mutex.Unlock()
 
 	exportableEvents := make([]exporter.ExportableEvent, len(m.ExportedEvents))
-	for index, event := range m.ExportedEvents {
-		exportableEvents[index] = event
+	for index := range m.ExportedEvents {
+		exportableEvents[index] = m.ExportedEvents[index]
 	}
 
 	return exportableEvents
@@ -162,8 +162,8 @@ func (m *ExporterDeprecatedV2) GetExportedEvents() []exporter.ExportableEvent {
 	defer m.mutex.Unlock()
 
 	exportableEvents := make([]exporter.ExportableEvent, len(m.ExportedEvents))
-	for index, event := range m.ExportedEvents {
-		exportableEvents[index] = event
+	for index := range m.ExportedEvents {
+		exportableEvents[index] = m.ExportedEvents[index]
 	}
 
 	return exportableEvents

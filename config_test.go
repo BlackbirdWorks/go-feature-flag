@@ -372,7 +372,7 @@ func TestNewWithContext(t *testing.T) {
 				closeCtx = context.WithValue(t.Context(), key, tt.closeVal)
 			}
 
-			client, err := ffClient.NewWithContext(initCtx, ffClient.Config{
+			client, err := ffClient.NewWithContext(initCtx, &ffClient.Config{
 				PollingInterval: 10 * time.Second,
 				Retriever:       rec,
 			})

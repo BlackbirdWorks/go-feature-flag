@@ -55,14 +55,17 @@ const DefaultEventQueueSize = 65536
 
 // New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
-func New(config Config) (*GoFeatureFlag, error) {
+func New(config *Config) (*GoFeatureFlag, error) {
 	return NewWithContext(context.Background(), config)
 }
 
 // NewWithContext creates a new semaphore instance using ctx to initialize the configured retrievers.
-func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) {
+//
+// The configuration is copied: defaults are set on the copy, the given Config is left as it is.
+func NewWithContext(ctx context.Context, given *Config) (*GoFeatureFlag, error) {
 	ctx = internal.ContextOrBackground(ctx)
 
+	config := *given
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
@@ -78,14 +81,14 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 		return goFF, nil
 	}
 
-	retrieverManager, err := initializeRetrieverManager(ctx, config, goFF.evaluationService)
+	retrieverManager, err := initializeRetrieverManager(ctx, &config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
 		return nil, err
 	}
 
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
-		config, goFF.config.internalLogger)
+		&config, goFF.config.internalLogger)
 	goFF.startEventWorker(ctx)
 	config.internalLogger.DebugContext(ctx, "Semaphore is initialized")
 
@@ -93,7 +96,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 }
 
 // initializeNotificationService is a function that will initialize the notification service with the notifiers.
-func initializeNotificationService(config Config) *notification.ServiceImpl {
+func initializeNotificationService(config *Config) *notification.ServiceImpl {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
 
@@ -105,7 +108,7 @@ const errInitRetrieversFormat = "impossible to initialize the retrievers, please
 
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
 func initializeRetrieverManager(
-	ctx context.Context, config Config, evaluationService *flag.Service,
+	ctx context.Context, config *Config, evaluationService *flag.Service,
 ) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
@@ -141,7 +144,7 @@ func initializeRetrieverManager(
 	return manager, nil
 }
 
-func initializeDataExporters(config Config, logger *fflog.FFLogger) (
+func initializeDataExporters(config *Config, logger *fflog.FFLogger) (
 	exporter.Manager[exporter.FeatureEvent], exporter.Manager[exporter.TrackingEvent],
 ) {
 	exporters := config.GetDataExporters()

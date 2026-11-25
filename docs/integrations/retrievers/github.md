@@ -41,7 +41,7 @@ To configure your GO module to use the GitHub retriever, you need to add the fol
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "your-org/your-repo",
@@ -108,7 +108,7 @@ retrievers:
 ### GO Module Configuration
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "myorg/my-flags-repo",
@@ -143,7 +143,7 @@ retrievers:
 ### GO Module Configuration
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &githubretriever.Retriever{
         RepositorySlug: "myorg/myrepo",

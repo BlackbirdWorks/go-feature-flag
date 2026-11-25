@@ -139,7 +139,7 @@ func newFakeRegistryWithPolling(
 	return newSharedBucketRegistry(func(ctx context.Context, bucket string) (*s3retrieverv2.SharedItems, error) {
 		created.Add(1)
 
-		return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+		return s3retrieverv2.NewSharedItems(ctx, &s3retrieverv2.SharedItemsOptions{
 			Bucket: bucket, Lister: fake, Downloader: fake,
 		})
 	}, interval, jitter, logger)
@@ -261,7 +261,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 					building.Done()
 					building.Wait()
 
-					return s3retrieverv2.NewSharedItems(ctx, s3retrieverv2.SharedItemsOptions{
+					return s3retrieverv2.NewSharedItems(ctx, &s3retrieverv2.SharedItemsOptions{
 						Bucket: bucket, Lister: &fakeS3{}, Downloader: &fakeS3{},
 					})
 				},

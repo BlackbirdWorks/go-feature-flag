@@ -28,7 +28,7 @@ func TestAllFlags(t *testing.T) {
 		Failed:        false,
 		Reason:        flag.ReasonStatic,
 	}
-	afs.AddFlag(fixtures.UserKeyMy, state1)
+	afs.AddFlag(fixtures.UserKeyMy, &state1)
 	assert.Len(t, afs.GetFlags(), 1)
 	assert.True(t, afs.IsValid())
 
@@ -42,7 +42,7 @@ func TestAllFlags(t *testing.T) {
 		ErrorDetails:  "The targeting key is missing",
 		Reason:        flag.ReasonError,
 	}
-	afs.AddFlag("my-key-2", fs2)
+	afs.AddFlag("my-key-2", &fs2)
 	assert.Len(t, afs.GetFlags(), 2)
 	assert.False(t, afs.IsValid())
 

@@ -40,7 +40,7 @@ func newFileClient(t *testing.T, content string) (*ffclient.GoFeatureFlag, strin
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "flags.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 	})

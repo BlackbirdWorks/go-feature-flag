@@ -14,7 +14,7 @@ func (f *InternalFlag) DeepCopy() *InternalFlag {
 	}
 
 	return &InternalFlag{
-		Variations:      copyVariations(f.Variations),
+		Variations:      copyVia(f.Variations, copyVariations),
 		Rules:           copyRules(f.Rules),
 		BucketingKey:    copyPtr(f.BucketingKey),
 		DefaultRule:     f.DefaultRule.deepCopy(),
@@ -23,7 +23,7 @@ func (f *InternalFlag) DeepCopy() *InternalFlag {
 		TrackEvents:     copyPtr(f.TrackEvents),
 		Disable:         copyPtr(f.Disable),
 		Version:         copyPtr(f.Version),
-		Metadata:        copyMetadata(f.Metadata),
+		Metadata:        copyVia(f.Metadata, copyMetadata),
 	}
 }
 
@@ -37,13 +37,20 @@ func copyPtr[T any](p *T) *T {
 	return &v
 }
 
-func copyVariations(variations *map[string]*any) *map[string]*any {
-	if variations == nil {
+// copyVia returns a pointer to the copy of *p made by cp, nil for a nil pointer.
+func copyVia[T any](p *T, cp func(T) T) *T {
+	if p == nil {
 		return nil
 	}
 
-	out := make(map[string]*any, len(*variations))
-	for name, value := range *variations {
+	v := cp(*p)
+
+	return &v
+}
+
+func copyVariations(variations map[string]*any) map[string]*any {
+	out := make(map[string]*any, len(variations))
+	for name, value := range variations {
 		if value == nil {
 			out[name] = nil
 
@@ -54,20 +61,16 @@ func copyVariations(variations *map[string]*any) *map[string]*any {
 		out[name] = &c
 	}
 
-	return &out
+	return out
 }
 
-func copyMetadata(metadata *map[string]any) *map[string]any {
-	if metadata == nil {
-		return nil
-	}
-
-	out := make(map[string]any, len(*metadata))
-	for k, v := range *metadata {
+func copyMetadata(metadata map[string]any) map[string]any {
+	out := make(map[string]any, len(metadata))
+	for k, v := range metadata {
 		out[k] = deepCopyValue(v)
 	}
 
-	return &out
+	return out
 }
 
 func copyRules(rules *[]Rule) *[]Rule {

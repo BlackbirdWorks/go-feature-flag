@@ -48,6 +48,7 @@ func NewEvaluationContext(key string) EvaluationContext {
 }
 
 // NewAnonymousEvaluationContext returns an anonymous evaluation context with the given key.
+//
 // Deprecated: NewAnonymousEvaluationContext is here for compatibility reason.
 // Please use NewEvaluationContext instead and add a attributes attribute to know that it is an anonymous user.
 //

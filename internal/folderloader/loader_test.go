@@ -220,7 +220,7 @@ func TestLoader_Load(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			runLoadCase(t, tt)
+			runLoadCase(t, &tt)
 		})
 	}
 }
@@ -684,7 +684,7 @@ func roundTripCases(t *testing.T) []loadCase {
 	return cases
 }
 
-func runLoadCase(t *testing.T, testCase loadCase) {
+func runLoadCase(t *testing.T, testCase *loadCase) {
 	t.Helper()
 
 	store := &fakeStore{}
@@ -692,9 +692,10 @@ func runLoadCase(t *testing.T, testCase loadCase) {
 
 	logs := &bytes.Buffer{}
 	testCase.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
-	ldr := folderloader.New(store, testCase.opts)
+	ldr := folderloader.New(store, &testCase.opts)
 
-	for i, currStep := range testCase.steps {
+	for i := range testCase.steps {
+		currStep := &testCase.steps[i]
 		if currStep.mutate != nil {
 			currStep.mutate(store)
 		}
@@ -719,7 +720,7 @@ func runLoadCase(t *testing.T, testCase loadCase) {
 	}
 }
 
-func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
+func checkLogs(t *testing.T, logs *bytes.Buffer, currStep *step, i int) {
 	t.Helper()
 
 	if currStep.wantLog != "" {
@@ -741,7 +742,7 @@ func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
 	}
 }
 
-func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) {
+func checkOutput(t *testing.T, format string, currStep *step, got []byte, i int) {
 	t.Helper()
 
 	if currStep.wantContent != "" {
@@ -831,15 +832,15 @@ func TestLoader_Load_Provider(t *testing.T) {
 			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 
 			ls := &fakeStore{listErr: errBoom}
-			_, err := folderloader.New(ls, tt.opts).Load(t.Context())
+			_, err := folderloader.New(ls, &tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantList)
 
 			gs := &fakeStore{getErr: errKaboom}
 			gs.put(fixtures.FileAYAML, yamlA)
-			_, err = folderloader.New(gs, tt.opts).Load(t.Context())
+			_, err = folderloader.New(gs, &tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantGet)
 
-			_, err = folderloader.New(&fakeStore{}, tt.opts).Load(t.Context())
+			_, err = folderloader.New(&fakeStore{}, &tt.opts).Load(t.Context())
 			require.NoError(t, err)
 
 			for _, w := range tt.wantLogs {
@@ -873,7 +874,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 			t.Parallel()
 
 			s := &fakeStore{}
-			l := folderloader.New(s, folderloader.Options{Prefix: tt.prefix, Recursive: tt.recursive})
+			l := folderloader.New(s, &folderloader.Options{Prefix: tt.prefix, Recursive: tt.recursive})
 			_, err := l.Load(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, []string{tt.wantPrefix}, s.listPrefixes)
@@ -908,7 +909,7 @@ func TestLoader_OutputFormat(t *testing.T) {
 			t.Parallel()
 
 			s := &fakeStore{files: tt.files}
-			l := folderloader.New(s, folderloader.Options{Prefix: "f/", Pattern: tt.pattern})
+			l := folderloader.New(s, &folderloader.Options{Prefix: "f/", Pattern: tt.pattern})
 			assert.Equal(t, tt.want, l.OutputFormat())
 			_, err := l.Load(t.Context())
 			require.NoError(t, err)
@@ -926,7 +927,7 @@ func TestLoader_Reset(t *testing.T) {
 
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
-	ldr := folderloader.New(store, folderloader.Options{Prefix: "f/", Logger: logger})
+	ldr := folderloader.New(store, &folderloader.Options{Prefix: "f/", Logger: logger})
 
 	for range 2 {
 		_, err := ldr.Load(t.Context())
@@ -989,7 +990,7 @@ func TestReuse(t *testing.T) {
 			store := &fakeStore{}
 			store.put(fixtures.FileAYAML, yamlA)
 			store.put("g/a.yaml", yamlA)
-			old := folderloader.New(store, base)
+			old := folderloader.New(store, &base)
 			_, err := old.Load(t.Context())
 			require.NoError(t, err)
 
@@ -1003,7 +1004,7 @@ func TestReuse(t *testing.T) {
 				opts = tt.opts(base)
 			}
 
-			got := folderloader.Reuse(prev, store, opts)
+			got := folderloader.Reuse(prev, store, &opts)
 			require.NotNil(t, got)
 
 			if tt.wantSame {

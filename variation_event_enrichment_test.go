@@ -82,7 +82,7 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			t.Parallel()
 
 			exp := &collectingExporter{}
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval:             time.Hour,
 				Retriever:                   &fileretriever.Retriever{Path: fixtures.FlagConfigYAMLPath},
 				EvaluationContextEnrichment: tt.enrichment,

@@ -56,23 +56,15 @@ func newCaptureLogger() (*slog.Logger, *captureHandler) {
 	return slog.New(h), h
 }
 
-// variationsPtr builds the *map[string]*any value expected by InternalFlag.Variations
+// variationsOf builds the map[string]*any value expected by InternalFlag.Variations
 // from a plain map[string]any literal.
-func variationsPtr(values map[string]any) *map[string]*any {
+func variationsOf(values map[string]any) map[string]*any {
 	out := make(map[string]*any, len(values))
 	for k, v := range values {
 		out[k] = &v
 	}
 
-	return &out
-}
-
-func metadataPtr(m map[string]any) *map[string]any {
-	if m == nil {
-		return nil
-	}
-
-	return &m
+	return out
 }
 
 func defaultRule(variation string) *flag.Rule {
@@ -85,11 +77,15 @@ func defaultRule(variation string) *flag.Rule {
 // boolFlag returns a minimal boolean InternalFlag whose variations are True/False
 // and whose default rule selects the variation passed in.
 func boolFlag(defaultVariation string, metadata map[string]any) flag.InternalFlag {
-	return flag.InternalFlag{
-		Variations:  variationsPtr(map[string]any{fixtures.VariationTrue: true, fixtures.VariationFalse: false}),
+	internalFlag := flag.InternalFlag{
+		Variations:  new(variationsOf(map[string]any{fixtures.VariationTrue: true, fixtures.VariationFalse: false})),
 		DefaultRule: defaultRule(defaultVariation),
-		Metadata:    metadataPtr(metadata),
 	}
+	if metadata != nil {
+		internalFlag.Metadata = &metadata
+	}
+
+	return internalFlag
 }
 
 // boolFlagWithExperimentation is like boolFlag but attaches an experimentation window.
@@ -201,9 +197,9 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "string flag",
 			flags: map[string]flag.InternalFlag{
 				"string-flag": {
-					Variations:  variationsPtr(map[string]any{"A": "a", "B": "b"}),
+					Variations:  new(variationsOf(map[string]any{"A": "a", "B": "b"})),
 					DefaultRule: defaultRule("A"),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: "a",
 						fixtures.Description:  "strings",
 					}),
@@ -215,9 +211,9 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "integer flag",
 			flags: map[string]flag.InternalFlag{
 				"int-flag": {
-					Variations:  variationsPtr(map[string]any{one: 1, "Two": 2}),
+					Variations:  new(variationsOf(map[string]any{one: 1, "Two": 2})),
 					DefaultRule: defaultRule(one),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: 1,
 						fixtures.Description:  "ints",
 					}),
@@ -229,9 +225,9 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "float flag without description",
 			flags: map[string]flag.InternalFlag{
 				"float-flag": {
-					Variations:  variationsPtr(map[string]any{half: 0.5, "OneAndHalf": 1.5}),
+					Variations:  new(variationsOf(map[string]any{half: 0.5, "OneAndHalf": 1.5})),
 					DefaultRule: defaultRule(half),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: 0.5,
 					}),
 				},
@@ -242,12 +238,12 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "object flag",
 			flags: map[string]flag.InternalFlag{
 				"object-flag": {
-					Variations: variationsPtr(map[string]any{
+					Variations: new(variationsOf(map[string]any{
 						"A": map[string]any{fixtures.Key: "value-a"},
 						"B": map[string]any{fixtures.Key: "value-b"},
-					}),
+					})),
 					DefaultRule: defaultRule("A"),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: map[string]any{fixtures.Key: "value-a"},
 						fixtures.Description:  "objects",
 					}),
@@ -259,9 +255,9 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "int and float .0 mix resolves to integer",
 			flags: map[string]flag.InternalFlag{
 				"mixed-flag": {
-					Variations:  variationsPtr(map[string]any{"Whole": 1, half: 2.0}),
+					Variations:  new(variationsOf(map[string]any{"Whole": 1, half: 2.0})),
 					DefaultRule: defaultRule("Whole"),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: 1,
 						fixtures.Description:  "int as float",
 					}),
@@ -273,9 +269,9 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "int and non-whole float mix resolves to float",
 			flags: map[string]flag.InternalFlag{
 				"mixed-flag": {
-					Variations:  variationsPtr(map[string]any{one: 1, "OneAndHalf": 1.5}),
+					Variations:  new(variationsOf(map[string]any{one: 1, "OneAndHalf": 1.5})),
 					DefaultRule: defaultRule(one),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: 1,
 						fixtures.Description:  "float and int",
 					}),
@@ -313,9 +309,9 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "flag without metadata is skipped and logged",
 			flags: map[string]flag.InternalFlag{
 				"no-meta": {
-					Variations: variationsPtr(
+					Variations: new(variationsOf(
 						map[string]any{fixtures.VariationTrue: true, fixtures.VariationFalse: false},
-					),
+					)),
 					DefaultRule: defaultRule(fixtures.VariationFalse),
 				},
 			},
@@ -352,9 +348,9 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 					fixtures.DefaultValue: true,
 				}),
 				"flag-b": {
-					Variations:  variationsPtr(map[string]any{one: 1, "Two": 2}),
+					Variations:  new(variationsOf(map[string]any{one: 1, "Two": 2})),
 					DefaultRule: defaultRule(one),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: 1,
 						fixtures.Description:  "second",
 					}),
@@ -366,11 +362,11 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "unsupported variation type returns wrapped error",
 			flags: map[string]flag.InternalFlag{
 				fixtures.FlagKeyBad: {
-					Variations: variationsPtr(map[string]any{
+					Variations: new(variationsOf(map[string]any{
 						"Slice": []int{1, 2, 3},
-					}),
+					})),
 					DefaultRule: defaultRule("Slice"),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: []int{1, 2, 3},
 					}),
 				},
@@ -381,9 +377,9 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "incompatible variation types return wrapped error",
 			flags: map[string]flag.InternalFlag{
 				fixtures.FlagKeyBad: {
-					Variations:  variationsPtr(map[string]any{"A": true, "B": "string"}),
+					Variations:  new(variationsOf(map[string]any{"A": true, "B": "string"})),
 					DefaultRule: defaultRule("A"),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: true,
 					}),
 				},
@@ -394,9 +390,9 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "empty variations map returns wrapped error",
 			flags: map[string]flag.InternalFlag{
 				fixtures.FlagKeyBad: {
-					Variations:  variationsPtr(map[string]any{}),
+					Variations:  new(variationsOf(map[string]any{})),
 					DefaultRule: defaultRule(""),
-					Metadata: metadataPtr(map[string]any{
+					Metadata: new(map[string]any{
 						fixtures.DefaultValue: "ignored",
 					}),
 				},

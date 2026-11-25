@@ -286,7 +286,7 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 			var got, calls atomic.Int64
 
 			mgr.clientOptions = []clientOption{
-				withClientFactory(func(clientCfg ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+				withClientFactory(func(clientCfg *ffclient.Config) (*ffclient.GoFeatureFlag, error) {
 					calls.Add(1)
 					got.Store(int64(clientCfg.ExporterCleanQueueInterval))
 

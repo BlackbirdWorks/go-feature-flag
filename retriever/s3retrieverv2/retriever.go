@@ -231,7 +231,7 @@ func (s *Retriever) SetLister(lister ListerAPI) {
 // initLoader creates the folder loader, or keeps the current one if the settings did not change.
 // The caller must hold s.mu.
 func (s *Retriever) initLoader(logger *fflog.FFLogger) {
-	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, folderloader.Options{
+	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, &folderloader.Options{
 		Prefix: s.Prefix, Pattern: s.Pattern, Recursive: s.Recursive,
 		Logger: logger, Location: s.Bucket, LocationKey: "bucket", Provider: "S3",
 	}))

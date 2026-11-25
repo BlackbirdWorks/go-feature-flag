@@ -106,7 +106,7 @@ configuration to your `ffclient.Config{}` object:
 
 ```go
 awsConfig, _ := config.LoadDefaultConfig(context.Background())
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &s3retrieverv2.Retriever{
         Bucket: "my-featureflag-bucket",

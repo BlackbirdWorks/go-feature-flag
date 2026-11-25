@@ -20,7 +20,7 @@ func TestMixLegacyTypesOfRetrievers(t *testing.T) {
 	initRetrieverLegacy := mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy)
 	initRetriever := mockretriever.NewInitializableRetriever(standardName)
 	intRetrieverFlagset := mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone)
-	goff, err := ffclient.New(ffclient.Config{
+	goff, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 10 * time.Second,
 		Retrievers: []retriever.Retriever{
 			simple,

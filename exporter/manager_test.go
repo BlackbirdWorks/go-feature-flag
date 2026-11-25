@@ -383,7 +383,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 					FlushInterval: 100 * time.Millisecond,
 				},
 			}
-			goff, err := ffclient.New(config)
+			goff, err := ffclient.New(&config)
 			require.NoError(t, err)
 
 			defer goff.Close()
@@ -524,7 +524,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 
 			mockExporter := mock.Exporter{Bulk: true}
 			// Init ffclient with a file retriever.
-			client, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(&ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				LeveledLogger:   slog.Default(),
 				Retriever: &fileretriever.Retriever{

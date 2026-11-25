@@ -36,7 +36,7 @@ To configure your GO module to use the Google Cloud Storage retriever, you need 
 configuration to your `ffclient.Config{}` object:
 
 ```go
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &gcstorageretriever.Retriever{
 	    Options: []option.ClientOption{option.WithoutAuthentication()},

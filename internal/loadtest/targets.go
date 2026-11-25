@@ -60,7 +60,7 @@ func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget,
 
 	exp := NewExporter(opts.ExporterMode)
 
-	client, err := ffclient.NewWithContext(ctx, ffclient.Config{
+	client, err := ffclient.NewWithContext(ctx, &ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 		DataExporter: ffclient.DataExporter{

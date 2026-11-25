@@ -24,7 +24,7 @@ const (
 func newFixtureClient(b *testing.B) *ffclient.GoFeatureFlag {
 	b.Helper()
 
-	client, err := ffclient.New(ffclient.Config{
+	client, err := ffclient.New(&ffclient.Config{
 		PollingInterval: 1 * time.Second,
 		Retriever:       &fileretriever.Retriever{Path: "testdata/benchmark/flag-config.yaml"},
 	})

@@ -29,8 +29,8 @@ func NewAllFlags() AllFlags {
 }
 
 // AddFlag is adding a flag in the list for the specific user.
-func (a *AllFlags) AddFlag(flagKey string, state FlagState) {
-	a.flags[flagKey] = state
+func (a *AllFlags) AddFlag(flagKey string, state *FlagState) {
+	a.flags[flagKey] = *state
 	if a.valid && state.Failed {
 		a.valid = false
 	}

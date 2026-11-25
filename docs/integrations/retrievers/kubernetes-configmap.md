@@ -46,7 +46,7 @@ import (
 )
 // ...
 config, _ := restclient.InClusterConfig()
-client, err = ffclient.New(ffclient.Config{
+client, err = ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever: &k8sretriever.Retriever{
         Path: "file-example.yaml",

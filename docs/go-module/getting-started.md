@@ -45,7 +45,7 @@ This flag split the usage of this flag, 20% will use the variation `my-new-featu
 ## SDK Initialisation
 First, you need to initialize the `ffclient` with the location of your backend file.
 ```go linenums="1"
-client, err := ffclient.New(ffclient.Config{
+client, err := ffclient.New(&ffclient.Config{
     PollingInterval: 3 * time.Second,
     Retriever:      &fileretriever.Retriever{
         Path: "flag-config.yaml",
