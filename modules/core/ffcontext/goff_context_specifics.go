@@ -2,6 +2,7 @@ package ffcontext
 
 import "time"
 
+// GoffContextSpecifics holds the context fields specific to GO Feature Flag.
 type GoffContextSpecifics struct {
 	// CurrentDateTime is the current date time to use for the evaluation.
 	CurrentDateTime *time.Time `json:"currentDateTime"`

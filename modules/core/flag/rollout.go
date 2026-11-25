@@ -1,5 +1,6 @@
 package flag
 
+// Rollout is a rollout configuration of a flag.
 type Rollout struct {
 	// Experimentation is your struct to configure an experimentation, it will allow you to configure a start date and
 	// an end date for your flag.

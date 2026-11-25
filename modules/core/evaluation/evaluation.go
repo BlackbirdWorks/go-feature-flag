@@ -14,6 +14,7 @@ import (
 
 var errWrongVariationUsed = errors.New("wrong variation used for flag")
 
+// Evaluate evaluates the flag against the evaluation context and returns the variation result.
 func Evaluate[T model.JSONType](
 	targetFlag flag.Flag,
 	flagKey string,

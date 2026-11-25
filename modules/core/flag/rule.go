@@ -40,10 +40,13 @@ var (
 	errImpossibleToFindThe         = errors.New("impossible to find the variation")
 )
 
+// QueryFormat is the query language of the rules.
 type QueryFormat = string
 
 const (
-	NikunjyQueryFormat   QueryFormat = nikunjy2
+	// NikunjyQueryFormat is the query format of the Nikunjy query language.
+	NikunjyQueryFormat QueryFormat = nikunjy2
+	// JSONLogicQueryFormat is the query format of JSON Logic queries.
 	JSONLogicQueryFormat QueryFormat = jsonlogic2
 )
 
@@ -448,6 +451,7 @@ func queryFormatOf(trimmedQuery string) QueryFormat {
 	return NikunjyQueryFormat
 }
 
+// GetQuery returns the query of the rule.
 func (r *Rule) GetQuery() string {
 	if r.Query == nil {
 		return ""
@@ -456,6 +460,7 @@ func (r *Rule) GetQuery() string {
 	return *r.Query
 }
 
+// GetVariationResult returns the variation returned when the rule matches.
 func (r *Rule) GetVariationResult() string {
 	if r.VariationResult == nil {
 		return ""
@@ -464,6 +469,7 @@ func (r *Rule) GetVariationResult() string {
 	return *r.VariationResult
 }
 
+// GetName returns the name of the rule.
 func (r *Rule) GetName() string {
 	if r.Name == nil {
 		return ""
@@ -472,6 +478,7 @@ func (r *Rule) GetName() string {
 	return *r.Name
 }
 
+// GetPercentages returns the percentage of each variation in the rule.
 func (r *Rule) GetPercentages() map[string]float64 {
 	if r.Percentages == nil {
 		return map[string]float64{}
@@ -480,6 +487,7 @@ func (r *Rule) GetPercentages() map[string]float64 {
 	return *r.Percentages
 }
 
+// IsDisable reports whether the rule is disabled.
 func (r *Rule) IsDisable() bool {
 	if r.Disable == nil {
 		return false
@@ -488,6 +496,7 @@ func (r *Rule) IsDisable() bool {
 	return *r.Disable
 }
 
+// GetProgressiveRollout returns the progressive rollout configuration of the rule.
 func (r *Rule) GetProgressiveRollout() ProgressiveRollout {
 	if r.ProgressiveRollout == nil {
 		return ProgressiveRollout{

@@ -28,6 +28,7 @@ func ConvertDtoToInternalFlag(dto DTO) flag.InternalFlag {
 	}
 }
 
+// ConvertInternalFlagToDto converts an internal flag to its DTO representation.
 func ConvertInternalFlagToDto(internalFlag flag.InternalFlag) DTO {
 	var experimentation *ExperimentationDto
 	if internalFlag.Experimentation != nil {

@@ -2,6 +2,7 @@ package utils
 
 import "strings"
 
+// StrTrim returns s with its surrounding whitespace removed.
 func StrTrim(s string) string {
 	if !strings.Contains(s, "\n") {
 		return strings.TrimLeft(s, " ")

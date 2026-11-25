@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// ExperimentationRollout is a rollout that splits the traffic between the variations of an experiment.
 type ExperimentationRollout struct {
 	// Start is the starting time of the experimentation
 	Start *time.Time `json:"start,omitempty" toml:"start,omitempty" yaml:"start,omitempty"`

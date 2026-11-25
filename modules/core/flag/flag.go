@@ -4,6 +4,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+// Flag is a feature flag that can be evaluated.
 type Flag interface {
 	// Value is returning the Value associate to the flag
 	Value(

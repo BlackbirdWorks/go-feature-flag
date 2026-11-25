@@ -1,5 +1,6 @@
 package flag
 
+// Context is the evaluation context of a flag evaluation in the core module.
 type Context struct {
 	// EvaluationContextEnrichment will be merged with the evaluation context sent during the evaluation.
 	// It is useful to add common attributes to all the evaluation, such as a server version, environment, ...

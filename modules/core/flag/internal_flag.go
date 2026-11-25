@@ -26,6 +26,7 @@ var (
 )
 
 const (
+	// PercentageMultiplier is the factor that converts percentages into whole buckets.
 	PercentageMultiplier = float64(1000)
 )
 
@@ -287,6 +288,7 @@ func (f *InternalFlag) GetVariations() map[string]*any {
 	return *f.Variations
 }
 
+// GetRules returns the rules of the flag.
 func (f *InternalFlag) GetRules() []Rule {
 	if f.Rules == nil {
 		return []Rule{}
@@ -295,6 +297,7 @@ func (f *InternalFlag) GetRules() []Rule {
 	return *f.Rules
 }
 
+// GetRuleIndexByName returns the index of the rule with the given name, or nil if there is none.
 func (f *InternalFlag) GetRuleIndexByName(name string) *int {
 	for index, rule := range f.GetRules() {
 		if rule.GetName() == name {
@@ -672,6 +675,7 @@ func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string
 	return "", nil
 }
 
+// DateFromContextOrDefault returns the current date of ctx, or defaultDate when ctx has none.
 func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time.Time {
 	if ctx == nil || ctx.ExtractGOFFProtectedFields().CurrentDateTime == nil {
 		return defaultDate

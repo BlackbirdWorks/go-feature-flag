@@ -1,5 +1,6 @@
 package utils
 
+// JSONTypeExtractor returns the JSON type name of the variation value.
 func JSONTypeExtractor(variation any) (string, error) {
 	switch variation.(type) {
 	case string:
