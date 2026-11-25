@@ -17,6 +17,7 @@ func (d *DiffCache) HasDiff() bool {
 	return len(d.Deleted) > 0 || len(d.Added) > 0 || len(d.Updated) > 0
 }
 
+// DiffUpdated holds the flags that were updated between two configurations.
 type DiffUpdated struct {
 	Before flag.Flag `json:"old_value"`
 	After  flag.Flag `json:"new_value"`
