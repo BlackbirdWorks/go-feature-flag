@@ -366,7 +366,7 @@ func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
 }
 
 // buildHeaders constructs the HTTP headers for the GitHub API request.
-func (r *Retriever) buildHeaders(token string) http.Header {
+func (_ *Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
 	header.Add("X-Github-Api-Version", "2022-11-28")
@@ -431,7 +431,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 }
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
-func (r *Retriever) checkResponseError(resp *http.Response, rawURL string) error {
+func (_ *Retriever) checkResponseError(resp *http.Response, rawURL string) error {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}

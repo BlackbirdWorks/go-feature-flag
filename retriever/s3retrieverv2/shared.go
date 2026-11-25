@@ -324,7 +324,7 @@ func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 // OutputFormat returns an empty string like the single file Retriever: the format of the file is
 // unknown, the global file format applies.
-func (r *SharedItemRetriever) OutputFormat() string { return "" }
+func (_ *SharedItemRetriever) OutputFormat() string { return "" }
 
 // PollerConfig configures the poller of a SharedItems group.
 type PollerConfig struct {
@@ -659,7 +659,7 @@ func (g *SharedItems) list(
 	return res, nil
 }
 
-func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
+func (_ *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
 

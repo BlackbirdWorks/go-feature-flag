@@ -381,20 +381,10 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	resultsChan := make(chan Results, len(retrievers))
 
 	var wg sync.WaitGroup
-	wg.Add(len(retrievers))
-
-	// Launching a goroutine that will wait until the waiting group is complete.
-	// It closes the channel when ready
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
 
 	for index, r := range retrievers {
 		// Launching GO routines to retrieve all files in parallel.
-		go func(r Retriever, format string, index int, ctx context.Context) {
-			defer wg.Done()
-
+		wg.Go(func() {
 			// If the retriever is not ready, we ignore it
 			if rr, ok := r.(CommonInitializableRetriever); ok &&
 				rr.Status() != RetrieverReady {
@@ -410,10 +400,17 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 				return
 			}
 
-			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, format))
+			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, fileFormat))
 			resultsChan <- Results{Error: err, Value: convertedFlag, Index: index}
-		}(r, fileFormat, index, ctx)
+		})
 	}
+
+	// Launching a goroutine that will wait until the waiting group is complete.
+	// It closes the channel when ready
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
 
 	retrieversResults := make([]map[string]dto.DTO, len(retrievers))
 
