@@ -23,10 +23,51 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+const (
+	apiKey1                             = "api-key-1"
+	apiKey2                             = "api-key-2"
+	apiKeyMove                          = "api-key-move"
+	brokenKey                           = "broken-key"
+	defaultMode                         = "default mode"
+	expectedExactlyOneError             = "Expected exactly one error log message"
+	failedToCreateFlagsetManager        = "failed to create FlagsetManager"
+	file2                               = "file"
+	fixtureDefault                      = "default"
+	flagset12                           = "flagset-1"
+	flagset22                           = "flagset-2"
+	flagsetA2                           = "flagset-a"
+	flagsetB2                           = "flagset-b"
+	flagsetC                            = "flagset-c"
+	flagsetMode                         = "flagset mode"
+	kA                                  = "k-a"
+	kB                                  = "k-b"
+	kMove                               = "k-move"
+	keepKey                             = "keep-key"
+	key1                                = "key-1"
+	key2                                = "key-2"
+	keyA                                = "key-a"
+	keyC                                = "key-c"
+	modifyingAFlagsetIs                 = "modifying a flagset is not supported at runtime"
+	newApiKey                           = "new-api-key"
+	newKey                              = "new-key"
+	oldApiKey                           = "old-api-key"
+	oldKey                              = "old-key"
+	oldKey1                             = "old-key-1"
+	oldKey2                             = "old-key-2"
+	originalKey                         = "original-key"
+	testApiKey                          = "test-api-key"
+	testFlagset                         = "test-flagset"
+	testFlagset1                        = "test-flagset-1"
+	testFlagset2                        = "test-flagset-2"
+	testdataSemaphoreConfigurationFlags = "../testdata/semaphore/configuration_flags.yaml"
+	theNewConfigurationIs               = "the new configuration is invalid, it will not be applied"
+	userKey                             = "user-key"
+)
+
 func TestNewFlagsetManager(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 	tests := []struct {
 		config      *config.Config
 		logger      *slog.Logger
@@ -48,7 +89,7 @@ func TestNewFlagsetManager(t *testing.T) {
 			config: &config.Config{
 				FlagSets: []config.FlagSet{},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
+					Kind: file2,
 					Path: flagConfig,
 				},
 			},
@@ -61,12 +102,12 @@ func TestNewFlagsetManager(t *testing.T) {
 			config: &config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						Name: "test-flagset",
+						Name: testFlagset,
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: "file",
+							Kind: file2,
 							Path: flagConfig,
 						},
-						APIKeys: []string{"test-api-key"},
+						APIKeys: []string{testApiKey},
 					},
 				},
 			},
@@ -84,11 +125,11 @@ func TestNewFlagsetManager(t *testing.T) {
 							Kind: "invalid",
 							Path: flagConfig,
 						},
-						APIKeys: []string{"test-api-key"},
+						APIKeys: []string{testApiKey},
 					},
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: "file",
+					Kind: file2,
 					Path: flagConfig,
 				},
 			},
@@ -183,11 +224,11 @@ func assertBroadcasts(t *testing.T, sse *fakeSSEService, ws *fakeWebsocketServic
 func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 	flagset := func(name string) config.FlagSet {
 		return config.FlagSet{
 			Name:      name,
-			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+			Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 			APIKeys:   []string{name + "-key"},
 		}
 	}
@@ -198,18 +239,18 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 		wantFlagsets []string
 	}{
 		{
-			name: "default mode",
+			name: defaultMode,
 			config: &config.Config{
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 			},
 			wantFlagsets: []string{utils.DefaultFlagSetName},
 		},
 		{
 			name: "flagsets mode",
 			config: &config.Config{
-				FlagSets: []config.FlagSet{flagset("flagset-1"), flagset("flagset-2")},
+				FlagSets: []config.FlagSet{flagset(flagset12), flagset(flagset22)},
 			},
-			wantFlagsets: []string{"flagset-1", "flagset-2"},
+			wantFlagsets: []string{flagset12, flagset22},
 		},
 	}
 	for _, tt := range tests {
@@ -225,22 +266,22 @@ func TestFlagsetManager_StreamNotifiers(t *testing.T) {
 		t.Parallel()
 
 		manager, sse, wsSvc := newStreamManager(t, &config.Config{
-			FlagSets: []config.FlagSet{flagset("flagset-1")},
+			FlagSets: []config.FlagSet{flagset(flagset12)},
 		})
-		assertBroadcasts(t, sse, wsSvc, []string{"flagset-1"})
+		assertBroadcasts(t, sse, wsSvc, []string{flagset12})
 
 		manager.OnConfigChange(&config.Config{
-			FlagSets: []config.FlagSet{flagset("flagset-1"), flagset("flagset-2")},
+			FlagSets: []config.FlagSet{flagset(flagset12), flagset(flagset22)},
 		})
-		assertBroadcasts(t, sse, wsSvc, []string{"flagset-1", "flagset-2"})
+		assertBroadcasts(t, sse, wsSvc, []string{flagset12, flagset22})
 	})
 }
 
 func TestFlagsetManager_FlagSet(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
-	file := &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig}
+	flagConfig := testdataSemaphoreConfigurationFlags
+	file := &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig}
 
 	tests := []struct {
 		name   string
@@ -253,15 +294,15 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		{
 			name: "flagset mode, valid api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
 			}},
-			apiKey:      "test-api-key",
-			wantFlagset: "test-flagset",
+			apiKey:      testApiKey,
+			wantFlagset: testFlagset,
 		},
 		{
 			name: "flagset mode, invalid api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
 			}},
 			apiKey:  "invalid-key",
 			wantErr: "flagset not found for API key",
@@ -269,7 +310,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		{
 			name: "flagset mode, empty api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: "test-flagset", Retriever: file, APIKeys: []string{"test-api-key"}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
 			}},
 			apiKey:  "",
 			wantErr: "no API key provided",
@@ -278,7 +319,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 			name:        "default mode, empty api key should work",
 			config:      &config.Config{FlagSets: []config.FlagSet{}, Retriever: file},
 			apiKey:      "",
-			wantFlagset: "default",
+			wantFlagset: fixtureDefault,
 		},
 	}
 	for _, tt := range tests {
@@ -292,7 +333,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 				nil,
 				nil,
 			)
-			require.NoError(t, err, "failed to create FlagsetManager")
+			require.NoError(t, err, failedToCreateFlagsetManager)
 
 			defer manager.Close()
 
@@ -317,28 +358,28 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 func TestFlagsetManager_FlagSetName(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
+	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -346,9 +387,9 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, flagSetNameErr := manager.FlagSetName("test-api-key")
+			name, flagSetNameErr := manager.FlagSetName(testApiKey)
 			require.NoError(t, flagSetNameErr)
-			assert.Equal(t, "test-flagset", name)
+			assert.Equal(t, testFlagset, name)
 		})
 		t.Run("non-existing api key", func(t *testing.T) {
 			t.Parallel()
@@ -369,20 +410,20 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 	})
 
 	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
+	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -392,7 +433,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 
 			name, flagSetNameErr := manager.FlagSetName("")
 			require.NoError(t, flagSetNameErr)
-			assert.Equal(t, "default", name)
+			assert.Equal(t, fixtureDefault, name)
 		})
 	})
 }
@@ -400,36 +441,36 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 func TestFlagsetManager_AllFlagSets(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
+	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset-1",
+					Name: testFlagset1,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
-					Name: "test-flagset-2",
+					Name: testFlagset2,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -437,8 +478,8 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		flagsets, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, flagsets, 2)
-		assert.Contains(t, flagsets, "test-flagset-1")
-		assert.Contains(t, flagsets, "test-flagset-2")
+		assert.Contains(t, flagsets, testFlagset1)
+		assert.Contains(t, flagsets, testFlagset2)
 	})
 
 	t.Run("flagset mode using default flagset name", func(t *testing.T) {
@@ -447,27 +488,27 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "default",
+					Name: fixtureDefault,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
-					Name: "test-flagset-2",
+					Name: testFlagset2,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -475,25 +516,25 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		flagsets, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, flagsets, 2)
-		assert.NotContains(t, flagsets, "default")
-		assert.Contains(t, flagsets, "test-flagset-2")
+		assert.NotContains(t, flagsets, fixtureDefault)
+		assert.Contains(t, flagsets, testFlagset2)
 	})
 
 	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
+	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -501,30 +542,30 @@ func TestFlagsetManager_AllFlagSets(t *testing.T) {
 		flagsets, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, flagsets, 1)
-		assert.Contains(t, flagsets, "default")
+		assert.Contains(t, flagsets, fixtureDefault)
 	})
 }
 
 func TestFlagsetManager_Default(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
+	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -532,29 +573,29 @@ func TestFlagsetManager_Default(t *testing.T) {
 		all, err := manager.AllFlagSets()
 		require.NoError(t, err)
 		require.NotNil(t, manager.Default())
-		assert.Same(t, all["default"], manager.Default())
+		assert.Same(t, all[fixtureDefault], manager.Default())
 	})
 
 	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
+	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -567,23 +608,23 @@ func TestFlagsetManager_Default(t *testing.T) {
 func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
+	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -592,25 +633,25 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 	})
 
 	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
+	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 
 		assert.NotNil(t, manager)
 		defer manager.Close()
@@ -622,17 +663,17 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 func TestFlagsetManager_Close(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	// Test default mode
-	t.Run("default mode", func(t *testing.T) {
+	t.Run(defaultMode, func(t *testing.T) {
 		t.Parallel()
 
 		outputDir := t.TempDir()
 		config := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 			Exporter: bufferedFileExporter(outputDir),
@@ -640,42 +681,42 @@ func TestFlagsetManager_Close(t *testing.T) {
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 		assert.NotNil(t, manager)
 
 		_, _ = manager.Default().
-			BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
+			BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext(userKey), false)
 		assertFlushedOnClose(t, manager, outputDir)
 	})
 
 	// Test flagset mode
-	t.Run("flagset mode", func(t *testing.T) {
+	t.Run(flagsetMode, func(t *testing.T) {
 		t.Parallel()
 
 		outputDir := t.TempDir()
 		config := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					Exporter: bufferedFileExporter(outputDir),
-					APIKeys:  []string{"test-api-key"},
+					APIKeys:  []string{testApiKey},
 				},
 			},
 		}
 		logger := slog.New(slog.DiscardHandler)
 		notifiers := []notifier.Notifier{}
 		manager, err := service.NewFlagsetManager(config, logger, notifiers, nil, nil)
-		require.NoError(t, err, "failed to create FlagsetManager")
+		require.NoError(t, err, failedToCreateFlagsetManager)
 		assert.NotNil(t, manager)
 
-		flagset, err := manager.FlagSet("test-api-key")
+		flagset, err := manager.FlagSet(testApiKey)
 		require.NoError(t, err)
 
-		_, _ = flagset.BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext("user-key"), false)
+		_, _ = flagset.BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext(userKey), false)
 
 		assertFlushedOnClose(t, manager, outputDir)
 	})
@@ -722,7 +763,7 @@ func setupManager(t *testing.T, cfg *config.Config) (service.FlagsetManager, *sl
 func TestFlagsetManager_OnConfigChange(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should reject switching from default to flagsets mode", func(t *testing.T) {
 		t.Parallel()
@@ -731,7 +772,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
@@ -743,10 +784,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				{
 					Name: "new-flagset",
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"new-key"},
+					APIKeys: []string{newKey},
 				},
 			},
 		}
@@ -756,7 +797,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		})
 
 		// Verify that the error log was displayed
-		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
+		assert.Equal(t, 1, logs.Len(), expectedExactlyOneError)
 		logEntry := logs.All()[0]
 		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(
@@ -773,12 +814,12 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
@@ -788,7 +829,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 		}
@@ -798,7 +839,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			manager.OnConfigChange(newConfig)
 		})
 		// Verify that the error log was displayed
-		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
+		assert.Equal(t, 1, logs.Len(), expectedExactlyOneError)
 		logEntry := logs.All()[0]
 		assert.Equal(t, slog.LevelError, logEntry.Level)
 		assert.Contains(
@@ -815,11 +856,11 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
-				Evaluation: []string{"old-key"},
+				Evaluation: []string{oldKey},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
@@ -828,19 +869,19 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
-				Evaluation: []string{"new-key"},
+				Evaluation: []string{newKey},
 			},
 		}
 
 		manager.OnConfigChange(newConfig)
 
 		// Verify the key was updated - ForceReloadAPIKeys resets and reloads
-		assert.False(t, cfg.APIKeyExists("old-key"))
-		assert.True(t, cfg.APIKeyExists("new-key"))
+		assert.False(t, cfg.APIKeyExists(oldKey))
+		assert.True(t, cfg.APIKeyExists(newKey))
 	})
 
 	t.Run("should update APIKeys in default mode", func(t *testing.T) {
@@ -850,10 +891,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -861,17 +902,17 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
 
 		// Verify the key was updated - ForceReloadAPIKeys resets and reloads
-		assert.False(t, cfg.APIKeyExists("old-api-key"))
-		assert.True(t, cfg.APIKeyExists("new-api-key"))
+		assert.False(t, cfg.APIKeyExists(oldApiKey))
+		assert.True(t, cfg.APIKeyExists(newApiKey))
 	})
 
 	t.Run("should update both AuthorizedKeys and APIKeys in default mode", func(t *testing.T) {
@@ -881,13 +922,13 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-authorized-key"},
 			},
-			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -895,22 +936,22 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-authorized-key"},
 			},
-			APIKeys: []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		manager.OnConfigChange(newConfig)
 
 		// Verify both were updated
 		assert.False(t, cfg.APIKeyExists("old-authorized-key"))
-		assert.False(t, cfg.APIKeyExists("old-api-key"))
+		assert.False(t, cfg.APIKeyExists(oldApiKey))
 		assert.True(t, cfg.APIKeyExists("new-authorized-key"))
-		assert.True(t, cfg.APIKeyExists("new-api-key"))
+		assert.True(t, cfg.APIKeyExists(newApiKey))
 	})
 
 	t.Run("should reject invalid configuration in default mode - missing retriever", func(t *testing.T) {
@@ -920,10 +961,10 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{},
 			Retriever: &retrieverconf.RetrieverConf{
-				Kind: "file",
+				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{"old-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 		// Preload API keys to initialize the internal API key set
 		cfg.ForceReloadAPIKeys()
@@ -933,7 +974,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets:  []config.FlagSet{},
 			Retriever: nil,
-			APIKeys:   []string{"new-api-key"}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys:   []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 		}
 
 		assert.NotPanics(t, func() {
@@ -941,21 +982,21 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		})
 
 		// Verify that the error log was displayed
-		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
+		assert.Equal(t, 1, logs.Len(), expectedExactlyOneError)
 		logEntry := logs.All()[0]
 		assert.Equal(t, slog.LevelError, logEntry.Level)
-		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
+		assert.Contains(t, logEntry.Message, theNewConfigurationIs)
 
 		// Verify the original config was not changed
-		assert.True(t, cfg.APIKeyExists("old-api-key"))
-		assert.False(t, cfg.APIKeyExists("new-api-key"))
+		assert.True(t, cfg.APIKeyExists(oldApiKey))
+		assert.False(t, cfg.APIKeyExists(newApiKey))
 	})
 }
 
 func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should reject invalid configuration in flagsets mode - flagset with no API keys", func(t *testing.T) {
 		t.Parallel()
@@ -964,12 +1005,12 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
@@ -979,9 +1020,9 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					APIKeys: []string{}, // Invalid: no API keys
@@ -994,13 +1035,13 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		})
 
 		// Verify that the error log was displayed
-		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
+		assert.Equal(t, 1, logs.Len(), expectedExactlyOneError)
 		logEntry := logs.All()[0]
 		assert.Equal(t, slog.LevelError, logEntry.Level)
-		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
+		assert.Contains(t, logEntry.Message, theNewConfigurationIs)
 
 		// Verify the original config was not changed
-		flagset, err := manager.FlagSet("test-api-key")
+		flagset, err := manager.FlagSet(testApiKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
@@ -1012,20 +1053,20 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset-1",
+					Name: testFlagset1,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
-					Name: "test-flagset-2",
+					Name: testFlagset2,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}
@@ -1035,17 +1076,17 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset-1",
+					Name: testFlagset1,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					APIKeys: []string{"duplicate-key"},
 				},
 				{
-					Name: "test-flagset-2",
+					Name: testFlagset2,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					APIKeys: []string{"duplicate-key"}, // Invalid: duplicate API key
@@ -1058,17 +1099,17 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		})
 
 		// Verify that the error log was displayed
-		assert.Equal(t, 1, logs.Len(), "Expected exactly one error log message")
+		assert.Equal(t, 1, logs.Len(), expectedExactlyOneError)
 		logEntry := logs.All()[0]
 		assert.Equal(t, slog.LevelError, logEntry.Level)
-		assert.Contains(t, logEntry.Message, "the new configuration is invalid, it will not be applied")
+		assert.Contains(t, logEntry.Message, theNewConfigurationIs)
 
 		// Verify the original config was not changed
-		flagset1, err := manager.FlagSet("api-key-1")
+		flagset1, err := manager.FlagSet(apiKey1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
-		flagset2, err := manager.FlagSet("api-key-2")
+		flagset2, err := manager.FlagSet(apiKey2)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
 	})
@@ -1077,7 +1118,7 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should successfully update API keys in flagsets mode", func(t *testing.T) {
 		t.Parallel()
@@ -1086,19 +1127,19 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"old-api-key"},
+					APIKeys: []string{oldApiKey},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify old key works before change
-		flagset, err := manager.FlagSet("old-api-key")
+		flagset, err := manager.FlagSet(oldApiKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
@@ -1106,12 +1147,12 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"new-api-key"},
+					APIKeys: []string{newApiKey},
 				},
 			},
 		}
@@ -1119,10 +1160,10 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Verify the key was updated: the old one is no longer routed, the new one reaches the same flagset
-		assertKeyRouting(t, manager, map[string]string{"old-api-key": "", "new-api-key": "test-flagset"})
-		_, err = manager.FlagSet("old-api-key")
+		assertKeyRouting(t, manager, map[string]string{oldApiKey: "", newApiKey: testFlagset})
+		_, err = manager.FlagSet(oldApiKey)
 		require.Error(t, err, "old API key should no longer work")
-		flagset, err = manager.FlagSet("new-api-key")
+		flagset, err = manager.FlagSet(newApiKey)
 		require.NoError(t, err, "new API key should work")
 		assert.NotNil(t, flagset)
 	})
@@ -1134,33 +1175,33 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify initial state
-		_, err := manager.FlagSet("api-key-1")
+		_, err := manager.FlagSet(apiKey1)
 		require.NoError(t, err)
-		_, err = manager.FlagSet("api-key-2")
+		_, err = manager.FlagSet(apiKey2)
 		require.Error(t, err, "api-key-2 should not work yet")
 
 		// Add second API key
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1", "api-key-2"},
+					APIKeys: []string{apiKey1, apiKey2},
 				},
 			},
 		}
@@ -1168,17 +1209,17 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Verify both keys work now
-		flagset1, err := manager.FlagSet("api-key-1")
+		flagset1, err := manager.FlagSet(apiKey1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
-		flagset2, err := manager.FlagSet("api-key-2")
+		flagset2, err := manager.FlagSet(apiKey2)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset2)
 
 		// Both should point to the same flagset
-		name1, _ := manager.FlagSetName("api-key-1")
-		name2, _ := manager.FlagSetName("api-key-2")
+		name1, _ := manager.FlagSetName(apiKey1)
+		name2, _ := manager.FlagSetName(apiKey2)
 		assert.Equal(t, name1, name2)
 	})
 
@@ -1189,33 +1230,33 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1", "api-key-2"},
+					APIKeys: []string{apiKey1, apiKey2},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify both keys work initially
-		_, err := manager.FlagSet("api-key-1")
+		_, err := manager.FlagSet(apiKey1)
 		require.NoError(t, err)
-		_, err = manager.FlagSet("api-key-2")
+		_, err = manager.FlagSet(apiKey2)
 		require.NoError(t, err)
 
 		// Remove one API key
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 			},
 		}
@@ -1223,12 +1264,12 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// api-key-1 still reaches the flagset, api-key-2 is no longer routed
-		assertKeyRouting(t, manager, map[string]string{"api-key-1": "test-flagset", "api-key-2": ""})
-		flagset, err := manager.FlagSet("api-key-1")
+		assertKeyRouting(t, manager, map[string]string{apiKey1: testFlagset, apiKey2: ""})
+		flagset, err := manager.FlagSet(apiKey1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
-		_, err = manager.FlagSet("api-key-2")
+		_, err = manager.FlagSet(apiKey2)
 		assert.Error(t, err, "api-key-2 should no longer work")
 	})
 
@@ -1239,48 +1280,48 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
+					Name: flagset12,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1", "api-key-move"},
+					APIKeys: []string{apiKey1, apiKeyMove},
 				},
 				{
-					Name: "flagset-2",
+					Name: flagset22,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify initial state
-		name, err := manager.FlagSetName("api-key-move")
+		name, err := manager.FlagSetName(apiKeyMove)
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-1", name)
+		assert.Equal(t, flagset12, name)
 
 		// Move api-key-move from flagset-1 to flagset-2
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
+					Name: flagset12,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
-					Name: "flagset-2",
+					Name: flagset22,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"api-key-2", "api-key-move"},
+					APIKeys: []string{apiKey2, apiKeyMove},
 				},
 			},
 		}
@@ -1288,16 +1329,16 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Verify api-key-move now points to flagset-2
-		name, err = manager.FlagSetName("api-key-move")
+		name, err = manager.FlagSetName(apiKeyMove)
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-2", name)
+		assert.Equal(t, flagset22, name)
 
 		// Verify other keys still work correctly
-		name1, _ := manager.FlagSetName("api-key-1")
-		assert.Equal(t, "flagset-1", name1)
+		name1, _ := manager.FlagSetName(apiKey1)
+		assert.Equal(t, flagset12, name1)
 
-		name2, _ := manager.FlagSetName("api-key-2")
-		assert.Equal(t, "flagset-2", name2)
+		name2, _ := manager.FlagSetName(apiKey2)
+		assert.Equal(t, flagset22, name2)
 	})
 
 	t.Run("should rotate API keys across flagsets regardless of processing order", func(t *testing.T) {
@@ -1309,44 +1350,44 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		newFlagset := func(name, key string) config.FlagSet {
 			return config.FlagSet{
 				Name:      name,
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 				APIKeys:   []string{key},
 			}
 		}
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				newFlagset("flagset-a", "ka"),
-				newFlagset("flagset-b", "kb"),
-				newFlagset("flagset-c", "kc"),
+				newFlagset(flagsetA2, "ka"),
+				newFlagset(flagsetB2, "kb"),
+				newFlagset(flagsetC, "kc"),
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
-				newFlagset("flagset-a", "kc"),
-				newFlagset("flagset-b", "ka"),
-				newFlagset("flagset-c", "kb"),
+				newFlagset(flagsetA2, "kc"),
+				newFlagset(flagsetB2, "ka"),
+				newFlagset(flagsetC, "kb"),
 			},
 		}
 		manager.OnConfigChange(newConfig)
 
 		name, err := manager.FlagSetName("ka")
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-b", name)
+		assert.Equal(t, flagsetB2, name)
 		name, err = manager.FlagSetName("kb")
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-c", name)
+		assert.Equal(t, flagsetC, name)
 		name, err = manager.FlagSetName("kc")
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-a", name)
+		assert.Equal(t, flagsetA2, name)
 	})
 }
 
 func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should not update when config is unchanged in flagsets mode", func(t *testing.T) {
 		t.Parallel()
@@ -1355,12 +1396,12 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
@@ -1374,12 +1415,12 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		sameConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "test-flagset",
+					Name: testFlagset,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}
@@ -1391,7 +1432,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		assert.Equal(t, 0, configChangeLogs.Len(), "No config change log should be produced when config is unchanged")
 
 		// Verify the key still works
-		flagset, err := manager.FlagSet("test-api-key")
+		flagset, err := manager.FlagSet(testApiKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
@@ -1405,10 +1446,10 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 				{
 					Name: "", // Empty name - will be auto-generated
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"original-key"},
+					APIKeys: []string{originalKey},
 				},
 			},
 		}
@@ -1423,7 +1464,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		assert.Equal(t, 1, warnLogs.Len(), "Expected warning about empty flagset name")
 
 		// Verify original key works
-		flagset, err := manager.FlagSet("original-key")
+		flagset, err := manager.FlagSet(originalKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
@@ -1433,10 +1474,10 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 				{
 					Name: "", // Still empty
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"new-key"}, // Try to change key
+					APIKeys: []string{newKey}, // Try to change key
 				},
 			},
 		}
@@ -1444,7 +1485,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Original key should still work because empty name flagsets can't be updated
-		flagset, err = manager.FlagSet("original-key")
+		flagset, err = manager.FlagSet(originalKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
@@ -1456,12 +1497,12 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "default", // Reserved name - will be auto-generated
+					Name: fixtureDefault, // Reserved name - will be auto-generated
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"original-key"},
+					APIKeys: []string{originalKey},
 				},
 			},
 		}
@@ -1476,7 +1517,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		assert.Equal(t, 1, warnLogs.Len(), "Expected warning about using 'default' as flagset name")
 
 		// Verify original key works
-		flagset, err := manager.FlagSet("original-key")
+		flagset, err := manager.FlagSet(originalKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
@@ -1484,12 +1525,12 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "default",
+					Name: fixtureDefault,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"new-key"},
+					APIKeys: []string{newKey},
 				},
 			},
 		}
@@ -1497,7 +1538,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Original key should still work because "default" name flagsets can't be updated
-		flagset, err = manager.FlagSet("original-key")
+		flagset, err = manager.FlagSet(originalKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
@@ -1509,47 +1550,47 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
+					Name: flagset12,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"old-key-1"},
+					APIKeys: []string{oldKey1},
 				},
 				{
-					Name: "flagset-2",
+					Name: flagset22,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{"old-key-2"},
+					APIKeys: []string{oldKey2},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify initial state
-		name1, _ := manager.FlagSetName("old-key-1")
-		assert.Equal(t, "flagset-1", name1)
+		name1, _ := manager.FlagSetName(oldKey1)
+		assert.Equal(t, flagset12, name1)
 
-		name2, _ := manager.FlagSetName("old-key-2")
-		assert.Equal(t, "flagset-2", name2)
+		name2, _ := manager.FlagSetName(oldKey2)
+		assert.Equal(t, flagset22, name2)
 
 		// Update both flagsets
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name: "flagset-1",
+					Name: flagset12,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key-1"},
 				},
 				{
-					Name: "flagset-2",
+					Name: flagset22,
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: flagConfig,
 					},
 					APIKeys: []string{"new-key-2"},
@@ -1560,19 +1601,19 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Verify old keys no longer work
-		_, err := manager.FlagSet("old-key-1")
+		_, err := manager.FlagSet(oldKey1)
 		require.Error(t, err)
-		_, err = manager.FlagSet("old-key-2")
+		_, err = manager.FlagSet(oldKey2)
 		require.Error(t, err)
 
 		// Verify new keys work and point to correct flagsets
 		name1, err = manager.FlagSetName("new-key-1")
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-1", name1)
+		assert.Equal(t, flagset12, name1)
 
 		name2, err = manager.FlagSetName("new-key-2")
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-2", name2)
+		assert.Equal(t, flagset22, name2)
 	})
 
 	t.Run("should only notify the websocket clients of the flagset added at runtime", func(t *testing.T) {
@@ -1581,11 +1622,11 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		flagset := func(name, apiKey string) config.FlagSet {
 			return config.FlagSet{
 				Name:      name,
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 				APIKeys:   []string{apiKey},
 			}
 		}
-		existing := flagset("flagset-1", "key-1")
+		existing := flagset(flagset12, key1)
 		// flagset-1 never notifies, so its client must not receive anything.
 		existing.DisableNotifierOnInit = true
 
@@ -1596,11 +1637,11 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		t.Cleanup(func() { manager.Close() })
 
 		conn1, conn2 := &countingWSConn{}, &countingWSConn{}
-		wsService.Register(conn1, "flagset-1")
-		wsService.Register(conn2, "flagset-2")
+		wsService.Register(conn1, flagset12)
+		wsService.Register(conn2, flagset22)
 
 		manager.OnConfigChange(&config.Config{
-			FlagSets: []config.FlagSet{existing, flagset("flagset-2", "key-2")},
+			FlagSets: []config.FlagSet{existing, flagset(flagset22, key2)},
 		})
 
 		// The flags loaded by the new flagset are notified as added.
@@ -1615,7 +1656,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should add a new flagset at runtime", func(t *testing.T) {
 		t.Parallel()
@@ -1623,29 +1664,29 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:      "flagset-1",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-1"},
+					Name:      flagset12,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key1},
 				},
 			},
 		}
 		manager, logs := setupManager(t, cfg)
 
 		// The second flagset does not exist yet.
-		_, err := manager.FlagSet("key-2")
+		_, err := manager.FlagSet(key2)
 		require.Error(t, err)
 
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:      "flagset-1",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-1"},
+					Name:      flagset12,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key1},
 				},
 				{
-					Name:      "flagset-2",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-2"},
+					Name:      flagset22,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key2},
 				},
 			},
 		}
@@ -1653,15 +1694,15 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// The new flagset is now available and the existing one still works.
-		flagset2, err := manager.FlagSet("key-2")
+		flagset2, err := manager.FlagSet(key2)
 		require.NoError(t, err, "the flagset added at runtime should be available")
 		assert.NotNil(t, flagset2)
 
-		name2, err := manager.FlagSetName("key-2")
+		name2, err := manager.FlagSetName(key2)
 		require.NoError(t, err)
-		assert.Equal(t, "flagset-2", name2)
+		assert.Equal(t, flagset22, name2)
 
-		flagset1, err := manager.FlagSet("key-1")
+		flagset1, err := manager.FlagSet(key1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
@@ -1679,31 +1720,31 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:      "flagset-1",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-1"},
+					Name:      flagset12,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key1},
 				},
 				{
-					Name:      "flagset-2",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-2"},
+					Name:      flagset22,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key2},
 				},
 			},
 		}
 		manager, logs := setupManager(t, cfg)
 
 		// Both flagsets exist initially.
-		_, err := manager.FlagSet("key-1")
+		_, err := manager.FlagSet(key1)
 		require.NoError(t, err)
-		_, err = manager.FlagSet("key-2")
+		_, err = manager.FlagSet(key2)
 		require.NoError(t, err)
 
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:      "flagset-1",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-1"},
+					Name:      flagset12,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{key1},
 				},
 			},
 		}
@@ -1711,11 +1752,11 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// flagset-2 is gone, flagset-1 still works.
-		flagset1, err := manager.FlagSet("key-1")
+		flagset1, err := manager.FlagSet(key1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset1)
 
-		_, err = manager.FlagSet("key-2")
+		_, err = manager.FlagSet(key2)
 		require.Error(t, err, "the removed flagset should no longer be available")
 
 		all, err := manager.AllFlagSets()
@@ -1731,10 +1772,10 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "flagset-1",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagset12,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 0,
-					APIKeys:         []string{"key-1"},
+					APIKeys:         []string{key1},
 				},
 			},
 		}
@@ -1744,10 +1785,10 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "flagset-1",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagset12,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 5000,
-					APIKeys:         []string{"key-1"},
+					APIKeys:         []string{key1},
 				},
 			},
 		}
@@ -1755,14 +1796,14 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// The flagset is still served (unchanged) and an error is logged.
-		flagset, err := manager.FlagSet("key-1")
+		flagset, err := manager.FlagSet(key1)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
-		rejectedLogs := logs.FilterMessageSnippet("modifying a flagset is not supported at runtime")
+		rejectedLogs := logs.FilterMessageSnippet(modifyingAFlagsetIs)
 		assert.Equal(t, 1, rejectedLogs.Len(), "expected an error log about the rejected modification")
 		assert.Contains(t, rejectedLogs.All()[0].Message, "next time the relay proxy is restarted")
-		assert.Equal(t, "flagset-1", rejectedLogs.All()[0].ContextMap()["flagset"])
+		assert.Equal(t, flagset12, rejectedLogs.All()[0].ContextMap()["flagset"])
 		// No bundled API-key error since the API keys did not change.
 		assert.Equal(t, 0, logs.FilterMessageSnippet("API keys change for this flagset is also ignored").Len())
 	})
@@ -1771,7 +1812,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetLifecycle(t *testing.T) {
 func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should reject a bundled API key and configuration change", func(t *testing.T) {
 		t.Parallel()
@@ -1779,10 +1820,10 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "flagset-1",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagset12,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 0,
-					APIKeys:         []string{"old-key"},
+					APIKeys:         []string{oldKey},
 				},
 			},
 		}
@@ -1792,10 +1833,10 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "flagset-1",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagset12,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 5000,
-					APIKeys:         []string{"new-key"},
+					APIKeys:         []string{newKey},
 				},
 			},
 		}
@@ -1803,15 +1844,15 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// The old key still works and the new key is NOT applied.
-		flagset, err := manager.FlagSet("old-key")
+		flagset, err := manager.FlagSet(oldKey)
 		require.NoError(t, err, "the old API key must still work because the change is rejected")
 		assert.NotNil(t, flagset)
 
-		_, err = manager.FlagSet("new-key")
+		_, err = manager.FlagSet(newKey)
 		require.Error(t, err, "the bundled API key change must not be applied")
 
 		// Two error logs: the modification rejection and the explicit bundled-key rejection.
-		assert.Equal(t, 1, logs.FilterMessageSnippet("modifying a flagset is not supported at runtime").Len())
+		assert.Equal(t, 1, logs.FilterMessageSnippet(modifyingAFlagsetIs).Len())
 		assert.Equal(t, 1, logs.FilterMessageSnippet("API keys change for this flagset is also ignored").Len())
 	})
 
@@ -1821,20 +1862,20 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:      "flagset-a",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-a"},
+					Name:      flagsetA2,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{keyA},
 				},
 				{
-					Name:      "flagset-b",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:      flagsetB2,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					APIKeys:   []string{"key-b"},
 				},
 				{
-					Name:            "flagset-c",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagsetC,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 0,
-					APIKeys:         []string{"key-c"},
+					APIKeys:         []string{keyC},
 				},
 			},
 		}
@@ -1844,22 +1885,22 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				// flagset-a: unchanged
 				{
-					Name:      "flagset-a",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"key-a"},
+					Name:      flagsetA2,
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{keyA},
 				},
 				// flagset-b: removed (absent)
 				// flagset-c: forbidden modification (polling interval changed)
 				{
-					Name:            "flagset-c",
-					Retriever:       &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Name:            flagsetC,
+					Retriever:       &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					PollingInterval: 5000,
-					APIKeys:         []string{"key-c"},
+					APIKeys:         []string{keyC},
 				},
 				// flagset-d: added
 				{
 					Name:      "flagset-d",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					APIKeys:   []string{"key-d"},
 				},
 			},
@@ -1868,11 +1909,11 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// a unchanged, b removed, c kept (modification rejected), d added.
-		_, err := manager.FlagSet("key-a")
+		_, err := manager.FlagSet(keyA)
 		require.NoError(t, err, "flagset-a should be unchanged")
 		_, err = manager.FlagSet("key-b")
 		require.Error(t, err, "flagset-b should have been removed")
-		_, err = manager.FlagSet("key-c")
+		_, err = manager.FlagSet(keyC)
 		require.NoError(t, err, "flagset-c should be kept because its modification was rejected")
 		_, err = manager.FlagSet("key-d")
 		require.NoError(t, err, "flagset-d should have been added")
@@ -1882,7 +1923,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 		assert.Len(t, all, 3, "expected flagset-a, flagset-c and flagset-d")
 
 		// Only flagset-c's modification is rejected.
-		assert.Equal(t, 1, logs.FilterMessageSnippet("modifying a flagset is not supported at runtime").Len())
+		assert.Equal(t, 1, logs.FilterMessageSnippet(modifyingAFlagsetIs).Len())
 	})
 
 	t.Run("should leave unnamed flagsets untouched and warn when their count changes", func(t *testing.T) {
@@ -1892,12 +1933,12 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "flagset-named",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					APIKeys:   []string{"named-key"},
 				},
 				{
 					Name:      "", // unnamed -> gets a generated name at startup
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					APIKeys:   []string{"unnamed-key"},
 				},
 			},
@@ -1913,7 +1954,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "flagset-named",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 					APIKeys:   []string{"named-key"},
 				},
 			},
@@ -1934,7 +1975,7 @@ func TestFlagsetManager_OnConfigChange_FlagsetModifications(t *testing.T) {
 func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../testdata/semaphore/configuration_flags.yaml"
+	flagConfig := testdataSemaphoreConfigurationFlags
 
 	t.Run("should fail closed when an accepted key move collides with a rejected modification", func(t *testing.T) {
 		t.Parallel()
@@ -1943,18 +1984,18 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 		// forbidden retriever change (rejected, so it keeps its old keys). The reconciled config
 		// then has "k-move" on BOTH flagsets even though the incoming config was valid. The key
 		// must not route non-deterministically: it is left unrouted (fail closed).
-		otherFlagConfig := "../../../testdata/flag-config.yaml"
+		otherFlagConfig := testdataFlagConfigYaml
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "fs-a",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"k-a"},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{kA},
 				},
 				{
 					Name:      "fs-b",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"k-b", "k-move"},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{kB, kMove},
 				},
 			},
 		}
@@ -1964,15 +2005,15 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "fs-a",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"k-a", "k-move"}, // gains k-move (accepted)
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{kA, kMove}, // gains k-move (accepted)
 				},
 				{
 					Name: "fs-b",
 					// Forbidden retriever change -> the whole fs-b change is rejected, so it
 					// keeps its old keys [k-b, k-move].
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: otherFlagConfig},
-					APIKeys:   []string{"k-b"},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: otherFlagConfig},
+					APIKeys:   []string{kB},
 				},
 			},
 		}
@@ -1980,19 +2021,19 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Non-colliding keys still route deterministically.
-		_, err := manager.FlagSet("k-a")
+		_, err := manager.FlagSet(kA)
 		require.NoError(t, err)
-		_, err = manager.FlagSet("k-b")
+		_, err = manager.FlagSet(kB)
 		require.NoError(t, err)
 		// The colliding key is failed closed: it routes to no flagset.
-		_, err = manager.FlagSet("k-move")
+		_, err = manager.FlagSet(kMove)
 		require.Error(t, err, "a key present on two flagsets after reconciliation must not route")
 
 		assert.GreaterOrEqual(t,
 			logs.FilterMessageSnippet("configured on multiple flagsets after reconciliation").Len(), 1,
 			"expected an error log about the colliding API key")
 		assert.GreaterOrEqual(t,
-			logs.FilterMessageSnippet("modifying a flagset is not supported at runtime").Len(), 1,
+			logs.FilterMessageSnippet(modifyingAFlagsetIs).Len(), 1,
 			"expected the forbidden modification of fs-b to be rejected")
 	})
 
@@ -2003,8 +2044,8 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "fs-keep",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"keep-key"},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{keepKey},
 				},
 			},
 		}
@@ -2016,16 +2057,16 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 			FlagSets: []config.FlagSet{
 				{
 					Name:      "fs-keep",
-					Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
-					APIKeys:   []string{"keep-key"},
+					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
+					APIKeys:   []string{keepKey},
 				},
 				{
 					Name: "fs-broken",
 					Retriever: &retrieverconf.RetrieverConf{
-						Kind: "file",
+						Kind: file2,
 						Path: "/does/not/exist/flags.yaml",
 					},
-					APIKeys: []string{"broken-key"},
+					APIKeys: []string{brokenKey},
 				},
 			},
 		}
@@ -2033,9 +2074,9 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// The broken flagset is not registered; the existing flagset keeps working.
-		_, err := manager.FlagSet("broken-key")
+		_, err := manager.FlagSet(brokenKey)
 		require.Error(t, err, "a flagset whose client failed to build must not be reachable")
-		_, err = manager.FlagSet("keep-key")
+		_, err = manager.FlagSet(keepKey)
 		require.NoError(t, err, "the pre-existing flagset must keep working")
 
 		all, err := manager.AllFlagSets()
@@ -2055,15 +2096,15 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../../../testdata/flag-config.yaml"
+	flagConfig := testdataFlagConfigYaml
 	stable := config.FlagSet{
 		Name:      "fs-stable",
-		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 		APIKeys:   []string{"stable-key"},
 	}
 	churn := config.FlagSet{
 		Name:      "fs-churn",
-		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 		APIKeys:   []string{"churn-key"},
 	}
 	manager, _ := setupManager(t, &config.Config{FlagSets: []config.FlagSet{stable, churn}})
@@ -2122,7 +2163,7 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 	t.Parallel()
 
-	flagConfig := "../../../testdata/flag-config.yaml"
+	flagConfig := testdataFlagConfigYaml
 
 	// Webhook server that records how many times the exporter flushes to it.
 	var exportCalls atomic.Int64
@@ -2137,7 +2178,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 		FlagSets: []config.FlagSet{
 			{
 				Name:      "flagset-to-remove",
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 				// Bulk webhook exporter with a huge flush interval/buffer so it only flushes
 				// when the flagset is closed (and not earlier during the test).
 				Exporter: &config.ExporterConf{
@@ -2151,7 +2192,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 			{
 				// Keeper flagset so that removing the other one is not a mode switch.
 				Name:      "flagset-keep",
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 				APIKeys:   []string{"key-keep"},
 			},
 		},
@@ -2166,7 +2207,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 	require.NotNil(t, client)
 
 	// Generate one evaluation event; it is buffered (bulk exporter, not flushed yet).
-	_, err = client.RawVariation("test-flag", ffcontext.NewEvaluationContext("user-key"), false)
+	_, err = client.RawVariation("test-flag", ffcontext.NewEvaluationContext(userKey), false)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), exportCalls.Load(),
 		"the event must still be buffered before the flagset is removed")
@@ -2176,7 +2217,7 @@ func TestFlagsetManager_RemoveFlagsetGracefullyCloses(t *testing.T) {
 		FlagSets: []config.FlagSet{
 			{
 				Name:      "flagset-keep",
-				Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: flagConfig},
+				Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
 				APIKeys:   []string{"key-keep"},
 			},
 		},

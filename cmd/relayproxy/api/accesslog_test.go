@@ -16,6 +16,11 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	gETHealth = "GET /health"
+	success   = "Success"
+)
+
 // panicMonitoring is a monitoring service whose health endpoint panics.
 type panicMonitoring struct{}
 
@@ -47,24 +52,24 @@ func Test_AccessLog(t *testing.T) {
 		wantStatus  int
 	}{
 		{
-			name: "clean path", monitoring: okMonitoring{}, target: "/health", wantRequest: "GET /health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			name: "clean path", monitoring: okMonitoring{}, target: health2, wantRequest: gETHealth,
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{success: slog.LevelDebug},
 		},
 		{
 			name: "double slash", monitoring: okMonitoring{}, target: "//health", wantRequest: "GET //health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{success: slog.LevelDebug},
 		},
 		{
 			name: "dot segments", monitoring: okMonitoring{}, target: "/a/../health?x=1",
 			wantRequest: "GET /a/../health?x=1", wantStatus: http.StatusOK,
-			wantRecords: map[string]slog.Level{"Success": slog.LevelDebug},
+			wantRecords: map[string]slog.Level{success: slog.LevelDebug},
 		},
 		{
-			name: "panic", monitoring: panicMonitoring{}, target: "/health", wantRequest: "GET /health",
+			name: "panic", monitoring: panicMonitoring{}, target: health2, wantRequest: gETHealth,
 			wantStatus: http.StatusInternalServerError,
 			wantRecords: map[string]slog.Level{
 				"panic recovered": slog.LevelError,
-				"Server error":    slog.LevelError,
+				serverError:       slog.LevelError,
 			},
 		},
 	}
@@ -78,7 +83,7 @@ func Test_AccessLog(t *testing.T) {
 			conf.LogLevel = "debug"
 			srv := api.New(conf, service.Services{MonitoringService: tt.monitoring}, logger)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, health2, nil)
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]
 			req.RequestURI = tt.target
 			req.Header.Set("X-Request-ID", "req-1")

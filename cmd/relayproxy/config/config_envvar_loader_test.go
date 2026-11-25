@@ -26,9 +26,9 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 	)
 
 	fileRetrievers := []retrieverconf.RetrieverConf{
-		{Kind: "file", Path: "/file/a.yaml"}, {Kind: "file", Path: "/file/b.yaml"},
+		{Kind: file2, Path: "/file/a.yaml"}, {Kind: file2, Path: "/file/b.yaml"},
 	}
-	fileFlagsetRetrievers := []retrieverconf.RetrieverConf{{Kind: "file", Path: "/file/fs-a.yaml"}}
+	fileFlagsetRetrievers := []retrieverconf.RetrieverConf{{Kind: file2, Path: "/file/fs-a.yaml"}}
 
 	tests := []struct {
 		name               string
@@ -42,14 +42,14 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			name:           "well-formed override of an existing entry",
 			file:           topLevel,
 			env:            []string{"RETRIEVERS_1_PATH=/env/b.yaml"},
-			wantRetrievers: []retrieverconf.RetrieverConf{fileRetrievers[0], {Kind: "file", Path: "/env/b.yaml"}},
+			wantRetrievers: []retrieverconf.RetrieverConf{fileRetrievers[0], {Kind: file2, Path: "/env/b.yaml"}},
 		},
 		{
 			name: "well-formed override that adds an entry",
 			file: topLevel,
 			env:  []string{"RETRIEVERS_2_KIND=file", "RETRIEVERS_2_PATH=/env/c.yaml"},
 			wantRetrievers: append(append([]retrieverconf.RetrieverConf{}, fileRetrievers...),
-				retrieverconf.RetrieverConf{Kind: "file", Path: "/env/c.yaml"}),
+				retrieverconf.RetrieverConf{Kind: file2, Path: "/env/c.yaml"}),
 		},
 		{
 			name:           "negative index is rejected, the file is unchanged",
@@ -79,7 +79,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			name:            "flagset retriever well-formed override",
 			file:            flagsets,
 			env:             []string{"FLAGSETS_0_RETRIEVERS_0_PATH=/env/fs.yaml"},
-			wantFlagsetRetr: []retrieverconf.RetrieverConf{{Kind: "file", Path: "/env/fs.yaml"}},
+			wantFlagsetRetr: []retrieverconf.RetrieverConf{{Kind: file2, Path: "/env/fs.yaml"}},
 		},
 		{
 			name:            "flagset retriever negative index is rejected, the file is unchanged",
@@ -107,9 +107,9 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
 
-			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			flagSet.String("config", "", "Location of your config file")
-			require.NoError(t, flagSet.Parse([]string{"--config=" + path}))
+			flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+			flagSet.String(config3, "", locationOfYourConfig)
+			require.NoError(t, flagSet.Parse([]string{config2 + path}))
 
 			var (
 				got *config.Config
@@ -117,7 +117,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			)
 
 			require.NotPanics(t, func() {
-				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
+				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(tt.env...)).
 					ToConfig()
 			})
 

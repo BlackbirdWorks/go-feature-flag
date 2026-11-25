@@ -12,8 +12,16 @@ import (
 )
 
 const (
-	flagset1Name   = "flagset-1"
-	flagset2Name   = "flagset-2"
+	flagsetNonExistingNot = "flagset non-existing not found"
+	key1                  = "key-1"
+	key2                  = "key-2"
+	key3                  = "key-3"
+	nonExisting           = "non-existing"
+)
+
+const (
+	flagset1Name   = flagset1
+	flagset2Name   = flagset2
 	flagset3Name   = "flagset-3"
 	oldKey1        = "old-key-1"
 	oldKey2        = "old-key-2"
@@ -61,10 +69,10 @@ func TestConfigSetFlagSetAPIKeys(t *testing.T) {
 					{Name: flagset1Name, APIKeys: []string{oldKey1}},
 				},
 			},
-			flagsetName:    "non-existing",
+			flagsetName:    nonExisting,
 			apiKeys:        []string{"new-key"},
 			wantErr:        true,
-			wantErrContain: "flagset non-existing not found",
+			wantErrContain: flagsetNonExistingNot,
 		},
 		{
 			name: "set API keys with empty flagsets config",
@@ -113,12 +121,12 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 			name: "get API keys for existing flagset",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{
-					{Name: flagset1Name, APIKeys: []string{"key-1", "key-2"}},
-					{Name: flagset2Name, APIKeys: []string{"key-3"}},
+					{Name: flagset1Name, APIKeys: []string{key1, key2}},
+					{Name: flagset2Name, APIKeys: []string{key3}},
 				},
 			},
 			flagsetName: flagset1Name,
-			wantAPIKeys: []string{"key-1", "key-2"},
+			wantAPIKeys: []string{key1, key2},
 			wantErr:     false,
 		},
 		{
@@ -147,13 +155,13 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 			name: "get API keys for non-existing flagset",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{
-					{Name: flagset1Name, APIKeys: []string{"key-1"}},
+					{Name: flagset1Name, APIKeys: []string{key1}},
 				},
 			},
-			flagsetName:    "non-existing",
+			flagsetName:    nonExisting,
 			wantAPIKeys:    nil,
 			wantErr:        true,
-			wantErrContain: "flagset non-existing not found",
+			wantErrContain: flagsetNonExistingNot,
 		},
 		{
 			name: "get API keys with empty flagsets config",
@@ -169,13 +177,13 @@ func TestConfigGetFlagSetAPIKeys(t *testing.T) {
 			name: "get API keys for second flagset in list",
 			config: &config.Config{
 				FlagSets: []config.FlagSet{
-					{Name: flagset1Name, APIKeys: []string{"key-1"}},
-					{Name: flagset2Name, APIKeys: []string{"key-2", "key-3"}},
+					{Name: flagset1Name, APIKeys: []string{key1}},
+					{Name: flagset2Name, APIKeys: []string{key2, key3}},
 					{Name: flagset3Name, APIKeys: []string{"key-4"}},
 				},
 			},
 			flagsetName: flagset2Name,
-			wantAPIKeys: []string{"key-2", "key-3"},
+			wantAPIKeys: []string{key2, key3},
 			wantErr:     false,
 		},
 	}
@@ -206,8 +214,8 @@ func TestConfigGetFlagSets(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
-				{Name: flagset2Name, APIKeys: []string{"key-2"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
+				{Name: flagset2Name, APIKeys: []string{key2}},
 			},
 		}
 		got := cfg.GetFlagSets()
@@ -228,7 +236,7 @@ func TestConfigGetFlagSets(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
 			},
 		}
 		got := cfg.GetFlagSets()
@@ -251,10 +259,10 @@ func TestConfigAddFlagSet(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
 			},
 		}
-		err := cfg.AddFlagSet(config.FlagSet{Name: flagset2Name, APIKeys: []string{"key-2"}})
+		err := cfg.AddFlagSet(config.FlagSet{Name: flagset2Name, APIKeys: []string{key2}})
 		require.NoError(t, err)
 
 		got := cfg.GetFlagSets()
@@ -262,7 +270,7 @@ func TestConfigAddFlagSet(t *testing.T) {
 
 		keys, err := cfg.GetFlagSetAPIKeys(flagset2Name)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"key-2"}, keys)
+		assert.Equal(t, []string{key2}, keys)
 	})
 
 	t.Run("returns an error when the flagset already exists", func(t *testing.T) {
@@ -270,10 +278,10 @@ func TestConfigAddFlagSet(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
 			},
 		}
-		err := cfg.AddFlagSet(config.FlagSet{Name: flagset1Name, APIKeys: []string{"key-2"}})
+		err := cfg.AddFlagSet(config.FlagSet{Name: flagset1Name, APIKeys: []string{key2}})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "flagset flagset-1 already exists")
 		// The existing flagset must be untouched.
@@ -289,8 +297,8 @@ func TestConfigRemoveFlagSet(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
-				{Name: flagset2Name, APIKeys: []string{"key-2"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
+				{Name: flagset2Name, APIKeys: []string{key2}},
 			},
 		}
 		err := cfg.RemoveFlagSet(flagset1Name)
@@ -309,12 +317,12 @@ func TestConfigRemoveFlagSet(t *testing.T) {
 
 		cfg := &config.Config{
 			FlagSets: []config.FlagSet{
-				{Name: flagset1Name, APIKeys: []string{"key-1"}},
+				{Name: flagset1Name, APIKeys: []string{key1}},
 			},
 		}
-		err := cfg.RemoveFlagSet("non-existing")
+		err := cfg.RemoveFlagSet(nonExisting)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "flagset non-existing not found")
+		assert.Contains(t, err.Error(), flagsetNonExistingNot)
 		assert.Len(t, cfg.GetFlagSets(), 1)
 	})
 }

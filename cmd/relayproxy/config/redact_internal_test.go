@@ -14,6 +14,11 @@ import (
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
+const (
+	debug          = "debug"
+	visibleVersion = "visible-version"
+)
+
 const secretMarker = "SECRETMARKER"
 
 // ownStructFields walks the type tree of t and returns every exported field of every struct
@@ -161,8 +166,8 @@ func newConfigWithSecrets(t *testing.T) *Config {
 	// values that are not in a secret field but are in a map under a sensitive key.
 	conf.EvaluationContextEnrichment = map[string]any{"apiKey": secretMarker + "-enrichment", "env": "prod"}
 	conf.OtelConfig.Resource.Attributes = map[string]string{"service.token": secretMarker + "-otel"}
-	conf.Version = "visible-version"
-	conf.LogLevel = "debug"
+	conf.Version = visibleVersion
+	conf.LogLevel = debug
 
 	return conf
 }
@@ -185,7 +190,7 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 				slog.Any("newConfig", conf))
 
 			assert.NotContains(t, buf.String(), secretMarker)
-			assert.Contains(t, buf.String(), "visible-version", "the non-secret part of the config must be logged")
+			assert.Contains(t, buf.String(), visibleVersion, "the non-secret part of the config must be logged")
 			assert.Contains(t, buf.String(), RedactedValue)
 		})
 	}
@@ -206,17 +211,17 @@ func TestRedactedNeverContainsSecrets(t *testing.T) {
 		l := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		l.Debug("config", slog.Any("config", conf))
 		assert.NotContains(t, buf.String(), secretMarker)
-		assert.Contains(t, buf.String(), "visible-version")
+		assert.Contains(t, buf.String(), visibleVersion)
 	})
 }
 
 func TestRedactedKeepsPlainValues(t *testing.T) {
 	t.Parallel()
 
-	conf := &Config{LogLevel: "debug", Version: "1.0"}
+	conf := &Config{LogLevel: debug, Version: "1.0"}
 	conf.AuthorizedKeys.Admin = []string{"a-secret-admin"}
 	redacted := conf.Redacted()
-	assert.Equal(t, "debug", redacted["loglevel"])
+	assert.Equal(t, debug, redacted["loglevel"])
 	assert.Equal(t, RedactedValue, redacted["authorizedkeys"])
 	assert.Nil(t, (*Config)(nil).Redacted())
 }

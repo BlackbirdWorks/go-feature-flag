@@ -46,7 +46,7 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 		nil,
 		nil,
 	)
-	require.NoError(t, err, "impossible to create flagset manager")
+	require.NoError(t, err, impossibleToCreateFlagset)
 
 	// Get the default flagset to check refresh date
 	defaultFlagset := flagsetManager.Default()

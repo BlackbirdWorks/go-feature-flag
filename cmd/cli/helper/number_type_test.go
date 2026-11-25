@@ -10,6 +10,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
 
+const (
+	var12 = "var1"
+	var22 = "var2"
+)
+
 func TestFlagTypeFromVariations(t *testing.T) {
 	t.Parallel()
 
@@ -22,7 +27,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single boolean type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(true)
 
 					return &v
@@ -34,7 +39,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single string type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any("test")
 
 					return &v
@@ -46,7 +51,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single integer type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(42)
 
 					return &v
@@ -58,7 +63,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single float type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(42.0)
 
 					return &v
@@ -70,7 +75,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "single object type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(map[string]any{"key": "value"})
 
 					return &v
@@ -82,8 +87,8 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "ignore nil values type",
 			variations: map[string]*any{
-				"var1": nil,
-				"var2": new(any(map[string]any{"toto": "titi"})),
+				var12: nil,
+				var22: new(any(map[string]any{"toto": "titi"})),
 			},
 			expected:  model.FlagTypeObject,
 			expectErr: false,
@@ -91,12 +96,12 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "mixed integer and float (with .0) types",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(42)
 
 					return &v
 				}(),
-				"var2": func() *any {
+				var22: func() *any {
 					v := any(42.0)
 
 					return &v
@@ -108,12 +113,12 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "mixed integer and float types",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any(42)
 
 					return &v
 				}(),
-				"var2": func() *any {
+				var22: func() *any {
 					v := any(42.2)
 
 					return &v
@@ -125,7 +130,7 @@ func TestFlagTypeFromVariations(t *testing.T) {
 		{
 			name: "unknown type",
 			variations: map[string]*any{
-				"var1": func() *any {
+				var12: func() *any {
 					v := any([]int{1, 2, 3})
 
 					return &v

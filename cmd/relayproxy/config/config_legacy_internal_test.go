@@ -16,6 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	fixture0GoffProxyYaml      = "0/goff-proxy.yaml"
+	fixture0SemaphoreProxyYaml = "0/semaphore-proxy.yaml"
+	sEMAPHORESERVERPORT2       = "SEMAPHORE_SERVER_PORT=2"
+	sERVERPORT1                = "SERVER_PORT=1"
+)
+
 // recordingWarner returns a warner and the kinds it was asked to warn about.
 func recordingWarner() (*legacy.Warner, func() []string) {
 	var (
@@ -49,18 +56,18 @@ func TestLocateConfigFileLegacyNames(t *testing.T) {
 		wantWarnings []string
 		wantErr      bool
 	}{
-		{name: "semaphore-proxy.yaml", files: []string{"0/semaphore-proxy.yaml"}, wantFile: "0/semaphore-proxy.yaml"},
+		{name: "semaphore-proxy.yaml", files: []string{fixture0SemaphoreProxyYaml}, wantFile: fixture0SemaphoreProxyYaml},
 		{
 			name:         "legacy goff-proxy.yaml still found",
-			files:        []string{"0/goff-proxy.yaml"},
-			wantFile:     "0/goff-proxy.yaml",
+			files:        []string{fixture0GoffProxyYaml},
+			wantFile:     fixture0GoffProxyYaml,
 			wantWarnings: []string{legacy.KindConfigFile},
 		},
 		{name: "new name wins over the legacy one in the same folder",
-			files:    []string{"0/goff-proxy.yaml", "0/semaphore-proxy.yaml"},
-			wantFile: "0/semaphore-proxy.yaml"},
+			files:    []string{fixture0GoffProxyYaml, fixture0SemaphoreProxyYaml},
+			wantFile: fixture0SemaphoreProxyYaml},
 		{name: "new name wins whatever the extension",
-			files:    []string{"0/goff-proxy.yaml", "0/semaphore-proxy.json"},
+			files:    []string{fixture0GoffProxyYaml, "0/semaphore-proxy.json"},
 			wantFile: "0/semaphore-proxy.json"},
 		{name: "every extension is supported for both names",
 			files: []string{"0/goff-proxy.toml"}, wantFile: "0/goff-proxy.toml",
@@ -132,19 +139,19 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 		wantWarnings []string
 	}{
 		{name: "unprefixed variables keep working",
-			environ:  []string{"SERVER_PORT=1", "LOGLEVEL=debug"},
-			wantPort: "1", wantLogLevel: "debug"},
+			environ:  []string{sERVERPORT1, "LOGLEVEL=debug"},
+			wantPort: "1", wantLogLevel: debug},
 		{name: "SEMAPHORE_ prefix is always read",
-			environ:  []string{"SEMAPHORE_SERVER_PORT=2", "SEMAPHORE_LOGLEVEL=warn"},
+			environ:  []string{sEMAPHORESERVERPORT2, "SEMAPHORE_LOGLEVEL=warn"},
 			wantPort: "2", wantLogLevel: "warn"},
 		{name: "SEMAPHORE_ wins over the unprefixed variable",
-			environ:  []string{"SERVER_PORT=1", "SEMAPHORE_SERVER_PORT=2"},
+			environ:  []string{sERVERPORT1, sEMAPHORESERVERPORT2},
 			wantPort: "2"},
 		{name: "configured prefix keeps working",
-			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", "SERVER_PORT=1"},
+			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", sERVERPORT1},
 			wantPort: "3"},
 		{name: "SEMAPHORE_ wins over the configured prefix",
-			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", "SEMAPHORE_SERVER_PORT=2"},
+			configPrefix: "MYAPP_", environ: []string{"MYAPP_SERVER_PORT=3", sEMAPHORESERVERPORT2},
 			wantPort: "2"},
 		{name: "configured SEMAPHORE_ prefix is not loaded twice",
 			configPrefix: "SEMAPHORE_", environ: []string{"SEMAPHORE_SERVER_PORT=4"},

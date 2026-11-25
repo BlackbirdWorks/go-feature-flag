@@ -82,7 +82,7 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 		manager.Close()
 	})
 
-	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	baseURL := fmt.Sprintf(http12700, port)
 	waitForServer(t, baseURL)
 
 	return baseURL
@@ -103,10 +103,10 @@ func postJSON(tb testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(tb, err)
 	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, url, bytes.NewReader(b))
 	require.NoError(tb, err)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(contentType, applicationJson)
 
 	if apiKey != "" {
-		req.Header.Set("X-Api-Key", apiKey)
+		req.Header.Set(xApiKey, apiKey)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}

@@ -48,7 +48,7 @@ func TestNotify(t *testing.T) {
 	mockService := &mockWebsocketService{}
 
 	// Create the notifierWebsocket instance with the mock service
-	notifierWS := proxynotifier.NewNotifierWebsocket(mockService, "my-flagset")
+	notifierWS := proxynotifier.NewNotifierWebsocket(mockService, myFlagset)
 
 	// Prepare the input data
 	diff := notifier.DiffCache{
@@ -104,5 +104,5 @@ func TestNotify(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	assert.Equal(t, diff, mockService.internalDiff)
-	assert.Equal(t, "my-flagset", mockService.flagsetName)
+	assert.Equal(t, myFlagset, mockService.flagsetName)
 }

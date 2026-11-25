@@ -22,6 +22,11 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	flagsetA2      = "flagsetA"
+	streamFlagsetA = "?stream=flagsetA"
+)
+
 func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	t.Parallel()
 
@@ -34,8 +39,8 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 	}{
 		{
 			name:             "client receives event from its own stream",
-			subscribeFlagset: "flagsetA",
-			broadcastFlagset: "flagsetA",
+			subscribeFlagset: flagsetA2,
+			broadcastFlagset: flagsetA2,
 			diff: notifier.DiffCache{
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{
@@ -50,7 +55,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 		},
 		{
 			name:             "client does not receive event from a different stream",
-			subscribeFlagset: "flagsetA",
+			subscribeFlagset: flagsetA2,
 			broadcastFlagset: "flagsetB",
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{
@@ -189,7 +194,7 @@ func TestSSEService_Close(t *testing.T) {
 					}
 				})
 
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"?stream=flagsetA", nil)
+				req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+streamFlagsetA, nil)
 				require.NoError(t, err)
 				resp, err := (&http.Client{}).Do(req)
 				require.NoError(t, err)
@@ -231,7 +236,7 @@ func TestSSEService_Comments(t *testing.T) {
 	}{
 		{
 			name:              "connected comment is the first bytes of the body",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: 0,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,
@@ -239,7 +244,7 @@ func TestSSEService_Comments(t *testing.T) {
 		},
 		{
 			name:              "heartbeat comments are sent periodically",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: 50 * time.Millisecond,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,
@@ -247,7 +252,7 @@ func TestSSEService_Comments(t *testing.T) {
 		},
 		{
 			name:              "negative interval disables the heartbeat",
-			query:             "?stream=flagsetA",
+			query:             streamFlagsetA,
 			heartbeatInterval: -1,
 			wantStatus:        http.StatusOK,
 			wantConnected:     true,

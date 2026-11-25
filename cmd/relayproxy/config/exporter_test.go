@@ -8,6 +8,22 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
+const (
+	analytics                          = "analytics"
+	bigquery                           = "bigquery"
+	fakeProjectId                      = "fake-project-id"
+	flagVariationHostnameTimestamp     = "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}-custom-file"
+	goffWriter                         = "goff_writer"
+	googleStorage                      = "googleStorage"
+	json2                              = "json"
+	kindContextKindUserKeyCreationDate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}}\n"
+	myCluster                          = "my-cluster"
+	myWorkgroup                        = "my-workgroup"
+	pubsub                             = "pubsub"
+	redshift                           = "redshift"
+	testbucket                         = "testbucket"
+)
+
 type exporterConfFields struct {
 	Kind                    string
 	OutputDir               string
@@ -98,7 +114,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "invalid kind",
 			fields: exporterConfFields{
-				Kind: "invalid",
+				Kind: invalid2,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: kind \"invalid\" is not supported",
@@ -106,7 +122,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind file without outputDir",
 			fields: exporterConfFields{
-				Kind: "file",
+				Kind: file2,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"outputDir\" property found for kind \"file\"",
@@ -130,7 +146,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind googleStorage without bucket",
 			fields: exporterConfFields{
-				Kind: "googleStorage",
+				Kind: googleStorage,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"bucket\" property found for kind \"googleStorage\"",
@@ -158,7 +174,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without bucket",
 			fields: exporterConfFields{
-				Kind: "webhook",
+				Kind: webhook,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"endpointUrl\" property found for kind \"webhook\"",
@@ -166,11 +182,11 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook valid",
 			fields: exporterConfFields{
-				Kind:        "webhook",
-				EndpointURL: "http://testingwebhook.com/test/",
-				Secret:      "secret-for-signing",
+				Kind:        webhook,
+				EndpointURL: httpTestingwebhookComTest,
+				Secret:      secretForSigning,
 				Meta: map[string]string{
-					"extraInfo": "info",
+					extraInfo2: info2,
 				},
 			},
 			wantErr: false,
@@ -178,18 +194,18 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind file valid",
 			fields: exporterConfFields{
-				Kind:        "file",
+				Kind:        file2,
 				OutputDir:   "/tmp/",
-				Format:      "json",
-				Filename:    "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}-custom-file",
-				CsvTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}}\n",
+				Format:      json2,
+				Filename:    flagVariationHostnameTimestamp,
+				CsvTemplate: kindContextKindUserKeyCreationDate,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind log valid",
 			fields: exporterConfFields{
-				Kind:   "log",
+				Kind:   log2,
 				Format: "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\"",
 			},
 			wantErr: false,
@@ -198,10 +214,10 @@ func TestExporterConf_IsValid(t *testing.T) {
 			name: "kind s3 valid",
 			fields: exporterConfFields{
 				Kind:        "s3",
-				Bucket:      "testbucket",
-				CsvTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}}\n",
-				Filename:    "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}-custom-file",
-				Format:      "json",
+				Bucket:      testbucket,
+				CsvTemplate: kindContextKindUserKeyCreationDate,
+				Filename:    flagVariationHostnameTimestamp,
+				Format:      json2,
 				Path:        "/here/",
 			},
 			wantErr: false,
@@ -209,11 +225,11 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind googleStorage valid",
 			fields: exporterConfFields{
-				Kind:        "googleStorage",
-				Bucket:      "testbucket",
-				CsvTemplate: "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}}\n",
-				Filename:    "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}-custom-file",
-				Format:      "json",
+				Kind:        googleStorage,
+				Bucket:      testbucket,
+				CsvTemplate: kindContextKindUserKeyCreationDate,
+				Filename:    flagVariationHostnameTimestamp,
+				Format:      json2,
 				Path:        "/here/",
 			},
 			wantErr: false,
@@ -221,10 +237,10 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "invalid parquetCompressionCodec",
 			fields: exporterConfFields{
-				Kind:                    "googleStorage",
-				Bucket:                  "testbucket",
+				Kind:                    googleStorage,
+				Bucket:                  testbucket,
 				Format:                  "parquet",
-				ParquetCompressionCodec: "invalid",
+				ParquetCompressionCodec: invalid2,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"parquetCompressionCodec\" err: not a valid CompressionCodec string",
@@ -264,8 +280,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind PubSub valid",
 			fields: exporterConfFields{
-				Kind:      "pubsub",
-				ProjectID: "fake-project-id",
+				Kind:      pubsub,
+				ProjectID: fakeProjectId,
 				Topic:     "fake-topic",
 			},
 			wantErr: false,
@@ -273,7 +289,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind PubSub without project id",
 			fields: exporterConfFields{
-				Kind:  "pubsub",
+				Kind:  pubsub,
 				Topic: "fake-topic",
 			},
 			wantErr:  true,
@@ -282,8 +298,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind PubSub without topic",
 			fields: exporterConfFields{
-				Kind:      "pubsub",
-				ProjectID: "fake-project-id",
+				Kind:      pubsub,
+				ProjectID: fakeProjectId,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"projectID\" and \"topic\" are required for kind \"pubsub\"",
@@ -291,8 +307,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind BigQuery valid",
 			fields: exporterConfFields{
-				Kind:      "bigquery",
-				ProjectID: "fake-project-id",
+				Kind:      bigquery,
+				ProjectID: fakeProjectId,
 				DatasetID: "fake-dataset",
 			},
 			wantErr: false,
@@ -300,7 +316,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind BigQuery without project id",
 			fields: exporterConfFields{
-				Kind:      "bigquery",
+				Kind:      bigquery,
 				DatasetID: "fake-dataset",
 			},
 			wantErr:  true,
@@ -309,8 +325,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind BigQuery without dataset id",
 			fields: exporterConfFields{
-				Kind:      "bigquery",
-				ProjectID: "fake-project-id",
+				Kind:      bigquery,
+				ProjectID: fakeProjectId,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"projectID\" and \"datasetID\" are required for kind \"bigquery\"",
@@ -318,27 +334,27 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift valid with cluster",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind Redshift valid with workgroup",
 			fields: exporterConfFields{
-				Kind:          "redshift",
-				Database:      "analytics",
-				WorkgroupName: "my-workgroup",
+				Kind:          redshift,
+				Database:      analytics,
+				WorkgroupName: myWorkgroup,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind Redshift valid with schema and table name",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
 				TableName:         "goff.feature_flag_evaluations",
 			},
 			wantErr: false,
@@ -346,9 +362,9 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift with invalid table name",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
 				TableName:         "events; DROP TABLE users",
 			},
 			wantErr: true,
@@ -358,8 +374,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift without database",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				ClusterIdentifier: "my-cluster",
+				Kind:              redshift,
+				ClusterIdentifier: myCluster,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"database\" property found for kind \"redshift\"",
@@ -367,8 +383,8 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift without cluster or workgroup",
 			fields: exporterConfFields{
-				Kind:     "redshift",
-				Database: "analytics",
+				Kind:     redshift,
+				Database: analytics,
 			},
 			wantErr: true,
 			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
@@ -377,10 +393,10 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift with both cluster and workgroup",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
-				WorkgroupName:     "my-workgroup",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
+				WorkgroupName:     myWorkgroup,
 			},
 			wantErr: true,
 			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
@@ -389,19 +405,19 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift valid with cluster and dbUser",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
-				DBUser:            "goff_writer",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
+				DBUser:            goffWriter,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind Redshift valid with workgroup and secretArn",
 			fields: exporterConfFields{
-				Kind:          "redshift",
-				Database:      "analytics",
-				WorkgroupName: "my-workgroup",
+				Kind:          redshift,
+				Database:      analytics,
+				WorkgroupName: myWorkgroup,
 				SecretArn:     "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
 			},
 			wantErr: false,
@@ -409,10 +425,10 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift with dbUser and workgroup",
 			fields: exporterConfFields{
-				Kind:          "redshift",
-				Database:      "analytics",
-				WorkgroupName: "my-workgroup",
-				DBUser:        "goff_writer",
+				Kind:          redshift,
+				Database:      analytics,
+				WorkgroupName: myWorkgroup,
+				DBUser:        goffWriter,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"dbUser\" cannot be used with \"workgroupName\" for kind \"redshift\"",
@@ -420,10 +436,10 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 		{
 			name: "kind Redshift with dbUser and secretArn",
 			fields: exporterConfFields{
-				Kind:              "redshift",
-				Database:          "analytics",
-				ClusterIdentifier: "my-cluster",
-				DBUser:            "goff_writer",
+				Kind:              redshift,
+				Database:          analytics,
+				ClusterIdentifier: myCluster,
+				DBUser:            goffWriter,
 				SecretArn:         "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
 			},
 			wantErr:  true,

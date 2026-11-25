@@ -64,8 +64,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
-						Path: "../../../testdata/flag-config.yaml",
+						Kind: file2,
+						Path: testdataFlagConfigYaml,
 					},
 				},
 				Server: config.Server{
@@ -93,7 +93,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			go apiServer.StartWithContext(context.Background())
 			defer apiServer.Stop(context.Background())
 
-			waitForServer(t, fmt.Sprintf("http://localhost:%d", portToCheck))
+			waitForServer(t, fmt.Sprintf(httpLocalhostD, portToCheck))
 			resp, err := http.Get(fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck))
 			require.NoError(t, err)
 
@@ -136,18 +136,18 @@ func Test_VersionHeader_On_MonitoringServer(t *testing.T) {
 			conf.DisableVersionHeader = tt.disableVersionHeader
 			baseURL, monitoringURL := startTestServer(t, conf, true)
 
-			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+"/health", nil)
+			monitoringResp := doRequest(t, http.MethodGet, monitoringURL+health2, nil)
 			assert.Equal(t, http.StatusOK, monitoringResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				monitoringResp.Header.Get("X-Gofeatureflag-Version"),
+				monitoringResp.Header.Get(xGofeatureflagVersion),
 				"monitoring server")
 
-			apiResp := doRequest(t, http.MethodGet, baseURL+"/v1/flag/change", nil)
+			apiResp := doRequest(t, http.MethodGet, baseURL+v1FlagChange, nil)
 			assert.Equal(t, http.StatusOK, apiResp.StatusCode)
 			assert.Equal(t,
 				tt.expectedVersion,
-				apiResp.Header.Get("X-Gofeatureflag-Version"),
+				apiResp.Header.Get(xGofeatureflagVersion),
 				"api server")
 		})
 	}

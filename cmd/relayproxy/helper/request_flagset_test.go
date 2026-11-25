@@ -17,6 +17,11 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	key    = "key"
+	tenant = "tenant"
+)
+
 var (
 	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
 	errNotFound            = errors.New("not found")
@@ -41,7 +46,7 @@ func TestRequestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	routed := &ffclient.GoFeatureFlag{}
-	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{"tenant": routed}}
+	manager := &mock.MockFlagsetManager{FlagSets: map[string]*ffclient.GoFeatureFlag{tenant: routed}}
 	unrouted := &mock.MockFlagsetManager{GetFlagSetsErr: errNotFound}
 
 	tests := []struct {
@@ -63,7 +68,7 @@ func TestRequestFlagSet(t *testing.T) {
 
 			ctx := t.Context()
 			if tt.authenticate {
-				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, "key")
+				authCtx, ok := helper.AuthenticateFlagSet(ctx, tt.manager, key)
 				require.True(t, ok)
 
 				ctx = authCtx
@@ -71,7 +76,7 @@ func TestRequestFlagSet(t *testing.T) {
 				tt.manager = unrouted
 			}
 
-			flagset, err := helper.RequestFlagSet(ctx, tt.manager, "key")
+			flagset, err := helper.RequestFlagSet(ctx, tt.manager, key)
 			assert.Equal(t, tt.wantFlagSet, flagset)
 			assert.Equal(t, tt.wantErr, err != nil)
 		})
@@ -95,7 +100,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, ok := helper.AuthenticateFlagSet(t.Context(), tt.manager, "key")
+			_, ok := helper.AuthenticateFlagSet(t.Context(), tt.manager, key)
 			assert.Equal(t, tt.want, ok)
 		})
 	}
@@ -104,7 +109,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 func TestRequestFlagSetName(t *testing.T) {
 	t.Parallel()
 
-	manager := &namedManager{names: map[string]string{"key": "tenant"}}
+	manager := &namedManager{names: map[string]string{key: tenant}}
 
 	tests := []struct {
 		name         string
@@ -115,10 +120,10 @@ func TestRequestFlagSetName(t *testing.T) {
 		wantAuth     bool
 		wantErr      bool
 	}{
-		{name: "the name resolved by the authentication is used", apiKey: "key", authenticate: true,
-			wantName: "tenant", wantAuth: true, wantLogged: []any{"tenant"}},
-		{name: "the name of the key is looked up without authentication", apiKey: "key", wantName: "tenant",
-			wantLogged: []any{"tenant"}},
+		{name: "the name resolved by the authentication is used", apiKey: key, authenticate: true,
+			wantName: tenant, wantAuth: true, wantLogged: []any{tenant}},
+		{name: "the name of the key is looked up without authentication", apiKey: key, wantName: tenant,
+			wantLogged: []any{tenant}},
 		{name: "a key without flag set is an error", apiKey: "other", wantErr: true},
 		{name: "a key without flag set is not authenticated", apiKey: "other", authenticate: true, wantErr: true},
 	}

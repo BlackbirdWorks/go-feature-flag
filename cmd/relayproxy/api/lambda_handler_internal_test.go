@@ -20,6 +20,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	applicationJson = "application/json"
+	contentType     = "Content-Type"
+	gET             = "GET"
+	health2         = "/health"
+)
+
 func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 	t.Parallel()
 
@@ -38,12 +45,12 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			request: events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: "GET",
-						Path:   "/health",
+						Method: gET,
+						Path:   health2,
 					},
 				},
 				Headers: map[string]string{
-					"Content-Type": "application/json",
+					contentType: applicationJson,
 				},
 				Body: "",
 			},
@@ -53,14 +60,14 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "APIGatewayV1",
 			wantStatus: http.StatusOK,
 			request: events.APIGatewayProxyRequest{
-				HTTPMethod: "GET",
-				Path:       "/health",
+				HTTPMethod: gET,
+				Path:       health2,
 				RequestContext: events.APIGatewayProxyRequestContext{
-					Path:       "/health",
-					HTTPMethod: "GET",
+					Path:       health2,
+					HTTPMethod: gET,
 				},
 				Headers: map[string]string{
-					"Content-Type": "application/json",
+					contentType: applicationJson,
 				},
 				Body: "",
 			},
@@ -70,10 +77,10 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 			mode:       "ALB",
 			wantStatus: http.StatusOK,
 			request: events.ALBTargetGroupRequest{
-				HTTPMethod: "GET",
-				Path:       "/health",
+				HTTPMethod: gET,
+				Path:       health2,
 				Headers: map[string]string{
-					"Content-Type": "application/json",
+					contentType: applicationJson,
 				},
 				Body: "",
 			},
@@ -171,13 +178,13 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 		{
 			name:         "No base path configured - direct path",
 			basePath:     "",
-			requestPath:  "/health",
+			requestPath:  health2,
 			expectedCode: 200,
 		},
 		{
 			name:         "No base path configured - direct path",
 			basePath:     "",
-			requestPath:  "/health",
+			requestPath:  health2,
 			expectedCode: 200,
 		},
 	}
@@ -215,12 +222,12 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 			request := events.APIGatewayV2HTTPRequest{
 				RequestContext: events.APIGatewayV2HTTPRequestContext{
 					HTTP: events.APIGatewayV2HTTPRequestContextHTTPDescription{
-						Method: "GET",
+						Method: gET,
 						Path:   tt.requestPath,
 					},
 				},
 				Headers: map[string]string{
-					"Content-Type": "application/json",
+					contentType: applicationJson,
 				},
 				Body: "",
 			}

@@ -23,6 +23,10 @@ import (
 )
 
 const (
+	yaml = "yaml"
+)
+
+const (
 	manifestTestdataDir        = "../../testdata/manifest"
 	manifestConfigFlags        = manifestTestdataDir + "/config_flags.yaml"
 	manifestConfigFlagsV2      = manifestTestdataDir + "/config_flags_v2.yaml"
@@ -38,7 +42,7 @@ func TestManifestCtrl_GetManifest_DefaultMode(t *testing.T) {
 
 	conf := &config.Config{
 		PollingInterval: 10000,
-		FileFormat:      "yaml",
+		FileFormat:      yaml,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
 				Kind: retrieverconf.FileRetriever,
@@ -129,7 +133,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset1",
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      yaml,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,
@@ -141,7 +145,7 @@ func TestManifestCtrl_GetManifest_FlagsetMode(t *testing.T) {
 			{
 				Name:            "flagset2",
 				PollingInterval: 10000,
-				FileFormat:      "yaml",
+				FileFormat:      yaml,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
 						Kind: retrieverconf.FileRetriever,

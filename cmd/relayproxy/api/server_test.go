@@ -32,6 +32,29 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	adminKey                         = "admin-key"
+	applicationJson                  = "application/json"
+	bearerTest                       = "Bearer test"
+	contextTargetingKeySomeKey       = `{ "context":{"targetingKey":"some-key"}}`
+	contextTargetingKeySomeKey2      = `{"context":{"targetingKey":"some-key"}}`
+	file2                            = "file"
+	httpLocalhostD                   = "http://localhost:%d"
+	httpUnixHealth                   = "http://unix/health"
+	httpUnixOfrepV                   = "http://unix/ofrep/v1/evaluate/flags/test-flag"
+	impossibleToInitializePrometheus = "impossible to initialize prometheus metrics"
+	info                             = "/info"
+	metrics2                         = "/metrics"
+	pOST                             = "POST"
+	tcp2                             = "tcp"
+	test2                            = "test"
+	testdataFlagConfigYaml           = "../../../testdata/flag-config.yaml"
+	unix                             = "unix"
+	unixSocketFileShould             = "Unix socket file should exist"
+	unixSocketFileWas                = "unix socket file was not created in time"
+	xGofeatureflagVersion            = "X-Gofeatureflag-Version"
+)
+
 // newTestLogger returns a logger that writes to stderr. server.go reports a failed bind with a fatal log,
 // and its default reaction is [os.Exit](1): fired from the background goroutine that runs StartWithContext, it
 // takes the test binary down and every remaining test in the package is silently skipped. The servers of these
@@ -71,7 +94,7 @@ func newTestServer(
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + "/health")
+		resp, err := http.Get(baseURL + health2)
 		if err != nil {
 			return false
 		}
@@ -89,8 +112,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -105,7 +128,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -131,24 +154,24 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 
 	defer s.Stop(context.Background())
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + "/health")
+	response, err := http.Get(baseURL + health2)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	responseM, err := http.Get(baseURL + "/metrics")
+	responseM, err := http.Get(baseURL + metrics2)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
-	responseI, err := http.Get(baseURL + "/info")
+	responseI, err := http.Get(baseURL + info)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI.Body.Close() }()
@@ -164,8 +187,8 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -181,7 +204,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -213,48 +236,48 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 
 	defer srv.Stop(context.Background())
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
-	monitoringURL := fmt.Sprintf("http://localhost:%d", monitoringPort)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
+	monitoringURL := fmt.Sprintf(httpLocalhostD, monitoringPort)
 
 	waitForServer(t, baseURL)
 	waitForServer(t, monitoringURL)
 
-	response, err := http.Get(baseURL + "/health")
+	response, err := http.Get(baseURL + health2)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	responseM, err := http.Get(baseURL + "/metrics")
+	responseM, err := http.Get(baseURL + metrics2)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, responseM.StatusCode)
 
-	responseI, err := http.Get(baseURL + "/info")
+	responseI, err := http.Get(baseURL + info)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, responseI.StatusCode)
 
-	responseH1, err := http.Get(monitoringURL + "/health")
+	responseH1, err := http.Get(monitoringURL + health2)
 	require.NoError(t, err)
 
 	defer func() { _ = responseH1.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
-	responseM1, err := http.Get(monitoringURL + "/metrics")
+	responseM1, err := http.Get(monitoringURL + metrics2)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM1.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
-	responseI1, err := http.Get(monitoringURL + "/info")
+	responseI1, err := http.Get(monitoringURL + info)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI1.Body.Close() }()
@@ -269,8 +292,8 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -279,7 +302,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{"test"},
+			Evaluation: []string{test2},
 		},
 	}
 	log := newTestLogger(t)
@@ -289,7 +312,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -315,15 +338,15 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	defer s.Stop(context.Background())
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
 	req, err := http.NewRequest(http.MethodPost,
-		baseURL+"/ofrep/v1/evaluate/flags",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		baseURL+ofrepV1Evaluate,
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -333,10 +356,10 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	req, err = http.NewRequest(http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/some-key",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -345,11 +368,11 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	req, err = http.NewRequest(http.MethodPost,
-		baseURL+"/ofrep/v1/evaluate/flags/test-flag",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		baseURL+ofrepV1Evaluate5,
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -365,8 +388,8 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -397,16 +420,16 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 
 	defer s.Stop(context.Background())
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + "/health")
+	response, err := http.Get(baseURL + health2)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Equal(t, proxyConf.Version, response.Header.Get("X-Gofeatureflag-Version"))
+	assert.Equal(t, proxyConf.Version, response.Header.Get(xGofeatureflagVersion))
 }
 
 func Test_VersionHeader_Disabled(t *testing.T) {
@@ -416,8 +439,8 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -449,16 +472,16 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 
 	defer s.Stop(context.Background())
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + "/health")
+	response, err := http.Get(baseURL + health2)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
-	assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
+	assert.Empty(t, response.Header.Get(xGofeatureflagVersion))
 }
 
 func Test_AuthenticationMiddleware(t *testing.T) {
@@ -475,17 +498,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Admin: []string{test2}},
 				want:          http.StatusOK,
 			},
 			{
 				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{"test"}, Admin: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}, Admin: []string{test2}},
 				want:          http.StatusUnauthorized,
 			},
 		}
@@ -494,8 +517,8 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(_ *testing.T, _ authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				return http.Post(baseURL+"/ofrep/v1/evaluate/flags/test-flag", "application/json",
-					strings.NewReader(`{"context":{"targetingKey":"some-key"}}`),
+				return http.Post(baseURL+ofrepV1Evaluate5, applicationJson,
+					strings.NewReader(contextTargetingKeySomeKey2),
 				)
 			})
 	})
@@ -511,17 +534,17 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Admin: []string{test2}},
 				want:          http.StatusOK,
 			},
 			{
 				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{"test"}, Admin: []string{"test"}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{test2}, Admin: []string{test2}},
 				want:          http.StatusOK,
 			},
 		}
@@ -532,12 +555,12 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
 				t.Helper()
 
-				request, err := http.NewRequest(http.MethodPost, baseURL+"/admin/v1/retriever/refresh", nil)
+				request, err := http.NewRequest(http.MethodPost, baseURL+adminV1Retriever, nil)
 				require.NoError(t, err)
-				request.Header.Add("Content-Type", "application/json")
+				request.Header.Add(contentType, applicationJson)
 
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
-					request.Header.Add("Authorization", "Bearer "+tt.configAPIKeys.Admin[0])
+					request.Header.Add(authorization, bearer2+tt.configAPIKeys.Admin[0])
 				}
 
 				return (&http.Client{}).Do(request)
@@ -568,8 +591,8 @@ func runAuthMiddlewareTests(
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
-						Path: "../../../testdata/flag-config.yaml",
+						Kind: file2,
+						Path: testdataFlagConfigYaml,
 					},
 				},
 				Server: config.Server{
@@ -607,7 +630,7 @@ func runAuthMiddlewareTests(
 
 			defer s.Stop(context.Background())
 
-			baseURL := fmt.Sprintf("http://localhost:%d", port)
+			baseURL := fmt.Sprintf(httpLocalhostD, port)
 			waitForServer(t, baseURL)
 
 			response, err := doRequest(t, tt, baseURL)
@@ -637,7 +660,7 @@ func newUnixSocketHTTPClient(socketPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", socketPath)
+				return net.Dial(unix, socketPath)
 			},
 		},
 	}
@@ -655,8 +678,8 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -671,7 +694,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -700,7 +723,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial("unix", socketPath)
+		conn, dialErr := net.Dial(unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -708,17 +731,17 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 		_ = conn.Close()
 
 		return true
-	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
+	}, 1*time.Second, 10*time.Millisecond, unixSocketFileWas)
 
 	// Verify socket file exists
 	_, err = os.Stat(socketPath)
-	require.NoError(t, err, "Unix socket file should exist")
+	require.NoError(t, err, unixSocketFileShould)
 
 	// Create a Unix socket HTTP client
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test health endpoint
-	response, err := client.Get("http://unix/health")
+	response, err := client.Get(httpUnixHealth)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
@@ -755,8 +778,8 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -772,7 +795,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -801,7 +824,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial("unix", socketPath)
+		conn, dialErr := net.Dial(unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -809,17 +832,17 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 		_ = conn.Close()
 
 		return true
-	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
+	}, 1*time.Second, 10*time.Millisecond, unixSocketFileWas)
 
 	// Verify socket file exists
 	_, err = os.Stat(socketPath)
-	require.NoError(t, err, "Unix socket file should exist")
+	require.NoError(t, err, unixSocketFileShould)
 
-	monitoringURL := fmt.Sprintf("http://localhost:%d", monitoringPort)
+	monitoringURL := fmt.Sprintf(httpLocalhostD, monitoringPort)
 	waitForServer(t, monitoringURL)
 
 	// Test health endpoint
-	responseH1, err := http.Get(monitoringURL + "/health")
+	responseH1, err := http.Get(monitoringURL + health2)
 	require.NoError(t, err)
 
 	defer responseH1.Body.Close()
@@ -827,7 +850,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	// Test metrics endpoint
-	responseM1, err := http.Get(monitoringURL + "/metrics")
+	responseM1, err := http.Get(monitoringURL + metrics2)
 	require.NoError(t, err)
 
 	defer responseM1.Body.Close()
@@ -835,7 +858,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
 	// Test info endpoint
-	responseI, err := http.Get(monitoringURL + "/info")
+	responseI, err := http.Get(monitoringURL + info)
 	require.NoError(t, err)
 
 	defer responseI.Body.Close()
@@ -855,8 +878,8 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -865,7 +888,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{"test"},
+			Evaluation: []string{test2},
 		},
 	}
 	log := newTestLogger(t)
@@ -875,7 +898,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		log.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
-			"impossible to initialize prometheus metrics",
+			impossibleToInitializePrometheus,
 			cmdlog.Err(err),
 		)
 	}
@@ -904,7 +927,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial("unix", socketPath)
+		conn, dialErr := net.Dial(unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -912,11 +935,11 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		_ = conn.Close()
 
 		return true
-	}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
+	}, 1*time.Second, 10*time.Millisecond, unixSocketFileWas)
 
 	// Verify socket file exists
 	_, err = os.Stat(socketPath)
-	require.NoError(t, err, "Unix socket file should exist")
+	require.NoError(t, err, unixSocketFileShould)
 
 	// Create a Unix socket HTTP client
 	client := newUnixSocketHTTPClient(socketPath)
@@ -924,10 +947,10 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Test OFREP evaluate all flags endpoint
 	req, err := http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err := client.Do(req)
 	require.NoError(t, err)
 
@@ -938,10 +961,10 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Test OFREP evaluate specific flag endpoint (non-existent flag)
 	req, err = http.NewRequest(http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/some-key",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -951,11 +974,11 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 
 	// Test OFREP evaluate specific flag endpoint (existing flag)
 	req, err = http.NewRequest(http.MethodPost,
-		"http://unix/ofrep/v1/evaluate/flags/test-flag",
-		strings.NewReader(`{ "context":{"targetingKey":"some-key"}}`))
+		httpUnixOfrepV,
+		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
-	req.Header.Add("Authorization", "Bearer test")
-	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add(authorization, bearerTest)
+	req.Header.Add(contentType, applicationJson)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -981,58 +1004,58 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 		{
 			name:          "Authentication disabled - health endpoint",
 			configAPIKeys: nil,
-			endpoint:      "http://unix/health",
-			method:        "GET",
+			endpoint:      httpUnixHealth,
+			method:        gET,
 			want:          http.StatusOK,
 		},
 		{
 			name:          "Evaluation endpoint - with valid key",
 			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
-			endpoint:      "http://unix/ofrep/v1/evaluate/flags/test-flag",
-			method:        "POST",
-			body:          `{"context":{"targetingKey":"some-key"}}`,
+			endpoint:      httpUnixOfrepV,
+			method:        pOST,
+			body:          contextTargetingKeySomeKey2,
 			authHeader:    "Bearer test-key",
 			want:          http.StatusOK,
 		},
 		{
 			name:          "Evaluation endpoint - without key (should fail)",
 			configAPIKeys: &config.APIKeys{Evaluation: []string{"test-key"}},
-			endpoint:      "http://unix/ofrep/v1/evaluate/flags/test-flag",
-			method:        "POST",
-			body:          `{"context":{"targetingKey":"some-key"}}`,
+			endpoint:      httpUnixOfrepV,
+			method:        pOST,
+			body:          contextTargetingKeySomeKey2,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
 		},
 		{
 			name:          "Admin endpoint - with valid admin key",
-			configAPIKeys: &config.APIKeys{Admin: []string{"admin-key"}},
+			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
-			method:        "POST",
+			method:        pOST,
 			authHeader:    "Bearer admin-key",
 			want:          http.StatusOK,
 		},
 		{
 			name:          "Admin endpoint - without admin key (should fail)",
-			configAPIKeys: &config.APIKeys{Admin: []string{"admin-key"}},
+			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/retriever/refresh",
-			method:        "POST",
+			method:        pOST,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
 		},
 		{
 			name:          "Admin validate endpoint - with valid admin key",
-			configAPIKeys: &config.APIKeys{Admin: []string{"admin-key"}},
+			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
-			method:        "POST",
+			method:        pOST,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
 			authHeader:    "Bearer admin-key",
 			want:          http.StatusOK,
 		},
 		{
 			name:          "Admin validate endpoint - without admin key (should fail)",
-			configAPIKeys: &config.APIKeys{Admin: []string{"admin-key"}},
+			configAPIKeys: &config.APIKeys{Admin: []string{adminKey}},
 			endpoint:      "http://unix/admin/v1/flags/validate",
-			method:        "POST",
+			method:        pOST,
 			body:          `{"my-flag":{"variations":{"a":true,"b":false},"defaultRule":{"variation":"a"}}}`,
 			authHeader:    "",
 			want:          http.StatusUnauthorized,
@@ -1053,8 +1076,8 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
-						Path: "../../../testdata/flag-config.yaml",
+						Kind: file2,
+						Path: testdataFlagConfigYaml,
 					},
 				},
 				Server: config.Server{
@@ -1094,7 +1117,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, dialErr := net.Dial("unix", socketPath)
+				conn, dialErr := net.Dial(unix, socketPath)
 				if dialErr != nil {
 					return false
 				}
@@ -1102,7 +1125,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 				_ = conn.Close()
 
 				return true
-			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
+			}, 1*time.Second, 10*time.Millisecond, unixSocketFileWas)
 
 			// Create a Unix socket HTTP client
 			client := newUnixSocketHTTPClient(socketPath)
@@ -1118,11 +1141,11 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.authHeader != "" {
-				req.Header.Add("Authorization", tt.authHeader)
+				req.Header.Add(authorization, tt.authHeader)
 			}
 
 			if tt.body != "" {
-				req.Header.Add("Content-Type", "application/json")
+				req.Header.Add(contentType, applicationJson)
 			}
 
 			response, err := client.Do(req)
@@ -1171,8 +1194,8 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
-						Path: "../../../testdata/flag-config.yaml",
+						Kind: file2,
+						Path: testdataFlagConfigYaml,
 					},
 				},
 				Server: config.Server{
@@ -1209,7 +1232,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, dialErr := net.Dial("unix", socketPath)
+				conn, dialErr := net.Dial(unix, socketPath)
 				if dialErr != nil {
 					return false
 				}
@@ -1217,12 +1240,12 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 				_ = conn.Close()
 
 				return true
-			}, 1*time.Second, 10*time.Millisecond, "unix socket file was not created in time")
+			}, 1*time.Second, 10*time.Millisecond, unixSocketFileWas)
 
 			// Create a Unix socket HTTP client
 			client := newUnixSocketHTTPClient(socketPath)
 
-			response, err := client.Get("http://unix/health")
+			response, err := client.Get(httpUnixHealth)
 			require.NoError(t, err)
 
 			defer func() { _ = response.Body.Close() }()
@@ -1230,9 +1253,9 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 
 			if tt.wantVersionHeader {
-				assert.Equal(t, "test-version-1.0.0", response.Header.Get("X-Gofeatureflag-Version"))
+				assert.Equal(t, "test-version-1.0.0", response.Header.Get(xGofeatureflagVersion))
 			} else {
-				assert.Empty(t, response.Header.Get("X-Gofeatureflag-Version"))
+				assert.Empty(t, response.Header.Get(xGofeatureflagVersion))
 			}
 		})
 	}
@@ -1248,8 +1271,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -1285,22 +1308,22 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	defer s.Stop(ctx)
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
 	// Make some requests to generate histogram data
-	healthResp, err := http.Get(baseURL + "/health")
+	healthResp, err := http.Get(baseURL + health2)
 	require.NoError(t, err)
 
 	_ = healthResp.Body.Close()
 
-	infoResp, err := http.Get(baseURL + "/info")
+	infoResp, err := http.Get(baseURL + info)
 	require.NoError(t, err)
 
 	_ = infoResp.Body.Close()
 
 	// Scrape /metrics with protobuf Accept header
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/metrics", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+metrics2, nil)
 	require.NoError(t, err)
 	req.Header.Set(
 		"Accept",
@@ -1371,8 +1394,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{
@@ -1428,7 +1451,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	}
 
 	// Verify the port is free by binding to it again.
-	ln2, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	ln2, err := net.Listen(tcp2, fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err, "port %d should be free after shutdown", port)
 	ln2.Close()
 }
@@ -1438,7 +1461,7 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server is given a listener that stays bound: closing it and binding the port again later would let
 	// another test take the port in between, and the server closes it when it is stopped before it started.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := net.Listen(tcp2, "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
@@ -1450,8 +1473,8 @@ func Test_StopBeforeStart(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: "file",
-				Path: "../../../testdata/flag-config.yaml",
+				Kind: file2,
+				Path: testdataFlagConfigYaml,
 			},
 		},
 		Server: config.Server{

@@ -29,6 +29,15 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	contextTargetingKeyUser1 = `{"context":{"targetingKey":"user-1"}}`
+	movedKey                 = "moved-key"
+	newKey                   = "new-key"
+	oldKey                   = "old-key"
+	rotatingKey              = "rotating-key"
+	xApiKey                  = "X-Api-Key"
+)
+
 var (
 	errFlagsetNotFoundFor  = errors.New("flagset not found for API key")
 	errNoFlagSetAssociated = errors.New("no flag set associated to the API key")
@@ -69,8 +78,8 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 	proxyConf := &config.Config{
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
-			APIKeys:   []string{"routed-key", "moved-key"},
-			Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+			APIKeys:   []string{"routed-key", movedKey},
+			Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: testdataFlagConfigYaml},
 		}},
 		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
 	}
@@ -92,7 +101,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		WebsocketService:  wsService,
 		SSEService:        sseService,
 		FlagsetManager: routingLostManager{
-			FlagsetManager: realManager, lostKeys: map[string]bool{"moved-key": true},
+			FlagsetManager: realManager, lostKeys: map[string]bool{movedKey: true},
 		},
 		Metrics: metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
@@ -100,7 +109,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
 	endpoints := []struct {
@@ -110,14 +119,14 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		body       string
 		keyInQuery bool
 	}{
-		{name: "ofrep single", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags/test-flag",
-			body: `{"context":{"targetingKey":"user-1"}}`},
-		{name: "ofrep bulk", method: http.MethodPost, path: "/ofrep/v1/evaluate/flags",
-			body: `{"context":{"targetingKey":"user-1"}}`},
-		{name: "allflags", method: http.MethodPost, path: "/v1/allflags",
+		{name: "ofrep single", method: http.MethodPost, path: ofrepV1Evaluate5,
+			body: contextTargetingKeyUser1},
+		{name: "ofrep bulk", method: http.MethodPost, path: ofrepV1Evaluate,
+			body: contextTargetingKeyUser1},
+		{name: "allflags", method: http.MethodPost, path: v1Allflags,
 			body: `{"evaluationContext":{"key":"user-1"}}`},
-		{name: "websocket", method: http.MethodGet, path: "/stream/v1/ws/flag/change", keyInQuery: true},
-		{name: "sse", method: http.MethodGet, path: "/stream/v1/sse/flag/change", keyInQuery: true},
+		{name: "websocket", method: http.MethodGet, path: streamV1Ws, keyInQuery: true},
+		{name: "sse", method: http.MethodGet, path: streamV1Sse, keyInQuery: true},
 	}
 
 	keys := []struct {
@@ -126,7 +135,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		want int
 	}{
 		{name: "routed key", key: "routed-key", want: http.StatusOK},
-		{name: "key that lost its routing", key: "moved-key", want: http.StatusUnauthorized},
+		{name: "key that lost its routing", key: movedKey, want: http.StatusUnauthorized},
 	}
 	for _, endpoint := range endpoints {
 		for _, keyCase := range keys {
@@ -139,7 +148,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 
 				target := baseURL + endpoint.path
 				if endpoint.keyInQuery {
-					target += "?apiKey=" + url.QueryEscape(keyCase.key)
+					target += apiKey2 + url.QueryEscape(keyCase.key)
 				}
 
 				req, requestWithContextErr := http.NewRequestWithContext(
@@ -149,10 +158,10 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 					strings.NewReader(endpoint.body),
 				)
 				require.NoError(t, requestWithContextErr)
-				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(contentType, applicationJson)
 
 				if !endpoint.keyInQuery {
-					req.Header.Set("X-Api-Key", keyCase.key)
+					req.Header.Set(xApiKey, keyCase.key)
 				}
 
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
@@ -186,17 +195,17 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	fileA, fileB := flagFile("a", "flag-a"), flagFile("b", "flag-b")
 	flagsets := func(keysA, keysB []string) []config.FlagSet {
 		return []config.FlagSet{
-			{Name: "a", APIKeys: keysA, Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: fileA}},
-			{Name: "b", APIKeys: keysB, Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: fileB}},
+			{Name: "a", APIKeys: keysA, Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: fileA}},
+			{Name: "b", APIKeys: keysB, Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: fileB}},
 		}
 	}
 	// rotating-key moves from a to b, old-key is replaced by new-key.
 	// The states are built for each use: a reload stores the keys of the configuration it applies.
 	stateOne := func() []config.FlagSet {
-		return flagsets([]string{"a-key", "rotating-key", "old-key"}, []string{"b-key"})
+		return flagsets([]string{"a-key", rotatingKey, oldKey}, []string{"b-key"})
 	}
 	stateTwo := func() []config.FlagSet {
-		return flagsets([]string{"a-key", "new-key"}, []string{"b-key", "rotating-key"})
+		return flagsets([]string{"a-key", newKey}, []string{"b-key", rotatingKey})
 	}
 
 	listener, port := testutils.ListenLocal(t)
@@ -217,15 +226,15 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 
 	t.Cleanup(func() { srv.Stop(context.Background()) })
 
-	baseURL := fmt.Sprintf("http://localhost:%d", port)
+	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
 	// The statuses a key can get: routed to a flag set holding it (200, or 404 when the flag lives in the
 	// other flag set), or rejected (401). Anything else, and 400 in particular, is an inconsistent state.
 	wantStatuses := map[string][]int{
-		"rotating-key": {http.StatusOK, http.StatusNotFound},
-		"old-key":      {http.StatusOK, http.StatusUnauthorized},
-		"new-key":      {http.StatusOK, http.StatusUnauthorized},
+		rotatingKey: {http.StatusOK, http.StatusNotFound},
+		oldKey:      {http.StatusOK, http.StatusUnauthorized},
+		newKey:      {http.StatusOK, http.StatusUnauthorized},
 	}
 	done := make(chan struct{})
 
@@ -252,15 +261,15 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 				}
 
 				req, requestErr := http.NewRequest(http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
-					strings.NewReader(`{"context":{"targetingKey":"user-1"}}`))
+					strings.NewReader(contextTargetingKeyUser1))
 				if requestErr != nil {
 					unexpected.Add(1)
 
 					return
 				}
 
-				req.Header.Set("X-Api-Key", key)
-				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(xApiKey, key)
+				req.Header.Set(contentType, applicationJson)
 
 				resp, requestErr := client.Do(req)
 				if requestErr != nil {
@@ -307,9 +316,9 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 
 	// The last reload (an even iteration) applied the second state, which differs from the startup state: the
 	// keys really rotated and moved.
-	_, errOld := manager.FlagSet("old-key")
-	_, errNew := manager.FlagSet("new-key")
-	nameRotating, errRotating := manager.FlagSetName("rotating-key")
+	_, errOld := manager.FlagSet(oldKey)
+	_, errNew := manager.FlagSet(newKey)
+	nameRotating, errRotating := manager.FlagSetName(rotatingKey)
 
 	assert.Error(t, errOld) //nolint:testifylint // assert on purpose: the three results are checked together
 	assert.NoError(t, errNew)

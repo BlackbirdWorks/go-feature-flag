@@ -19,6 +19,21 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	bearerSecret         = "Bearer secret"
+	eTag                 = "ETag"
+	ifNoneMatch          = "If-None-Match"
+	serverPort2031Studio = `server:
+  port: 2031
+studio:
+  url: {{URL}}/flagsets.yaml`
+	teamA    = "team-a"
+	teamB    = "team-b"
+	teamFile = "team-file"
+	uRL      = "{{URL}}"
+	v1       = `"v1"`
+)
+
 const studioYaml = `server:
   port: 9999
 flagSets:
@@ -63,7 +78,7 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 
 // writeWithETag answers with status when it is not 200, with 304 when the client already has etag, else with body.
 func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, status int) {
-	w.Header().Set("ETag", etag)
+	w.Header().Set(eTag, etag)
 
 	if status != http.StatusOK {
 		w.WriteHeader(status)
@@ -71,7 +86,7 @@ func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, st
 		return
 	}
 
-	if r.Header.Get("If-None-Match") == etag {
+	if r.Header.Get(ifNoneMatch) == etag {
 		w.WriteHeader(http.StatusNotModified)
 
 		return
@@ -110,13 +125,10 @@ func TestStudio(t *testing.T) {
 		wantInvalid  bool // flagSets and studio are both set
 	}{
 		{
-			name: "flagSets from the URL, the rest from the file",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "flagSets from the URL, the rest from the file",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "flagSets in the file and studio",
@@ -129,7 +141,7 @@ flagSets:
 studio:
   url: {{URL}}/flagsets.yaml`,
 			body:         studioYaml,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 			wantInvalid:  true,
 		},
 		{
@@ -144,7 +156,7 @@ apiKeys = ["key-a"]
 [[flagSets.retrievers]]
 kind = "file"
 path = "/tmp/flags.yaml"`,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "headers from the file",
@@ -155,28 +167,22 @@ studio:
   headers:
     Authorization: Bearer secret`,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
-			wantFlagSets: []string{"team-a"},
+			authHeader:   bearerSecret,
+			wantFlagSets: []string{teamA},
 		},
 		{
-			name: "headers from an environment variable, URL from the file",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "headers from an environment variable, URL from the file",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
-			env:          map[string]string{"STUDIO_HEADERS_AUTHORIZATION": "Bearer secret"},
-			wantFlagSets: []string{"team-a"},
+			authHeader:   bearerSecret,
+			env:          map[string]string{"STUDIO_HEADERS_AUTHORIZATION": bearerSecret},
+			wantFlagSets: []string{teamA},
 		},
 		{
-			name: "authorization header missing",
-			fileConfig: `server:
-  port: 2031
-studio:
-  url: {{URL}}/flagsets.yaml`,
+			name:         "authorization header missing",
+			fileConfig:   serverPort2031Studio,
 			body:         studioYaml,
-			authHeader:   "Bearer secret",
+			authHeader:   bearerSecret,
 			wantFlagSets: []string{},
 		},
 		{
@@ -187,7 +193,7 @@ studio:
   url: {{URL}}/flagsets.yaml
   cacheFile: {{CACHE}}`,
 			cache:        studioYaml,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 		{
 			name: "flagSets in the file and studio down",
@@ -199,7 +205,7 @@ flagSets:
       - key-file
 studio:
   url: {{URL}}/flagsets.yaml`,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 			wantInvalid:  true,
 		},
 		{
@@ -210,7 +216,7 @@ flagSets:
   - name: team-file
     apiKeys:
       - key-file`,
-			wantFlagSets: []string{"team-file"},
+			wantFlagSets: []string{teamFile},
 		},
 	}
 
@@ -230,13 +236,13 @@ flagSets:
 				environ = append(environ, name+"="+value)
 			}
 
-			fileConfig := strings.NewReplacer("{{URL}}", srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
+			fileConfig := strings.NewReplacer(uRL, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
+			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+			f.String(config3, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(environ...)).
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(environ...)).
 				ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
@@ -278,13 +284,13 @@ studio:
 			name:         "the URL changes",
 			newBody:      twoFlagSets,
 			wantPort:     2031,
-			wantFlagSets: []string{"team-a", "team-b"},
+			wantFlagSets: []string{teamA, teamB},
 		},
 		{
 			name:         "the file changes, flagSets still from the URL",
 			newFile:      strings.Replace(fileConfig, "2031", "3031", 1),
 			wantPort:     3031,
-			wantFlagSets: []string{"team-a"},
+			wantFlagSets: []string{teamA},
 		},
 	}
 
@@ -304,17 +310,17 @@ studio:
 			}))
 			defer srv.Close()
 
-			configFile := testutils.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, "{{URL}}", srv.URL))
-			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			f.String("config", "", "Location of your config file")
-			require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
+			configFile := testutils.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, uRL, srv.URL))
+			f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+			f.String(config3, "", locationOfYourConfig)
+			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
 
-			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
+			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, true)
 			defer func() { _ = loader.StopWatchChanges() }()
 
 			initialConfig, err := loader.ToConfig()
 			require.NoError(t, err)
-			assert.Equal(t, []string{"team-a"}, flagSetNames(initialConfig))
+			assert.Equal(t, []string{teamA}, flagSetNames(initialConfig))
 
 			configs := make(chan *config.Config, 10)
 
@@ -329,12 +335,12 @@ studio:
 			if tt.newFile != "" {
 				_ = testutils.CopyContentToExistingTempFile(
 					t,
-					strings.ReplaceAll(tt.newFile, "{{URL}}", srv.URL),
+					strings.ReplaceAll(tt.newFile, uRL, srv.URL),
 					configFile,
 				)
 			}
 
-			newConfig := receive(t, configs, "Timeout waiting for callback to be triggered")
+			newConfig := receive(t, configs, timeoutWaitingForCallback)
 			assert.Equal(t, tt.wantPort, newConfig.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(newConfig))
 		})
@@ -352,7 +358,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 
 			requests := 0
 			retries := make(chan string, 1)
-			updated := strings.ReplaceAll(studioYaml, "team-a", "team-b")
+			updated := strings.ReplaceAll(studioYaml, teamA, teamB)
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
@@ -363,19 +369,19 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 				case 1:
 					_, _ = w.Write([]byte(studioYaml))
 				case 2:
-					w.Header().Set("ETag", etag)
+					w.Header().Set(eTag, etag)
 					_, _ = w.Write([]byte(updated))
 				case 3:
 					w.WriteHeader(http.StatusServiceUnavailable)
 				default:
 					select {
-					case retries <- r.Header.Get("If-None-Match"):
+					case retries <- r.Header.Get(ifNoneMatch):
 					default:
 					}
 
-					w.Header().Set("ETag", etag)
+					w.Header().Set(eTag, etag)
 
-					if etag != "" && r.Header.Get("If-None-Match") == etag {
+					if etag != "" && r.Header.Get(ifNoneMatch) == etag {
 						w.WriteHeader(http.StatusNotModified)
 
 						return
@@ -404,7 +410,7 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 			})
 
 			c := receive(t, configs, "Timeout waiting for recovery after the failed reload")
-			assert.Equal(t, []string{"team-b"}, flagSetNames(c.config))
+			assert.Equal(t, []string{teamB}, flagSetNames(c.config))
 			require.NoError(t, c.config.IsValid())
 			assert.GreaterOrEqual(t, c.requests, 4, "failed reloads must not notify consumers")
 			header := receive(t, retries, "Timeout waiting for an unconditional retry")
@@ -428,21 +434,21 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}{
 		{
 			name: "HTTP error", status: http.StatusServiceUnavailable,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid YAML", body: "flagSets: [", status: http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid field type", body: "flagSets: wrong-type", status: http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name:          "invalid flagset",
 			body:          strings.Replace(studioYaml, "apiKeys:\n      - key-a", "apiKeys: []", 1),
 			status:        http.StatusOK,
-			wantRetryETag: `"v1"`, wantCached: studioYaml, wantFlagSets: []string{"team-b"},
+			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 	}
 	for _, tt := range tests {
@@ -451,7 +457,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 			var mu sync.Mutex
 
-			body, etag, status := studioYaml, `"v1"`, http.StatusOK
+			body, etag, status := studioYaml, v1, http.StatusOK
 			rejected := false
 			attempts := make(chan string, 20)
 
@@ -461,7 +467,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 				if rejected {
 					select {
-					case attempts <- r.Header.Get("If-None-Match"):
+					case attempts <- r.Header.Get(ifNoneMatch):
 					default:
 					}
 				}
@@ -492,7 +498,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCached, string(cached))
 			mu.Lock()
-			body = strings.ReplaceAll(studioYaml, "team-a", "team-b")
+			body = strings.ReplaceAll(studioYaml, teamA, teamB)
 			status, rejected = http.StatusOK, false
 			mu.Unlock()
 
@@ -513,10 +519,10 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	}
 
 	configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	f.String("config", "", "Location of your config file")
-	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
-	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
+	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+	f.String(config3, "", locationOfYourConfig)
+	require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
+	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixture100, true)
 
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 

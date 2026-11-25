@@ -28,7 +28,7 @@ func TestOpenAPI(t *testing.T) {
 			got, err := api.OpenAPIJSON()
 			require.NoError(t, err)
 
-			if os.Getenv("GOLDEN_UPDATE") != "" {
+			if os.Getenv(gOLDENUPDATE) != "" {
 				require.NoError(t, os.WriteFile(tt.file, got, 0o600))
 
 				return

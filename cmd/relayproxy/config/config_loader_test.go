@@ -15,6 +15,16 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	config2                       = "--config="
+	fixture100                    = "1.0.0"
+	serverPort1031PollingInterval = `server:
+  port: 1031
+pollingInterval: 1000
+loglevel: info`
+	timeoutWaitingForCallback = "Timeout waiting for callback to be triggered"
+)
+
 func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
 	t.Parallel()
 
@@ -26,11 +36,8 @@ func TestConfigLoaderAddConfigChangeCallback(t *testing.T) {
 		wantCallbacks int
 	}{
 		{
-			name: "Single callback triggered on config change",
-			initialConfig: `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`,
+			name:          "Single callback triggered on config change",
+			initialConfig: serverPort1031PollingInterval,
 			updatedConfig: `server:
   port: 2031
 pollingInterval: 2000
@@ -54,11 +61,8 @@ loglevel: debug`,
 			},
 		},
 		{
-			name: "Multiple callbacks triggered on config change",
-			initialConfig: `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`,
+			name:          "Multiple callbacks triggered on config change",
+			initialConfig: serverPort1031PollingInterval,
 			updatedConfig: `server:
   port: 3031
 pollingInterval: 3000
@@ -89,11 +93,8 @@ loglevel: warn`,
 			},
 		},
 		{
-			name: "Callback receives updated config values",
-			initialConfig: `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`,
+			name:          "Callback receives updated config values",
+			initialConfig: serverPort1031PollingInterval,
 			updatedConfig: `server:
   port: 9999
 pollingInterval: 5000
@@ -125,15 +126,15 @@ loglevel: error`,
 			// Create temporary directory and config file
 			configFile := testutils.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
-			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			flagSet.String("config", "", "Location of your config file")
-			err := flagSet.Parse([]string{"--config=" + configFile.Name()})
+			flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+			flagSet.String(config3, "", locationOfYourConfig)
+			err := flagSet.Parse([]string{config2 + configFile.Name()})
 			require.NoError(t, err)
 
 			// Create ConfigLoader with watchChanges enabled
 			logger := slog.New(slog.DiscardHandler)
 
-			loader := config.NewConfigLoader(flagSet, logger, "1.0.0", true)
+			loader := config.NewConfigLoader(flagSet, logger, fixture100, true)
 			defer loader.StopWatchChanges()
 
 			// Setup callbacks
@@ -158,7 +159,7 @@ loglevel: error`,
 			for {
 				select {
 				case <-timeout:
-					require.Fail(t, "Timeout waiting for callback to be triggered")
+					require.Fail(t, timeoutWaitingForCallback)
 				case <-ticker.C:
 					mu.Lock()
 					callbackCount := len(*receivedConfigs)
@@ -190,7 +191,7 @@ loglevel: error`,
 						)
 						assert.NotEqual(
 							t,
-							"info",
+							info2,
 							lastConfig.LogLevel,
 							"LogLevel should have changed from initial value",
 						)
@@ -210,20 +211,17 @@ loglevel: error`,
 func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
 	t.Parallel()
 
-	configFile := testutils.CopyContentToNewTempFile(t, `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`)
+	configFile := testutils.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
-	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	flagSet.String("config", "", "Location of your config file")
-	err := flagSet.Parse([]string{"--config=" + configFile.Name()})
+	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+	flagSet.String(config3, "", locationOfYourConfig)
+	err := flagSet.Parse([]string{config2 + configFile.Name()})
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges disabled
 	logger := slog.New(slog.DiscardHandler)
-	loader := config.NewConfigLoader(flagSet, logger, "1.0.0", false)
+	loader := config.NewConfigLoader(flagSet, logger, fixture100, false)
 
 	// Setup callback
 	var (
@@ -258,21 +256,18 @@ func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
 	t.Parallel()
 
 	// Create temporary directory and config file
-	configFile := testutils.CopyContentToNewTempFile(t, `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`)
+	configFile := testutils.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
-	flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
-	flagSet.String("config", "", "Location of your config file")
-	err := flagSet.Parse([]string{"--config=" + configFile.Name()})
+	flagSet := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+	flagSet.String(config3, "", locationOfYourConfig)
+	err := flagSet.Parse([]string{config2 + configFile.Name()})
 	require.NoError(t, err)
 
 	// Create ConfigLoader with watchChanges enabled and observer logger to capture logs
 	core, logs := slogutil.NewObserver(slog.LevelError)
 	logger := core
-	loader := config.NewConfigLoader(flagSet, logger, "1.0.0", true)
+	loader := config.NewConfigLoader(flagSet, logger, fixture100, true)
 
 	// Setup callback
 	var (

@@ -49,7 +49,7 @@ func TestStreamAuthorizer(t *testing.T) {
 	}{
 		{name: "valid apiKey", conf: authenticated(), query: "?apiKey=valid-api-key", wantStatus: http.StatusOK},
 		{name: "invalid apiKey", conf: authenticated(), query: "?apiKey=nope", wantStatus: http.StatusUnauthorized,
-			wantBody: `{"message":"Unauthorized"}` + "\n"},
+			wantBody: messageUnauthorized + "\n"},
 		{name: "invalid apiKey, debug", conf: authenticated(), query: "?apiKey=nope", exposeError: true,
 			wantStatus: http.StatusUnauthorized, wantBody: `{"message":"Unauthorized","error":"Unauthorized"}` + "\n"},
 		{name: "authentication disabled", conf: &config.Config{}, wantStatus: http.StatusOK},
@@ -57,7 +57,7 @@ func TestStreamAuthorizer(t *testing.T) {
 			manager: &namedManager{names: map[string]string{"k": "t"}}, wantStatus: http.StatusOK},
 		{name: "unknown flag set key", conf: authenticated(), query: "?apiKey=k",
 			manager: &namedManager{}, wantStatus: http.StatusUnauthorized,
-			wantBody: `{"message":"Unauthorized"}` + "\n"},
+			wantBody: messageUnauthorized + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

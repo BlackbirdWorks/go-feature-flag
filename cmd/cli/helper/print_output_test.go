@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 )
 
+const (
+	flagFile = "flag-file"
+)
+
 var (
 	errBoom = errors.New("boom")
 )
@@ -110,12 +114,12 @@ func TestLegacyWarner(t *testing.T) {
 	}{
 		{
 			name:      "one kind several times is logged once",
-			kinds:     []string{"flag-file", "flag-file"},
+			kinds:     []string{flagFile, flagFile},
 			wantLines: []string{`{"level":"WARN","msg":"legacy name flag-file","legacyName":"flag-file"}`},
 		},
 		{
 			name:  "two kinds are logged once each",
-			kinds: []string{"flag-file", "config-file"},
+			kinds: []string{flagFile, "config-file"},
 			wantLines: []string{
 				`{"level":"WARN","msg":"legacy name flag-file","legacyName":"flag-file"}`,
 				`{"level":"WARN","msg":"legacy name config-file","legacyName":"config-file"}`,

@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testFlag  = "test-flag"
+	testFlag2 = "test-flag2"
+)
+
 func TestMetrics_IncAllFlag(t *testing.T) {
 	t.Parallel()
 
@@ -29,20 +34,20 @@ func TestMetrics_IncAllFlag_WithBulkMetricEnabled(t *testing.T) {
 		EnableBulkMetricFlagNames: true,
 	})
 	require.NoError(t, err)
-	metricSrv.IncAllFlag("test-flag")
-	metricSrv.IncAllFlag("test-flag")
-	metricSrv.IncAllFlag("test-flag", "test-flag2")
+	metricSrv.IncAllFlag(testFlag)
+	metricSrv.IncAllFlag(testFlag)
+	metricSrv.IncAllFlag(testFlag, testFlag2)
 
 	assert.InDelta(
 		t,
 		3.0,
-		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues("test-flag")),
+		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(testFlag)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues("test-flag2")),
+		testutil.ToFloat64(metricSrv.allFlagCounterWithFlag.WithLabelValues(testFlag2)),
 		0,
 	)
 	assert.InDelta(t, 3.0, testutil.ToFloat64(metricSrv.allFlagCounter), 0)
@@ -66,20 +71,20 @@ func TestMetrics_IncFlagEvaluation(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagEvaluation("test-flag")
-	metricSrv.IncFlagEvaluation("test-flag")
-	metricSrv.IncFlagEvaluation("test-flag2")
+	metricSrv.IncFlagEvaluation(testFlag)
+	metricSrv.IncFlagEvaluation(testFlag)
+	metricSrv.IncFlagEvaluation(testFlag2)
 
 	assert.InDelta(
 		t,
 		2.0,
-		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues("test-flag")),
+		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(testFlag)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues("test-flag2")),
+		testutil.ToFloat64(metricSrv.flagEvaluationCounter.WithLabelValues(testFlag2)),
 		0,
 	)
 }
@@ -109,20 +114,20 @@ func TestMetrics_IncFlagCreated(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagCreated("test-flag")
-	metricSrv.IncFlagCreated("test-flag2")
+	metricSrv.IncFlagCreated(testFlag)
+	metricSrv.IncFlagCreated(testFlag2)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagCreateCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues("test-flag2")),
+		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(testFlag2)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues("test-flag")),
+		testutil.ToFloat64(metricSrv.flagCreateCounterVec.WithLabelValues(testFlag)),
 		0,
 	)
 }
@@ -133,20 +138,20 @@ func TestMetrics_IncFlagUpdated(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagUpdated("test-flag")
-	metricSrv.IncFlagUpdated("test-flag2")
+	metricSrv.IncFlagUpdated(testFlag)
+	metricSrv.IncFlagUpdated(testFlag2)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagUpdateCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues("test-flag2")),
+		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(testFlag2)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues("test-flag")),
+		testutil.ToFloat64(metricSrv.flagUpdateCounterVec.WithLabelValues(testFlag)),
 		0,
 	)
 }
@@ -157,20 +162,20 @@ func TestMetrics_IncFlagDeleted(t *testing.T) {
 	metricSrv, err := NewMetrics()
 	require.NoError(t, err)
 
-	metricSrv.IncFlagDeleted("test-flag")
-	metricSrv.IncFlagDeleted("test-flag2")
+	metricSrv.IncFlagDeleted(testFlag)
+	metricSrv.IncFlagDeleted(testFlag2)
 
 	assert.InDelta(t, 2.0, testutil.ToFloat64(metricSrv.flagDeleteCounter), 0)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues("test-flag2")),
+		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(testFlag2)),
 		0,
 	)
 	assert.InDelta(
 		t,
 		1.0,
-		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues("test-flag")),
+		testutil.ToFloat64(metricSrv.flagDeleteCounterVec.WithLabelValues(testFlag)),
 		0,
 	)
 }

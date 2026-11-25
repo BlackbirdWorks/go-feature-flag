@@ -16,6 +16,14 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+const (
+	expectedEmptyInfoResponse       = "Expected empty InfoResponse"
+	expectedLatestCacheRefreshToNot = "Expected LatestCacheRefresh to not be nil"
+	expectedNoError                 = "Expected no error"
+	testdataFlagConfigYaml          = "../../../testdata/flag-config.yaml"
+	yaml                            = "yaml"
+)
+
 var (
 	errFailedToGetFlagsets = errors.New("failed to get flagsets")
 )
@@ -28,9 +36,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      "yaml",
+			FileFormat:      yaml,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+				{Kind: file2, Path: testdataFlagConfigYaml},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -46,9 +54,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      "yaml",
+			FileFormat:      yaml,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+				{Kind: file2, Path: testdataFlagConfigYaml},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -56,8 +64,8 @@ func TestWithDefaultMode(t *testing.T) {
 
 		monitoring := service.NewMonitoring(manager)
 		info, err := monitoring.Info()
-		require.NoError(t, err, "Expected no error")
-		assert.NotNil(t, info.LatestCacheRefresh, "Expected LatestCacheRefresh to not be nil")
+		require.NoError(t, err, expectedNoError)
+		assert.NotNil(t, info.LatestCacheRefresh, expectedLatestCacheRefreshToNot)
 		assert.False(
 			t,
 			info.LatestCacheRefresh.IsZero(),
@@ -70,9 +78,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      "yaml",
+			FileFormat:      yaml,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
+				{Kind: file2, Path: "../../../testdata/non-existent-file.yaml"},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to invalid file path")
@@ -92,9 +100,9 @@ func TestWithDefaultMode(t *testing.T) {
 
 		managerDefault, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000, // 1 minute in milliseconds
-			FileFormat:      "yaml",
+			FileFormat:      yaml,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+				{Kind: file2, Path: testdataFlagConfigYaml},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -111,13 +119,13 @@ func TestWithFlagsetsMode(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "test-flagset",
+					Name:            testFlagset,
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -126,9 +134,9 @@ func TestWithFlagsetsMode(t *testing.T) {
 
 		monitoring := service.NewMonitoring(manager)
 		info, err := monitoring.Info()
-		require.NoError(t, err, "Expected no error")
+		require.NoError(t, err, expectedNoError)
 		assert.NotEmpty(t, info.Flagsets, "Expected flagsets to not be empty")
-		assert.Contains(t, info.Flagsets, "test-flagset", "Expected test-flagset to be in flagsets")
+		assert.Contains(t, info.Flagsets, testFlagset, "Expected test-flagset to be in flagsets")
 	})
 
 	t.Run("info multiple flagsets", func(t *testing.T) {
@@ -139,20 +147,20 @@ func TestWithFlagsetsMode(t *testing.T) {
 				{
 					Name:            "flagset1",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
 					Name:            "flagset2",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: file2, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -161,7 +169,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 
 		monitoring := service.NewMonitoring(manager)
 		info, err := monitoring.Info()
-		require.NoError(t, err, "Expected no error")
+		require.NoError(t, err, expectedNoError)
 		assert.Len(t, info.Flagsets, 2, "Expected 2 flagsets")
 		assert.Contains(t, info.Flagsets, "flagset1", "Expected flagset1 to be in flagsets")
 		assert.Contains(t, info.Flagsets, "flagset2", "Expected flagset2 to be in flagsets")
@@ -173,13 +181,13 @@ func TestWithFlagsetsMode(t *testing.T) {
 		managerFlagsets, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "test-flagset",
+					Name:            testFlagset,
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{"test-api-key"},
+					APIKeys: []string{testApiKey},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -205,11 +213,11 @@ func TestWithFlagsetsMode(t *testing.T) {
 				{
 					Name:            "invalid-flagset",
 					PollingInterval: 60000, // 1 minute in milliseconds
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/non-existent-file.yaml"},
+						{Kind: file2, Path: "../../../testdata/non-existent-file.yaml"},
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -229,7 +237,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		info, err := monitoring.Info()
 		require.Error(t, err, "Expected error when flagsetManager is nil")
 		assert.Equal(t, "flagset manager is not initialized", err.Error())
-		assert.Equal(t, model.InfoResponse{}, info, "Expected empty InfoResponse")
+		assert.Equal(t, model.InfoResponse{}, info, expectedEmptyInfoResponse)
 	})
 
 	t.Run("FlagSets error should be propagated", func(t *testing.T) {
@@ -244,7 +252,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		info, err := monitoring.Info()
 		require.Error(t, err, "Expected error from FlagSets")
 		assert.Equal(t, "listing the flag sets for the information: failed to get flagsets", err.Error())
-		assert.Equal(t, model.InfoResponse{}, info, "Expected empty InfoResponse")
+		assert.Equal(t, model.InfoResponse{}, info, expectedEmptyInfoResponse)
 	})
 
 	t.Run("default mode with nil default flagset should return error", func(t *testing.T) {
@@ -260,7 +268,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		info, err := monitoring.Info()
 		require.Error(t, err, "Expected error when default flagset is nil")
 		assert.Equal(t, "no default flagset configured", err.Error())
-		assert.Equal(t, model.InfoResponse{}, info, "Expected empty InfoResponse")
+		assert.Equal(t, model.InfoResponse{}, info, expectedEmptyInfoResponse)
 	})
 
 	t.Run("default mode with valid default flagset should succeed", func(t *testing.T) {
@@ -271,9 +279,9 @@ func TestMonitoringInfoErrors(t *testing.T) {
 
 		manager, err := service.NewFlagsetManager(&config.Config{
 			PollingInterval: 60000,
-			FileFormat:      "yaml",
+			FileFormat:      yaml,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+				{Kind: file2, Path: testdataFlagConfigYaml},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -282,7 +290,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		monitoring := service.NewMonitoring(manager)
 		info, err := monitoring.Info()
 		require.NoError(t, err, "Expected no error with valid default flagset")
-		assert.NotNil(t, info.LatestCacheRefresh, "Expected LatestCacheRefresh to not be nil")
+		assert.NotNil(t, info.LatestCacheRefresh, expectedLatestCacheRefreshToNot)
 		assert.False(t, info.LatestCacheRefresh.IsZero(), "Expected LatestCacheRefresh to not be zero")
 	})
 
@@ -293,22 +301,22 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		manager, err := service.NewFlagsetManager(&config.Config{
 			FlagSets: []config.FlagSet{
 				{
-					Name:            "test-flagset-1",
+					Name:            testFlagset1,
 					PollingInterval: 60000,
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
+						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{"api-key-1"},
+					APIKeys: []string{apiKey1},
 				},
 				{
-					Name:            "test-flagset-2",
+					Name:            testFlagset2,
 					PollingInterval: 60000,
-					FileFormat:      "yaml",
+					FileFormat:      yaml,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: "file", Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: file2, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
-					APIKeys: []string{"api-key-2"},
+					APIKeys: []string{apiKey2},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -319,7 +327,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 		info, err := monitoring.Info()
 		require.NoError(t, err, "Expected no error with valid flagsets")
 		assert.NotEmpty(t, info.Flagsets, "Expected flagsets to not be empty")
-		assert.NotNil(t, info.LatestCacheRefresh, "Expected LatestCacheRefresh to not be nil")
+		assert.NotNil(t, info.LatestCacheRefresh, expectedLatestCacheRefreshToNot)
 		assert.False(t, info.LatestCacheRefresh.IsZero(), "Expected LatestCacheRefresh to not be zero")
 	})
 }

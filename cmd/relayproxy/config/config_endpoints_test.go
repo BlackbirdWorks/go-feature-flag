@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/config"
 )
 
+const (
+	unset = "unset"
+)
+
 func TestByteSize_UnmarshalText(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +37,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 		{name: "MiB", text: "1MiB", want: 1 << 20},
 		{name: "KiB with space", text: "64 KiB", want: 64 << 10},
 		{name: "decimal unit", text: "2KB", want: 2000},
-		{name: "invalid", text: "lots", wantErr: true},
+		{name: invalid2, text: "lots", wantErr: true},
 		{name: "empty", text: "", want: 0},
 		{name: "blank", text: "  ", want: 0},
 	}
@@ -65,7 +69,7 @@ func TestValidateFlagsEndpoint_WithDefaults(t *testing.T) {
 		want config.ValidateFlagsEndpoint
 	}{
 		{
-			name: "unset",
+			name: unset,
 			want: config.ValidateFlagsEndpoint{
 				MaxJSONBodySize: 1 << 20,
 				MaxYAMLBodySize: 64 << 10,
@@ -98,7 +102,7 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 		wantErr string
 		in      config.ValidateFlagsEndpoint
 	}{
-		{name: "unset", in: config.ValidateFlagsEndpoint{}},
+		{name: unset, in: config.ValidateFlagsEndpoint{}},
 		{name: "valid", in: config.ValidateFlagsEndpoint{MaxJSONBodySize: 1, MaxYAMLBodySize: 2, MaxTOMLBodySize: 3}},
 		{
 			name:    "negative json",
@@ -145,7 +149,7 @@ func TestEndpoints_IsValid(t *testing.T) {
 		in      config.Endpoints
 		wantErr bool
 	}{
-		{name: "unset"},
+		{name: unset},
 		{name: "valid", in: config.Endpoints{ValidateFlags: config.ValidateFlagsEndpoint{MaxJSONBodySize: 10}}},
 		{
 			name:    "negative json",
@@ -248,10 +252,10 @@ func TestEndpoints_Loading(t *testing.T) {
 				environ = append(environ, k+"="+v)
 			}
 
-			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			fs.String("config", "", "Location of your config file")
-			require.NoError(t, fs.Parse([]string{"--config=" + path}))
-			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(environ...))
+			fs := pflag.NewFlagSet(config3, pflag.ContinueOnError)
+			fs.String(config3, "", locationOfYourConfig)
+			require.NoError(t, fs.Parse([]string{config2 + path}))
+			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), fixture100, false, withEnviron(environ...))
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)

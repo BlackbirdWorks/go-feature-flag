@@ -22,6 +22,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	myFlagset = "my-flagset"
+)
+
 func TestNotifierSSE_Notify(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +37,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 	}{
 		{
 			name:        "empty diff refetches the evaluations",
-			flagsetName: "my-flagset",
+			flagsetName: myFlagset,
 			diff:        notifier.DiffCache{},
 			wantEvent: model.OFREPSSEEvent{
 				Type:         model.OFREPSSEEventTypeRefetchEvaluation,
@@ -42,7 +46,7 @@ func TestNotifierSSE_Notify(t *testing.T) {
 		},
 		{
 			name:        "diff with added flag refetches the evaluations, the diff is not sent",
-			flagsetName: "my-flagset",
+			flagsetName: myFlagset,
 			diff: notifier.DiffCache{
 				Added: map[string]flag.Flag{
 					"flag-1": &flag.InternalFlag{

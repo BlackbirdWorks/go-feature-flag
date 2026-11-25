@@ -52,6 +52,29 @@ import (
 	"github.com/blackbirdworks/semaphore/utils"
 )
 
+const (
+	addr1                        = "addr1"
+	addr2                        = "addr2"
+	bitbucket                    = "bitbucket"
+	develop                      = "develop"
+	fakeDataset                  = "fake-dataset"
+	fakeProjectId                = "fake-project-id"
+	file2                        = "file"
+	fixture1234                  = "1234"
+	flagsConfigGoffYaml          = "flags/config.goff.yaml"
+	gofeatureflagConfigRepo      = "gofeatureflag/config-repo"
+	httpsApiBitbucketGoff        = "https://api.bitbucket.goff.org"
+	httpsGofeatureflagOrgWebhook = "https://gofeatureflag.org/webhook-example"
+	myBucket                     = "my-bucket"
+	myKafkaTopic                 = "my-kafka-topic"
+	myPath                       = "/my-path/"
+	sCRAMSHA512                  = "SCRAM-SHA-512"
+	tODO                         = "TODO"
+	unknown                      = "unknown"
+	webhook2                     = "webhook"
+	xXXBITBUCKETTOKEN            = "XXX_BITBUCKET_TOKEN"
+)
+
 var (
 	errAccessDenied = errors.New("AccessDenied")
 )
@@ -59,7 +82,7 @@ var (
 func Test_initRetrieversWithRegistry(t *testing.T) {
 	t.Parallel()
 
-	sharedValid := s3FlagSet("a", "b1", "p/a.yaml")
+	sharedValid := s3FlagSet("a", "b1", pAYaml)
 	sharedFolder := s3FlagSet("a", "b1", "")
 	tests := []struct {
 		retrievers *[]retrieverconf.RetrieverConf
@@ -92,20 +115,20 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 			wantErr: assert.NoError,
 			retrievers: &[]retrieverconf.RetrieverConf{
 				{
-					Kind:           "bitbucket",
-					Branch:         "develop",
-					RepositorySlug: "gofeatureflag/config-repo",
-					Path:           "flags/config.goff.yaml",
-					AuthToken:      "XXX_BITBUCKET_TOKEN",
-					BaseURL:        "https://api.bitbucket.goff.org",
+					Kind:           bitbucket,
+					Branch:         develop,
+					RepositorySlug: gofeatureflagConfigRepo,
+					Path:           flagsConfigGoffYaml,
+					AuthToken:      xXXBITBUCKETTOKEN,
+					BaseURL:        httpsApiBitbucketGoff,
 				},
 				{
-					Kind:           "bitbucket",
+					Kind:           bitbucket,
 					Branch:         "main",
-					RepositorySlug: "gofeatureflag/config-repo",
-					Path:           "flags/config.goff.yaml",
-					AuthToken:      "XXX_BITBUCKET_TOKEN",
-					BaseURL:        "https://api.bitbucket.goff.org",
+					RepositorySlug: gofeatureflagConfigRepo,
+					Path:           flagsConfigGoffYaml,
+					AuthToken:      xXXBITBUCKETTOKEN,
+					BaseURL:        httpsApiBitbucketGoff,
 				},
 			},
 		},
@@ -114,15 +137,15 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 			wantErr: assert.Error,
 			retrievers: &[]retrieverconf.RetrieverConf{
 				{
-					Kind:           "bitbucket",
-					Branch:         "develop",
-					RepositorySlug: "gofeatureflag/config-repo",
-					Path:           "flags/config.goff.yaml",
-					AuthToken:      "XXX_BITBUCKET_TOKEN",
-					BaseURL:        "https://api.bitbucket.goff.org",
+					Kind:           bitbucket,
+					Branch:         develop,
+					RepositorySlug: gofeatureflagConfigRepo,
+					Path:           flagsConfigGoffYaml,
+					AuthToken:      xXXBITBUCKETTOKEN,
+					BaseURL:        httpsApiBitbucketGoff,
 				},
 				{
-					Kind: "unknown",
+					Kind: unknown,
 				},
 			},
 		},
@@ -131,7 +154,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 			wantErr: assert.Error,
 			retrievers: &[]retrieverconf.RetrieverConf{
 				{
-					Kind: "unknown",
+					Kind: unknown,
 				},
 			},
 		},
@@ -140,12 +163,12 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 			wantErr: assert.NoError,
 			retrievers: &[]retrieverconf.RetrieverConf{
 				{
-					Kind:           "bitbucket",
-					Branch:         "develop",
-					RepositorySlug: "gofeatureflag/config-repo",
-					Path:           "flags/config.goff.yaml",
-					AuthToken:      "XXX_BITBUCKET_TOKEN",
-					BaseURL:        "https://api.bitbucket.goff.org",
+					Kind:           bitbucket,
+					Branch:         develop,
+					RepositorySlug: gofeatureflagConfigRepo,
+					Path:           flagsConfigGoffYaml,
+					AuthToken:      xXXBITBUCKETTOKEN,
+					BaseURL:        httpsApiBitbucketGoff,
 				},
 			},
 		},
@@ -210,14 +233,14 @@ func Test_initExporters(t *testing.T) {
 			wantErr: assert.NoError,
 			exporters: &[]config.ExporterConf{
 				{
-					Kind:        "webhook",
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					Kind:        webhook2,
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 				},
 				{
-					Kind:        "webhook",
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					Kind:        webhook2,
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 				},
 			},
 		},
@@ -226,9 +249,9 @@ func Test_initExporters(t *testing.T) {
 			wantErr: assert.NoError,
 			exporters: &[]config.ExporterConf{
 				{
-					Kind:        "webhook",
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					Kind:        webhook2,
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 				},
 			},
 		},
@@ -240,9 +263,9 @@ func Test_initExporters(t *testing.T) {
 					Kind: "invalid",
 				},
 				{
-					Kind:        "webhook",
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					Kind:        webhook2,
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 				},
 			},
 		},
@@ -252,9 +275,9 @@ func Test_initExporters(t *testing.T) {
 			exporters: &[]config.ExporterConf{
 				{
 
-					Kind:        "webhook",
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					Kind:        webhook2,
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 				},
 				{
 					Kind: "invalid",
@@ -304,23 +327,23 @@ func Test_initExporter(t *testing.T) {
 			name:    "Convert unknown Exporter",
 			wantErr: assert.Error,
 			conf: &config.ExporterConf{
-				Kind: "unknown",
+				Kind: unknown,
 			},
 		},
 		{
 			name:    "Convert WebhookExporter",
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
-				Kind:        "webhook",
-				EndpointURL: "https://gofeatureflag.org/webhook-example",
-				Secret:      "1234",
+				Kind:        webhook2,
+				EndpointURL: httpsGofeatureflagOrgWebhook,
+				Secret:      fixture1234,
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &webhookexporter.Exporter{
-					EndpointURL: "https://gofeatureflag.org/webhook-example",
-					Secret:      "1234",
+					EndpointURL: httpsGofeatureflagOrgWebhook,
+					Secret:      fixture1234,
 					Meta:        nil,
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
@@ -331,7 +354,7 @@ func Test_initExporter(t *testing.T) {
 			name:    "Convert FileExporter",
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
-				Kind:                    "file",
+				Kind:                    file2,
 				OutputDir:               "/outputfolder/",
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
@@ -370,17 +393,17 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:          "s3",
-				Bucket:        "my-bucket",
-				Path:          "/my-path/",
+				Bucket:        myBucket,
+				Path:          myPath,
 				FlushInterval: 10,
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    10 * time.Millisecond,
 				MaxEventInMemory: config.DefaultExporter().MaxEventInMemory,
 				Exporter: &s3exporterv2.Exporter{
-					Bucket:                  "my-bucket",
+					Bucket:                  myBucket,
 					Format:                  config.DefaultExporter().Format,
-					S3Path:                  "/my-path/",
+					S3Path:                  myPath,
 					Filename:                config.DefaultExporter().FileName,
 					CsvTemplate:             config.DefaultExporter().CsvFormat,
 					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
@@ -412,12 +435,12 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:      "pubsub",
-				ProjectID: "fake-project-id",
+				ProjectID: fakeProjectId,
 				Topic:     "fake-topic",
 			},
 			want: ffclient.DataExporter{
 				Exporter: &pubsubexporterv2.Exporter{
-					ProjectID: "fake-project-id",
+					ProjectID: fakeProjectId,
 					Topic:     "fake-topic",
 				},
 			},
@@ -429,13 +452,13 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:      "bigquery",
-				ProjectID: "fake-project-id",
-				DatasetID: "fake-dataset",
+				ProjectID: fakeProjectId,
+				DatasetID: fakeDataset,
 			},
 			want: ffclient.DataExporter{
 				Exporter: &bigqueryexporter.Exporter{
-					ProjectID: "fake-project-id",
-					DatasetID: "fake-dataset",
+					ProjectID: fakeProjectId,
+					DatasetID: fakeDataset,
 				},
 			},
 			wantType:               &bigqueryexporter.Exporter{},
@@ -446,17 +469,17 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:             "googleStorage",
-				Bucket:           "my-bucket",
-				Path:             "/my-path/",
+				Bucket:           myBucket,
+				Path:             myPath,
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
 				FlushInterval:    config.DefaultExporter().FlushInterval,
 				MaxEventInMemory: 1990,
 				Exporter: &gcstorageexporter.Exporter{
-					Bucket:                  "my-bucket",
+					Bucket:                  myBucket,
 					Format:                  config.DefaultExporter().Format,
-					Path:                    "/my-path/",
+					Path:                    myPath,
 					Filename:                config.DefaultExporter().FileName,
 					CsvTemplate:             config.DefaultExporter().CsvFormat,
 					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
@@ -473,7 +496,7 @@ func Test_initExporter(t *testing.T) {
 				MaxEventInMemory: 1990,
 				Kafka: kafkaexporter.Settings{
 					Topic:     "example-topic",
-					Addresses: []string{"addr1", "addr2"},
+					Addresses: []string{addr1, addr2},
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
 			},
@@ -484,7 +507,7 @@ func Test_initExporter(t *testing.T) {
 					Format: config.DefaultExporter().Format,
 					Settings: kafkaexporter.Settings{
 						Topic:     "example-topic",
-						Addresses: []string{"addr1", "addr2"},
+						Addresses: []string{addr1, addr2},
 					},
 				},
 				ExporterEventType: ffclient.FeatureEventExporter,
@@ -517,7 +540,7 @@ func Test_initExporter(t *testing.T) {
 			conf: &config.ExporterConf{
 				Kind:             "azureBlobStorage",
 				Container:        "my-container",
-				Path:             "/my-path/",
+				Path:             myPath,
 				MaxEventInMemory: 1990,
 			},
 			want: ffclient.DataExporter{
@@ -526,7 +549,7 @@ func Test_initExporter(t *testing.T) {
 				Exporter: &azureexporter.Exporter{
 					Container:               "my-container",
 					Format:                  config.DefaultExporter().Format,
-					Path:                    "/my-path/",
+					Path:                    myPath,
 					Filename:                config.DefaultExporter().FileName,
 					CsvTemplate:             config.DefaultExporter().CsvFormat,
 					ParquetCompressionCodec: config.DefaultExporter().ParquetCompressionCodec,
@@ -558,8 +581,8 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 
 	got, err := initDataExporter(&config.ExporterConf{
 		Kind:              config.BigQueryExporter,
-		ProjectID:         "fake-project-id",
-		DatasetID:         "fake-dataset",
+		ProjectID:         fakeProjectId,
+		DatasetID:         fakeDataset,
 		TableName:         "tracking-events",
 		GoogleCredentials: credentials,
 		AutoMigrate:       true,
@@ -570,8 +593,8 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 	assert.Equal(t, ffclient.TrackingEventExporter, got.ExporterEventType)
 	bigQueryExporter, ok := got.Exporter.(*bigqueryexporter.Exporter)
 	assert.True(t, ok)
-	assert.Equal(t, "fake-project-id", bigQueryExporter.ProjectID)
-	assert.Equal(t, "fake-dataset", bigQueryExporter.DatasetID)
+	assert.Equal(t, fakeProjectId, bigQueryExporter.ProjectID)
+	assert.Equal(t, fakeDataset, bigQueryExporter.DatasetID)
 	assert.Equal(t, "tracking-events", bigQueryExporter.TableName)
 	assert.Equal(t, []byte(credentials), bigQueryExporter.GoogleCredentials)
 	assert.True(t, bigQueryExporter.AutoMigrate)
@@ -683,8 +706,8 @@ func TestNewGoFeatureFlagClient_ProxyConfNil(t *testing.T) {
 
 func testKafkaSCRAMSettings(mechanism sarama.SASLMechanism) kafkaexporter.Settings {
 	return kafkaexporter.Settings{
-		Topic:     "my-kafka-topic",
-		Addresses: []string{"addr1", "addr2"},
+		Topic:     myKafkaTopic,
+		Addresses: []string{addr1, addr2},
 		Config: &sarama.Config{
 			//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 			Net: struct {
@@ -736,8 +759,8 @@ func testKafkaSCRAMSettings(mechanism sarama.SASLMechanism) kafkaexporter.Settin
 				}{
 					Enable:    true,
 					Mechanism: mechanism,
-					User:      "TODO",
-					Password:  "TODO",
+					User:      tODO,
+					Password:  tODO,
 				},
 			},
 		},
@@ -752,7 +775,7 @@ func TestSetKafkaConfig(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			settings := testKafkaSCRAMSettings("SCRAM-SHA-512")
+			settings := testKafkaSCRAMSettings(sCRAMSHA512)
 			kafkaConfig, err := setKafkaConfig(settings)
 			require.NoError(t, err)
 
@@ -795,8 +818,8 @@ func TestSetKafkaConfig(t *testing.T) {
 		t.Parallel()
 
 		settings := kafkaexporter.Settings{
-			Topic:     "my-kafka-topic",
-			Addresses: []string{"addr1", "addr2"},
+			Topic:     myKafkaTopic,
+			Addresses: []string{addr1, addr2},
 			Config: &sarama.Config{
 				Version: sarama.V2_1_0_0,
 			},
@@ -809,8 +832,8 @@ func TestSetKafkaConfig(t *testing.T) {
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
 		require.NoError(t, kafkaConfig.Config.Validate())
-		assert.Equal(t, "my-kafka-topic", kafkaConfig.Topic)
-		assert.Equal(t, []string{"addr1", "addr2"}, kafkaConfig.Addresses)
+		assert.Equal(t, myKafkaTopic, kafkaConfig.Topic)
+		assert.Equal(t, []string{addr1, addr2}, kafkaConfig.Addresses)
 		assert.True(t, kafkaConfig.Config.Producer.Return.Successes)
 		assert.True(t, kafkaConfig.Config.Producer.Return.Errors)
 	})
@@ -906,7 +929,7 @@ func TestSetKafkaConfig(t *testing.T) {
 		" merged with default kafka config", func(t *testing.T) {
 		t.Parallel()
 
-		settings := testKafkaSCRAMSettings("SCRAM-SHA-512")
+		settings := testKafkaSCRAMSettings(sCRAMSHA512)
 		// We expect am error because the settings are nil
 		require.Error(t, settings.Config.Validate())
 
@@ -915,22 +938,22 @@ func TestSetKafkaConfig(t *testing.T) {
 
 		// after calling setKafkaConfig, the settings should be valid because they are merged with the default config.
 		require.NoError(t, kafkaConfig.Config.Validate())
-		assert.Equal(t, "my-kafka-topic", kafkaConfig.Topic)
-		assert.Equal(t, []string{"addr1", "addr2"}, kafkaConfig.Addresses)
+		assert.Equal(t, myKafkaTopic, kafkaConfig.Topic)
+		assert.Equal(t, []string{addr1, addr2}, kafkaConfig.Addresses)
 		assert.True(t, kafkaConfig.Config.Producer.Return.Successes)
 		assert.True(t, kafkaConfig.Config.Producer.Return.Errors)
 		assert.True(t, kafkaConfig.Config.Net.SASL.Enable)
-		assert.Equal(t, sarama.SASLMechanism("SCRAM-SHA-512"), kafkaConfig.Config.Net.SASL.Mechanism)
-		assert.Equal(t, "TODO", kafkaConfig.Config.Net.SASL.User)
-		assert.Equal(t, "TODO", kafkaConfig.Config.Net.SASL.Password)
+		assert.Equal(t, sarama.SASLMechanism(sCRAMSHA512), kafkaConfig.Config.Net.SASL.Mechanism)
+		assert.Equal(t, tODO, kafkaConfig.Config.Net.SASL.User)
+		assert.Equal(t, tODO, kafkaConfig.Config.Net.SASL.Password)
 	})
 
 	t.Run("should return a nil config", func(t *testing.T) {
 		t.Parallel()
 
 		settings := kafkaexporter.Settings{
-			Topic:     "my-kafka-topic",
-			Addresses: []string{"addr1", "addr2"},
+			Topic:     myKafkaTopic,
+			Addresses: []string{addr1, addr2},
 		}
 		kafkaConfig, err := setKafkaConfig(settings)
 		require.NoError(t, err)
@@ -941,8 +964,8 @@ func TestSetKafkaConfig(t *testing.T) {
 		t.Parallel()
 
 		settings := kafkaexporter.Settings{
-			Topic:     "my-kafka-topic",
-			Addresses: []string{"addr1", "addr2"},
+			Topic:     myKafkaTopic,
+			Addresses: []string{addr1, addr2},
 			Config: &sarama.Config{
 				Version: sarama.V2_1_0_0,
 			},
@@ -1037,7 +1060,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 			name: "invalid exporter",
 			s3:   &fakeS3{content: []byte("{}")},
 			mod: func(fs *config.FlagSet) {
-				fs.Exporter = &config.ExporterConf{Kind: "unknown"}
+				fs.Exporter = &config.ExporterConf{Kind: unknown}
 			},
 			wantGroups: 0,
 		},
@@ -1053,7 +1076,7 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
 				reg := newFakeRegistry(t, tt.s3, &atomic.Int32{})
-				fs := s3FlagSet("a", "b1", "p/a.yaml")
+				fs := s3FlagSet("a", "b1", pAYaml)
 				tt.mod(&fs)
 				_, err := newGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil, withSharedBucketRegistry(reg))
 				require.Error(t, err)
@@ -1066,11 +1089,11 @@ func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testi
 func Test_firstSharedRetriever(t *testing.T) {
 	t.Parallel()
 	reg := newFakeRegistry(t, &fakeS3{}, &atomic.Int32{})
-	fs := s3FlagSet("a", "b1", "p/a.yaml")
+	fs := s3FlagSet("a", "b1", pAYaml)
 	r, err := reg.retrieverFor(&fs)
 	require.NoError(t, err)
 	file, err := retrieverInit.Retriever(&retrieverconf.RetrieverConf{
-		Kind: retrieverconf.FileRetriever, Path: "../testdata/semaphore/configuration_flags.yaml",
+		Kind: retrieverconf.FileRetriever, Path: testdataSemaphoreConfigurationFlags,
 	})
 	require.NoError(t, err)
 
@@ -1111,7 +1134,7 @@ func Test_newGoFeatureFlagClient_sharedPollerWithoutRegistry(t *testing.T) {
 	t.Setenv("AWS_CONFIG_FILE", "/nonexistent/config")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent/credentials")
 
-	fs := s3FlagSet("a", "b1", "p/a.yaml")
+	fs := s3FlagSet("a", "b1", pAYaml)
 	fs.PollingInterval, fs.EnablePollingJitter = 5000, true
 	got, err := NewGoFeatureFlagClient(&fs, slog.New(slog.DiscardHandler), nil)
 	assert.Nil(t, got)
@@ -1153,7 +1176,7 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
 
-	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/semaphore/configuration_flags.yaml"}
+	retriever := &retrieverconf.RetrieverConf{Kind: file2, Path: testdataSemaphoreConfigurationFlags}
 
 	tests := []struct {
 		name     string
@@ -1209,7 +1232,7 @@ func Test_initRetrieversWithRegistry_SharesThePostgresPoolOfADefaultClient(t *te
 			retrievers := make([]retrieverconf.RetrieverConf, 0, len(tt.uris))
 			for _, uri := range tt.uris {
 				retrievers = append(retrievers, retrieverconf.RetrieverConf{
-					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: "flags",
+					Kind: retrieverconf.PostgreSQLRetriever, URI: uri, Table: flags,
 				})
 			}
 

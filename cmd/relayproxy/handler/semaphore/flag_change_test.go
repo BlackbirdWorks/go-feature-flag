@@ -19,6 +19,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	configFlagsYaml = "/config_flags.yaml"
+	defaultMode     = "default mode"
+	flagChange2     = "/flag_change/"
+	flagsetMode     = "flagset mode"
+)
+
 func TestPIFlagChange_WithConfigChange(t *testing.T) {
 	t.Parallel()
 
@@ -30,14 +37,14 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 		config        config.Config
 	}{
 		{
-			name: "default mode",
+			name: defaultMode,
 			config: config.Config{
 				CommonFlagSet: config.CommonFlagSet{
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: "file",
-							Path: testdataDir + "/config_flags.yaml",
+							Kind: file2,
+							Path: testdataDir + configFlagsYaml,
 						},
 					},
 				},
@@ -46,22 +53,22 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
 		{
-			name: "flagset mode",
+			name: flagsetMode,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{"test"},
+						APIKeys:         []string{test2},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: "file",
-								Path: testdataDir + "/config_flags.yaml",
+								Kind: file2,
+								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:        "test",
+			apiKey:        test2,
 			wantFile:      "flag_change_with_config_change.json",
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
@@ -80,7 +87,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 				_ = os.Remove(file.Name())
 			}()
 
-			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
+			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
 			errWF := os.WriteFile(file.Name(), content, 0644)
@@ -95,7 +102,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
+						Kind: file2,
 						Path: file.Name(),
 					},
 				}
@@ -118,7 +125,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
-			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
+			want, _ := os.ReadFile(testdataDir + flagChange2 + tt.wantFile)
 			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 
 			content, err = os.ReadFile(testdataDir + "/config_flags_v2.yaml")
@@ -128,7 +135,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			require.NoError(t, errWF)
 
 			// the poller of the retriever picks the new file up: wait for the answer to change
-			wantAfter, err := os.ReadFile(testdataDir + "/flag_change/" + tt.wantAfterFile)
+			wantAfter, err := os.ReadFile(testdataDir + flagChange2 + tt.wantAfterFile)
 			require.NoError(t, err)
 
 			var after string
@@ -158,14 +165,14 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 		config   config.Config
 	}{
 		{
-			name: "default mode",
+			name: defaultMode,
 			config: config.Config{
 				CommonFlagSet: config.CommonFlagSet{
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: "file",
-							Path: testdataDir + "/config_flags.yaml",
+							Kind: file2,
+							Path: testdataDir + configFlagsYaml,
 						},
 					},
 				},
@@ -173,22 +180,22 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			wantFile: "flag_change_without_config_change.json",
 		},
 		{
-			name: "flagset mode",
+			name: flagsetMode,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{"test"},
+						APIKeys:         []string{test2},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: "file",
-								Path: testdataDir + "/config_flags.yaml",
+								Kind: file2,
+								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:   "test",
+			apiKey:   test2,
 			wantFile: "flag_change_without_config_change.json",
 		},
 	}
@@ -206,7 +213,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 				_ = os.Remove(file.Name())
 			}()
 
-			content, err := os.ReadFile(testdataDir + "/config_flags.yaml")
+			content, err := os.ReadFile(testdataDir + configFlagsYaml)
 			require.NoError(t, err)
 
 			errWF := os.WriteFile(file.Name(), content, 0644)
@@ -221,7 +228,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: "file",
+						Kind: file2,
 						Path: file.Name(),
 					},
 				}
@@ -245,7 +252,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
-				testdataDir + "/flag_change/" + tt.wantFile,
+				testdataDir + flagChange2 + tt.wantFile,
 			)
 			assert.JSONEq(t, string(want), jsonOf(t, out.Body))
 

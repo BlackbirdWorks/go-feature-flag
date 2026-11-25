@@ -6,6 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	yaml = "yaml"
+)
+
 func TestLinter_Lint(t *testing.T) {
 	t.Parallel()
 
@@ -42,7 +46,7 @@ func TestLinter_Lint(t *testing.T) {
 			name: "invalid yaml",
 			linter: Linter{
 				InputFile:   "testdata/invalid.yaml",
-				InputFormat: "yaml",
+				InputFormat: yaml,
 			},
 			wantErrs: []string{
 				"testdata/invalid.yaml: could not parse file (yaml): decoding the flags: yaml: unmarshal errors:\n  line 7: " +
@@ -84,7 +88,7 @@ func TestLinter_Lint(t *testing.T) {
 			name: "no variation",
 			linter: Linter{
 				InputFile:   "testdata/no-variation.yaml",
-				InputFormat: "yaml",
+				InputFormat: yaml,
 			},
 			wantErrs: []string{
 				"testdata/no-variation.yaml: invalid flag flag: validating the flag: no variation available",
@@ -94,7 +98,7 @@ func TestLinter_Lint(t *testing.T) {
 			name: "no default rule",
 			linter: Linter{
 				InputFile:   "testdata/no-default-rule.yaml",
-				InputFormat: "yaml",
+				InputFormat: yaml,
 			},
 			wantErrs: []string{
 				"testdata/no-default-rule.yaml: invalid flag flag: validating the flag: missing default rule",
@@ -104,7 +108,7 @@ func TestLinter_Lint(t *testing.T) {
 			name: "invalid rule",
 			linter: Linter{
 				InputFile:   "testdata/invalid-rule.yaml",
-				InputFormat: "yaml",
+				InputFormat: yaml,
 			},
 			wantErrs: []string{
 				"testdata/invalid-rule.yaml: invalid flag flag: validating the flag: each targeting should have a query",
@@ -114,7 +118,7 @@ func TestLinter_Lint(t *testing.T) {
 			name: "invalid file",
 			linter: Linter{
 				InputFile:   "testdata/unknown.yaml",
-				InputFormat: "yaml",
+				InputFormat: yaml,
 			},
 			wantErrs: []string{"impossible to find config file testdata/unknown.yaml"},
 		},

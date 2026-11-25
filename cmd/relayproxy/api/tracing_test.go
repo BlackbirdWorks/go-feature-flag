@@ -24,6 +24,10 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	serverError = "Server error"
+)
+
 var errNotInitialized = errors.New("not initialized")
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0e0e0e0e-01"
@@ -50,15 +54,15 @@ func Test_Tracing(t *testing.T) {
 		wantStatus int
 		wantError  bool
 	}{
-		{name: "huma operation", method: http.MethodGet, path: "/health", wantName: "GET /health", wantRoute: "/health",
-			wantRecord: "Success", wantStatus: http.StatusOK},
+		{name: "huma operation", method: http.MethodGet, path: health2, wantName: gETHealth, wantRoute: health2,
+			wantRecord: success, wantStatus: http.StatusOK},
 		{
 			name:       "huma operation failing",
 			method:     http.MethodGet,
-			path:       "/info",
+			path:       info,
 			wantName:   "GET /info",
-			wantRoute:  "/info",
-			wantRecord: "Server error",
+			wantRoute:  info,
+			wantRecord: serverError,
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
@@ -69,14 +73,14 @@ func Test_Tracing(t *testing.T) {
 			body:       `{"evaluationContext":{"key":"u"}}`,
 			wantName:   "POST /v1/feature/{flagKey}/eval",
 			wantRoute:  "/v1/feature/{flagKey}/eval",
-			wantRecord: "Server error",
+			wantRecord: serverError,
 			wantStatus: http.StatusInternalServerError,
 			wantError:  true,
 		},
 		{
 			name:       "no route",
 			method:     http.MethodGet,
-			path:       "/nope",
+			path:       nope,
 			wantName:   "GET /",
 			wantRoute:  "/",
 			wantRecord: "Client error",
@@ -101,7 +105,7 @@ func Test_Tracing(t *testing.T) {
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
-			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(contentType, applicationJson)
 			req.Header.Set("Traceparent", traceparent)
 
 			rec := httptest.NewRecorder()

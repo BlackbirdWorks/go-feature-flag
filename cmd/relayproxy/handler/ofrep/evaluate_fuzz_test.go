@@ -31,13 +31,13 @@ func FuzzOFREPEvaluate(f *testing.F) {
 	for _, file := range requests {
 		content, readFileErr := os.ReadFile(file)
 		require.NoError(f, readFileErr)
-		f.Add("number-flag", string(content), false)
+		f.Add(numberFlag, string(content), false)
 		f.Add("", string(content), true)
 	}
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10000,
-		FileFormat:      "yaml",
+		FileFormat:      yaml,
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{Kind: retrieverconf.FileRetriever, Path: configFlagsLocation},
 		},
@@ -47,17 +47,17 @@ func FuzzOFREPEvaluate(f *testing.F) {
 
 	ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, config.OfrepEventStream{})
 	mux := http.NewServeMux()
-	mux.Handle("POST /ofrep/v1/evaluate/flags/{flagKey...}", helper.Handle(ctrl.Evaluate, false))
+	mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
 	mux.Handle("POST /ofrep/v1/evaluate/flags", helper.Handle(ctrl.BulkEvaluate, false))
 
 	f.Fuzz(func(t *testing.T, flagKey, body string, bulk bool) {
-		target := "/ofrep/v1/evaluate/flags/" + url.PathEscape(flagKey)
+		target := ofrepV1Evaluate2 + url.PathEscape(flagKey)
 		if bulk {
-			target = "/ofrep/v1/evaluate/flags"
+			target = ofrepV1Evaluate
 		}
 
 		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(contentType, applicationJson)
 
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

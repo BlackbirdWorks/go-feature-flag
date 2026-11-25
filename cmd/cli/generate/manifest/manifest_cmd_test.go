@@ -11,6 +11,10 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/generate/manifest"
 )
 
+const (
+	iNFOManifestHasBeen = "INFO: 🎉 Manifest has been created\n"
+)
+
 func TestManifestCmd(t *testing.T) {
 	t.Parallel()
 
@@ -29,7 +33,7 @@ func TestManifestCmd(t *testing.T) {
 			name:             "should return success if everything is ok",
 			args:             []string{"--config=testdata/input/flag.goff.yaml"},
 			expectedManifest: "testdata/output/flag.goff.json",
-			expectedOutput:   "INFO: 🎉 Manifest has been created\n",
+			expectedOutput:   iNFOManifestHasBeen,
 			assertError:      assert.NoError,
 		},
 		{
@@ -51,14 +55,14 @@ func TestManifestCmd(t *testing.T) {
 			args:             []string{"--config=testdata/input/flag-int-as-float.yaml"},
 			assertError:      assert.NoError,
 			expectedManifest: "testdata/output/flag-int-as-float.json",
-			expectedOutput:   "INFO: 🎉 Manifest has been created\n",
+			expectedOutput:   iNFOManifestHasBeen,
 		},
 		{
 			name:             "should have float as type if 1 float and int are mixed",
 			args:             []string{"--config=testdata/input/flag-float-and-int.yaml"},
 			assertError:      assert.NoError,
 			expectedManifest: "testdata/output/flag-float-and-int.json",
-			expectedOutput:   "INFO: 🎉 Manifest has been created\n",
+			expectedOutput:   iNFOManifestHasBeen,
 		},
 	}
 

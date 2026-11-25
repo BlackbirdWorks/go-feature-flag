@@ -16,20 +16,20 @@ import (
 )
 
 const (
-	configFlagName   = "config"
-	configFlagUsage  = "Location of your config file"
-	configFlagPrefix = "--config="
+	configFlagName   = config3
+	configFlagUsage  = locationOfYourConfig
+	configFlagPrefix = config2
 )
 
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
 	t.Helper()
 	configFile := testutils.CopyContentToNewTempFile(t, configContent)
-	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
+	f := pflag.NewFlagSet(config3, pflag.ContinueOnError)
 	f.String(configFlagName, "", configFlagUsage)
 	err := f.Parse([]string{configFlagPrefix + configFile.Name()})
 	require.NoError(t, err)
 
-	cfg, err := config.New(f, slog.New(slog.DiscardHandler), "1.0.0")
+	cfg, err := config.New(f, slog.New(slog.DiscardHandler), fixture100)
 	require.NoError(t, err)
 
 	return cfg, configFile
@@ -38,10 +38,7 @@ func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.F
 func TestConfigAttachConfigChangeCallback(t *testing.T) {
 	t.Parallel()
 
-	initialConfig := `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`
+	initialConfig := serverPort1031PollingInterval
 
 	updatedConfig := `server:
   port: 2031
@@ -78,7 +75,7 @@ loglevel: debug`
 	for {
 		select {
 		case <-timeout:
-			require.Fail(t, "Timeout waiting for callback to be triggered")
+			require.Fail(t, timeoutWaitingForCallback)
 		case <-ticker.C:
 			mu.Lock()
 			if callbackCalled {
@@ -86,7 +83,7 @@ loglevel: debug`
 				assert.NotNil(t, receivedConfig, "Received config should not be nil")
 				assert.Equal(t, 2031, receivedConfig.Server.Port, "Port should be updated")
 				assert.Equal(t, 2000, receivedConfig.PollingInterval, "PollingInterval should be updated")
-				assert.Equal(t, "debug", receivedConfig.LogLevel, "LogLevel should be updated")
+				assert.Equal(t, debug, receivedConfig.LogLevel, "LogLevel should be updated")
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)
@@ -110,10 +107,7 @@ func TestConfigStopConfigChangeWatcher(t *testing.T) {
 			name: "Successfully stop watcher when configLoader is initialized",
 			setupConfig: func(t *testing.T) *config.Config {
 				t.Helper()
-				cfg, _ := createTestConfig(t, `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`)
+				cfg, _ := createTestConfig(t, serverPort1031PollingInterval)
 
 				return cfg
 			},
@@ -145,10 +139,7 @@ loglevel: info`)
 func TestConfigAttachConfigChangeCallbackMultipleCallbacks(t *testing.T) {
 	t.Parallel()
 
-	initialConfig := `server:
-  port: 1031
-pollingInterval: 1000
-loglevel: info`
+	initialConfig := serverPort1031PollingInterval
 
 	updatedConfig := `server:
   port: 9999

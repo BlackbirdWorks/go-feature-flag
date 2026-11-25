@@ -18,6 +18,12 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
 )
 
+const (
+	applicationJson = "application/json"
+	applicationToml = "application/toml"
+	applicationYaml = "application/yaml"
+)
+
 var (
 	errReadFailure = errors.New("read failure")
 )
@@ -141,7 +147,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	}{
 		{
 			name:        "valid json",
-			contentType: "application/json",
+			contentType: applicationJson,
 			body:        validJSON,
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
@@ -155,7 +161,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name:        "valid yaml",
-			contentType: "application/yaml",
+			contentType: applicationYaml,
 			body:        validYAML,
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
@@ -176,20 +182,20 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name:        "valid toml",
-			contentType: "application/toml",
+			contentType: applicationToml,
 			body:        validTOML,
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
 		},
 		{
 			name:        "empty yaml body",
-			contentType: "application/yaml",
+			contentType: applicationYaml,
 			body:        "",
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
 		},
 		{
-			name: "invalid flags sorted by key", contentType: "application/json", body: invalidJSON,
+			name: "invalid flags sorted by key", contentType: applicationJson, body: invalidJSON,
 			wantStatus: http.StatusUnprocessableEntity,
 			wantErrors: []controller.FlagValidationError{
 				{Flag: "flag-a", Message: "validating the flag: missing default rule"},
@@ -197,7 +203,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			},
 		},
 		{
-			name: "panicking flag definition", contentType: "application/json",
+			name: "panicking flag definition", contentType: applicationJson,
 			body:       `{"f":{"variations":{"a":true},"defaultRule":{"progressiveRollout":{}}}}`,
 			altMessage: "validating the flag: invalid progressive rollout, initial and end steps are required",
 			wantStatus: http.StatusUnprocessableEntity,
@@ -208,23 +214,23 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name:        "bad json syntax",
-			contentType: "application/json",
+			contentType: applicationJson,
 			body:        `{"flag-a":`,
 			wantStatus:  http.StatusBadRequest,
 		},
-		{name: "bad yaml syntax", contentType: "application/yaml", body: "a: [", wantStatus: http.StatusBadRequest},
-		{name: "bad toml syntax", contentType: "application/toml", body: "a = ", wantStatus: http.StatusBadRequest},
+		{name: "bad yaml syntax", contentType: applicationYaml, body: "a: [", wantStatus: http.StatusBadRequest},
+		{name: "bad toml syntax", contentType: applicationToml, body: "a = ", wantStatus: http.StatusBadRequest},
 		{
 			name:        "yaml scalar",
-			contentType: "application/yaml",
+			contentType: applicationYaml,
 			body:        "just a string",
 			wantStatus:  http.StatusBadRequest,
 		},
-		{name: "yaml list", contentType: "application/yaml", body: "- a\n- b\n", wantStatus: http.StatusBadRequest},
-		{name: "json list", contentType: "application/json", body: "[]", wantStatus: http.StatusBadRequest},
+		{name: "yaml list", contentType: applicationYaml, body: "- a\n- b\n", wantStatus: http.StatusBadRequest},
+		{name: "json list", contentType: applicationJson, body: "[]", wantStatus: http.StatusBadRequest},
 		{
 			name:        "unreadable body",
-			contentType: "application/json",
+			contentType: applicationJson,
 			reader:      failingReader{},
 			wantStatus:  http.StatusBadRequest,
 		},
@@ -242,76 +248,76 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{name: "missing content type", contentType: "", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
 		{
-			name: "json at the size limit", contentType: "application/json",
+			name: "json at the size limit", contentType: applicationJson,
 			body: padTo(validJSON, " ", jsonBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name:        "json over the size limit",
-			contentType: "application/json",
+			contentType: applicationJson,
 			body:        oversizedJSON,
 			wantStatus:  http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "chunked json over the size limit", contentType: "application/json", chunked: true,
+			name: "chunked json over the size limit", contentType: applicationJson, chunked: true,
 			body: oversizedJSON, wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "yaml at the size limit", contentType: "application/yaml",
+			name: "yaml at the size limit", contentType: applicationYaml,
 			body: padTo(validYAML, "\n", yamlBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "yaml over the size limit", contentType: "application/yaml",
+			name: "yaml over the size limit", contentType: applicationYaml,
 			body: padTo(validYAML, "\n", yamlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "chunked yaml over the size limit", contentType: "application/yaml", chunked: true,
+			name: "chunked yaml over the size limit", contentType: applicationYaml, chunked: true,
 			body: padTo(validYAML, "\n", yamlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "toml at the size limit", contentType: "application/toml",
+			name: "toml at the size limit", contentType: applicationToml,
 			body: padTo(validTOML, "\n", tomlBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "toml over the size limit", contentType: "application/toml",
+			name: "toml over the size limit", contentType: applicationToml,
 			body: padTo(validTOML, "\n", tomlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom json limit, at the limit", contentType: "application/json",
+			name: "custom json limit, at the limit", contentType: applicationJson,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2048), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "custom json limit, over the limit", contentType: "application/json",
+			name: "custom json limit, over the limit", contentType: applicationJson,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2049), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom json limit does not change yaml", contentType: "application/yaml",
+			name: "custom json limit does not change yaml", contentType: applicationYaml,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validYAML, "\n", yamlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom yaml limit, at the limit", contentType: "application/yaml",
+			name: "custom yaml limit, at the limit", contentType: applicationYaml,
 			limits: config.ValidateFlagsEndpoint{MaxYAMLBodySize: 128 << 10},
 			body:   padTo(validYAML, "\n", 128<<10), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "custom yaml limit, over the limit", contentType: "application/yaml", chunked: true,
+			name: "custom yaml limit, over the limit", contentType: applicationYaml, chunked: true,
 			limits: config.ValidateFlagsEndpoint{MaxYAMLBodySize: 128 << 10},
 			body:   padTo(validYAML, "\n", 128<<10+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom toml limit, at the limit", contentType: "application/toml",
+			name: "custom toml limit, at the limit", contentType: applicationToml,
 			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", 1024), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "custom toml limit, over the limit", contentType: "application/toml",
+			name: "custom toml limit, over the limit", contentType: applicationToml,
 			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", 1025), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom toml limit smaller than the default", contentType: "application/toml",
+			name: "custom toml limit smaller than the default", contentType: applicationToml,
 			limits: config.ValidateFlagsEndpoint{MaxTOMLBodySize: 1024},
 			body:   padTo(validTOML, "\n", tomlBodyLimit), wantStatus: http.StatusRequestEntityTooLarge,
 		},
@@ -338,7 +344,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			}
 
 			if tt.contentType != "" {
-				req.Header.Set("Content-Type", tt.contentType)
+				req.Header.Set(contentType2, tt.contentType)
 			}
 
 			err = ctrl.Handler(rec, req)

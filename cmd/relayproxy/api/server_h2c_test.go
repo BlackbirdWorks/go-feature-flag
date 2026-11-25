@@ -19,6 +19,10 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	http12700 = "http://127.0.0.1:%d"
+)
+
 func TestServerEnableH2C(t *testing.T) {
 	t.Parallel()
 
@@ -39,10 +43,10 @@ func TestServerEnableH2C(t *testing.T) {
 			t.Parallel()
 			listener, port := testutils.ListenLocal(t)
 			conf := &config.Config{
-				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
+				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: file2, Path: testdataFlagConfigYaml}},
 				Server: config.Server{
 					Mode:      config.ServerModeHTTP,
-					Host:      "127.0.0.1",
+					Host:      fixture127001,
 					Port:      port,
 					EnableH2C: tt.enableH2C,
 				},
@@ -70,7 +74,7 @@ func TestServerEnableH2C(t *testing.T) {
 
 			defer srv.Stop(context.Background())
 
-			baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+			baseURL := fmt.Sprintf(http12700, port)
 			waitForServer(t, baseURL)
 
 			var protos http.Protocols
@@ -83,7 +87,7 @@ func TestServerEnableH2C(t *testing.T) {
 			client := &http.Client{Transport: &http.Transport{Protocols: &protos}}
 			defer client.CloseIdleConnections()
 
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+health2, nil)
 			require.NoError(t, err)
 
 			resp, err := client.Do(req)

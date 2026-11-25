@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	enabled2       = "enabled"
+	fixtureDefault = "default"
+	flagsetA       = "flagset-a"
+)
+
 var (
 	errErrorWebsocketConnection = errors.New("error websocket connection")
 )
@@ -37,12 +43,12 @@ func (m *mockConn) WriteJSON(val any) error {
 func sensitiveDiffCache() notifier.DiffCache {
 	beforeQuery := `user.email eq "before@example.com"`
 	afterQuery := `user.email eq "after@example.com"`
-	enabled := "enabled"
+	enabled := enabled2
 
 	return notifier.DiffCache{
 		Deleted: map[string]flag.Flag{
 			"deleted-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": new(any(true))},
+				Variations: &map[string]*any{enabled2: new(any(true))},
 				Rules: &[]flag.Rule{
 					{Query: &beforeQuery, VariationResult: &enabled},
 				},
@@ -50,7 +56,7 @@ func sensitiveDiffCache() notifier.DiffCache {
 		},
 		Added: map[string]flag.Flag{
 			"added-flag": &flag.InternalFlag{
-				Variations: &map[string]*any{"enabled": new(any(true))},
+				Variations: &map[string]*any{enabled2: new(any(true))},
 				Rules: &[]flag.Rule{
 					{Query: &afterQuery, VariationResult: &enabled},
 				},
@@ -103,9 +109,9 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 				return nil
 			}
-			websocketService.Register(conn, "default")
+			websocketService.Register(conn, fixtureDefault)
 
-			websocketService.BroadcastFlagChanges("default", diff)
+			websocketService.BroadcastFlagChanges(fixtureDefault, diff)
 
 			actualJSON, err := json.Marshal(received)
 			require.NoError(t, err)
@@ -130,8 +136,8 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	conn2 := &mockConn{}
 
 	// Register the mock connections
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtureDefault)
+	websocketService.Register(conn2, fixtureDefault)
 
 	// Set up a flag to track if the WriteJSON function is called on the connections
 	conn1WriteJSONCalled := false
@@ -151,7 +157,7 @@ func TestBroadcastFlagChanges(t *testing.T) {
 	}
 
 	// Call the BroadcastFlagChanges function
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtureDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -170,7 +176,7 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 	}{
 		{
 			name:             "broadcast on flagset-a only reaches flagset-a clients",
-			broadcastFlagset: "flagset-a",
+			broadcastFlagset: flagsetA,
 			want:             map[string]bool{"a1": true, "a2": true, "b1": false},
 		},
 		{
@@ -190,7 +196,7 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 			t.Parallel()
 
 			websocketService := stream.NewWebsocketService()
-			clients := map[string]string{"a1": "flagset-a", "a2": "flagset-a", "b1": "flagset-b"}
+			clients := map[string]string{"a1": flagsetA, "a2": flagsetA, "b1": "flagset-b"}
 
 			got := map[string]bool{}
 			for name, flagsetName := range clients {
@@ -228,14 +234,14 @@ func TestDeregister(t *testing.T) {
 	}
 
 	// Register the mock connection
-	websocketService.Register(conn, "default")
+	websocketService.Register(conn, fixtureDefault)
 
 	// Call the Deregister function
 	websocketService.Deregister(conn)
 
 	// Call the BroadcastFlagChanges function after deregistering the connection
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtureDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -271,15 +277,15 @@ func TestClose(t *testing.T) {
 	}
 
 	// Register the mock connections
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtureDefault)
+	websocketService.Register(conn2, fixtureDefault)
 
 	// Call the Close function
 	websocketService.Close()
 
 	// Call the BroadcastFlagChanges function after closing the connections
 	diff := notifier.DiffCache{} // You need to define an appropriate DiffCache
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtureDefault, diff)
 
 	// BroadcastFlagChanges writes synchronously: the connections have been written when it returns
 
@@ -301,8 +307,8 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 	// in the past we had a deadlock here (see: https://github.com/thomaspoignant/go-feature-flag/issues/3144)
 	conn2 := &mockConn{throwError: true}
 
-	websocketService.Register(conn1, "default")
-	websocketService.Register(conn2, "default")
+	websocketService.Register(conn1, fixtureDefault)
+	websocketService.Register(conn2, fixtureDefault)
 
 	conn1WriteJSONCalled := false
 	conn1.writeJSONFunc = func(_ any) error {
@@ -311,7 +317,7 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 		return nil
 	}
 
-	websocketService.BroadcastFlagChanges("default", diff)
+	websocketService.BroadcastFlagChanges(fixtureDefault, diff)
 	assert.True(t, conn1WriteJSONCalled, "WriteJSON should be called on conn1")
 
 	// We are not testing the error here, we are testing that the function does not deadlock

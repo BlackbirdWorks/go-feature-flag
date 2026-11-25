@@ -15,11 +15,24 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	admin1        = "admin-1"
+	admin2        = "admin-2"
+	adminA        = "admin-a"
+	adminKeep     = "admin-keep"
+	adminNew      = "admin-new"
+	adminOld      = "admin-old"
+	eval1         = "eval-1"
+	eval2         = "eval-2"
+	evaluationKey = "evaluation-key"
+	flagsetKey    = "flagset-key"
+)
+
 func authorizedKeysFlagset() config.FlagSet {
 	return config.FlagSet{
 		Name:      "fs-keys",
-		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: "../../../testdata/flag-config.yaml"},
-		APIKeys:   []string{"flagset-key"},
+		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: testdataFlagConfigYaml},
+		APIKeys:   []string{flagsetKey},
 	}
 }
 
@@ -36,50 +49,50 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 	}{
 		{
 			name:         "an added admin key is accepted",
-			current:      config.APIKeys{Admin: []string{"admin-1"}},
-			next:         config.APIKeys{Admin: []string{"admin-1", "admin-2"}},
-			wantAdmin:    []string{"admin-1", "admin-2"},
+			current:      config.APIKeys{Admin: []string{admin1}},
+			next:         config.APIKeys{Admin: []string{admin1, admin2}},
+			wantAdmin:    []string{admin1, admin2},
 			wantNotAdmin: []string{"unknown"},
 		},
 		{
 			name:         "a removed admin key is rejected",
-			current:      config.APIKeys{Admin: []string{"admin-1", "admin-2"}},
-			next:         config.APIKeys{Admin: []string{"admin-1"}},
-			wantAdmin:    []string{"admin-1"},
-			wantNotAdmin: []string{"admin-2"},
+			current:      config.APIKeys{Admin: []string{admin1, admin2}},
+			next:         config.APIKeys{Admin: []string{admin1}},
+			wantAdmin:    []string{admin1},
+			wantNotAdmin: []string{admin2},
 		},
 		{
 			name:         "a replaced admin key swaps the accepted key",
-			current:      config.APIKeys{Admin: []string{"admin-old"}},
-			next:         config.APIKeys{Admin: []string{"admin-new"}},
-			wantAdmin:    []string{"admin-new"},
-			wantNotAdmin: []string{"admin-old"},
+			current:      config.APIKeys{Admin: []string{adminOld}},
+			next:         config.APIKeys{Admin: []string{adminNew}},
+			wantAdmin:    []string{adminNew},
+			wantNotAdmin: []string{adminOld},
 		},
 		{
 			name:         "admin keys can be added when none were configured",
 			current:      config.APIKeys{},
-			next:         config.APIKeys{Admin: []string{"admin-new"}},
-			wantAdmin:    []string{"admin-new"},
+			next:         config.APIKeys{Admin: []string{adminNew}},
+			wantAdmin:    []string{adminNew},
 			wantNotAdmin: []string{"unknown"},
 		},
 		{
 			// flag sets route an evaluation request by the key of its flag set: evaluation keys are never accepted
 			name:              "an added evaluation key is not accepted in flag set mode",
-			current:           config.APIKeys{Evaluation: []string{"eval-1"}},
-			next:              config.APIKeys{Evaluation: []string{"eval-1", "eval-2"}},
-			wantNotEvaluation: []string{"eval-1", "eval-2"},
+			current:           config.APIKeys{Evaluation: []string{eval1}},
+			next:              config.APIKeys{Evaluation: []string{eval1, eval2}},
+			wantNotEvaluation: []string{eval1, eval2},
 		},
 		{
 			name:              "a removed evaluation key stays rejected in flag set mode",
-			current:           config.APIKeys{Evaluation: []string{"eval-1", "eval-2"}},
-			next:              config.APIKeys{Evaluation: []string{"eval-1"}},
-			wantNotEvaluation: []string{"eval-1", "eval-2"},
+			current:           config.APIKeys{Evaluation: []string{eval1, eval2}},
+			next:              config.APIKeys{Evaluation: []string{eval1}},
+			wantNotEvaluation: []string{eval1, eval2},
 		},
 		{
 			name:         "all the admin keys can be removed",
-			current:      config.APIKeys{Admin: []string{"admin-old"}},
+			current:      config.APIKeys{Admin: []string{adminOld}},
 			next:         config.APIKeys{},
-			wantNotAdmin: []string{"admin-old"},
+			wantNotAdmin: []string{adminOld},
 		},
 	}
 
@@ -113,7 +126,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 
 			assert.Equal(t, tt.next.Admin, cfg.GetAuthorizedKeys().Admin)
 			assert.Equal(t, tt.next.Evaluation, cfg.GetAuthorizedKeys().Evaluation)
-			assert.True(t, cfg.APIKeyExists("flagset-key"), "the flagset key must stay accepted")
+			assert.True(t, cfg.APIKeyExists(flagsetKey), "the flagset key must stay accepted")
 		})
 	}
 }
@@ -127,12 +140,12 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 			AuthorizedKeys: config.APIKeys{Admin: admin},
 		}
 	}
-	cfg := reloadWith("admin-a", "admin-keep")
+	cfg := reloadWith(adminA, adminKeep)
 	cfg.ForceReloadAPIKeys()
 	manager, _ := setupManager(t, cfg)
 
-	withA := reloadWith("admin-a", "admin-keep")
-	withB := reloadWith("admin-b", "admin-keep")
+	withA := reloadWith(adminA, adminKeep)
+	withB := reloadWith("admin-b", adminKeep)
 
 	done := make(chan struct{})
 
@@ -149,7 +162,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 				default:
 					// The keys present before and after the reload are accepted throughout it: the
 					// accepted set is never seen empty or half built.
-					if !cfg.APIKeysAdminExists("admin-keep") || !cfg.APIKeyExists("flagset-key") {
+					if !cfg.APIKeysAdminExists(adminKeep) || !cfg.APIKeyExists(flagsetKey) {
 						violations.Add(1)
 					}
 				}
@@ -171,7 +184,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 	wg.Wait()
 
 	assert.Equal(t, int64(0), violations.Load(), "the keys must never be seen half updated during a reload")
-	assert.True(t, cfg.APIKeysAdminExists("admin-a"), "the last applied configuration has the admin-a key")
+	assert.True(t, cfg.APIKeysAdminExists(adminA), "the last applied configuration has the admin-a key")
 	assert.False(t, cfg.APIKeysAdminExists("admin-b"), "the last applied configuration drops the admin-b key")
 }
 
@@ -183,23 +196,23 @@ func TestFlagsetManager_OnConfigChange_EvaluationKeysStayRejectedWithoutRunningF
 
 	cfg := &config.Config{
 		FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
-		AuthorizedKeys: config.APIKeys{Evaluation: []string{"evaluation-key"}},
+		AuthorizedKeys: config.APIKeys{Evaluation: []string{evaluationKey}},
 	}
 	cfg.ForceReloadAPIKeys()
 	manager, _ := setupManager(t, cfg)
 
 	broken := config.FlagSet{
 		Name:      "fs-broken",
-		Retriever: &retrieverconf.RetrieverConf{Kind: "file", Path: "/does/not/exist/flags.yaml"},
-		APIKeys:   []string{"broken-key"},
+		Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: "/does/not/exist/flags.yaml"},
+		APIKeys:   []string{brokenKey},
 	}
 	manager.OnConfigChange(&config.Config{
 		FlagSets:       []config.FlagSet{broken},
-		AuthorizedKeys: config.APIKeys{Evaluation: []string{"evaluation-key"}},
+		AuthorizedKeys: config.APIKeys{Evaluation: []string{evaluationKey}},
 	})
 
 	assert.Empty(t, cfg.GetFlagSets(), "no flag set is running anymore")
-	assert.False(t, cfg.APIKeyExists("evaluation-key"))
+	assert.False(t, cfg.APIKeyExists(evaluationKey))
 }
 
 func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {

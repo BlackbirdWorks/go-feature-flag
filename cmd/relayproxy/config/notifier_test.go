@@ -28,7 +28,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "Invalid kind",
 			fields: fields{
-				Kind: "invalid",
+				Kind: invalid2,
 			},
 			wantErr:  true,
 			errValue: "invalid notifier: kind \"invalid\" is not supported",
@@ -42,7 +42,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind slack without URL",
 			fields: fields{
-				Kind:       "slack",
+				Kind:       slack,
 				WebhookURL: "",
 			},
 			wantErr:  true,
@@ -51,7 +51,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without EndpointURL",
 			fields: fields{
-				Kind:        "webhook",
+				Kind:        webhook,
 				EndpointURL: "",
 			},
 			wantErr:  true,
@@ -60,17 +60,17 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "valid use-case slack",
 			fields: fields{
-				Kind:       "slack",
-				WebhookURL: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				Kind:       slack,
+				WebhookURL: httpsHooksSlackCom,
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid use-case webhook",
 			fields: fields{
-				Kind:        "webhook",
-				EndpointURL: "https://hooktest.com/",
-				Secret:      "xxxx",
+				Kind:        webhook,
+				EndpointURL: httpsHooktestCom,
+				Secret:      xxxx,
 			},
 			wantErr: false,
 		},

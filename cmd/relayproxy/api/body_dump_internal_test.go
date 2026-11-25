@@ -14,6 +14,10 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
+const (
+	smallBody = "small body"
+)
+
 func Test_bodyDumpSkipper(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +59,7 @@ func Test_bodyDumpHandler(t *testing.T) {
 		wantBody      string
 		wantTruncated bool
 	}{
-		{name: "small body", body: "small body", wantBody: "small body"},
+		{name: smallBody, body: smallBody, wantBody: smallBody},
 		{
 			name:          "large body",
 			body:          strings.Repeat("x", 20*1024),
@@ -88,7 +92,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 	handler := bodyDumpHandler()
 	req := httptest.NewRequestWithContext(logging.NewContext(b.Context(), logger), http.MethodPost, "/", nil)
 
-	b.Run("small body", func(b *testing.B) {
+	b.Run(smallBody, func(b *testing.B) {
 		body := []byte(strings.Repeat("x", 100))
 
 		b.ReportAllocs()
