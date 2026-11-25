@@ -130,7 +130,7 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 
 	for {
 		//nolint:gosec // own container or GOPHERSTACK_ENDPOINT
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+HealthPath, http.NoBody)
 		if err != nil {
 			return fmt.Errorf("create gopherstack health request: %w", err)
 		}

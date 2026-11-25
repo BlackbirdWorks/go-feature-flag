@@ -45,7 +45,7 @@ func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) 
 
 	yamlBytes := []byte(yamlString)
 
-	err := os.WriteFile(r.Path, yamlBytes, 0600)
+	err := os.WriteFile(r.Path, yamlBytes, 0o600)
 	if err != nil {
 		return fmt.Errorf("write mock retriever file %s: %w", r.Path, err)
 	}
