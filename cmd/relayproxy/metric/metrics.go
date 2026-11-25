@@ -35,6 +35,7 @@ const (
 // FlagNotFoundLabelValue is the value of the flag_name label used for the evaluation of flags that do not exist.
 const FlagNotFoundLabelValue = "FLAG_NOT_FOUND"
 
+// MetricsOpts holds the options used to create the metrics.
 type MetricsOpts struct {
 	// Version is the version that semaphore_build_info reports (the one of the binary, set at build
 	// time, when empty).
@@ -273,6 +274,7 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	}, nil
 }
 
+// IncFlagEvaluation increments the evaluation counter of the named flag.
 func (m *Metrics) IncFlagEvaluation(flagName string) {
 	if m.flagEvaluationCounter.MetricVec != nil {
 		labels := prom.Labels{flagNameLabel: flagName}
@@ -367,6 +369,7 @@ func (m *Metrics) IncGetManifestCall() {
 	}
 }
 
+// ShouldCollectBulkMetrics reports whether metrics are collected for bulk evaluations.
 func (m *Metrics) ShouldCollectBulkMetrics() bool {
 	return m.opts.EnableBulkMetricFlagNames && m.allFlagCounterWithFlag.MetricVec != nil
 }

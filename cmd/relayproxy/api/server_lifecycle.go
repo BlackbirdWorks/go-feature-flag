@@ -26,6 +26,7 @@ const gracefulShutdownTimeout = 5 * time.Second
 // slow clients). WithReadTimeout changes it.
 const defaultReadTimeout = 30 * time.Second
 
+// StartWithContext starts the server and stops it when ctx is done.
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
 

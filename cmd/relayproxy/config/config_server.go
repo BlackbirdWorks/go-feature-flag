@@ -7,6 +7,7 @@ const (
 	DefaultServerPort = 1031
 )
 
+// ServerMode is the mode the relay proxy server runs in.
 type ServerMode = string
 
 const (
@@ -18,14 +19,19 @@ const (
 	ServerModeUnixSocket ServerMode = "unixsocket"
 )
 
+// LambdaAdapter is the event adapter used when the relay proxy runs on AWS Lambda.
 type LambdaAdapter = string
 
 const (
+	// LambdaAdapterAPIGatewayV1 is the adapter for API Gateway version 1 events.
 	LambdaAdapterAPIGatewayV1 LambdaAdapter = "APIGatewayV1"
+	// LambdaAdapterAPIGatewayV2 is the adapter for API Gateway version 2 events.
 	LambdaAdapterAPIGatewayV2 LambdaAdapter = "APIGatewayV2"
-	LambdaAdapterALB          LambdaAdapter = "ALB"
+	// LambdaAdapterALB is the adapter for Application Load Balancer events.
+	LambdaAdapterALB LambdaAdapter = "ALB"
 )
 
+// Server is the configuration of the relay proxy HTTP server.
 type Server struct {
 	// Mode is the server mode.
 	// default: http

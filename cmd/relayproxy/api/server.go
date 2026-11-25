@@ -20,10 +20,13 @@ import (
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
 
+// AuthMiddlewareType is the kind of authentication middleware of the API.
 type AuthMiddlewareType = string
 
 const (
-	UserAuth  AuthMiddlewareType = "USER"
+	// UserAuth is the authentication middleware that checks user API keys.
+	UserAuth AuthMiddlewareType = "USER"
+	// AdminAuth is the authentication middleware that checks the admin API key.
 	AdminAuth AuthMiddlewareType = "ADMIN"
 )
 

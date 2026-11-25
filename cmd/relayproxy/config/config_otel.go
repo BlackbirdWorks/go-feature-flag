@@ -17,15 +17,18 @@ type OpenTelemetryConfiguration struct {
 	} `koanf:"sdk" mapstructure:"sdk"`
 }
 
+// OtelExporter is the configuration of the OpenTelemetry exporter.
 type OtelExporter struct {
 	Otlp OtelExporterOtlp `koanf:"otlp" mapstructure:"otlp"`
 }
 
+// OtelExporterOtlp is the configuration of the OTLP export of OpenTelemetry data.
 type OtelExporterOtlp struct {
 	Endpoint string `koanf:"endpoint" mapstructure:"endpoint"`
 	Protocol string `koanf:"protocol" mapstructure:"protocol"`
 }
 
+// OtelResource is the resource attributes reported with OpenTelemetry data.
 type OtelResource struct {
 	Attributes map[string]string `koanf:"attributes" mapstructure:"attributes"`
 }

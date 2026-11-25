@@ -44,6 +44,7 @@ const (
 	legacyEnvVariablePrefix = "GOFF"
 )
 
+// Loader reads the configuration of the relay proxy from files, flags and environment variables.
 type Loader struct {
 	studioParser  koanf.Parser
 	studioLoadErr error

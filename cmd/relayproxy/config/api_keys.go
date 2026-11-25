@@ -6,6 +6,7 @@ type APIKeys struct {
 	Evaluation []string `koanf:"evaluation" mapstructure:"evaluation"`
 }
 
+// APIKeyType is the type of an API key.
 type APIKeyType = string
 
 // Enum for the type of the API keys.

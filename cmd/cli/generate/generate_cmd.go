@@ -13,6 +13,7 @@ var (
 	errNoSubcommandProvided = errors.New("no subcommand provided")
 )
 
+// NewGenerateCmd returns the command group that generates Semaphore related files.
 func NewGenerateCmd() *cobra.Command {
 	generateCmd := &cobra.Command{
 		Use:   "generate",

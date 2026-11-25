@@ -105,6 +105,7 @@ type evaluateFlags struct {
 	checkMode      bool
 }
 
+// NewEvaluateCmd returns the command that evaluates a flag for a given context.
 func NewEvaluateCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
 	flags := &evaluateFlags{}

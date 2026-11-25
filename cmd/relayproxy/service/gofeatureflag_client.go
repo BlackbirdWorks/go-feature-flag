@@ -112,6 +112,7 @@ func withSharedBucketRegistry(r *sharedBucketRegistry) clientOption {
 	return func(o *clientOptions) { o.sharedRegistry = r }
 }
 
+// NewGoFeatureFlagClient returns a feature flag client configured for the relay proxy.
 func NewGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
 	logger *slog.Logger,

@@ -1,5 +1,6 @@
 package config
 
+// Swagger is the configuration of the Swagger documentation of the relay proxy.
 type Swagger struct {
 	// Host is the host to use for the swagger.
 	Host string `koanf:"host" mapstructure:"host"`

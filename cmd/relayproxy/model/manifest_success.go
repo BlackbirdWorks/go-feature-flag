@@ -7,6 +7,7 @@ type ManifestSuccessResponse struct {
 	Flags []ManifestDefinitionSuccessResponse `json:"flags"`
 }
 
+// ManifestDefinitionSuccessResponse is the response body of a successful flag manifest request.
 type ManifestDefinitionSuccessResponse struct {
 	Key          string         `json:"key"`
 	FlagType     model.FlagType `enum:"boolean,string,integer,float,object" json:"type"`

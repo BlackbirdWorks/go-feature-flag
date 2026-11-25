@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// Config is the configuration of the relay proxy.
 type Config struct {
 	// apiKeySet is the internal representation of an API keys list configured
 	// we store them in a set to be
@@ -193,6 +194,8 @@ func (c *Config) IsUsingFlagsets() bool {
 	return len(c.FlagSets) > 0
 }
 
+// SetAPIKeys replaces the API keys of the configuration.
+//
 // Deprecated: use SetAuthorizedKeys instead.
 func (c *Config) SetAPIKeys(apiKeys []string) {
 	c.mutex.Lock()

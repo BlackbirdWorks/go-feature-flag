@@ -21,11 +21,13 @@ var (
 	errFlagManifestDestinationIs = errors.New("--flag_manifest_destination is mandatory")
 )
 
+// Manifest is the flag manifest generated from a configuration file.
 type Manifest struct {
 	dtos                    map[string]dto.DTO
 	flagManifestDestination string
 }
 
+// NewManifest builds the flag manifest of the flags in configFile.
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
 		return Manifest{}, errFlagManifestDestinationIs

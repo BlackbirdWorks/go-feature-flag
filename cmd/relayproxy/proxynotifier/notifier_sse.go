@@ -7,6 +7,7 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+// NotifierSSE pushes flag changes to the SSE streams.
 type NotifierSSE struct {
 	sseService  stream.SSEService
 	flagsetName string
@@ -21,6 +22,7 @@ func NewNotifierSSE(sseService stream.SSEService, flagsetName string) *NotifierS
 	}
 }
 
+// Notify sends the flag changes of diff to the SSE streams.
 func (n *NotifierSSE) Notify(diff notifier.DiffCache) error {
 	err := n.sseService.BroadcastFlagChanges(n.flagsetName, diff)
 	if err != nil {

@@ -36,6 +36,7 @@ type FlagSet struct {
 	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
 }
 
+// CommonFlagSet is the configuration shared by the flagsets.
 type CommonFlagSet struct {
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
@@ -153,6 +154,7 @@ func (c *Config) RemoveFlagSet(flagsetName string) error {
 	return nil
 }
 
+// SetFlagSetAPIKeys sets the API keys of the named flagset.
 func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -167,6 +169,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	return nil
 }
 
+// GetFlagSetAPIKeys returns the API keys of the named flagset.
 func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()

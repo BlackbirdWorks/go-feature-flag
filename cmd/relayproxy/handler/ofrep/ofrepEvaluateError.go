@@ -5,6 +5,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+// NewEvaluateError returns the OFREP error response for a failed flag evaluation.
 func NewEvaluateError(
 	key string,
 	errorCode flag.ErrorCode,
@@ -17,6 +18,7 @@ func NewEvaluateError(
 	}
 }
 
+// NewOFREPCommonError returns the OFREP error response shared by the OFREP endpoints.
 func NewOFREPCommonError(
 	errorCode flag.ErrorCode,
 	errorDetails string,

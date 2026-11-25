@@ -14,6 +14,7 @@ var (
 	errUnknownType           = errors.New("unknown type")
 )
 
+// FlagTypeFromVariations returns the flag type inferred from the values of the variations.
 func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) {
 	if variations == nil {
 		return "", errImpossibleToFindType

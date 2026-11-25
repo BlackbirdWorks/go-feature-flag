@@ -16,11 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+// FlagConfigurationAPICtrl serves the flag configuration API of the relay proxy.
 type FlagConfigurationAPICtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 }
 
+// NewAPIFlagConfiguration returns the controller that serves the flag configuration API.
 func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metric.Metrics) *FlagConfigurationAPICtrl {
 	return &FlagConfigurationAPICtrl{
 		flagsetManager: flagsetManager,
@@ -28,17 +30,22 @@ func NewAPIFlagConfiguration(flagsetManager service.FlagsetManager, metrics metr
 	}
 }
 
+// FlagConfigurationRequest is the request body of the flag configuration API.
 type FlagConfigurationRequest struct {
 	Flags []string `json:"flags" required:"false"`
 }
 
+// FlagConfigurationError is the error code returned by the flag configuration API.
 type FlagConfigurationError = string
 
 const (
-	FlagConfigErrorInvalidRequest  FlagConfigurationError = "INVALID_REQUEST"
+	// FlagConfigErrorInvalidRequest is the error code of a request that cannot be parsed.
+	FlagConfigErrorInvalidRequest FlagConfigurationError = "INVALID_REQUEST"
+	// FlagConfigErrorRetrievingFlags is the error code returned when the flags cannot be retrieved.
 	FlagConfigErrorRetrievingFlags FlagConfigurationError = "RETRIEVING_FLAGS_ERROR"
 )
 
+// FlagConfigurationResponse is the response body of the flag configuration API.
 type FlagConfigurationResponse struct {
 	Flags                       map[string]flag.Flag `json:"flags,omitempty"`
 	EvaluationContextEnrichment map[string]any       `json:"evaluationContextEnrichment,omitempty"`

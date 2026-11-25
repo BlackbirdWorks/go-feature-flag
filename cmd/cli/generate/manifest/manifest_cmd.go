@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewManifestCmd returns the command that generates a flag manifest from a configuration file.
 func NewManifestCmd() *cobra.Command {
 	// Flag values are local to each command so several commands can exist (and run) at once.
 	var (

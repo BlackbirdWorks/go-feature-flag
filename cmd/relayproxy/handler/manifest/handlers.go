@@ -31,6 +31,7 @@ type Ctrl struct {
 	metrics        metric.Metrics
 }
 
+// NewManifest returns the handler that serves the flag manifest of a flagset.
 func NewManifest(
 	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
 	return &Ctrl{

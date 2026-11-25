@@ -21,6 +21,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+// EvaluateCtrl serves the OFREP evaluation requests of the relay proxy.
 type EvaluateCtrl struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
@@ -38,6 +39,7 @@ func WithLegacyMetadataOnly(legacyOnly bool) Option {
 	return func(h *EvaluateCtrl) { h.legacyMetadataOnly = legacyOnly }
 }
 
+// NewOFREPEvaluate returns the controller that evaluates flags through the OFREP API.
 func NewOFREPEvaluate(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,
