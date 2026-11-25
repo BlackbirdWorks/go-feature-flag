@@ -96,7 +96,8 @@ func (b *fakeBucket) ListObjectsV2(
 ) (*s3.ListObjectsV2Output, error) {
 	b.lists.Add(1)
 
-	if err := b.awaitList(ctx); err != nil {
+	err := b.awaitList(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -122,50 +123,6 @@ func (b *fakeBucket) ListObjectsV2(
 	}
 
 	return out, nil
-}
-
-// awaitList applies the gate, the page latency and the hang of the fake before a list answers.
-func (b *fakeBucket) awaitList(ctx context.Context) error {
-	b.mu.Lock()
-	hang, latency, gate := b.hang, b.pageLatency, b.listGate
-	b.mu.Unlock()
-
-	if gate != nil {
-		<-gate
-	}
-
-	if latency > 0 {
-		select {
-		case <-time.After(latency):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	if hang {
-		<-ctx.Done()
-
-		return ctx.Err()
-	}
-
-	return nil
-}
-
-// matchingKeys returns the sorted keys that the list input selects. The caller holds b.mu.
-func (b *fakeBucket) matchingKeys(input *s3.ListObjectsV2Input) []string {
-	var keys []string
-
-	for k := range b.objects {
-		rest := strings.TrimPrefix(k, aws.ToString(input.Prefix))
-		if strings.HasPrefix(k, aws.ToString(input.Prefix)) && k > aws.ToString(input.ContinuationToken) &&
-			(input.Delimiter == nil || !strings.Contains(rest, aws.ToString(input.Delimiter))) {
-			keys = append(keys, k)
-		}
-	}
-
-	slices.Sort(keys)
-
-	return keys
 }
 
 func (b *fakeBucket) DownloadObject(
@@ -239,6 +196,50 @@ func (b *fakeBucket) totalGets() int {
 	}
 
 	return total
+}
+
+// awaitList applies the gate, the page latency and the hang of the fake before a list answers.
+func (b *fakeBucket) awaitList(ctx context.Context) error {
+	b.mu.Lock()
+	hang, latency, gate := b.hang, b.pageLatency, b.listGate
+	b.mu.Unlock()
+
+	if gate != nil {
+		<-gate
+	}
+
+	if latency > 0 {
+		select {
+		case <-time.After(latency):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	if hang {
+		<-ctx.Done()
+
+		return ctx.Err()
+	}
+
+	return nil
+}
+
+// matchingKeys returns the sorted keys that the list input selects. The caller holds b.mu.
+func (b *fakeBucket) matchingKeys(input *s3.ListObjectsV2Input) []string {
+	var keys []string
+
+	for k := range b.objects {
+		rest := strings.TrimPrefix(k, aws.ToString(input.Prefix))
+		if strings.HasPrefix(k, aws.ToString(input.Prefix)) && k > aws.ToString(input.ContinuationToken) &&
+			(input.Delimiter == nil || !strings.Contains(rest, aws.ToString(input.Delimiter))) {
+			keys = append(keys, k)
+		}
+	}
+
+	slices.Sort(keys)
+
+	return keys
 }
 
 func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {

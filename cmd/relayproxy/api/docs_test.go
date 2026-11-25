@@ -59,7 +59,7 @@ type swaggerDocument struct {
 	} `json:"components" yaml:"components"`
 	Info struct {
 		Version string `json:"version" yaml:"version"`
-	} `json:"info" yaml:"info"`
+	} `json:"info"    yaml:"info"`
 	Servers []any `json:"servers" yaml:"servers"`
 }
 
@@ -248,9 +248,9 @@ func (c *watchedConn) SetReadDeadline(t time.Time) error {
 type deadlineRecorder struct {
 	*httptest.ResponseRecorder
 
-	deadlines []time.Time
 	// err is returned by SetReadDeadline: nil when the connection accepts the deadline.
-	err error
+	err       error
+	deadlines []time.Time
 }
 
 func (d *deadlineRecorder) SetReadDeadline(deadline time.Time) error {
