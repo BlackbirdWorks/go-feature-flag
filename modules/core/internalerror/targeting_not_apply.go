@@ -1,8 +1,6 @@
 package internalerror
 
 import (
-	"fmt"
-
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
@@ -12,5 +10,5 @@ type RuleNotApplyError struct {
 }
 
 func (m *RuleNotApplyError) Error() string {
-	return fmt.Sprintf("Rule does not apply for this user %s", m.Context.GetKey())
+	return "Rule does not apply for this user " + m.Context.GetKey()
 }

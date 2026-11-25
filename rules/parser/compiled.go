@@ -256,6 +256,11 @@ func (n *compareNode) setRight(state *evalState) {
 
 		list = append(list, assertType[[]string](n.listValue())...)
 		state.rightOp = list
+	case valueConst:
+		state.rightOp = n.rightOp
+		if n.valErr != nil {
+			state.err = cloneErr(n.valErr)
+		}
 	default:
 		state.rightOp = n.rightOp
 		if n.valErr != nil {

@@ -64,7 +64,7 @@ func NewService(opts ...ServiceOption) *Service {
 	}
 
 	svc.legacy = legacy.NewWarner(func(kind, message string) {
-		svc.logger.Warn(message, slog.String("legacyName", kind))
+		svc.logger.Warn(legacyWarningMessage, slog.String("legacyName", kind), slog.String("warning", message))
 	})
 
 	return svc
@@ -101,3 +101,6 @@ func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
 
 	return *specifics.CurrentDateTime
 }
+
+// legacyWarningMessage is the message of the warnings about legacy configuration settings.
+const legacyWarningMessage = "legacy configuration setting used"

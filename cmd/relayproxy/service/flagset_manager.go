@@ -288,6 +288,12 @@ func (m *FlagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		}
 
 		return flagset, nil
+	case flagsetManagerModeDefault:
+		if m.DefaultFlagSet == nil {
+			return nil, errNoConfiguredFlagset
+		}
+
+		return m.DefaultFlagSet, nil
 	default:
 		if m.DefaultFlagSet == nil {
 			return nil, errNoConfiguredFlagset
@@ -314,6 +320,8 @@ func (m *FlagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 		}
 
 		return "", errNoFlagSetAssociated
+	case flagsetManagerModeDefault:
+		return utils.DefaultFlagSetName, nil
 	default:
 		return utils.DefaultFlagSetName, nil
 	}
@@ -335,6 +343,14 @@ func (m *FlagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 		maps.Copy(out, m.FlagSets)
 
 		return out, nil
+	case flagsetManagerModeDefault:
+		if m.DefaultFlagSet == nil {
+			return nil, errNoDefaultFlagsetConfigured
+		}
+
+		return map[string]*ffclient.GoFeatureFlag{
+			utils.DefaultFlagSetName: m.DefaultFlagSet,
+		}, nil
 	default:
 		if m.DefaultFlagSet == nil {
 			return nil, errNoDefaultFlagsetConfigured

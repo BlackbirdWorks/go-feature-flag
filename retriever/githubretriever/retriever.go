@@ -372,7 +372,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 	header.Add("X-Github-Api-Version", "2022-11-28")
 
 	if token != "" {
-		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
+		header.Add("Authorization", "Bearer "+token)
 	}
 
 	return header

@@ -86,6 +86,8 @@ func (e Endpoint) Body(i int) string {
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)
 	case SemaphoreAllFlags:
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}}}`, user, custom)
+	case OFREPEval, OFREPBulk:
+		return fmt.Sprintf(`{"context":{"targetingKey":"user-%d",%s}}`, user, custom)
 	default:
 		return fmt.Sprintf(`{"context":{"targetingKey":"user-%d",%s}}`, user, custom)
 	}

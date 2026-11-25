@@ -117,7 +117,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		}
 
 		return writeJSON(w, httpStatus, NewEvaluateError(flagKey, flagValue.ErrorCode,
-			fmt.Sprintf("Error while evaluating the flag: %s", flagKey)))
+			"Error while evaluating the flag: "+flagKey))
 	}
 
 	span.SetAttributes(

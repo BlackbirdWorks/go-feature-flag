@@ -104,6 +104,8 @@ func numberType(value any) (string, error) {
 		}
 
 		return "float", nil
+	case reflect.Invalid, reflect.Bool, reflect.Uintptr, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		return "", fmt.Errorf("%w %v", errUnknownType, val.Kind())
 	default:
 		return "", fmt.Errorf("%w %v", errUnknownType, val.Kind())
 	}

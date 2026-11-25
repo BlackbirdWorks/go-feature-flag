@@ -103,7 +103,7 @@ func NewConfigLoader(
 
 	if configLoader.warner == nil {
 		configLoader.warner = legacy.NewWarner(func(kind, message string) {
-			log.LogAttrs(context.Background(), slog.LevelWarn, message, slog.String("legacyName", kind))
+			log.LogAttrs(context.Background(), slog.LevelWarn, legacyWarningMessage, slog.String("legacyName", kind), slog.String("warning", message))
 		})
 	}
 
@@ -529,3 +529,6 @@ func processExporters(proxyConf *Config) {
 		}
 	}
 }
+
+// legacyWarningMessage is the message of the warnings about legacy configuration settings.
+const legacyWarningMessage = "legacy configuration setting used"

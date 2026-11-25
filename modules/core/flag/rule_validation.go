@@ -105,7 +105,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 	count := float64(0)
 
 	for variationKey, pct := range percentages {
-		err := r.validateSinglePercentage(pct, fmt.Sprintf("variation %s", variationKey))
+		err := r.validateSinglePercentage(pct, "variation "+variationKey)
 		if err != nil {
 			return err
 		}

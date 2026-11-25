@@ -246,6 +246,8 @@ func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
 			}
 
 			w.WriteHeader(http.StatusOK)
+		case loadtest.ExporterDiscard:
+			w.WriteHeader(http.StatusOK)
 		default:
 			w.WriteHeader(http.StatusOK)
 		}
