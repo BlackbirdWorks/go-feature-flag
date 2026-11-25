@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/blang/semver/v4"
 )
 
@@ -79,12 +81,13 @@ func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, sem
 
 	leftVer, err = semver.Make(leftVal)
 	if err != nil {
-		//nolint:wrapcheck // evaluation hot path: preserves semver parse error directly
-		return leftVer, rightVer, err
+		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", leftVal, err)
 	}
 
 	rightVer, err = semver.Make(rightVal)
+	if err != nil {
+		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", rightVal, err)
+	}
 
-	//nolint:wrapcheck // evaluation hot path: preserves semver parse error directly
-	return leftVer, rightVer, err
+	return leftVer, rightVer, nil
 }

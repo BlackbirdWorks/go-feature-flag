@@ -48,8 +48,7 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			//nolint:wrapcheck // preserves mongo.Connect error text asserted by CLI evaluate tests
-			return err
+			return fmt.Errorf("connecting to MongoDB: %w", err)
 		}
 
 		r.dbClient = client

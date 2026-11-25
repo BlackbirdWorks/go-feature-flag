@@ -112,7 +112,7 @@ func Test_Evaluate(t *testing.T) {
 			// OS-specific suffix ("no such file or directory" / "The system cannot
 			// find the file specified.") is intentionally omitted; asserted via Contains.
 			expectedErr: "impossible to initialize the retrievers, please check your configuration: impossible to retrieve" +
-				" the flags, please check your configuration: open testdata/invalid.yaml:",
+				" the flags, please check your configuration: reading the file: open testdata/invalid.yaml:",
 		},
 		{
 			name: "Should error if no evaluation context provided with flag containing percentage rules",

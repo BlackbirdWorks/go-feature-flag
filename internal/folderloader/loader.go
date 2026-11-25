@@ -318,7 +318,6 @@ func marshalFlags(format string, flags map[string]dto.DTO) ([]byte, error) {
 func (l *Loader) list(ctx context.Context) (map[string]string, error) {
 	entries, err := l.store.List(ctx, l.prefix, l.opts.Recursive)
 	if err != nil {
-		//nolint:wrapcheck // caller Load wraps list errors with provider and prefix context
 		return nil, err
 	}
 

@@ -145,7 +145,6 @@ func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
 	if opts.ExporterMode != "" {
 		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
 		if parseErr != nil {
-			//nolint:wrapcheck // preserves ParseExporterMode error text asserted by target tests
 			return parseErr
 		}
 	}

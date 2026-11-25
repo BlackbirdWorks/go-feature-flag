@@ -157,7 +157,6 @@ func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
 
 	eval, err := parser.NewEvaluator(query)
 	if err != nil {
-		//nolint:wrapcheck // preserves rule parser error on evaluation and validation path
 		return nil, err
 	}
 

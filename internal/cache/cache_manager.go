@@ -109,7 +109,7 @@ func ConvertToFlagStruct(
 		err = yaml.Unmarshal(loadedFlags, &newFlags)
 	}
 
-	//nolint:wrapcheck // preserves parser unmarshal error chain asserted by retriever manager tests
+	//nolint:wrapcheck // the callers add the format context (could not parse file (json)), a second prefix would stack
 	return newFlags, err
 }
 

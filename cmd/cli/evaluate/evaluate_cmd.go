@@ -245,7 +245,6 @@ func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) err
 			return cliMessageError(rcErr.CliErrorMessage())
 		}
 
-		//nolint:wrapcheck // CLI command preserves retriever validation error
 		return err
 	}
 
@@ -266,7 +265,6 @@ func runEvaluate(
 
 	r, err := retrieverInit.Retriever(&retrieverConf)
 	if err != nil {
-		//nolint:wrapcheck // CLI command preserves retriever init error
 		return err
 	}
 
@@ -305,8 +303,7 @@ func runEvaluate(
 
 	detailed, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		//nolint:wrapcheck // CLI command preserves JSON encoding error
-		return err
+		return fmt.Errorf("encoding the evaluation result: %w", err)
 	}
 
 	output.Add(string(detailed), helper.DefaultLevel)
@@ -323,8 +320,7 @@ func runCheck(
 	//nolint:musttag,gosec // G117: CLI --check-mode outputs the parsed retriever config as JSON
 	detailed, err := json.MarshalIndent(retrieverConf, "", "  ")
 	if err != nil {
-		//nolint:wrapcheck // CLI command preserves JSON encoding error
-		return err
+		return fmt.Errorf("encoding the retriever configuration: %w", err)
 	}
 
 	output.Add(string(detailed), helper.DefaultLevel)

@@ -2,6 +2,7 @@ package flagstate
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific user.
@@ -45,8 +46,12 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 		Valid: a.IsValid(),
 	}
 
-	//nolint:wrapcheck // json.Marshaler implementation returns json.Marshal error directly
-	return json.Marshal(res)
+	data, err := json.Marshal(res)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the flags: %w", err)
+	}
+
+	return data, nil
 }
 
 // IsValid is a getter to know if the AllFlags object is valid.

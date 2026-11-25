@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -37,7 +38,6 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		helper.LegacyWarner(),
 	)
 	if err != nil {
-		//nolint:wrapcheck // preserves configfile error string asserted by CLI manifest tests
 		return Manifest{}, err
 	}
 
@@ -65,7 +65,6 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	}
 
 	if err != nil {
-		//nolint:wrapcheck // CLI manifest preserves definition generation error
 		return output, err
 	}
 
@@ -90,16 +89,19 @@ func (m *Manifest) Generate() (helper.Output, error) {
 func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		//nolint:wrapcheck // CLI manifest preserves JSON formatting error
-		return "", err
+		return "", fmt.Errorf("encoding the flag manifest: %w", err)
 	}
 
 	return string(definitionsJSON), nil
 }
 
 func (m *Manifest) storeManifest(definitionsJSON string) error {
-	//nolint:wrapcheck // CLI manifest preserves file write error
-	return os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	if err != nil {
+		return fmt.Errorf("writing the flag manifest: %w", err)
+	}
+
+	return nil
 }
 
 type capturedRecord struct {

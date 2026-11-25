@@ -61,6 +61,5 @@ func validateFlag(svc *flag.Service, flagDto dto.DTO) (err error) {
 
 	f := flagDto.Convert()
 
-	//nolint:wrapcheck // preserves flag.InternalFlag.IsValid error text asserted by validate_flags tests
 	return f.IsValid(svc)
 }

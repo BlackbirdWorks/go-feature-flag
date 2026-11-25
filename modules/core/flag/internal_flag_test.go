@@ -2204,7 +2204,7 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				Variant:      "SdkDefault",
 				Reason:       flag.ReasonError,
 				ErrorCode:    flag.ErrorCodeGeneral,
-				ErrorMessage: "json: unsupported type: chan int",
+				ErrorMessage: "encoding the flag for the deep copy: json: unsupported type: chan int",
 			},
 		},
 		{

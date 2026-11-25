@@ -159,7 +159,6 @@ func (m *Manager) GetCacheRefreshDate() time.Time {
 
 // GetFlag returns the flag from the cache with the current state when calling this method.
 func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
-	//nolint:wrapcheck // preserves cache sentinel errors asserted by manager tests
 	return m.cacheManager.GetFlag(flagKey)
 }
 
@@ -171,7 +170,6 @@ func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, er
 		return nil, errCacheIsNotInitialized
 	}
 
-	//nolint:wrapcheck // preserves cache sentinel errors asserted by manager tests
 	return m.cacheManager.AllFlags()
 }
 
@@ -182,7 +180,6 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 		return nil, errCacheIsNotInitialized
 	}
 
-	//nolint:wrapcheck // preserves cache sentinel errors asserted by manager tests
 	return m.cacheManager.AllFlagsReadOnly()
 }
 
@@ -284,7 +281,6 @@ func (m *Manager) updateCacheWithRetriever(
 	if err != nil {
 		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
 
-		//nolint:wrapcheck // preserves cache update error directly
 		return err
 	}
 

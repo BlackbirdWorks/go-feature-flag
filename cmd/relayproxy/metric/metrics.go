@@ -411,8 +411,12 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
 
-	//nolint:wrapcheck // prometheus.Gatherer decorator forwards Gather error and partial families unwrapped
-	return out, err
+	if err != nil {
+		// the families that were gathered before the failure are still returned, as prom.Gatherers does.
+		return out, fmt.Errorf("gathering the metrics: %w", err)
+	}
+
+	return out, nil
 }
 
 // legacyMetricName is the name GO Feature Flag gave to the metric that Semaphore names name (without the

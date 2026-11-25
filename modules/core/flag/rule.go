@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -152,8 +153,7 @@ func (q *queryContext) jsonOnce() ([]byte, error) {
 
 		q.parsedEvalCtxAsBytes, err = json.Marshal(q.mapOnce())
 		if err != nil {
-			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
-			return nil, err
+			return nil, fmt.Errorf("encoding the evaluation context: %w", err)
 		}
 	}
 
@@ -180,8 +180,7 @@ func (q *queryContext) dataOnce() (any, error) {
 
 		unmarshalErr := json.Unmarshal(raw, &data)
 		if unmarshalErr != nil {
-			//nolint:wrapcheck // evaluation hot path: avoid wrapping allocation
-			return nil, unmarshalErr
+			return nil, fmt.Errorf("decoding the evaluation context: %w", unmarshalErr)
 		}
 
 		q.parsedEvalCtxAsData = data

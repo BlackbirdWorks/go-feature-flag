@@ -361,8 +361,9 @@ func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
 				"--format",
 				"yaml",
 			},
-			wantErr:     assert.Error,
-			expectedErr: "impossible to init retriever: error parsing uri: scheme must be \"mongodb\" or \"mongodb+srv\"",
+			wantErr: assert.Error,
+			expectedErr: "impossible to init retriever: connecting to MongoDB: error parsing uri: " +
+				"scheme must be \"mongodb\" or \"mongodb+srv\"",
 		},
 		{
 			name: "should return configuration of Azure Blob Storage retriever when using check-mode",
@@ -427,8 +428,8 @@ func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
 				"yaml",
 			},
 			wantErr: assert.Error,
-			expectedErr: "impossible to init flagset retriever: cannot parse `inv4lid`: failed to parse as keyword/value (" +
-				"invalid keyword/value)",
+			expectedErr: "impossible to init flagset retriever: creating the PostgreSQL pool: cannot parse `inv4lid`: " +
+				"failed to parse as keyword/value (invalid keyword/value)",
 		},
 		{
 			name: "should return RetrieverConfError with CLI-friendly message when required property is missing",

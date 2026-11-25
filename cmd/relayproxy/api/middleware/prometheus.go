@@ -220,11 +220,14 @@ func (r *recorder) Write(b []byte) (int, error) {
 		r.status = http.StatusOK
 	}
 
-	n, err := r.ResponseWriter.Write(b)
-	r.size += int64(n)
+	written, err := r.ResponseWriter.Write(b)
+	r.size += int64(written)
 
-	//nolint:wrapcheck // http.ResponseWriter decorator forwards the underlying Write error unwrapped
-	return n, err
+	if err != nil {
+		return written, fmt.Errorf("writing the response body: %w", err)
+	}
+
+	return written, nil
 }
 
 // Unwrap lets [http.ResponseController] reach the underlying writer (flush, hijack, deadlines).

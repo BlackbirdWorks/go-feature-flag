@@ -626,6 +626,14 @@ linters:
         - id
 
     wrapcheck:
+      # The errors of the packages of this module are already wrapped where they are born, and their text is part of
+      # the observable behaviour (CLI output, golden HTTP bodies, sentinels), so wrapping them again at each layer
+      # would only stack prefixes. Only the errors of external packages (stdlib, SDKs) must be wrapped.
+      ignore-package-globs:
+        - github.com/blackbirdworks/semaphore
+        - github.com/blackbirdworks/semaphore/*
+      ignore-interface-regexps:
+        - '^github\.com/blackbirdworks/semaphore/.*$'
       ignore-sig-regexps:
         - '\.New.*Error\('
         - '\(context\.Context\)\.Err\('

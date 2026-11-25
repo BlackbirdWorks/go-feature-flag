@@ -170,7 +170,6 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 			return nil, errListerIsNotInitialized
 		}
 
-		//nolint:wrapcheck // folderloader.Load already wraps errors with S3 provider and prefix context
 		return s.loader.Load().Load(ctx)
 	}
 
@@ -196,7 +195,6 @@ func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([
 		WriterAt: writerAt,
 	})
 	if err != nil {
-		//nolint:wrapcheck // callers wrap downloadObject errors with S3 item context
 		return nil, "", err
 	}
 

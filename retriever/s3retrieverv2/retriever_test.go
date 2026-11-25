@@ -239,7 +239,9 @@ func TestRetriever_Retrieve(t *testing.T) {
 			name:  "list error",
 			setup: func(m *testutils.S3PrefixMock) { m.ListErr = errBoom },
 			r:     cfg{Prefix: "f/"},
-			steps: []step{{wantErr: `unable to list objects from S3 with prefix "f/", boom`}},
+			steps: []step{
+				{wantErr: `unable to list objects from S3 with prefix "f/", listing a page of objects: boom`},
+			},
 		},
 		{
 			name: "download error",

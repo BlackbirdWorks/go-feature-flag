@@ -550,8 +550,7 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 
 		leftVer, err = semver.Make(leftVal)
 		if err != nil {
-			//nolint:wrapcheck // evaluation hot path: preserves semver error parity with VersionOperation.get
-			return false, err
+			return false, fmt.Errorf("parsing the version %q: %w", leftVal, err)
 		}
 	}
 

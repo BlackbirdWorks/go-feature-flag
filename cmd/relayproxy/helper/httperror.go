@@ -121,8 +121,12 @@ func WriteJSON(w http.ResponseWriter, code int, v any) error {
 	w.Header().Set(HeaderContentType, MIMEApplicationJSON)
 	w.WriteHeader(code)
 
-	//nolint:wrapcheck // WriteJSON returns encoder error directly after response headers are committed
-	return json.NewEncoder(w).Encode(v)
+	err := json.NewEncoder(w).Encode(v)
+	if err != nil {
+		return fmt.Errorf("encoding the JSON response: %w", err)
+	}
+
+	return nil
 }
 
 // WriteError sends the error as the response. It sends nothing for a HEAD request but the status.

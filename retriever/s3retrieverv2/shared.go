@@ -670,8 +670,12 @@ func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginato
 	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
 	defer cancel()
 
-	//nolint:wrapcheck // caller etagOf/get wraps listPage error with S3 bucket context
-	return p.NextPage(ctx)
+	page, err := p.NextPage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing a page of objects: %w", err)
+	}
+
+	return page, nil
 }
 
 // get returns the content of the key and its (normalized) ETag, downloading it only if the listed

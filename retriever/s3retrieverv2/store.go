@@ -2,6 +2,7 @@ package s3retrieverv2
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -35,8 +36,7 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			//nolint:wrapcheck // folderloader.Load wraps store.List error with S3 provider and prefix context
-			return nil, err
+			return nil, fmt.Errorf("listing a page of objects: %w", err)
 		}
 
 		for _, obj := range page.Contents {

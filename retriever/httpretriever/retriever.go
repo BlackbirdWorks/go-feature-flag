@@ -184,8 +184,7 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 
 	cert, err := tls.LoadX509KeyPair(r.ClientCertPath, r.ClientKeyPath)
 	if err != nil {
-		//nolint:wrapcheck // preserves TLS key pair error text asserted by certificate tests
-		return nil, err
+		return nil, fmt.Errorf("loading the client key pair: %w", err)
 	}
 
 	return []tls.Certificate{cert}, nil
@@ -199,8 +198,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
-		//nolint:wrapcheck // preserves system cert pool error directly
-		return nil, err
+		return nil, fmt.Errorf("loading the system certificate pool: %w", err)
 	}
 
 	if rootCAs == nil {
@@ -209,8 +207,7 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 
 	caCert, err := os.ReadFile(r.CACertPath)
 	if err != nil {
-		//nolint:wrapcheck // preserves os.ReadFile error (and fs.ErrNotExist) asserted by certificate tests
-		return nil, err
+		return nil, fmt.Errorf("reading the CA certificate: %w", err)
 	}
 
 	if !rootCAs.AppendCertsFromPEM(caCert) {

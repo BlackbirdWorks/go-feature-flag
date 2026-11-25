@@ -116,6 +116,5 @@ func RequestFlagSetName(ctx context.Context, flagsetManager service.FlagsetManag
 		logging.AddAttrs(ctx, slog.String(flagSetLogKey, name))
 	}
 
-	//nolint:wrapcheck // preserves FlagsetManager.FlagSetName error text for HTTP error responses
 	return name, err
 }

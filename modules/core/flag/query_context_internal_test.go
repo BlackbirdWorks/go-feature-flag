@@ -110,11 +110,16 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 		wantErr   string
 		wantMatch bool
 	}{
-		{name: "context that does not encode", value: make(chan int), wantErr: "json: unsupported type: chan int"},
 		{
-			name:    "context that encodes but does not decode",
-			value:   json.Number("1e1000"),
-			wantErr: "json: cannot unmarshal number 1e1000 into Go struct field .bad of type float64",
+			name:    "context that does not encode",
+			value:   make(chan int),
+			wantErr: "encoding the evaluation context: json: unsupported type: chan int",
+		},
+		{
+			name:  "context that encodes but does not decode",
+			value: json.Number("1e1000"),
+			wantErr: "decoding the evaluation context: json: cannot unmarshal number 1e1000 into Go struct field " +
+				".bad of type float64",
 		},
 	}
 	for _, tt := range tests {
