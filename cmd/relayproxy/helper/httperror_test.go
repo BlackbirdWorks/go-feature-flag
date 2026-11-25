@@ -75,7 +75,12 @@ func TestWriteError(t *testing.T) {
 
 			rec := httptest.NewRecorder()
 			rec.Header().Set("Content-Length", "12")
-			helper.WriteError(rec, httptest.NewRequestWithContext(t.Context(), tt.method, "/", nil), tt.err, tt.exposeError)
+			helper.WriteError(
+				rec,
+				httptest.NewRequestWithContext(t.Context(), tt.method, "/", nil),
+				tt.err,
+				tt.exposeError,
+			)
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 			assert.Empty(t, rec.Header().Get("Content-Length"))
@@ -112,8 +117,9 @@ func TestHandle(t *testing.T) {
 			t.Parallel()
 
 			rec := httptest.NewRecorder()
-			helper.Handle(tt.handler, false).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/",
-				nil))
+			helper.Handle(tt.handler, false).
+				ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/",
+					nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 		})

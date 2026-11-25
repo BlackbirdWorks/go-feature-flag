@@ -120,7 +120,13 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// Wait for the callback to be called
 			select {
@@ -228,7 +234,13 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 			}
 
 			// Modify the config file
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// Wait for the callback to be called
 			select {
@@ -317,7 +329,13 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 			}
 
 			// Modify the config to create an invalid config
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			// The callback should be called even for invalid configs (validation happens after)
 			select {
@@ -414,7 +432,13 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 				doHTTPRequestAndCheck(t, urlAPIAllFlags, body, check, phaseBeforeChange)
 			}
 
-			_ = testutils.ReplaceAndCopyFileToExistingFile(t, tt.modifiedConfigFile, configFile, placeholderPort, portStr)
+			_ = testutils.ReplaceAndCopyFileToExistingFile(
+				t,
+				tt.modifiedConfigFile,
+				configFile,
+				placeholderPort,
+				portStr,
+			)
 
 			select {
 			case <-callbackCalled:

@@ -560,7 +560,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(1), callCount.Load())
-	assert.Same(t, client, exp.client)
+	assert.Same(t, exp.client, client)
 }
 
 func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {

@@ -584,7 +584,12 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
 				t.Helper()
 
-				request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+adminV1Retriever, http.NoBody)
+				request, err := http.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					baseURL+adminV1Retriever,
+					http.NoBody,
+				)
 				require.NoError(t, err)
 				request.Header.Add(contentType, applicationJSON)
 
@@ -1476,8 +1481,13 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health",
-			port), http.NoBody)
+		req22, getErr := http.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			fmt.Sprintf("http://127.0.0.1:%d/health",
+				port),
+			http.NoBody,
+		)
 		require.NoError(t, getErr)
 		resp, getErr := http.DefaultClient.Do(req22)
 		if getErr != nil {

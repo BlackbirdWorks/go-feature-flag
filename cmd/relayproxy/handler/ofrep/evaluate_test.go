@@ -280,7 +280,12 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate, strings.NewReader(string(body)))
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				ofrepV1Evaluate,
+				strings.NewReader(string(body)),
+			)
 			req.Header.Set(contentType, applicationJSON)
 
 			for k, v := range tt.args.headers {

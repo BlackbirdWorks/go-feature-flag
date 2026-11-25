@@ -204,7 +204,12 @@ func Test_flag_eval_Handler(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/v1/feature/"+tt.args.flagKey+"/eval",
+				bodyReq,
+			)
 			req.Header.Set(contentType2, applicationJSON)
 			req.SetPathValue("flagKey", tt.args.flagKey)
 			handlerErr := flagEval.Handler(rec, req)

@@ -322,7 +322,11 @@ func TestETag(t *testing.T) {
 			}
 
 			// the ETag of the document
-			etag := serve(handler, httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)).Header().Get(eTag)
+			etag := serve(
+				handler,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil),
+			).Header().
+				Get(eTag)
 			if tt.wantETag {
 				require.NotEmpty(t, etag)
 			}
@@ -382,7 +386,10 @@ func TestBodyDump(t *testing.T) {
 				read = string(b)
 			}))
 
-			serve(handler, httptest.NewRequestWithContext(t.Context(), http.MethodPost, tt.path, strings.NewReader(hello)))
+			serve(
+				handler,
+				httptest.NewRequestWithContext(t.Context(), http.MethodPost, tt.path, strings.NewReader(hello)),
+			)
 			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")
 			assert.Equal(t, tt.wantDump, dumped)
 			assert.Equal(t, tt.wantRead, read)
@@ -446,7 +453,10 @@ func TestChain(t *testing.T) {
 				})
 			}
 
-			serve(middleware.Chain(newOK(), mws...), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+			serve(
+				middleware.Chain(newOK(), mws...),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil),
+			)
 			assert.Equal(t, tt.want, order.String())
 		})
 	}
