@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // gatedContext blocks the blockAt-th call of ExtractGOFFProtectedFields (0: never) until gate is
@@ -47,7 +47,7 @@ type finalFlushHookExporter struct {
 }
 
 func (*finalFlushHookExporter) IsBulk() bool { return true }
-func (e *finalFlushHookExporter) Export(ctx context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
+func (e *finalFlushHookExporter) Export(ctx context.Context, _ *slog.Logger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
 
 	return ctx.Err()

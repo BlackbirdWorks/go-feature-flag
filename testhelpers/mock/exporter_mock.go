@@ -3,10 +3,10 @@ package mock
 import (
 	"context"
 	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // ExporterMock is the interface implemented by the exporter mocks.
@@ -29,7 +29,7 @@ type Exporter struct {
 // Export records the events and returns the configured error.
 func (m *Exporter) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	m.once.Do(m.initMutex)
@@ -136,7 +136,7 @@ type ExporterDeprecatedV2 struct {
 // Export records the events and returns the configured error.
 func (m *ExporterDeprecatedV2) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.FeatureEvent,
 ) error {
 	m.once.Do(m.initMutex)

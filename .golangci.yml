@@ -298,18 +298,13 @@ linters:
         "non-main files":
           files:
             - "!**/main.go"
-            # The stdlib *log.Logger is part of the public API of Config.Logger, Retriever and
-            # Exporter (and of their test doubles); a later change replaces it with log/slog.
-            # Until then these files are the only exceptions.
-            - "!${base-path}/config.go"
-            - "!${base-path}/config_logger_internal_test.go"
+            # The stdlib *log.Logger is still part of the public API of the deprecated legacy
+            # Retriever and Exporter interfaces (and of their test doubles).
             - "!${base-path}/exporter/data_exporter.go"
             - "!${base-path}/exporter/exporter.go"
             - "!${base-path}/retriever/retriever.go"
             - "!${base-path}/testhelpers/mock/exporter_mock.go"
             - "!${base-path}/testhelpers/mock/mockretriever/initializable_retriever_legacy.go"
-            - "!${base-path}/utils/fflog/log.go"
-            - "!${base-path}/utils/fflog/log_test.go"
           deny:
             - pkg: log$
               desc: Use log/slog instead, see https://go.dev/blog/slog

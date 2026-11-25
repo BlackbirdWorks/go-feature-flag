@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/exporter"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var errUnexpectedTrackingEvent = errors.New("unexpected event type")
@@ -26,7 +26,7 @@ type TrackingEventExporter struct {
 // Export records the tracking events it receives.
 func (m *TrackingEventExporter) Export(
 	_ context.Context,
-	_ *fflog.FFLogger,
+	_ *slog.Logger,
 	events []exporter.ExportableEvent,
 ) error {
 	m.once.Do(m.initMutex)

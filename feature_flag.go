@@ -3,6 +3,7 @@ package ffclient
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier/logsnotifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // GoFeatureFlag is the main object of the library
@@ -144,7 +144,7 @@ func initializeRetrieverManager(
 	return manager, nil
 }
 
-func initializeDataExporters(config *Config, logger *fflog.FFLogger) (
+func initializeDataExporters(config *Config, logger *slog.Logger) (
 	exporter.Manager[exporter.FeatureEvent], exporter.Manager[exporter.TrackingEvent],
 ) {
 	exporters := config.GetDataExporters()

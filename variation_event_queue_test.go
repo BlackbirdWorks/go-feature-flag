@@ -3,6 +3,7 @@ package ffclient_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -17,7 +18,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -32,7 +32,7 @@ type queueTestExporter struct {
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
-func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
+func (e *queueTestExporter) Export(_ context.Context, _ *slog.Logger, events []exporter.ExportableEvent) error {
 	if e.block != nil {
 		<-e.block
 	}

@@ -3,10 +3,10 @@ package mockretriever
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // FileInitializableRetriever is the existing file-based mock that creates/deletes files
@@ -35,7 +35,7 @@ func (r *FileInitializableRetriever) Retrieve(_ context.Context) ([]byte, error)
 }
 
 // Init initializes the mock retriever.
-func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (r *FileInitializableRetriever) Init(_ context.Context, _ *slog.Logger) error {
 	yamlString := `flag-xxxx-123:
   variations:
     A: true

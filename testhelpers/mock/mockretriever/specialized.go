@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -32,7 +32,7 @@ func (*ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 }
 
 // Init initializes the mock retriever and honours context cancellation.
-func (*ContextAwareRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+func (*ContextAwareRetriever) Init(ctx context.Context, _ *slog.Logger) error {
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("initializing the mock retriever: %w", ctx.Err())
@@ -68,7 +68,7 @@ func (*StatusChangingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 }
 
 // Init initializes the mock retriever and changes its status.
-func (m *StatusChangingRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (m *StatusChangingRetriever) Init(_ context.Context, _ *slog.Logger) error {
 	m.CurrentStatus = retriever.RetrieverReady
 
 	return nil
@@ -110,7 +110,7 @@ func (*RecoverableRetriever) Retrieve(_ context.Context) ([]byte, error) {
 }
 
 // Init initializes the mock retriever, failing on the first attempt.
-func (m *RecoverableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+func (m *RecoverableRetriever) Init(_ context.Context, _ *slog.Logger) error {
 	m.InitCalled = true
 	m.InitCallCount++
 

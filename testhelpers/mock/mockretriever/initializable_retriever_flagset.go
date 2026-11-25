@@ -2,14 +2,14 @@ package mockretriever
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 // InitializableRetrieverWithFlagset implements the InitializableRetrieverWithFlagset interface.
 type InitializableRetrieverWithFlagset struct {
-	ReceivedLogger  *fflog.FFLogger
+	ReceivedLogger  *slog.Logger
 	ReceivedFlagset *string
 	Name            string
 	InitShouldFail  bool
@@ -32,7 +32,7 @@ func (m *InitializableRetrieverWithFlagset) Retrieve(_ context.Context) ([]byte,
 }
 
 // Init initializes the mock retriever for the flagset.
-func (m *InitializableRetrieverWithFlagset) Init(_ context.Context, logger *fflog.FFLogger, flagset *string) error {
+func (m *InitializableRetrieverWithFlagset) Init(_ context.Context, logger *slog.Logger, flagset *string) error {
 	m.InitCalled = true
 	m.ReceivedLogger = logger
 

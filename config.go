@@ -8,7 +8,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/notifier"
 	"github.com/blackbirdworks/semaphore/retriever"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -27,7 +26,7 @@ type Config struct {
 	Retriever retriever.Retriever
 	// internalLogger is the logger used by the library everywhere
 	// this logger is a superset of the logging system to be able to migrate easily to slog.
-	internalLogger *fflog.FFLogger
+	internalLogger *slog.Logger
 	// offlineMutex is a mutex to protect the Offline field.
 	offlineMutex *sync.RWMutex
 	// LeveledLogger (optional) logger use by the library

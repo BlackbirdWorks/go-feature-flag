@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"testing"
@@ -18,7 +19,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/httpretriever"
 	"github.com/blackbirdworks/semaphore/retriever/s3retrieverv2"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -49,7 +49,7 @@ func (r *contextRecordingRetriever) Retrieve(ctx context.Context) ([]byte, error
 	return []byte("flag:\n  variations:\n    on: true\n    off: false\n  defaultRule:\n    variation: on\n"), nil
 }
 
-func (r *contextRecordingRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+func (r *contextRecordingRetriever) Init(ctx context.Context, _ *slog.Logger) error {
 	r.initNonNil = ctx != nil
 	if ctx != nil {
 		r.initVal = ctx.Value(r.key)

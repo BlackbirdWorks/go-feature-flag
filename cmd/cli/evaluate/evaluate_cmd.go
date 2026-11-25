@@ -16,7 +16,6 @@ import (
 	retrieverinit "github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf/init"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -330,7 +329,7 @@ func runCheck(
 	return nil
 }
 
-func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger) error {
+func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *slog.Logger) error {
 	if r, ok := r.(retriever.InitializableRetriever); ok {
 		err := r.Init(ctx, logger)
 		if err != nil {
@@ -342,7 +341,7 @@ func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *f
 }
 
 func tryInitializeWithFlagset(
-	ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger, flagset string) error {
+	ctx context.Context, r retriever.Retriever, logger *slog.Logger, flagset string) error {
 	if r, ok := r.(retriever.InitializableRetrieverWithFlagset); ok {
 		err := r.Init(ctx, logger, &flagset)
 		if err != nil {

@@ -3,7 +3,7 @@
 //
 // This package contains mock retrievers that implement different retriever interfaces:
 //   - SimpleRetriever: Basic Retriever interface only (only retrieve)
-//   - InitializableRetriever: Standard interface with *fflog.FFLogger (init and shutdown)
+//   - InitializableRetriever: Standard interface with *slog.Logger (init and shutdown)
 //   - InitializableRetrieverWithFlagset: Flagset interface with flagset parameter (init and shutdown)
 //   - FileInitializableRetriever: File-based mock for compatibility (init and shutdown)
 //   - ContextAwareRetriever: Respects context cancellation

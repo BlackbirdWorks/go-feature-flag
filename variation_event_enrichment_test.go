@@ -2,6 +2,7 @@ package ffclient_test
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"sync"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -28,7 +28,7 @@ type collectingExporter struct {
 }
 
 func (*collectingExporter) IsBulk() bool { return true }
-func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (c *collectingExporter) Export(_ context.Context, _ *slog.Logger, ev []exporter.ExportableEvent) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

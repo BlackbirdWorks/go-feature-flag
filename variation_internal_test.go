@@ -24,7 +24,6 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 	"github.com/blackbirdworks/semaphore/testhelpers"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -105,7 +104,7 @@ func (*cacheMock) GetLatestUpdateDate() time.Time {
 func (*cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
 	return nil, assert.AnError
 }
-func (*cacheMock) UpdateCache(_ map[string]dto.DTO, _ *fflog.FFLogger, _ bool) error {
+func (*cacheMock) UpdateCache(_ map[string]dto.DTO, _ *slog.Logger, _ bool) error {
 	return nil
 }
 
