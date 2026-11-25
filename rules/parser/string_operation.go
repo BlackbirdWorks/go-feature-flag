@@ -12,7 +12,7 @@ type StringOperation struct {
 }
 
 // EQ reports whether two string operands are equal.
-func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) EQ(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -22,7 +22,7 @@ func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
 }
 
 // NE reports whether two string operands are not equal.
-func (o *StringOperation) NE(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) NE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -32,7 +32,7 @@ func (o *StringOperation) NE(left Operand, right Operand) (bool, error) {
 }
 
 // GT reports whether the left string operand sorts after the right one.
-func (o *StringOperation) GT(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) GT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -42,7 +42,7 @@ func (o *StringOperation) GT(left Operand, right Operand) (bool, error) {
 }
 
 // LT reports whether the left string operand sorts before the right one.
-func (o *StringOperation) LT(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) LT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -52,7 +52,7 @@ func (o *StringOperation) LT(left Operand, right Operand) (bool, error) {
 }
 
 // GE reports whether the left string operand sorts at or after the right one.
-func (o *StringOperation) GE(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) GE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -62,7 +62,7 @@ func (o *StringOperation) GE(left Operand, right Operand) (bool, error) {
 }
 
 // LE reports whether the left string operand sorts at or before the right one.
-func (o *StringOperation) LE(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) LE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -72,7 +72,7 @@ func (o *StringOperation) LE(left Operand, right Operand) (bool, error) {
 }
 
 // CO reports whether the left string operand contains the right one.
-func (o *StringOperation) CO(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) CO(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -82,7 +82,7 @@ func (o *StringOperation) CO(left Operand, right Operand) (bool, error) {
 }
 
 // SW reports whether the left string operand starts with the right one.
-func (o *StringOperation) SW(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) SW(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -92,7 +92,7 @@ func (o *StringOperation) SW(left Operand, right Operand) (bool, error) {
 }
 
 // EW reports whether the left string operand ends with the right one.
-func (o *StringOperation) EW(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) EW(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -102,7 +102,7 @@ func (o *StringOperation) EW(left Operand, right Operand) (bool, error) {
 }
 
 // IN reports whether the left string operand is one of the values in the right operand.
-func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
+func (o *StringOperation) IN(left, right Operand) (bool, error) {
 	leftVal, err := o.getString(left)
 	if err != nil {
 		return false, err
@@ -131,7 +131,7 @@ func (o *StringOperation) getString(operand Operand) (string, error) {
 	}
 }
 
-func (o *StringOperation) get(left Operand, right Operand) (string, string, error) {
+func (o *StringOperation) get(left, right Operand) (string, string, error) {
 	if left == nil {
 		return "", "", ErrEvalOperandMissing
 	}

@@ -8,7 +8,7 @@ type FloatOperation struct {
 }
 
 // EQ reports whether two floating-point operands are equal.
-func (o *FloatOperation) EQ(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) EQ(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -18,7 +18,7 @@ func (o *FloatOperation) EQ(left Operand, right Operand) (bool, error) {
 }
 
 // NE reports whether two floating-point operands are not equal.
-func (o *FloatOperation) NE(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) NE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -28,7 +28,7 @@ func (o *FloatOperation) NE(left Operand, right Operand) (bool, error) {
 }
 
 // GT reports whether the left operand is greater than the right operand.
-func (o *FloatOperation) GT(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) GT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -38,7 +38,7 @@ func (o *FloatOperation) GT(left Operand, right Operand) (bool, error) {
 }
 
 // LT reports whether the left operand is less than the right operand.
-func (o *FloatOperation) LT(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) LT(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -48,7 +48,7 @@ func (o *FloatOperation) LT(left Operand, right Operand) (bool, error) {
 }
 
 // GE reports whether the left operand is greater than or equal to the right operand.
-func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) GE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -58,7 +58,7 @@ func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
 }
 
 // LE reports whether the left operand is less than or equal to the right operand.
-func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) LE(left, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
 		return false, err
@@ -68,7 +68,7 @@ func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
 }
 
 // IN reports whether the left operand is one of the values in the right operand.
-func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
+func (o *FloatOperation) IN(left, right Operand) (bool, error) {
 	leftVal, err := toFloat(left)
 	if err != nil {
 		return false, err
@@ -86,7 +86,7 @@ func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
 	return false, nil
 }
 
-func (o *FloatOperation) get(left Operand, right Operand) (float64, float64, error) {
+func (o *FloatOperation) get(left, right Operand) (float64, float64, error) {
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}
