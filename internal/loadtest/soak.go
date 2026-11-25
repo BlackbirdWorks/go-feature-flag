@@ -8,7 +8,6 @@ import (
 	"runtime"
 	"runtime/metrics"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -201,12 +200,10 @@ func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
 	for w := range opts.Workers {
 		stats[w] = &workerStats{}
 
-		wg.Add(1)
-		go func(w int, st *workerStats) {
-			defer wg.Done()
-
+		st := stats[w]
+		wg.Go(func() {
 			evalLoop(ctx, t, w, st)
-		}(w, stats[w])
+		})
 	}
 
 	rep := Report{Name: opts.Name}
@@ -571,7 +568,7 @@ func (r Report) Summary(w io.Writer) {
 			keys = append(keys, k)
 		}
 
-		sort.Strings(keys)
+		slices.Sort(keys)
 
 		tabW := tabwriter.NewWriter(w, 0, 0, tabPadding, ' ', 0)
 

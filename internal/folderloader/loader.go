@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -221,7 +221,7 @@ func sortedKeys(files map[string]string) []string {
 		keys = append(keys, k)
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	return keys
 }
@@ -349,7 +349,7 @@ func (l *Loader) warnSkipped(ctx context.Context, skipped map[string]struct{}) {
 		}
 	}
 
-	sort.Strings(newKeys)
+	slices.Sort(newKeys)
 
 	for _, key := range newKeys {
 		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": file skipped because of its unsupported extension "+
