@@ -35,6 +35,7 @@ func defaultColumns() map[string]string {
 	}
 }
 
+// Retriever retrieves flag configurations from PostgreSQL.
 type Retriever struct {
 	Columns map[string]string
 	// Pools is the registry that gives the connection pool of URI. The retrievers that must share their
@@ -50,6 +51,7 @@ type Retriever struct {
 	status  retriever.Status
 }
 
+// Init connects to PostgreSQL and prepares the retriever for the flagset.
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {
 	r.status = retriever.RetrieverNotReady
 

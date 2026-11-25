@@ -204,6 +204,7 @@ func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.
 	return res, nil
 }
 
+// ForceRefresh refreshes the flag configurations now and reports whether the refresh succeeded.
 func (m *Manager) ForceRefresh(ctx context.Context) bool {
 	err := m.retrieveFlagsAndUpdateCache(ctx, false)
 	if err != nil {

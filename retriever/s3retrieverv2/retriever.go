@@ -212,6 +212,7 @@ func (s *Retriever) OutputFormat() string {
 	return ""
 }
 
+// SetDownloader sets the downloader used to fetch objects from S3.
 func (s *Retriever) SetDownloader(downloader DownloaderAPI) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
