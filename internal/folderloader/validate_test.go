@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/folderloader"
 )
 
+const (
+	aYaml = "a.yaml"
+)
+
 func TestValidate(t *testing.T) {
 	t.Parallel()
 
@@ -21,26 +25,26 @@ func TestValidate(t *testing.T) {
 		wantErr   string
 		recursive bool
 	}{
-		{name: "item only", item: "a.yaml"},
+		{name: "item only", item: aYaml},
 		{name: "nothing is the bucket root"},
-		{name: "prefix only", prefix: "flags/"},
+		{name: "prefix only", prefix: flags2},
 		{name: "root prefix recursive", prefix: "/", recursive: true},
-		{name: "prefix with pattern", prefix: "flags/", pattern: "*.yaml", recursive: true},
-		{name: "item and prefix", item: "a.yaml", prefix: "f/", wantErr: "item and prefix are mutually exclusive"},
+		{name: "prefix with pattern", prefix: flags2, pattern: yaml2, recursive: true},
+		{name: "item and prefix", item: aYaml, prefix: "f/", wantErr: "item and prefix are mutually exclusive"},
 		{
-			name: "custom item name", itemName: "object", item: "a.yaml", prefix: "f/",
+			name: "custom item name", itemName: "object", item: aYaml, prefix: "f/",
 			wantErr: "object and prefix are mutually exclusive",
 		},
 		{
-			name: "custom item name with pattern", itemName: "object", item: "a.yaml", pattern: "*",
+			name: "custom item name with pattern", itemName: "object", item: aYaml, pattern: "*",
 			wantErr: "pattern and recursive can only be used without object",
 		},
 		{
-			name: "item with pattern", item: "a.yaml", pattern: "*.yaml",
+			name: "item with pattern", item: aYaml, pattern: yaml2,
 			wantErr: "pattern and recursive can only be used without item",
 		},
 		{
-			name: "item with recursive", item: "a.yaml", recursive: true,
+			name: "item with recursive", item: aYaml, recursive: true,
 			wantErr: "pattern and recursive can only be used without item",
 		},
 		{name: "invalid pattern", prefix: "f/", pattern: "[a-", wantErr: `invalid pattern "[a-"`},

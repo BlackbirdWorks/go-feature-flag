@@ -27,7 +27,7 @@ func TestAllFlags(t *testing.T) {
 		Failed:        false,
 		Reason:        flag.ReasonStatic,
 	}
-	afs.AddFlag("my-key", state1)
+	afs.AddFlag(myKey, state1)
 	assert.Len(t, afs.GetFlags(), 1)
 	assert.True(t, afs.IsValid())
 

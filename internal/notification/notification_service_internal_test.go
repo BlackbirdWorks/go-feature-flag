@@ -10,6 +10,15 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	fixtureDefault = "Default"
+	fixtureFalse   = "False"
+	fixtureTrue    = "True"
+	rule1          = "rule1"
+	testFlag       = "test-flag"
+	testFlag2      = "test-flag2"
+)
+
 func Test_notificationService_getDifferences(t *testing.T) {
 	t.Parallel()
 
@@ -32,47 +41,47 @@ func Test_notificationService_getDifferences(t *testing.T) {
 			name: "Delete flag",
 			args: args{
 				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
-					"test-flag2": &flag.InternalFlag{
+					testFlag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
 				},
 				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -80,17 +89,17 @@ func Test_notificationService_getDifferences(t *testing.T) {
 			},
 			want: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{
-					"test-flag2": &flag.InternalFlag{
+					testFlag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -103,47 +112,47 @@ func Test_notificationService_getDifferences(t *testing.T) {
 			name: "Added flag",
 			args: args{
 				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
 				},
 				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
-					"test-flag2": &flag.InternalFlag{
+					testFlag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -151,17 +160,17 @@ func Test_notificationService_getDifferences(t *testing.T) {
 			},
 			want: notifier.DiffCache{
 				Added: map[string]flag.Flag{
-					"test-flag2": &flag.InternalFlag{
+					testFlag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -174,33 +183,33 @@ func Test_notificationService_getDifferences(t *testing.T) {
 			name: "Updated flag",
 			args: args{
 				oldCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
 				},
 				newCache: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(true)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("rule1"),
+							Name: new(rule1),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -210,32 +219,32 @@ func Test_notificationService_getDifferences(t *testing.T) {
 				Added:   map[string]flag.Flag{},
 				Deleted: map[string]flag.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
+					testFlag: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("rule1"),
+								Name: new(rule1),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(true)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("rule1"),
+								Name: new(rule1),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},

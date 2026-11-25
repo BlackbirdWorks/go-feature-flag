@@ -17,7 +17,7 @@ import (
 // cache never panics: the file comes from a retriever, and a panic there takes
 // down the polling goroutine.
 func FuzzConvertToFlagStruct(f *testing.F) {
-	formats := []string{"yaml", "json", "toml"}
+	formats := []string{yaml2, json2, toml2}
 
 	for i, file := range []string{
 		"../../testdata/flag-config.yaml",

@@ -23,6 +23,28 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	fAYaml        = "f/a.yaml"
+	fBYaml        = "f/b.yaml"
+	fCJson        = "f/c.json"
+	fReadmeTxt    = "f/readme.txt"
+	flagA         = "flagA"
+	flagB         = "flagB"
+	flagBig       = "flagBig"
+	flagC         = "flagC"
+	flagCN        = "flagC: {}\n"
+	flags2        = "flags/"
+	flagsAYaml    = "flags/a.yaml"
+	flagsBYaml    = "flags/b.yaml"
+	flagsSubCYaml = "flags/sub/c.yaml"
+	hello         = "hello"
+	json2         = "json"
+	keyFReadmeTxt = "key=f/readme.txt"
+	stepD         = "step %d"
+	yaml2         = "*.yaml"
+	yaml3         = "yaml"
+)
+
 var (
 	errNoSuchKey = errors.New("no such key")
 	errBoom      = errors.New("boom")
@@ -220,81 +242,81 @@ func folderListingCases() []loadCase {
 		{
 			name: "non recursive only loads the direct children and ignores folder markers",
 			setup: func(s *fakeStore) {
-				s.put("flags/a.yaml", yamlA)
-				s.put("flags/b.yaml", yamlB)
-				s.put("flags/sub/c.yaml", "flagC: {}\n")
-				s.put("flags/", "")
+				s.put(flagsAYaml, yamlA)
+				s.put(flagsBYaml, yamlB)
+				s.put(flagsSubCYaml, flagCN)
+				s.put(flags2, "")
 				s.put("other/d.yaml", "flagD: {}\n")
 			},
-			opts:  folderloader.Options{Prefix: "flags/"},
-			steps: []step{{wantFlags: []string{"flagA", "flagB"}, wantFormat: "yaml"}},
+			opts:  folderloader.Options{Prefix: flags2},
+			steps: []step{{wantFlags: []string{flagA, flagB}, wantFormat: yaml3}},
 		},
 		{
 			name: "prefix without trailing slash is the folder",
 			setup: func(s *fakeStore) {
-				s.put("flags/a.yaml", yamlA)
-				s.put("flags/sub/c.yaml", "flagC: {}\n")
+				s.put(flagsAYaml, yamlA)
+				s.put(flagsSubCYaml, flagCN)
 				s.put("flags-old/z.yaml", "flagZ: {}\n")
 			},
 			opts:  folderloader.Options{Prefix: "flags"},
-			steps: []step{{wantFlags: []string{"flagA"}}},
+			steps: []step{{wantFlags: []string{flagA}}},
 		},
 		{
 			name: "leading and trailing slash are the same folder",
 			setup: func(s *fakeStore) {
-				s.put("flags/a.yaml", yamlA)
+				s.put(flagsAYaml, yamlA)
 				s.put("flags-old/z.yaml", "flagZ: {}\n")
-				s.put("a.yaml", yamlB)
+				s.put(aYaml, yamlB)
 			},
 			opts:  folderloader.Options{Prefix: "/flags/"},
-			steps: []step{{wantFlags: []string{"flagA"}}},
+			steps: []step{{wantFlags: []string{flagA}}},
 		},
 		{
 			name: "empty prefix is the root, non recursive",
 			setup: func(s *fakeStore) {
-				s.put("a.yaml", yamlA)
-				s.put("flags/b.yaml", yamlB)
+				s.put(aYaml, yamlA)
+				s.put(flagsBYaml, yamlB)
 			},
 			opts:  folderloader.Options{},
-			steps: []step{{wantFlags: []string{"flagA"}}},
+			steps: []step{{wantFlags: []string{flagA}}},
 		},
 		{
 			name: "slash prefix is the root, recursive",
 			setup: func(s *fakeStore) {
-				s.put("a.yaml", yamlA)
-				s.put("flags/b.yaml", yamlB)
-				s.put("flags/deep/c.yaml", "flagC: {}\n")
+				s.put(aYaml, yamlA)
+				s.put(flagsBYaml, yamlB)
+				s.put("flags/deep/c.yaml", flagCN)
 			},
 			opts:  folderloader.Options{Prefix: "/", Recursive: true},
-			steps: []step{{wantFlags: []string{"flagA", "flagB", "flagC"}}},
+			steps: []step{{wantFlags: []string{flagA, flagB, flagC}}},
 		},
 		{
 			name: "recursive ignores nested folder markers",
 			setup: func(s *fakeStore) {
-				s.put("flags/a.yaml", yamlA)
+				s.put(flagsAYaml, yamlA)
 				s.put("flags/sub/b.yml", yamlB)
 				s.put("flags/sub/deep/", "")
 				s.put("other/d.yaml", "flagD: {}\n")
 			},
-			opts:  folderloader.Options{Prefix: "flags/", Recursive: true},
-			steps: []step{{wantFlags: []string{"flagA", "flagB"}}},
+			opts:  folderloader.Options{Prefix: flags2, Recursive: true},
+			steps: []step{{wantFlags: []string{flagA, flagB}}},
 		},
 		{
 			name: "pattern is matched on the file name",
 			setup: func(s *fakeStore) {
-				s.put("flags/a.yaml", yamlA)
+				s.put(flagsAYaml, yamlA)
 				s.put("flags/b.yml", yamlB)
 				s.put("flags/notes.txt", "not a flag file")
-				s.put("flags/sub/c.yaml", "flagC: {}\n")
+				s.put(flagsSubCYaml, flagCN)
 			},
-			opts:  folderloader.Options{Prefix: "flags/", Pattern: "*.yaml", Recursive: true},
-			steps: []step{{wantFlags: []string{"flagA", "flagC"}, wantNoLog: "notes.txt"}},
+			opts:  folderloader.Options{Prefix: flags2, Pattern: yaml2, Recursive: true},
+			steps: []step{{wantFlags: []string{flagA, flagC}, wantNoLog: "notes.txt"}},
 		},
 		{
 			name:  "json files",
-			setup: func(s *fakeStore) { s.put("f/c.json", jsonC) },
+			setup: func(s *fakeStore) { s.put(fCJson, jsonC) },
 			opts:  folderloader.Options{Prefix: "f/"},
-			steps: []step{{wantFlags: []string{"flagC"}, wantFormat: "json"}},
+			steps: []step{{wantFlags: []string{flagC}, wantFormat: json2}},
 		},
 		{
 			name:  "toml files",
@@ -318,10 +340,10 @@ func folderListingCases() []loadCase {
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{{
-				wantFlags: []string{"flagBig"},
+				wantFlags: []string{flagBig},
 				check: func(t *testing.T, flags map[string]dto.DTO) {
 					t.Helper()
-					assert.Equal(t, 9007199254740993, variationOf(flags, "flagBig", "big"))
+					assert.Equal(t, 9007199254740993, variationOf(flags, flagBig, "big"))
 				},
 			}},
 		},
@@ -333,44 +355,44 @@ func folderListingCases() []loadCase {
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{{
-				wantFlags: []string{"flagBig"},
+				wantFlags: []string{flagBig},
 				check: func(t *testing.T, flags map[string]dto.DTO) {
 					t.Helper()
-					assert.Equal(t, int64(9007199254740993), variationOf(flags, "flagBig", "big"))
+					assert.Equal(t, int64(9007199254740993), variationOf(flags, flagBig, "big"))
 				},
 			}},
 		},
 		{
 			name: "unchanged version does not redownload",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/b.yaml", yamlB)
+				s.put(fAYaml, yamlA)
+				s.put(fBYaml, yamlB)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA", "flagB"}},
+				{wantFlags: []string{flagA, flagB}},
 				{
-					wantFlags: []string{"flagA", "flagB"},
-					wantGets:  map[string]int{"f/a.yaml": 1, "f/b.yaml": 1},
+					wantFlags: []string{flagA, flagB},
+					wantGets:  map[string]int{fAYaml: 1, fBYaml: 1},
 				},
 			},
 		},
 		{
 			name: "changed version and new file are downloaded, others are not",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/b.yaml", yamlB)
+				s.put(fAYaml, yamlA)
+				s.put(fBYaml, yamlB)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA", "flagB"}},
+				{wantFlags: []string{flagA, flagB}},
 				{
 					mutate: func(s *fakeStore) {
-						s.put("f/a.yaml", "flagA2:\n  defaultRule:\n    variation: on\n")
-						s.put("f/c.yaml", "flagC: {}\n")
+						s.put(fAYaml, "flagA2:\n  defaultRule:\n    variation: on\n")
+						s.put("f/c.yaml", flagCN)
 					},
-					wantFlags: []string{"flagA2", "flagB", "flagC"},
-					wantGets:  map[string]int{"f/a.yaml": 2, "f/b.yaml": 1, "f/c.yaml": 1},
+					wantFlags: []string{"flagA2", flagB, flagC},
+					wantGets:  map[string]int{fAYaml: 2, fBYaml: 1, "f/c.yaml": 1},
 				},
 			},
 		},
@@ -378,15 +400,15 @@ func folderListingCases() []loadCase {
 			name: "empty version never hits the cache",
 			setup: func(s *fakeStore) {
 				s.noVersion = true
-				s.put("f/a.yaml", yamlA)
+				s.put(fAYaml, yamlA)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA"}},
+				{wantFlags: []string{flagA}},
 				{
-					mutate:    func(s *fakeStore) { s.put("f/a.yaml", yamlB) },
-					wantFlags: []string{"flagB"},
-					wantGets:  map[string]int{"f/a.yaml": 2},
+					mutate:    func(s *fakeStore) { s.put(fAYaml, yamlB) },
+					wantFlags: []string{flagB},
+					wantGets:  map[string]int{fAYaml: 2},
 				},
 			},
 		},
@@ -399,34 +421,34 @@ func cacheAndVersionCases() []loadCase {
 			name: "listed version is used when Get has none",
 			setup: func(s *fakeStore) {
 				s.getNoVersion = true
-				s.put("f/a.yaml", yamlA)
+				s.put(fAYaml, yamlA)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA"}},
-				{wantFlags: []string{"flagA"}, wantGets: map[string]int{"f/a.yaml": 1}},
+				{wantFlags: []string{flagA}},
+				{wantFlags: []string{flagA}, wantGets: map[string]int{fAYaml: 1}},
 			},
 		},
 		{
 			name: "quoting differences between listed and served versions are a cache hit",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
+				s.put(fAYaml, yamlA)
 				s.listVersion = `"abc"`
 				s.getVersion = "abc"
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA"}},
-				{wantFlags: []string{"flagA"}, wantGets: map[string]int{"f/a.yaml": 1}},
+				{wantFlags: []string{flagA}},
+				{wantFlags: []string{flagA}, wantGets: map[string]int{fAYaml: 1}},
 				{
 					mutate:    func(s *fakeStore) { s.listVersion = `W/"abc"` },
-					wantFlags: []string{"flagA"},
-					wantGets:  map[string]int{"f/a.yaml": 1},
+					wantFlags: []string{flagA},
+					wantGets:  map[string]int{fAYaml: 1},
 				},
 				{
 					mutate:    func(s *fakeStore) { s.listVersion = `"other"` },
-					wantFlags: []string{"flagA"},
-					wantGets:  map[string]int{"f/a.yaml": 2},
+					wantFlags: []string{flagA},
+					wantGets:  map[string]int{fAYaml: 2},
 				},
 			},
 		},
@@ -435,7 +457,7 @@ func cacheAndVersionCases() []loadCase {
 			// version actually downloaded, so that the next list (A again) triggers a new download
 			name: "file replaced between list and download is downloaded again on the next poll",
 			setup: func(store *fakeStore) {
-				store.put("f/a.yaml", yamlA)
+				store.put(fAYaml, yamlA)
 
 				swapped := false
 				store.beforeGet = func(key string) {
@@ -449,40 +471,40 @@ func cacheAndVersionCases() []loadCase {
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
 				// listed A, but B is downloaded
-				{wantFlags: []string{"flagB"}},
+				{wantFlags: []string{flagB}},
 				{
 					// A is restored: it must not be served from the stale cache
-					mutate:    func(s *fakeStore) { s.put("f/a.yaml", yamlA) },
-					wantFlags: []string{"flagA"},
-					wantGets:  map[string]int{"f/a.yaml": 2},
+					mutate:    func(s *fakeStore) { s.put(fAYaml, yamlA) },
+					wantFlags: []string{flagA},
+					wantGets:  map[string]int{fAYaml: 2},
 				},
 			},
 		},
 		{
 			name: "deleted file disappears and is downloaded again when it comes back",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/b.yaml", yamlB)
+				s.put(fAYaml, yamlA)
+				s.put(fBYaml, yamlB)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA", "flagB"}},
+				{wantFlags: []string{flagA, flagB}},
 				{
-					mutate:    func(s *fakeStore) { s.del("f/b.yaml") },
-					wantFlags: []string{"flagA"},
-					wantGets:  map[string]int{"f/a.yaml": 1, "f/b.yaml": 1},
+					mutate:    func(s *fakeStore) { s.del(fBYaml) },
+					wantFlags: []string{flagA},
+					wantGets:  map[string]int{fAYaml: 1, fBYaml: 1},
 				},
 				{
-					mutate:    func(s *fakeStore) { s.put("f/b.yaml", yamlB) },
-					wantFlags: []string{"flagA", "flagB"},
-					wantGets:  map[string]int{"f/a.yaml": 1, "f/b.yaml": 2},
+					mutate:    func(s *fakeStore) { s.put(fBYaml, yamlB) },
+					wantFlags: []string{flagA, flagB},
+					wantGets:  map[string]int{fAYaml: 1, fBYaml: 2},
 				},
 			},
 		},
 		{
 			name: "duplicate flag key",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
+				s.put(fAYaml, yamlA)
 				s.put("f/z.yaml", yamlA)
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
@@ -491,8 +513,8 @@ func cacheAndVersionCases() []loadCase {
 		{
 			name: "mixed formats",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/c.json", jsonC)
+				s.put(fAYaml, yamlA)
+				s.put(fCJson, jsonC)
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `"f/a.yaml" is yaml but "f/c.json" is json`}},
@@ -500,50 +522,50 @@ func cacheAndVersionCases() []loadCase {
 		{
 			name: "unsupported extension is skipped with a warning",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/readme.txt", "hello")
+				s.put(fAYaml, yamlA)
+				s.put(fReadmeTxt, hello)
 			},
 			opts:  folderloader.Options{Prefix: "f/", Location: "my-bucket"},
-			steps: []step{{wantFlags: []string{"flagA"}, wantLog: `key=f/readme.txt`}},
+			steps: []step{{wantFlags: []string{flagA}, wantLog: `key=f/readme.txt`}},
 		},
 		{
 			name:  "only unsupported extensions gives an empty flag set",
-			setup: func(s *fakeStore) { s.put("f/readme.txt", "hello") },
+			setup: func(s *fakeStore) { s.put(fReadmeTxt, hello) },
 			opts:  folderloader.Options{Prefix: "f/", Location: "my-bucket"},
 			steps: []step{{
-				wantFlags: []string{}, wantFormat: "json", wantContent: "{}",
+				wantFlags: []string{}, wantFormat: json2, wantContent: "{}",
 				wantLog: "no supported file matches the prefix",
 			}},
 		},
 		{
 			name: "unsupported extension warns once while it stays skipped",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/readme.txt", "hello")
+				s.put(fAYaml, yamlA)
+				s.put(fReadmeTxt, hello)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA"}, wantLogCount: 1, wantLogCountOf: "key=f/readme.txt"},
-				{wantFlags: []string{"flagA"}, wantLogCount: 1, wantLogCountOf: "key=f/readme.txt"},
+				{wantFlags: []string{flagA}, wantLogCount: 1, wantLogCountOf: keyFReadmeTxt},
+				{wantFlags: []string{flagA}, wantLogCount: 1, wantLogCountOf: keyFReadmeTxt},
 				{
-					mutate:       func(s *fakeStore) { s.del("f/readme.txt") },
-					wantFlags:    []string{"flagA"},
-					wantLogCount: 1, wantLogCountOf: "key=f/readme.txt",
+					mutate:       func(s *fakeStore) { s.del(fReadmeTxt) },
+					wantFlags:    []string{flagA},
+					wantLogCount: 1, wantLogCountOf: keyFReadmeTxt,
 				},
 				{
 					// the file comes back: it is reported again
-					mutate:       func(s *fakeStore) { s.put("f/readme.txt", "hello") },
-					wantFlags:    []string{"flagA"},
-					wantLogCount: 2, wantLogCountOf: "key=f/readme.txt",
+					mutate:       func(s *fakeStore) { s.put(fReadmeTxt, hello) },
+					wantFlags:    []string{flagA},
+					wantLogCount: 2, wantLogCountOf: keyFReadmeTxt,
 				},
 			},
 		},
 		{
 			name: "mixed formats are still an error next to an unsupported file",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/c.json", jsonC)
-				s.put("f/readme.txt", "hello")
+				s.put(fAYaml, yamlA)
+				s.put(fCJson, jsonC)
+				s.put(fReadmeTxt, hello)
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `"f/a.yaml" is yaml but "f/c.json" is json`}},
@@ -570,7 +592,7 @@ func cacheAndVersionCases() []loadCase {
 						s.put("j/a.yaml", yamlA)
 						s.put("j/empty.yaml", " ")
 					},
-					wantFlags: []string{"flagA"},
+					wantFlags: []string{flagA},
 				},
 				{
 					mutate: func(s *fakeStore) {
@@ -602,7 +624,7 @@ func errorAndEmptyCases() []loadCase {
 		{
 			name: "download error",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
+				s.put(fAYaml, yamlA)
 				s.getErr = errKaboom
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
@@ -611,35 +633,35 @@ func errorAndEmptyCases() []loadCase {
 		{
 			name: "partial download failure keeps the files already fetched",
 			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
-				s.put("f/b.yaml", yamlB)
-				s.setGetErrKey("f/b.yaml", errKaboom)
+				s.put(fAYaml, yamlA)
+				s.put(fBYaml, yamlB)
+				s.setGetErrKey(fBYaml, errKaboom)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
 				{wantErr: `unable to download item "f/b.yaml", kaboom`},
 				{
-					mutate:    func(s *fakeStore) { s.setGetErrKey("f/b.yaml", nil) },
-					wantFlags: []string{"flagA", "flagB"},
-					wantGets:  map[string]int{"f/a.yaml": 1, "f/b.yaml": 2},
+					mutate:    func(s *fakeStore) { s.setGetErrKey(fBYaml, nil) },
+					wantFlags: []string{flagA, flagB},
+					wantGets:  map[string]int{fAYaml: 1, fBYaml: 2},
 				},
 			},
 		},
 		{
 			name:  "failed load does not corrupt the cache",
-			setup: func(s *fakeStore) { s.put("f/a.yaml", yamlA) },
+			setup: func(s *fakeStore) { s.put(fAYaml, yamlA) },
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{
-				{wantFlags: []string{"flagA"}},
+				{wantFlags: []string{flagA}},
 				{
-					mutate:  func(s *fakeStore) { s.put("f/a.yaml", "{ bad yaml") },
+					mutate:  func(s *fakeStore) { s.put(fAYaml, "{ bad yaml") },
 					wantErr: `unable to parse file "f/a.yaml"`,
 				},
 				{
 					// same version as the cached good one: no new download is needed
-					mutate:    func(s *fakeStore) { s.put("f/a.yaml", yamlA) },
-					wantFlags: []string{"flagA"},
-					wantGets:  map[string]int{"f/a.yaml": 2},
+					mutate:    func(s *fakeStore) { s.put(fAYaml, yamlA) },
+					wantFlags: []string{flagA},
+					wantGets:  map[string]int{fAYaml: 2},
 				},
 			},
 		},
@@ -691,14 +713,14 @@ func runLoadCase(t *testing.T, testCase loadCase) {
 
 		got, err := ldr.Load(t.Context())
 		if currStep.wantErr != "" {
-			require.ErrorContains(t, err, currStep.wantErr, "step %d", i)
+			require.ErrorContains(t, err, currStep.wantErr, stepD, i)
 		} else {
-			require.NoError(t, err, "step %d", i)
+			require.NoError(t, err, stepD, i)
 			checkOutput(t, ldr.OutputFormat(), currStep, got, i)
 		}
 
 		if currStep.wantFormat != "" {
-			assert.Equal(t, currStep.wantFormat, ldr.OutputFormat(), "step %d", i)
+			assert.Equal(t, currStep.wantFormat, ldr.OutputFormat(), stepD, i)
 		}
 
 		for k, n := range currStep.wantGets {
@@ -713,15 +735,15 @@ func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
 	t.Helper()
 
 	if currStep.wantLog != "" {
-		assert.Contains(t, logs.String(), currStep.wantLog, "step %d", i)
+		assert.Contains(t, logs.String(), currStep.wantLog, stepD, i)
 	}
 
 	if currStep.wantNoLog != "" {
-		assert.NotContains(t, logs.String(), currStep.wantNoLog, "step %d", i)
+		assert.NotContains(t, logs.String(), currStep.wantNoLog, stepD, i)
 	}
 
 	if currStep.wantLogCountOf != "" {
-		assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), "step %d", i)
+		assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), stepD, i)
 	}
 }
 
@@ -729,11 +751,11 @@ func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) 
 	t.Helper()
 
 	if currStep.wantContent != "" {
-		assert.Equal(t, currStep.wantContent, string(got), "step %d", i)
+		assert.Equal(t, currStep.wantContent, string(got), stepD, i)
 	}
 
 	flags, err := cache.ConvertToFlagStruct(got, format)
-	require.NoError(t, err, "step %d", i)
+	require.NoError(t, err, stepD, i)
 
 	if currStep.wantFlags != nil {
 		keys := make([]string, 0, len(flags))
@@ -741,7 +763,7 @@ func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) 
 			keys = append(keys, k)
 		}
 
-		assert.ElementsMatch(t, currStep.wantFlags, keys, "step %d", i)
+		assert.ElementsMatch(t, currStep.wantFlags, keys, stepD, i)
 	}
 
 	if len(currStep.wantSameAs) > 0 {
@@ -756,7 +778,7 @@ func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) 
 			maps.Copy(want, parsed)
 		}
 
-		assert.Equal(t, want, flags, "step %d", i)
+		assert.Equal(t, want, flags, stepD, i)
 	}
 
 	if currStep.check != nil {
@@ -819,7 +841,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			require.ErrorContains(t, err, tt.wantList)
 
 			gs := &fakeStore{getErr: errKaboom}
-			gs.put("f/a.yaml", yamlA)
+			gs.put(fAYaml, yamlA)
 			_, err = folderloader.New(gs, tt.opts).Load(t.Context())
 			require.ErrorContains(t, err, tt.wantGet)
 
@@ -849,7 +871,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 	}{
 		{name: "empty", prefix: "", wantPrefix: ""},
 		{name: "slash", prefix: "/", recursive: true, wantPrefix: "", wantRecursive: true},
-		{name: "no trailing slash", prefix: "flags", wantPrefix: "flags/"},
+		{name: "no trailing slash", prefix: "flags", wantPrefix: flags2},
 		{name: "leading slashes", prefix: "//flags/sub/", wantPrefix: "flags/sub/"},
 	}
 	for _, tt := range tests {
@@ -877,14 +899,14 @@ func TestLoader_OutputFormat(t *testing.T) {
 		// afterLoad is the expected format once Load was called.
 		afterLoad string
 	}{
-		{name: "no pattern is unknown before the first load", afterLoad: "json"},
-		{name: "yaml pattern", pattern: "*.yml", want: "yaml", afterLoad: "json"},
-		{name: "toml pattern", pattern: "*.toml", want: "toml", afterLoad: "json"},
-		{name: "json pattern", pattern: "*.json", want: "json", afterLoad: "json"},
-		{name: "wildcard pattern", pattern: "*", afterLoad: "json"},
+		{name: "no pattern is unknown before the first load", afterLoad: json2},
+		{name: "yaml pattern", pattern: "*.yml", want: yaml3, afterLoad: json2},
+		{name: "toml pattern", pattern: "*.toml", want: "toml", afterLoad: json2},
+		{name: "json pattern", pattern: "*.json", want: json2, afterLoad: json2},
+		{name: "wildcard pattern", pattern: "*", afterLoad: json2},
 		{
-			name: "files win over the pattern", pattern: "*", files: map[string]string{"f/a.yaml": yamlA},
-			afterLoad: "yaml",
+			name: "files win over the pattern", pattern: "*", files: map[string]string{fAYaml: yamlA},
+			afterLoad: yaml3,
 		},
 	}
 	for _, tt := range tests {
@@ -905,8 +927,8 @@ func TestLoader_Reset(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{}
-	store.put("f/a.yaml", yamlA)
-	store.put("f/readme.txt", "hello")
+	store.put(fAYaml, yamlA)
+	store.put(fReadmeTxt, hello)
 
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
@@ -917,15 +939,15 @@ func TestLoader_Reset(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assert.Equal(t, 1, store.calls("f/a.yaml"))
-	assert.Equal(t, 1, strings.Count(logs.String(), "key=f/readme.txt"))
+	assert.Equal(t, 1, store.calls(fAYaml))
+	assert.Equal(t, 1, strings.Count(logs.String(), keyFReadmeTxt))
 
 	// Reset drops the cache and the skipped files: all is downloaded and reported again.
 	ldr.Reset()
 	_, err := ldr.Load(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 2, store.calls("f/a.yaml"))
-	assert.Equal(t, 2, strings.Count(logs.String(), "key=f/readme.txt"))
+	assert.Equal(t, 2, store.calls(fAYaml))
+	assert.Equal(t, 2, strings.Count(logs.String(), keyFReadmeTxt))
 }
 
 func TestReuse(t *testing.T) {
@@ -948,7 +970,7 @@ func TestReuse(t *testing.T) {
 			return o
 		}},
 		{name: "pattern changed", opts: func(o folderloader.Options) folderloader.Options {
-			o.Pattern = "*.yaml"
+			o.Pattern = yaml2
 
 			return o
 		}},
@@ -971,7 +993,7 @@ func TestReuse(t *testing.T) {
 			t.Parallel()
 
 			store := &fakeStore{}
-			store.put("f/a.yaml", yamlA)
+			store.put(fAYaml, yamlA)
 			store.put("g/a.yaml", yamlA)
 			old := folderloader.New(store, base)
 			_, err := old.Load(t.Context())
@@ -992,7 +1014,7 @@ func TestReuse(t *testing.T) {
 
 			if tt.wantSame {
 				assert.Same(t, old, got)
-				assert.Equal(t, "yaml", got.OutputFormat())
+				assert.Equal(t, yaml3, got.OutputFormat())
 
 				return
 			}
@@ -1001,7 +1023,7 @@ func TestReuse(t *testing.T) {
 			// a new loader starts with an empty cache: the file is downloaded again
 			_, err = got.Load(t.Context())
 			require.NoError(t, err)
-			assert.Equal(t, 2, store.calls("f/a.yaml")+store.calls("g/a.yaml"))
+			assert.Equal(t, 2, store.calls(fAYaml)+store.calls("g/a.yaml"))
 		})
 	}
 }

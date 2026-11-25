@@ -15,6 +15,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	flag12  = "flag-1"
+	hacked  = "hacked"
+	nested2 = "nested"
+)
+
 // Test_AllFlags_ReturnsDetachedFlags checks that the flags returned by the public snapshot
 // (AllFlags, which feeds GetFlagsFromCache and the notifier diff) are copies: mutating them must
 // not change what the cache serves to the evaluations or to the next snapshot.
@@ -39,7 +45,7 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 		{
 			name: "change the version in the snapshot",
 			mutate: func(f *flag.InternalFlag) {
-				v := "hacked"
+				v := hacked
 				f.Version = &v
 			},
 			read: func(f flag.Flag) any { return f.GetVersion() },
@@ -56,19 +62,19 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			f, ok := snap["flag-1"].(*flag.InternalFlag)
+			f, ok := snap[flag12].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
 			delete(snap, "flag-2")
 
-			live, err := mgr.GetFlag("flag-1")
+			live, err := mgr.GetFlag(flag12)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, tt.read(live))
 
 			again, err := mgr.AllFlags()
 			require.NoError(t, err)
 			assert.Len(t, again, 3)
-			assert.Equal(t, tt.want, tt.read(again["flag-1"]))
+			assert.Equal(t, tt.want, tt.read(again[flag12]))
 		})
 	}
 }
@@ -98,7 +104,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 					}
 				}
 
-				live, getFlagErr := mgr.GetFlag("flag-1")
+				live, getFlagErr := mgr.GetFlag(flag12)
 				if getFlagErr == nil {
 					_ = live.IsDisable()
 				}
@@ -112,7 +118,7 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 
 	wg.Wait()
 
-	live, err := mgr.GetFlag("flag-1")
+	live, err := mgr.GetFlag(flag12)
 	require.NoError(t, err)
 	assert.False(t, live.IsDisable())
 }
@@ -164,11 +170,11 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			nested, ok := kSlice[2].(map[string]any)
 			require.True(t, ok)
 
-			nested["deep"] = "hacked"
-			kSlice[0] = "hacked"
+			nested["deep"] = hacked
+			kSlice[0] = hacked
 		}},
 		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
-			x := any("hacked")
+			x := any(hacked)
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
@@ -180,16 +186,16 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
 
-			team[0] = "hacked"
+			team[0] = hacked
 		}},
 		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
 			r := &(*f.Rules)[0]
-			*r.Query = "hacked"
-			*r.VariationResult = "hacked"
+			*r.Query = hacked
+			*r.VariationResult = hacked
 			(*r.Percentages)["A"] = 1
 			*r.ProgressiveRollout.End.Percentage = 5
-			*r.ProgressiveRollout.End.Variation = "hacked"
-			*r.Name = "hacked"
+			*r.ProgressiveRollout.End.Variation = hacked
+			*r.Name = hacked
 		}},
 		{
 			name:            "default rule",
@@ -212,7 +218,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			team, ok := owner["team"].([]any)
 			require.True(t, ok)
 
-			team[0] = "hacked"
+			team[0] = hacked
 			(*step.Variations)["A"] = nil
 			*step.Date = step.Date.Add(1)
 		}},
@@ -226,7 +232,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 
 			mgr := cache.New(nil, "", &fflog.FFLogger{})
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
-			live, err := mgr.GetFlag("nested")
+			live, err := mgr.GetFlag(nested2)
 			require.NoError(t, err)
 			before, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -234,11 +240,11 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			iflag, ok := snap["nested"].(*flag.InternalFlag)
+			iflag, ok := snap[nested2].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
 
-			live, err = mgr.GetFlag("nested")
+			live, err = mgr.GetFlag(nested2)
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -268,7 +274,7 @@ func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, shared, 3)
 
-	live, err := mgr.GetFlag("flag-1")
+	live, err := mgr.GetFlag(flag12)
 	require.NoError(t, err)
-	assert.Same(t, live, shared["flag-1"])
+	assert.Same(t, live, shared[flag12])
 }

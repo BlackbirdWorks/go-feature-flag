@@ -22,12 +22,27 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	falseVar                 = "false_var"
+	fixtureFalse2            = "false"
+	fixtureTrue2             = "true"
+	flag13                   = "flag1"
+	flag22                   = "flag2"
+	json2                    = "json"
+	keyEqRandomKey           = "key eq \"random-key\""
+	testFlag                 = "test-flag"
+	toml2                    = "toml"
+	trueVar                  = "true_var"
+	updateCacheErrorVWantErr = "UpdateCache() error = %v, wantErr %v"
+	yaml2                    = "yaml"
+)
+
 func Test_FlagCacheNotInit(t *testing.T) {
 	t.Parallel()
 
 	fCache := cache.New(nil, "", nil)
 	fCache.Close()
-	got, err := fCache.GetFlag("test-flag")
+	got, err := fCache.GetFlag(testFlag)
 	assert.Nil(t, got)
 	assert.EqualError(t, err, "impossible to read the flag before the initialisation")
 }
@@ -111,27 +126,27 @@ trackEvents = false
 	}{
 		{
 			name:       "Yaml valid",
-			flagFormat: "yaml",
+			flagFormat: yaml2,
 			args: args{
 				loadedFlags: yamlFile,
 			},
 			expected: map[string]flag.InternalFlag{
-				"test-flag": {
+				testFlag: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 0,
-								"true_var":  100,
+								falseVar: 0,
+								trueVar:  100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": new(any(false)),
-						"true_var":  new(any(true)),
+						falseVar: new(any(false)),
+						trueVar:  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -140,7 +155,7 @@ trackEvents = false
 		},
 		{
 			name:       "Yaml invalid file",
-			flagFormat: "yaml",
+			flagFormat: yaml2,
 			args: args{
 				loadedFlags: []byte(`
 test-flag:
@@ -161,24 +176,24 @@ test-flag:
 			args: args{
 				loadedFlags: jsonFile,
 			},
-			flagFormat: "json",
+			flagFormat: json2,
 			expected: map[string]flag.InternalFlag{
-				"test-flag": {
+				testFlag: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 0,
-								"true_var":  100,
+								falseVar: 0,
+								trueVar:  100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": new(any(false)),
-						"true_var":  new(any(true)),
+						falseVar: new(any(false)),
+						trueVar:  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -187,7 +202,7 @@ test-flag:
 		},
 		{
 			name:       "JSON invalid file",
-			flagFormat: "json",
+			flagFormat: json2,
 			args: args{
 				loadedFlags: []byte(`{
   "test-flag": {
@@ -215,24 +230,24 @@ test-flag:
 			args: args{
 				loadedFlags: tomlFile,
 			},
-			flagFormat: "toml",
+			flagFormat: toml2,
 			expected: map[string]flag.InternalFlag{
-				"test-flag": {
+				testFlag: {
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 0,
-								"true_var":  100,
+								falseVar: 0,
+								trueVar:  100,
 							},
 						},
 					},
 					Variations: &map[string]*any{
-						"false_var": new(any(false)),
-						"true_var":  new(any(true)),
+						falseVar: new(any(false)),
+						trueVar:  new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -255,7 +270,7 @@ percentage = "toto
 variation = "false_var"
 `),
 			},
-			flagFormat: "toml",
+			flagFormat: toml2,
 			wantErr:    true,
 		},
 		{
@@ -263,7 +278,7 @@ variation = "false_var"
 			args: args{
 				loadedFlags: []byte("a = " + strings.Repeat("{b=", 20000) + "1" + strings.Repeat("}", 20000)),
 			},
-			flagFormat: "toml",
+			flagFormat: toml2,
 			wantErr:    true,
 		},
 	}
@@ -284,12 +299,12 @@ variation = "false_var"
 
 			err = fCache.UpdateCache(newFlags, nil, true)
 			if tt.wantErr {
-				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+				assert.Error(t, err, updateCacheErrorVWantErr, err, tt.wantErr)
 
 				return
 			}
 
-			require.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+			require.NoError(t, err, updateCacheErrorVWantErr, err, tt.wantErr)
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
 				got, _ := fCache.GetFlag(key)
@@ -335,27 +350,27 @@ test-flag:
 	}{
 		{
 			name:       "Yaml valid",
-			flagFormat: "yaml",
+			flagFormat: yaml2,
 			args: args{
 				loadedFlags: yamlFile,
 			},
 			expected: map[string]flag.InternalFlag{
-				"test-flag": {
+				testFlag: {
 					Variations: &map[string]*any{
-						"false_var": new(any(false)),
-						"true_var":  new(any(true)),
+						falseVar: new(any(false)),
+						trueVar:  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 0,
-								"true_var":  100,
+								falseVar: 0,
+								trueVar:  100,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -364,7 +379,7 @@ test-flag:
 		},
 		{
 			name:       "Yaml multiple flags",
-			flagFormat: "yaml",
+			flagFormat: yaml2,
 			args: args{
 				loadedFlags: []byte(`
 test-flag:
@@ -395,41 +410,41 @@ test-flag2:
 `),
 			},
 			expected: map[string]flag.InternalFlag{
-				"test-flag": {
+				testFlag: {
 					Variations: &map[string]*any{
-						"false_var": new(any(false)),
-						"true_var":  new(any(true)),
+						falseVar: new(any(false)),
+						trueVar:  new(any(true)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 0,
-								"true_var":  100,
+								falseVar: 0,
+								trueVar:  100,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
 				"test-flag2": {
 					Variations: &map[string]*any{
-						"false_var": new(any("false")),
-						"true_var":  new(any("true")),
+						falseVar: new(any(fixtureFalse2)),
+						trueVar:  new(any(fixtureTrue2)),
 					},
 					Rules: &[]flag.Rule{
 						{
-							Query: new("key eq \"random-key\""),
+							Query: new(keyEqRandomKey),
 							Percentages: &map[string]float64{
-								"false_var": 100,
-								"true_var":  0,
+								falseVar: 100,
+								trueVar:  0,
 							},
 						},
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false_var"),
+						VariationResult: new(falseVar),
 					},
 					TrackEvents: new(false),
 				},
@@ -438,7 +453,7 @@ test-flag2:
 		},
 		{
 			name:       "empty",
-			flagFormat: "yaml",
+			flagFormat: yaml2,
 			args: args{
 				loadedFlags: []byte(``),
 			},
@@ -465,7 +480,7 @@ test-flag2:
 
 			allFlags, err := fCache.AllFlags()
 			if tt.wantErr {
-				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
+				assert.Error(t, err, updateCacheErrorVWantErr, err, tt.wantErr)
 
 				return
 			}
@@ -506,7 +521,7 @@ func Test_cacheManagerImpl_GetLatestUpdateDate(t *testing.T) {
 
 	fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	timeBefore := fCache.GetLatestUpdateDate()
-	newFlags, _ := cache.ConvertToFlagStruct(loadedFlags, "yaml")
+	newFlags, _ := cache.ConvertToFlagStruct(loadedFlags, yaml2)
 	_ = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
 	timeAfter := fCache.GetLatestUpdateDate()
 
@@ -584,79 +599,79 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 		{
 			name: "Update existing flags",
 			initialFlags: map[string]dto.DTO{
-				"flag1": {
+				flag13: {
 					Variations: &map[string]*any{},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("true"),
+						VariationResult: new(fixtureTrue2),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
-				"flag1": {
+				flag13: {
 					Variations: &map[string]*any{
-						"true": new(any(true)),
+						fixtureTrue2: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("true"),
+						VariationResult: new(fixtureTrue2),
 					},
 				},
-				"flag2": {
+				flag22: {
 					Variations: &map[string]*any{
-						"false": new(any(false)),
+						fixtureFalse2: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false"),
+						VariationResult: new(fixtureFalse2),
 					},
 				},
 			},
-			wantFlags: []string{"flag1", "flag2"},
+			wantFlags: []string{flag13, flag22},
 		},
 		{
 			name:         "Empty initial flags",
 			initialFlags: map[string]dto.DTO{},
 			updatedFlags: map[string]dto.DTO{
-				"flag1": {
+				flag13: {
 					Variations: &map[string]*any{
-						"true": new(any(true)),
+						fixtureTrue2: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("true"),
+						VariationResult: new(fixtureTrue2),
 					},
 				},
 			},
-			wantFlags: []string{"flag1"},
+			wantFlags: []string{flag13},
 		},
 		{
 			name: "Remove a flag",
 			initialFlags: map[string]dto.DTO{
-				"flag1": {
+				flag13: {
 					Variations: &map[string]*any{
-						"true": new(any(true)),
+						fixtureTrue2: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("true"),
+						VariationResult: new(fixtureTrue2),
 					},
 				},
-				"flag2": {
+				flag22: {
 					Variations: &map[string]*any{
-						"false": new(any(false)),
+						fixtureFalse2: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("false"),
+						VariationResult: new(fixtureFalse2),
 					},
 				},
 			},
 			updatedFlags: map[string]dto.DTO{
-				"flag1": {
+				flag13: {
 					Variations: &map[string]*any{
-						"true": new(any(true)),
+						fixtureTrue2: new(any(true)),
 					},
 					DefaultRule: &flag.Rule{
-						VariationResult: new("true"),
+						VariationResult: new(fixtureTrue2),
 					},
 				},
 			},
-			wantFlags: []string{"flag1"},
+			wantFlags: []string{flag13},
 		},
 	}
 

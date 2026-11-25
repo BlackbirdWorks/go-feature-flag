@@ -11,6 +11,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	myKey   = "my-key"
+	testKey = "test-key"
+	var12   = "var1"
+	var22   = "var2"
+)
+
 func TestFromFlagEvaluation(t *testing.T) {
 	t.Parallel()
 
@@ -26,7 +33,7 @@ func TestFromFlagEvaluation(t *testing.T) {
 	}{
 		{
 			name:          "Flag is disabled",
-			key:           "test-key",
+			key:           testKey,
 			evaluationCtx: ffcontext.NewEvaluationContext("user-key"),
 			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
@@ -44,19 +51,19 @@ func TestFromFlagEvaluation(t *testing.T) {
 		},
 		{
 			name:          "Flag evaluation error",
-			key:           "test-key",
+			key:           testKey,
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
 			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(1)),
-					"var2": new(any(2)),
+					var12: new(any(1)),
+					var22: new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"var1": 50,
-						"var2": 50,
+						var12: 50,
+						var22: 50,
 					},
 				},
 			},
@@ -72,22 +79,22 @@ func TestFromFlagEvaluation(t *testing.T) {
 		},
 		{
 			name:          "Flag evaluation valid type",
-			key:           "test-key",
-			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
+			key:           testKey,
+			evaluationCtx: ffcontext.NewEvaluationContext(myKey),
 			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(1)),
-					"var2": new(any(2)),
+					var12: new(any(1)),
+					var22: new(any(2)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("var1"),
+					VariationResult: new(var12),
 				},
 			},
 			expected: flagstate.FlagState{
 				Value:         1,
-				VariationType: "var1",
+				VariationType: var12,
 				Timestamp:     evaluatedAt.Unix(),
 				TrackEvents:   true,
 				Failed:        false,
@@ -97,21 +104,21 @@ func TestFromFlagEvaluation(t *testing.T) {
 		},
 		{
 			name:          "Flag evaluation invalid type",
-			key:           "test-key",
-			evaluationCtx: ffcontext.NewEvaluationContext("my-key"),
+			key:           testKey,
+			evaluationCtx: ffcontext.NewEvaluationContext(myKey),
 			flagCtx:       flag.Context{Service: flag.NewService()},
 			currentFlag: &flag.InternalFlag{
 				Disable: new(false),
 				Variations: &map[string]*any{
-					"var1": new(any(
+					var12: new(any(
 						map[bool]*any{true: new(any(1))},
 					)),
-					"var2": new(any(
+					var22: new(any(
 						map[bool]*any{true: new(any(2))},
 					)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("var1"),
+					VariationResult: new(var12),
 				},
 			},
 			expected: flagstate.FlagState{

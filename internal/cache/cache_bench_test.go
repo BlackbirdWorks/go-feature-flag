@@ -16,6 +16,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	flag5 = "flag-5"
+)
+
 func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 	b.Helper()
 
@@ -55,7 +59,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ResetTimer()
 
 			for range b.N {
-				_, err := cacheMgr.GetFlag("flag-5")
+				_, err := cacheMgr.GetFlag(flag5)
 				if err != nil {
 					require.NoError(b, err)
 				}
@@ -69,7 +73,7 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					_, err := cacheMgr.GetFlag("flag-5")
+					_, err := cacheMgr.GetFlag(flag5)
 					if err != nil {
 						assert.NoError(b, err)
 
@@ -99,7 +103,7 @@ func BenchmarkGetFlag(b *testing.B) {
 				for pb.Next() {
 					var err error
 
-					cachedFlag, err = cacheMgr.GetFlag("flag-5")
+					cachedFlag, err = cacheMgr.GetFlag(flag5)
 					if err != nil {
 						assert.NoError(b, err)
 
