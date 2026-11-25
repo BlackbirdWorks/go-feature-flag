@@ -57,10 +57,13 @@ const (
 
 // tokenResponse builds a JSON access_tokens API response.
 func tokenResponse(token string, expiresAt time.Time) []byte {
-	b, _ := json.Marshal(map[string]string{
+	b, err := json.Marshal(map[string]string{
 		"token":      token,
 		"expires_at": expiresAt.Format(time.RFC3339),
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	return b
 }

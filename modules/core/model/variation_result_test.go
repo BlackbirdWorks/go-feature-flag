@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -193,6 +194,43 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			require.NoError(t, err, "Expected JSON should be valid")
 
 			assert.Equal(t, wantJSON, gotJSON, "JSON should match expected")
+		})
+	}
+}
+
+func TestVariationResultToJSONStr_MarshalError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		toJSON   func() string
+		wantJSON string
+	}{
+		{
+			name: "unmarshalable metadata",
+			toJSON: func() string {
+				return model.VariationResult[bool]{
+					Metadata: map[string]any{"bad": math.NaN()},
+				}.ToJSONStr()
+			},
+			wantJSON: "",
+		},
+		{
+			name: "unmarshalable float value",
+			toJSON: func() string {
+				return model.VariationResult[float64]{
+					Value: math.Inf(1),
+				}.ToJSONStr()
+			},
+			wantJSON: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.wantJSON, tt.toJSON())
 		})
 	}
 }

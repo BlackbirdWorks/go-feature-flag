@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -16,6 +15,8 @@ import (
 const (
 	// jwtLifetime is how long a GitHub App JWT is valid (GitHub allows 10 minutes at most).
 	jwtLifetime = 9 * time.Minute
+	// jwtHeader is the static RS256 JWT header JSON.
+	jwtHeader = `{"alg":"RS256","typ":"JWT"}`
 )
 
 // signAppJWT creates a minimal RS256 JWT for GitHub App authentication using
@@ -28,16 +29,14 @@ const (
 func signAppJWT(appID int64, key *rsa.PrivateKey) (string, error) {
 	now := clock.Now()
 
-	// json.Marshal on map[string]string and map[string]int64 cannot fail;
-	// errors are intentionally ignored.
-	headerJSON, _ := json.Marshal(map[string]string{"alg": "RS256", "typ": "JWT"})
-	claimsJSON, _ := json.Marshal(map[string]int64{
-		"iss": appID,
-		"iat": now.Add(-60 * time.Second).Unix(),
-		"exp": now.Add(jwtLifetime).Unix(),
-	})
+	claimsJSON := fmt.Sprintf(
+		`{"exp":%d,"iat":%d,"iss":%d}`,
+		now.Add(jwtLifetime).Unix(),
+		now.Add(-60*time.Second).Unix(),
+		appID,
+	)
 
-	signingInput := jwtBase64(headerJSON) + "." + jwtBase64(claimsJSON)
+	signingInput := jwtBase64([]byte(jwtHeader)) + "." + jwtBase64([]byte(claimsJSON))
 
 	digest := sha256.Sum256([]byte(signingInput))
 	// GitHub App JWTs require RS256 (PKCS#1 v1.5 + SHA-256); PSS/PS256 is not accepted by GitHub.

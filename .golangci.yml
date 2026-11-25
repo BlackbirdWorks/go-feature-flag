@@ -98,6 +98,7 @@ linters:
     - dupl # tool for code clone detection
     - durationcheck # checks for two durations multiplied together
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
+    - errchkjson # checks types passed to json encoding functions and error checks
     - errname # checks that sentinel errors are prefixed with the Err and error types are suffixed with the Error
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
     - exhaustive # checks exhaustiveness of enum switch statements
@@ -196,7 +197,6 @@ linters:
   disable:
     - containedctx # Config.Context and the shared S3 items hold a context on purpose (public API); 8 findings
     - contextcheck # false positives on callbacks and constructors; 43 findings
-    - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
     - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen
