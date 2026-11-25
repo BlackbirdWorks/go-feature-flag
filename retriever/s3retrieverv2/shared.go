@@ -432,7 +432,8 @@ func (g *SharedItems) register(r *SharedItemRetriever) {
 	}
 
 	g.items[r] = struct{}{}
-	if g.keyRefs[r.item]++; g.keyRefs[r.item] == 1 {
+	g.keyRefs[r.item]++
+	if g.keyRefs[r.item] == 1 {
 		// a listing started before this registration may not know the key: force a refresh
 		g.seq++
 		g.keySeq[r.item] = g.seq
@@ -477,7 +478,8 @@ func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
 		}
 	}
 
-	if g.keyRefs[r.item]--; g.keyRefs[r.item] <= 0 {
+	g.keyRefs[r.item]--
+	if g.keyRefs[r.item] <= 0 {
 		delete(g.keyRefs, r.item)
 		delete(g.contents, r.item)
 		delete(g.keySeq, r.item)

@@ -431,7 +431,7 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 }
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
-func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
+func (r *Retriever) checkResponseError(resp *http.Response, rawURL string) error {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
@@ -443,7 +443,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 		}
 
 		return fmt.Errorf("%w %s failed with code %d. GitHub Headers: %v",
-			errRequestTo, url, resp.StatusCode, ghHeaders)
+			errRequestTo, rawURL, resp.StatusCode, ghHeaders)
 	}
 
 	return nil
