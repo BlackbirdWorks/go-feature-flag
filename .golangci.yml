@@ -194,11 +194,9 @@ linters:
     - containedctx # Config.Context and the shared S3 items hold a context on purpose (public API); 8 findings
     - contextcheck # false positives on callbacks and constructors; 43 findings
     - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
-    - exhaustruct # deprecated alias of exhaustruct_v5
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
     - forcetypeassert # replaced by errcheck check-type-assertions
     - funcorder # constructors next to their type is the project layout; 10 findings
-    - gomodguard # deprecated, replaced by gomodguard_v2 and depguard
     - gosmopolitan # the tests use Han strings and time.Local on purpose (unicode and local time behaviour)
     - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen
@@ -207,7 +205,6 @@ linters:
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
     - varnamelen # too many false positives (short loop and receiver names)
     - wrapcheck # errors are wrapped where the context adds something
-    - wsl # deprecated, replaced by wsl_v5
     - wsl_v5 # too strict, mostly not more readable
 
   settings:
@@ -334,38 +331,38 @@ linters:
       # Default: false
       default-signifies-exhaustive: true
 
-    exhaustruct:
-      # List of regular expressions to match type names that should be excluded from processing.
+    exhaustruct_v5:
+      # List of regular expressions to match type names that should be skipped from checking.
       # Anonymous structs can be matched by '<anonymous>' alias.
-      # Has precedence over `include`.
+      # Has precedence over `enforce-patterns`.
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
       # Default: []
-      exclude:
+      ignore-patterns:
         # std libs
-        - ^net/http.Client$
-        - ^net/http.Cookie$
-        - ^net/http.Request$
-        - ^net/http.Response$
-        - ^net/http.Server$
-        - ^net/http.Transport$
-        - ^net/url.URL$
-        - ^os/exec.Cmd$
-        - ^reflect.StructField$
+        - ^net/http\.Client$
+        - ^net/http\.Cookie$
+        - ^net/http\.Request$
+        - ^net/http\.Response$
+        - ^net/http\.Server$
+        - ^net/http\.Transport$
+        - ^net/url\.URL$
+        - ^os/exec\.Cmd$
+        - ^reflect\.StructField$
         # public libs
-        - ^github.com/Shopify/sarama.Config$
-        - ^github.com/Shopify/sarama.ProducerMessage$
-        - ^github.com/mitchellh/mapstructure.DecoderConfig$
-        - ^github.com/prometheus/client_golang/.+Opts$
-        - ^github.com/spf13/cobra.Command$
-        - ^github.com/spf13/cobra.CompletionOptions$
-        - ^github.com/stretchr/testify/mock.Mock$
-        - ^github.com/testcontainers/testcontainers-go.+Request$
-        - ^github.com/testcontainers/testcontainers-go.FromDockerfile$
-        - ^golang.org/x/tools/go/analysis.Analyzer$
-        - ^google.golang.org/protobuf/.+Options$
-        - ^gopkg.in/yaml.v3.Node$
+        - ^github\.com/Shopify/sarama\.Config$
+        - ^github\.com/Shopify/sarama\.ProducerMessage$
+        - ^github\.com/mitchellh/mapstructure\.DecoderConfig$
+        - ^github\.com/prometheus/client_golang/.+Opts$
+        - ^github\.com/spf13/cobra\.Command$
+        - ^github\.com/spf13/cobra\.CompletionOptions$
+        - ^github\.com/stretchr/testify/mock\.Mock$
+        - ^github\.com/testcontainers/testcontainers-go.+Request$
+        - ^github\.com/testcontainers/testcontainers-go\.FromDockerfile$
+        - ^golang\.org/x/tools/go/analysis\.Analyzer$
+        - ^google\.golang\.org/protobuf/.+Options$
+        - ^gopkg\.in/yaml\.v3\.Node$
       # Allows empty structures in return statements.
       # Default: false
       allow-empty-returns: true
