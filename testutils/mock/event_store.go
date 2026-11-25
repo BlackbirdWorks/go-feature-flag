@@ -17,6 +17,7 @@ type implMockEventStore[T exporter.ExportableEvent] struct {
 	store []T
 }
 
+// NewEventStore returns an in-memory event store for tests.
 func NewEventStore[T exporter.ExportableEvent]() exporter.EventStore[T] {
 	store := &implMockEventStore[T]{}
 

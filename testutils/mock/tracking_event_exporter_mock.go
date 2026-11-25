@@ -12,6 +12,7 @@ import (
 
 var errUnexpectedTrackingEvent = errors.New("unexpected event type")
 
+// TrackingEventExporter is a mock exporter that records the tracking events it receives.
 type TrackingEventExporter struct {
 	Err               error
 	ExportedEvents    []exporter.TrackingEvent
@@ -22,6 +23,7 @@ type TrackingEventExporter struct {
 	Bulk              bool
 }
 
+// Export records the tracking events it receives.
 func (m *TrackingEventExporter) Export(
 	_ context.Context,
 	_ *fflog.FFLogger,
@@ -59,6 +61,7 @@ func (m *TrackingEventExporter) Export(
 	return nil
 }
 
+// GetExportedEvents returns the tracking events recorded by the mock exporter.
 func (m *TrackingEventExporter) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
@@ -72,6 +75,7 @@ func (m *TrackingEventExporter) GetExportedEvents() []exporter.ExportableEvent {
 	return trackingEvents
 }
 
+// IsBulk reports whether the mock exporter sends events in bulk.
 func (m *TrackingEventExporter) IsBulk() bool {
 	return m.Bulk
 }

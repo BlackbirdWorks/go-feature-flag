@@ -16,6 +16,7 @@ type FileInitializableRetriever struct {
 	CurrentStatus retriever.Status
 }
 
+// NewFileInitializableRetriever returns a mock retriever that reads the flags from the file at path.
 func NewFileInitializableRetriever(path string, status retriever.Status) *FileInitializableRetriever {
 	return &FileInitializableRetriever{
 		Path:          path,
@@ -33,6 +34,7 @@ func (r *FileInitializableRetriever) Retrieve(_ context.Context) ([]byte, error)
 	return content, nil
 }
 
+// Init initializes the mock retriever.
 func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	yamlString := `flag-xxxx-123:
   variations:
@@ -51,6 +53,7 @@ func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) 
 	return nil
 }
 
+// Shutdown stops the mock retriever.
 func (r *FileInitializableRetriever) Shutdown(_ context.Context) error {
 	err := os.Remove(r.Path)
 	if err != nil {
@@ -60,6 +63,7 @@ func (r *FileInitializableRetriever) Shutdown(_ context.Context) error {
 	return nil
 }
 
+// Status returns the current status of the mock retriever.
 func (r *FileInitializableRetriever) Status() retriever.Status {
 	return r.CurrentStatus
 }

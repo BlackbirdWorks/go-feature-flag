@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// CopyFileToNewTempFile copies the file src into a new temporary file and returns it.
 func CopyFileToNewTempFile(t *testing.T, src string) *os.File {
 	t.Helper()
 
@@ -34,6 +35,7 @@ func CopyFileToNewTempFile(t *testing.T, src string) *os.File {
 	return file
 }
 
+// CopyContentToNewTempFile writes content into a new temporary file and returns it.
 func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 	t.Helper()
 	dir := t.TempDir()
@@ -51,6 +53,7 @@ func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 	return file
 }
 
+// CopyContentToExistingTempFile writes content into file and returns it.
 func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) *os.File {
 	t.Helper()
 
@@ -62,6 +65,7 @@ func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) 
 	return file
 }
 
+// CopyFileToExistingTempFile copies the file src into file and returns it.
 func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.File {
 	t.Helper()
 
@@ -76,6 +80,7 @@ func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.Fil
 	return CopyContentToExistingTempFile(t, string(srcContent), file)
 }
 
+// ReplaceInFile replaces the text old with newStr in file.
 func ReplaceInFile(t *testing.T, file *os.File, old, newStr string) {
 	t.Helper()
 
@@ -88,6 +93,7 @@ func ReplaceInFile(t *testing.T, file *os.File, old, newStr string) {
 	syncFile(t, file.Name())
 }
 
+// ReplaceAndCopyFileToExistingFile copies src into dstFile, replacing old with newStr, and returns dstFile.
 func ReplaceAndCopyFileToExistingFile(t *testing.T, src string, dstFile *os.File, old, newStr string) *os.File {
 	t.Helper()
 

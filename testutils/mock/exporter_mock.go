@@ -9,10 +9,13 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+// ExporterMock is the interface implemented by the exporter mocks.
 type ExporterMock interface {
 	exporter.CommonExporter
 	GetExportedEvents() []exporter.ExportableEvent
 }
+
+// Exporter is a mock exporter that records the events it exports.
 type Exporter struct {
 	Err               error
 	ExportedEvents    []exporter.ExportableEvent
@@ -23,6 +26,7 @@ type Exporter struct {
 	Bulk              bool
 }
 
+// Export records the events and returns the configured error.
 func (m *Exporter) Export(
 	_ context.Context,
 	_ *fflog.FFLogger,
@@ -44,6 +48,7 @@ func (m *Exporter) Export(
 	return nil
 }
 
+// GetExportedEvents returns the events recorded by the mock exporter.
 func (m *Exporter) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
@@ -52,6 +57,7 @@ func (m *Exporter) GetExportedEvents() []exporter.ExportableEvent {
 	return m.ExportedEvents
 }
 
+// IsBulk reports whether the mock exporter sends events in bulk.
 func (m *Exporter) IsBulk() bool {
 	return m.Bulk
 }
@@ -71,6 +77,7 @@ type ExporterDeprecated struct {
 	Bulk              bool
 }
 
+// Export records the events and returns the configured error.
 func (m *ExporterDeprecated) Export(
 	_ context.Context,
 	_ *log.Logger,
@@ -92,6 +99,7 @@ func (m *ExporterDeprecated) Export(
 	return nil
 }
 
+// GetExportedEvents returns the events recorded by the deprecated mock exporter.
 func (m *ExporterDeprecated) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
@@ -105,6 +113,7 @@ func (m *ExporterDeprecated) GetExportedEvents() []exporter.ExportableEvent {
 	return exportableEvents
 }
 
+// IsBulk reports whether the deprecated mock exporter sends events in bulk.
 func (m *ExporterDeprecated) IsBulk() bool {
 	return m.Bulk
 }
@@ -124,6 +133,7 @@ type ExporterDeprecatedV2 struct {
 	Bulk              bool
 }
 
+// Export records the events and returns the configured error.
 func (m *ExporterDeprecatedV2) Export(
 	_ context.Context,
 	_ *fflog.FFLogger,
@@ -145,6 +155,7 @@ func (m *ExporterDeprecatedV2) Export(
 	return nil
 }
 
+// GetExportedEvents returns the events recorded by the deprecated V2 mock exporter.
 func (m *ExporterDeprecatedV2) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
@@ -158,6 +169,7 @@ func (m *ExporterDeprecatedV2) GetExportedEvents() []exporter.ExportableEvent {
 	return exportableEvents
 }
 
+// IsBulk reports whether the deprecated V2 mock exporter sends events in bulk.
 func (m *ExporterDeprecatedV2) IsBulk() bool {
 	return m.Bulk
 }

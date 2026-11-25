@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+// MessageOnlyHandler is a slog handler that writes only the message of each record.
 type MessageOnlyHandler struct {
 	Writer *os.File
 }

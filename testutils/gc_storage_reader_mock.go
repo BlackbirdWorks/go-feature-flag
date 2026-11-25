@@ -11,6 +11,7 @@ var (
 	errFailedToReadFrom = errors.New("failed to read from GCP")
 )
 
+// GCStorageReaderMock is a mock of a Google Cloud Storage object reader.
 type GCStorageReaderMock struct {
 	FileToRead string
 	data       []byte

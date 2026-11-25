@@ -16,6 +16,7 @@ var (
 	errHTTPError = errors.New("http error")
 )
 
+// HTTP is a mock HTTP client used in tests.
 type HTTP struct {
 	Req           http.Request
 	EndRatelimit  time.Time
@@ -23,6 +24,7 @@ type HTTP struct {
 	HasBeenCalled bool
 }
 
+// Do returns the mocked response for the request.
 func (m *HTTP) Do(req *http.Request) (*http.Response, error) {
 	m.HasBeenCalled = true
 	m.Req = *req

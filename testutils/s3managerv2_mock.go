@@ -17,11 +17,13 @@ var (
 	errNoFile                  = errors.New("no file")
 )
 
+// S3ManagerV2Mock is a mock of the S3 transfer manager that works on an in-memory file system.
 type S3ManagerV2Mock struct {
 	S3ManagerMockFileSystem map[string]string
 	TestDataLocation        string
 }
 
+// UploadObject stores the uploaded content in the mock file system.
 func (s *S3ManagerV2Mock) UploadObject(
 	ctx context.Context,
 	uploadInput *transfermanager.UploadObjectInput,
@@ -53,6 +55,7 @@ func (s *S3ManagerV2Mock) UploadObject(
 	}, nil
 }
 
+// DownloadObject reads the object from the mock file system.
 func (s *S3ManagerV2Mock) DownloadObject(
 	ctx context.Context,
 	input *transfermanager.DownloadObjectInput,
