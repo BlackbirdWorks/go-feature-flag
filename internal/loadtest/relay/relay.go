@@ -265,7 +265,7 @@ func waitHealthy(baseURL string) error {
 	for {
 		var resp *http.Response
 
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", http.NoBody)
 		if err == nil {
 			resp, err = client.Do(req)
 		}

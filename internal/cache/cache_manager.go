@@ -230,7 +230,7 @@ func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 			return
 		}
 
-		err = os.WriteFile(c.persistentFlagConfigurationFile, data, 0600)
+		err = os.WriteFile(c.persistentFlagConfigurationFile, data, 0o600)
 		if err != nil {
 			c.logger.Error("Error while writing flags to file", slog.Any("error", err.Error()))
 
