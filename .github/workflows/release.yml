@@ -242,7 +242,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-    uses: ./.github/workflows/docs.yml
+    uses: $/.github/workflows/docs.yml
     with:
       ref: refs/tags/${{ needs.plan.outputs.tag }}
       version: ${{ needs.plan.outputs.tag }}

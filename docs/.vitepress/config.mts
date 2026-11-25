@@ -95,9 +95,17 @@ export default withMermaid({
             }
           }
         }
-        return defaultLinkOpen
+        const rendered = defaultLinkOpen
           ? defaultLinkOpen(tokens, idx, options, env, self)
           : self.renderToken(tokens, idx, options);
+
+        // VitePress resolves relative README.md links against the source filename, emitting
+        // .../README instead of .../ (from our README.md -> index.md rewrite). Normalize the
+        // emitted relative href so every in-site README link hits the published directory index.
+        return rendered.replace(
+          /href="((?!https?:\/\/)[^"#]*\/)?README(?:\.md)?(#[^"]*)?"/g,
+          (_m, prefix = '', anchor = '') => `href="${prefix || './'}${anchor}"`,
+        );
       };
     },
   },
