@@ -61,8 +61,8 @@ const errorKey = "error"
 // pooled, everything is copied during the call. The error of the request ([RecordError]) is not read from the
 // record: the logger the function receives is the one of the request logger, which adds the attributes of the request
 // (the error among them) to the line.
-func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
-	return func(ctx context.Context, l *slog.Logger, r *accesslog.Record) {
+func AccessLog() func(ctx context.Context, logger *slog.Logger, r *accesslog.Record) {
+	return func(ctx context.Context, logger *slog.Logger, r *accesslog.Record) {
 		rec := RequestRecord{
 			RemoteIP:  remoteIP(r.RemoteAddr),
 			Latency:   r.Duration,
@@ -74,7 +74,7 @@ func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) 
 			Status:    r.Status,
 			Size:      r.Size,
 		}
-		LogRequest(ctx, l, &rec)
+		LogRequest(ctx, logger, &rec)
 	}
 }
 
@@ -110,6 +110,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		level slog.Level
 		msg   string
 	)
+
 	switch n := r.Status; {
 	case n >= http.StatusInternalServerError:
 		level, msg = slog.LevelError, "Server error"
@@ -120,6 +121,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 	default:
 		level, msg = slog.LevelDebug, "Success"
 	}
+
 	if !logger.Enabled(ctx, level) {
 		return
 	}
@@ -132,6 +134,7 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 			slog.String("span_id", sc.SpanID().String()),
 		)
 	}
+
 	logger.LogAttrs(ctx, level, msg,
 		cmdlog.Err(r.Err),
 		slog.String("remote_ip", r.RemoteIP),
@@ -152,10 +155,13 @@ func redactAPIKey(uri string) string {
 	if !found {
 		return uri
 	}
+
 	params := strings.Split(query, "&")
 	for i, p := range params {
 		key, _, _ := strings.Cut(p, "=")
-		if k, err := url.QueryUnescape(key); err == nil && k == "apiKey" {
+
+		k, err := url.QueryUnescape(key)
+		if err == nil && k == "apiKey" {
 			params[i] = key + "=REDACTED"
 		}
 	}

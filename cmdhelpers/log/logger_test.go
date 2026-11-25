@@ -63,6 +63,7 @@ func goldenRecords() []struct {
 			slog.Any("list", []string{"a", "b c"}), slog.Any("bytes", []byte("raw body")),
 		}},
 		{msg: "special chars", level: slog.LevelInfo, attrs: []slog.Attr{
+			//nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 			slog.String("s", "quote\" back\\ nl\n tab\t unicode é 日本"), slog.String("empty", ""),
 			slog.String("space", "a b"), slog.String("eq", "a=b"),
 		}},
@@ -125,31 +126,37 @@ func TestGolden(t *testing.T) {
 
 			golden, err := os.ReadFile(tt.file)
 			require.NoError(t, err)
+
 			wantLines := strings.Split(strings.TrimSuffix(normalize(string(golden)), "\n"), "\n")
 
 			var out bytes.Buffer
+
 			logger, err := log.New(tt.format, "debug", log.WithWriter(&out))
 			require.NoError(t, err)
 
 			records := goldenRecords()
 			require.Len(t, wantLines, len(records))
+
 			for _, rec := range records {
-				h := logger.Slog.Handler()
+				handler := logger.Slog.Handler()
 				if len(rec.with) > 0 {
-					h = h.WithAttrs(rec.with)
+					handler = handler.WithAttrs(rec.with)
 				}
+
 				r := slog.NewRecord(goldenTime(), rec.level, rec.msg, callerPC(t))
 				r.AddAttrs(rec.attrs...)
-				require.NoError(t, h.Handle(context.Background(), r))
+				require.NoError(t, handler.Handle(context.Background(), r))
 			}
 
 			gotLines := strings.Split(strings.TrimSuffix(normalize(out.String()), "\n"), "\n")
 			require.Len(t, gotLines, len(wantLines))
+
 			for i := range wantLines {
 				want := wantLines[i]
 				if d, ok := tt.wantDifferent[i]; ok {
 					want = d
 				}
+
 				assert.Equal(t, want, gotLines[i], "record %d", i)
 			}
 		})
@@ -159,6 +166,7 @@ func TestGolden(t *testing.T) {
 // callerPC returns the program counter of the caller of the test helper.
 func callerPC(t *testing.T) uintptr {
 	t.Helper()
+
 	var pcs [1]uintptr
 	require.Equal(t, 1, runtime.Callers(2, pcs[:]))
 
@@ -180,7 +188,8 @@ func here() int {
 // logHere is small enough to be inlined into its caller: the caller field must still be the line of the record.
 // It returns the line of the record it logged.
 func logHere(l *slog.Logger) int {
-	line := here() + 1
+	line := here() + 2 // skip the blank line before LogAttrs
+
 	l.LogAttrs(context.Background(), slog.LevelInfo, "inlined")
 
 	return line
@@ -202,10 +211,12 @@ func TestCallerField(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New(tt.format, "info", log.WithWriter(&out))
 			require.NoError(t, err)
 
-			directLine := here() + 1
+			directLine := here() + 2 // skip the blank line before LogAttrs
+
 			logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "direct")
 			inlinedLine := logHere(logger.Slog)
 
@@ -246,12 +257,14 @@ func TestLevels(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New("json", tt.level, log.WithWriter(&out))
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			ctx := context.Background()
@@ -260,12 +273,15 @@ func TestLevels(t *testing.T) {
 			}
 
 			var shown []string
+
 			for line := range strings.SplitSeq(strings.TrimSpace(out.String()), "\n") {
 				if line == "" {
 					continue
 				}
+
 				shown = append(shown, regexp.MustCompile(`"level":"(\w+)"`).FindStringSubmatch(line)[1])
 			}
+
 			assert.Equal(t, tt.wantShown, shown)
 		})
 	}
@@ -301,6 +317,7 @@ func TestUpdate(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New("json", "info", log.WithWriter(&out))
 			require.NoError(t, err)
 			// a logger derived before the update follows it.
@@ -319,6 +336,7 @@ func TestUpdate(t *testing.T) {
 			derived.LogAttrs(ctx, slog.LevelWarn, "danger")
 
 			assert.Contains(t, out.String(), tt.wantOut)
+
 			if tt.wantAbsent != "" {
 				assert.NotContains(t, out.String(), tt.wantAbsent)
 			}
@@ -359,6 +377,7 @@ func TestWithGroupAndGroupAttrs(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New(tt.format, "info", log.WithWriter(&out))
 			require.NoError(t, err)
 
@@ -398,6 +417,7 @@ func TestValueKinds(t *testing.T) {
 
 			for format, want := range map[string]string{"json": tt.wantJSON, "logfmt": tt.wantLogf} {
 				var out bytes.Buffer
+
 				logger, err := log.New(format, "info", log.WithWriter(&out))
 				require.NoError(t, err)
 
@@ -429,6 +449,7 @@ func TestNoCallerWithoutPC(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer
+
 	logger, err := log.New("json", "info", log.WithWriter(&out))
 	require.NoError(t, err)
 
@@ -445,18 +466,20 @@ type syncWriter struct {
 	lines int
 }
 
-func (w *syncWriter) Write(p []byte) (int, error) {
+func (w *syncWriter) Write(data []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.lines += bytes.Count(p, []byte("\n"))
 
-	return len(p), nil
+	w.lines += bytes.Count(data, []byte("\n"))
+
+	return len(data), nil
 }
 
 func TestConcurrentUse(t *testing.T) {
 	t.Parallel()
 
 	const goroutines, perGoroutine = 8, 200
+
 	w := &syncWriter{}
 	logger, err := log.New("json", "info", log.WithWriter(w))
 	require.NoError(t, err)
@@ -466,16 +489,19 @@ func TestConcurrentUse(t *testing.T) {
 		wg.Go(func() {
 			for i := range perGoroutine {
 				logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "m", slog.Int("i", i))
+
 				if i%50 == 0 {
 					assert.NoError(t, logger.Update("json", "info"))
 				}
 			}
 		})
 	}
+
 	wg.Wait()
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
 	assert.Equal(t, goroutines*perGoroutine, w.lines)
 }
 

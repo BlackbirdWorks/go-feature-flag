@@ -342,6 +342,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
 				assert.Equal(t, tt.expectedReason, resolutionDetails.Reason, tt.description)
+
 				if tt.expectedValue != nil {
 					assert.Equal(t, tt.expectedValue, value, tt.description)
 				}
@@ -438,6 +439,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
 				assert.Equal(t, tt.expectedReason, resolutionDetails.Reason, tt.description)
+
 				if tt.expectedValue != nil {
 					assert.Equal(t, tt.expectedValue, value, tt.description)
 				}

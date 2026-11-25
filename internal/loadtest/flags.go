@@ -89,38 +89,40 @@ func scenarioBody(scenario string) string {
 // FlagsYAML returns a flag configuration (YAML) with one flag per scenario, type and tracking
 // mode. Keys are given by FlagKey.
 func FlagsYAML() string {
-	var sb strings.Builder
+	var builder strings.Builder
+
 	for _, sc := range Scenarios() {
 		for _, typ := range Types() {
 			for _, track := range []bool{true, false} {
-				fmt.Fprintf(&sb, "%s:\n  trackEvents: %t\n  variations:\n%s%s",
+				fmt.Fprintf(&builder, "%s:\n  trackEvents: %t\n  variations:\n%s%s",
 					FlagKey(sc, typ, track), track, variations(typ), scenarioBody(sc))
 			}
 		}
 	}
 
-	return sb.String()
+	return builder.String()
 }
 
 // ManyFlagsYAML returns n simple flags named flag-0 .. flag-(n-1), mixing static, targeting and
 // percentage flags, used for the all-flags benchmarks.
 func ManyFlagsYAML(n int) string {
-	var sb strings.Builder
+	var builder strings.Builder
 	for i := range n {
-		fmt.Fprintf(&sb, "flag-%d:\n  trackEvents: false\n  variations:\n    A: true\n    B: false\n", i)
+		fmt.Fprintf(&builder, "flag-%d:\n  trackEvents: false\n  variations:\n    A: true\n    B: false\n", i)
+
 		switch i % 3 {
 		case 0:
-			sb.WriteString("  defaultRule:\n    variation: A\n")
+			builder.WriteString("  defaultRule:\n    variation: A\n")
 		case 1:
 			fmt.Fprintf(
-				&sb,
+				&builder,
 				"  targeting:\n    - query: key eq \"user-%d\"\n      variation: A\n  defaultRule:\n    variation: B\n",
 				i,
 			)
 		default:
-			sb.WriteString("  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n")
+			builder.WriteString("  defaultRule:\n    percentage:\n      A: 50\n      B: 50\n")
 		}
 	}
 
-	return sb.String()
+	return builder.String()
 }

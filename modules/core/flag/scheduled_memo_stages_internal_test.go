@@ -23,15 +23,21 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 			Rules: &rules,
 		}
 	}
+
 	var steps []ScheduledStep
+
 	if progressive {
-		pr := func(initial, end float64) Rule {
+		progRule := func(initial, end float64) Rule {
 			return rule(Rule{ProgressiveRollout: &ProgressiveRollout{
 				Initial: &ProgressiveRolloutStep{Percentage: new(initial)},
 				End:     &ProgressiveRolloutStep{Percentage: new(end)},
 			}})
 		}
-		steps = []ScheduledStep{step(1, pr(1, 2)), step(2, pr(10, 20)), step(3, pr(30, 40))}
+		steps = []ScheduledStep{
+			step(1, progRule(1, 2)),
+			step(2, progRule(10, 20)),
+			step(3, progRule(30, 40)),
+		}
 	} else {
 		pc := func(a, b float64) Rule {
 			return rule(Rule{Percentages: &map[string]float64{"A": a, "B": b}})
@@ -52,20 +58,23 @@ func stagedRolloutFlag(base time.Time, progressive bool) *InternalFlag {
 // memoized), and the steps themselves must stay as configured.
 func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 	t.Parallel()
+
 	for _, progressive := range []bool{false, true} {
 		name := "percentages"
 		if progressive {
 			name = "progressive rollout"
 		}
+
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			base := clocktest.Instant()
 			svc := NewService()
-			f := stagedRolloutFlag(base, progressive)
+			flg := stagedRolloutFlag(base, progressive)
 			snapshot := stagedRolloutFlag(base, progressive)
 			// stages 2, 3, 2 (also 1 then 3 then 1), on the same loaded flag
 			for _, due := range []int{2, 3, 2, 1, 3, 1, 3, 2} {
-				got, err := f.applyScheduledRolloutSteps(svc, base.Add(time.Duration(due)*time.Hour+time.Minute))
+				got, err := flg.applyScheduledRolloutSteps(svc, base.Add(time.Duration(due)*time.Hour+time.Minute))
 				require.NoError(t, err)
 				want, err := stagedRolloutFlag(
 					base,
@@ -73,6 +82,7 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 				).buildScheduledFlag(base.Add(time.Duration(due)*time.Hour + time.Minute))
 				require.NoError(t, err)
 				require.Len(t, got.GetRules(), 1)
+
 				r, w := got.GetRules()[0], want.GetRules()[0]
 				if progressive {
 					assert.InDelta(t, w.GetProgressiveRollout().Initial.getPercentage(),
@@ -82,7 +92,8 @@ func TestInternalFlag_ScheduledSteps_StagesDoNotShareRules(t *testing.T) {
 				} else {
 					assert.Equal(t, w.GetPercentages(), r.GetPercentages(), "due=%d", due)
 				}
-				assert.Equal(t, *snapshot.Scheduled, *f.Scheduled, "the steps are never modified")
+
+				assert.Equal(t, *snapshot.Scheduled, *flg.Scheduled, "the steps are never modified")
 			}
 		})
 	}

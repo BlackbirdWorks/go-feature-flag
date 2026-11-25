@@ -18,6 +18,7 @@ func Test_ParseTemplate(t *testing.T) {
 		template        string
 		defaultTemplate string
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -57,10 +58,12 @@ func Test_ParseTemplate(t *testing.T) {
 			t.Parallel()
 
 			defaultT, _ := template.New("random-name").Parse(tt.args.defaultTemplate)
+
 			assert.NotPanics(
 				t,
 				func() { exporter.ParseTemplate("random-name", tt.args.template, tt.args.defaultTemplate) },
 			)
+
 			got := exporter.ParseTemplate("random-name", tt.args.template, tt.args.defaultTemplate)
 
 			if tt.wantErr {
@@ -68,6 +71,7 @@ func Test_ParseTemplate(t *testing.T) {
 
 				return
 			}
+
 			assert.NotEqual(t, defaultT, got, "We should not have the same template")
 		})
 	}
@@ -77,10 +81,12 @@ func TestComputeFilename(t *testing.T) {
 	t.Parallel()
 
 	hostname, _ := os.Hostname()
+
 	type args struct {
 		template *template.Template
 		format   string
 	}
+
 	tests := []struct {
 		wantErr assert.ErrorAssertionFunc
 		args    args
@@ -139,6 +145,7 @@ func TestComputeFilename(t *testing.T) {
 			) {
 				return
 			}
+
 			assert.Equalf(
 				t,
 				tt.want,
@@ -158,11 +165,12 @@ func TestFormatEventInCSV(t *testing.T) {
 		csvTemplate *template.Template
 		event       exporter.FeatureEvent
 	}
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+
+	tests := []struct {
+		args    args
 		wantErr assert.ErrorAssertionFunc
 		name    string
 		want    string
-		args    args
 	}{
 		{
 			name: "valid",
@@ -200,6 +208,7 @@ func TestFormatEventInCSV(t *testing.T) {
 			) {
 				return
 			}
+
 			assert.Equalf(
 				t,
 				tt.want,
@@ -218,11 +227,12 @@ func TestFormatEventInJSON(t *testing.T) {
 	type args struct {
 		event exporter.FeatureEvent
 	}
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+
+	tests := []struct {
+		args    args
 		wantErr assert.ErrorAssertionFunc
 		name    string
 		want    string
-		args    args
 	}{
 		{
 			name: "valid",
@@ -251,6 +261,7 @@ func TestFormatEventInJSON(t *testing.T) {
 			if !tt.wantErr(t, err, fmt.Sprintf("FormatInJSON(%v)", tt.args.event)) {
 				return
 			}
+
 			assert.Equalf(t, tt.want, string(got), "FormatInJSON(%v)", tt.args.event)
 		})
 	}

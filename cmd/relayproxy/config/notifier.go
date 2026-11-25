@@ -14,35 +14,40 @@ var (
 )
 
 type NotifierConf struct {
-	Kind NotifierKind `mapstructure:"kind" koanf:"kind"`
+	Kind NotifierKind `koanf:"kind" mapstructure:"kind"`
 	// Deprecated: Use WebhookURL instead
-	SlackWebhookURL string              `mapstructure:"slackWebhookUrl" koanf:"slackwebhookurl"`
-	EndpointURL     string              `mapstructure:"endpointUrl"     koanf:"endpointurl"`
-	Secret          string              `mapstructure:"secret"          koanf:"secret"`
-	Meta            map[string]string   `mapstructure:"meta"            koanf:"meta"`
-	Headers         map[string][]string `mapstructure:"headers"         koanf:"headers"`
-	WebhookURL      string              `mapstructure:"webhookUrl"      koanf:"webhookurl"`
+	SlackWebhookURL string              `koanf:"slackwebhookurl" mapstructure:"slackWebhookUrl"`
+	EndpointURL     string              `koanf:"endpointurl"     mapstructure:"endpointUrl"`
+	Secret          string              `koanf:"secret"          mapstructure:"secret"`
+	Meta            map[string]string   `koanf:"meta"            mapstructure:"meta"`
+	Headers         map[string][]string `koanf:"headers"         mapstructure:"headers"`
+	WebhookURL      string              `koanf:"webhookurl"      mapstructure:"webhookUrl"`
 }
 
 func (c *NotifierConf) IsValid() error {
-	if err := c.Kind.IsValid(); err != nil {
+	err := c.Kind.IsValid()
+	if err != nil {
 		return err
 	}
+
 	if c.Kind == SlackNotifier && (c.SlackWebhookURL == "" && c.WebhookURL == "") {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoSlackWebhookURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == MicrosoftTeamsNotifier && c.WebhookURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoWebhookURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == WebhookNotifier && c.EndpointURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoEndpointURL,
 			c.Kind,
 		)
 	}
+
 	if c.Kind == DiscordNotifier && c.WebhookURL == "" {
 		return fmt.Errorf("%w \"%s\"", errInvalidNotifierNoLowerWebhookURL,
 			c.Kind,

@@ -6,20 +6,21 @@ import (
 	"reflect"
 )
 
-func toFloat(op Operand) (float64, error) {
-	switch val := op.(type) {
+func toFloat(operand Operand) (float64, error) {
+	switch val := operand.(type) {
 	case int:
 		return float64(val), nil
 	case float64:
 		return val, nil
 	}
+
 	var exp float64
 
-	return 0, newInvalidOperandError(op, exp)
+	return 0, newInvalidOperandError(operand, exp)
 }
 
-func toInt(op Operand) (int, error) {
-	switch val := op.(type) {
+func toInt(operand Operand) (int, error) {
+	switch val := operand.(type) {
 	case int:
 		return val, nil
 	case float64:
@@ -29,9 +30,10 @@ func toInt(op Operand) (int, error) {
 	case int64:
 		return int(val), nil
 	}
+
 	var exp int
 
-	return 0, newInvalidOperandError(op, exp)
+	return 0, newInvalidOperandError(operand, exp)
 }
 
 type Operand any

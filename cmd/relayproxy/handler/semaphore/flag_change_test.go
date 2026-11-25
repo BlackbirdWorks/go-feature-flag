@@ -74,6 +74,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = file.Close()
 				_ = os.Remove(file.Name())
@@ -90,6 +91,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			if tt.config.Retrievers != nil {
 				(*tt.config.Retrievers)[0].Path = file.Name()
 			}
+
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
@@ -107,12 +109,13 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+
 			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
-			out, handlerErr := ctrl.Handle(t.Context(), in)
+			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(testdataDir + "/flag_change/" + tt.wantFile)
@@ -127,12 +130,15 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			// the poller of the retriever picks the new file up: wait for the answer to change
 			wantAfter, err := os.ReadFile(testdataDir + "/flag_change/" + tt.wantAfterFile)
 			require.NoError(t, err)
+
 			var after string
+
 			require.Eventually(t, func() bool {
-				out2, handlerErr2 := ctrl.Handle(t.Context(), in)
+				out2, handlerErr2 := ctrl.Handle(t.Context(), input)
 				if handlerErr2 != nil {
 					return false
 				}
+
 				after = jsonOf(t, out2.Body)
 
 				return !jsonEqual(after, string(want))
@@ -194,6 +200,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			file, err := os.CreateTemp(t.TempDir(), "")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = file.Close()
 				_ = os.Remove(file.Name())
@@ -210,6 +217,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			if tt.config.Retrievers != nil {
 				(*tt.config.Retrievers)[0].Path = file.Name()
 			}
+
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
@@ -227,12 +235,13 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+
 			defer flagsetManager.Close()
 
 			ctrl := controller.NewAPIFlagChange(flagsetManager, metric.Metrics{})
 
-			in := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
-			out, handlerErr := ctrl.Handle(t.Context(), in)
+			input := &controller.FlagChangeInput{Request: controller.NewRequest(tt.apiKey, "")}
+			out, handlerErr := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr)
 
 			want, _ := os.ReadFile(
@@ -242,7 +251,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 
 			time.Sleep(1500 * time.Millisecond)
 
-			out2, handlerErr2 := ctrl.Handle(t.Context(), in)
+			out2, handlerErr2 := ctrl.Handle(t.Context(), input)
 			require.NoError(t, handlerErr2)
 			assert.JSONEq(t, string(want), jsonOf(t, out2.Body))
 		})

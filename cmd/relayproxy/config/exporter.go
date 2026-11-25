@@ -12,42 +12,42 @@ import (
 
 // ExporterConf contains all the field to configure an exporter.
 type ExporterConf struct {
-	Meta                    map[string]string      `mapstructure:"meta"                    koanf:"meta"`
-	Headers                 map[string][]string    `mapstructure:"headers"                 koanf:"headers"`
-	ProjectID               string                 `mapstructure:"projectID"               koanf:"projectid"`
-	DatasetID               string                 `mapstructure:"datasetID"               koanf:"datasetid"`
-	Filename                string                 `mapstructure:"filename"                koanf:"filename"`
-	CsvTemplate             string                 `mapstructure:"csvTemplate"             koanf:"csvtemplate"`
-	Bucket                  string                 `mapstructure:"bucket"                  koanf:"bucket"`
-	Path                    string                 `mapstructure:"path"                    koanf:"path"`
-	EndpointURL             string                 `mapstructure:"endpointUrl"             koanf:"endpointurl"`
-	Secret                  string                 `mapstructure:"secret"                  koanf:"secret"`
-	OutputDir               string                 `mapstructure:"outputDir"               koanf:"outputdir"`
-	LogFormat               string                 `mapstructure:"logFormat"               koanf:"logformat"`
-	TableName               string                 `mapstructure:"tableName"               koanf:"tablename"`
-	AwsRegion               string                 `mapstructure:"awsRegion"               koanf:"awsregion"`
-	ParquetCompressionCodec string                 `mapstructure:"parquetCompressionCodec" koanf:"parquetcompressioncodec"`
-	TracerName              string                 `mapstructure:"tracerName"              koanf:"tracername"`
-	QueueURL                string                 `mapstructure:"queueUrl"                koanf:"queueurl"`
-	SecretArn               string                 `mapstructure:"secretArn"               koanf:"secretarn"`
-	Format                  string                 `mapstructure:"format"                  koanf:"format"`
-	Kind                    ExporterKind           `mapstructure:"kind"                    koanf:"kind"`
-	DBUser                  string                 `mapstructure:"dbUser"                  koanf:"dbuser"`
-	GoogleCredentials       string                 `mapstructure:"googleCredentials"       koanf:"googlecredentials"`
-	Database                string                 `mapstructure:"database"                koanf:"database"`
-	Topic                   string                 `mapstructure:"topic"                   koanf:"topic"`
-	StreamArn               string                 `mapstructure:"streamArn"               koanf:"streamarn"`
-	StreamName              string                 `mapstructure:"streamName"              koanf:"streamname"`
-	AccountName             string                 `mapstructure:"accountName"             koanf:"accountname"`
-	AccountKey              string                 `mapstructure:"accountKey"              koanf:"accountkey"`
-	Container               string                 `mapstructure:"container"               koanf:"container"`
-	ExporterEventType       string                 `mapstructure:"eventType"               koanf:"eventtype"`
-	ClusterIdentifier       string                 `mapstructure:"clusterIdentifier"       koanf:"clusteridentifier"`
-	WorkgroupName           string                 `mapstructure:"workgroupName"           koanf:"workgroupname"`
-	Kafka                   kafkaexporter.Settings `mapstructure:"kafka"                   koanf:"kafka"`
-	FlushInterval           int64                  `mapstructure:"flushInterval"           koanf:"flushinterval"`
-	MaxEventInMemory        int64                  `mapstructure:"maxEventInMemory"        koanf:"maxeventinmemory"`
-	AutoMigrate             bool                   `mapstructure:"autoMigrate"             koanf:"automigrate"`
+	Meta                    map[string]string      `koanf:"meta"                    mapstructure:"meta"`
+	Headers                 map[string][]string    `koanf:"headers"                 mapstructure:"headers"`
+	ProjectID               string                 `koanf:"projectid"               mapstructure:"projectID"`
+	DatasetID               string                 `koanf:"datasetid"               mapstructure:"datasetID"`
+	Filename                string                 `koanf:"filename"                mapstructure:"filename"`
+	CsvTemplate             string                 `koanf:"csvtemplate"             mapstructure:"csvTemplate"`
+	Bucket                  string                 `koanf:"bucket"                  mapstructure:"bucket"`
+	Path                    string                 `koanf:"path"                    mapstructure:"path"`
+	EndpointURL             string                 `koanf:"endpointurl"             mapstructure:"endpointUrl"`
+	Secret                  string                 `koanf:"secret"                  mapstructure:"secret"`
+	OutputDir               string                 `koanf:"outputdir"               mapstructure:"outputDir"`
+	LogFormat               string                 `koanf:"logformat"               mapstructure:"logFormat"`
+	TableName               string                 `koanf:"tablename"               mapstructure:"tableName"`
+	AwsRegion               string                 `koanf:"awsregion"               mapstructure:"awsRegion"`
+	ParquetCompressionCodec string                 `koanf:"parquetcompressioncodec" mapstructure:"parquetCompressionCodec"`
+	TracerName              string                 `koanf:"tracername"              mapstructure:"tracerName"`
+	QueueURL                string                 `koanf:"queueurl"                mapstructure:"queueUrl"`
+	SecretArn               string                 `koanf:"secretarn"               mapstructure:"secretArn"`
+	Format                  string                 `koanf:"format"                  mapstructure:"format"`
+	Kind                    ExporterKind           `koanf:"kind"                    mapstructure:"kind"`
+	DBUser                  string                 `koanf:"dbuser"                  mapstructure:"dbUser"`
+	GoogleCredentials       string                 `koanf:"googlecredentials"       mapstructure:"googleCredentials"`
+	Database                string                 `koanf:"database"                mapstructure:"database"`
+	Topic                   string                 `koanf:"topic"                   mapstructure:"topic"`
+	StreamArn               string                 `koanf:"streamarn"               mapstructure:"streamArn"`
+	StreamName              string                 `koanf:"streamname"              mapstructure:"streamName"`
+	AccountName             string                 `koanf:"accountname"             mapstructure:"accountName"`
+	AccountKey              string                 `koanf:"accountkey"              mapstructure:"accountKey"`
+	Container               string                 `koanf:"container"               mapstructure:"container"`
+	ExporterEventType       string                 `koanf:"eventtype"               mapstructure:"eventType"`
+	ClusterIdentifier       string                 `koanf:"clusteridentifier"       mapstructure:"clusterIdentifier"`
+	WorkgroupName           string                 `koanf:"workgroupname"           mapstructure:"workgroupName"`
+	Kafka                   kafkaexporter.Settings `koanf:"kafka"                   mapstructure:"kafka"`
+	FlushInterval           int64                  `koanf:"flushinterval"           mapstructure:"flushInterval"`
+	MaxEventInMemory        int64                  `koanf:"maxeventinmemory"        mapstructure:"maxEventInMemory"`
+	AutoMigrate             bool                   `koanf:"automigrate"             mapstructure:"autoMigrate"`
 }
 
 // errInvalidExporter is the root of the errors reported for an exporter configuration that is not valid.
@@ -61,21 +61,30 @@ func invalidExporterf(format string, args ...any) error {
 
 // IsValid checks that the exporter has the settings its kind requires.
 func (c *ExporterConf) IsValid() error {
-	if err := c.Kind.IsValid(); err != nil {
+	err := c.Kind.IsValid()
+	if err != nil {
 		return err
 	}
-	if err := c.validateStorage(); err != nil {
+
+	err = c.validateStorage()
+	if err != nil {
 		return err
 	}
+
 	if len(c.ParquetCompressionCodec) > 0 {
-		if _, err := parquet.CompressionCodecFromString(c.ParquetCompressionCodec); err != nil {
-			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, err)
+		_, codecErr := parquet.CompressionCodecFromString(c.ParquetCompressionCodec)
+		if codecErr != nil {
+			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, codecErr)
 		}
 	}
-	if err := c.validateMessaging(); err != nil {
+
+	err = c.validateMessaging()
+	if err != nil {
 		return err
 	}
-	if err := c.validateAzure(); err != nil {
+
+	err = c.validateAzure()
+	if err != nil {
 		return err
 	}
 
@@ -138,9 +147,11 @@ func (c *ExporterConf) validateAzure() error {
 	if c.Kind != AzureExporter {
 		return nil
 	}
+
 	if c.Container == "" {
 		return invalidExporterf("no \"container\" property found for kind \"%s\"", c.Kind)
 	}
+
 	if c.AccountName == "" {
 		return invalidExporterf("no \"accountName\" property found for kind \"%s\"", c.Kind)
 	}
@@ -152,19 +163,24 @@ func (c *ExporterConf) isValidRedshift() error {
 	if c.Kind != RedshiftExporter {
 		return nil
 	}
+
 	if c.Database == "" {
 		return invalidExporterf("no \"database\" property found for kind \"%s\"", c.Kind)
 	}
+
 	if (c.ClusterIdentifier == "") == (c.WorkgroupName == "") {
 		return invalidExporterf(
 			"exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"%s\"", c.Kind)
 	}
+
 	if c.DBUser != "" && c.WorkgroupName != "" {
 		return invalidExporterf("\"dbUser\" cannot be used with \"workgroupName\" for kind \"%s\"", c.Kind)
 	}
+
 	if c.DBUser != "" && c.SecretArn != "" {
 		return invalidExporterf("\"dbUser\" and \"secretArn\" are mutually exclusive for kind \"%s\"", c.Kind)
 	}
+
 	if !redshiftexporter.IsValidTableName(c.TableName) {
 		return invalidExporterf(
 			"\"tableName\" %q is not a valid table name for kind \"%s\"", c.TableName, c.Kind)

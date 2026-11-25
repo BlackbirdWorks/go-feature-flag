@@ -63,11 +63,14 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
-	if _, err := r.getHTTPClient(); err != nil {
+
+	_, err := r.getHTTPClient()
+	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err
 	}
+
 	r.status = retriever.RetrieverReady
 
 	return nil
@@ -99,26 +102,30 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	resp, err := shared.CallHTTPAPI(ctx, r.URL, r.Method, r.Body, r.Timeout, r.Header, httpClient)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch HTTP flag file: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, fmt.Errorf("%w %s failed with code %d", errRequestTo, internal.RedactURL(r.URL), resp.StatusCode)
 	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read HTTP response body: %w", err)
 	}
 
 	return body, nil
 }
 
+//nolint:ireturn // returns the injectable HTTPClient of the retriever (a test seam)
 func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 	if r.httpClient != nil {
 		return r.httpClient, nil
 	}
 
 	var transport http.RoundTripper
+
 	if r.ClientCertPath != "" || r.ClientKeyPath != "" || r.CACertPath != "" {
 		tlsConfig, err := r.tlsConfig()
 		if err != nil {
@@ -129,6 +136,7 @@ func (r *Retriever) getHTTPClient() (internal.HTTPClient, error) {
 		if base == nil {
 			base = http.DefaultTransport
 		}
+
 		defaultTransport, ok := base.(*http.Transport)
 		if !ok {
 			return nil, fmt.Errorf("%w %T, expected *http.Transport", errHTTPDefaultTransportIs, base)
@@ -153,12 +161,14 @@ func (r *Retriever) tlsConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	config.Certificates = certificates
 
 	rootCAs, err := r.rootCAs()
 	if err != nil {
 		return nil, err
 	}
+
 	config.RootCAs = rootCAs
 
 	return config, nil
@@ -168,13 +178,14 @@ func (r *Retriever) clientCertificates() ([]tls.Certificate, error) {
 	if (r.ClientCertPath == "") != (r.ClientKeyPath == "") {
 		return nil, errClientCertificateAndClient
 	}
+
 	if r.ClientCertPath == "" {
 		return nil, nil
 	}
 
 	cert, err := tls.LoadX509KeyPair(r.ClientCertPath, r.ClientKeyPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading the client key pair: %w", err)
 	}
 
 	return []tls.Certificate{cert}, nil
@@ -188,16 +199,18 @@ func (r *Retriever) rootCAs() (*x509.CertPool, error) {
 
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading the system certificate pool: %w", err)
 	}
+
 	if rootCAs == nil {
 		rootCAs = x509.NewCertPool()
 	}
 
 	caCert, err := os.ReadFile(r.CACertPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading the CA certificate: %w", err)
 	}
+
 	if !rootCAs.AppendCertsFromPEM(caCert) {
 		return nil, errFailedToParseCA
 	}

@@ -2,6 +2,7 @@ package stream
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -28,20 +29,8 @@ type WebsocketService interface {
 	WaitForCleanup(timeout time.Duration) error
 }
 
-// NewWebsocketService is a constructor to create a new WebsocketService.
-func NewWebsocketService(opts ...Option) WebsocketService {
-	o := newOptions(opts...)
-
-	return &websocketServiceImpl{
-		clients:            map[WebsocketConnector]string{},
-		mutex:              &sync.RWMutex{},
-		closed:             make(chan struct{}),
-		includeFlagDetails: o.includeFlagDetails,
-	}
-}
-
-// websocketServiceImpl is the implementation of the interface.
-type websocketServiceImpl struct {
+// WebsocketServiceImpl is the implementation of the interface.
+type WebsocketServiceImpl struct {
 	// clients stores the flagset name of every open connection.
 	clients            map[WebsocketConnector]string
 	mutex              *sync.RWMutex
@@ -49,50 +38,68 @@ type websocketServiceImpl struct {
 	includeFlagDetails bool
 }
 
+// NewWebsocketService is a constructor to create a new WebsocketServiceImpl.
+func NewWebsocketService(opts ...Option) *WebsocketServiceImpl {
+	streamOpts := newOptions(opts...)
+
+	return &WebsocketServiceImpl{
+		clients:            map[WebsocketConnector]string{},
+		mutex:              &sync.RWMutex{},
+		closed:             make(chan struct{}),
+		includeFlagDetails: streamOpts.includeFlagDetails,
+	}
+}
+
 // BroadcastFlagChanges is sending the diff to all the open connection of the flagset.
-func (w *websocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff notifier.DiffCache) {
+func (w *WebsocketServiceImpl) BroadcastFlagChanges(flagsetName string, diff notifier.DiffCache) {
 	w.mutex.RLock()
 	defer w.mutex.RUnlock()
+
 	payload := flagChangePayload(diff, w.includeFlagDetails)
-	for c, clientFlagsetName := range w.clients {
+	for conn, clientFlagsetName := range w.clients {
 		if clientFlagsetName != flagsetName {
 			continue
 		}
-		err := c.WriteJSON(payload)
+
+		err := conn.WriteJSON(payload)
 		if err != nil {
 			w.mutex.RUnlock()
-			w.Deregister(c)
+			w.Deregister(conn)
 			w.mutex.RLock()
 		}
 	}
 }
 
 // Register is adding the connection to the list of open connection of the flagset.
-func (w *websocketServiceImpl) Register(c WebsocketConnector, flagsetName string) {
+func (w *WebsocketServiceImpl) Register(c WebsocketConnector, flagsetName string) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	w.clients[c] = flagsetName
 }
 
 // Deregister is removing the connection from the list of open connection.
-func (w *websocketServiceImpl) Deregister(c WebsocketConnector) {
+func (w *WebsocketServiceImpl) Deregister(c WebsocketConnector) {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	delete(w.clients, c)
 }
 
 // Close deregister all open connections.
-func (w *websocketServiceImpl) Close() {
+func (w *WebsocketServiceImpl) Close() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
+
 	for c := range w.clients {
 		delete(w.clients, c)
 	}
+
 	close(w.closed)
 }
 
 // WaitForCleanup waits for all connections to be properly closed.
-func (w *websocketServiceImpl) WaitForCleanup(timeout time.Duration) error {
+func (w *WebsocketServiceImpl) WaitForCleanup(timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -100,6 +107,6 @@ func (w *websocketServiceImpl) WaitForCleanup(timeout time.Duration) error {
 	case <-w.closed:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("waiting for the cleanup of the websocket connections: %w", ctx.Err())
 	}
 }

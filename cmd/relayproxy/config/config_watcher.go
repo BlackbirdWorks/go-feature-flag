@@ -11,6 +11,7 @@ func (c *Config) AttachConfigChangeCallback(callback func(newConfig *Config)) {
 
 		return
 	}
+
 	c.configLoader.AddConfigChangeCallback(callback)
 	c.logger.Debug("callback attached to the configuration changes")
 }

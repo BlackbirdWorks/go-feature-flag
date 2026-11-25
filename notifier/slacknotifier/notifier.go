@@ -65,22 +65,26 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	reqBody := convertToSlackMessage(diff)
+
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
 		return fmt.Errorf("error: (Slack Notifier) impossible to read differences; %w", err)
 	}
+
 	request := http.Request{
 		Method: http.MethodPost,
 		URL:    slackURL,
 		Body:   io.NopCloser(bytes.NewReader(payload)),
 		Header: map[string][]string{"Content-type": {"application/json"}},
 	}
+
 	response, err := c.httpClient.Do(&request)
 	if err != nil {
 		return fmt.Errorf("error: (Slack Notifier) error: while calling webhook: %w", internal.RedactURLError(err))
 	}
 
 	defer func() { _ = response.Body.Close() }()
+
 	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w = %d", errErrorSlackNotifierWhile,
 			response.StatusCode)
@@ -132,6 +136,7 @@ func convertUpdatedFlagsToSlackMessage(diffCache notifier.DiffCache) []attachmen
 		} else {
 			attachment.Text = escapeSlack(notifier.ChangeList(changes, "• ", 0))
 		}
+
 		attachments = append(attachments, attachment)
 	}
 

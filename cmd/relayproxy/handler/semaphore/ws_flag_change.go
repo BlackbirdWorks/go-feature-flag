@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -32,7 +33,12 @@ func (c *threadSafeConn) WriteJSON(v any) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.conn.WriteJSON(v)
+	err := c.conn.WriteJSON(v)
+	if err != nil {
+		return fmt.Errorf("write websocket JSON: %w", err)
+	}
+
+	return nil
 }
 
 // ping sends a ping control message to the client.
@@ -40,7 +46,24 @@ func (c *threadSafeConn) ping() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.conn.WriteMessage(websocket.PingMessage, nil)
+	err := c.conn.WriteMessage(websocket.PingMessage, nil)
+	if err != nil {
+		return fmt.Errorf("write websocket ping: %w", err)
+	}
+
+	return nil
+}
+
+// defaultPingInterval is how often a keep-alive ping is sent to the client.
+const defaultPingInterval = 1 * time.Second
+
+// WSFlagChange is the implementation of the controller.
+type WSFlagChange struct {
+	websocketService stream.WebsocketService
+	flagsetManager   service.FlagsetManager
+	upgrader         websocket.Upgrader
+	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
+	pingInterval time.Duration
 }
 
 // NewWsFlagChange is the constructor to create a new controller to handle websocket
@@ -61,18 +84,6 @@ func NewWsFlagChange(
 	}
 }
 
-// defaultPingInterval is how often a keep-alive ping is sent to the client.
-const defaultPingInterval = 1 * time.Second
-
-// WSFlagChange is the implementation of the controller.
-type WSFlagChange struct {
-	websocketService stream.WebsocketService
-	flagsetManager   service.FlagsetManager
-	upgrader         websocket.Upgrader
-	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
-	pingInterval time.Duration
-}
-
 // LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited.
 func (f *WSFlagChange) LegacyHandler(w http.ResponseWriter, r *http.Request) error {
 	// This handler is deprecated and we keep it for the documentation.
@@ -84,7 +95,10 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// The flagset is resolved before the upgrade, so a failure is a plain HTTP error.
 	flagsetName, err := helper.RequestFlagSetName(r.Context(), f.flagsetManager, r.URL.Query().Get("apiKey"))
 	if err != nil {
-		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
+		return fmt.Errorf(
+			"binding the request of the flag change websocket: %w",
+			helper.NewHTTPError(http.StatusBadRequest, err.Error()),
+		)
 	}
 
 	conn, err := f.upgrader.Upgrade(w, r, nil)
@@ -103,6 +117,7 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	f.websocketService.Register(safeConn, flagsetName)
 	defer f.websocketService.Deregister(safeConn)
+
 	logger := logging.FromContext(r.Context())
 	logger.LogAttrs(
 		r.Context(),
@@ -130,7 +145,8 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
 	for {
 		// ReadMessage is needed to process control messages like pongs and close messages.
-		if _, _, readMessageErr := conn.ReadMessage(); readMessageErr != nil {
+		_, _, readMessageErr := conn.ReadMessage()
+		if readMessageErr != nil {
 			logger.LogAttrs(r.Context(), slog.LevelDebug,
 				"closing websocket connection",
 				cmdlog.Err(readMessageErr),

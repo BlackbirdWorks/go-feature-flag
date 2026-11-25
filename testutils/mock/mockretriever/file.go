@@ -2,6 +2,7 @@ package mockretriever
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/blackbirdworks/semaphore/retriever"
@@ -26,7 +27,7 @@ func NewFileInitializableRetriever(path string, status retriever.Status) *FileIn
 func (r *FileInitializableRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	content, err := os.ReadFile(r.Path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read mock retriever file %s: %w", r.Path, err)
 	}
 
 	return content, nil
@@ -42,11 +43,21 @@ func (r *FileInitializableRetriever) Init(_ context.Context, _ *fflog.FFLogger) 
 
 	yamlBytes := []byte(yamlString)
 
-	return os.WriteFile(r.Path, yamlBytes, 0600)
+	err := os.WriteFile(r.Path, yamlBytes, 0600)
+	if err != nil {
+		return fmt.Errorf("write mock retriever file %s: %w", r.Path, err)
+	}
+
+	return nil
 }
 
 func (r *FileInitializableRetriever) Shutdown(_ context.Context) error {
-	return os.Remove(r.Path)
+	err := os.Remove(r.Path)
+	if err != nil {
+		return fmt.Errorf("remove mock retriever file %s: %w", r.Path, err)
+	}
+
+	return nil
 }
 
 func (r *FileInitializableRetriever) Status() retriever.Status {

@@ -26,15 +26,19 @@ const resetEvery = 1_000_000
 
 // resetStore consumes and releases every event of the store, so that the benchmark memory stays
 // bounded whatever b.N is. It is cheap compared to the resetEvery adds it amortizes over.
-func resetStore(b *testing.B, s exporter.EventStore[exporter.FeatureEvent]) {
+func resetStore(b *testing.B, store exporter.EventStore[exporter.FeatureEvent]) {
 	b.Helper()
-	if err := s.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
+
+	err := store.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
+		//nolint:testifylint // called from b.RunParallel worker goroutines where require is unsafe
 		assert.NoError(b, err)
 	}
-	if c, ok := s.(interface{ CleanQueue() }); ok {
-		c.CleanQueue()
+
+	if cleaner, ok := store.(interface{ CleanQueue() }); ok {
+		cleaner.CleanQueue()
 	}
 }
 
@@ -43,32 +47,43 @@ func resetStore(b *testing.B, s exporter.EventStore[exporter.FeatureEvent]) {
 // benchmark memory bounded.
 func BenchmarkEventStoreAdd(b *testing.B) {
 	b.Run("serial", func(b *testing.B) {
-		s := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
-		defer s.Stop()
-		s.AddConsumer("c")
-		ev := benchEvent()
+		store := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
+		defer store.Stop()
+
+		store.AddConsumer("c")
+
+		event := benchEvent()
+
 		b.ReportAllocs()
 		b.ResetTimer()
+
 		for i := range b.N {
-			s.Add(ev)
+			store.Add(event)
+
 			if (i+1)%resetEvery == 0 {
-				resetStore(b, s)
+				resetStore(b, store)
 			}
 		}
 	})
 	b.Run("parallel", func(b *testing.B) {
-		s := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
-		defer s.Stop()
-		s.AddConsumer("c")
-		ev := benchEvent()
+		store := exporter.NewEventStore[exporter.FeatureEvent](time.Hour)
+		defer store.Stop()
+
+		store.AddConsumer("c")
+
+		event := benchEvent()
+
 		b.ReportAllocs()
 		b.ResetTimer()
+
 		var added atomic.Int64
+
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				s.Add(ev)
+				store.Add(event)
+
 				if added.Add(1)%resetEvery == 0 {
-					resetStore(b, s)
+					resetStore(b, store)
 				}
 			}
 		})
@@ -78,25 +93,32 @@ func BenchmarkEventStoreAdd(b *testing.B) {
 // BenchmarkEventStoreFlushCycle measures one add-N-then-consume cycle (what a bulk exporter does
 // every flush), with a periodic cleaning running every millisecond.
 func BenchmarkEventStoreFlushCycle(b *testing.B) {
-	for _, n := range []int{1000, 10000, 100000} {
-		b.Run(fmt.Sprintf("events=%d", n), func(b *testing.B) {
-			s := exporter.NewEventStore[exporter.FeatureEvent](time.Millisecond)
-			defer s.Stop()
-			s.AddConsumer("c")
-			ev := benchEvent()
+	for _, numEvents := range []int{1000, 10000, 100000} {
+		b.Run(fmt.Sprintf("events=%d", numEvents), func(b *testing.B) {
+			store := exporter.NewEventStore[exporter.FeatureEvent](time.Millisecond)
+			defer store.Stop()
+
+			store.AddConsumer("c")
+
+			event := benchEvent()
+
 			b.ReportAllocs()
 			b.ResetTimer()
+
 			for range b.N {
-				for range n {
-					s.Add(ev)
+				for range numEvents {
+					store.Add(event)
 				}
-				if err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
+
+				err := store.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
 					return nil
-				}); err != nil {
+				})
+				if err != nil {
 					require.NoError(b, err)
 				}
 			}
-			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/event")
+
+			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*numEvents), "ns/event")
 		})
 	}
 }
@@ -114,30 +136,35 @@ func BenchmarkManagerAddEvent(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/parallel=%t", mode, par), func(b *testing.B) {
 				exp := loadtest.NewExporter(mode)
 				exp.Delay = time.Millisecond
-				m := exporter.NewManager[exporter.FeatureEvent](
+				mgr := exporter.NewManager[exporter.FeatureEvent](
 					[]exporter.Config{{Exporter: exp, FlushInterval: 50 * time.Millisecond, MaxEventInMemory: 1000}},
 					time.Millisecond, nil)
-				m.Start()
-				ev := benchEvent()
+				mgr.Start()
+
+				event := benchEvent()
+
 				b.ReportAllocs()
 				b.ResetTimer()
+
 				if par {
 					b.RunParallel(func(pb *testing.PB) {
 						for pb.Next() {
-							m.AddEvent(ev)
+							mgr.AddEvent(event)
 						}
 					})
 				} else {
 					for range b.N {
-						m.AddEvent(ev)
+						mgr.AddEvent(event)
 					}
 				}
+
 				b.StopTimer()
+
 				exported := exp.Events.Load()
 				b.ReportMetric(float64(exported)/float64(b.N), "exported/op")
 				b.ReportMetric(float64(max(int64(b.N)-exported, 0))/float64(b.N), "retained/op")
 				b.ReportMetric(float64(exp.Failures.Load()), "failed-batches")
-				m.Stop()
+				mgr.Stop()
 			})
 		}
 	}

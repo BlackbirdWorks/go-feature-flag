@@ -27,31 +27,43 @@ func inBenchList(kind string, n int) string {
 // is the last element, the worst case for a linear scan.
 func BenchmarkIn(b *testing.B) {
 	for _, kind := range []string{"str", "int"} {
-		for _, n := range inBenchSizes() {
-			list := inBenchList(kind, n)
+		for _, size := range inBenchSizes() {
+			list := inBenchList(kind, size)
+
 			var hit, miss any
 			if kind == "str" {
-				hit, miss = "user-"+strconv.Itoa(n-1), "nobody"
+				hit, miss = "user-"+strconv.Itoa(size-1), "nobody"
 			} else {
-				hit, miss = n-1, -1
+				hit, miss = size-1, -1
 			}
-			for _, op := range []string{"in", "not in"} {
-				rule := "x " + op + " " + list
-				if op == "not in" {
+
+			for _, operator := range []string{"in", "not in"} {
+				rule := "x " + operator + " " + list
+				if operator == "not in" {
 					rule = "not (x in " + list + ")"
 				}
-				ev := newBenchEvaluator(b, rule)
-				for _, c := range []struct {
-					v    any
+
+				eval := newBenchEvaluator(b, rule)
+
+				for _, probe := range []struct {
+					val  any
 					name string
-				}{{name: "hit", v: hit}, {name: "miss", v: miss}} {
-					input := map[string]any{"x": c.v}
-					ev.Process(input) // compile
-					name := fmt.Sprintf("%s/%s/%s/n=%d", kind, strings.ReplaceAll(op, " ", ""), c.name, n)
+				}{{name: "hit", val: hit}, {name: "miss", val: miss}} {
+					input := map[string]any{"x": probe.val}
+					eval.Process(input) // compile
+
+					name := fmt.Sprintf(
+						"%s/%s/%s/n=%d",
+						kind,
+						strings.ReplaceAll(operator, " ", ""),
+						probe.name,
+						size,
+					)
 					b.Run(name, func(b *testing.B) {
 						b.ReportAllocs()
+
 						for range b.N {
-							ev.Process(input)
+							eval.Process(input)
 						}
 					})
 				}
@@ -64,14 +76,17 @@ func BenchmarkIn(b *testing.B) {
 // is when the rule is compiled (and the hash set built, if any).
 func BenchmarkInCompile(b *testing.B) {
 	for _, kind := range []string{"str", "int"} {
-		for _, n := range inBenchSizes() {
-			rule := "x in " + inBenchList(kind, n)
+		for _, size := range inBenchSizes() {
+			rule := "x in " + inBenchList(kind, size)
+
 			input := map[string]any{"x": -1}
 			if kind == "str" {
 				input["x"] = "nobody"
 			}
-			b.Run(fmt.Sprintf("%s/n=%d", kind, n), func(b *testing.B) {
+
+			b.Run(fmt.Sprintf("%s/n=%d", kind, size), func(b *testing.B) {
 				b.ReportAllocs()
+
 				for range b.N {
 					newBenchEvaluator(b, rule).Process(input)
 				}

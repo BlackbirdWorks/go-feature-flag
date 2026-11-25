@@ -234,6 +234,7 @@ func TestLoadConfigFile(t *testing.T) {
 				require.NoError(t, err)
 				err = os.WriteFile(filepath.Join(dir, "flags.goff.yaml"), content, 0600)
 				require.NoError(t, err)
+
 				tt.inputFilePath = ""
 				tt.defaultLocations = []string{dir + "/"}
 			}
@@ -256,6 +257,7 @@ func TestLoadConfigFile(t *testing.T) {
 
 func TestParseConfig(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name      string
 		data      string
@@ -279,14 +281,17 @@ func TestParseConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := configfile.ParseConfig([]byte(tt.data), tt.format)
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Len(t, got, len(tt.wantFlags))
+
 			for _, k := range tt.wantFlags {
 				assert.Contains(t, got, k)
 			}
@@ -296,7 +301,9 @@ func TestParseConfig(t *testing.T) {
 
 func TestLoadConfigFileDefaultNames(t *testing.T) {
 	t.Parallel()
+
 	content := "my-flag:\n  variations:\n    a: true\n    b: false\n  defaultRule:\n    variation: a\n"
+
 	tests := []struct {
 		name      string
 		wantFlag  string
@@ -311,16 +318,19 @@ func TestLoadConfigFileDefaultNames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			dir := t.TempDir() + "/"
 			for _, f := range tt.files {
 				require.NoError(t, os.WriteFile(dir+f, []byte(content), 0o600))
 			}
+
 			got, err := configfile.LoadConfigFile("", "yaml", []string{dir}, nil)
 			if tt.wantError {
 				assert.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Contains(t, got, tt.wantFlag)
 		})

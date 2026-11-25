@@ -56,27 +56,32 @@ func (r *Rule) validate(
 		return nil, errImpossibleToReturnValue
 	}
 
-	ev := known
-	if ev == nil {
-		var err error
-		if ev, err = r.validateQuery(svc, defaultRule); err != nil {
-			return nil, err
+	evaluator := known
+	if evaluator == nil {
+		var queryErr error
+
+		evaluator, queryErr = r.validateQuery(svc, defaultRule)
+		if queryErr != nil {
+			return nil, queryErr
 		}
 	}
 
-	if err := r.validatePercentages(variations); err != nil {
+	err := r.validatePercentages(variations)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := r.validateProgressiveRollout(variations); err != nil {
+	err = r.validateProgressiveRollout(variations)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := r.validateVariationResult(variations); err != nil {
+	err = r.validateVariationResult(variations)
+	if err != nil {
 		return nil, err
 	}
 
-	return ev, nil
+	return evaluator, nil
 }
 
 // validatePercentages validates the percentage configuration of the rule.
@@ -94,13 +99,17 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 	}
 
 	count := float64(0)
-	for k, p := range percentages {
-		if err := r.validateSinglePercentage(p, fmt.Sprintf("variation %s", k)); err != nil {
+
+	for variationKey, pct := range percentages {
+		err := r.validateSinglePercentage(pct, fmt.Sprintf("variation %s", variationKey))
+		if err != nil {
 			return err
 		}
-		count += p
-		if _, ok := variations[k]; !ok {
-			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, k)
+
+		count += pct
+
+		if _, ok := variations[variationKey]; !ok {
+			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, variationKey)
 		}
 	}
 
@@ -139,12 +148,16 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 	}
 
 	initialPct := progRollout.Initial.getPercentage()
-	if err := r.validateSinglePercentage(initialPct, "initial step percentage"); err != nil {
+
+	err := r.validateSinglePercentage(initialPct, "initial step percentage")
+	if err != nil {
 		return err
 	}
 
 	endPct := progRollout.End.getPercentage()
-	if err := r.validateSinglePercentage(endPct, "end step percentage"); err != nil {
+
+	err = r.validateSinglePercentage(endPct, "end step percentage")
+	if err != nil {
 		return err
 	}
 

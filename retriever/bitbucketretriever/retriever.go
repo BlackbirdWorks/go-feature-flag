@@ -74,7 +74,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	resp, err := shared.CallHTTPAPI(ctx, requestURL, http.MethodGet, "", r.Timeout, header, r.httpClient)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch Bitbucket file: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -83,6 +83,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		bitbucketHeaders := map[string]string{}
+
 		for name := range resp.Header {
 			if strings.HasPrefix(name, "X-") {
 				bitbucketHeaders[name] = resp.Header.Get(name)
@@ -95,7 +96,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read Bitbucket response body: %w", err)
 	}
 
 	return body, nil
@@ -110,19 +111,22 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 // the rate limit is reached.
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	if remaining := headers.Get("X-Ratelimit-Limit"); remaining != "" {
-		if remainingInt, err := strconv.Atoi(remaining); err == nil {
+		remainingInt, err := strconv.Atoi(remaining)
+		if err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
 	if nearLimit := headers.Get("X-Ratelimit-Nearlimit"); nearLimit != "" {
-		if nearLimitBool, err := strconv.ParseBool(nearLimit); err == nil {
+		nearLimitBool, err := strconv.ParseBool(nearLimit)
+		if err == nil {
 			r.rateLimitNearLimit = nearLimitBool
 		}
 	}
 
 	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
-		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		resetInt, err := strconv.ParseInt(reset, 10, 64)
+		if err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}
 	}

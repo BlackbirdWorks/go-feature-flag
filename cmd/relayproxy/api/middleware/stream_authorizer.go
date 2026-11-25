@@ -23,8 +23,10 @@ func StreamAuthorizer(config *config.Config, flagsetManager service.FlagsetManag
 
 					return
 				}
+
 				r = req
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}

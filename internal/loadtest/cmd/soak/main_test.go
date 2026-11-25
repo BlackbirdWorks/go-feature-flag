@@ -25,6 +25,7 @@ func fastRun() []string {
 
 func TestRun(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		wantStderr string
@@ -55,12 +56,16 @@ func TestRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var stdout, stderr bytes.Buffer
+
 			code := run(context.Background(), tt.args, &stdout, &stderr)
 			assert.Equal(t, tt.wantCode, code, "stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+
 			for _, w := range tt.wantStdout {
 				assert.Contains(t, stdout.String(), w)
 			}
+
 			assert.Contains(t, stderr.String(), tt.wantStderr)
 		})
 	}
@@ -68,9 +73,12 @@ func TestRun(t *testing.T) {
 
 func TestRunInterrupted(t *testing.T) {
 	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+
 	var stdout, stderr bytes.Buffer
+
 	code := run(ctx, append([]string{"-target", "library"}, fastRun()...), &stdout, &stderr)
 	assert.Equal(t, 130, code)
 	assert.Contains(t, stderr.String(), "interrupted")
@@ -80,7 +88,9 @@ func TestRunInterrupted(t *testing.T) {
 func TestRunCPUProfile(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "cpu.pprof")
+
 	var stdout, stderr bytes.Buffer
+
 	code := run(
 		context.Background(),
 		append([]string{"-target", "library", "-cpuprofile", path}, fastRun()...),
@@ -88,6 +98,7 @@ func TestRunCPUProfile(t *testing.T) {
 		&stderr,
 	)
 	require.Equal(t, 0, code, stderr.String())
+
 	st, err := os.Stat(path)
 	require.NoError(t, err)
 	assert.NotZero(t, st.Size())

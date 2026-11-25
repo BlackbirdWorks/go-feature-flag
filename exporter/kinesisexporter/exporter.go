@@ -29,7 +29,8 @@ var _ exporter.Exporter = &Exporter{}
 
 const (
 	formatJSON = "json"
-	Mb         = 1024 * 1024
+	//nolint:varnamelen // exported constant kept for compatibility
+	Mb = 1024 * 1024
 
 	// Kinesis PutRecords limits: 500 records and 5 MiB per call.
 	maxRecordsPerCall = 500
@@ -62,7 +63,12 @@ func (k *DefaultKinesisSender) SendMessages(
 	ctx context.Context,
 	msgs *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {
-	return k.PutRecords(ctx, msgs)
+	out, err := k.PutRecords(ctx, msgs)
+	if err != nil {
+		return nil, fmt.Errorf("put kinesis records: %w", err)
+	}
+
+	return out, nil
 }
 
 type Exporter struct {
@@ -114,64 +120,43 @@ func WithExplicitHashKey(hashKey string) Option {
 }
 
 func WithStreamName(streamName string) Option {
-	return func(s Settings) Settings {
+	return func(settings Settings) Settings {
 		if streamName == "" {
-			return s
+			return settings
 		}
-		s.StreamArn = nil
-		s.StreamName = &streamName
 
-		return s
+		settings.StreamArn = nil
+		settings.StreamName = &streamName
+
+		return settings
 	}
 }
 
 func WithStreamArn(streamArn string) Option {
-	return func(s Settings) Settings {
+	return func(settings Settings) Settings {
 		if streamArn == "" {
-			return s
+			return settings
 		}
-		s.StreamArn = &streamArn
-		s.StreamName = nil
 
-		return s
+		settings.StreamArn = &streamArn
+		settings.StreamName = nil
+
+		return settings
 	}
 }
 
 func NewSettings(options ...Option) *Settings {
 	settings := Settings{
-		PartitionKey: DefaultPartitionKey,
+		StreamName:      nil,
+		StreamArn:       nil,
+		PartitionKey:    DefaultPartitionKey,
+		ExplicitHashKey: nil,
 	}
 	for _, option := range options {
 		settings = option(settings)
 	}
 
 	return &settings
-}
-
-func (e *Exporter) initializeProducer(ctx context.Context) error {
-	var initErr error
-	e.init.Do(func() {
-		if e.Settings == nil {
-			e.Settings = NewSettings()
-		}
-
-		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
-
-				return
-			}
-			e.AwsConfig = &cfg
-		}
-		if e.sender == nil {
-			e.sender = &DefaultKinesisSender{
-				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
-			}
-		}
-	})
-
-	return initErr
 }
 
 func (e *Exporter) Export(
@@ -188,13 +173,12 @@ func (e *Exporter) Export(
 
 	for _, event := range featureEvents {
 		formattedEvent, formatMessageErr := e.formatMessage(event)
-
 		if formatMessageErr != nil {
 			return fmt.Errorf("format: %w", formatMessageErr)
 		}
 
 		if len(formattedEvent) >= Mb {
-			logger.Error("format: Event is too large, skipping", "size", len(formattedEvent))
+			logger.ErrorContext(ctx, "format: Event is too large, skipping", "size", len(formattedEvent))
 
 			continue
 		}
@@ -225,13 +209,17 @@ func (e *Exporter) Export(
 	}
 
 	var errs []error
+
 	for _, chunk := range chunkRecords(records) {
 		chunkInput := *input
 		chunkInput.Records = chunk
-		if sendChunkErr := e.sendChunk(ctx, logger, &chunkInput); sendChunkErr != nil {
+
+		sendChunkErr := e.sendChunk(ctx, logger, &chunkInput)
+		if sendChunkErr != nil {
 			if ctx.Err() != nil {
 				return sendChunkErr
 			}
+
 			errs = append(errs, sendChunkErr)
 		}
 	}
@@ -243,25 +231,135 @@ func (e *Exporter) Export(
 // (500 records and 5 MiB per call, partition keys included in the size).
 func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRequestEntry {
 	var chunks [][]types.PutRecordsRequestEntry
+
 	newChunk := func() []types.PutRecordsRequestEntry {
 		return make([]types.PutRecordsRequestEntry, 0, min(len(records), maxRecordsPerCall))
 	}
 	current := newChunk()
 	size := 0
+
 	for _, r := range records {
-		rs := len(r.Data) + len(aws.ToString(r.PartitionKey))
-		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+rs > maxBytesPerCall) {
+		recSize := len(r.Data) + len(aws.ToString(r.PartitionKey))
+		if len(current) > 0 && (len(current) >= maxRecordsPerCall || size+recSize > maxBytesPerCall) {
 			chunks = append(chunks, current)
 			current, size = newChunk(), 0
 		}
+
 		current = append(current, r)
-		size += rs
+		size += recSize
 	}
+
 	if len(current) > 0 {
 		chunks = append(chunks, current)
 	}
 
 	return chunks
+}
+
+// rejectedRecords returns the records of pending that are not confirmed as delivered, together
+// with the matching result entries (when available, for error reporting).
+//
+// A record is only considered delivered when its own positional result entry carries a
+// SequenceNumber and no error. The aggregate FailedRecordCount is deliberately ignored: it is
+// optional in the SDK and can contradict the per-record results. When the response cannot be
+// matched to the request (nil output, or a different number of results) nothing can be
+// confirmed, so every record is treated as failed and resent (at-least-once).
+func rejectedRecords(
+	pending []types.PutRecordsRequestEntry,
+	output *kinesis.PutRecordsOutput,
+) ([]types.PutRecordsRequestEntry, []types.PutRecordsResultEntry) {
+	if output == nil || len(output.Records) != len(pending) {
+		unknown := types.PutRecordsResultEntry{
+			ErrorCode:    aws.String("UnverifiableResponse"),
+			ErrorMessage: aws.String("response does not match the request"),
+		}
+
+		failures := make([]types.PutRecordsResultEntry, len(pending))
+		for i := range failures {
+			failures[i] = unknown
+		}
+
+		return pending, failures
+	}
+
+	var (
+		retry    []types.PutRecordsRequestEntry
+		failures []types.PutRecordsResultEntry
+	)
+
+	for i, res := range output.Records {
+		if res.ErrorCode == nil && res.ErrorMessage == nil && res.SequenceNumber != nil {
+			continue
+		}
+
+		retry = append(retry, pending[i])
+		failures = append(failures, res)
+	}
+
+	return retry, failures
+}
+
+func distinctCodes(failures []types.PutRecordsResultEntry) string {
+	set := map[string]struct{}{}
+
+	for _, f := range failures {
+		code := aws.ToString(f.ErrorCode)
+		if code == "" {
+			code = "Unknown"
+		}
+
+		set[code] = struct{}{}
+	}
+
+	codes := make([]string, 0, len(set))
+	for c := range set {
+		codes = append(codes, c)
+	}
+
+	sort.Strings(codes)
+
+	return strings.Join(codes, ", ")
+}
+
+// backoff returns an exponential delay with full jitter for the given attempt (1-based).
+func backoff(attempt int) time.Duration {
+	d := min(baseBackoff<<(attempt-1), maxBackoff)
+
+	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
+}
+
+// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
+func (e *Exporter) IsBulk() bool {
+	return false
+}
+
+func (e *Exporter) initializeProducer(ctx context.Context) error {
+	var initErr error
+
+	e.init.Do(func() {
+		if e.Settings == nil {
+			e.Settings = NewSettings()
+		}
+
+		if e.AwsConfig == nil {
+			cfg, err := config.LoadDefaultConfig(ctx)
+			if err != nil {
+				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
+
+				return
+			}
+
+			e.AwsConfig = &cfg
+		}
+
+		if e.sender == nil {
+			e.sender = &DefaultKinesisSender{
+				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
+			}
+		}
+	})
+
+	return initErr
 }
 
 // sendChunk sends one PutRecords call and retries only the records Kinesis rejected.
@@ -288,90 +386,33 @@ func (e *Exporter) sendChunk(
 	for attempt := 1; ; attempt++ {
 		req := *input
 		req.Records = pending
+
 		output, err := e.sender.SendMessages(ctx, &req)
 		if err != nil {
 			return fmt.Errorf("send: %w", err)
 		}
+
 		retry, failures := rejectedRecords(pending, output)
 		if len(retry) == 0 {
 			return nil
 		}
-		logger.Warn("send: some records were rejected by Kinesis",
+
+		logger.WarnContext(ctx, "send: some records were rejected by Kinesis",
 			"failed", len(retry), "total", total, "attempt", attempt)
 
 		if attempt >= maxAttempts {
 			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
 				len(retry), total, attempt, distinctCodes(failures))
 		}
+
 		pending = retry
-		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
+
+		waitErr := e.wait(ctx, backoff(attempt))
+		if waitErr != nil {
 			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
 				len(retry), total, waitErr)
 		}
 	}
-}
-
-// rejectedRecords returns the records of pending that are not confirmed as delivered, together
-// with the matching result entries (when available, for error reporting).
-//
-// A record is only considered delivered when its own positional result entry carries a
-// SequenceNumber and no error. The aggregate FailedRecordCount is deliberately ignored: it is
-// optional in the SDK and can contradict the per-record results. When the response cannot be
-// matched to the request (nil output, or a different number of results) nothing can be
-// confirmed, so every record is treated as failed and resent (at-least-once).
-func rejectedRecords(
-	pending []types.PutRecordsRequestEntry,
-	output *kinesis.PutRecordsOutput,
-) ([]types.PutRecordsRequestEntry, []types.PutRecordsResultEntry) {
-	if output == nil || len(output.Records) != len(pending) {
-		unknown := types.PutRecordsResultEntry{
-			ErrorCode:    aws.String("UnverifiableResponse"),
-			ErrorMessage: aws.String("response does not match the request"),
-		}
-		failures := make([]types.PutRecordsResultEntry, len(pending))
-		for i := range failures {
-			failures[i] = unknown
-		}
-
-		return pending, failures
-	}
-
-	var retry []types.PutRecordsRequestEntry
-	var failures []types.PutRecordsResultEntry
-	for i, res := range output.Records {
-		if res.ErrorCode == nil && res.ErrorMessage == nil && res.SequenceNumber != nil {
-			continue
-		}
-		retry = append(retry, pending[i])
-		failures = append(failures, res)
-	}
-
-	return retry, failures
-}
-
-func distinctCodes(failures []types.PutRecordsResultEntry) string {
-	set := map[string]struct{}{}
-	for _, f := range failures {
-		code := aws.ToString(f.ErrorCode)
-		if code == "" {
-			code = "Unknown"
-		}
-		set[code] = struct{}{}
-	}
-	codes := make([]string, 0, len(set))
-	for c := range set {
-		codes = append(codes, c)
-	}
-	sort.Strings(codes)
-
-	return strings.Join(codes, ", ")
-}
-
-// backoff returns an exponential delay with full jitter for the given attempt (1-based).
-func backoff(attempt int) time.Duration {
-	d := min(baseBackoff<<(attempt-1), maxBackoff)
-
-	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
 }
 
 // wait blocks for d or until ctx is done. It uses the injectable sleep when set.
@@ -379,11 +420,13 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 	if e.sleep != nil {
 		return e.sleep(ctx, d)
 	}
+
 	t := time.NewTimer(d)
 	defer t.Stop()
+
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("waiting to retry the Kinesis export: %w", ctx.Err())
 	case <-t.C:
 		return nil
 	}
@@ -395,11 +438,11 @@ func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error)
 	case formatJSON:
 		fallthrough
 	default:
-		return json.Marshal(event)
-	}
-}
+		b, err := json.Marshal(event)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kinesis event: %w", err)
+		}
 
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (e *Exporter) IsBulk() bool {
-	return false
+		return b, nil
+	}
 }

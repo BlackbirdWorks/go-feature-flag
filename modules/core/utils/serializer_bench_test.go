@@ -9,14 +9,17 @@ import (
 )
 
 func BenchmarkContextToMap(b *testing.B) {
-	for _, n := range []int{0, 5, 15} {
+	for _, count := range []int{0, 5, 15} {
 		builder := ffcontext.NewEvaluationContextBuilder("3f1c1a52-8a5e-4c1e-9d0a-2b7f6c2e9a10")
-		for i := range n {
+		for i := range count {
 			builder.AddCustom(fmt.Sprintf("attr%d", i), i)
 		}
+
 		ctx := builder.Build()
-		b.Run(fmt.Sprintf("%d custom attributes", n), func(b *testing.B) {
+
+		b.Run(fmt.Sprintf("%d custom attributes", count), func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				_ = utils.ContextToMap(ctx)
 			}

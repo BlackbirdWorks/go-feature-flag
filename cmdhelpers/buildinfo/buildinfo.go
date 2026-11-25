@@ -25,16 +25,18 @@ const unknown = "unknown"
 // Text returns the version output: one "key: value" line each for the name, version, commit,
 // build date, Go version and FIPS 140 mode. Values missing from the link flags come from the
 // module build information (go install, go build in a git checkout) and are "unknown" otherwise.
-// bi may be nil.
-func Text(name string, linked Linked, bi *debug.BuildInfo, fips bool) string {
+// info may be nil.
+func Text(name string, linked Linked, info *debug.BuildInfo, fips bool) string {
 	version, commit, date := linked.Version, linked.Commit, linked.Date
+
 	goVersion := runtime.Version()
-	if bi != nil {
-		goVersion = bi.GoVersion
-		if (version == "" || version == DevVersion) && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
-			version = bi.Main.Version
+	if info != nil {
+		goVersion = info.GoVersion
+		if (version == "" || version == DevVersion) && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			version = info.Main.Version
 		}
-		for _, s := range bi.Settings {
+
+		for _, s := range info.Settings {
 			switch {
 			case s.Key == "vcs.revision" && commit == "":
 				commit = s.Value

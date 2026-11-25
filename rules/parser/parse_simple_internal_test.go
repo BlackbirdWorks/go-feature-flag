@@ -46,10 +46,32 @@ func TestInvalidRule(t *testing.T) {
 	}
 }
 
+func runVersionTests(t *testing.T, tests []testCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.rule, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := eval(tt.rule, tt.input)
+			if tt.hasError {
+				assert.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
+			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
+		})
+	}
+}
+
 func TestVersions(t *testing.T) {
 	t.Parallel()
 
-	tests := []testCase{
+	runVersionTests(t, []testCase{
 		{
 			rule: `x EQ 1.0.0`,
 			input: obj{
@@ -256,7 +278,14 @@ func TestVersions(t *testing.T) {
 			result:   true,
 			hasError: true,
 		},
-		// ensure prerelease comparisons work per semver spec
+	})
+}
+
+func TestVersions_PrereleaseAndBuild(t *testing.T) {
+	t.Parallel()
+
+	// ensure prerelease comparisons work per semver spec
+	runVersionTests(t, []testCase{
 		{
 			rule: `x LT 1.1.0`,
 			input: obj{
@@ -402,24 +431,7 @@ func TestVersions(t *testing.T) {
 			result:   true,
 			hasError: false,
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.rule, func(t *testing.T) {
-			t.Parallel()
-
-			result, err := eval(tt.rule, tt.input)
-			if tt.hasError {
-				assert.Error(t, err)
-
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
-			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf("(%s)", tt.rule), tt.input), tt.rule)
-		})
-	}
+	})
 }
 
 func TestListOfStrings(t *testing.T) {

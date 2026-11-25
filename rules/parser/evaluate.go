@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,6 +46,7 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 			retErr = recoveredPanicError{info: info}
 		}
 	}()
+
 	tree, err := parseRule(rule)
 	if err != nil {
 		return nil, err
@@ -56,10 +58,12 @@ func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamed
 	}, nil
 }
 
+//nolint:ireturn // returns the antlr.ParseTree that the generated parser constructs, which only exposes the interface
 func parseRule(rule string) (antlr.ParseTree, error) {
 	input := antlr.NewInputStream(normalizeRuleInput(rule))
 	lex := NewJsonQueryLexer(input)
 	errListener := &collectingErrorListener{DefaultErrorListener: antlr.NewDefaultErrorListener()}
+
 	lex.RemoveErrorListeners()
 	lex.AddErrorListener(errListener)
 	tokens := antlr.NewCommonTokenStream(lex, antlr.TokenDefaultChannel)
@@ -67,10 +71,13 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	p.RemoveErrorListeners()
 	p.AddErrorListener(errListener)
 	tree := p.Query()
+
 	if len(errListener.errs) > 0 {
 		return nil, fmt.Errorf("%w %q: %s", errInvalidRule, rule, strings.Join(errListener.errs, "; "))
 	}
+
 	consumeTrailingWhitespace(tokens)
+
 	if tokens.LA(1) != antlr.TokenEOF {
 		return nil, fmt.Errorf("%w %q: unexpected input %q", errInvalidRule, rule, tokens.LT(1).GetText())
 	}
@@ -92,40 +99,6 @@ func (e *Evaluator) LastDebugErr() error {
 	return nil
 }
 
-func (e *Evaluator) setDebugErr(err error) {
-	if err == nil {
-		// load first so concurrent clean calls on a shared evaluator only
-		// read the shared cache line instead of all writing to it
-		if e.lastDebugErr.Load() != nil {
-			e.lastDebugErr.Store(nil)
-		}
-
-		return
-	}
-	box := err
-	e.lastDebugErr.Store(&box)
-}
-
-// compile turns the parse tree into the node tree used by Process. It runs
-// once; a panic leaves the tree in place so Process uses the visitor instead.
-func (e *Evaluator) compile() {
-	defer func() {
-		// Deliberately silent: compiling is only an optimization. A panic
-		// here (e.g. a tree shape compileQuery does not expect) must not
-		// change what Process returns, so drop any partial result and keep
-		// the tree; Process then walks it with the visitor, which reports
-		// whatever error or result the uncompiled evaluator always did.
-		if info := recover(); info != nil {
-			e.root = nil
-		}
-	}()
-	if e.tree == nil {
-		return
-	}
-	e.root = compileQuery(e.tree)
-	e.tree = nil
-}
-
 // Process evaluates items against the rule. The rule is compiled on first use.
 //
 //nolint:nonamedreturns // recover sets the result
@@ -145,8 +118,12 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	}()
 
 	e.once.Do(e.compile)
-	var result bool
-	var err error
+
+	var (
+		result bool
+		err    error
+	)
+
 	switch {
 	case e.root != nil:
 		st := evalState{item: items}
@@ -158,9 +135,11 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	default:
 		err = errInvalidRule2
 	}
+
 	if e.testHookPanic != nil {
 		defer e.testHookPanic()
 	}
+
 	if err != nil {
 		return false, err
 	}
@@ -168,15 +147,53 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	return result, nil
 }
 
+func (e *Evaluator) setDebugErr(err error) {
+	if err == nil {
+		// load first so concurrent clean calls on a shared evaluator only
+		// read the shared cache line instead of all writing to it
+		if e.lastDebugErr.Load() != nil {
+			e.lastDebugErr.Store(nil)
+		}
+
+		return
+	}
+
+	box := err
+	e.lastDebugErr.Store(&box)
+}
+
+// compile turns the parse tree into the node tree used by Process. It runs
+// once; a panic leaves the tree in place so Process uses the visitor instead.
+func (e *Evaluator) compile() {
+	defer func() {
+		// Deliberately silent: compiling is only an optimization. A panic
+		// here (e.g. a tree shape compileQuery does not expect) must not
+		// change what Process returns, so drop any partial result and keep
+		// the tree; Process then walks it with the visitor, which reports
+		// whatever error or result the uncompiled evaluator always did.
+		if info := recover(); info != nil {
+			e.root = nil
+		}
+	}()
+
+	if e.tree == nil {
+		return
+	}
+
+	e.root = compileQuery(e.tree)
+	e.tree = nil
+}
+
 func (e *Evaluator) visit(items map[string]any) (bool, error) {
 	visitor := NewJSONQueryVisitorImpl(items)
 	result := visitor.Visit(e.tree)
 	e.setDebugErr(visitor.debugErr)
+
 	if result == nil || visitor.err != nil {
 		return false, visitor.err
 	}
 
-	return result.(bool), visitor.err //nolint:errcheck // panics on mismatch, as before
+	return assertType[bool](result), visitor.err
 }
 
 func Evaluate(rule string, items map[string]any) bool {
@@ -184,6 +201,7 @@ func Evaluate(rule string, items map[string]any) bool {
 	if err != nil {
 		return false
 	}
+
 	result, _ := ev.Process(items)
 
 	return result
@@ -193,3 +211,16 @@ func Evaluate(rule string, items map[string]any) bool {
 type recoveredPanicError struct{ info any }
 
 func (e recoveredPanicError) Error() string { return fmt.Sprintf("%q", e.info) }
+
+// assertType returns v as a T. A mismatch is a bug of the evaluator, not a bad rule: it panics, and the recover of
+// the evaluation reports it as an error, as the unchecked type assertion it replaces did.
+//
+//nolint:ireturn // generic: the result is a type parameter
+func assertType[T any](v any) T {
+	res, ok := v.(T)
+	if !ok {
+		panic(fmt.Sprintf("interface conversion: %T is not %s", v, reflect.TypeFor[T]()))
+	}
+
+	return res
+}

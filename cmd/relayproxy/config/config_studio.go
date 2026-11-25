@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -19,17 +20,19 @@ import (
 // Changes to the Studio configuration require restarting the relay proxy.
 type Studio struct {
 	// Headers (optional) are sent with every request, for example an Authorization header.
-	Headers map[string][]string `mapstructure:"headers" koanf:"headers"`
+	Headers map[string][]string `koanf:"headers" mapstructure:"headers"`
 	// URL of the relay proxy configuration served by Studio, only its flagSets key is used.
-	URL string `mapstructure:"url" koanf:"url"`
+	URL string `koanf:"url" mapstructure:"url"`
 	// CacheFile (optional) keeps the last valid document, it is used when the URL is unreachable.
-	CacheFile string `mapstructure:"cacheFile" koanf:"cachefile"`
+	CacheFile string `koanf:"cachefile" mapstructure:"cacheFile"`
 	// PollingInterval (optional) is the time in milliseconds between two checks of the URL.
 	// Default: 60000
-	PollingInterval int `mapstructure:"pollingInterval" koanf:"pollinginterval"`
+	PollingInterval int `koanf:"pollinginterval" mapstructure:"pollingInterval"`
 }
 
 // parser returns the parser matching the extension of the URL path.
+//
+//nolint:ireturn // returns the parser that selectParserForFile selects at runtime
 func (s Studio) parser() koanf.Parser {
 	path, _, _ := strings.Cut(s.URL, "?") // pre-signed URLs have a query string after the extension
 
@@ -56,17 +59,23 @@ func (s Studio) provider(parser koanf.Parser, log *slog.Logger) *httpprovider.HT
 func validateStudioFlagSets(content []byte, parser koanf.Parser) error {
 	values, err := parser.Unmarshal(content)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse studio flagsets: %w", err)
 	}
-	k := koanf.New(".")
-	if loadErr := k.Load(confmap.Provider(values, "."), nil); loadErr != nil {
-		return loadErr
+
+	koanfLoader := koanf.New(".")
+
+	loadErr := koanfLoader.Load(confmap.Provider(values, "."), nil)
+	if loadErr != nil {
+		return fmt.Errorf("load studio flagsets: %w", loadErr)
 	}
+
 	var studioConf struct {
 		FlagSets []FlagSet `koanf:"flagsets"`
 	}
-	if unmarshalErr := k.Unmarshal("", &studioConf); unmarshalErr != nil {
-		return unmarshalErr
+
+	unmarshalErr := koanfLoader.Unmarshal("", &studioConf)
+	if unmarshalErr != nil {
+		return fmt.Errorf("unmarshal studio flagsets: %w", unmarshalErr)
 	}
 
 	return (&Config{FlagSets: studioConf.FlagSets}).validateFlagSets()

@@ -9,7 +9,9 @@ import (
 
 func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 	svc := flag.NewService()
+
 	const key = "3f1c1a52-8a5e-4c1e-9d0a-2b7f6c2e9a10"
+
 	tests := []struct {
 		percentages map[string]float64
 		name        string
@@ -26,10 +28,12 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 		},
 	}
 	ctx := ffcontext.NewEvaluationContext(key)
+
 	for _, tt := range tests {
 		rule := flag.Rule{Percentages: &tt.percentages}
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				_, _ = rule.Evaluate(svc, key, ctx, "my-flag", true)
 			}
@@ -49,7 +53,9 @@ func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 		AddCustom("language", "ar").
 		AddCustom("clubsTimeSpent", 1500).
 		Build()
+
 	b.ReportAllocs()
+
 	for b.Loop() {
 		_, _ = rule.Evaluate(svc, "user-1", ctx, "my-flag", false)
 	}

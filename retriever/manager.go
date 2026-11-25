@@ -67,11 +67,15 @@ func NewManager(
 // Init the retrievers.
 // This function will call the Init function of the retrievers that implements the InitializableRetriever interface.
 func (m *Manager) Init(ctx context.Context) error {
-	if err := m.initRetrievers(ctx, m.retrievers); err != nil {
+	err := m.initRetrievers(ctx, m.retrievers)
+	if err != nil {
 		return err
 	}
-	if err := m.retrieveFlagsAndUpdateCache(ctx, true); err != nil {
-		if handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err); handleFirstRetrieverErrorErr != nil {
+
+	err = m.retrieveFlagsAndUpdateCache(ctx, true)
+	if err != nil {
+		handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err)
+		if handleFirstRetrieverErrorErr != nil {
 			return handleFirstRetrieverErrorErr
 		}
 	}
@@ -90,12 +94,14 @@ func (m *Manager) StartPolling(ctx context.Context) {
 		// polling is disabled (PollingInterval <= 0), there is nothing to poll.
 		return
 	}
+
 	for {
 		select {
 		case <-m.bgUpdater.ticker.C:
 			err := m.retrieveFlagsAndUpdateCache(ctx, false)
 			if err != nil {
-				m.logger.Error(
+				m.logger.ErrorContext(
+					ctx,
 					"Error while updating the cache.",
 					slog.Any("error", err.Error()),
 				)
@@ -116,6 +122,97 @@ func (m *Manager) StopPolling() {
 		// no write of the persistent flag configuration file can happen afterwards.
 		m.pollingWg.Wait()
 	})
+}
+
+// Shutdown the retrievers.
+// This function will call the Shutdown function of the retrievers that implements the InitializableRetriever interface.
+func (m *Manager) Shutdown(ctx context.Context) error {
+	// Stop the background updater before shutting the retrievers down, otherwise the polling
+	// goroutine could use a retriever that is already shut down, and could keep writing the
+	// persistent flag configuration file after Close() returned.
+	m.StopPolling()
+
+	onErrorRetriever := make([]Retriever, 0)
+
+	for _, retriever := range m.retrievers {
+		if r, ok := retriever.(CommonInitializableRetriever); ok {
+			err := r.Shutdown(ctx)
+			if err != nil {
+				onErrorRetriever = append(onErrorRetriever, retriever)
+			}
+		}
+	}
+
+	if len(onErrorRetriever) > 0 {
+		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
+	}
+
+	m.cacheManager.Close()
+
+	return nil
+}
+
+// GetCacheRefreshDate gives the last refresh date of the cache.
+func (m *Manager) GetCacheRefreshDate() time.Time {
+	return m.cacheManager.GetLatestUpdateDate()
+}
+
+// GetFlag returns the flag from the cache with the current state when calling this method.
+//
+//nolint:ireturn // passes through the flag.Flag of the cache.Manager interface, it constructs none
+func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
+	res, err := m.cacheManager.GetFlag(flagKey)
+	if err != nil {
+		return res, fmt.Errorf("getting the flag from the cache: %w", err)
+	}
+
+	return res, nil
+}
+
+// GetFlagsFromCache returns all the flags present in the cache with their
+// current state when calling this method. If cache hasn't been initialized, an
+// error reporting this is returned.
+func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, errCacheIsNotInitialized
+	}
+
+	res, err := m.cacheManager.AllFlags()
+	if err != nil {
+		return res, fmt.Errorf("getting all the flags from the cache: %w", err)
+	}
+
+	return res, nil
+}
+
+// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
+// callers inside the module that only read them (evaluation of all the flags).
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, errCacheIsNotInitialized
+	}
+
+	res, err := m.cacheManager.AllFlagsReadOnly()
+	if err != nil {
+		return res, fmt.Errorf("getting all the flags from the cache: %w", err)
+	}
+
+	return res, nil
+}
+
+func (m *Manager) ForceRefresh(ctx context.Context) bool {
+	err := m.retrieveFlagsAndUpdateCache(ctx, false)
+	if err != nil {
+		m.logger.ErrorContext(
+			ctx,
+			"Error while force updating the cache.",
+			slog.Any("error", err.Error()),
+		)
+
+		return false
+	}
+
+	return true
 }
 
 // initRetrievers is a helper function to initialize the retrievers.
@@ -175,56 +272,33 @@ func (m *Manager) checkInitializationErrors() error {
 	return nil
 }
 
-// Shutdown the retrievers.
-// This function will call the Shutdown function of the retrievers that implements the InitializableRetriever interface.
-func (m *Manager) Shutdown(ctx context.Context) error {
-	// Stop the background updater before shutting the retrievers down, otherwise the polling
-	// goroutine could use a retriever that is already shut down, and could keep writing the
-	// persistent flag configuration file after Close() returned.
-	m.StopPolling()
-
-	onErrorRetriever := make([]Retriever, 0)
-	for _, retriever := range m.retrievers {
-		if r, ok := retriever.(CommonInitializableRetriever); ok {
-			err := r.Shutdown(ctx)
-			if err != nil {
-				onErrorRetriever = append(onErrorRetriever, retriever)
-			}
-		}
-	}
-	if len(onErrorRetriever) > 0 {
-		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
-	}
-
-	m.cacheManager.Close()
-
-	return nil
-}
-
 // retrieveFlagsAndUpdateCache is a function that will retrieve the flags from the retrievers and update the cache.
 func (m *Manager) retrieveFlagsAndUpdateCache(ctx context.Context, isInit bool) error {
 	if len(m.onErrorRetriever) > 0 {
 		_ = m.initRetrievers(ctx, m.onErrorRetriever)
 	}
+
 	newFlags, err := retrieve(ctx, m.retrievers, m.config.FileFormat)
 	if err != nil {
 		return err
 	}
 
-	return m.updateCacheWithRetriever(newFlags, isInit)
+	return m.updateCacheWithRetriever(ctx, newFlags, isInit)
 }
 
 // updateCacheWithRetriever is a function that will update the cache with the new flags received from the retriever.
-func (m *Manager) updateCacheWithRetriever(newFlags map[string]dto.DTO, isInit bool) error {
+func (m *Manager) updateCacheWithRetriever(
+	ctx context.Context, newFlags map[string]dto.DTO, isInit bool,
+) error {
 	err := m.cacheManager.UpdateCache(
 		newFlags,
 		m.logger,
 		!isInit || !m.config.DisableNotifierOnInit,
 	)
 	if err != nil {
-		m.logger.Error("error: impossible to update the cache of the flags: %v", err)
+		m.logger.ErrorContext(ctx, "error: impossible to update the cache of the flags: %v", err)
 
-		return err
+		return fmt.Errorf("updating the cache of the flags: %w", err)
 	}
 
 	return nil
@@ -247,7 +321,7 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 		)
 	default:
 		// We accept to start with a retriever error, we will serve only default value
-		m.logger.Error("Impossible to retrieve the flags, starting with the "+
+		m.logger.ErrorContext(ctx, "Impossible to retrieve the flags, starting with the "+
 			"retriever error", slog.Any("error", err.Error()))
 	}
 
@@ -259,71 +333,31 @@ func (m *Manager) handleFirstRetrieverError(ctx context.Context, err error) erro
 // This function will look at any pre-existent persistent configuration and start with it.
 func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	if m.config.PersistentFlagConfigurationFile != "" {
-		m.logger.Error(
+		m.logger.ErrorContext(
+			ctx,
 			"Impossible to retrieve your flag configuration, trying to use the persistent"+
 				" flag configuration file.",
 			slog.String("path", m.config.PersistentFlagConfigurationFile),
 		)
-		if _, err := os.Stat(m.config.PersistentFlagConfigurationFile); err == nil {
+
+		_, err := os.Stat(m.config.PersistentFlagConfigurationFile)
+		if err == nil {
 			// we found the configuration file on the disk
 			r := &fileretriever.Retriever{Path: m.config.PersistentFlagConfigurationFile}
+
 			newFlags, retrieveErr := retrieve(ctx, []Retriever{r}, m.config.FileFormat)
 			if retrieveErr != nil {
 				return retrieveErr
 			}
 
-			return m.updateCacheWithRetriever(newFlags, true)
+			return m.updateCacheWithRetriever(ctx, newFlags, true)
 		}
-		m.logger.Warn("No persistent flag configuration found",
+
+		m.logger.WarnContext(ctx, "No persistent flag configuration found",
 			slog.String("path", m.config.PersistentFlagConfigurationFile))
 	}
 
 	return errNoPersistentFlagAvailable
-}
-
-// GetCacheRefreshDate gives the last refresh date of the cache.
-func (m *Manager) GetCacheRefreshDate() time.Time {
-	return m.cacheManager.GetLatestUpdateDate()
-}
-
-// GetFlag returns the flag from the cache with the current state when calling this method.
-func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
-	return m.cacheManager.GetFlag(flagKey)
-}
-
-// GetFlagsFromCache returns all the flags present in the cache with their
-// current state when calling this method. If cache hasn't been initialized, an
-// error reporting this is returned.
-func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
-	if m == nil || m.cacheManager == nil {
-		return nil, errCacheIsNotInitialized
-	}
-
-	return m.cacheManager.AllFlags()
-}
-
-// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
-// callers inside the module that only read them (evaluation of all the flags).
-func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
-	if m == nil || m.cacheManager == nil {
-		return nil, errCacheIsNotInitialized
-	}
-
-	return m.cacheManager.AllFlagsReadOnly()
-}
-
-func (m *Manager) ForceRefresh(ctx context.Context) bool {
-	err := m.retrieveFlagsAndUpdateCache(ctx, false)
-	if err != nil {
-		m.logger.Error(
-			"Error while force updating the cache.",
-			slog.Any("error", err.Error()),
-		)
-
-		return false
-	}
-
-	return true
 }
 
 // retrieve is a function that will retrieve the flags from all the retrievers in parallel.
@@ -340,6 +374,7 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 	// It has room for one result per retriever: we return on the first error without waiting for the
 	// other retrievers, which must still be able to send their result and return.
 	resultsChan := make(chan Results, len(retrievers))
+
 	var wg sync.WaitGroup
 	wg.Add(len(retrievers))
 
@@ -369,16 +404,19 @@ func retrieve(ctx context.Context, retrievers []Retriever, fileFormat string) (m
 
 				return
 			}
+
 			convertedFlag, err := cache.ConvertToFlagStruct(rawValue, getOutputFormat(r, format))
 			resultsChan <- Results{Error: err, Value: convertedFlag, Index: index}
 		}(r, fileFormat, index, ctx)
 	}
 
 	retrieversResults := make([]map[string]dto.DTO, len(retrievers))
+
 	for v := range resultsChan {
 		if v.Error != nil {
 			return nil, v.Error
 		}
+
 		retrieversResults[v.Index] = v.Value
 	}
 

@@ -33,6 +33,7 @@ func requestContext(t *testing.T, logger *slog.Logger, requestID string) context
 	t.Helper()
 
 	var served *http.Request
+
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
 	req.Header.Set("X-Request-ID", requestID)
 	logging.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { served = r }),
@@ -41,28 +42,110 @@ func requestContext(t *testing.T, logger *slog.Logger, requestID string) context
 	return served.Context()
 }
 
+type collectEvalDataWant struct {
+	bodyFile          string
+	errorMsg          string
+	collectedDataFile string
+	httpCode          int
+	errorCode         int
+	warnings          int
+	handlerErr        bool
+}
+
+type collectEvalDataArgs struct {
+	bodyFile string
+}
+
+type collectEvalDataCase struct {
+	name   string
+	args   collectEvalDataArgs
+	apiKey string
+	want   collectEvalDataWant
+	config config.Config
+}
+
+func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
+	t.Helper()
+
+	for i := range tests {
+		tt := &tests[i]
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			exporterFile, err := os.CreateTemp(t.TempDir(), "exporter.json")
+			require.NoError(t, err)
+
+			defer os.Remove(exporterFile.Name())
+
+			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
+
+			flagsetManager, err := service.NewFlagsetManager(
+				&tt.config,
+				slog.New(slog.DiscardHandler),
+				[]notifier.Notifier{},
+				nil,
+				nil,
+			)
+			require.NoError(t, err)
+
+			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
+
+			// read wantBody request file
+			var bodyReq []byte
+
+			if tt.args.bodyFile != "" {
+				var readFileErr error
+
+				bodyReq, readFileErr = os.ReadFile(tt.args.bodyFile)
+				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
+			}
+
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
+			out, handlerErr := ctrl.Handle(requestContext(t, logger, "req-1"), &controller.CollectEvalDataInput{
+				Request: controller.NewRequest(tt.apiKey, "application/json"),
+				RawBody: bodyReq,
+			})
+
+			// the lines of the handler go through the logger of the request, with its request ID.
+			require.Len(t, logs.All(), tt.want.warnings)
+
+			for _, entry := range logs.All() {
+				assert.Equal(t, slog.LevelWarn, entry.Level)
+				assert.Equal(t, "req-1", entry.ContextMap()["request_id"])
+			}
+
+			if tt.want.handlerErr {
+				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
+
+				return
+			}
+
+			flagsetManager.Close()
+
+			wantBody, err := os.ReadFile(tt.want.bodyFile)
+			require.NoError(t, err)
+			wantCollectData, err := os.ReadFile(tt.want.collectedDataFile)
+			require.NoError(t, err)
+			exportedData, err := os.ReadFile(exporterFile.Name())
+			require.NoError(t, err)
+
+			// replace the timestamps in the response
+			regex := regexp.MustCompile(`\d{10}`)
+			replacedStr := regex.ReplaceAllString(jsonOf(t, out.Body), "1652273630")
+
+			// validate the result
+			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
+			assert.Equal(t, http.StatusOK, tt.want.httpCode, "Invalid HTTP Code")
+			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
+			assert.JSONEq(t, string(wantCollectData), string(exportedData), "Invalid exported data")
+		})
+	}
+}
+
 func Test_collect_eval_data_Handler(t *testing.T) {
 	t.Parallel()
 
-	type want struct {
-		bodyFile          string
-		errorMsg          string
-		collectedDataFile string
-		httpCode          int
-		errorCode         int
-		warnings          int
-		handlerErr        bool
-	}
-	type args struct {
-		bodyFile string
-	}
-	tests := []struct {
-		name   string
-		args   args
-		apiKey string
-		want   want
-		config config.Config
-	}{
+	runCollectEvalDataTests(t, []collectEvalDataCase{
 		{
 			name: "valid usecase",
 			config: config.Config{
@@ -76,10 +159,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
@@ -102,10 +185,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/valid_request.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data.json",
@@ -124,10 +207,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
@@ -150,15 +233,22 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/request_with_source_field.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/collected_data_with_source_field.json",
 			},
 		},
+	})
+}
+
+func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
+	t.Parallel()
+
+	runCollectEvalDataTests(t, []collectEvalDataCase{
 		{
 			name: "invalid json",
 			config: config.Config{
@@ -172,10 +262,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/invalid_request.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				handlerErr: true,
 				httpCode:   http.StatusBadRequest,
 				errorMsg: "collectEvalData: invalid input data code=400, message=Bad Request, " +
@@ -196,10 +286,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				bodyFile: testdataDir + "/collect_eval_data/invalid_request_data_null.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				handlerErr: true,
 				httpCode:   http.StatusBadRequest,
 				errorMsg:   "collectEvalData: invalid input data",
@@ -219,10 +309,10 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				testdataDir + "/collect_eval_data/valid_request_with_timestamp_ms.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_with_timestamp_ms.json",
@@ -242,82 +332,16 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					},
 				},
 			},
-			args: args{
+			args: collectEvalDataArgs{
 				testdataDir + "/collect_eval_data/valid_request_metadata.json",
 			},
-			want: want{
+			want: collectEvalDataWant{
 				httpCode:          http.StatusOK,
-				bodyFile:          testdataDir + "/collect_eval_data/valid_response_metadata.json",
+				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_metadata.json",
 			},
 		},
-	}
-	for i := range tests {
-		tt := &tests[i]
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			exporterFile, err := os.CreateTemp(t.TempDir(), "exporter.json")
-			require.NoError(t, err)
-			defer os.Remove(exporterFile.Name())
-
-			setCollectEvalDataFileExporter(&tt.config, exporterFile.Name())
-
-			flagsetManager, err := service.NewFlagsetManager(
-				&tt.config,
-				slog.New(slog.DiscardHandler),
-				[]notifier.Notifier{},
-				nil,
-				nil,
-			)
-			require.NoError(t, err)
-
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
-
-			// read wantBody request file
-			var bodyReq []byte
-			if tt.args.bodyFile != "" {
-				var readFileErr error
-				bodyReq, readFileErr = os.ReadFile(tt.args.bodyFile)
-				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
-			}
-
-			logger, logs := slogutil.NewObserver(slog.LevelDebug)
-			out, handlerErr := ctrl.Handle(requestContext(t, logger, "req-1"), &controller.CollectEvalDataInput{
-				Request: controller.NewRequest(tt.apiKey, "application/json"),
-				RawBody: bodyReq,
-			})
-
-			// the lines of the handler go through the logger of the request, with its request ID.
-			require.Len(t, logs.All(), tt.want.warnings)
-			for _, entry := range logs.All() {
-				assert.Equal(t, slog.LevelWarn, entry.Level)
-				assert.Equal(t, "req-1", entry.ContextMap()["request_id"])
-			}
-			if tt.want.handlerErr {
-				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
-
-				return
-			}
-			flagsetManager.Close()
-			wantBody, err := os.ReadFile(tt.want.bodyFile)
-			require.NoError(t, err)
-			wantCollectData, err := os.ReadFile(tt.want.collectedDataFile)
-			require.NoError(t, err)
-			exportedData, err := os.ReadFile(exporterFile.Name())
-			require.NoError(t, err)
-
-			// replace the timestamps in the response
-			regex := regexp.MustCompile(`\d{10}`)
-			replacedStr := regex.ReplaceAllString(jsonOf(t, out.Body), "1652273630")
-
-			// validate the result
-			require.NoError(t, err, "Impossible the expected wantBody file %s", tt.want.bodyFile)
-			assert.Equal(t, http.StatusOK, tt.want.httpCode, "Invalid HTTP Code")
-			assert.JSONEq(t, string(wantBody), replacedStr, "Invalid response wantBody")
-			assert.JSONEq(t, string(wantCollectData), string(exportedData), "Invalid exported data")
-		})
-	}
+	})
 }
 
 // setCollectEvalDataFileExporter configures cfg to export collected data to the
@@ -332,11 +356,13 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 
 		return
 	}
+
 	out := make([]config.FlagSet, len(cfg.FlagSets))
 	for index, flagSet := range cfg.FlagSets {
 		flagSet.Exporters = &[]config.ExporterConf{exporter}
 		out[index] = flagSet
 	}
+
 	cfg.FlagSets = out
 }
 
@@ -345,15 +371,18 @@ func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 func assertCollectEvalDataHandlerError(t *testing.T, handlerErr error, errorCode int, errorMsg string) {
 	t.Helper()
 	require.Error(t, handlerErr, "handler should return an error")
-	he := &helper.HTTPError{}
-	ok := errors.As(handlerErr, &he)
+
+	httpErr := &helper.HTTPError{}
+
+	ok := errors.As(handlerErr, &httpErr)
 	if !ok {
 		assert.Equal(t, errorMsg, handlerErr.Error())
 
 		return
 	}
-	assert.Equal(t, errorCode, he.Code)
-	assert.Equal(t, errorMsg, he.Message)
+
+	assert.Equal(t, errorCode, httpErr.Code)
+	assert.Equal(t, errorMsg, httpErr.Message)
 }
 
 func TestCollectEvalData_Handler_cancellation(t *testing.T) {
@@ -375,15 +404,16 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 	body := `{"events":[` + strings.Repeat(event+",", 19999) + event + `]}`
 
 	ctx, cancel := context.WithCancel(t.Context())
-	in := &controller.CollectEvalDataInput{
+	input := &controller.CollectEvalDataInput{
 		Request: controller.NewRequest("", "application/json"),
 		RawBody: []byte(body),
 	}
 
 	// run handler in background, cancel after 10ms
 	done := make(chan error, 1)
+
 	go func() {
-		_, handleErr := ctrl.Handle(ctx, in)
+		_, handleErr := ctrl.Handle(ctx, input)
 		done <- handleErr
 	}()
 
@@ -466,6 +496,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			require.NoError(t, err)
 			trackingExporter, err := os.CreateTemp(t.TempDir(), "trackExport.json")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(evalExporter.Name())
 				_ = os.Remove(trackingExporter.Name())
@@ -492,6 +523,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 					}
 					out[index] = flagSet
 				}
+
 				tt.config.FlagSets = out
 			} else {
 				tt.config.Exporters = &[]config.ExporterConf{
@@ -519,6 +551,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+
 			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
@@ -529,9 +562,11 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			})
 			require.NoError(t, handlerErr)
 			flagsetManager.Close()
+
 			evalEvents, err := os.ReadFile(evalExporter.Name())
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.wantEval, string(evalEvents), "Invalid exported data")
+
 			trackingEvents, err := os.ReadFile(trackingExporter.Name())
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.wantTracking, string(trackingEvents), "Invalid exported data")

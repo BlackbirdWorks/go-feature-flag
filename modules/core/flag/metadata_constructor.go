@@ -11,9 +11,11 @@ func constructMetadata(
 	if ruleName == nil || *ruleName == "" {
 		return metadata
 	}
+
 	if metadata == nil {
 		metadata = make(map[string]any)
 	}
+
 	metadata["evaluatedRuleName"] = *ruleName
 
 	return metadata

@@ -30,8 +30,10 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 		AddCustom("concurrencyLocked", true).
 		AddCustom("segment", 0).
 		Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
@@ -42,7 +44,9 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 // configuration where most flags are evaluated less often than the GC runs.
 func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 	svc := flag.NewService()
+
 	const queries = 1000
+
 	rules := make([]flag.Rule, queries)
 	for i := range rules {
 		rules[i] = flag.Rule{
@@ -52,11 +56,14 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 		}
 		_, _ = rules[i].Evaluate(svc, "user-1", ffcontext.NewEvaluationContext("user-1"), "warm-up", false)
 	}
+
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("group", "group-0").
 		Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for i := range b.N {
 		if i%queries == 0 {
 			b.StopTimer()
@@ -64,6 +71,7 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 			runtime.GC()
 			b.StartTimer()
 		}
+
 		_, _ = rules[i%queries].Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
 }
@@ -79,8 +87,10 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("language", "ar").
 		Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
@@ -91,10 +101,12 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 // that is not in the list.
 func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 	svc := flag.NewService()
+
 	users := make([]string, 400)
 	for i := range users {
 		users[i] = fmt.Sprintf(`"%08d-0000-4000-8000-000000000000"`, i)
 	}
+
 	rule := flag.Rule{
 		Name:            new("large-in"),
 		VariationResult: new("on"),
@@ -103,8 +115,10 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("userId", "ffffffff-0000-4000-8000-000000000000").
 		Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		_, _ = rule.Evaluate(svc, "user-1", ctx, "test-flag", false)
 	}
@@ -114,6 +128,7 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 // carry a query, the last one matching, so every rule reads the evaluation context.
 func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 	svc := flag.NewService()
+
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
@@ -121,7 +136,8 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 			VariationResult: new("on"),
 		})
 	}
-	f := flag.InternalFlag{
+
+	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -136,10 +152,12 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 		AddCustom("beta", true).
 		Build()
 	flagCtx := flag.Context{DefaultSdkValue: false, Service: svc}
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
-		_, _ = f.Value("multi-rule", ctx, flagCtx)
+		_, _ = flg.Value("multi-rule", ctx, flagCtx)
 	}
 }
 
@@ -147,6 +165,7 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 // with JsonLogic queries, which read the evaluation context as JSON.
 func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 	svc := flag.NewService()
+
 	rules := make([]flag.Rule, 0, 5)
 	for _, group := range []string{"group-a", "group-b", "group-c", "group-d", "group-e"} {
 		rules = append(rules, flag.Rule{
@@ -156,7 +175,8 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 			VariationResult: new("on"),
 		})
 	}
-	f := flag.InternalFlag{
+
+	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -171,10 +191,12 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 		AddCustom("beta", true).
 		Build()
 	flagCtx := flag.Context{DefaultSdkValue: false, Service: svc}
+
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
-		_, _ = f.Value("multi-rule-jsonlogic", ctx, flagCtx)
+		_, _ = flg.Value("multi-rule-jsonlogic", ctx, flagCtx)
 	}
 }
 
@@ -190,6 +212,7 @@ func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
 	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
 		AddCustom("language", "ar").
 		Build()
+
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

@@ -14,6 +14,7 @@ func TestIsIntegral(t *testing.T) {
 	type args struct {
 		val float64
 	}
+
 	tests := []struct {
 		name string
 		args args

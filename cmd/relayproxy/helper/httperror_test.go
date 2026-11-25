@@ -125,6 +125,7 @@ func TestBindBody(t *testing.T) {
 	type payload struct {
 		A int `json:"a"`
 	}
+
 	tests := []struct {
 		name        string
 		contentType string
@@ -152,7 +153,9 @@ func TestBindBody(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", tt.contentType)
+
 			var got payload
+
 			err := helper.BindBody(req, &got)
 			if tt.wantCode == 0 {
 				require.NoError(t, err)
@@ -160,6 +163,7 @@ func TestBindBody(t *testing.T) {
 
 				return
 			}
+
 			var he *helper.HTTPError
 			require.ErrorAs(t, err, &he)
 			assert.Equal(t, tt.wantCode, he.Code)
@@ -167,7 +171,9 @@ func TestBindBody(t *testing.T) {
 
 			// the same document, read before
 			var raw payload
+
 			rawErr := helper.BindRawBody(tt.contentType, []byte(tt.body), &raw)
+
 			var rawHE *helper.HTTPError
 			require.ErrorAs(t, rawErr, &rawHE)
 			assert.Equal(t, tt.wantCode, rawHE.Code)

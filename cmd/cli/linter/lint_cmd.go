@@ -34,6 +34,7 @@ func NewLintCmd() *cobra.Command {
 
 func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 	output := helper.Output{}
+
 	l := Linter{
 		InputFile:   extractFilePathFromArgs(args),
 		InputFormat: lintFlagFormat,
@@ -42,6 +43,7 @@ func runLint(cmd *cobra.Command, args []string, lintFlagFormat string) error {
 		for _, err := range errs {
 			output.Add(err.Error(), helper.ErrorLevel)
 		}
+
 		output.PrintLines(cmd)
 
 		return errInvalidSemaphoreConfiguration

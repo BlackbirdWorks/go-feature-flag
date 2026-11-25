@@ -8,5 +8,5 @@ import (
 type ScheduledStep struct {
 	InternalFlag `yaml:",inline"`
 
-	Date *time.Time `yaml:"date,omitempty" json:"date,omitempty" toml:"date,omitempty"`
+	Date *time.Time `json:"date,omitempty" toml:"date,omitempty" yaml:"date,omitempty"`
 }

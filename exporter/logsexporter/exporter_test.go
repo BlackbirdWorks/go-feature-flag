@@ -22,9 +22,11 @@ func TestLog_Export(t *testing.T) {
 	type fields struct {
 		LogFormat string
 	}
+
 	type args struct {
 		featureEvents []exporter.ExportableEvent
 	}
+
 	tests := []struct {
 		name        string
 		fields      fields
@@ -112,14 +114,14 @@ func TestLog_Export(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := &logsexporter.Exporter{
+			logsExp := &logsexporter.Exporter{
 				LogFormat: tt.fields.LogFormat,
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
-			err := f.Export(context.Background(), logger, tt.args.featureEvents)
+			err := logsExp.Export(context.Background(), logger, tt.args.featureEvents)
 
 			if tt.wantErr {
 				assert.Error(t, err, "It should return an error")

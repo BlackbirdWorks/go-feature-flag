@@ -25,7 +25,7 @@ func TestNewManifest(t *testing.T) {
 			name:           "should error if config file does not exist",
 			config:         "testdata/invalid.yaml",
 			setDestination: true,
-			wantErr:        "impossible to find config file testdata/invalid.yaml",
+			wantErr:        "loading the configuration of the manifest: impossible to find config file testdata/invalid.yaml",
 		},
 		{
 			name:           "should generate the manifest if config file exists",
@@ -50,15 +50,16 @@ func TestNewManifest(t *testing.T) {
 				destination = filepath.Join(t.TempDir(), "manifest.json")
 			}
 
-			m, err := manifest.NewManifest(tt.config, "", destination)
+			mfst, err := manifest.NewManifest(tt.config, "", destination)
 			if tt.wantErr != "" {
 				require.EqualError(t, err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err)
 
-			_, err = m.Generate()
+			_, err = mfst.Generate()
 			require.NoError(t, err)
 			want, err := os.ReadFile(tt.wantManifest)
 			require.NoError(t, err)

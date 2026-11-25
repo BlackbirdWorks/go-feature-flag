@@ -35,14 +35,16 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
+
 	type fields struct {
 		httpClient     mock.HTTP
-		context        context.Context
 		repositorySlug string
 		filePath       string
 		bitbucketToken string
 		branch         string
+		withCtx        bool
 	}
+
 	tests := []struct {
 		fields  fields
 		name    string
@@ -66,7 +68,7 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				repositorySlug: "gofeatureflag/config-repo",
 				filePath:       "flags/config.goff.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -131,17 +133,24 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := bitbucketretriever.Retriever{
+			ret := bitbucketretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				Branch:         tt.fields.branch,
 				FilePath:       tt.fields.filePath,
 				BitBucketToken: tt.fields.bitbucketToken,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			ret.SetHTTPClient(&tt.fields.httpClient)
+
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+
+			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
+
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -150,9 +159,11 @@ func Test_bitbucket_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, strings.TrimSpace(string(tt.want)), strings.TrimSpace(string(got)))
+
 				if tt.fields.bitbucketToken != "" {
 					assert.Equal(
 						t,

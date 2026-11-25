@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -82,16 +83,15 @@ type SharedItemsOptions struct {
 // Listing errors are served for min(that window, 10s) so that an outage causes one failing
 // listing per window, not one per item.
 type SharedItems struct {
-	listStart time.Time // start of the listing
-	listedAt  time.Time // end of the listing
-	// base is the context of the requests of the group, it is cancelled when the last item leaves.
-	base       context.Context // NOSONAR lifecycle context of the group, intentionally detached from callers
+	listStart  time.Time // start of the listing
+	listedAt   time.Time // end of the listing
 	lister     ListerAPI
 	downloader DownloaderAPI
 	listErr    error
 	// sem bounds the concurrent downloads.
-	sem          chan struct{}
-	cancel       context.CancelFunc
+	sem chan struct{}
+	// active is closed when the last item leaves to cancel in-flight group requests, and recreated lazily.
+	active       chan struct{}
 	wake         chan struct{} // tells the poller that the interval changed
 	logger       *slog.Logger
 	stopPoller   context.CancelFunc // stops the poller, nil if it is not running
@@ -153,6 +153,7 @@ func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, erro
 		if err != nil {
 			return nil, fmt.Errorf("impossible to init shared S3 items: %w", err)
 		}
+
 		cfg = &loaded
 	}
 
@@ -164,18 +165,20 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 	if opts.Bucket == "" {
 		return nil, errImpossibleToInitShared
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+
+	ctx = internal.ContextOrBackground(ctx)
+
 	lister, downloader := opts.Lister, opts.Downloader
 	if lister == nil || downloader == nil {
 		client, err := newS3Client(ctx, opts)
 		if err != nil {
 			return nil, err
 		}
+
 		if lister == nil {
 			lister = client
 		}
+
 		if downloader == nil {
 			downloader = transfermanager.New(client)
 		}
@@ -197,23 +200,6 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 	}, nil
 }
 
-// baseContext returns the context of the requests of the group, renewed if it was cancelled
-// because every item left.
-func (g *SharedItems) baseContext() context.Context {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	return g.baseLocked()
-}
-
-func (g *SharedItems) baseLocked() context.Context {
-	if g.base == nil || g.base.Err() != nil {
-		g.base, g.cancel = context.WithCancel(context.Background())
-	}
-
-	return g.base
-}
-
 // Retriever returns the retriever of one item of the bucket. The item joins the group
 // immediately (so that the listing covers it from the first poll) and leaves it on Shutdown.
 func (g *SharedItems) Retriever(item string) *SharedItemRetriever {
@@ -221,78 +207,6 @@ func (g *SharedItems) Retriever(item string) *SharedItemRetriever {
 	g.register(r)
 
 	return r
-}
-
-func (g *SharedItems) register(r *SharedItemRetriever) {
-	if r.item == "" {
-		return
-	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if _, ok := g.items[r]; ok {
-		return
-	}
-	g.items[r] = struct{}{}
-	if g.keyRefs[r.item]++; g.keyRefs[r.item] == 1 {
-		// a listing started before this registration may not know the key: force a refresh
-		g.seq++
-		g.keySeq[r.item] = g.seq
-	}
-	g.recompute()
-}
-
-// deregister removes the item from the group, then waits for the refresh of the item in flight (if
-// any) so that the consumer of the retriever is only closed once it finished. The wait stops when
-// ctx is done. The refresh function must not shut down its own retriever (it would wait for itself
-// until ctx is done).
-func (g *SharedItems) deregister(ctx context.Context, r *SharedItemRetriever) {
-	if inflight := g.leave(r); inflight != nil {
-		select {
-		case <-inflight:
-		case <-ctx.Done():
-		}
-	}
-}
-
-// leave removes the item from the group, and returns the channel closed when its refresh in flight
-// is over (nil if there is none).
-func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if _, ok := g.items[r]; !ok {
-		return nil
-	}
-	delete(g.items, r)
-	if r.refresh != nil {
-		// the poller must not refresh the item anymore
-		r.refresh = nil
-		g.refreshers--
-		if g.refreshers == 0 && g.stopPoller != nil {
-			g.stopPoller()
-			g.stopPoller = nil
-		}
-	}
-	if g.keyRefs[r.item]--; g.keyRefs[r.item] <= 0 {
-		delete(g.keyRefs, r.item)
-		delete(g.contents, r.item)
-		delete(g.keySeq, r.item)
-	}
-	if len(g.items) == 0 && g.cancel != nil {
-		// nobody needs the requests in flight anymore
-		g.cancel()
-	}
-	g.recompute()
-
-	return r.inflight
-}
-
-// recompute refreshes the listing prefix. The caller must hold g.mu.
-func (g *SharedItems) recompute() {
-	keys := make([]string, 0, len(g.items))
-	for it := range g.items {
-		keys = append(keys, it.item)
-	}
-	g.prefix = listingPrefix(keys)
 }
 
 // listingTTL is the window during which a listing is served without listing again.
@@ -307,6 +221,7 @@ func listingPrefix(keys []string) string {
 	if len(keys) == 0 {
 		return ""
 	}
+
 	prefix := keys[0]
 	for _, k := range keys[1:] {
 		for !strings.HasPrefix(k, prefix) {
@@ -322,243 +237,12 @@ func normalizeETag(v string) string {
 	return strings.Trim(strings.TrimPrefix(v, "W/"), `"`)
 }
 
-// coversLocked tells if a listing of prefix started at seq knows the key: the key is under the
-// prefix and was registered before the listing started. The caller must hold g.mu.
-func (g *SharedItems) coversLocked(key, prefix string, seq uint64) bool {
-	return strings.HasPrefix(key, prefix) && seq >= g.keySeq[key]
-}
-
-// freshLocked tells if the current listing can serve the key. The caller must hold g.mu.
-func (g *SharedItems) freshLocked(key string) bool {
-	if !g.listed {
-		return false
-	}
-	if !g.coversLocked(key, g.listedPrefix, g.listSeq) {
-		return false
-	}
-	ttl := g.ttl
-	if g.listErr != nil {
-		ttl = min(ttl, maxSharedErrorTTL)
-	}
-
-	return time.Since(g.listedAt) < ttl
-}
-
 // listedItem is the result of a lookup in the listing.
 type listedItem struct {
 	// start is the start of the listing that returned it.
 	start time.Time
 	etag  string
 	found bool
-}
-
-// etagOf returns the ETag of the key in a listing no older than the TTL, listing if needed.
-// Concurrent callers share one listing, and a caller stops waiting when its ctx is done.
-func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error) {
-	for range 3 {
-		g.mu.Lock()
-		if g.freshLocked(key) {
-			etag, ok := g.listing[key]
-			item, err := listedItem{etag: etag, found: ok, start: g.listStart}, g.listErr
-			g.mu.Unlock()
-
-			return item, err
-		}
-		fl := g.listingLocked()
-		g.mu.Unlock()
-
-		select {
-		case <-fl.done:
-		case <-ctx.Done():
-			return listedItem{}, ctx.Err()
-		}
-		// the waiters use the result of the listing they waited for, even if it is already older
-		// than the TTL (a slow listing), as long as it covers the key.
-		g.mu.Lock()
-		covered := g.coversLocked(key, fl.prefix, fl.seq)
-		g.mu.Unlock()
-		if covered {
-			etag, ok := fl.listing[key]
-
-			return listedItem{etag: etag, found: ok, start: fl.start}, fl.err
-		}
-	}
-
-	return listedItem{}, errItemIsNotRegistered
-}
-
-// listingLocked returns the listing in progress, and starts one if there is none. The caller must
-// hold g.mu.
-func (g *SharedItems) listingLocked() *sharedListing {
-	if g.inflight != nil {
-		return g.inflight
-	}
-	fl := &sharedListing{done: make(chan struct{})}
-	g.inflight = fl
-	wanted := make(map[string]struct{}, len(g.keyRefs))
-	for k := range g.keyRefs {
-		wanted[k] = struct{}{}
-	}
-	go g.runListing(g.baseLocked(), fl, g.prefix, wanted, g.seq)
-
-	return fl
-}
-
-// runListing lists the objects under prefix and publishes the result. It does not depend on the
-// context of a caller so that a cancelled caller does not fail the others.
-func (g *SharedItems) runListing(
-	base context.Context, fl *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
-) {
-	start := time.Now()
-	listing, err := g.list(base, prefix, wanted)
-
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	fl.start, fl.prefix, fl.seq, fl.listing, fl.err = start, prefix, seq, listing, err
-	// a listing cancelled because every item left is not kept
-	if base.Err() == nil {
-		g.listing, g.listErr, g.listed, g.listSeq = listing, err, true, seq
-		g.listedAt, g.listStart, g.listedPrefix = time.Now(), start, prefix
-	}
-	g.inflight = nil
-	close(fl.done)
-}
-
-// list walks all the pages of the objects under prefix (recursively), each page request has its
-// own timeout. Only the wanted keys are kept. A listing that can't be proven complete is an error.
-func (g *SharedItems) list(
-	base context.Context, prefix string, wanted map[string]struct{},
-) (map[string]string, error) {
-	res := map[string]string{}
-	input := &s3.ListObjectsV2Input{Bucket: aws.String(g.bucket)}
-	if prefix != "" {
-		input.Prefix = aws.String(prefix)
-	}
-	paginator := s3.NewListObjectsV2Paginator(g.lister, input, func(o *s3.ListObjectsV2PaginatorOptions) {
-		o.StopOnDuplicateToken = true
-	})
-	truncated := false
-	for pages := 0; paginator.HasMorePages(); pages++ {
-		if pages >= maxSharedListPages {
-			return nil, fmt.Errorf("%w %q has more than %d pages", errTheListingOfPrefix, prefix, maxSharedListPages)
-		}
-		page, err := g.listPage(base, paginator)
-		if err != nil {
-			return nil, err
-		}
-		truncated = aws.ToBool(page.IsTruncated)
-		for _, obj := range page.Contents {
-			if _, ok := wanted[aws.ToString(obj.Key)]; ok {
-				res[aws.ToString(obj.Key)] = normalizeETag(aws.ToString(obj.ETag))
-			}
-		}
-	}
-	if truncated {
-		// no (new) continuation token: the end of the listing was not reached
-		return nil, fmt.Errorf("%w %q is incomplete", errTheListingOfPrefix, prefix)
-	}
-
-	return res, nil
-}
-
-func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
-	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
-	defer cancel()
-
-	return p.NextPage(ctx)
-}
-
-// get returns the content of the key and its (normalized) ETag, downloading it only if the listed
-// ETag changed.
-func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, error) {
-	listed, err := g.etagOf(ctx, key)
-	if err != nil {
-		return nil, "", fmt.Errorf("unable to list S3 bucket %q, %w", g.bucket, err)
-	}
-	if !listed.found {
-		return nil, "", fmt.Errorf("%w %q not found in S3 bucket %q", errItem, key, g.bucket)
-	}
-
-	g.mu.Lock()
-	c, ok := g.contents[key]
-	if !ok {
-		c = &sharedContent{}
-		// an item that left the group in the meantime must not be cached again
-		if g.keyRefs[key] > 0 {
-			g.contents[key] = c
-		}
-	}
-	g.mu.Unlock()
-
-	data, etag, err := g.content(ctx, c, key, listed)
-	if err != nil {
-		return nil, "", fmt.Errorf("unable to download item from S3 %q, %w", key, err)
-	}
-
-	return slices.Clone(data), etag, nil
-}
-
-// content returns the cached content if it is still valid for the listing, otherwise it is
-// downloaded. The content is valid if its ETag is the listed one, or if it was downloaded after
-// the start of the listing (it is then at least as recent as the listing, even if the object
-// changed between the listing and the download). The callers of the same object share one
-// download, and a caller stops waiting when its ctx is done.
-func (g *SharedItems) content(
-	ctx context.Context, c *sharedContent, key string, listed listedItem,
-) ([]byte, string, error) {
-	c.mu.Lock()
-	if c.data != nil && ((listed.etag != "" && c.etag == listed.etag) || !c.fetchedAt.Before(listed.start)) {
-		defer c.mu.Unlock()
-
-		return c.data, c.etag, nil
-	}
-	dl := c.dl
-	if dl == nil {
-		dl = &sharedDownload{done: make(chan struct{})}
-		c.dl = dl
-		go g.runDownload(g.baseContext(), c, dl, key)
-	}
-	c.mu.Unlock()
-
-	select {
-	case <-dl.done:
-		return dl.data, dl.etag, dl.err
-	case <-ctx.Done():
-		return nil, "", ctx.Err()
-	}
-}
-
-// runDownload downloads the object and publishes the result, it does not depend on the context
-// of a caller so that a cancelled caller does not fail the others.
-func (g *SharedItems) runDownload(base context.Context, c *sharedContent, dl *sharedDownload, key string) {
-	data, dlETag, startedAt, err := g.download(base, key)
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if err == nil {
-		// an empty ETag is never a hit
-		c.etag, c.data, c.fetchedAt = normalizeETag(dlETag), data, startedAt
-		dl.etag = c.etag
-	}
-	dl.data, dl.err = data, err
-	c.dl = nil
-	close(dl.done)
-}
-
-// download waits for a free download slot, then downloads the object.
-func (g *SharedItems) download(base context.Context, key string) ([]byte, string, time.Time, error) {
-	select {
-	case g.sem <- struct{}{}:
-		defer func() { <-g.sem }()
-	case <-base.Done():
-		return nil, "", time.Time{}, base.Err()
-	}
-	startedAt := time.Now()
-	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
-	defer cancel()
-	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
-
-	return data, etag, startedAt, err
 }
 
 var (
@@ -591,6 +275,7 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 
 		return errImpossibleToInitSharedS3
 	}
+
 	r.group.register(r)
 	r.status.Store(retriever.RetrieverReady)
 
@@ -600,9 +285,8 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 // Shutdown removes the item from the group. It waits for the refresh of the item in flight (until
 // ctx is done), so the consumer can be closed safely afterwards.
 func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
+
 	r.group.deregister(ctx, r)
 	r.status.Store(retriever.RetrieverNotReady)
 
@@ -620,16 +304,17 @@ func (r *SharedItemRetriever) Status() retriever.Status {
 
 // Retrieve returns the content of the item.
 func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
+
 	if r.Status() != retriever.RetrieverReady {
 		return nil, errSharedS3RetrieverIs
 	}
+
 	data, etag, err := r.group.get(ctx, r.item)
 	if err != nil {
 		return nil, err
 	}
+
 	r.group.mu.Lock()
 	r.delivered, r.hasDelivered = etag, true
 	r.group.mu.Unlock()
@@ -656,16 +341,20 @@ type PollerConfig struct {
 func (g *SharedItems) SetPoller(cfg PollerConfig) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
 	g.interval = cfg.Interval
 	if g.interval <= 0 {
 		g.interval = DefaultSharedPollingInterval
 	}
+
 	g.interval = max(g.interval, minSharedListingTTL)
 	g.jitter = cfg.Jitter
+
 	g.logger = cfg.Logger
 	if g.logger == nil {
 		g.logger = slog.New(slog.DiscardHandler)
 	}
+
 	g.ttl = listingTTL(g.interval)
 	select {
 	case g.wake <- struct{}{}:
@@ -679,24 +368,431 @@ func (g *SharedItems) SetPoller(cfg PollerConfig) {
 func (g *SharedItems) SetRefresh(r *SharedItemRetriever, refresh func() bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
 	if _, ok := g.items[r]; !ok {
 		return
 	}
+
 	if r.refresh == nil {
 		g.refreshers++
 	}
+
 	r.refresh = refresh
+
 	if g.stopPoller == nil {
 		ctx, cancel := context.WithCancel(context.Background())
+
 		g.stopPoller = cancel
 		go g.poll(ctx)
 	}
+}
+
+// activeChan returns the lifecycle channel of the group, lazily creating a new one if none is active.
+func (g *SharedItems) activeChan() <-chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.activeLocked()
+}
+
+func (g *SharedItems) activeLocked() <-chan struct{} {
+	if g.active == nil {
+		g.active = make(chan struct{})
+	}
+
+	return g.active
+}
+
+// activeContext returns a context that has the values of parent, but not its cancellation: it is cancelled when
+// active is closed or when the returned cancel func is called.
+func activeContext(parent context.Context, active <-chan struct{}) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
+
+	go func() {
+		select {
+		case <-active:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	return ctx, cancel
+}
+
+func (g *SharedItems) register(r *SharedItemRetriever) {
+	if r.item == "" {
+		return
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if _, ok := g.items[r]; ok {
+		return
+	}
+
+	g.items[r] = struct{}{}
+	if g.keyRefs[r.item]++; g.keyRefs[r.item] == 1 {
+		// a listing started before this registration may not know the key: force a refresh
+		g.seq++
+		g.keySeq[r.item] = g.seq
+	}
+
+	g.recompute()
+}
+
+// deregister removes the item from the group, then waits for the refresh of the item in flight (if
+// any) so that the consumer of the retriever is only closed once it finished. The wait stops when
+// ctx is done. The refresh function must not shut down its own retriever (it would wait for itself
+// until ctx is done).
+func (g *SharedItems) deregister(ctx context.Context, r *SharedItemRetriever) {
+	if inflight := g.leave(r); inflight != nil {
+		select {
+		case <-inflight:
+		case <-ctx.Done():
+		}
+	}
+}
+
+// leave removes the item from the group, and returns the channel closed when its refresh in flight
+// is over (nil if there is none).
+func (g *SharedItems) leave(r *SharedItemRetriever) <-chan struct{} {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if _, ok := g.items[r]; !ok {
+		return nil
+	}
+
+	delete(g.items, r)
+
+	if r.refresh != nil {
+		// the poller must not refresh the item anymore
+		r.refresh = nil
+
+		g.refreshers--
+		if g.refreshers == 0 && g.stopPoller != nil {
+			g.stopPoller()
+			g.stopPoller = nil
+		}
+	}
+
+	if g.keyRefs[r.item]--; g.keyRefs[r.item] <= 0 {
+		delete(g.keyRefs, r.item)
+		delete(g.contents, r.item)
+		delete(g.keySeq, r.item)
+	}
+
+	if len(g.items) == 0 && g.active != nil {
+		// nobody needs the requests in flight anymore
+		close(g.active)
+		g.active = nil
+	}
+
+	g.recompute()
+
+	return r.inflight
+}
+
+// recompute refreshes the listing prefix. The caller must hold g.mu.
+func (g *SharedItems) recompute() {
+	keys := make([]string, 0, len(g.items))
+	for it := range g.items {
+		keys = append(keys, it.item)
+	}
+
+	g.prefix = listingPrefix(keys)
+}
+
+// coversLocked tells if a listing of prefix started at seq knows the key: the key is under the
+// prefix and was registered before the listing started. The caller must hold g.mu.
+func (g *SharedItems) coversLocked(key, prefix string, seq uint64) bool {
+	return strings.HasPrefix(key, prefix) && seq >= g.keySeq[key]
+}
+
+// freshLocked tells if the current listing can serve the key. The caller must hold g.mu.
+func (g *SharedItems) freshLocked(key string) bool {
+	if !g.listed {
+		return false
+	}
+
+	if !g.coversLocked(key, g.listedPrefix, g.listSeq) {
+		return false
+	}
+
+	ttl := g.ttl
+	if g.listErr != nil {
+		ttl = min(ttl, maxSharedErrorTTL)
+	}
+
+	return time.Since(g.listedAt) < ttl
+}
+
+// etagOf returns the ETag of the key in a listing no older than the TTL, listing if needed.
+// Concurrent callers share one listing, and a caller stops waiting when its ctx is done.
+func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error) {
+	for range 3 {
+		g.mu.Lock()
+		if g.freshLocked(key) {
+			etag, ok := g.listing[key]
+			item, err := listedItem{etag: etag, found: ok, start: g.listStart}, g.listErr
+			g.mu.Unlock()
+
+			return item, err
+		}
+
+		flight := g.listingLocked(ctx)
+		g.mu.Unlock()
+
+		select {
+		case <-flight.done:
+		case <-ctx.Done():
+			return listedItem{}, fmt.Errorf("waiting for the listing of the S3 bucket: %w", ctx.Err())
+		}
+		// the waiters use the result of the listing they waited for, even if it is already older
+		// than the TTL (a slow listing), as long as it covers the key.
+		g.mu.Lock()
+		covered := g.coversLocked(key, flight.prefix, flight.seq)
+		g.mu.Unlock()
+
+		if covered {
+			etag, ok := flight.listing[key]
+
+			return listedItem{etag: etag, found: ok, start: flight.start}, flight.err
+		}
+	}
+
+	return listedItem{}, errItemIsNotRegistered
+}
+
+// listingLocked returns the listing in progress, and starts one if there is none. The caller must
+// hold g.mu.
+func (g *SharedItems) listingLocked(ctx context.Context) *sharedListing {
+	if g.inflight != nil {
+		return g.inflight
+	}
+
+	flight := &sharedListing{done: make(chan struct{})}
+	g.inflight = flight
+
+	wanted := make(map[string]struct{}, len(g.keyRefs))
+
+	for k := range g.keyRefs {
+		wanted[k] = struct{}{}
+	}
+	go g.runListing(ctx, g.activeLocked(), flight, g.prefix, wanted, g.seq)
+
+	return flight
+}
+
+// runListing lists the objects under prefix and publishes the result. It does not depend on the
+// context of a caller so that a cancelled caller does not fail the others.
+func (g *SharedItems) runListing(
+	parent context.Context, active <-chan struct{}, flight *sharedListing, prefix string, wanted map[string]struct{},
+	seq uint64,
+) {
+	ctx, cancel := activeContext(parent, active)
+	defer cancel()
+
+	start := time.Now()
+	listing, err := g.list(ctx, prefix, wanted)
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	flight.start, flight.prefix, flight.seq, flight.listing, flight.err = start, prefix, seq, listing, err
+	// a listing cancelled because every item left is not kept
+	select {
+	case <-active:
+	default:
+		g.listing, g.listErr, g.listed, g.listSeq = listing, err, true, seq
+		g.listedAt, g.listStart, g.listedPrefix = time.Now(), start, prefix
+	}
+
+	g.inflight = nil
+
+	close(flight.done)
+}
+
+// list walks all the pages of the objects under prefix (recursively), each page request has its
+// own timeout. Only the wanted keys are kept. A listing that can't be proven complete is an error.
+func (g *SharedItems) list(
+	base context.Context, prefix string, wanted map[string]struct{},
+) (map[string]string, error) {
+	res := map[string]string{}
+
+	input := &s3.ListObjectsV2Input{Bucket: aws.String(g.bucket)}
+	if prefix != "" {
+		input.Prefix = aws.String(prefix)
+	}
+
+	paginator := s3.NewListObjectsV2Paginator(g.lister, input, func(o *s3.ListObjectsV2PaginatorOptions) {
+		o.StopOnDuplicateToken = true
+	})
+	truncated := false
+
+	for pages := 0; paginator.HasMorePages(); pages++ {
+		if pages >= maxSharedListPages {
+			return nil, fmt.Errorf("%w %q has more than %d pages", errTheListingOfPrefix, prefix, maxSharedListPages)
+		}
+
+		page, err := g.listPage(base, paginator)
+		if err != nil {
+			return nil, err
+		}
+
+		truncated = aws.ToBool(page.IsTruncated)
+		for _, obj := range page.Contents {
+			if _, ok := wanted[aws.ToString(obj.Key)]; ok {
+				res[aws.ToString(obj.Key)] = normalizeETag(aws.ToString(obj.ETag))
+			}
+		}
+	}
+
+	if truncated {
+		// no (new) continuation token: the end of the listing was not reached
+		return nil, fmt.Errorf("%w %q is incomplete", errTheListingOfPrefix, prefix)
+	}
+
+	return res, nil
+}
+
+func (g *SharedItems) listPage(base context.Context, p *s3.ListObjectsV2Paginator) (*s3.ListObjectsV2Output, error) {
+	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
+	defer cancel()
+
+	page, err := p.NextPage(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("listing a page of objects: %w", err)
+	}
+
+	return page, nil
+}
+
+// get returns the content of the key and its (normalized) ETag, downloading it only if the listed
+// ETag changed.
+func (g *SharedItems) get(ctx context.Context, key string) ([]byte, string, error) {
+	listed, err := g.etagOf(ctx, key)
+	if err != nil {
+		return nil, "", fmt.Errorf("unable to list S3 bucket %q, %w", g.bucket, err)
+	}
+
+	if !listed.found {
+		return nil, "", fmt.Errorf("%w %q not found in S3 bucket %q", errItem, key, g.bucket)
+	}
+
+	g.mu.Lock()
+
+	entry, ok := g.contents[key]
+	if !ok {
+		entry = &sharedContent{}
+		// an item that left the group in the meantime must not be cached again
+		if g.keyRefs[key] > 0 {
+			g.contents[key] = entry
+		}
+	}
+	g.mu.Unlock()
+
+	data, etag, err := g.content(ctx, entry, key, listed)
+	if err != nil {
+		return nil, "", fmt.Errorf("unable to download item from S3 %q, %w", key, err)
+	}
+
+	return slices.Clone(data), etag, nil
+}
+
+// content returns the cached content if it is still valid for the listing, otherwise it is
+// downloaded. The content is valid if its ETag is the listed one, or if it was downloaded after
+// the start of the listing (it is then at least as recent as the listing, even if the object
+// changed between the listing and the download). The callers of the same object share one
+// download, and a caller stops waiting when its ctx is done.
+func (g *SharedItems) content(
+	ctx context.Context, entry *sharedContent, key string, listed listedItem,
+) ([]byte, string, error) {
+	entry.mu.Lock()
+	if entry.data != nil &&
+		((listed.etag != "" && entry.etag == listed.etag) || !entry.fetchedAt.Before(listed.start)) {
+		defer entry.mu.Unlock()
+
+		return entry.data, entry.etag, nil
+	}
+
+	dlOp := entry.dl
+	if dlOp == nil {
+		dlOp = &sharedDownload{done: make(chan struct{})}
+		entry.dl = dlOp
+
+		go g.runDownload(ctx, g.activeChan(), entry, dlOp, key)
+	}
+	entry.mu.Unlock()
+
+	select {
+	case <-dlOp.done:
+		return dlOp.data, dlOp.etag, dlOp.err
+	case <-ctx.Done():
+		return nil, "", fmt.Errorf("waiting for the download of the S3 object: %w", ctx.Err())
+	}
+}
+
+// runDownload downloads the object and publishes the result, it does not depend on the context
+// of a caller so that a cancelled caller does not fail the others.
+func (g *SharedItems) runDownload(
+	parent context.Context, active <-chan struct{}, entry *sharedContent, dlOp *sharedDownload, key string,
+) {
+	ctx, cancel := activeContext(parent, active)
+	defer cancel()
+
+	data, dlETag, startedAt, err := g.download(ctx, active, key)
+
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+
+	if err == nil {
+		// an empty ETag is never a hit
+		entry.etag, entry.data, entry.fetchedAt = normalizeETag(dlETag), data, startedAt
+		dlOp.etag = entry.etag
+	}
+
+	dlOp.data, dlOp.err = data, err
+	entry.dl = nil
+
+	close(dlOp.done)
+}
+
+// download waits for a free download slot, then downloads the object.
+func (g *SharedItems) download(
+	base context.Context, active <-chan struct{}, key string,
+) ([]byte, string, time.Time, error) {
+	select {
+	case g.sem <- struct{}{}:
+		defer func() { <-g.sem }()
+	case <-active:
+		return nil, "", time.Time{}, context.Canceled
+	case <-base.Done():
+		return nil, "", time.Time{}, fmt.Errorf("waiting for a download slot: %w", base.Err())
+	}
+	// Check active directly as well because activeContext cancels base asynchronously when active closes.
+	select {
+	case <-active:
+		return nil, "", time.Time{}, context.Canceled
+	default:
+	}
+
+	startedAt := time.Now()
+
+	ctx, cancel := context.WithTimeout(base, sharedRequestTimeout)
+	defer cancel()
+
+	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
+
+	return data, etag, startedAt, err
 }
 
 // poll lists the bucket every polling interval until ctx is done.
 func (g *SharedItems) poll(ctx context.Context) {
 	timer := time.NewTimer(g.nextDelay())
 	defer timer.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -705,6 +801,7 @@ func (g *SharedItems) poll(ctx context.Context) {
 		case <-timer.C:
 			g.pollOnce(ctx)
 		}
+
 		timer.Reset(g.nextDelay())
 	}
 }
@@ -713,6 +810,7 @@ func (g *SharedItems) poll(ctx context.Context) {
 func (g *SharedItems) nextDelay() time.Duration {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
 	if !g.jitter {
 		return g.interval
 	}
@@ -727,21 +825,24 @@ func (g *SharedItems) nextDelay() time.Duration {
 // logged, the next poll tries again.
 func (g *SharedItems) pollOnce(ctx context.Context) {
 	g.mu.Lock()
-	fl := g.listingLocked()
+	flight := g.listingLocked(ctx)
 	logger := g.logger
 	g.mu.Unlock()
+
 	select {
-	case <-fl.done:
+	case <-flight.done:
 	case <-ctx.Done():
 		return
 	}
-	if fl.err != nil {
+
+	if flight.err != nil {
 		logger.ErrorContext(ctx, "unable to list the S3 bucket, the flagsets are not refreshed",
-			slog.String("bucket", g.bucket), slog.Any("error", fl.err))
+			slog.String("bucket", g.bucket), slog.Any("error", flight.err))
 
 		return
 	}
-	g.refresh(ctx, g.changed(fl.listing))
+
+	g.refresh(ctx, g.changed(flight.listing))
 }
 
 // changed returns the items to refresh: the ones whose listed ETag differs from the ETag of the
@@ -750,12 +851,15 @@ func (g *SharedItems) pollOnce(ctx context.Context) {
 func (g *SharedItems) changed(listing map[string]string) []*SharedItemRetriever {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
 	var res []*SharedItemRetriever
+
 	for r := range g.items {
 		etag, listed := listing[r.item]
 		if !listed || r.refresh == nil {
 			continue
 		}
+
 		if r.retry || !r.hasDelivered || r.delivered != etag {
 			res = append(res, r)
 		}
@@ -767,22 +871,25 @@ func (g *SharedItems) changed(listing map[string]string) []*SharedItemRetriever 
 // refresh calls the refresh function of the items with a bounded number of workers. A failure
 // is remembered so that the item is tried again at the next poll, and does not stop the others.
 func (g *SharedItems) refresh(ctx context.Context, items []*SharedItemRetriever) {
-	ch := make(chan *SharedItemRetriever)
+	itemsCh := make(chan *SharedItemRetriever)
+
 	var wg sync.WaitGroup
 	for range min(MaxConcurrentDownloads, len(items)) {
 		wg.Go(func() {
-			for r := range ch {
+			for r := range itemsCh {
 				g.refreshOne(r)
 			}
 		})
 	}
+
 	defer func() {
-		close(ch)
+		close(itemsCh)
 		wg.Wait()
 	}()
+
 	for _, r := range items {
 		select {
-		case ch <- r:
+		case itemsCh <- r:
 		case <-ctx.Done():
 			return
 		}
@@ -793,17 +900,19 @@ func (g *SharedItems) refresh(ctx context.Context, items []*SharedItemRetriever)
 // waits for the refresh in flight.
 func (g *SharedItems) refreshOne(r *SharedItemRetriever) {
 	g.mu.Lock()
-	fn := r.refresh
-	if _, ok := g.items[r]; !ok || fn == nil {
+
+	refreshFn := r.refresh
+	if _, ok := g.items[r]; !ok || refreshFn == nil {
 		g.mu.Unlock()
 
 		return
 	}
+
 	inflight := make(chan struct{})
 	r.inflight = inflight
 	g.mu.Unlock()
 
-	ok := fn()
+	ok := refreshFn()
 
 	g.mu.Lock()
 	r.retry = !ok

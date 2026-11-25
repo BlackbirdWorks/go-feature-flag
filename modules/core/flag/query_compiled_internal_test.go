@@ -52,6 +52,7 @@ func TestService_CompiledQueryIsOwnedByTheService(t *testing.T) {
 	t.Parallel()
 
 	const raw = `{"==": [{"var": "key"}, "abc"]}`
+
 	first, second := NewService(), NewService()
 
 	assert.NotSame(
@@ -67,6 +68,7 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
 	trimmed := `{"==": [{"var": "key"}, "abc"]}`
+
 	tests := []struct {
 		name           string
 		wantTrimmed    string
@@ -85,18 +87,20 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 			require.NoError(t, r.isQueryValid(svc, false))
 			assert.Equal(t, JSONLogicQueryFormat, r.GetQueryFormat())
 			assert.Equal(t, tt.wantTrimmed, r.GetTrimmedQuery())
+
 			if tt.evaluate {
 				_, err := r.Evaluate(svc, "abc", ffcontext.NewEvaluationContext("abc"), "flag", false)
 				require.NoError(t, err)
 			}
 
-			n := 0
+			count := 0
+
 			svc.compiled.Range(func(_, _ any) bool {
-				n++
+				count++
 
 				return true
 			})
-			assert.Equal(t, tt.wantStoredSize, n)
+			assert.Equal(t, tt.wantStoredSize, count)
 		})
 	}
 }

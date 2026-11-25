@@ -45,6 +45,7 @@ func main() {
 	// Ctrl+C / SIGTERM stop the workers (the relay proxy also shuts itself down on them).
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	code := run(ctx, os.Args[1:], os.Stdout, os.Stderr)
+
 	stop()
 	os.Exit(code)
 }
@@ -59,95 +60,126 @@ type options struct {
 }
 
 func parseArgs(args []string, stderr io.Writer) (options, error) {
-	fs := flag.NewFlagSet("soak", flag.ContinueOnError)
-	fs.SetOutput(stderr)
-	var o options
-	fs.StringVar(&o.target, "target", "library", "library | relay")
-	fs.StringVar(&o.endpoint, "endpoint", string(relay.SemaphoreEval),
+	flagSet := flag.NewFlagSet("soak", flag.ContinueOnError)
+	flagSet.SetOutput(stderr)
+
+	var opts options
+	flagSet.StringVar(&opts.target, "target", "library", "library | relay")
+	flagSet.StringVar(&opts.endpoint, "endpoint", string(relay.SemaphoreEval),
 		"relay endpoint: semaphore-eval | semaphore-allflags | ofrep-eval | ofrep-bulk")
-	fs.StringVar(&o.protocol, "protocol", "http1",
+	flagSet.StringVar(&opts.protocol, "protocol", "http1",
 		"relay client and server protocol: http1 (keep-alive) | h2c (HTTP/2 cleartext)")
-	fs.StringVar(&o.exporter, "exporter", "discard", "discard | slow | failing")
-	fs.DurationVar(&o.duration, "duration", defaultDuration, "total run time")
-	fs.DurationVar(&o.interval, "interval", defaultInterval, "sampling interval")
-	fs.IntVar(&o.workers, "workers", runtime.GOMAXPROCS(0), "number of load goroutines")
-	fs.StringVar(&o.flagKey, "flag", "rule-bool-track", "flag key to evaluate (tracking on by default)")
-	fs.Int64Var(&o.flushMs, "flush-ms", defaultFlushMillis, "exporter flush interval (ms)")
-	fs.Int64Var(
-		&o.maxEvents,
+	flagSet.StringVar(&opts.exporter, "exporter", "discard", "discard | slow | failing")
+	flagSet.DurationVar(&opts.duration, "duration", defaultDuration, "total run time")
+	flagSet.DurationVar(&opts.interval, "interval", defaultInterval, "sampling interval")
+	flagSet.IntVar(&opts.workers, "workers", runtime.GOMAXPROCS(0), "number of load goroutines")
+	flagSet.StringVar(&opts.flagKey, "flag", "rule-bool-track", "flag key to evaluate (tracking on by default)")
+	flagSet.Int64Var(&opts.flushMs, "flush-ms", defaultFlushMillis, "exporter flush interval (ms)")
+	flagSet.Int64Var(
+		&opts.maxEvents,
 		"max-events",
 		defaultMaxEvents,
 		"exporter MaxEventInMemory (a small backlog keeps the heap measuring leaks, not the pending events)",
 	)
-	fs.IntVar(&o.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
-	fs.Float64Var(&o.heapTolerance, "heap-tolerance", defaultHeapTolerance, "relative HeapInuse growth tolerated")
-	fs.StringVar(&o.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")
+	flagSet.IntVar(&opts.warmup, "warmup", 0, "warm-up samples ignored by the verdict (default max(2, 20%))")
+	flagSet.Float64Var(
+		&opts.heapTolerance,
+		"heap-tolerance",
+		defaultHeapTolerance,
+		"relative HeapInuse growth tolerated",
+	)
+	flagSet.StringVar(&opts.cpuProfile, "cpuprofile", "", "write a CPU profile of the whole run to this file")
 
-	return o, fs.Parse(args)
+	err := flagSet.Parse(args)
+	if err != nil {
+		return options{}, fmt.Errorf("parse soak flags: %w", err)
+	}
+
+	return opts, nil
 }
 
 // newTarget builds the target selected by the options.
-func newTarget(o options) (loadtest.Target, error) {
-	mode, err := loadtest.ParseExporterMode(o.exporter)
+//
+//nolint:ireturn // factory: selects the load test target implementation from the options at runtime
+func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
+	mode, err := loadtest.ParseExporterMode(opts.exporter)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse exporter mode: %w", err)
 	}
-	switch o.target {
+
+	switch opts.target {
 	case "library":
-		return loadtest.NewLibraryTarget(loadtest.LibraryOptions{
-			FlagKey: o.flagKey, ExporterMode: mode,
-			FlushInterval: time.Duration(o.flushMs) * time.Millisecond, MaxEventInMemory: o.maxEvents,
+		t, libErr := loadtest.NewLibraryTarget(ctx, loadtest.LibraryOptions{
+			FlagKey: opts.flagKey, ExporterMode: mode,
+			FlushInterval: time.Duration(opts.flushMs) * time.Millisecond, MaxEventInMemory: opts.maxEvents,
 		})
-	case "relay":
-		ep, parseEndpointErr := relay.ParseEndpoint(o.endpoint)
-		if parseEndpointErr != nil {
-			return nil, parseEndpointErr
-		}
-		if o.protocol != "http1" && o.protocol != "h2c" {
-			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, o.protocol)
+		if libErr != nil {
+			return nil, fmt.Errorf("create library soak target: %w", libErr)
 		}
 
-		return relay.NewTarget(relay.Options{
-			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: o.protocol == "h2c",
-			FlushIntervalMs: o.flushMs, MaxEventInMemory: o.maxEvents,
-		}, ep, o.flagKey, o.workers)
+		return t, nil
+	case "relay":
+		endpoint, parseEndpointErr := relay.ParseEndpoint(opts.endpoint)
+		if parseEndpointErr != nil {
+			return nil, fmt.Errorf("parse relay endpoint: %w", parseEndpointErr)
+		}
+
+		if opts.protocol != "http1" && opts.protocol != "h2c" {
+			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
+		}
+
+		//nolint:contextcheck // the relay of the target owns its loopback server, Target.Close stops it (ctx does not)
+		t, relayErr := relay.NewTarget(relay.Options{
+			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: opts.protocol == "h2c",
+			FlushIntervalMs: opts.flushMs, MaxEventInMemory: opts.maxEvents,
+		}, endpoint, opts.flagKey, opts.workers)
+		if relayErr != nil {
+			return nil, fmt.Errorf("create relay soak target: %w", relayErr)
+		}
+
+		return t, nil
 	default:
-		return nil, fmt.Errorf("%w %q", errUnknownTarget, o.target)
+		return nil, fmt.Errorf("%w %q", errUnknownTarget, opts.target)
 	}
 }
 
 // startCPUProfile starts a CPU profile written to path and returns the function that stops it.
 func startCPUProfile(path string) (func(), error) {
-	f, err := os.Create(path)
+	file, err := os.Create(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create CPU profile file: %w", err)
 	}
-	if startCPUProfileErr := pprof.StartCPUProfile(f); startCPUProfileErr != nil {
-		_ = f.Close()
 
-		return nil, startCPUProfileErr
+	startCPUProfileErr := pprof.StartCPUProfile(file)
+	if startCPUProfileErr != nil {
+		_ = file.Close()
+
+		return nil, fmt.Errorf("start CPU profile: %w", startCPUProfileErr)
 	}
 
 	return func() {
 		pprof.StopCPUProfile()
-		_ = f.Close()
+
+		_ = file.Close()
 	}, nil
 }
 
 // run is main with its inputs injected: it returns the exit status (0 PASS, 1 FAIL, 2 usage or setup
 // error, 130 interrupted).
 func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	o, err := parseArgs(args, stderr)
+	opts, err := parseArgs(args, stderr)
 	if errors.Is(err, flag.ErrHelp) {
 		return 0
 	}
+
 	if err != nil {
 		return exitUsage
 	}
+
 	slog.SetLogLoggerLevel(slog.LevelError)
 
-	if o.cpuProfile != "" {
-		stop, startCPUProfileErr := startCPUProfile(o.cpuProfile)
+	if opts.cpuProfile != "" {
+		stop, startCPUProfileErr := startCPUProfile(opts.cpuProfile)
 		if startCPUProfileErr != nil {
 			_, _ = fmt.Fprintln(stderr, "error:", startCPUProfileErr)
 
@@ -155,7 +187,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 		defer stop()
 	}
-	t, err := newTarget(o)
+
+	t, err := newTarget(ctx, opts)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, "error:", err)
 
@@ -163,22 +196,26 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	defer t.Close()
 
-	name := fmt.Sprintf("target=%s exporter=%s workers=%d", o.target, o.exporter, o.workers)
-	if o.target == "relay" {
-		name += " endpoint=" + o.endpoint + " protocol=" + o.protocol
+	name := fmt.Sprintf("target=%s exporter=%s workers=%d", opts.target, opts.exporter, opts.workers)
+	if opts.target == "relay" {
+		name += " endpoint=" + opts.endpoint + " protocol=" + opts.protocol
 	}
+
 	_, _ = fmt.Fprintf(stdout, "# %s GOMAXPROCS=%d %s duration=%s\n",
-		name, runtime.GOMAXPROCS(0), runtime.Version(), o.duration)
+		name, runtime.GOMAXPROCS(0), runtime.Version(), opts.duration)
+
 	rep := loadtest.Run(ctx, t, loadtest.Options{
-		Name: name, Duration: o.duration, Interval: o.interval, Workers: o.workers,
-		WarmupIntervals: o.warmup, HeapTolerance: o.heapTolerance,
+		Name: name, Duration: opts.duration, Interval: opts.interval, Workers: opts.workers,
+		WarmupIntervals: opts.warmup, HeapTolerance: opts.heapTolerance,
 	}, stdout)
 	if ctx.Err() != nil {
 		_, _ = fmt.Fprintln(stderr, "interrupted: no verdict")
 
 		return exitInterrupted
 	}
+
 	rep.Summary(stdout)
+
 	if !rep.Pass {
 		return 1
 	}

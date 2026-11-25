@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 )
@@ -21,7 +22,7 @@ func (r *GCStorageReaderMock) Close() error {
 	return nil
 }
 
-func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
+func (r *GCStorageReaderMock) Read(buf []byte) (int, error) {
 	if r.ShouldFail {
 		return 0, errFailedToReadFrom
 	}
@@ -30,8 +31,9 @@ func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
 	if r.data == nil {
 		data, err := os.ReadFile(r.FileToRead)
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("read mock GCS file %s: %w", r.FileToRead, err)
 		}
+
 		r.data = data
 	}
 
@@ -41,7 +43,7 @@ func (r *GCStorageReaderMock) Read(p []byte) (int, error) {
 	}
 
 	// Copy unread bytes.
-	n := copy(p, r.data[r.readIndex:])
+	n := copy(buf, r.data[r.readIndex:])
 	r.readIndex += int64(n)
 
 	return n, nil

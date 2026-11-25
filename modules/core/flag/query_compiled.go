@@ -16,18 +16,21 @@ type compiledQuery struct {
 // compiledQuery returns the compiled form of raw. It is memoized per raw query by the Service: only
 // evaluation stores entries, so the set is bounded by the flag config that the Service evaluates.
 func (s *Service) compiledQuery(raw string) *compiledQuery {
-	if v, ok := s.compiled.Load(raw); ok {
-		return v.(*compiledQuery) //nolint:errcheck // only compiledQuery values are stored
+	if v, ok := loadAs[*compiledQuery](&s.compiled, raw); ok {
+		return v
 	}
+
 	trimmed := utils.StrTrim(raw)
-	c := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
-	if c.format == JSONLogicQueryFormat {
+
+	compiled := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
+	if compiled.format == JSONLogicQueryFormat {
 		var rule any
-		if json.Unmarshal([]byte(c.trimmed), &rule) == nil {
-			c.jsonLogic = rule
+		if json.Unmarshal([]byte(compiled.trimmed), &rule) == nil {
+			compiled.jsonLogic = rule
 		}
 	}
-	actual, _ := s.compiled.LoadOrStore(raw, c)
 
-	return actual.(*compiledQuery) //nolint:errcheck // only compiledQuery values are stored
+	actual, _ := s.compiled.LoadOrStore(raw, compiled)
+
+	return asOr(actual, compiled)
 }

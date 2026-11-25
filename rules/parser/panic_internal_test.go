@@ -20,6 +20,7 @@ func TestNestedError(t *testing.T) {
 
 	base := errSomeRandomError
 	wrapper := fmt.Errorf("wrapped: %w", newNestedError(base, "a"))
+
 	tests := []struct {
 		original error
 		err      *NestedError
@@ -58,6 +59,7 @@ func TestNestedError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.original, tt.err.Original())
+
 			m := make(map[string]any)
 			require.NoError(t, json.Unmarshal([]byte(tt.err.Error()), &m))
 			// concurrent Error calls must not race (run with -race) and
@@ -70,6 +72,7 @@ func TestNestedError(t *testing.T) {
 					}
 				})
 			}
+
 			wg.Wait()
 			assert.Equal(t, tt.wantVals, tt.err.Vals)
 		})
@@ -79,12 +82,14 @@ func TestNestedError(t *testing.T) {
 func TestEvaluatorPanic(t *testing.T) {
 	t.Parallel()
 
-	ev, err := NewEvaluator(`x eq 1`)
+	eval, err := NewEvaluator(`x eq 1`)
 	require.NoError(t, err)
-	ev.testHookPanic = func() {
+
+	eval.testHookPanic = func() {
 		panic("wait what")
 	}
-	ret, err := ev.Process(map[string]any{"x": 1})
+
+	ret, err := eval.Process(map[string]any{"x": 1})
 	assert.False(t, ret)
 	require.EqualError(t, err, `"wait what"`)
 }

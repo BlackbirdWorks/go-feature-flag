@@ -16,10 +16,12 @@ func Test_notificationService_getDifferences(t *testing.T) {
 	type fields struct {
 		Notifiers []notifier.Notifier
 	}
+
 	type args struct {
 		oldCache map[string]flag.Flag
 		newCache map[string]flag.Flag
 	}
+
 	tests := []struct {
 		want   notifier.DiffCache
 		args   args
@@ -246,7 +248,7 @@ func Test_notificationService_getDifferences(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			c := &notificationService{
+			c := &ServiceImpl{
 				Notifiers: tt.fields.Notifiers,
 				waitGroup: &sync.WaitGroup{},
 			}

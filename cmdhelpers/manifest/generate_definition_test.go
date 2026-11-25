@@ -84,38 +84,75 @@ func boolFlagWithExperimentation(
 	metadata map[string]any,
 	experimentationStart, experimentationEnd time.Time,
 ) flag.InternalFlag {
-	f := boolFlag(defaultVariation, metadata)
+	internalFlag := boolFlag(defaultVariation, metadata)
 	s, e := experimentationStart, experimentationEnd
-	f.Experimentation = &flag.ExperimentationRollout{
+	internalFlag.Experimentation = &flag.ExperimentationRollout{
 		Start: &s,
 		End:   &e,
 	}
 
-	return f
+	return internalFlag
 }
 
 func readGolden(t *testing.T, name string) string {
 	t.Helper()
+
 	data, err := os.ReadFile(filepath.Join("testdata", "generate_definition", name))
 	require.NoError(t, err)
 
 	return string(data)
 }
 
+type generateDefinitionCase struct {
+	flags      map[string]flag.InternalFlag
+	name       string
+	goldenFile string
+	// wantErr, when non-empty, asserts the returned error contains it.
+	// In that case the manifest output (and golden file) are not checked.
+	wantErr string
+	// wantLogs is the set of expected slog messages. Map iteration is
+	// non-deterministic, so order is not asserted.
+	wantLogs []string
+}
+
+func runGenerateDefinitionTests(t *testing.T, tests []generateDefinitionCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger, handler := newCaptureLogger()
+
+			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags, manifest.WithLogger(logger))
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErr)
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			actual, mErr := json.MarshalIndent(got, "", "  ")
+			require.NoError(t, mErr)
+			expected := readGolden(t, tt.goldenFile)
+			assert.Equal(t, expected, string(actual))
+
+			assert.ElementsMatch(t, tt.wantLogs, handler.msgs)
+
+			for _, lvl := range handler.levels {
+				assert.Equal(t, slog.LevelWarn, lvl)
+			}
+		})
+	}
+}
+
 func TestGenerateDefinition(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		flags      map[string]flag.InternalFlag
-		name       string
-		goldenFile string
-		// wantErr, when non-empty, asserts the returned error contains it.
-		// In that case the manifest output (and golden file) are not checked.
-		wantErr string
-		// wantLogs is the set of expected slog messages. Map iteration is
-		// non-deterministic, so order is not asserted.
-		wantLogs []string
-	}{
+	runGenerateDefinitionTests(t, []generateDefinitionCase{
 		{
 			name:       "empty input produces empty manifest",
 			flags:      map[string]flag.InternalFlag{},
@@ -251,6 +288,13 @@ func TestGenerateDefinition(t *testing.T) {
 			},
 			goldenFile: "description_non_string.json",
 		},
+	})
+}
+
+func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
+	t.Parallel()
+
+	runGenerateDefinitionTests(t, []generateDefinitionCase{
 		{
 			name: "flag without metadata is skipped and logged",
 			flags: map[string]flag.InternalFlag{
@@ -343,33 +387,5 @@ func TestGenerateDefinition(t *testing.T) {
 			},
 			wantErr: "invalid configuration for flag bad-flag: impossible to find type",
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			logger, handler := newCaptureLogger()
-
-			got, err := manifest.GenerateDefinitionFromInternalFlags(tt.flags, manifest.WithLogger(logger))
-
-			if tt.wantErr != "" {
-				require.Error(t, err)
-				assert.ErrorContains(t, err, tt.wantErr)
-
-				return
-			}
-			require.NoError(t, err)
-
-			actual, mErr := json.MarshalIndent(got, "", "  ")
-			require.NoError(t, mErr)
-			expected := readGolden(t, tt.goldenFile)
-			assert.Equal(t, expected, string(actual))
-
-			assert.ElementsMatch(t, tt.wantLogs, handler.msgs)
-			for _, lvl := range handler.levels {
-				assert.Equal(t, slog.LevelWarn, lvl)
-			}
-		})
-	}
+	})
 }

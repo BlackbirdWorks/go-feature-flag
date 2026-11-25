@@ -13,6 +13,7 @@ func TestEmptyBucketingKeyErrorError(t *testing.T) {
 	type fields struct {
 		Message string
 	}
+
 	tests := []struct {
 		name   string
 		fields fields
@@ -65,6 +66,7 @@ func TestEmptyBucketingKeyErrorImplementsErrorInterface(t *testing.T) {
 	t.Parallel()
 
 	var err error
+
 	e := &EmptyBucketingKeyError{
 		Message: "test error",
 	}

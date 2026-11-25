@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -20,10 +21,16 @@ var (
 	errFlagManifestDestinationIs = errors.New("--flag_manifest_destination is mandatory")
 )
 
+type Manifest struct {
+	dtos                    map[string]dto.DTO
+	flagManifestDestination string
+}
+
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
 		return Manifest{}, errFlagManifestDestinationIs
 	}
+
 	flagDTOs, err := configHelper.LoadConfigFile(
 		configFile,
 		configFormat,
@@ -31,7 +38,7 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		helper.LegacyWarner(),
 	)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, fmt.Errorf("loading the configuration of the manifest: %w", err)
 	}
 
 	return Manifest{
@@ -40,18 +47,15 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 	}, nil
 }
 
-type Manifest struct {
-	dtos                    map[string]dto.DTO
-	flagManifestDestination string
-}
-
 // Generate the manifest file.
 func (m *Manifest) Generate() (helper.Output, error) {
 	var captured []capturedRecord
+
 	flags := make(map[string]flag.InternalFlag)
 	for k, v := range m.dtos {
 		flags[k] = dtoCore.ConvertDtoToInternalFlag(v)
 	}
+
 	output := helper.Output{}
 
 	definitions, err := manifest.GenerateDefinitionFromInternalFlags(
@@ -59,13 +63,15 @@ func (m *Manifest) Generate() (helper.Output, error) {
 	for _, rec := range captured {
 		output.Add(rec.message, slogLevelToOutputLevel(rec.level))
 	}
+
 	if err != nil {
-		return output, err
+		return output, fmt.Errorf("generating the definitions of the manifest: %w", err)
 	}
 
 	manifest := model.FlagManifest{
 		Flags: definitions,
 	}
+
 	definitionsJSON, err := m.toJSON(manifest)
 	if err != nil {
 		return output, err
@@ -83,14 +89,19 @@ func (m *Manifest) Generate() (helper.Output, error) {
 func (m *Manifest) toJSON(manifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("encoding the flag manifest: %w", err)
 	}
 
 	return string(definitionsJSON), nil
 }
 
 func (m *Manifest) storeManifest(definitionsJSON string) error {
-	return os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	err := os.WriteFile(m.flagManifestDestination, []byte(definitionsJSON), 0600)
+	if err != nil {
+		return fmt.Errorf("writing the flag manifest: %w", err)
+	}
+
+	return nil
 }
 
 type capturedRecord struct {
@@ -119,13 +130,13 @@ func slogHandlerForRecords(records *[]capturedRecord) slog.Handler {
 	return &captureHandler{records: records}
 }
 
-func slogLevelToOutputLevel(l slog.Level) helper.Level {
+func slogLevelToOutputLevel(level slog.Level) helper.Level {
 	switch {
-	case l >= slog.LevelError:
+	case level >= slog.LevelError:
 		return helper.ErrorLevel
-	case l >= slog.LevelWarn:
+	case level >= slog.LevelWarn:
 		return helper.WarnLevel
-	case l >= slog.LevelInfo:
+	case level >= slog.LevelInfo:
 		return helper.InfoLevel
 	default:
 		return helper.DefaultLevel

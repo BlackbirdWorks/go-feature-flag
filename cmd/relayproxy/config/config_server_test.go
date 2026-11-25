@@ -82,8 +82,10 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *slog.Logger
-			var observedLogs *slogutil.ObservedLogs
+			var (
+				logger       *slog.Logger
+				observedLogs *slogutil.ObservedLogs
+			)
 
 			core, logs := slogutil.NewObserver(slog.LevelWarn)
 			logger = core
@@ -92,6 +94,7 @@ func TestConfig_EffectiveMonitoringPort(t *testing.T) {
 			if tt.setLoggerNil {
 				logger = nil
 			}
+
 			got := tt.config.EffectiveMonitoringPort(logger)
 			assert.Equal(t, tt.wantPort, got)
 
@@ -233,8 +236,10 @@ func TestConfig_ServerPort(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *slog.Logger
-			var observedLogs *slogutil.ObservedLogs
+			var (
+				logger       *slog.Logger
+				observedLogs *slogutil.ObservedLogs
+			)
 
 			core, logs := slogutil.NewObserver(slog.LevelWarn)
 			logger = core
@@ -348,8 +353,10 @@ func TestConfig_ServerMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *slog.Logger
-			var observedLogs *slogutil.ObservedLogs
+			var (
+				logger       *slog.Logger
+				observedLogs *slogutil.ObservedLogs
+			)
 
 			if tt.wantDeprecationWarned {
 				core, logs := slogutil.NewObserver(slog.LevelWarn)
@@ -462,8 +469,10 @@ func TestConfig_LambdaAdapter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *slog.Logger
-			var observedLogs *slogutil.ObservedLogs
+			var (
+				logger       *slog.Logger
+				observedLogs *slogutil.ObservedLogs
+			)
 
 			if tt.wantDeprecationWarned {
 				core, logs := slogutil.NewObserver(slog.LevelWarn)
@@ -565,8 +574,10 @@ func TestConfig_EffectiveAwsApiGatewayBasePath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var logger *slog.Logger
-			var observedLogs *slogutil.ObservedLogs
+			var (
+				logger       *slog.Logger
+				observedLogs *slogutil.ObservedLogs
+			)
 
 			if tt.wantDeprecationWarned {
 				core, logs := slogutil.NewObserver(slog.LevelWarn)

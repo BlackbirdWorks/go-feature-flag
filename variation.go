@@ -1,6 +1,7 @@
 package ffclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -212,6 +213,8 @@ func (g *GoFeatureFlag) RawVariation(
 
 // getFlagFromCache try to get the flag from the cache.
 // It returns an error if the cache is not init or if the flag is not present or disabled.
+//
+//nolint:ireturn // passes through the flag.Flag of the retriever manager, it constructs none
 func (g *GoFeatureFlag) getFlagFromCache(flagKey string) (flag.Flag, error) {
 	f, err := g.retrieverManager.GetFlag(flagKey)
 	if err != nil {
@@ -234,11 +237,13 @@ func (g *GoFeatureFlag) queueEvents(events []exporter.FeatureEvent) {
 	if g.featureEventDataExporter == nil {
 		return
 	}
+
 	if m, ok := g.featureEventDataExporter.(exporter.AsyncManager[exporter.FeatureEvent]); ok {
 		m.QueueEvents(events)
 
 		return
 	}
+
 	for _, event := range events {
 		g.featureEventDataExporter.AddEvent(event)
 	}
@@ -255,17 +260,18 @@ func (g *GoFeatureFlag) CollectTrackingEventData(event exporter.TrackingEvent) {
 // notifyVariation is logging the evaluation result for a flag
 // if no logger is provided in the configuration we are not logging anything.
 func notifyVariation[T model.JSONType](
-	g *GoFeatureFlag,
+	client *GoFeatureFlag,
 	flagKey string,
 	ctx ffcontext.Context,
 	result model.VariationResult[T],
 ) {
-	if result.TrackEvents && g.featureEventDataExporter != nil {
+	if result.TrackEvents && client.featureEventDataExporter != nil {
 		// the event describes the context as it was evaluated: with the configured enrichment
 		// (only what the event reads is worth merging: the exporter metadata and the anonymous status).
-		if enrichment := g.evaluationEnrichment(); changesEventFields(enrichment) {
+		if enrichment := client.evaluationEnrichment(); changesEventFields(enrichment) {
 			ctx = flag.EnrichContext(ctx, enrichment)
 		}
+
 		event := exporter.NewFeatureEvent(
 			ctx,
 			flagKey,
@@ -276,53 +282,67 @@ func notifyVariation[T model.JSONType](
 			"SERVER",
 			ctx.ExtractGOFFProtectedFields().ExporterMetadata,
 		)
-		g.enqueueEvent(event)
+		client.enqueueEvent(event)
 	}
 }
 
 // getVariation is the internal generic func that handle the logic of a variation the result will always
 // contain a valid model.VariationResult.
 func getVariation[T model.JSONType](
-	g *GoFeatureFlag,
+	client *GoFeatureFlag,
 	flagKey string,
 	evaluationCtx ffcontext.Context,
 	sdkDefaultValue T,
 	expectedType string,
 ) (model.VariationResult[T], error) {
-	if g == nil {
+	if client == nil {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
 			Failed:        true,
 			Reason:        flag.ReasonError,
 			ErrorCode:     flag.ErrorCodeProviderNotReady,
+			ErrorDetails:  "",
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}, errSemaphoreIsNotInitialised
 	}
-	if g.config.Offline {
+
+	if client.config.Offline {
 		return model.VariationResult[T]{
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
 			Failed:        false,
 			Reason:        flag.ReasonOffline,
+			ErrorCode:     "",
+			ErrorDetails:  "",
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}, nil
 	}
 
-	f, err := g.getFlagFromCache(flagKey)
+	targetFlag, err := client.getFlagFromCache(flagKey)
 	if err != nil {
 		varResult := model.VariationResult[T]{
 			Value:         sdkDefaultValue,
 			VariationType: flag.VariationSDKDefault,
 			ErrorCode:     flag.ErrorCodeFlagNotFound,
+			ErrorDetails:  "",
 			Failed:        true,
 			Reason:        flag.ReasonError,
+			TrackEvents:   false,
+			Version:       "",
+			Metadata:      nil,
 			Cacheable:     false,
 		}
-		if f != nil {
-			varResult.TrackEvents = f.IsTrackEvents()
-			varResult.Version = f.GetVersion()
-			varResult.Metadata = f.GetMetadata()
+		if targetFlag != nil {
+			varResult.TrackEvents = targetFlag.IsTrackEvents()
+			varResult.Version = targetFlag.GetVersion()
+			varResult.Metadata = targetFlag.GetMetadata()
 		}
 
 		return varResult, err
@@ -330,27 +350,30 @@ func getVariation[T model.JSONType](
 
 	flagCtx := flag.Context{
 		DefaultSdkValue:             sdkDefaultValue,
-		EvaluationContextEnrichment: g.evaluationEnrichment(),
-		Service:                     g.evaluationService,
+		EvaluationContextEnrichment: client.evaluationEnrichment(),
+		Service:                     client.evaluationService,
 	}
 
-	return evaluation.Evaluate[T](f, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
+	return evaluation.Evaluate[T](targetFlag, flagKey, evaluationCtx, flagCtx, expectedType, sdkDefaultValue)
 }
 
 // startEventWorker starts the goroutines that move the evaluation events from the queue to the
 // exporters. It does nothing when there is no exporter for the evaluation events.
-func (g *GoFeatureFlag) startEventWorker() {
+func (g *GoFeatureFlag) startEventWorker(ctx context.Context) {
 	if g.featureEventDataExporter == nil {
 		return
 	}
+
 	size := g.config.EventQueueSize
 	if size <= 0 {
 		size = DefaultEventQueueSize
 	}
+
 	g.eventQueue = make(chan exporter.FeatureEvent, size)
 	g.eventWorkerStop = make(chan struct{})
+
 	g.dropSignal = make(chan struct{}, 1)
-	go g.reportDrops()
+	go g.reportDrops(ctx)
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
 	// per event): a few workers keep up with an evaluation rate of millions per second.
 	workers := max(1, min(maxWorkers, runtime.GOMAXPROCS(0)/workersDivisor))
@@ -368,6 +391,7 @@ const eventBatchSize = 256
 // together, which takes the lock of the exporter's store once per batch instead of once per event.
 func (g *GoFeatureFlag) runEventWorker() {
 	defer g.evalExporterWg.Done()
+
 	batch := make([]exporter.FeatureEvent, 0, eventBatchSize)
 	drain := func() {
 		for len(batch) < eventBatchSize {
@@ -379,19 +403,24 @@ func (g *GoFeatureFlag) runEventWorker() {
 			}
 		}
 	}
+
 	for {
 		select {
 		case event := <-g.eventQueue:
 			batch = append(batch[:0], event)
+
 			drain()
 			g.queueEvents(batch)
 		case <-g.eventWorkerStop:
 			for {
 				batch = batch[:0]
+
 				drain()
+
 				if len(batch) == 0 {
 					return
 				}
+
 				g.queueEvents(batch)
 			}
 		}
@@ -407,7 +436,9 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 
 		return
 	}
+
 	g.eventAdmission.RLock()
+
 	if g.closing {
 		// the client is closing (an evaluation that was running when its flag set was removed, for
 		// example): the workers are draining or gone, hand the event to the exporters directly so
@@ -417,6 +448,7 @@ func (g *GoFeatureFlag) enqueueEvent(event exporter.FeatureEvent) {
 
 		return
 	}
+
 	select {
 	case g.eventQueue <- event:
 		g.eventAdmission.RUnlock()
@@ -437,16 +469,21 @@ const dropLogInterval = 10 * time.Second
 // reportDrops writes (at most once every dropLogInterval) the warning about the events dropped
 // because the queue was full. It runs in its own goroutine, which is not waited by Close, so that
 // a slow or blocked log sink never delays an evaluation, a worker or the shutdown.
-func (g *GoFeatureFlag) reportDrops() {
+func (g *GoFeatureFlag) reportDrops(ctx context.Context) {
+	// the warnings outlive the initialization, so they keep the values of ctx but not its cancellation.
+	logCtx := context.WithoutCancel(ctx)
+
 	for {
 		select {
 		case <-g.dropSignal:
 		case <-g.eventWorkerStop:
 			return
 		}
-		g.config.internalLogger.Error(
-			"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
+
+		g.config.internalLogger.ErrorContext(
+			logCtx, "the exporters are not keeping up, evaluation events are dropped (drop-newest)",
 			slog.Int64("totalDroppedEvents", g.droppedEvents.Load()))
+
 		timer := time.NewTimer(dropLogInterval)
 		select {
 		case <-timer.C:
@@ -465,10 +502,12 @@ func (g *GoFeatureFlag) DroppedEvents() int64 {
 	if g == nil {
 		return 0
 	}
+
 	total := g.droppedEvents.Load()
 	if c, ok := g.featureEventDataExporter.(exporter.DroppedEventsCounter); ok {
 		total += c.DroppedEvents()
 	}
+
 	if c, ok := g.trackingEventDataExporter.(exporter.DroppedEventsCounter); ok {
 		total += c.DroppedEvents()
 	}
@@ -486,8 +525,10 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 			if enrichment == nil {
 				enrichment = make(map[string]any, 1)
 			}
+
 			enrichment["env"] = g.config.Environment
 		}
+
 		g.enrichment = enrichment
 	})
 

@@ -17,10 +17,64 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
-func TestDiscordNotifier_Notify(t *testing.T) {
-	t.Parallel()
+type discordNotifyArgs struct {
+	diff       notifier.DiffCache
+	url        string
+	statusCode int
+	forceError bool
+}
 
-	genericFlag := &flag.InternalFlag{
+type discordNotifyExpected struct {
+	errMsg    string
+	bodyPath  string
+	signature string
+	err       bool
+}
+
+type discordNotifyCase struct {
+	name     string
+	expected discordNotifyExpected
+	args     discordNotifyArgs
+}
+
+func runDiscordNotifyCases(t *testing.T, tests []discordNotifyCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockHTTPClient := &testutils.HTTPClientMock{
+				StatusCode: tt.args.statusCode,
+				ForceError: tt.args.forceError,
+			}
+
+			c := Notifier{
+				DiscordWebhookURL: tt.args.url,
+				httpClient:        mockHTTPClient,
+			}
+
+			err := c.Notify(tt.args.diff)
+
+			if tt.expected.err {
+				assert.ErrorContains(t, err, tt.expected.errMsg)
+			} else {
+				require.NoError(t, err)
+
+				hostname, _ := os.Hostname()
+				content, readFileErr := os.ReadFile(tt.expected.bodyPath)
+				require.NoError(t, readFileErr)
+
+				expectedContent := strings.ReplaceAll(string(content), "{{hostname}}", hostname)
+				assert.JSONEq(t, expectedContent, mockHTTPClient.Body)
+				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
+			}
+		})
+	}
+}
+
+func discordGenericFlag() *flag.InternalFlag {
+	return &flag.InternalFlag{
 		Rules: &[]flag.Rule{
 			{
 				Name:  new("rule1"),
@@ -44,30 +98,20 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 		Disable:     new(false),
 		Version:     new("1.1"),
 	}
+}
 
-	type args struct {
-		diff       notifier.DiffCache
-		url        string
-		statusCode int
-		forceError bool
-	}
-	type expected struct {
-		errMsg    string
-		bodyPath  string
-		signature string
-		err       bool
-	}
-	tests := []struct {
-		name     string
-		expected expected
-		args     args
-	}{
+func TestDiscordNotifier_NotifySuccess(t *testing.T) {
+	t.Parallel()
+
+	genericFlag := discordGenericFlag()
+
+	runDiscordNotifyCases(t, []discordNotifyCase{
 		{
 			name: "should call webhook and have valid results",
-			expected: expected{
+			expected: discordNotifyExpected{
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results.json",
 			},
-			args: args{
+			args: discordNotifyArgs{
 				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
@@ -175,10 +219,10 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "should not display all the flags if reached the limit of embeds",
-			expected: expected{
+			expected: discordNotifyExpected{
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results_limit_max.json",
 			},
-			args: args{
+			args: discordNotifyArgs{
 				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
@@ -200,13 +244,20 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestDiscordNotifier_NotifyErrors(t *testing.T) {
+	t.Parallel()
+
+	runDiscordNotifyCases(t, []discordNotifyCase{
 		{
 			name: "should err if http code is superior to 399",
-			expected: expected{
+			expected: discordNotifyExpected{
 				err:    true,
 				errMsg: "error: (Discord Notifier) webhook call failed with statusCode = 400",
 			},
-			args: args{
+			args: discordNotifyArgs{
 				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
@@ -214,11 +265,11 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "should err if error while calling webhook",
-			expected: expected{
+			expected: discordNotifyExpected{
 				err:    true,
 				errMsg: "error: (Discord Notifier) error calling webhook: random error",
 			},
-			args: args{
+			args: discordNotifyArgs{
 				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
@@ -227,57 +278,28 @@ func TestDiscordNotifier_Notify(t *testing.T) {
 		},
 		{
 			name: "missing discord url",
-			expected: expected{
+			expected: discordNotifyExpected{
 				err:    true,
 				errMsg: "error: (Discord Notifier) invalid notifier configuration, no DiscordWebhookURL provided",
 			},
-			args: args{
+			args: discordNotifyArgs{
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 			},
 		},
 		{
 			name: "invalid discord url",
-			expected: expected{
+			expected: discordNotifyExpected{
 				err:    true,
 				errMsg: `error: (Discord Notifier) invalid DiscordWebhookURL: parse "[REDACTED]"`,
 			},
-			args: args{
+			args: discordNotifyArgs{
 				url:        "https://{}discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			mockHTTPClient := &testutils.HTTPClientMock{
-				StatusCode: tt.args.statusCode,
-				ForceError: tt.args.forceError,
-			}
-
-			c := Notifier{
-				DiscordWebhookURL: tt.args.url,
-				httpClient:        mockHTTPClient,
-			}
-
-			err := c.Notify(tt.args.diff)
-
-			if tt.expected.err {
-				assert.ErrorContains(t, err, tt.expected.errMsg)
-			} else {
-				require.NoError(t, err)
-				hostname, _ := os.Hostname()
-				content, readFileErr := os.ReadFile(tt.expected.bodyPath)
-				require.NoError(t, readFileErr)
-				expectedContent := strings.ReplaceAll(string(content), "{{hostname}}", hostname)
-				assert.JSONEq(t, expectedContent, mockHTTPClient.Body)
-				assert.Equal(t, tt.expected.signature, mockHTTPClient.Signature)
-			}
-		})
-	}
+	})
 }
 
 func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
@@ -311,6 +333,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 			for i := range tt.changes {
 				after[fmt.Sprintf("key%02d", i)] = strings.Repeat("x", tt.valueLength)
 			}
+
 			embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
 					"test-flag": {
@@ -357,6 +380,7 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			After:  &flag.InternalFlag{Metadata: &after},
 		}
 	}
+
 	tests := []struct {
 		name          string
 		updated       map[string]notifier.DiffUpdated
@@ -398,13 +422,16 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			msg := convertToDiscordMessage(notifier.DiffCache{Updated: tt.updated})
 			total := 0
 			descriptions := map[string]string{}
+
 			for _, e := range msg.Embeds {
 				assert.LessOrEqual(t, utf8.RuneCountInString(e.Title), maxDiscordTitle)
 				assert.LessOrEqual(t, utf8.RuneCountInString(e.Description), maxDiscordDescription)
 				total += utf8.RuneCountInString(e.Title) + utf8.RuneCountInString(e.Description)
 				descriptions[e.Title] = e.Description
 			}
+
 			assert.LessOrEqual(t, total, maxDiscordTotal)
+
 			description := func(key string) string {
 				d, ok := descriptions[truncate(fmt.Sprintf("✏️ Flag \"%s\" updated", key), maxDiscordTitle)]
 				require.True(t, ok, "no embed for %s", key)
@@ -414,9 +441,11 @@ func TestConvertToDiscordMessage_fitsDiscordLimits(t *testing.T) {
 			for _, key := range tt.wantWhole {
 				assert.NotContains(t, description(key), "more changes")
 			}
+
 			for _, key := range tt.wantTruncated {
 				assert.Contains(t, description(key), "more changes")
 			}
+
 			assert.Len(t, descriptions, len(tt.updated))
 		})
 	}

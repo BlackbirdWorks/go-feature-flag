@@ -31,15 +31,15 @@ func Test_gitlab_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	type fields struct {
-		httpClient mock.HTTP
-		context    context.Context
-
+		httpClient     mock.HTTP
 		filePath       string
 		gitlabToken    string
 		repositorySlug string
 		baseURL        string
 		branch         string
+		withCtx        bool
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -64,7 +64,7 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				baseURL:        "https://gitlab.com",
 				repositorySlug: "aa/go-feature-flags-config",
 				filePath:       "flag-config.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want:    []byte(sampleText()),
 			wantErr: false,
@@ -148,15 +148,21 @@ func Test_gitlab_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := gitlabretriever.Retriever{
+			ret := gitlabretriever.Retriever{
 				BaseURL:        tt.fields.baseURL,
 				FilePath:       tt.fields.filePath,
 				GitlabToken:    tt.fields.gitlabToken,
 				Branch:         tt.fields.branch,
 				RepositorySlug: tt.fields.repositorySlug,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			ret.SetHTTPClient(&tt.fields.httpClient)
+
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+
+			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -165,9 +171,11 @@ func Test_gitlab_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, strings.TrimSpace(string(tt.want)), strings.TrimSpace(string(got)))
+
 				if tt.fields.gitlabToken != "" {
 					assert.Equal(
 						t,
@@ -184,6 +192,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 	t.Parallel()
 
 	const projectPath = "/api/v4/projects/team%2Fsubgroup%2Fconfig/repository/files/"
+
 	tests := []struct {
 		name            string
 		filePath        string
@@ -271,6 +280,7 @@ func Test_gitlab_RetrievePathEscaping(t *testing.T) {
 
 func Test_gitlab_RetrieveInvalidBaseURLDoesNotLeak(t *testing.T) {
 	t.Parallel()
+
 	h := gitlabretriever.Retriever{
 		BaseURL:        "https://user:SECRETMARKER@gitlab.example.com:bad/?token=SECRETMARKER",
 		FilePath:       "flags.yaml",

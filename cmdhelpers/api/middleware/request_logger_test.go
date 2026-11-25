@@ -41,6 +41,7 @@ func TestRequestLogger200(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields["status"])
@@ -59,6 +60,7 @@ func TestRequestLogger300(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields["status"])
@@ -76,6 +78,7 @@ func TestRequestLogger400(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
 	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields["status"])
@@ -89,13 +92,14 @@ func TestRequestLogger500(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/something", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	logger := obs
-	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
+
 	logFields := logs.All()[0].ContextMap()
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields["status"])
@@ -109,13 +113,13 @@ func TestRequestLoggerHealth(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	requestLogger(logger, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Empty(t, logs.All())
 }
 
@@ -123,13 +127,13 @@ func TestRequestLoggerHealthDebug(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	h := http.HandlerFunc(
+	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
 	logger := obs
-	requestLogger(logger, true)(h).ServeHTTP(httptest.NewRecorder(), req)
+	requestLogger(logger, true)(handler).ServeHTTP(httptest.NewRecorder(), req)
 	assert.Len(t, logs.All(), 1)
 }
 
@@ -279,7 +283,7 @@ func TestLogRequest(t *testing.T) {
 // TestLogRequestDisabledLevel checks that a disabled level costs nothing: no record, no allocation.
 // It is not parallel on purpose: AllocsPerRun counts the allocations of the parallel tests too.
 //
-//nolint:paralleltest // see above
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestLogRequestDisabledLevel(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	rec := middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/v1/eval?apiKey=x"}
@@ -313,15 +317,17 @@ func TestRequestLoggerRequestID(t *testing.T) {
 			if tt.requestHeader != "" {
 				req.Header.Set("X-Request-ID", tt.requestHeader)
 			}
+
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				if tt.responseHeader != "" {
 					w.Header().Set("X-Request-ID", tt.responseHeader)
 				}
+
 				w.WriteHeader(http.StatusOK)
 			})
 
-			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
+			requestLogger(obs, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 
 			require.Equal(t, 1, logs.Len())
 			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()["request_id"])
@@ -379,11 +385,13 @@ func TestRequestLoggerReturnedErrors(t *testing.T) {
 			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 
 			assert.Equal(t, tt.wantStatus, rec.Code)
+
 			got := logs.All()
 			require.Len(t, got, 1)
 			assert.Equal(t, tt.wantLevel, got[0].Level)
 			assert.Equal(t, tt.wantMessage, got[0].Message)
 			assert.Equal(t, int64(tt.wantStatus), got[0].ContextMap()["status"])
+
 			if tt.wantErr {
 				assert.Equal(t, errBoom.Error(), got[0].ContextMap()["error"])
 			}

@@ -22,20 +22,22 @@ type etagBuffer struct {
 	status int
 }
 
-func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} } //nolint:gosec // see above
+//nolint:gosec // G401: SHA-1 is used as an HTTP ETag content fingerprint, not for security
+func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} }
 
-func (b *etagBuffer) setStatus(status int) { b.status = status }
-
-func (b *etagBuffer) Write(p []byte) (int, error) {
+func (b *etagBuffer) Write(data []byte) (int, error) {
 	if b.status == 0 {
 		b.status = http.StatusOK
 	}
-	n, _ := b.buf.Write(p)
-	_, _ = b.hash.Write(p)
+
+	n, _ := b.buf.Write(data)
+	_, _ = b.hash.Write(data)
 	b.len += n
 
 	return n, nil
 }
+
+func (b *etagBuffer) setStatus(status int) { b.status = status }
 
 // answer returns the ETag of the response, and whether it has to be sent: a 2xx response with a body gets one,
 // and a request that carries it in If-None-Match gets a 304 instead of the body.
@@ -43,6 +45,7 @@ func (b *etagBuffer) answer(ifNoneMatch string) (string, bool) {
 	if b.status/100 != 2 || b.status == http.StatusNoContent || b.buf.Len() == 0 {
 		return "", false
 	}
+
 	etag := `"` + strconv.Itoa(b.len) + "-" + hex.EncodeToString(b.hash.Sum(nil)) + `"`
 
 	return etag, ifNoneMatch == etag || ifNoneMatch == "W/"+etag
@@ -53,13 +56,14 @@ func (b *etagBuffer) answer(ifNoneMatch string) (string, bool) {
 func ETag() Func {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			bw := &etagWriter{ResponseWriter: w, etagBuffer: newETagBuffer()}
-			next.ServeHTTP(bw, r)
+			bufWriter := &etagWriter{ResponseWriter: w, etagBuffer: newETagBuffer()}
+			next.ServeHTTP(bufWriter, r)
 
 			h := w.Header()
 			if h.Get("ETag") == "" {
-				if etag, notModified := bw.answer(r.Header.Get("If-None-Match")); etag != "" {
+				if etag, notModified := bufWriter.answer(r.Header.Get("If-None-Match")); etag != "" {
 					h.Set("ETag", etag)
+
 					if notModified {
 						w.WriteHeader(http.StatusNotModified)
 
@@ -67,9 +71,10 @@ func ETag() Func {
 					}
 				}
 			}
-			if bw.status != 0 {
-				w.WriteHeader(bw.status)
-				_, _ = w.Write(bw.buf.Bytes())
+
+			if bufWriter.status != 0 {
+				w.WriteHeader(bufWriter.status)
+				_, _ = w.Write(bufWriter.buf.Bytes())
 			}
 		})
 	}
@@ -107,6 +112,8 @@ func (c *etagContext) Status() int { return c.status }
 func (c *etagContext) BodyWriter() io.Writer { return c.etagBuffer }
 
 // WithContext keeps the buffering for the contexts derived from this one.
+//
+//nolint:ireturn // the signature is fixed by huma.Context
 func (c *etagContext) WithContext(ctx context.Context) huma.Context {
 	return &etagContext{hctx: huma.WithContext(c.hctx, ctx), etagBuffer: c.etagBuffer}
 }
@@ -114,20 +121,22 @@ func (c *etagContext) WithContext(ctx context.Context) huma.Context {
 // ETagHuma is [ETag] for a huma operation, register it in the middleware of the operation.
 func ETagHuma() func(huma.Context, func(huma.Context)) {
 	return func(ctx huma.Context, next func(huma.Context)) {
-		ec := &etagContext{hctx: ctx, etagBuffer: newETagBuffer()}
-		next(ec)
+		etagCtx := &etagContext{hctx: ctx, etagBuffer: newETagBuffer()}
+		next(etagCtx)
 
-		if etag, notModified := ec.answer(ctx.Header("If-None-Match")); etag != "" {
+		if etag, notModified := etagCtx.answer(ctx.Header("If-None-Match")); etag != "" {
 			ctx.SetHeader("ETag", etag)
+
 			if notModified {
 				ctx.SetStatus(http.StatusNotModified)
 
 				return
 			}
 		}
-		if ec.status != 0 {
-			ctx.SetStatus(ec.status)
-			_, _ = ctx.BodyWriter().Write(ec.buf.Bytes())
+
+		if etagCtx.status != 0 {
+			ctx.SetStatus(etagCtx.status)
+			_, _ = ctx.BodyWriter().Write(etagCtx.buf.Bytes())
 		}
 	}
 }

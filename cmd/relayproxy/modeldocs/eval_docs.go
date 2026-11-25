@@ -5,17 +5,17 @@ type EvalFlagDoc struct {
 	// The flag value for this user.
 	Value any `json:"value"`
 	// Metadata is a field containing information about your flag such as an issue tracker link, a description, etc ...
-	Metadata *map[string]any `json:"metadata" yaml:"metadata,omitempty" toml:"metadata,omitempty"`
+	Metadata *map[string]any `json:"metadata" toml:"metadata,omitempty" yaml:"metadata,omitempty"`
 	// The variation used to give you this value.
-	VariationType string `json:"variationType" example:"variation-A"`
+	VariationType string `example:"variation-A" json:"variationType"`
 	// The version of the flag used.
-	Version string `json:"version" example:"1.0"`
+	Version string `example:"1.0" json:"version"`
 	// reason why we have returned this value.
-	Reason string `json:"reason" example:"TARGETING_MATCH"`
+	Reason string `example:"TARGETING_MATCH" json:"reason"`
 	// Code of the error returned by the server.
-	ErrorCode string `json:"errorCode" example:""`
+	ErrorCode string `example:"" json:"errorCode"`
 	// `true` if the event was tracked by the relay proxy.
-	TrackEvents bool `json:"trackEvents" example:"true"`
+	TrackEvents bool `example:"true" json:"trackEvents"`
 	// `true` if something went wrong in the relay proxy (flag does not exists, ...) and we serve the defaultValue.
-	Failed bool `json:"failed" example:"false"`
+	Failed bool `example:"false" json:"failed"`
 }

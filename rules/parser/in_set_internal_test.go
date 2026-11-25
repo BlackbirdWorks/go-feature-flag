@@ -13,16 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func countSets(n *node) int {
-	if n == nil {
+func countSets(curr *node) int {
+	if curr == nil {
 		return 0
 	}
+
 	c := 0
-	if n.cmp != nil && (n.cmp.strSet != nil || n.cmp.intSet != nil) {
+	if curr.cmp != nil && (curr.cmp.strSet != nil || curr.cmp.intSet != nil) {
 		c++
 	}
 
-	return c + countSets(n.left) + countSets(n.right)
+	return c + countSets(curr.left) + countSets(curr.right)
 }
 
 // seqStrs returns the list literal ["u0", ..., "u<n-1>"].
@@ -45,7 +46,7 @@ func seqInts(n int) string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-func randStrList(r *rand.Rand, n int) string {
+func randStrList(r *rand.Rand, count int) string {
 	pool := []string{
 		"a",
 		"A",
@@ -61,16 +62,18 @@ func randStrList(r *rand.Rand, n int) string {
 		"null",
 		"x y",
 		`q\"q`,
-		"日本",
+		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		"İ",
 		"i",
 	}
-	parts := make([]string, n)
+
+	parts := make([]string, count)
 	for i := range parts {
-		s := fmt.Sprintf("u%d", r.Intn(n*2+1))
+		s := fmt.Sprintf("u%d", r.Intn(count*2+1))
 		if r.Intn(3) == 0 {
 			s = pool[r.Intn(len(pool))]
 		}
+
 		parts[i] = `"` + s + `"` // pool entries containing \" are already escaped
 	}
 
@@ -79,8 +82,8 @@ func randStrList(r *rand.Rand, n int) string {
 
 // randIntList builds an int list; with bad set, one element overflows int so
 // the compiled list is partial and carries a parse error (no set is used).
-func randIntList(r *rand.Rand, n int, bad bool) string {
-	parts := make([]string, n)
+func randIntList(r *rand.Rand, count int, bad bool) string {
+	parts := make([]string, count)
 	for i := range parts {
 		switch r.Intn(6) {
 		case 0:
@@ -88,11 +91,12 @@ func randIntList(r *rand.Rand, n int, bad bool) string {
 		case 1:
 			parts[i] = strconv.Itoa(r.Intn(10)) // the grammar has no negative list ints
 		default:
-			parts[i] = strconv.Itoa(r.Intn(n * 2))
+			parts[i] = strconv.Itoa(r.Intn(count * 2))
 		}
 	}
-	if bad && n > 2 {
-		parts[r.Intn(n)] = "99999999999999999999"
+
+	if bad && count > 2 {
+		parts[r.Intn(count)] = "99999999999999999999"
 	}
 
 	return "[" + strings.Join(parts, ", ") + "]"
@@ -105,7 +109,9 @@ type kv = map[string]any
 // never uses the set.
 func TestInSet(t *testing.T) {
 	t.Parallel()
+
 	strs, ints := seqStrs(100), seqInts(100)
+
 	tests := []struct {
 		input   kv
 		name    string
@@ -176,25 +182,34 @@ func TestInSet(t *testing.T) {
 		{name: "short string list", rule: "s in " + seqStrs(5), input: kv{"s": "u4"}, want: true, wantSet: false},
 		{name: "short int list", rule: "n in " + seqInts(5), input: kv{"n": 4}, want: true, wantSet: false},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tc.rule)
+
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			// the visitor must run first: it reads the parse tree that Process
 			// compiles away. The second pass reuses the compiled rule.
-			wantRet, wantErr, wantDebug := visitorProcess(ev.tree, tc.input)
+			wantRet, wantErr, wantDebug := visitorProcess(eval.tree, tt.input)
 			for pass := range 2 {
-				got, processErr := ev.Process(tc.input)
-				if tc.want {
+				got, processErr := eval.Process(tt.input)
+				if tt.want {
 					require.NoError(t, processErr, "pass %d", pass)
 				}
-				require.Equal(t, tc.want, got, "pass %d (err %v)", pass, processErr)
+
+				require.Equal(t, tt.want, got, "pass %d (err %v)", pass, processErr)
 				require.Equal(t, wantRet, got, "pass %d: visitor result", pass)
 				require.Equal(t, errString(wantErr), errString(processErr), "pass %d: visitor err", pass)
-				require.Equal(t, errString(wantDebug), errString(ev.LastDebugErr()), "pass %d: visitor debug err", pass)
+				require.Equal(
+					t,
+					errString(wantDebug),
+					errString(eval.LastDebugErr()),
+					"pass %d: visitor debug err",
+					pass,
+				)
 			}
-			require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")
+
+			require.Equal(t, tt.wantSet, countSets(eval.root) > 0, "hash set compiled")
 		})
 	}
 }
@@ -203,6 +218,7 @@ func TestInSet(t *testing.T) {
 // inSetMinLen, and that both sides of the boundary give the same answers.
 func TestInSetThreshold(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		n       int
@@ -214,35 +230,41 @@ func TestInSetThreshold(t *testing.T) {
 		{"above", inSetMinLen + 1, true},
 	}
 	for _, kind := range []string{"string", "int"} {
-		for _, tc := range tests {
-			t.Run(kind+"/"+tc.name, func(t *testing.T) {
+		for _, tt := range tests {
+			t.Run(kind+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
-				var rule string
-				var first, last, miss any
+
+				var (
+					rule              string
+					first, last, miss any
+				)
 				if kind == "string" {
 					rule, first, last, miss = "x in "+seqStrs(
-						tc.n,
+						tt.n,
 					), "u0", fmt.Sprintf(
 						"u%d",
-						tc.n-1,
+						tt.n-1,
 					), fmt.Sprintf(
 						"u%d",
-						tc.n,
+						tt.n,
 					)
 				} else {
-					rule, first, last, miss = "x in "+seqInts(tc.n), 0, tc.n-1, tc.n
+					rule, first, last, miss = "x in "+seqInts(tt.n), 0, tt.n-1, tt.n
 				}
-				ev, err := NewEvaluator(rule)
+
+				eval, err := NewEvaluator(rule)
 				require.NoError(t, err)
-				for _, c := range []struct {
+
+				for _, probe := range []struct {
 					v    any
 					want bool
 				}{{first, true}, {last, true}, {miss, false}} {
-					got, processErr := ev.Process(kv{"x": c.v})
-					require.NoError(t, processErr, "x=%v", c.v)
-					require.Equal(t, c.want, got, "x=%v", c.v)
+					got, processErr := eval.Process(kv{"x": probe.v})
+					require.NoError(t, processErr, "x=%v", probe.v)
+					require.Equal(t, probe.want, got, "x=%v", probe.v)
 				}
-				require.Equal(t, tc.wantSet, countSets(ev.root) > 0, "hash set compiled")
+
+				require.Equal(t, tt.wantSet, countSets(eval.root) > 0, "hash set compiled")
 			})
 		}
 	}
@@ -253,6 +275,7 @@ func TestInSetThreshold(t *testing.T) {
 // errors and debug errors must be identical.
 func TestInSetDifferential(t *testing.T) {
 	t.Parallel()
+
 	vals := []any{
 		"u1",
 		"U1",
@@ -269,7 +292,7 @@ func TestInSetDifferential(t *testing.T) {
 		"null",
 		"i",
 		"İ",
-		"日本",
+		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		0,
 		1,
 		3,
@@ -298,46 +321,66 @@ func TestInSetDifferential(t *testing.T) {
 		"\xff",
 	}
 	inputs := make([]kv, 0, 2+len(vals)+3)
+
 	inputs = append(inputs, nil, kv{})
 	for _, v := range vals {
 		inputs = append(inputs, kv{"s": v, "n": v, "u": kv{"s": v, "n": v}})
 	}
+
 	inputs = append(inputs, kv{"n": 3, "s": "u1"}, kv{"n": "x", "s": 3}, kv{"other": 1})
 
 	for _, size := range []int{1, 7, inSetMinLen - 1, inSetMinLen, inSetMinLen + 1, 200} {
 		t.Run(fmt.Sprintf("size=%d", size), func(t *testing.T) {
 			t.Parallel()
+
 			r := rand.New(rand.NewSource(int64(7 + size)))
 			rules := make([]string, 0, 39)
+
 			for range 2 {
-				sl, il, ilBad := randStrList(r, size), randIntList(r, size, false), randIntList(r, size, true)
+				strList, intList, intBad := randStrList(
+					r,
+					size,
+				), randIntList(
+					r,
+					size,
+					false,
+				), randIntList(
+					r,
+					size,
+					true,
+				)
 				rules = append(rules,
-					"s in "+sl, "s IN "+sl, "u.s in "+sl, "not (s in "+sl+")", "NOT (n in "+il+")",
-					"n in "+il, "u.n in "+il, "n in "+ilBad, "n in "+ilBad+" or s in "+sl,
-					"s in "+sl+" and n in "+il, "(s in "+sl+") or (n in "+ilBad+")",
-					"s in "+sl+" or s in "+randStrList(r, size), "missing in "+sl, "missing in "+il,
-					"s in "+sl+" or n in "+il+" or s eq \"u1\"",
-					"n in "+il+" or n in "+randIntList(r, size, false),
-					"s in "+sl+" or s pr and not (n in "+il+")",
+					"s in "+strList, "s IN "+strList, "u.s in "+strList,
+					"not (s in "+strList+")", "NOT (n in "+intList+")",
+					"n in "+intList, "u.n in "+intList, "n in "+intBad, "n in "+intBad+" or s in "+strList,
+					"s in "+strList+" and n in "+intList, "(s in "+strList+") or (n in "+intBad+")",
+					"s in "+strList+" or s in "+randStrList(r, size), "missing in "+strList, "missing in "+intList,
+					"s in "+strList+" or n in "+intList+" or s eq \"u1\"",
+					"n in "+intList+" or n in "+randIntList(r, size, false),
+					"s in "+strList+" or s pr and not (n in "+intList+")",
 				)
 			}
+
 			rules = append(rules,
 				`n in [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0]`, `n in [1,2,3,4,5,6,7,8,9,1.5]`,
 				`s in ["a","b","c","d","e","f","g","h",1]`, `n in [0,0,0,0,0,0,0,0,0]`, `n in [-0,1,2,3,4,5,6,7,8]`)
 
 			sets := 0
+
 			for _, rule := range rules {
 				repeated, err := NewEvaluator(rule)
 				if err != nil {
 					continue // invalid mixed lists are rejected at parse time
 				}
+
 				tree := repeated.tree
-				for i, in := range inputs {
-					wantRet, wantErr, wantDebug := visitorProcess(tree, in)
+				for i, input := range inputs {
+					wantRet, wantErr, wantDebug := visitorProcess(tree, input)
+
 					fresh := &Evaluator{rule: rule, tree: tree}
-					for name, ev := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
-						gotRet, gotErr := ev.Process(in)
-						assert.Equal(t, wantRet, gotRet, "%.80q input %d %v (%s): result", rule, i, in, name)
+					for name, eval := range map[string]*Evaluator{"fresh": fresh, "repeated": repeated} {
+						gotRet, gotErr := eval.Process(input)
+						assert.Equal(t, wantRet, gotRet, "%.80q input %d %v (%s): result", rule, i, input, name)
 						assert.Equal(
 							t,
 							errString(wantErr),
@@ -345,23 +388,25 @@ func TestInSetDifferential(t *testing.T) {
 							"%.80q input %d %v (%s): err",
 							rule,
 							i,
-							in,
+							input,
 							name,
 						)
 						assert.Equal(
 							t,
 							errString(wantDebug),
-							errString(ev.LastDebugErr()),
+							errString(eval.LastDebugErr()),
 							"%.80q input %d %v (%s): debug err",
 							rule,
 							i,
-							in,
+							input,
 							name,
 						)
 					}
 				}
+
 				sets += countSets(repeated.root)
 			}
+
 			if size >= inSetMinLen {
 				require.NotZero(t, sets, "no hash set was built: test is vacuous")
 			} else {
@@ -375,6 +420,7 @@ func TestInSetDifferential(t *testing.T) {
 // run with -race to check that the set is read-only after compile.
 func TestInSetConcurrent(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		val  func(i int) any
 		want func(i int) bool
@@ -400,22 +446,25 @@ func TestInSetConcurrent(t *testing.T) {
 			want: func(i int) bool { return i%600 >= 300 },
 		},
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tc.rule)
+
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
+
 			var wg sync.WaitGroup
 			for range 16 {
 				wg.Go(func() {
 					for i := range 1000 {
-						got, _ := ev.Process(kv{"s": tc.val(i)})
-						if !assert.Equal(t, tc.want(i), got, "i=%d", i) {
+						got, _ := eval.Process(kv{"s": tt.val(i)})
+						if !assert.Equal(t, tt.want(i), got, "i=%d", i) {
 							return
 						}
 					}
 				})
 			}
+
 			wg.Wait()
 		})
 	}

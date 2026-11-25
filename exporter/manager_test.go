@@ -65,13 +65,15 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 					Exporter:         tt.mockExporter,
 				},
 			}
-			dc := exporter.NewManager[exporter.FeatureEvent](
+
+			mgr := exporter.NewManager[exporter.FeatureEvent](
 				dataExporterMock,
 				exporter.DefaultExporterCleanQueueInterval,
 				nil,
 			)
-			go dc.Start()
-			defer dc.Stop()
+
+			go mgr.Start()
+			defer mgr.Stop()
 
 			// Initialize inputEvents slice
 			inputEvents := []exporter.FeatureEvent{
@@ -91,7 +93,7 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 
 			want := make([]exporter.ExportableEvent, len(inputEvents))
 			for i, event := range inputEvents {
-				dc.AddEvent(event)
+				mgr.AddEvent(event)
 				want[i] = event
 			}
 
@@ -140,13 +142,15 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 					Exporter:         tt.mockExporter,
 				},
 			}
-			dc := exporter.NewManager[exporter.FeatureEvent](
+
+			mgr := exporter.NewManager[exporter.FeatureEvent](
 				dataExporterMock,
 				exporter.DefaultExporterCleanQueueInterval,
 				nil,
 			)
-			go dc.Start()
-			defer dc.Stop()
+
+			go mgr.Start()
+			defer mgr.Stop()
 
 			// Initialize inputEvents slice
 			inputEvents := make([]exporter.FeatureEvent, 0, 101)
@@ -164,11 +168,13 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 					nil,
 				))
 			}
+
 			want := make([]exporter.ExportableEvent, len(inputEvents))
 			for i, event := range inputEvents {
-				dc.AddEvent(event)
+				mgr.AddEvent(event)
 				want[i] = event
 			}
+
 			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
 			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
@@ -211,10 +217,12 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 					Exporter:         tt.mockExporter,
 				},
 			}
-			dc := exporter.NewManager[exporter.FeatureEvent](
+
+			mgr := exporter.NewManager[exporter.FeatureEvent](
 				dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
-			go dc.Start()
-			defer dc.Stop()
+
+			go mgr.Start()
+			defer mgr.Stop()
 
 			// Initialize inputEvents slice
 			inputEvents := make([]exporter.FeatureEvent, 0, 100001)
@@ -232,11 +240,13 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 					nil,
 				))
 			}
+
 			want := make([]exporter.ExportableEvent, len(inputEvents))
 			for i, event := range inputEvents {
-				dc.AddEvent(event)
+				mgr.AddEvent(event)
 				want[i] = event
 			}
+
 			assert.Len(t, tt.mockExporter.GetExportedEvents(), tt.wantExported)
 			assert.Equal(t, want[:tt.wantExported], tt.mockExporter.GetExportedEvents())
 		})
@@ -254,15 +264,19 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 			Exporter:         &mockExporter,
 		},
 	}
+
 	file, _ := os.CreateTemp(t.TempDir(), "log")
 	defer func() { _ = file.Close() }()
 	defer func() { _ = os.Remove(file.Name()) }()
+
 	handler := slogassert.New(t, slog.LevelInfo, nil)
 	logger := slog.New(handler)
-	dc := exporter.NewManager[exporter.FeatureEvent](dataExporterMock,
+
+	mgr := exporter.NewManager[exporter.FeatureEvent](dataExporterMock,
 		exporter.DefaultExporterCleanQueueInterval, &fflog.FFLogger{LeveledLogger: logger})
-	go dc.Start()
-	defer dc.Stop()
+
+	go mgr.Start()
+	defer mgr.Stop()
 
 	// Initialize inputEvents slice
 	inputEvents := make([]exporter.FeatureEvent, 0, 201)
@@ -271,9 +285,10 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
 	}
+
 	want := make([]exporter.ExportableEvent, len(inputEvents))
 	for i, event := range inputEvents {
-		dc.AddEvent(event)
+		mgr.AddEvent(event)
 		want[i] = event
 	}
 	// check that the first 100 events are exported
@@ -292,9 +307,10 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 			Exporter:         &mockExporter,
 		},
 	}
-	dc := exporter.NewManager[exporter.FeatureEvent](
+
+	mgr := exporter.NewManager[exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
-	defer dc.Stop()
+	defer mgr.Stop()
 
 	// Initialize inputEvents slice
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
@@ -303,9 +319,10 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
 	}
+
 	want := make([]exporter.ExportableEvent, len(inputEvents))
 	for i, event := range inputEvents {
-		dc.AddEvent(event)
+		mgr.AddEvent(event)
 		want[i] = event
 		// we have to wait because we are opening a new thread to slow down the flag evaluation.
 		time.Sleep(1 * time.Millisecond)
@@ -362,6 +379,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 			}
 			goff, err := ffclient.New(config)
 			require.NoError(t, err)
+
 			defer goff.Close()
 
 			_, err = goff.BoolVariation("test-flag", tt.ctx, false)
@@ -391,6 +409,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
 	}
+
 	mockExporter1 := mock.Exporter{Bulk: false}
 	mockExporter2 := mock.Exporter{Bulk: true}
 	dataExporterMock := []exporter.Config{
@@ -405,10 +424,12 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 			Exporter:         &mockExporter2,
 		},
 	}
-	dc := exporter.NewManager[exporter.FeatureEvent](
+
+	mgr := exporter.NewManager[exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
-	go dc.Start()
-	defer dc.Stop()
+
+	go mgr.Start()
+	defer mgr.Stop()
 
 	// Initialize inputEvents slice
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
@@ -417,9 +438,10 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
 	}
+
 	want := make([]exporter.ExportableEvent, len(inputEvents))
 	for i, event := range inputEvents {
-		dc.AddEvent(event)
+		mgr.AddEvent(event)
 		want[i] = event
 		// we have to wait because we are opening a new thread to slow down the flag evaluation.
 		time.Sleep(1 * time.Millisecond)
@@ -438,6 +460,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 		t.Skip("timing-sensitive: Windows timer granularity (~15ms) breaks the sub-millisecond " +
 			"AddEvent/flush-interval assumptions this test relies on")
 	}
+
 	mockExporter1 := mock.Exporter{Bulk: true}
 	mockExporter2 := mock.Exporter{Bulk: true}
 	dataExporterMock := []exporter.Config{
@@ -452,10 +475,12 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 			Exporter:         &mockExporter2,
 		},
 	}
-	dc := exporter.NewManager[exporter.FeatureEvent](
+
+	mgr := exporter.NewManager[exporter.FeatureEvent](
 		dataExporterMock, exporter.DefaultExporterCleanQueueInterval, nil)
-	go dc.Start()
-	defer dc.Stop()
+
+	go mgr.Start()
+	defer mgr.Stop()
 
 	// Initialize inputEvents slice
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
@@ -464,13 +489,14 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 			ffcontext.NewEvaluationContextBuilder("ABCD").AddCustom("anonymous", true).Build(),
 			"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
 	}
-	go func(dc exporter.Manager[exporter.FeatureEvent]) {
+
+	go func(mgr exporter.Manager[exporter.FeatureEvent]) {
 		for _, event := range inputEvents {
-			dc.AddEvent(event)
+			mgr.AddEvent(event)
 			// we have to wait because we are opening a new thread to slow down the flag evaluation.
 			time.Sleep(1 * time.Millisecond)
 		}
-	}(dc)
+	}(mgr)
 
 	assert.Empty(t, mockExporter2.GetExportedEvents())
 	assert.Empty(t, mockExporter1.GetExportedEvents())
@@ -495,7 +521,6 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: 10 * time.Second,
 				LeveledLogger:   slog.Default(),
-				Context:         context.Background(),
 				Retriever: &fileretriever.Retriever{
 					Path: "../testdata/flag-config.yaml",
 				},
@@ -546,19 +571,25 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // and does not depend on the other tests running in parallel.
 func goroutinesLabeled(key, value string) int {
 	var buf bytes.Buffer
-	if err := pprof.Lookup("goroutine").WriteTo(&buf, 1); err != nil {
+
+	err := pprof.Lookup("goroutine").WriteTo(&buf, 1)
+	if err != nil {
 		return -1
 	}
+
 	want := fmt.Sprintf("%q:%q", key, value)
 	total, current := 0, 0
+
 	for line := range strings.SplitSeq(buf.String(), "\n") {
 		if n, _, ok := strings.Cut(line, " @ "); ok {
-			if v, err := strconv.Atoi(n); err == nil {
+			v, parseErr := strconv.Atoi(n)
+			if parseErr == nil {
 				current = v
 			}
 
 			continue
 		}
+
 		if strings.HasPrefix(line, "# labels:") && strings.Contains(line, want) {
 			total += current
 		}
@@ -592,9 +623,10 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 
 			label := t.Name()
 			started := 0
+
 			pprof.Do(t.Context(), pprof.Labels("leakcheck", label), func(context.Context) {
 				for range tt.nbManagers {
-					dc := exporter.NewManager[exporter.FeatureEvent](
+					mgr := exporter.NewManager[exporter.FeatureEvent](
 						[]exporter.Config{
 							{
 								FlushInterval:    10 * time.Millisecond,
@@ -605,16 +637,18 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 						10*time.Millisecond,
 						nil,
 					)
-					dc.Start()
-					dc.AddEvent(exporter.NewFeatureEvent(
+					mgr.Start()
+					mgr.AddEvent(exporter.NewFeatureEvent(
 						ffcontext.NewEvaluationContextBuilder("ABCD").Build(),
 						"random-key", "YO", "defaultVar", false, "", "SERVER", nil))
+
 					started = max(started, goroutinesLabeled("leakcheck", label))
-					dc.Stop()
+
+					mgr.Stop()
 					// Close() can legitimately be called twice, and Stop() used to panic with
 					// "close of closed channel" on the second call.
 					if tt.wantStopTwice {
-						assert.NotPanics(t, dc.Stop)
+						assert.NotPanics(t, mgr.Stop)
 					}
 				}
 			})

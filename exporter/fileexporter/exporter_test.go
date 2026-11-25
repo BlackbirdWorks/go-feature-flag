@@ -21,45 +21,105 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+type fileExportFields struct {
+	Format                  string
+	Filename                string
+	CsvTemplate             string
+	OutputDir               string
+	ParquetCompressionCodec string
+	EventType               string
+}
+
+type fileExportArgs struct {
+	logger *fflog.FFLogger
+	events []exporter.ExportableEvent
+}
+
+type fileExportExpected struct {
+	fileNameRegex  string
+	content        string
+	featureEvents  []exporter.FeatureEvent
+	trackingEvents []exporter.TrackingEvent
+}
+
+type fileExportCase struct {
+	setup    func(t *testing.T, fields fileExportFields)
+	teardown func(t *testing.T, fields fileExportFields)
+	fields   fileExportFields
+	name     string
+	expected fileExportExpected
+	args     fileExportArgs
+	wantErr  bool
+}
+
+func runFileExportTests(t *testing.T, tests []fileExportCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			outputDir := tt.fields.OutputDir
+			if tt.fields.OutputDir == "" {
+				outputDir = t.TempDir()
+			}
+
+			if tt.setup != nil {
+				tt.setup(t, tt.fields)
+			}
+
+			if tt.teardown != nil {
+				defer tt.teardown(t, tt.fields)
+			}
+
+			fileExp := &fileexporter.Exporter{
+				Format:                  tt.fields.Format,
+				OutputDir:               outputDir,
+				Filename:                tt.fields.Filename,
+				CsvTemplate:             tt.fields.CsvTemplate,
+				ParquetCompressionCodec: tt.fields.ParquetCompressionCodec,
+			}
+
+			err := fileExp.Export(context.Background(), tt.args.logger, tt.args.events)
+			if tt.wantErr {
+				assert.Error(t, err, "export method should error")
+
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Check if the directory was created
+			_, err = os.Stat(outputDir)
+			require.NoError(t, err, "Output directory should exist")
+
+			files, _ := os.ReadDir(outputDir)
+			assert.Len(t, files, 1, "Directory %s should have only one file", outputDir)
+			assert.Regexp(t, tt.expected.fileNameRegex, files[0].Name(), "Invalid file name")
+
+			assertExportOutput(
+				t,
+				tt.fields.Format,
+				tt.fields.EventType,
+				outputDir+"/"+files[0].Name(),
+				tt.expected.content,
+				tt.expected.featureEvents,
+				tt.expected.trackingEvents,
+			)
+		})
+	}
+}
+
 func TestFile_Export(t *testing.T) {
 	t.Parallel()
 
-	// Create a temporary directory for test file operations
-	tempDir := t.TempDir()
-
 	hostname, _ := os.Hostname()
-	type fields struct {
-		Format                  string
-		Filename                string
-		CsvTemplate             string
-		OutputDir               string
-		ParquetCompressionCodec string
-		EventType               string
-	}
-	type args struct {
-		logger *fflog.FFLogger
-		events []exporter.ExportableEvent
-	}
-	type expected struct {
-		fileNameRegex  string
-		content        string
-		featureEvents  []exporter.FeatureEvent
-		trackingEvents []exporter.TrackingEvent
-	}
-	tests := []struct {
-		setup    func(t *testing.T, fields fields)
-		teardown func(t *testing.T, fields fields)
-		fields   fields
-		name     string
-		expected expected
-		args     args
-		wantErr  bool
-	}{
+	runFileExportTests(t, []fileExportCase{
 		{
 			name:    "all default json",
 			wantErr: false,
-			fields:  fields{},
-			args: args{
+			fields:  fileExportFields{},
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -86,7 +146,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
 				content:       "./testdata/all_default.json",
 			},
@@ -94,10 +154,10 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "all default csv",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format: "csv",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -123,7 +183,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
 				content:       "./testdata/all_default.csv",
 			},
@@ -131,11 +191,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "all default parquet",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:                  "parquet",
 				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -163,7 +223,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
 				featureEvents: []exporter.FeatureEvent{
 					{
@@ -194,16 +254,24 @@ func TestFile_Export(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func TestFile_Export_FormatsAndEvents(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
 		{
 			name:    "all default parquet tracking events",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:                  "parquet",
 				ParquetCompressionCodec: parquet.CompressionCodec_SNAPPY.String(),
 				Filename:                "tracking-{{ .Hostname}}-{{ .Timestamp}}.parquet",
 				EventType:               "tracking",
 			},
-			args: args{
+			args: fileExportArgs{
 
 				events: []exporter.ExportableEvent{
 					exporter.TrackingEvent{
@@ -217,7 +285,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^tracking-" + hostname + "-[0-9]*\\.parquet$",
 				trackingEvents: []exporter.TrackingEvent{
 					{
@@ -235,11 +303,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "custom CSV format",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:      "csv",
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -265,7 +333,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.csv",
 				content:       "./testdata/custom_csv_format.csv",
 			},
@@ -273,11 +341,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "complex parquet value",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:                  "parquet",
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -298,7 +366,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.parquet$",
 				featureEvents: []exporter.FeatureEvent{
 					{
@@ -319,11 +387,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "custom file name",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:   "json",
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -349,18 +417,27 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^json-test-[0-9]*$",
 				content:       "./testdata/custom_file_name.json",
 			},
 		},
+	})
+}
+
+func TestFile_Export_OutputDirAndErrors(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	hostname, _ := os.Hostname()
+	runFileExportTests(t, []fileExportCase{
 		{
 			name:    "invalid format",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format: "xxx",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -387,7 +464,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.xxx$",
 				content:       "./testdata/all_default.json",
 			},
@@ -395,10 +472,10 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "non-existent outputdir",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				OutputDir: filepath.Join(tempDir, "non-existent-dir"),
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -425,7 +502,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
 				content:       "./testdata/all_default.json",
 			},
@@ -433,10 +510,10 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "invalid filename template",
 			wantErr: true,
-			fields: fields{
+			fields: fileExportFields{
 				Filename: "{{ .InvalidField}}",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -466,11 +543,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "invalid csv formatter",
 			wantErr: true,
-			fields: fields{
+			fields: fileExportFields{
 				Format:      "csv",
 				CsvTemplate: "{{ .Foo}}",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -500,11 +577,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "outputdir with invalid permissions",
 			wantErr: true,
-			fields: fields{
+			fields: fileExportFields{
 				Format:    "parquet",
 				OutputDir: filepath.Join(tempDir, "invalid-permissions-dir"),
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -519,20 +596,22 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			setup: func(t *testing.T, fields fields) {
+			setup: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
 				if runtime.GOOS == "windows" {
 					t.Skip("directory permissions are not enforced the same way on Windows")
 				}
+
 				err := os.MkdirAll(fields.OutputDir, 0755)
 				require.NoError(t, err)
 				err = os.Chmod(fields.OutputDir, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
-			teardown: func(t *testing.T, fields fields) {
+			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
+
 				err := os.Chmod(fields.OutputDir, 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -540,11 +619,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "outputdir with invalid parent folder",
 			wantErr: true,
-			fields: fields{
+			fields: fileExportFields{
 				Format:    "parquet",
 				OutputDir: filepath.Join(tempDir, "invalid-parent", "invalid-parent-dir"),
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -559,7 +638,7 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			setup: func(t *testing.T, fields fields) {
+			setup: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
 				// Unix permission bits (Chmod 0000) do not restrict directory writes
 				// on Windows, so the export would not fail there.
@@ -574,8 +653,9 @@ func TestFile_Export(t *testing.T) {
 				err = os.Chmod(parent, 0000) // Remove all permissions
 				assert.NoError(t, err)
 			},
-			teardown: func(t *testing.T, fields fields) {
+			teardown: func(t *testing.T, fields fileExportFields) {
 				t.Helper()
+
 				err := os.Chmod(filepath.Dir(fields.OutputDir), 0755) // Restore permissions for cleanup
 				assert.NoError(t, err)
 			},
@@ -583,11 +663,11 @@ func TestFile_Export(t *testing.T) {
 		{
 			name:    "outputdir with trailing slash",
 			wantErr: false,
-			fields: fields{
+			fields: fileExportFields{
 				Format:    "json",
 				OutputDir: filepath.Join(tempDir, "dir-with-trailing-slash") + "/",
 			},
-			args: args{
+			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
 						Kind:         "feature",
@@ -614,78 +694,31 @@ func TestFile_Export(t *testing.T) {
 					},
 				},
 			},
-			expected: expected{
+			expected: fileExportExpected{
 				fileNameRegex: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
 				content:       "./testdata/all_default.json",
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			outputDir := tt.fields.OutputDir
-			if tt.fields.OutputDir == "" {
-				outputDir = t.TempDir()
-			}
-
-			if tt.setup != nil {
-				tt.setup(t, tt.fields)
-			}
-
-			if tt.teardown != nil {
-				defer tt.teardown(t, tt.fields)
-			}
-
-			f := &fileexporter.Exporter{
-				Format:                  tt.fields.Format,
-				OutputDir:               outputDir,
-				Filename:                tt.fields.Filename,
-				CsvTemplate:             tt.fields.CsvTemplate,
-				ParquetCompressionCodec: tt.fields.ParquetCompressionCodec,
-			}
-			err := f.Export(context.Background(), tt.args.logger, tt.args.events)
-			if tt.wantErr {
-				assert.Error(t, err, "export method should error")
-
-				return
-			}
-
-			require.NoError(t, err)
-
-			// Check if the directory was created
-			_, err = os.Stat(outputDir)
-			require.NoError(t, err, "Output directory should exist")
-
-			files, _ := os.ReadDir(outputDir)
-			assert.Len(t, files, 1, "Directory %s should have only one file", outputDir)
-			assert.Regexp(t, tt.expected.fileNameRegex, files[0].Name(), "Invalid file name")
-
-			assertExportOutput(
-				t,
-				tt.fields.Format,
-				tt.fields.EventType,
-				outputDir+"/"+files[0].Name(),
-				tt.expected.content,
-				tt.expected.featureEvents,
-				tt.expected.trackingEvents,
-			)
-		})
-	}
+	})
 }
 
 // readParquetFeatureEvents reads the parquet file at filePath and returns the
 // FeatureEvent records it contains.
 func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureEvent {
 	t.Helper()
+
 	fr, err := local.NewLocalFileReader(filePath)
 	require.NoError(t, err)
+
 	defer fr.Close()
-	pr, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+
+	parquetReader, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 	require.NoError(t, err)
-	defer pr.ReadStop()
-	gotFeatureEvents := make([]exporter.FeatureEvent, pr.GetNumRows())
-	err = pr.Read(&gotFeatureEvents)
+
+	defer parquetReader.ReadStop()
+
+	gotFeatureEvents := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
+	err = parquetReader.Read(&gotFeatureEvents)
 	assert.NoError(t, err)
 
 	return gotFeatureEvents
@@ -695,14 +728,19 @@ func readParquetFeatureEvents(t *testing.T, filePath string) []exporter.FeatureE
 // TrackingEvent records it contains.
 func readParquetTrackingEvents(t *testing.T, filePath string) []exporter.TrackingEvent {
 	t.Helper()
+
 	fr, err := local.NewLocalFileReader(filePath)
 	require.NoError(t, err)
+
 	defer fr.Close()
-	pr, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
+
+	parquetReader, err := reader.NewParquetReader(fr, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
 	require.NoError(t, err)
-	defer pr.ReadStop()
-	gotTrackingEvents := make([]exporter.TrackingEvent, pr.GetNumRows())
-	err = pr.Read(&gotTrackingEvents)
+
+	defer parquetReader.ReadStop()
+
+	gotTrackingEvents := make([]exporter.TrackingEvent, parquetReader.GetNumRows())
+	err = parquetReader.Read(&gotTrackingEvents)
 	assert.NoError(t, err)
 
 	return gotTrackingEvents
@@ -719,12 +757,14 @@ func assertExportOutput(
 	expectedTrackingEvents []exporter.TrackingEvent,
 ) {
 	t.Helper()
+
 	if format == "parquet" {
 		if eventType == "tracking" {
 			assert.ElementsMatch(t, expectedTrackingEvents, readParquetTrackingEvents(t, filePath))
 
 			return
 		}
+
 		assert.ElementsMatch(t, expectedFeatureEvents, readParquetFeatureEvents(t, filePath))
 
 		return
@@ -769,6 +809,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 	require.NoError(t, err)
 
 	countFileWithPrefix := 0
+
 	for _, file := range files {
 		if strings.HasPrefix(file.Name(), filePrefix) {
 			countFileWithPrefix++
@@ -776,5 +817,6 @@ func TestExportWithoutOutputDir(t *testing.T) {
 			require.NoError(t, removeErr)
 		}
 	}
+
 	assert.Positive(t, countFileWithPrefix, "At least one file should have been created")
 }

@@ -71,8 +71,8 @@ type FlagsetManager interface {
 	OnConfigChange(newConfig *config.Config)
 }
 
-// flagsetManagerImpl is the internal implementation of FlagsetManager.
-type flagsetManagerImpl struct {
+// FlagsetManagerImpl is the internal implementation of FlagsetManager.
+type FlagsetManagerImpl struct {
 	// sseService is used to create a per-flagset SSE notifier when a flagset is added at
 	// runtime. It can be nil.
 	sseService stream.SSEService
@@ -113,65 +113,70 @@ type flagsetManagerImpl struct {
 	flagsetsMutex sync.RWMutex
 }
 
-// NewFlagsetManager is creating a new FlagsetManager.
+// NewFlagsetManager is creating a new FlagsetManagerImpl.
 // It is used to retrieve the flagset linked to the API Key.
 // sseService and wsService are optional: when non-nil a per-flagset SSE / websocket
 // notifier is created so that flag-change events are scoped to the correct flagset.
 func NewFlagsetManager(
 	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
-) (FlagsetManager, error) {
+) (*FlagsetManagerImpl, error) {
 	if config == nil {
 		return nil, errConfigurationIsNil
 	}
 
-	var flagsetMngr FlagsetManager
-	var err error
+	var (
+		flagsetMngr *FlagsetManagerImpl
+		err         error
+	)
 	if config.IsUsingFlagsets() {
 		flagsetMngr, err = newFlagsetManagerWithFlagsets(config, logger, notifiers, sseService, wsService)
 	} else {
 		flagsetMngr, err = newFlagsetManagerWithDefaultConfig(config, logger, notifiers, sseService, wsService)
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
 	config.AttachConfigChangeCallback(flagsetMngr.OnConfigChange)
 
 	return flagsetMngr, nil
 }
 
 func newFlagsetManagerWithDefaultConfig(
-	c *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
+	cfg *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
-) (FlagsetManager, error) {
+) (*FlagsetManagerImpl, error) {
 	defaultFlagSet := config.FlagSet{
 		Name:                            utils.DefaultFlagSetName,
-		Retriever:                       c.Retriever,
-		Retrievers:                      c.Retrievers,
-		Notifiers:                       c.Notifiers,
-		Exporter:                        c.Exporter,
-		Exporters:                       c.Exporters,
-		FileFormat:                      c.FileFormat,
-		PollingInterval:                 c.PollingInterval,
-		ExporterCleanQueueInterval:      c.ExporterCleanQueueInterval,
-		StartWithRetrieverError:         c.StartWithRetrieverError,
-		EnablePollingJitter:             c.EnablePollingJitter,
-		DisableNotifierOnInit:           c.DisableNotifierOnInit,
-		EvaluationContextEnrichment:     c.EvaluationContextEnrichment,
-		PersistentFlagConfigurationFile: c.PersistentFlagConfigurationFile,
+		Retriever:                       cfg.Retriever,
+		Retrievers:                      cfg.Retrievers,
+		Notifiers:                       cfg.Notifiers,
+		Exporter:                        cfg.Exporter,
+		Exporters:                       cfg.Exporters,
+		FileFormat:                      cfg.FileFormat,
+		PollingInterval:                 cfg.PollingInterval,
+		ExporterCleanQueueInterval:      cfg.ExporterCleanQueueInterval,
+		StartWithRetrieverError:         cfg.StartWithRetrieverError,
+		EnablePollingJitter:             cfg.EnablePollingJitter,
+		DisableNotifierOnInit:           cfg.DisableNotifierOnInit,
+		EvaluationContextEnrichment:     cfg.EvaluationContextEnrichment,
+		PersistentFlagConfigurationFile: cfg.PersistentFlagConfigurationFile,
 	}
 	allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, utils.DefaultFlagSetName)
+
 	client, err := NewGoFeatureFlagClient(&defaultFlagSet, logger, allNotifiers)
 	if err != nil {
 		return nil, err
 	}
 
-	return &flagsetManagerImpl{
+	return &FlagsetManagerImpl{
 		DefaultFlagSet: client,
 		notifiers:      notifiers,
 		sseService:     sseService,
 		wsService:      wsService,
-		config:         c,
+		config:         cfg,
 		mode:           flagsetManagerModeDefault,
 		logger:         logger,
 	}, nil
@@ -180,7 +185,7 @@ func newFlagsetManagerWithDefaultConfig(
 func newFlagsetManagerWithFlagsets(
 	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
-) (FlagsetManager, error) {
+) (*FlagsetManagerImpl, error) {
 	return newFlagsetManagerWithFlagsetsAndRegistry(
 		config, logger, notifiers, sseService, wsService, newSharedBucketRegistry(
 			nil, time.Duration(config.PollingInterval)*time.Millisecond, config.EnablePollingJitter, logger))
@@ -193,10 +198,11 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 	config *config.Config, logger *slog.Logger, notifiers []notifier.Notifier,
 	sseService stream.SSEService, wsService stream.WebsocketService,
 	registry *sharedBucketRegistry,
-) (FlagsetManager, error) {
+) (*FlagsetManagerImpl, error) {
 	if config.HasUnroutableEvaluationKeys() {
 		logger.Warn(unroutableKeysWarning)
 	}
+
 	flagsets := make(map[string]*ffclient.GoFeatureFlag)
 	apiKeysToFlagSet := make(map[string]string)
 	postgresPools := postgresqlretriever.NewPoolRegistry()
@@ -214,12 +220,14 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 			if flagset.Name == utils.DefaultFlagSetName {
 				startLog = "using 'default' as a flagset name"
 			}
+
 			logMessage := startLog + ", generating a default flagset name. This is not recommended. " +
 				"Not having a flagset name will not allow you to change API Keys associated to the flagset during runtime."
 			logger.LogAttrs(context.Background(), slog.LevelWarn, logMessage, slog.String("flagset", flagSetName))
 		}
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)
+
 		client, err := newGoFeatureFlagClient(
 			&flagset, logger, allNotifiers, withSharedBucketRegistry(registry), withPostgresPools(postgresPools),
 			withDefaultExporterCleanQueueInterval(config.ExporterCleanQueueInterval))
@@ -244,7 +252,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		return nil, errNoFlagsetConfigured
 	}
 
-	return &flagsetManagerImpl{
+	return &FlagsetManagerImpl{
 		FlagSets:       flagsets,
 		FlagSetRouting: apiKeysToFlagSet,
 		notifiers:      notifiers,
@@ -259,7 +267,7 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 }
 
 // FlagSet is returning the flag set linked to the API Key.
-func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
+func (m *FlagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
@@ -270,9 +278,11 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 		flagsetName, exists := m.FlagSetRouting[apiKey]
 		flagset, flagsetExists := m.FlagSets[flagsetName]
 		m.flagsetsMutex.RUnlock()
+
 		if !exists {
 			return nil, errFlagsetNotFoundFor
 		}
+
 		if !flagsetExists {
 			return nil, fmt.Errorf("%w %s", errImpossibleToFindThe, flagsetName)
 		}
@@ -288,15 +298,17 @@ func (m *flagsetManagerImpl) FlagSet(apiKey string) (*ffclient.GoFeatureFlag, er
 }
 
 // FlagSetName returns the name of the flagset linked to the API Key.
-func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
+func (m *FlagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		if apiKey == "" {
 			return "", errAPIKeyIsRequiredWhen
 		}
+
 		m.flagsetsMutex.RLock()
 		name, ok := m.FlagSetRouting[apiKey]
 		m.flagsetsMutex.RUnlock()
+
 		if ok {
 			return name, nil
 		}
@@ -308,11 +320,12 @@ func (m *flagsetManagerImpl) FlagSetName(apiKey string) (string, error) {
 }
 
 // AllFlagSets returns the flag sets of the flagset manager.
-func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
+func (m *FlagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
 	switch m.mode {
 	case flagsetManagerModeFlagsets:
 		m.flagsetsMutex.RLock()
 		defer m.flagsetsMutex.RUnlock()
+
 		if len(m.FlagSets) == 0 {
 			return nil, errNoFlagsetsConfigured
 		}
@@ -334,17 +347,17 @@ func (m *flagsetManagerImpl) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, 
 }
 
 // Default returns the default flagset.
-func (m *flagsetManagerImpl) Default() *ffclient.GoFeatureFlag {
+func (m *FlagsetManagerImpl) Default() *ffclient.GoFeatureFlag {
 	return m.DefaultFlagSet
 }
 
 // IsDefaultFlagSet returns true if the manager is in default mode (no flagsets configured).
-func (m *flagsetManagerImpl) IsDefaultFlagSet() bool {
+func (m *FlagsetManagerImpl) IsDefaultFlagSet() bool {
 	return m.mode == flagsetManagerModeDefault
 }
 
 // Close closes the flagset manager.
-func (m *flagsetManagerImpl) Close() {
+func (m *FlagsetManagerImpl) Close() {
 	if m.DefaultFlagSet != nil {
 		m.DefaultFlagSet.Close()
 	}
@@ -352,10 +365,12 @@ func (m *flagsetManagerImpl) Close() {
 	// exporters and can block, so holding the lock for every flush would needlessly block a
 	// concurrent config reload for the whole teardown. This mirrors removeFlagset.
 	m.flagsetsMutex.RLock()
+
 	clients := make([]*ffclient.GoFeatureFlag, 0, len(m.FlagSets))
 	for _, flagset := range m.FlagSets {
 		clients = append(clients, flagset)
 	}
+
 	m.flagsetsMutex.RUnlock()
 
 	for _, client := range clients {
@@ -364,8 +379,9 @@ func (m *flagsetManagerImpl) Close() {
 }
 
 // OnConfigChange is called when the configuration changes.
-func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
-	if err := newConfig.IsValid(); err != nil {
+func (m *FlagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
+	err := newConfig.IsValid()
+	if err != nil {
 		m.logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
@@ -412,7 +428,7 @@ func (m *flagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
 //
 // Flagsets are tracked by their explicit name. Flagsets without a name (or named "default")
 // get a generated name at startup and therefore cannot be added or removed at runtime.
-func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config) {
+func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config) {
 	currentFlagsets := m.config.GetFlagSets()
 	currentByName := indexNamedFlagsets(currentFlagsets)
 	newByName := indexNamedFlagsets(newConfig.FlagSets)
@@ -427,8 +443,10 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 		if _, current := currentByName[fs.Name]; isNamedFlagset(fs) && !current {
 			continue
 		}
+
 		existing = append(existing, fs)
 	}
+
 	m.sharedRegistry.setPolling(
 		time.Duration(newConfig.PollingInterval)*time.Millisecond, newConfig.EnablePollingJitter, existing)
 
@@ -442,13 +460,16 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	// 2. Add the flagsets that are new in the configuration. The shared-poller retrievers are
 	// registered first so that the first listing of a bucket covers all of them.
 	var added []config.FlagSet
+
 	for name, newFlagset := range newByName {
 		if _, alreadyExists := currentByName[name]; !alreadyExists {
 			added = append(added, newFlagset)
 		}
 	}
+
 	m.sharedRegistry.preRegisterAll(added)
 	defer m.sharedRegistry.releasePending()
+
 	for _, newFlagset := range added {
 		m.addFlagset(newFlagset, newConfig.ExporterCleanQueueInterval)
 	}
@@ -472,10 +493,16 @@ func (m *flagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 	// The authorized keys (admin keys) and the top-level API keys are reloadable too. They are replaced
 	// together with the accepted key set, in one step, so that no request sees a partial update.
 	newAuthorizedKeys := newConfig.GetAuthorizedKeys()
-	if !cmp.Equal(m.config.GetAuthorizedKeys(), newAuthorizedKeys, cmpopts.IgnoreUnexported(config.APIKeys{})) {
+	if !cmp.Equal(
+		m.config.GetAuthorizedKeys(),
+		newAuthorizedKeys,
+		cmpopts.IgnoreUnexported(config.APIKeys{Admin: nil, Evaluation: nil}),
+	) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 	}
+
 	m.config.ReplaceAPIKeys(newAuthorizedKeys, newConfig.GetAPIKeys())
+
 	if newConfig.HasUnroutableEvaluationKeys() {
 		m.logger.Warn(unroutableKeysWarning)
 	}
@@ -497,6 +524,7 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 		if !isNamedFlagset(flagset) {
 			continue
 		}
+
 		out[flagset.Name] = flagset
 	}
 
@@ -506,13 +534,14 @@ func indexNamedFlagsets(flagsets []config.FlagSet) map[string]config.FlagSet {
 // addFlagset creates a new GoFeatureFlag client for the given flagset and registers it so it
 // can serve evaluations immediately. defaultCleanQueueInterval is the top-level exporterCleanQueueInterval of the
 // configuration being applied, used when the flagset does not set its own.
-func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueueInterval time.Duration) {
+func (m *FlagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueueInterval time.Duration) {
 	allNotifiers := appendStreamNotifiers(m.notifiers, m.sseService, m.wsService, flagset.Name)
 	opts := append([]clientOption{
 		withSharedBucketRegistry(m.sharedRegistry),
 		withPostgresPools(m.postgresPools),
 		withDefaultExporterCleanQueueInterval(defaultCleanQueueInterval),
 	}, m.clientOptions...)
+
 	client, err := newGoFeatureFlagClient(&flagset, m.logger, allNotifiers, opts...)
 	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError,
@@ -529,7 +558,8 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	// by rebuildNamedAPIKeysMapping, so a client that is not in the config would run without any
 	// routing (unreachable). If the config update fails, close the client and skip rather than
 	// leaving an orphan running flagset.
-	if addFlagSetErr := m.config.AddFlagSet(flagset); addFlagSetErr != nil {
+	addFlagSetErr := m.config.AddFlagSet(flagset)
+	if addFlagSetErr != nil {
 		m.logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
@@ -553,12 +583,13 @@ func (m *flagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 }
 
 // removeFlagset closes the GoFeatureFlag client of the given flagset and unregisters it.
-func (m *flagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
+func (m *FlagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 	// Stop routing to this flagset (remove its client and API keys) before closing it; the
 	// remaining named flagsets' routing is rebuilt afterwards by rebuildNamedAPIKeysMapping.
 	m.flagsetsMutex.Lock()
 	client := m.FlagSets[flagset.Name]
 	delete(m.FlagSets, flagset.Name)
+
 	for _, apiKey := range flagset.APIKeys {
 		delete(m.FlagSetRouting, apiKey)
 	}
@@ -569,10 +600,13 @@ func (m *flagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 	if client != nil {
 		client.Close()
 	}
-	if err := m.config.RemoveFlagSet(flagset.Name); err != nil {
+
+	err := m.config.RemoveFlagSet(flagset.Name)
+	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError, "failed to remove the flagset from the configuration",
 			slog.String("flagset", flagset.Name), cmdlog.Err(err))
 	}
+
 	m.logger.LogAttrs(context.Background(), slog.LevelInfo, "Configuration changed: flagset removed at runtime",
 		slog.String("flagset", flagset.Name))
 }
@@ -580,7 +614,7 @@ func (m *flagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 // reconcileExistingFlagset reconciles a flagset that is present in both the current and the new
 // configuration. Only the API keys can be changed at runtime: any other modification is
 // rejected with an error and ignored until the next restart of the relay proxy.
-func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config.FlagSet) {
+func (m *FlagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config.FlagSet) {
 	// slices.Equal is panic-safe on []string and treats nil and empty slices as equal.
 	apiKeysChanged := !slices.Equal(current.APIKeys, newFlagset.APIKeys)
 
@@ -595,6 +629,7 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 				"flagset can be changed without a restart.",
 			slog.String("flagset", newFlagset.Name),
 		)
+
 		if apiKeysChanged {
 			m.logger.LogAttrs(context.Background(), slog.LevelError,
 				"the API keys change for this flagset is also ignored because it is bundled with an "+
@@ -616,7 +651,8 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 		)
 		// Update only the authoritative configuration here; the routing map is rebuilt from it
 		// by rebuildNamedAPIKeysMapping once all flagsets have been reconciled.
-		if err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys); err != nil {
+		err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys)
+		if err != nil {
 			m.logger.LogAttrs(
 				context.Background(),
 				slog.LevelError,
@@ -632,7 +668,7 @@ func (m *flagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 // warnIfUnnamedFlagsetsChanged logs a warning when the number of unnamed (or "default" named)
 // flagsets differs between the current and the new configuration: those flagsets cannot be
 // added or removed at runtime and the change requires a restart.
-func (m *flagsetManagerImpl) warnIfUnnamedFlagsetsChanged(current, newFlagsets []config.FlagSet) {
+func (m *FlagsetManagerImpl) warnIfUnnamedFlagsetsChanged(current, newFlagsets []config.FlagSet) {
 	if countUnnamedFlagsets(current) != countUnnamedFlagsets(newFlagsets) {
 		m.logger.Warn(
 			"adding or removing a flagset without an explicit name is not supported at runtime: " +
@@ -645,6 +681,7 @@ func (m *flagsetManagerImpl) warnIfUnnamedFlagsetsChanged(current, newFlagsets [
 // countUnnamedFlagsets counts the flagsets that do not have an explicit name.
 func countUnnamedFlagsets(flagsets []config.FlagSet) int {
 	count := 0
+
 	for _, flagset := range flagsets {
 		if !isNamedFlagset(flagset) {
 			count++
@@ -663,7 +700,7 @@ func countUnnamedFlagsets(flagsets []config.FlagSet) int {
 //
 // Routing entries that target unnamed (UUID-named) flagsets are preserved: those flagsets cannot
 // be managed at runtime, so their mapping never changes here.
-func (m *flagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName map[string]config.FlagSet) {
+func (m *FlagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName map[string]config.FlagSet) {
 	// Authoritative API keys per named flagset after reconciliation. Reading from the config
 	// (not from newByName) preserves the previous keys of flagsets whose modification was
 	// rejected.
@@ -683,9 +720,10 @@ func (m *flagsetManagerImpl) rebuildNamedAPIKeysMapping(currentByName, newByName
 // dropManagedAPIKeyRouting removes every routing entry that targets a named flagset involved in
 // this reload (added, removed or kept). Entries targeting unnamed flagsets are left untouched.
 // The caller must hold flagsetsMutex.
-func (m *flagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName map[string]config.FlagSet) {
+func (m *FlagsetManagerImpl) dropManagedAPIKeyRouting(currentByName, newByName map[string]config.FlagSet) {
 	for apiKey, target := range m.FlagSetRouting {
 		_, current := currentByName[target]
+
 		_, added := newByName[target]
 		if current || added {
 			delete(m.FlagSetRouting, apiKey)
@@ -708,19 +746,23 @@ func resolveNamedAPIKeyRouting(
 ) (map[string]string, map[string][2]string) {
 	assigned := make(map[string]string)
 	collisions := make(map[string][2]string)
+
 	for name, flagset := range reconciled {
 		if _, ok := running[name]; !ok {
 			continue
 		}
+
 		for _, apiKey := range flagset.APIKeys {
 			if prev, ok := assigned[apiKey]; ok && prev != name {
 				collisions[apiKey] = [2]string{prev, name}
 
 				continue
 			}
+
 			assigned[apiKey] = name
 		}
 	}
+
 	for apiKey := range collisions {
 		delete(assigned, apiKey)
 	}
@@ -744,7 +786,7 @@ func logAPIKeyCollisions(logger *slog.Logger, collisions map[string][2]string) {
 // onConfigChangeWithDefault is called when the configuration changes in default mode.
 // The only configuration that can be changed is the API Keys and the AuthorizedKeys.
 // All the other configuration changes are not supported.
-func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config) {
+func (m *FlagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config) {
 	reloadAPIKeys := false
 	// on default mode, we can only change the API Keys, all the other configuration changes are not supported
 	// We need to read the current values with proper locking to avoid data races
@@ -759,9 +801,14 @@ func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 			"changed during runtime in default mode")
 	}
 
-	if !cmp.Equal(currentAuthorizedKeys, newAuthorizedKeys, cmpopts.IgnoreUnexported(config.APIKeys{})) {
+	if !cmp.Equal(
+		currentAuthorizedKeys,
+		newAuthorizedKeys,
+		cmpopts.IgnoreUnexported(config.APIKeys{Admin: nil, Evaluation: nil}),
+	) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 		m.config.SetAuthorizedKeys(newAuthorizedKeys)
+
 		reloadAPIKeys = true
 	}
 
@@ -770,6 +817,7 @@ func (m *flagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 		m.logger.Info("Configuration changed: reloading the APIKeys")
 		//nolint:staticcheck // SA1019: the deprecated setting is still supported
 		m.config.SetAPIKeys(newAPIKeys)
+
 		reloadAPIKeys = true
 	}
 
@@ -786,9 +834,11 @@ func appendStreamNotifiers(
 ) []notifier.Notifier {
 	out := make([]notifier.Notifier, len(notifiers), len(notifiers)+extraNotifiers)
 	copy(out, notifiers)
+
 	if sseService != nil {
 		out = append(out, proxynotifier.NewNotifierSSE(sseService, flagsetName))
 	}
+
 	if wsService != nil {
 		out = append(out, proxynotifier.NewNotifierWebsocket(wsService, flagsetName))
 	}

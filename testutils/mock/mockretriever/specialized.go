@@ -3,6 +3,7 @@ package mockretriever
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -22,7 +23,7 @@ func NewContextAwareRetriever() *ContextAwareRetriever {
 func (m *ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("retrieving with the mock retriever: %w", ctx.Err())
 	default:
 		return []byte(defaultFlagConfig), nil
 	}
@@ -31,7 +32,7 @@ func (m *ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 func (m *ContextAwareRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("initializing the mock retriever: %w", ctx.Err())
 	default:
 		return nil
 	}

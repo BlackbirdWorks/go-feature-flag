@@ -1,8 +1,8 @@
 package ffclient
 
 import (
-	"context"
 	"errors"
+	"fmt"
 	"log"
 	"log/slog"
 	"strings"
@@ -26,9 +26,6 @@ var (
 // Config is the configuration of semaphore.
 // You should also have a retriever to specify where to read the flags file.
 type Config struct {
-	// Context (optional) used to call other services (HTTP, S3 ...)
-	// Default: context.Background()
-	Context context.Context
 	// Retriever is the component in charge to retrieve your flag file
 	Retriever retriever.Retriever
 	// internalLogger is the logger used by the library everywhere
@@ -119,10 +116,6 @@ type Config struct {
 
 // Initialize assigns defaults to the configuration.
 func (c *Config) Initialize() {
-	if c.Context == nil {
-		c.Context = context.Background()
-	}
-
 	c.PollingInterval = adjustPollingInterval(c.PollingInterval)
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
@@ -135,29 +128,17 @@ func (c *Config) Initialize() {
 	}
 }
 
-// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
-// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
-func (c *Config) serviceLogger() *slog.Logger {
-	switch {
-	case c.LeveledLogger != nil:
-		return c.LeveledLogger
-	case c.Logger != nil:
-		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
-	default:
-		return nil
-	}
-}
-
 // legacyWriter sends what a slog handler writes through a *[log.Logger], so that the records follow the output, the
 // flags and the lock of the legacy logger (SetOutput included).
 type legacyWriter struct{ logger *log.Logger }
 
-func (w legacyWriter) Write(p []byte) (int, error) {
-	if err := w.logger.Output(0, strings.TrimSuffix(string(p), "\n")); err != nil {
-		return 0, err
+func (w legacyWriter) Write(msg []byte) (int, error) {
+	err := w.logger.Output(0, strings.TrimSuffix(string(msg), "\n"))
+	if err != nil {
+		return 0, fmt.Errorf("write legacy log: %w", err)
 	}
 
-	return len(p), nil
+	return len(msg), nil
 }
 
 // adjustPollingInterval is a function that will check the polling interval and set it to the minimum value if it is
@@ -187,6 +168,7 @@ func (c *Config) GetRetrievers() ([]retriever.Retriever, error) {
 	if c.Retriever != nil {
 		retrievers = append(retrievers, c.Retriever)
 	}
+
 	if len(c.Retrievers) > 0 {
 		retrievers = append(retrievers, c.Retrievers...)
 	}
@@ -202,6 +184,7 @@ func (c *Config) GetDataExporters() []DataExporter {
 	if c.DataExporter != (DataExporter{}) {
 		dataExporters = append(dataExporters, c.DataExporter)
 	}
+
 	if len(c.DataExporters) > 0 {
 		dataExporters = append(dataExporters, c.DataExporters...)
 	}
@@ -214,8 +197,10 @@ func (c *Config) SetOffline(control bool) {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
 	}
+
 	c.offlineMutex.Lock()
 	defer c.offlineMutex.Unlock()
+
 	c.Offline = control
 }
 
@@ -224,8 +209,22 @@ func (c *Config) IsOffline() bool {
 	if c.offlineMutex == nil {
 		c.offlineMutex = &sync.RWMutex{}
 	}
+
 	c.offlineMutex.RLock()
 	defer c.offlineMutex.RUnlock()
 
 	return c.Offline
+}
+
+// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
+// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
+func (c *Config) serviceLogger() *slog.Logger {
+	switch {
+	case c.LeveledLogger != nil:
+		return c.LeveledLogger
+	case c.Logger != nil:
+		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
+	default:
+		return nil
+	}
 }

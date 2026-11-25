@@ -26,7 +26,8 @@ type NestedError struct {
 
 func (e *NestedError) Original() error {
 	// Exact type, not errors.As: an error that merely wraps a NestedError is the original.
-	if nested, ok := e.Err.(*NestedError); ok { //nolint:errorlint // see above
+	//nolint:errorlint // exact *NestedError check stops unwrapping outer wrappers
+	if nested, ok := e.Err.(*NestedError); ok {
 		return nested.Original()
 	}
 
@@ -39,6 +40,7 @@ func (e *NestedError) Error() string {
 	vals := e.Vals.Dupe()
 	vals["err"] = e.Err.Error()
 	vals["msg"] = e.Msg
+
 	data, err := json.Marshal(vals)
 	if err != nil {
 		return fmt.Sprintf("%s: %s", e.Msg, e.Err.Error())
@@ -51,6 +53,7 @@ func (e *NestedError) Set(vals ErrVals) *NestedError {
 	if e.Vals == nil {
 		e.Vals = make(ErrVals)
 	}
+
 	e.Vals.Merge(vals.Dupe())
 
 	return e

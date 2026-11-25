@@ -60,16 +60,18 @@ func TestFloatOperationOperandErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ev, err := NewEvaluator(tt.rule)
+			eval, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
-			got, err := ev.Process(tt.items)
+
+			got, err := eval.Process(tt.items)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 			}
+
 			assert.Equal(t, tt.want, got)
-			assert.Equal(t, tt.wantDebg, ev.LastDebugErr() != nil, "debug error")
+			assert.Equal(t, tt.wantDebg, eval.LastDebugErr() != nil, "debug error")
 		})
 	}
 }

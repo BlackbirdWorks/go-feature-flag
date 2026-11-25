@@ -31,6 +31,7 @@ func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
 
 func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 	tb.Helper()
+
 	l, err := log.New(format, "info", log.WithWriter(sink{}))
 	require.NoError(tb, err)
 
@@ -39,6 +40,7 @@ func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 
 func BenchmarkLogger(b *testing.B) {
 	ctx := context.Background()
+
 	tests := []struct {
 		logger *slog.Logger
 		name   string
@@ -57,6 +59,7 @@ func BenchmarkLogger(b *testing.B) {
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
 			b.ReportAllocs()
+
 			for b.Loop() {
 				logFiveAttrs(ctx, tt.logger, tt.level)
 			}
@@ -66,15 +69,15 @@ func BenchmarkLogger(b *testing.B) {
 
 // stdlibKeys is the least a stdlib handler needs to get close to the output of the handler: the key and the
 // value of the time and of the level. It still can not order the keys, add the caller or write durations in seconds.
-func stdlibKeys(_ []string, a slog.Attr) slog.Attr {
-	switch a.Key {
+func stdlibKeys(_ []string, attr slog.Attr) slog.Attr {
+	switch attr.Key {
 	case slog.TimeKey:
-		return slog.Float64(log.TimeKey, float64(a.Value.Time().UnixNano())/1e9)
+		return slog.Float64(log.TimeKey, float64(attr.Value.Time().UnixNano())/1e9)
 	case slog.LevelKey:
 		return slog.String(log.LevelKey, "info")
 	}
 
-	return a
+	return attr
 }
 
 // TestAllocations holds the allocation budget of the logging path: an enabled record with 5 typed attributes and a
@@ -94,7 +97,7 @@ func TestAllocations(t *testing.T) {
 		{name: "json disabled", format: "json", level: slog.LevelDebug},
 		{name: "logfmt disabled", format: "logfmt", level: slog.LevelDebug},
 	}
-	//nolint:paralleltest // see above
+	//nolint:paralleltest // subtests call AllocsPerRun, which counts allocations from concurrent tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := newBenchLogger(t, tt.format)

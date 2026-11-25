@@ -46,6 +46,7 @@ func (s *Server) newRouteSet(docs bool) *routeSet {
 // mergeOpenAPI adds the operations and the schemas of src to dst.
 func mergeOpenAPI(dst, src *huma.OpenAPI) {
 	maps.Copy(dst.Paths, src.Paths)
+
 	known := dst.Components.Schemas.Map()
 	for name, schema := range src.Components.Schemas.Map() {
 		if _, ok := known[name]; !ok {
@@ -65,6 +66,7 @@ func primeDocs(mux http.Handler) {
 		if err != nil {
 			continue
 		}
+
 		mux.ServeHTTP(discardWriter{header: http.Header{}}, req)
 	}
 }
@@ -80,23 +82,24 @@ func (discardWriter) WriteHeader(int) {}
 
 // register serves a typed operation with huma, with the middleware of the operation (they run in order).
 func register[I, O any](
-	rs *routeSet, op huma.Operation, handler func(context.Context, *I) (*O, error),
+	routes *routeSet, operation huma.Operation, handler func(context.Context, *I) (*O, error),
 	humaMiddleware ...func(huma.Context, func(huma.Context)),
 ) {
-	op.Middlewares = append(op.Middlewares, humaMiddleware...)
+	operation.Middlewares = append(operation.Middlewares, humaMiddleware...)
 	// the error responses are documented with the body the relay proxy sends, not huma's RFC 9457 model.
-	errorStatuses := op.Errors
-	op.Errors = nil
-	huma.Register(rs.api, op, handler)
+	errorStatuses := operation.Errors
+	operation.Errors = nil
+	huma.Register(routes.api, operation, handler)
 	// huma documents a validation error (422) and a default error on its own: the relay proxy answers neither
 	// (its handlers decode and refuse what they get), the document lists the statuses of the operation only.
-	item := rs.api.OpenAPI().Paths[op.Path]
-	for _, o := range []*huma.Operation{item.Get, item.Post} {
-		if o != nil && o.OperationID == op.OperationID {
-			delete(o.Responses, "default")
-			delete(o.Responses, "422")
+	item := routes.api.OpenAPI().Paths[operation.Path]
+	for _, opItem := range []*huma.Operation{item.Get, item.Post} {
+		if opItem != nil && opItem.OperationID == operation.OperationID {
+			delete(opItem.Responses, "default")
+			delete(opItem.Responses, "422")
+
 			for _, status := range errorStatuses {
-				o.Responses[statusKey(status)] = errorResponse(rs.api, http.StatusText(status))
+				opItem.Responses[statusKey(status)] = errorResponse(routes.api, http.StatusText(status))
 			}
 		}
 	}
@@ -132,6 +135,7 @@ func (s *Server) userKeyAuth() middleware.KeyAuth {
 
 func (s *Server) adminKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
+		Skipper: nil,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {
 			return ctx, s.config.APIKeysAdminExists(key)
 		},
@@ -141,41 +145,46 @@ func (s *Server) adminKeyAuth() middleware.KeyAuth {
 // initRoutes builds the routers of the listeners, with the endpoints that contain business logic and specificity
 // for the relay proxy, and their middleware.
 func (s *Server) initRoutes() {
-	rs := s.newRouteSet(s.config.IsSwaggerEnabled())
+	routes := s.newRouteSet(s.config.IsSwaggerEnabled())
+
 	swagger := s.config.IsSwaggerEnabled()
 	if swagger {
 		// no server is advertised: the requests of the Swagger UI go to the origin of the page, whatever scheme
 		// and host an ingress serves it with.
-		rs.api.OpenAPI().Info.Version = s.config.Version
+		routes.api.OpenAPI().Info.Version = s.config.Version
 	}
+
 	var monitoring *routeSet
 	if s.config.EffectiveMonitoringPort(s.logger) != 0 {
 		monitoring = s.newRouteSet(false)
 		s.addMonitoringRoutes(monitoring)
 	} else {
-		s.addMonitoringRoutes(rs)
+		s.addMonitoringRoutes(routes)
 	}
-	s.addAPIRoutes(rs)
+
+	s.addAPIRoutes(routes)
+
 	if swagger {
 		if monitoring != nil {
 			// one document describes the whole API, whether the monitoring endpoints are served by this listener
 			// or by the dedicated one.
-			mergeOpenAPI(rs.api.OpenAPI(), monitoring.api.OpenAPI())
+			mergeOpenAPI(routes.api.OpenAPI(), monitoring.api.OpenAPI())
 		}
-		primeDocs(rs.mux)
+
+		primeDocs(routes.mux)
 	}
 
-	s.apiHandler = s.apiChain(rs.mux)
+	s.apiHandler = s.apiChain(routes.mux)
 	if monitoring != nil {
 		s.monitoringHandler = s.monitoringChain(monitoring.mux)
 	}
 }
 
 // addAPIRoutes registers the endpoints of the evaluation, the streams, the admin and the manifest.
-func (s *Server) addAPIRoutes(rs *routeSet) {
+func (s *Server) addAPIRoutes(routes *routeSet) {
 	userAuth := s.userKeyAuth()
 	adminAuth := s.adminKeyAuth()
-	api := rs.api
+	api := routes.api
 	debug := s.config.IsDebugEnabled()
 
 	// the controllers
@@ -202,73 +211,77 @@ func (s *Server) addAPIRoutes(rs *routeSet) {
 
 	// /v1: the evaluation API
 	op := operationAllFlags(api)
-	rs.raw(op, "/v1/allflags", helper.Handle(cAllFlags.Handler, debug), userAuth.HTTP())
+	routes.raw(op, "/v1/allflags", helper.Handle(cAllFlags.Handler, debug), userAuth.HTTP())
 	op = operationFlagEval(api)
-	rs.raw(op, "/v1/feature/{flagKey}/eval", helper.Handle(cFlagEval.Handler, debug), userAuth.HTTP())
+	routes.raw(op, "/v1/feature/{flagKey}/eval", helper.Handle(cFlagEval.Handler, debug), userAuth.HTTP())
 
 	collector := operationCollector()
 	controller.BodyOpts(&collector, s.readTimeout)
-	register(rs, collector, cEvalDataCollector.Handle, userAuth.Huma())
+	register(routes, collector, cEvalDataCollector.Handle, userAuth.Huma())
 	setRequestBody(api, collector.OperationID, jsonBody(api,
 		"List of flag evaluation that be passed to the data exporter", true, model.CollectEvalDataRequest{}))
 
-	register(rs, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(), middleware.ETagHuma())
+	register(routes, operationFlagChange(), cFlagChangeAPI.Handle, userAuth.Huma(), middleware.ETagHuma())
 
 	configuration := operationFlagConfiguration()
 	controller.BodyOpts(&configuration, s.readTimeout)
-	register(rs, configuration, cFlagConfiguration.Handle, userAuth.Huma(), middleware.ETagHuma())
+	register(routes, configuration, cFlagConfiguration.Handle, userAuth.Huma(), middleware.ETagHuma())
 	setRequestBody(api, configuration.OperationID, jsonBody(api,
 		"List of flags to get the configuration from.", false, controller.FlagConfigurationRequest{}))
 
 	// /ofrep/v1: OpenFeature Remote Evaluation Protocol
-	rs.raw(operationOFREPBulk(api), "/ofrep/v1/evaluate/flags", helper.Handle(cFlagEvalOFREP.BulkEvaluate, debug),
+	routes.raw(operationOFREPBulk(api), "/ofrep/v1/evaluate/flags", helper.Handle(cFlagEvalOFREP.BulkEvaluate, debug),
 		middleware.ETag(), userAuth.HTTP())
-	rs.raw(operationOFREPEval(api), "/ofrep/v1/evaluate/flags/{flagKey}",
+	routes.raw(operationOFREPEval(api), "/ofrep/v1/evaluate/flags/{flagKey}",
 		helper.Handle(cFlagEvalOFREP.Evaluate, debug), userAuth.HTTP())
 
 	// /stream/v1: the streams of flag changes, and the legacy websocket alias
 	authorize := middleware.StreamAuthorizer(s.config, s.services.FlagsetManager, debug)
-	rs.raw(
+	routes.raw(
 		operationWebsocket(api, false),
 		"/stream/v1/ws/flag/change",
 		helper.Handle(cWsFlagChange.Handler, debug),
 		authorize,
 	)
-	rs.raw(operationSSE(api), "/stream/v1/sse/flag/change", helper.Handle(cSSEFlagChange.Handler, debug), authorize)
-	rs.raw(operationWebsocket(api, true), "/ws/v1/flag/change", helper.Handle(cWsFlagChange.LegacyHandler, debug),
+	routes.raw(operationSSE(api), "/stream/v1/sse/flag/change", helper.Handle(cSSEFlagChange.Handler, debug), authorize)
+	routes.raw(operationWebsocket(api, true), "/ws/v1/flag/change", helper.Handle(cWsFlagChange.LegacyHandler, debug),
 		authorize, middleware.DeprecatedAlias("/stream/v1/ws/flag/change"))
 
 	// /admin/v1
-	register(rs, operationRefresh(), cRetrieverRefresh.Handle, adminAuth.Huma())
-	rs.raw(operationValidate(api), "/admin/v1/flags/validate", helper.Handle(cValidateFlags.Handler, debug),
+	register(routes, operationRefresh(), cRetrieverRefresh.Handle, adminAuth.Huma())
+	routes.raw(operationValidate(api), "/admin/v1/flags/validate", helper.Handle(cValidateFlags.Handler, debug),
 		adminAuth.HTTP())
 
 	// /openfeature/v0
-	register(rs, operationManifest(), cManifest.GetManifest, userAuth.Huma())
+	register(routes, operationManifest(), cManifest.GetManifest, userAuth.Huma())
 }
 
 // addMonitoringRoutes registers the monitoring endpoints: the health, the info, the metrics, pprof and, when it is
 // enabled, the Swagger UI. They are served by the monitoring listener when there is one, else by the API listener.
-func (s *Server) addMonitoringRoutes(rs *routeSet) {
-	api := rs.api
+func (s *Server) addMonitoringRoutes(routes *routeSet) {
+	api := routes.api
 
-	register(rs, operationHealth(), controller.NewHealth(s.services.MonitoringService).Handle)
-	register(rs, operationInfo(), controller.NewInfo(s.services.MonitoringService).Handle)
+	register(routes, operationHealth(), controller.NewHealth(s.services.MonitoringService).Handle)
+	register(routes, operationInfo(), controller.NewInfo(s.services.MonitoringService).Handle)
 
 	api.OpenAPI().AddOperation(operationMetrics())
+
 	if s.services.Metrics != (metric.Metrics{}) {
 		gatherer := s.services.Metrics.Gatherer(s.config.ExposeLegacyMetrics)
+
 		h := promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{DisableCompression: true})
 		if r, ok := gatherer.(prometheus.Registerer); ok {
 			h = promhttp.InstrumentMetricHandler(r, h)
 		}
-		rs.mux.Handle("GET /metrics", h)
+
+		routes.mux.Handle("GET /metrics", h)
 	}
 
 	api.OpenAPI().AddOperation(operationPprof())
+
 	if s.config.IsDebugEnabled() || s.config.EnablePprof {
 		const prefix = "/debug/pprof"
-		for name, h := range map[string]http.HandlerFunc{
+		for name, handler := range map[string]http.HandlerFunc{
 			"/{$}":          pprof.Index,
 			"/cmdline":      pprof.Cmdline,
 			"/profile":      pprof.Profile,
@@ -281,9 +294,10 @@ func (s *Server) addMonitoringRoutes(rs *routeSet) {
 			"/mutex":        pprof.Handler("mutex").ServeHTTP,
 			"/threadcreate": pprof.Handler("threadcreate").ServeHTTP,
 		} {
-			rs.mux.Handle("GET "+prefix+name, h)
+			routes.mux.Handle("GET "+prefix+name, handler)
 		}
-		rs.mux.Handle("POST "+prefix+"/symbol", http.HandlerFunc(pprof.Symbol))
+
+		routes.mux.Handle("POST "+prefix+"/symbol", http.HandlerFunc(pprof.Symbol))
 	}
 }
 
@@ -311,5 +325,5 @@ func OpenAPIJSON() ([]byte, error) {
 
 // documentedConfig is the configuration of the server that describes every endpoint.
 func documentedConfig() *config.Config {
-	return &config.Config{EnablePprof: true, Swagger: config.Swagger{Enabled: true}}
+	return &config.Config{EnablePprof: true, Swagger: config.Swagger{Enabled: true, Host: ""}}
 }

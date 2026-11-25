@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
@@ -55,6 +56,13 @@ const DefaultEventQueueSize = 65536
 // New creates a new semaphore instances that retrieve the config from a YAML file
 // and return everything you need to manage your flags.
 func New(config Config) (*GoFeatureFlag, error) {
+	return NewWithContext(context.Background(), config)
+}
+
+// NewWithContext creates a new semaphore instance using ctx to initialize the configured retrievers.
+func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) {
+	ctx = internal.ContextOrBackground(ctx)
+
 	config.Initialize()
 
 	goFF := &GoFeatureFlag{
@@ -65,41 +73,45 @@ func New(config Config) (*GoFeatureFlag, error) {
 
 	if config.Offline {
 		// in case we are in offline mode, we don't need to initialize the cache since we will not use it.
-		goFF.config.internalLogger.Info("Semaphore is in offline mode")
+		goFF.config.internalLogger.InfoContext(ctx, "Semaphore is in offline mode")
 
 		return goFF, nil
 	}
 
-	retrieverManager, err := initializeRetrieverManager(config, goFF.evaluationService)
+	retrieverManager, err := initializeRetrieverManager(ctx, config, goFF.evaluationService)
 	if err != nil && (goFF.retrieverManager == nil || !config.StartWithRetrieverError) {
-		return nil, fmt.Errorf(
-			"impossible to initialize the retrievers, please check your configuration: %w",
-			err,
-		)
+		return nil, err
 	}
+
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
 		config, goFF.config.internalLogger)
-	goFF.startEventWorker()
-	config.internalLogger.Debug("Semaphore is initialized")
+	goFF.startEventWorker(ctx)
+	config.internalLogger.DebugContext(ctx, "Semaphore is initialized")
 
 	return goFF, nil
 }
 
 // initializeNotificationService is a function that will initialize the notification service with the notifiers.
-func initializeNotificationService(config Config) notification.Service {
+func initializeNotificationService(config Config) *notification.ServiceImpl {
 	notifiers := config.Notifiers
 	notifiers = append(notifiers, &logsnotifier.Notifier{Logger: config.internalLogger})
 
 	return notification.NewService(notifiers)
 }
 
+// errInitRetrieversFormat is the format of the error of the initialization of the retrievers.
+const errInitRetrieversFormat = "impossible to initialize the retrievers, please check your configuration: %w"
+
 // initializeRetrieverManager is a function that will initialize the retriever manager with the retrievers.
-func initializeRetrieverManager(config Config, evaluationService *flag.Service) (*retriever.Manager, error) {
+func initializeRetrieverManager(
+	ctx context.Context, config Config, evaluationService *flag.Service,
+) (*retriever.Manager, error) {
 	retrievers, err := config.GetRetrievers()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(errInitRetrieversFormat, err)
 	}
+
 	mngrConfig := retriever.ManagerConfig{
 		FileFormat:                      config.FileFormat,
 		DisableNotifierOnInit:           config.DisableNotifierOnInit,
@@ -120,9 +132,13 @@ func initializeRetrieverManager(config Config, evaluationService *flag.Service) 
 	)
 
 	manager := retriever.NewManager(mngrConfig, retrievers, cacheMngr, config.internalLogger)
-	err = manager.Init(config.Context)
 
-	return manager, err
+	err = manager.Init(ctx)
+	if err != nil {
+		return manager, fmt.Errorf(errInitRetrieversFormat, err)
+	}
+
+	return manager, nil
 }
 
 func initializeDataExporters(config Config, logger *fflog.FFLogger) (
@@ -131,20 +147,22 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 	exporters := config.GetDataExporters()
 	featureEventExporterConfigs := make([]exporter.Config, 0)
 	trackingEventExporterConfigs := make([]exporter.Config, 0)
+
 	if len(exporters) > 0 {
 		for _, exp := range exporters {
-			c := exporter.Config{
+			expCfg := exporter.Config{
 				Exporter:         exp.Exporter,
 				FlushInterval:    exp.FlushInterval,
 				MaxEventInMemory: exp.MaxEventInMemory,
 				MaxQueuedEvents:  exp.MaxQueuedEvents,
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
-				trackingEventExporterConfigs = append(trackingEventExporterConfigs, c)
+				trackingEventExporterConfigs = append(trackingEventExporterConfigs, expCfg)
 
 				continue
 			}
-			featureEventExporterConfigs = append(featureEventExporterConfigs, c)
+
+			featureEventExporterConfigs = append(featureEventExporterConfigs, expCfg)
 		}
 	}
 
@@ -169,30 +187,44 @@ func initializeDataExporters(config Config, logger *fflog.FFLogger) (
 // The events of the evaluations that finish while Close runs are exported by its final flush; an
 // evaluation that finishes after Close has returned has nowhere to send its event.
 func (g *GoFeatureFlag) Close() {
-	if g != nil {
-		if g.retrieverManager != nil {
-			_ = g.retrieverManager.Shutdown(g.config.Context)
-		}
-		// we have to wait for the event worker (it drains the queue) before stopping the exporter
-		g.closeOnce.Do(func() {
-			// wait for the evaluations that are putting their event in the queue, and refuse the next ones
-			g.eventAdmission.Lock()
-			g.closing = true
-			g.eventAdmission.Unlock()
-			if g.eventWorkerStop != nil {
-				close(g.eventWorkerStop)
-			}
-		})
-		g.evalExporterWg.Wait()
-		if g.featureEventDataExporter != nil {
-			g.featureEventDataExporter.Stop()
-		}
+	g.CloseWithContext(context.Background())
+}
 
-		if g.trackingEventDataExporter != nil {
-			g.trackingEventDataExporter.Stop()
-		}
-		g.evaluationService.Close()
+// CloseWithContext waits until background workers are done, passing ctx to retriever shutdown.
+// The events of the evaluations that finish while CloseWithContext runs are exported by its final flush;
+// an evaluation that finishes after CloseWithContext has returned has nowhere to send its event.
+func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
+	if g == nil {
+		return
 	}
+
+	ctx = internal.ContextOrBackground(ctx)
+
+	if g.retrieverManager != nil {
+		_ = g.retrieverManager.Shutdown(ctx)
+	}
+	// we have to wait for the event worker (it drains the queue) before stopping the exporter
+	g.closeOnce.Do(func() {
+		// wait for the evaluations that are putting their event in the queue, and refuse the next ones
+		g.eventAdmission.Lock()
+		g.closing = true
+		g.eventAdmission.Unlock()
+
+		if g.eventWorkerStop != nil {
+			close(g.eventWorkerStop)
+		}
+	})
+	g.evalExporterWg.Wait()
+
+	if g.featureEventDataExporter != nil {
+		g.featureEventDataExporter.Stop()
+	}
+
+	if g.trackingEventDataExporter != nil {
+		g.trackingEventDataExporter.Stop()
+	}
+
+	g.evaluationService.Close()
 }
 
 // GetCacheRefreshDate gives the last refresh date of the cache.
@@ -220,7 +252,7 @@ func (g *GoFeatureFlag) GetEvaluationContextEnrichment() map[string]any {
 // This function can be called explicitly to refresh the flags if you know that a change has been made in
 // the configuration.
 func (g *GoFeatureFlag) ForceRefresh() bool {
-	return g.ForceRefreshWithContext(g.config.Context)
+	return g.ForceRefreshWithContext(context.Background())
 }
 
 // ForceRefreshWithContext is a function that forces to call the retrievers and refresh the configuration of flags.
@@ -250,9 +282,11 @@ func (g *GoFeatureFlag) SetOfflineWithContext(ctx context.Context, control bool)
 	if !g.IsOffline() && control {
 		g.retrieverManager.StopPolling()
 	}
+
 	if g.IsOffline() && !control {
 		g.retrieverManager.StartPolling(ctx)
 	}
+
 	g.SetOffline(control)
 }
 

@@ -58,32 +58,106 @@ type fakeStore struct {
 	noVersion bool
 }
 
+func (f *fakeStore) List(_ context.Context, prefix string, recursive bool) ([]folderloader.Entry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.listPrefixes = append(f.listPrefixes, prefix)
+
+	f.listRecurse = append(f.listRecurse, recursive)
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+
+	var res []folderloader.Entry
+
+	for key, content := range f.files {
+		rest, ok := strings.CutPrefix(key, prefix)
+		if !ok || (!recursive && strings.Contains(strings.TrimSuffix(rest, "/"), "/")) {
+			continue
+		}
+
+		v := f.version(content)
+		if f.listVersion != "" {
+			v = f.listVersion
+		}
+
+		res = append(res, folderloader.Entry{Key: key, Version: v})
+	}
+
+	return res, nil
+}
+
+func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
+	if f.beforeGet != nil {
+		f.beforeGet(key)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.getCalls == nil {
+		f.getCalls = map[string]int{}
+	}
+
+	f.getCalls[key]++
+	if f.getErr != nil {
+		return nil, "", f.getErr
+	}
+
+	err := f.getErrKeys[key]
+	if err != nil {
+		return nil, "", err
+	}
+
+	content, ok := f.files[key]
+	if !ok {
+		return nil, "", fmt.Errorf("%w: %s", errNoSuchKey, key)
+	}
+
+	if f.getNoVersion {
+		return []byte(content), "", nil
+	}
+
+	if f.getVersion != "" {
+		return []byte(content), f.getVersion, nil
+	}
+
+	return []byte(content), f.version(content), nil
+}
+
 func (f *fakeStore) put(key, content string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.files == nil {
 		f.files = map[string]string{}
 	}
+
 	f.files[key] = content
 }
 
 func (f *fakeStore) del(key string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	delete(f.files, key)
 }
 
 func (f *fakeStore) setGetErrKey(key string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	if f.getErrKeys == nil {
 		f.getErrKeys = map[string]error{}
 	}
+
 	if err == nil {
 		delete(f.getErrKeys, key)
 
 		return
 	}
+
 	f.getErrKeys[key] = err
 }
 
@@ -100,60 +174,6 @@ func (f *fakeStore) version(content string) string {
 	}
 
 	return "v:" + content
-}
-
-func (f *fakeStore) List(_ context.Context, prefix string, recursive bool) ([]folderloader.Entry, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.listPrefixes = append(f.listPrefixes, prefix)
-	f.listRecurse = append(f.listRecurse, recursive)
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	var res []folderloader.Entry
-	for k, c := range f.files {
-		rest, ok := strings.CutPrefix(k, prefix)
-		if !ok || (!recursive && strings.Contains(strings.TrimSuffix(rest, "/"), "/")) {
-			continue
-		}
-		v := f.version(c)
-		if f.listVersion != "" {
-			v = f.listVersion
-		}
-		res = append(res, folderloader.Entry{Key: k, Version: v})
-	}
-
-	return res, nil
-}
-
-func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
-	if f.beforeGet != nil {
-		f.beforeGet(key)
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.getCalls == nil {
-		f.getCalls = map[string]int{}
-	}
-	f.getCalls[key]++
-	if f.getErr != nil {
-		return nil, "", f.getErr
-	}
-	if err := f.getErrKeys[key]; err != nil {
-		return nil, "", err
-	}
-	c, ok := f.files[key]
-	if !ok {
-		return nil, "", fmt.Errorf("%w: %s", errNoSuchKey, key)
-	}
-	if f.getNoVersion {
-		return []byte(c), "", nil
-	}
-	if f.getVersion != "" {
-		return []byte(c), f.getVersion, nil
-	}
-
-	return []byte(c), f.version(c), nil
 }
 
 type step struct {
@@ -180,7 +200,23 @@ type loadCase struct {
 
 func TestLoader_Load(t *testing.T) {
 	t.Parallel()
-	tests := slices.Concat([]loadCase{
+
+	tests := slices.Concat(
+		folderListingCases(),
+		cacheAndVersionCases(),
+		errorAndEmptyCases(),
+		roundTripCases(t),
+	)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runLoadCase(t, tt)
+		})
+	}
+}
+
+func folderListingCases() []loadCase {
+	return []loadCase{
 		{
 			name: "non recursive only loads the direct children and ignores folder markers",
 			setup: func(s *fakeStore) {
@@ -354,6 +390,11 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
+	}
+}
+
+func cacheAndVersionCases() []loadCase {
+	return []loadCase{
 		{
 			name: "listed version is used when Get has none",
 			setup: func(s *fakeStore) {
@@ -393,13 +434,15 @@ func TestLoader_Load(t *testing.T) {
 			// the file is replaced between the list and the download: the cache must hold the
 			// version actually downloaded, so that the next list (A again) triggers a new download
 			name: "file replaced between list and download is downloaded again on the next poll",
-			setup: func(s *fakeStore) {
-				s.put("f/a.yaml", yamlA)
+			setup: func(store *fakeStore) {
+				store.put("f/a.yaml", yamlA)
+
 				swapped := false
-				s.beforeGet = func(key string) {
+				store.beforeGet = func(key string) {
 					if !swapped {
 						swapped = true
-						s.put(key, yamlB)
+
+						store.put(key, yamlB)
 					}
 				}
 			},
@@ -539,6 +582,11 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
+	}
+}
+
+func errorAndEmptyCases() []loadCase {
+	return []loadCase{
 		{
 			name:  "empty result logs a warning",
 			setup: func(s *fakeStore) { s.put("other/a.yaml", yamlA) },
@@ -549,7 +597,7 @@ func TestLoader_Load(t *testing.T) {
 			name:  "list error",
 			setup: func(s *fakeStore) { s.listErr = errBoom },
 			opts:  folderloader.Options{Prefix: "f/"},
-			steps: []step{{wantErr: `unable to list objects with prefix "f/", boom`}},
+			steps: []step{{wantErr: `unable to list objects with prefix "f/", store: boom`}},
 		},
 		{
 			name: "download error",
@@ -595,12 +643,6 @@ func TestLoader_Load(t *testing.T) {
 				},
 			},
 		},
-	}, roundTripCases(t))
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			runLoadCase(t, tt)
-		})
 	}
 }
 
@@ -608,19 +650,22 @@ func TestLoader_Load(t *testing.T) {
 // as the decoding of the original file.
 func roundTripCases(t *testing.T) []loadCase {
 	t.Helper()
+
 	files := []string{
 		"flag-config.yaml", "flag-config.json", "flag-config.toml",
 		"flag-config-multiline-query.json", "flag-config-scheduled-v0.yaml",
 		"flag-config-3rd-file.yaml", "flag-config-custom-bucketingkey.yaml", "flag-config-rollouts.toml",
 	}
+
 	cases := make([]loadCase, 0, len(files))
-	for _, f := range files {
-		local := "../../testdata/" + f
+	for _, fileName := range files {
+		local := "../../testdata/" + fileName
 		content, err := os.ReadFile(local)
 		require.NoError(t, err)
+
 		cases = append(cases, loadCase{
-			name:  "round trip " + f,
-			setup: func(s *fakeStore) { s.put("f/"+f, string(content)) },
+			name:  "round trip " + fileName,
+			setup: func(s *fakeStore) { s.put("f/"+fileName, string(content)) },
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantSameAs: []string{local}}},
 		})
@@ -629,75 +674,93 @@ func roundTripCases(t *testing.T) []loadCase {
 	return cases
 }
 
-func runLoadCase(t *testing.T, c loadCase) {
+func runLoadCase(t *testing.T, testCase loadCase) {
 	t.Helper()
-	s := &fakeStore{}
-	c.setup(s)
-	logs := &bytes.Buffer{}
-	c.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
-	l := folderloader.New(s, c.opts)
 
-	for i, st := range c.steps {
-		if st.mutate != nil {
-			st.mutate(s)
+	store := &fakeStore{}
+	testCase.setup(store)
+
+	logs := &bytes.Buffer{}
+	testCase.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
+	ldr := folderloader.New(store, testCase.opts)
+
+	for i, currStep := range testCase.steps {
+		if currStep.mutate != nil {
+			currStep.mutate(store)
 		}
-		got, err := l.Load(t.Context())
-		if st.wantErr != "" {
-			require.ErrorContains(t, err, st.wantErr, "step %d", i)
+
+		got, err := ldr.Load(t.Context())
+		if currStep.wantErr != "" {
+			require.ErrorContains(t, err, currStep.wantErr, "step %d", i)
 		} else {
 			require.NoError(t, err, "step %d", i)
-			checkOutput(t, l.OutputFormat(), st, got, i)
+			checkOutput(t, ldr.OutputFormat(), currStep, got, i)
 		}
-		if st.wantFormat != "" {
-			assert.Equal(t, st.wantFormat, l.OutputFormat(), "step %d", i)
+
+		if currStep.wantFormat != "" {
+			assert.Equal(t, currStep.wantFormat, ldr.OutputFormat(), "step %d", i)
 		}
-		for k, n := range st.wantGets {
-			assert.Equal(t, n, s.calls(k), "Get calls of %s at step %d", k, i)
+
+		for k, n := range currStep.wantGets {
+			assert.Equal(t, n, store.calls(k), "Get calls of %s at step %d", k, i)
 		}
-		checkLogs(t, logs, st, i)
+
+		checkLogs(t, logs, currStep, i)
 	}
 }
 
-func checkLogs(t *testing.T, logs *bytes.Buffer, st step, i int) {
+func checkLogs(t *testing.T, logs *bytes.Buffer, currStep step, i int) {
 	t.Helper()
-	if st.wantLog != "" {
-		assert.Contains(t, logs.String(), st.wantLog, "step %d", i)
+
+	if currStep.wantLog != "" {
+		assert.Contains(t, logs.String(), currStep.wantLog, "step %d", i)
 	}
-	if st.wantNoLog != "" {
-		assert.NotContains(t, logs.String(), st.wantNoLog, "step %d", i)
+
+	if currStep.wantNoLog != "" {
+		assert.NotContains(t, logs.String(), currStep.wantNoLog, "step %d", i)
 	}
-	if st.wantLogCountOf != "" {
-		assert.Equal(t, st.wantLogCount, strings.Count(logs.String(), st.wantLogCountOf), "step %d", i)
+
+	if currStep.wantLogCountOf != "" {
+		assert.Equal(t, currStep.wantLogCount, strings.Count(logs.String(), currStep.wantLogCountOf), "step %d", i)
 	}
 }
 
-func checkOutput(t *testing.T, format string, st step, got []byte, i int) {
+func checkOutput(t *testing.T, format string, currStep step, got []byte, i int) {
 	t.Helper()
-	if st.wantContent != "" {
-		assert.Equal(t, st.wantContent, string(got), "step %d", i)
+
+	if currStep.wantContent != "" {
+		assert.Equal(t, currStep.wantContent, string(got), "step %d", i)
 	}
+
 	flags, err := cache.ConvertToFlagStruct(got, format)
 	require.NoError(t, err, "step %d", i)
-	if st.wantFlags != nil {
+
+	if currStep.wantFlags != nil {
 		keys := make([]string, 0, len(flags))
 		for k := range flags {
 			keys = append(keys, k)
 		}
-		assert.ElementsMatch(t, st.wantFlags, keys, "step %d", i)
+
+		assert.ElementsMatch(t, currStep.wantFlags, keys, "step %d", i)
 	}
-	if len(st.wantSameAs) > 0 {
+
+	if len(currStep.wantSameAs) > 0 {
 		want := map[string]dto.DTO{}
-		for _, f := range st.wantSameAs {
+
+		for _, f := range currStep.wantSameAs {
 			content, rErr := os.ReadFile(f)
 			require.NoError(t, rErr)
+
 			parsed, pErr := cache.ConvertToFlagStruct(content, strings.TrimPrefix(filepath.Ext(f), "."))
 			require.NoError(t, pErr)
 			maps.Copy(want, parsed)
 		}
+
 		assert.Equal(t, want, flags, "step %d", i)
 	}
-	if st.check != nil {
-		st.check(t, flags)
+
+	if currStep.check != nil {
+		currStep.check(t, flags)
 	}
 }
 
@@ -706,6 +769,7 @@ func variationOf(flags map[string]dto.DTO, flagName, variation string) any {
 	if !ok || f.Variations == nil {
 		return nil
 	}
+
 	v := (*f.Variations)[variation]
 	if v == nil {
 		return nil
@@ -716,6 +780,7 @@ func variationOf(flags map[string]dto.DTO, flagName, variation string) any {
 
 func TestLoader_Load_Provider(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		opts        folderloader.Options
@@ -727,7 +792,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 		{
 			name:        "neutral wording",
 			opts:        folderloader.Options{Prefix: "f/", Location: "loc"},
-			wantList:    `unable to list objects with prefix "f/", boom`,
+			wantList:    `unable to list objects with prefix "f/", store: boom`,
 			wantGet:     `unable to download item "f/a.yaml", kaboom`,
 			wantLogs:    []string{"folder loader: no supported file", "location=loc"},
 			wantNotLogs: []string{"bucket="},
@@ -737,7 +802,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 			opts: folderloader.Options{
 				Prefix: "f/", Location: "loc", Provider: "S3", LocationKey: "bucket",
 			},
-			wantList: `unable to list objects from S3 with prefix "f/", boom`,
+			wantList: `unable to list objects from S3 with prefix "f/", store: boom`,
 			wantGet:  `unable to download item from S3 "f/a.yaml", kaboom`,
 			wantLogs: []string{"S3 retriever: no supported file", "bucket=loc"},
 		},
@@ -745,6 +810,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			logs := &bytes.Buffer{}
 			tt.opts.Logger = &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
 
@@ -759,9 +825,11 @@ func TestLoader_Load_Provider(t *testing.T) {
 
 			_, err = folderloader.New(&fakeStore{}, tt.opts).Load(t.Context())
 			require.NoError(t, err)
+
 			for _, w := range tt.wantLogs {
 				assert.Contains(t, logs.String(), w)
 			}
+
 			for _, w := range tt.wantNotLogs {
 				assert.NotContains(t, logs.String(), w)
 			}
@@ -771,6 +839,7 @@ func TestLoader_Load_Provider(t *testing.T) {
 
 func TestLoader_Load_StorePrefix(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name          string
 		prefix        string
@@ -786,6 +855,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			s := &fakeStore{}
 			l := folderloader.New(s, folderloader.Options{Prefix: tt.prefix, Recursive: tt.recursive})
 			_, err := l.Load(t.Context())
@@ -798,6 +868,7 @@ func TestLoader_Load_StorePrefix(t *testing.T) {
 
 func TestLoader_OutputFormat(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		pattern string
@@ -819,6 +890,7 @@ func TestLoader_OutputFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			s := &fakeStore{files: tt.files}
 			l := folderloader.New(s, folderloader.Options{Prefix: "f/", Pattern: tt.pattern})
 			assert.Equal(t, tt.want, l.OutputFormat())
@@ -831,32 +903,37 @@ func TestLoader_OutputFormat(t *testing.T) {
 
 func TestLoader_Reset(t *testing.T) {
 	t.Parallel()
-	s := &fakeStore{}
-	s.put("f/a.yaml", yamlA)
-	s.put("f/readme.txt", "hello")
+
+	store := &fakeStore{}
+	store.put("f/a.yaml", yamlA)
+	store.put("f/readme.txt", "hello")
+
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}
-	l := folderloader.New(s, folderloader.Options{Prefix: "f/", Logger: logger})
+	ldr := folderloader.New(store, folderloader.Options{Prefix: "f/", Logger: logger})
 
 	for range 2 {
-		_, err := l.Load(t.Context())
+		_, err := ldr.Load(t.Context())
 		require.NoError(t, err)
 	}
-	assert.Equal(t, 1, s.calls("f/a.yaml"))
+
+	assert.Equal(t, 1, store.calls("f/a.yaml"))
 	assert.Equal(t, 1, strings.Count(logs.String(), "key=f/readme.txt"))
 
 	// Reset drops the cache and the skipped files: all is downloaded and reported again.
-	l.Reset()
-	_, err := l.Load(t.Context())
+	ldr.Reset()
+	_, err := ldr.Load(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, 2, s.calls("f/a.yaml"))
+	assert.Equal(t, 2, store.calls("f/a.yaml"))
 	assert.Equal(t, 2, strings.Count(logs.String(), "key=f/readme.txt"))
 }
 
 func TestReuse(t *testing.T) {
 	t.Parallel()
+
 	logger := &fflog.FFLogger{}
 	base := folderloader.Options{Prefix: "f/", Pattern: "a.*", Recursive: true, Logger: logger, Location: "b"}
+
 	tests := []struct {
 		opts      func(o folderloader.Options) folderloader.Options
 		name      string
@@ -892,10 +969,11 @@ func TestReuse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := &fakeStore{}
-			s.put("f/a.yaml", yamlA)
-			s.put("g/a.yaml", yamlA)
-			old := folderloader.New(s, base)
+
+			store := &fakeStore{}
+			store.put("f/a.yaml", yamlA)
+			store.put("g/a.yaml", yamlA)
+			old := folderloader.New(store, base)
 			_, err := old.Load(t.Context())
 			require.NoError(t, err)
 
@@ -903,23 +981,27 @@ func TestReuse(t *testing.T) {
 			if !tt.nilLoader {
 				prev = old
 			}
+
 			opts := base
 			if tt.opts != nil {
 				opts = tt.opts(base)
 			}
-			got := folderloader.Reuse(prev, s, opts)
+
+			got := folderloader.Reuse(prev, store, opts)
 			require.NotNil(t, got)
+
 			if tt.wantSame {
 				assert.Same(t, old, got)
 				assert.Equal(t, "yaml", got.OutputFormat())
 
 				return
 			}
+
 			assert.NotSame(t, old, got)
 			// a new loader starts with an empty cache: the file is downloaded again
 			_, err = got.Load(t.Context())
 			require.NoError(t, err)
-			assert.Equal(t, 2, s.calls("f/a.yaml")+s.calls("g/a.yaml"))
+			assert.Equal(t, 2, store.calls("f/a.yaml")+store.calls("g/a.yaml"))
 		})
 	}
 }

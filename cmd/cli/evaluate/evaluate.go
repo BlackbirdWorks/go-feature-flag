@@ -1,8 +1,8 @@
 package evaluate
 
 import (
-	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	ffclient "github.com/blackbirdworks/semaphore"
@@ -46,27 +46,32 @@ func (e evaluate) Evaluate() (map[string]model.RawVarResult, error) {
 
 // initGOFF initializes the Semaphore client.
 func (e evaluate) initGOFF() (*ffclient.GoFeatureFlag, error) {
-	c := ffclient.Config{
+	cfg := ffclient.Config{
 		PollingInterval:       defaultPollingInterval,
 		DisableNotifierOnInit: true,
-		Context:               context.Background(),
 		Retriever:             e.retriever,
 		FileFormat:            e.fileFormat,
 	}
 
-	return ffclient.New(c)
+	goff, err := ffclient.New(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initializing the evaluation client: %w", err)
+	}
+
+	return goff, nil
 }
 
 // parseEvaluationContext parses the evaluation context from the command line arguments.
-func (e evaluate) parseEvaluationContext() (ffcontext.Context, error) {
+func (e evaluate) parseEvaluationContext() (ffcontext.EvaluationContext, error) {
 	if e.evaluationCtx == "" {
 		return ffcontext.NewEvaluationContextBuilder("").Build(), nil
 	}
 
 	var ctxAsMap map[string]any
+
 	err := json.Unmarshal([]byte(e.evaluationCtx), &ctxAsMap)
 	if err != nil {
-		return nil, err
+		return ffcontext.EvaluationContext{}, fmt.Errorf("parsing the evaluation context: %w", err)
 	}
 
 	targetingKey, ok := ctxAsMap["targetingKey"].(string)
@@ -87,7 +92,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 
 	flags, err := goff.GetFlagsFromCache()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting the flags of the configuration: %w", err)
 	}
 
 	listFlags := make([]string, 0, len(flags))
@@ -107,8 +112,9 @@ func (e evaluate) evaluateFlags(
 	for _, flag := range listFlags {
 		res, err := goff.RawVariation(flag, convertedEvaluationCtx, nil)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("evaluating the flag: %w", err)
 		}
+
 		result[flag] = res
 	}
 

@@ -91,11 +91,14 @@ type installationTokenResponse struct {
 // Init validates the authentication configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
-	if err := r.validateAppAuth(); err != nil {
+
+	err := r.validateAppAuth()
+	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err
 	}
+
 	r.status = retriever.RetrieverReady
 
 	return nil
@@ -118,23 +121,6 @@ func (r *Retriever) Status() retriever.Status {
 	return r.status
 }
 
-// validateAppAuth checks that GitHub App fields are either all unset, or complete,
-// usable and not mixed with GithubToken.
-func (r *Retriever) validateAppAuth() error {
-	if r.AppID == 0 && r.InstallationID == 0 && r.PrivateKey == "" && r.PrivateKeyFile == "" {
-		return nil
-	}
-	if r.GithubToken != "" {
-		return errGithubAppGithubTokenAnd
-	}
-	if !r.isAppAuth() {
-		return errGithubAppAppIDInstallationID
-	}
-	_, err := r.loadPrivateKey()
-
-	return err
-}
-
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
@@ -155,7 +141,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if checkRateLimitErr := r.checkRateLimit(); checkRateLimitErr != nil {
+	checkRateLimitErr := r.checkRateLimit()
+	if checkRateLimitErr != nil {
 		return nil, checkRateLimitErr
 	}
 
@@ -173,27 +160,58 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	// Invalidate it and retry once with a fresh token.
 	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
 		_ = resp.Body.Close()
+
 		r.invalidateCachedToken()
 
-		if token, err = r.resolveToken(ctx); err != nil {
+		token, err = r.resolveToken(ctx)
+		if err != nil {
 			return nil, err
 		}
-		if resp, err = r.fetch(ctx, requestURL, token); err != nil {
+
+		resp, err = r.fetch(ctx, requestURL, token)
+		if err != nil {
 			return nil, err
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if checkResponseErrorErr := r.checkResponseError(resp, requestURL); checkResponseErrorErr != nil {
+	checkResponseErrorErr := r.checkResponseError(resp, requestURL)
+	if checkResponseErrorErr != nil {
 		return nil, checkResponseErrorErr
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read GitHub response body: %w", err)
 	}
 
 	return body, nil
+}
+
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
+// It is also used for the tests.
+func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
+	r.httpClient = client
+}
+
+// validateAppAuth checks that GitHub App fields are either all unset, or complete,
+// usable and not mixed with GithubToken.
+func (r *Retriever) validateAppAuth() error {
+	if r.AppID == 0 && r.InstallationID == 0 && r.PrivateKey == "" && r.PrivateKeyFile == "" {
+		return nil
+	}
+
+	if r.GithubToken != "" {
+		return errGithubAppGithubTokenAnd
+	}
+
+	if !r.isAppAuth() {
+		return errGithubAppAppIDInstallationID
+	}
+
+	_, err := r.loadPrivateKey()
+
+	return err
 }
 
 // fetch calls the contents API with the given token and records the rate limit headers.
@@ -208,8 +226,9 @@ func (r *Retriever) fetch(ctx context.Context, contentsURL, token string) (*http
 		r.httpClient,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch GitHub contents: %w", err)
 	}
+
 	r.updateRateLimit(resp.Header)
 
 	return resp, nil
@@ -240,6 +259,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("github app: failed to mint installation token: %w", err)
 	}
+
 	r.cachedToken = token
 	r.tokenExpiresAt = expiresAt
 
@@ -251,6 +271,7 @@ func (r *Retriever) resolveToken(ctx context.Context) (string, error) {
 func (r *Retriever) invalidateCachedToken() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.cachedToken = ""
 	r.tokenExpiresAt = time.Time{}
 }
@@ -268,7 +289,7 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 		return "", time.Time{}, err
 	}
 
-	u, err := r.apiURL("app", "installations", strconv.FormatInt(r.InstallationID, 10), "access_tokens")
+	parsedURL, err := r.apiURL("app", "installations", strconv.FormatInt(r.InstallationID, 10), "access_tokens")
 	if err != nil {
 		return "", time.Time{}, err
 	}
@@ -277,9 +298,9 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	header := r.buildHeaders(jwt)
 	header.Set("Accept", "application/vnd.github+json")
 
-	resp, err := shared.CallHTTPAPI(ctx, u.String(), http.MethodPost, "", r.Timeout, header, r.httpClient)
+	resp, err := shared.CallHTTPAPI(ctx, parsedURL.String(), http.MethodPost, "", r.Timeout, header, r.httpClient)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, fmt.Errorf("request GitHub access token: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -294,16 +315,20 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, fmt.Errorf("read GitHub access token response: %w", err)
 	}
 
 	var result installationTokenResponse
-	if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
+
+	unmarshalErr := json.Unmarshal(body, &result)
+	if unmarshalErr != nil {
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
+
 	if result.Token == "" {
 		return "", time.Time{}, errGithubAppTokenResponse
 	}
+
 	if result.ExpiresAt.IsZero() {
 		return "", time.Time{}, errGithubAppTokenResponseContained
 	}
@@ -313,8 +338,10 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 
 // loadPrivateKey returns the RSA private key from PrivateKeyFile (preferred) or PrivateKey.
 func (r *Retriever) loadPrivateKey() (*rsa.PrivateKey, error) {
-	var pemBytes []byte
-	var err error
+	var (
+		pemBytes []byte
+		err      error
+	)
 
 	if r.PrivateKeyFile != "" {
 		pemBytes, err = os.ReadFile(r.PrivateKeyFile)
@@ -343,6 +370,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 	header := http.Header{}
 	header.Add("Accept", "application/vnd.github.raw")
 	header.Add("X-Github-Api-Version", "2022-11-28")
+
 	if token != "" {
 		header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
 	}
@@ -354,6 +382,7 @@ func (r *Retriever) buildHeaders(token string) http.Header {
 func (r *Retriever) checkRateLimit() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if r.rateLimitRemaining <= 0 && clock.Now().Before(r.rateLimitReset) {
 		return fmt.Errorf("%w %s", errRateLimitExceededNext, r.rateLimitReset)
 	}
@@ -367,20 +396,21 @@ func (r *Retriever) buildURL(branch string) (string, error) {
 	if strings.Contains(r.FilePath, "..") {
 		return "", errFilepathMustNotContain
 	}
+
 	if strings.Contains(r.RepositorySlug, "..") {
 		return "", errRepositorySlugMustNot
 	}
 
-	u, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
+	parsedURL, err := r.apiURL("repos", r.RepositorySlug, "contents", r.FilePath)
 	if err != nil {
 		return "", err
 	}
 
-	q := u.Query()
+	q := parsedURL.Query()
 	q.Set("ref", branch)
-	u.RawQuery = q.Encode()
+	parsedURL.RawQuery = q.Encode()
 
-	return u.String(), nil
+	return parsedURL.String(), nil
 }
 
 // apiURL returns the GitHub API base URL (BaseURL or api.github.com) with elem appended to its path.
@@ -390,13 +420,14 @@ func (r *Retriever) apiURL(elem ...string) (*url.URL, error) {
 		baseURL = "https://api.github.com"
 	}
 
-	u, err := url.Parse(baseURL)
+	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid base URL: %w", internal.RedactURLError(err))
 	}
-	u.Path = path.Join(append([]string{u.Path}, elem...)...)
 
-	return u, nil
+	parsedURL.Path = path.Join(append([]string{parsedURL.Path}, elem...)...)
+
+	return parsedURL, nil
 }
 
 // checkResponseError checks if the response indicates an error and returns an appropriate error message.
@@ -404,6 +435,7 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 	if resp.StatusCode >= http.StatusBadRequest {
 		// Collect the headers to add in the error message
 		ghHeaders := map[string]string{}
+
 		for name := range resp.Header {
 			if strings.HasPrefix(name, "X-") {
 				ghHeaders[name] = resp.Header.Get(name)
@@ -417,23 +449,20 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 	return nil
 }
 
-// SetHTTPClient is here if you want to override the default [http.Client] we are using.
-// It is also used for the tests.
-func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
-	r.httpClient = client
-}
-
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if remaining := headers.Get("X-Ratelimit-Remaining"); remaining != "" {
-		if remainingInt, err := strconv.Atoi(remaining); err == nil {
+		remainingInt, err := strconv.Atoi(remaining)
+		if err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
 	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
-		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		resetInt, err := strconv.ParseInt(reset, 10, 64)
+		if err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}
 	}

@@ -37,6 +37,7 @@ func TestStreamAuthorizer(t *testing.T) {
 
 		return c
 	}
+
 	tests := []struct {
 		manager     service.FlagsetManager
 		conf        *config.Config
@@ -65,6 +66,7 @@ func TestStreamAuthorizer(t *testing.T) {
 			h := middleware.StreamAuthorizer(tt.conf, tt.manager, tt.exposeError)(newOK())
 			rec := serve(h, httptest.NewRequest(http.MethodGet, "/stream"+tt.query, nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
+
 			if tt.wantBody != "" {
 				assert.Equal(t, tt.wantBody, rec.Body.String())
 			}

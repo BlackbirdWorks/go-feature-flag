@@ -21,6 +21,7 @@ import (
 
 func TestServerEnableH2C(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		wantProtoMaj int
@@ -36,7 +37,7 @@ func TestServerEnableH2C(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			conf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
 				Server: config.Server{
@@ -49,21 +50,25 @@ func TestServerEnableH2C(t *testing.T) {
 			log := newTestLogger(t)
 			metrics, err := metric.NewMetrics()
 			require.NoError(t, err)
-			ws := stream.NewWebsocketService()
-			defer ws.Close()
-			fm, err := service.NewFlagsetManager(conf, log.Slog,
-				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, ws)
+
+			wsSvc := stream.NewWebsocketService()
+			defer wsSvc.Close()
+
+			flagsetMgr, err := service.NewFlagsetManager(conf, log.Slog,
+				[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, nil, wsSvc)
 			require.NoError(t, err)
-			s := newTestServer(t, conf, service.Services{
+
+			srv := newTestServer(t, conf, service.Services{
 				MonitoringService: service.NewMonitoring(
-					fm,
+					flagsetMgr,
 				),
-				WebsocketService: ws,
-				FlagsetManager:   fm,
+				WebsocketService: wsSvc,
+				FlagsetManager:   flagsetMgr,
 				Metrics:          metrics,
-			}, log.Slog, api.WithListener(ln))
-			go func() { s.StartWithContext(context.Background()) }()
-			defer s.Stop(context.Background())
+			}, log.Slog, api.WithListener(listener))
+			go func() { srv.StartWithContext(context.Background()) }()
+
+			defer srv.Stop(context.Background())
 
 			baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 			waitForServer(t, baseURL)
@@ -74,22 +79,28 @@ func TestServerEnableH2C(t *testing.T) {
 			} else {
 				protos.SetHTTP1(true)
 			}
+
 			client := &http.Client{Transport: &http.Transport{Protocols: &protos}}
 			defer client.CloseIdleConnections()
 
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/health", nil)
 			require.NoError(t, err)
+
 			resp, err := client.Do(req)
 			if tt.wantErr {
 				if err == nil {
 					_ = resp.Body.Close()
 				}
+
 				assert.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
+
 			defer func() { _ = resp.Body.Close() }()
+
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			assert.Equal(t, tt.wantProtoMaj, resp.ProtoMajor)
 		})

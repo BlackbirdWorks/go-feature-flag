@@ -36,6 +36,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 			Experimentation: &ExperimentationRollout{End: new(now.Add(24 * time.Hour))},
 		}
 	}
+
 	tests := []struct {
 		name        string
 		flag        *InternalFlag
@@ -65,6 +66,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
 					"currentDateTime": tt.callerDate.Format(time.RFC3339Nano)})
 			}
+
 			_, d := tt.flag.Value(
 				"flag",
 				ctx,

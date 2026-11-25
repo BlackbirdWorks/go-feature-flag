@@ -158,7 +158,7 @@ func TestRetriever_getHTTPClient_WithInvalidClientCertificate(t *testing.T) {
 	}
 
 	_, err := retriever.getHTTPClient()
-	require.EqualError(t, err, "tls: failed to find any PEM data in key input")
+	require.EqualError(t, err, "loading the client key pair: tls: failed to find any PEM data in key input")
 }
 
 func TestRetriever_getHTTPClient_WithMissingCACertificate(t *testing.T) {

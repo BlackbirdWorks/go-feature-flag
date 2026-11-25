@@ -28,6 +28,7 @@ const defaultReadTimeout = 30 * time.Second
 
 func (s *Server) StartWithContext(ctx context.Context) {
 	defer close(s.stopped)
+
 	select {
 	case <-s.stopRequested:
 		// Stop has been called before the server started: the server owns its listener, nothing will serve on it.
@@ -44,14 +45,15 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	// start the OpenTelemetry tracing service
 	err := s.otelService.Init(ctx, s.config)
 	if err != nil {
-		s.logger.LogAttrs(context.Background(), slog.LevelError,
+		s.logger.LogAttrs(ctx, slog.LevelError,
 			"error while initializing OTel, continuing without tracing enabled",
 			cmdlog.Err(err),
 		)
 		// we can continue because otel is not mandatory to start the server
 	}
+
 	if err == nil && s.installGlobalTelemetry {
-		s.otelService.Install(s.logger)
+		s.otelService.Install(ctx, s.logger)
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -80,30 +82,35 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	socketPath := s.config.UnixSocketPath()
 
 	// Clean up the old socket file if it exists (important for graceful restarts)
-	if _, err := os.Stat(socketPath); err == nil {
-		if removeErr := os.Remove(socketPath); removeErr != nil {
-			s.fatal("Could not remove old socket file", slog.String("path", socketPath), cmdlog.Err(removeErr))
+	_, err := os.Stat(socketPath)
+	if err == nil {
+		removeErr := os.Remove(socketPath)
+		if removeErr != nil {
+			s.fatal(ctx, "Could not remove old socket file", slog.String("path", socketPath), cmdlog.Err(removeErr))
 		}
 	}
 
 	// Start a http server for monitoring if monitoringport is configured
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
+
 		wg.Go(func() { s.startMonitoringServer(ctx) })
 		defer wg.Wait()
 	}
 
 	lc := net.ListenConfig{}
+
 	listener, err := lc.Listen(ctx, "unix", socketPath)
 	if err != nil {
-		s.fatal("Error creating Unix listener", cmdlog.Err(err))
+		s.fatal(ctx, "Error creating Unix listener", cmdlog.Err(err))
 	}
 
 	defer func() {
 		// the graceful shutdown already closes the listener
-		if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		closeErr := listener.Close()
+		if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
 			s.logger.LogAttrs(
-				context.Background(),
+				context.WithoutCancel(ctx),
 				slog.LevelError,
 				"error closing unix socket listener",
 				cmdlog.Err(closeErr),
@@ -111,14 +118,14 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 		}
 	}()
 
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
+	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy as unix socket...",
 		slog.String("socket", socketPath),
 		slog.String("version", s.config.Version))
 
 	err = s.serve(ctx, s.apiHandler, listener, false, "error shutting down api server")
 	if err != nil {
-		s.fatal("Error starting relay proxy as unix socket", cmdlog.Err(err))
+		s.fatal(ctx, "Error starting relay proxy as unix socket", cmdlog.Err(err))
 	}
 }
 
@@ -126,12 +133,13 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if s.isMonitoringPortConfigured() {
 		var wg sync.WaitGroup
+
 		wg.Go(func() { s.startMonitoringServer(ctx) })
 		defer wg.Wait()
 	}
 
 	address := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.ServerPort(s.logger))
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
+	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting semaphore relay proxy ...",
 		slog.String("address", address),
 		slog.String("version", s.config.Version))
@@ -141,8 +149,9 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	if err == nil {
 		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "error shutting down api server")
 	}
+
 	if err != nil {
-		s.fatal("Error starting relay proxy", cmdlog.Err(err))
+		s.fatal(ctx, "Error starting relay proxy", cmdlog.Err(err))
 	}
 }
 
@@ -152,13 +161,18 @@ func (*Server) listenOn(ctx context.Context, address string, given net.Listener)
 		return given, nil
 	}
 
-	return (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", address, err)
+	}
+
+	return listener, nil
 }
 
 // serve serves the handler on the listener until ctx is done, then it gracefully shuts the server down: the
 // connections get gracefulShutdownTimeout to complete. With h2c, HTTP/2 over cleartext (prior knowledge) is served
 // next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
-func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c bool, shutdownMsg string) error {
+func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, shutdownMsg string) error {
 	srv := &http.Server{
 		Handler:  h,
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
@@ -166,6 +180,7 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 		// (SSE, websocket) are long-lived.
 		ReadTimeout: s.readTimeout,
 	}
+
 	if h2c {
 		var p http.Protocols
 		p.SetHTTP1(true)
@@ -176,21 +191,29 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 	// the shutdown goroutine ends when ctx is done or when Serve returned (the cancel below): a listener that
 	// fails must not wait for an external shutdown before its error reaches the caller.
 	gCtx, cancel := context.WithCancel(ctx)
+
 	var wg sync.WaitGroup
+
 	defer func() {
 		cancel()
 		wg.Wait()
 	}()
+
 	wg.Go(func() {
 		<-gCtx.Done()
-		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(gCtx), gracefulShutdownTimeout)
 		defer cancelShutdown()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			s.logger.LogAttrs(context.Background(), slog.LevelError, shutdownMsg, cmdlog.Err(err))
+
+		err := srv.Shutdown(shutdownCtx)
+		if err != nil {
+			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, shutdownMsg, cmdlog.Err(err))
 		}
 	})
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+
+	err := srv.Serve(listener)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("serve HTTP: %w", err)
 	}
 
 	return nil
@@ -198,15 +221,17 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 
 func (s *Server) startMonitoringServer(ctx context.Context) {
 	addressMonitoring := fmt.Sprintf("%s:%d", s.config.ServerHost(), s.config.EffectiveMonitoringPort(s.logger))
-	s.logger.LogAttrs(context.Background(), slog.LevelInfo,
+	s.logger.LogAttrs(ctx, slog.LevelInfo,
 		"Starting monitoring",
 		slog.String("address", addressMonitoring))
+
 	listener, err := s.listenOn(ctx, addressMonitoring, s.monitoringListener)
 	if err == nil {
 		err = s.serve(ctx, s.monitoringHandler, listener, false, "error stopping monitoring")
 	}
+
 	if err != nil {
-		s.fatal("Error starting monitoring", cmdlog.Err(err))
+		s.fatal(ctx, "Error starting monitoring", cmdlog.Err(err))
 	}
 }
 
@@ -229,14 +254,16 @@ func (s *Server) lambdaHandler() any {
 func (s *Server) Stop(ctx context.Context) {
 	err := s.otelService.Stop(ctx)
 	if err != nil {
-		s.logger.LogAttrs(context.Background(), slog.LevelError, "impossible to stop otel", cmdlog.Err(err))
+		s.logger.LogAttrs(context.WithoutCancel(ctx), slog.LevelError, "impossible to stop otel", cmdlog.Err(err))
 	}
 
 	s.stop()
+
 	select {
 	case <-s.stopped:
 	case <-ctx.Done():
-		s.logger.LogAttrs(context.Background(), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
+		s.logger.LogAttrs(
+			context.WithoutCancel(ctx), slog.LevelError, "error stopping relay proxy", cmdlog.Err(ctx.Err()))
 	}
 }
 
@@ -246,7 +273,7 @@ func (s *Server) isMonitoringPortConfigured() bool {
 }
 
 // fatal logs the message at the fatal level and exits the process.
-func (s *Server) fatal(msg string, attrs ...slog.Attr) {
-	s.logger.LogAttrs(context.Background(), cmdlog.LevelFatal, msg, attrs...)
+func (s *Server) fatal(ctx context.Context, msg string, attrs ...slog.Attr) {
+	s.logger.LogAttrs(ctx, cmdlog.LevelFatal, msg, attrs...)
 	s.exit()
 }

@@ -27,75 +27,75 @@ type FlagSet struct {
 	// Name of the flagset.
 	// This allow to identify the flagset.
 	// Default: generated value
-	Name string `mapstructure:"name,omitempty" koanf:"name"`
+	Name string `koanf:"name" mapstructure:"name,omitempty"`
 	// APIKeys is the api keys for the flag set.
 	// This will add a new API keys to the list of authorizedKeys.evaluation keys.
 	// This property is madatory for every flagset, we will use it to filter the flag available.
-	APIKeys []string `mapstructure:"apiKeys" koanf:"apikeys"`
+	APIKeys []string `koanf:"apikeys" mapstructure:"apiKeys"`
 	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
-	CommonFlagSet `mapstructure:",inline" koanf:",squash"`
+	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
 }
 
 type CommonFlagSet struct {
 	// EvaluationContextEnrichment is the flag to enable the evaluation context enrichment.
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
-	EvaluationContextEnrichment map[string]any `mapstructure:"evaluationContextEnrichment" koanf:"evaluationcontextenrichment"`
+	EvaluationContextEnrichment map[string]any `koanf:"evaluationcontextenrichment" mapstructure:"evaluationContextEnrichment"`
 	// Retriever is the configuration on how to retrieve the file
-	Retriever *retrieverconf.RetrieverConf `mapstructure:"retriever" koanf:"retriever"`
+	Retriever *retrieverconf.RetrieverConf `koanf:"retriever" mapstructure:"retriever"`
 	// Exporter is the configuration on how to export data
-	Exporter *ExporterConf `mapstructure:"exporter" koanf:"exporter"`
+	Exporter *ExporterConf `koanf:"exporter" mapstructure:"exporter"`
 	// Exporters is the exact same things than Exporter but allows to give more than 1 exporter at the time.
-	Exporters *[]ExporterConf `mapstructure:"exporters" koanf:"exporters"`
+	Exporters *[]ExporterConf `koanf:"exporters" mapstructure:"exporters"`
 	// Retrievers is the exact same things than Retriever but allows to give more than 1 retriever at the time.
 	// We are dealing with config files in order, if you have the same flag name in multiple files it will be override
 	// based of the order of the retrievers in the slice.
 	//
 	// Note: If both Retriever and Retrievers are set, we will start by calling the Retriever and,
 	// after we will use the order of Retrievers.
-	Retrievers *[]retrieverconf.RetrieverConf `mapstructure:"retrievers" koanf:"retrievers"`
+	Retrievers *[]retrieverconf.RetrieverConf `koanf:"retrievers" mapstructure:"retrievers"`
 	// FileFormat (optional) is the format of the file to retrieve (available YAML, TOML and JSON)
 	// Default: YAML
-	FileFormat string `mapstructure:"fileFormat" koanf:"fileformat"`
+	FileFormat string `koanf:"fileformat" mapstructure:"fileFormat"`
 	// Environment is the environment of the flag set.
-	Environment string `mapstructure:"environment" koanf:"environment"`
+	Environment string `koanf:"environment" mapstructure:"environment"`
 	// PersistentFlagConfigurationFile is the flag to enable the persistent flag configuration file.
 	//nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
-	PersistentFlagConfigurationFile string `mapstructure:"persistentFlagConfigurationFile" koanf:"persistentflagconfigurationfile"`
+	PersistentFlagConfigurationFile string `koanf:"persistentflagconfigurationfile" mapstructure:"persistentFlagConfigurationFile"`
 	// Notifiers is the configuration on where to notify a flag change
-	Notifiers []NotifierConf `mapstructure:"notifiers" koanf:"notifiers"`
+	Notifiers []NotifierConf `koanf:"notifiers" mapstructure:"notifiers"`
 	// FixNotifiers, Before version v1.46.0, the notifier was called "notifier" instead of "notifiers".
 	// This is a backward compatibility fix to allow to use the old configuration.
 	// This will be removed in a future version.
 	//
 	// Deprecated: use Notifiers instead.
-	FixNotifiers []NotifierConf `mapstructure:"notifier" koanf:"notifier"`
+	FixNotifiers []NotifierConf `koanf:"notifier" mapstructure:"notifier"`
 	// ExporterCleanQueueInterval (optional) is the duration between each cleaning of the queue by the thread in charge
 	// of removing the old events. It must not be negative, 0 means the default.
 	// In flagset mode the top-level value is used by the flagsets that do not set their own.
 	// Default: 1 minute
-	ExporterCleanQueueInterval time.Duration `mapstructure:"exporterCleanQueueInterval" koanf:"exportercleanqueueinterval"`
+	ExporterCleanQueueInterval time.Duration `koanf:"exportercleanqueueinterval" mapstructure:"exporterCleanQueueInterval"`
 	// PollingInterval (optional) Poll every X time
 	// The minimum possible is 1 second
 	// Default: 60 seconds
-	PollingInterval int `mapstructure:"pollingInterval" koanf:"pollinginterval"`
+	PollingInterval int `koanf:"pollinginterval" mapstructure:"pollingInterval"`
 	// StartWithRetrieverError (optional) If true, the relay proxy will start even if we did not get any flags from
 	// the retriever. It will serve only default values until the retriever returns the flags.
 	// The init method will not return any error if the flag file is unreachable.
 	// Default: false
-	StartWithRetrieverError bool `mapstructure:"startWithRetrieverError" koanf:"startwithretrievererror"`
+	StartWithRetrieverError bool `koanf:"startwithretrievererror" mapstructure:"startWithRetrieverError"`
 	// DisableNotifierOnInit (optional) set to true if you do not want to call any notifier
 	// when the flags are loaded.
 	// This is useful if you do not want a Slack/Webhook notification saying that
 	// the flags have been added every time you start the application.
 	// Default is set to false for backward compatibility.
 	// Default: false
-	DisableNotifierOnInit bool `mapstructure:"disableNotifierOnInit" koanf:"disablenotifieroninit"`
+	DisableNotifierOnInit bool `koanf:"disablenotifieroninit" mapstructure:"disableNotifierOnInit"`
 	// EnablePollingJitter (optional) set to true if you want to avoid having true periodicity when
 	// retrieving your flags. It is useful to avoid having spike on your flag configuration storage
 	// in case your application is starting multiple instance at the same time.
 	// We ensure a deviation that is maximum + or - 10% of your polling interval.
 	// Default: false
-	EnablePollingJitter bool `mapstructure:"enablePollingJitter" koanf:"enablepollingjitter"`
+	EnablePollingJitter bool `koanf:"enablepollingjitter" mapstructure:"enablePollingJitter"`
 	// EnableSharedPollerPerBucket (optional) set to true if you want the flag sets reading from the
 	// same S3 bucket to share one poller per bucket instead of polling each their own retriever.
 	// The poller lists the bucket once per polling interval and refreshes only the flag sets whose
@@ -105,7 +105,7 @@ type CommonFlagSet struct {
 	// in the flag set is ignored and a warning is logged.
 	// Requires a single retriever of kind s3 with item set. Only available inside a flag set.
 	// Default: false
-	EnableSharedPollerPerBucket bool `mapstructure:"enableSharedPollerPerBucket" koanf:"enablesharedpollerperbucket"`
+	EnableSharedPollerPerBucket bool `koanf:"enablesharedpollerperbucket" mapstructure:"enableSharedPollerPerBucket"`
 }
 
 // GetFlagSets returns a shallow copy of the configured flag sets.
@@ -114,6 +114,7 @@ type CommonFlagSet struct {
 func (c *Config) GetFlagSets() []FlagSet {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	out := make([]FlagSet, len(c.FlagSets))
 	copy(out, c.FlagSets)
 
@@ -125,9 +126,12 @@ func (c *Config) GetFlagSets() []FlagSet {
 func (c *Config) AddFlagSet(flagset FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if _, err := c.getFlagSetIndexFromName(flagset.Name); err == nil {
+
+	_, err := c.getFlagSetIndexFromName(flagset.Name)
+	if err == nil {
 		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
+
 	c.FlagSets = append(c.FlagSets, flagset)
 
 	return nil
@@ -138,10 +142,12 @@ func (c *Config) AddFlagSet(flagset FlagSet) error {
 func (c *Config) RemoveFlagSet(flagsetName string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	index, err := c.getFlagSetIndexFromName(flagsetName)
 	if err != nil {
 		return err
 	}
+
 	c.FlagSets = append(c.FlagSets[:index], c.FlagSets[index+1:]...)
 
 	return nil
@@ -155,6 +161,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 	if err != nil {
 		return err
 	}
+
 	c.FlagSets[index].APIKeys = apiKeys
 
 	return nil
@@ -163,6 +170,7 @@ func (c *Config) SetFlagSetAPIKeys(flagsetName string, apiKeys []string) error {
 func (c *Config) GetFlagSetAPIKeys(flagsetName string) ([]string, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	index, err := c.getFlagSetIndexFromName(flagsetName)
 	if err != nil {
 		return nil, err

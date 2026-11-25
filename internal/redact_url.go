@@ -29,6 +29,7 @@ func RedactURLError(err error) error {
 	if !errors.As(err, &urlErr) {
 		return err
 	}
+
 	cause := urlErr.Err
 	if urlErr.Op == "parse" {
 		// The causes of url.Parse quote a part of the raw input (for example `invalid port ":secret" after
@@ -36,6 +37,7 @@ func RedactURLError(err error) error {
 		// trusted to be free of credentials. The cause is dropped instead of being pattern matched.
 		return &url.Error{Op: urlErr.Op, URL: RedactedURL, Err: errInvalidURL}
 	}
+
 	if cause != nil {
 		msg := cause.Error()
 		switch {

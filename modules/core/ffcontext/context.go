@@ -2,6 +2,7 @@ package ffcontext
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 )
 
@@ -25,6 +26,21 @@ type Context interface {
 // value is a type to define attributes.
 type value map[string]any
 
+// EvaluationContext contains specific attributes for your evaluation.
+// Most of the time it is identifying a user browsing your site.
+// The only mandatory property is the Key, which must a unique identifier.
+// For authenticated users, this may be a username or e-mail address.
+// For anonymous users, this could be an IP address or session ID.
+//
+// EvaluationContext fields are immutable and can be accessed only via getter methods.
+// To construct an EvaluationContext, use either a simple constructor (NewEvaluationContext) or the builder pattern
+// with NewEvaluationContextBuilder.
+type EvaluationContext struct {
+	attributes value
+	// uniquely identifying the subject (end-user, or client service) of a flag evaluation
+	targetingKey string
+}
+
 // NewEvaluationContext creates a new evaluation context identified by the given targetingKey.
 func NewEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{}}
@@ -41,31 +57,21 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 	}}
 }
 
-// EvaluationContext contains specific attributes for your evaluation.
-// Most of the time it is identifying a user browsing your site.
-// The only mandatory property is the Key, which must a unique identifier.
-// For authenticated users, this may be a username or e-mail address.
-// For anonymous users, this could be an IP address or session ID.
-//
-// EvaluationContext fields are immutable and can be accessed only via getter methods.
-// To construct an EvaluationContext, use either a simple constructor (NewEvaluationContext) or the builder pattern
-// with NewEvaluationContextBuilder.
-type EvaluationContext struct {
-	attributes value
-	// uniquely identifying the subject (end-user, or client service) of a flag evaluation
-	targetingKey string
-}
-
 // MarshalJSON is a custom JSON marshaller for EvaluationContext.
 // It will only marshal the targetingKey and the attributes of the context and avoid to expose the internal structure.
 func (u EvaluationContext) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
+	data, err := json.Marshal(&struct {
 		Attributes   value  `json:"attributes"`
 		TargetingKey string `json:"targetingKey"`
 	}{
 		TargetingKey: u.targetingKey,
 		Attributes:   u.attributes,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("encoding the evaluation context: %w", err)
+	}
+
+	return data, nil
 }
 
 // GetKey return the unique targetingKey for the user.
@@ -133,6 +139,7 @@ func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 		specifics = readSpecifics(v, specifics)
 		specifics.UsedLegacyKey = true
 	}
+
 	if v, ok := u.attributes[ReservedKey]; ok {
 		specifics = readSpecifics(v, specifics)
 	}
@@ -143,24 +150,28 @@ func (u EvaluationContext) ExtractGOFFProtectedFields() GoffContextSpecifics {
 // readSpecifics returns base with the fields found in v on top of it.
 func readSpecifics(v any, base GoffContextSpecifics) GoffContextSpecifics {
 	found := GoffContextSpecifics{}
-	switch v := v.(type) {
+
+	switch typed := v.(type) {
 	case map[string]string:
-		found.addCurrentDateTime(v["currentDateTime"])
-		found.addListFlags(v["flagList"])
-		found.addExporterMetadata(v["exporterMetadata"])
+		found.addCurrentDateTime(typed["currentDateTime"])
+		found.addListFlags(typed["flagList"])
+		found.addExporterMetadata(typed["exporterMetadata"])
 	case map[string]any:
-		found.addCurrentDateTime(v["currentDateTime"])
-		found.addListFlags(v["flagList"])
-		found.addExporterMetadata(v["exporterMetadata"])
+		found.addCurrentDateTime(typed["currentDateTime"])
+		found.addListFlags(typed["flagList"])
+		found.addExporterMetadata(typed["exporterMetadata"])
 	case GoffContextSpecifics:
-		found = v
+		found = typed
 	}
+
 	if found.CurrentDateTime != nil {
 		base.CurrentDateTime = found.CurrentDateTime
 	}
+
 	if found.FlagList != nil {
 		base.FlagList = found.FlagList
 	}
+
 	if found.ExporterMetadata != nil {
 		base.ExporterMetadata = found.ExporterMetadata
 	}

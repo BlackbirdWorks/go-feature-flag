@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/manifest/model"
 )
@@ -20,7 +21,7 @@ type FlagManifest struct {
 // MarshalJSON always includes "$schema" so manifest files validate against the
 // published Open Feature CLI schema.
 func (m FlagManifest) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
+	data, err := json.Marshal(
 		struct { //nolint:govet // fieldalignment: field order is the order of the keys of the generated manifest
 			Schema string                          `json:"$schema"`
 			Flags  map[string]model.FlagDefinition `json:"flags"`
@@ -29,4 +30,9 @@ func (m FlagManifest) MarshalJSON() ([]byte, error) {
 			Flags:  m.Flags,
 		},
 	)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the flag manifest: %w", err)
+	}
+
+	return data, nil
 }

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
@@ -28,7 +29,10 @@ func NewInfo(monitoring service.Monitoring) *Info {
 func (h *Info) Handle(_ context.Context, _ *struct{}) (*InfoOutput, error) {
 	info, err := h.monitoringService.Info()
 	if err != nil {
-		return nil, helper.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return nil, fmt.Errorf(
+			"getting the information of the relay proxy: %w",
+			helper.NewHTTPError(http.StatusInternalServerError, err.Error()),
+		)
 	}
 
 	return &InfoOutput{Body: info}, nil

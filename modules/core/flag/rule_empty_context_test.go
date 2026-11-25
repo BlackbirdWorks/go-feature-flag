@@ -171,6 +171,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 				assert.Error(t, err, tt.description)
 			} else {
 				assert.NoError(t, err, tt.description)
+
 				if tt.expectedValue != "" {
 					assert.Equal(t, tt.expectedValue, result, tt.description)
 				}

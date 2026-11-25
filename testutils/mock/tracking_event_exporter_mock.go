@@ -2,11 +2,15 @@ package mock
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
+
+var errUnexpectedTrackingEvent = errors.New("unexpected event type")
 
 type TrackingEventExporter struct {
 	Err               error
@@ -26,16 +30,24 @@ func (m *TrackingEventExporter) Export(
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
 	switch events := any(events).(type) {
 	case []exporter.ExportableEvent:
-		t := make([]exporter.TrackingEvent, len(events))
-		for i, v := range events {
-			t[i] = v.(exporter.TrackingEvent) //nolint:errcheck // test mock: the events are TrackingEvent by contract
+		t := make([]exporter.TrackingEvent, 0, len(events))
+		for _, v := range events {
+			te, ok := v.(exporter.TrackingEvent)
+			if !ok {
+				return fmt.Errorf("%w: %T", errUnexpectedTrackingEvent, v)
+			}
+
+			t = append(t, te)
 		}
+
 		m.ExportedEvents = append(m.ExportedEvents, t...)
 	case []exporter.TrackingEvent:
 		m.ExportedEvents = append(m.ExportedEvents, events...)
 	}
+
 	if m.Err != nil {
 		if m.ExpectedNumberErr > m.CurrentNumberErr {
 			m.CurrentNumberErr++
@@ -51,6 +63,7 @@ func (m *TrackingEventExporter) GetExportedEvents() []exporter.ExportableEvent {
 	m.once.Do(m.initMutex)
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
+
 	trackingEvents := make([]exporter.ExportableEvent, 0, len(m.ExportedEvents))
 	for _, event := range m.ExportedEvents {
 		trackingEvents = append(trackingEvents, event)

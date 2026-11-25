@@ -8,7 +8,7 @@
 #   - forbidigo: the two slog.Default/slog.New bans point at gopherstack's own
 #     pkgs/logger package and are dropped (sloglint no-global: all still bans
 #     the global slog logger); the generic fmt.Print ban is kept.
-#   - ireturn.allow: gopherstack-specific entries dropped (linter not enabled).
+#   - ireturn.allow: semaphore polymorphic seams and external SDK interfaces.
 #   - exclusions: gopherstack's per-service path rules are dropped; paths for
 #     generated/vendored code of this repo are added (see exclusions.paths).
 #   - modules: the single root module (incl. modules/core and rules/) is linted with this file;
@@ -84,6 +84,9 @@ formatters:
       # Target maximum line length.
       # Default: 100
       max-len: 120
+      # Disable tag reformatting in golines so tagalign is the single owner of struct tag alignment/sorting.
+      # Default: true
+      reformat-tags: false
 
 linters:
   enable:
@@ -92,18 +95,24 @@ linters:
     - bidichk # checks for dangerous unicode character sequences
     - bodyclose # checks whether HTTP response body is closed successfully
     - canonicalheader # checks whether net/http.Header uses canonical header
+    - containedctx # checks for structs containing context.Context fields
+    - contextcheck # checks whether functions use a non-inherited context
     - copyloopvar # detects places where loop variables are copied (Go 1.22+)
     - cyclop # checks function and package cyclomatic complexity
     - depguard # checks if package imports are in a list of acceptable packages
     - dupl # tool for code clone detection
     - durationcheck # checks for two durations multiplied together
     - errcheck # checking for unchecked errors, these unchecked errors can be critical bugs in some cases
+    - errchkjson # checks types passed to json encoding functions and error checks
     - errname # checks that sentinel errors are prefixed with the Err and error types are suffixed with the Error
     - errorlint # finds code that will cause problems with the error wrapping scheme introduced in Go 1.13
     - exhaustive # checks exhaustiveness of enum switch statements
+    - exhaustruct_v5 # checks if all structure fields are initialized (scoped to config, options, DTO, manifest, event, and response structs)
     - exptostd # detects functions from golang.org/x/exp/ that can be replaced by std functions
     - fatcontext # detects nested contexts in loops
     - forbidigo # forbids identifiers
+    - forcetypeassert # finds forced type assertions
+    - funcorder # checks constructors and struct method ordering
     - funlen # tool for detection of long functions
     - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
     - gochecknoglobals # checks that no global variables exist
@@ -117,11 +126,14 @@ linters:
     - gomoddirectives # manages the use of 'replace', 'retract', and 'excludes' directives in go.mod
     - goprintffuncname # checks that printf-like functions are named with f at the end
     - gosec # inspects source code for security problems
+    - gosmopolitan # checks for i18n/l10n anti-patterns (Han string literals and time.Local)
     - govet # reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - iface # checks the incorrect use of interfaces, helping developers avoid interface pollution
     - ineffassign # detects when assignments to existing variables are not used
     - intrange # finds places where for loops could make use of an integer range
+    - ireturn # accept interfaces, return concrete types (genuine polymorphic seams allowed below)
     - loggercheck # checks key value pairs for common logger libraries (kitlog,klog,logr,zap)
+    - maintidx # measures the maintainability index of each function
     - makezero # finds slice declarations with non-zero initial length
     - mirror # reports wrong mirror patterns of bytes/strings usage
     - mnd # detects magic numbers
@@ -132,6 +144,7 @@ linters:
     - nilnesserr # reports that it checks for err != nil, but it returns a different nil value error (powered by nilness and nilerr)
     - nilnil # checks that there is no simultaneous return of nil error and an invalid value
     - noctx # finds sending http request without context.Context
+    - noinlineerr # disallows inline error handling in if statements
     - nolintlint # reports ill-formed or insufficient nolint directives
     - nonamedreturns # reports all named returns
     - nosprintfhostport # checks for misuse of Sprintf to construct a host with port in a URL
@@ -147,6 +160,7 @@ linters:
     - spancheck # checks for mistakes with OpenTelemetry/Census spans
     - sqlclosecheck # checks that sql.Rows and sql.Stmt are closed
     - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
+    - tagalign # aligns and sorts struct field tags consistently
     - testableexamples # checks if examples are testable (have an expected output)
     - testifylint # checks usage of github.com/stretchr/testify
     - testpackage # makes you use a separate _test package
@@ -156,8 +170,11 @@ linters:
     - unused # checks for unused constants, variables, functions and types
     - usestdlibvars # detects the possibility to use variables/constants from the Go standard library
     - usetesting # reports uses of functions with replacement inside the testing package
+    - varnamelen # checks that the length of a variable's name matches its scope
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
+    - wrapcheck # checks that errors returned from external packages are wrapped
+    - wsl_v5 # enforces whitespace formatting and statement grouping
 
     # ---- kept from the previous configuration (extra relative to gopherstack) ----
     - decorder
@@ -191,24 +208,7 @@ linters:
 
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
-    - containedctx # Config.Context and the shared S3 items hold a context on purpose (public API); 8 findings
-    - contextcheck # false positives on callbacks and constructors; 43 findings
-    - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
-    - exhaustruct # deprecated alias of exhaustruct_v5
-    - exhaustruct_v5 # requiring every field in every literal is rejected by the project
-    - forcetypeassert # replaced by errcheck check-type-assertions
-    - funcorder # constructors next to their type is the project layout; 10 findings
-    - gomodguard # deprecated, replaced by gomodguard_v2 and depguard
-    - gosmopolitan # the tests use Han strings and time.Local on purpose (unicode and local time behaviour)
-    - ireturn # returning interfaces is the API of the retrievers, exporters and caches
-    - maintidx # complexity is bounded by cyclop, gocognit and funlen
-    - noinlineerr # inline error handling is the project style
-    - tagalign # struct tags are aligned by hand for the schema and config readability
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
-    - varnamelen # too many false positives (short loop and receiver names)
-    - wrapcheck # errors are wrapped where the context adds something
-    - wsl # deprecated, replaced by wsl_v5
-    - wsl_v5 # too strict, mostly not more readable
 
   settings:
     forbidigo:
@@ -334,46 +334,69 @@ linters:
       # Default: false
       default-signifies-exhaustive: true
 
-    exhaustruct:
-      # List of regular expressions to match type names that should be excluded from processing.
+    # Scoped per Issue #59: a full-repo run measured 6,350 findings (5,981 in minimal
+    # test literals and 369 in production code), so exhaustruct_v5 is enforced only on
+    # configuration, options, settings, DTO, manifest, event, and response/document structs
+    # where an omitted field is a bug (and test files remain excluded below).
+    exhaustruct_v5:
+      # List of regular expressions to match type names that should be skipped from checking.
       # Anonymous structs can be matched by '<anonymous>' alias.
-      # Has precedence over `include`.
+      # Has precedence over `enforce-patterns`.
       # Each regular expression must match the full type name, including package path.
       # For example, to match type `net/http.Cookie` regular expression should be `.*/http\.Cookie`,
       # but not `http\.Cookie`.
       # Default: []
-      exclude:
+      ignore-patterns:
         # std libs
-        - ^net/http.Client$
-        - ^net/http.Cookie$
-        - ^net/http.Request$
-        - ^net/http.Response$
-        - ^net/http.Server$
-        - ^net/http.Transport$
-        - ^net/url.URL$
-        - ^os/exec.Cmd$
-        - ^reflect.StructField$
+        - ^net/http\.Client$
+        - ^net/http\.Cookie$
+        - ^net/http\.Request$
+        - ^net/http\.Response$
+        - ^net/http\.Server$
+        - ^net/http\.Transport$
+        - ^net/url\.URL$
+        - ^os/exec\.Cmd$
+        - ^reflect\.StructField$
         # public libs
-        - ^github.com/Shopify/sarama.Config$
-        - ^github.com/Shopify/sarama.ProducerMessage$
-        - ^github.com/mitchellh/mapstructure.DecoderConfig$
-        - ^github.com/prometheus/client_golang/.+Opts$
-        - ^github.com/spf13/cobra.Command$
-        - ^github.com/spf13/cobra.CompletionOptions$
-        - ^github.com/stretchr/testify/mock.Mock$
-        - ^github.com/testcontainers/testcontainers-go.+Request$
-        - ^github.com/testcontainers/testcontainers-go.FromDockerfile$
-        - ^golang.org/x/tools/go/analysis.Analyzer$
-        - ^google.golang.org/protobuf/.+Options$
-        - ^gopkg.in/yaml.v3.Node$
+        - ^github\.com/Shopify/sarama\.Config$
+        - ^github\.com/Shopify/sarama\.ProducerMessage$
+        - ^github\.com/mitchellh/mapstructure\.DecoderConfig$
+        - ^github\.com/prometheus/client_golang/.+Opts$
+        - ^github\.com/spf13/cobra\.Command$
+        - ^github\.com/spf13/cobra\.CompletionOptions$
+        - ^github\.com/stretchr/testify/mock\.Mock$
+        - ^github\.com/testcontainers/testcontainers-go.+Request$
+        - ^github\.com/testcontainers/testcontainers-go\.FromDockerfile$
+        - ^golang\.org/x/tools/go/analysis\.Analyzer$
+        - ^google\.golang\.org/protobuf/.+Options$
+        - ^gopkg\.in/yaml\.v3\.Node$
+      enforce-patterns:
+        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/config\.(APIKeys|Endpoints|ExporterDefaults|JaegerSampler.*|OfrepEventStream|OpenTelemetryConfiguration|Otel.*|Server|Studio|Swagger|ValidateFlagsEndpoint)$
+        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware\.(KeyAuthConfig|PrometheusConfig)$
+        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/metric\.MetricsOpts$
+        - ^github\.com/blackbirdworks/semaphore/exporter\.Config$
+        - ^github\.com/blackbirdworks/semaphore/exporter/(kafka|kinesis)exporter\.Settings$
+        - ^github\.com/blackbirdworks/semaphore/exporter\.(FeatureEvent|TrackingEvent)$
+        - ^github\.com/blackbirdworks/semaphore/internal/folderloader\.Options$
+        - ^github\.com/blackbirdworks/semaphore/internal/flagstate\.(AllFlags|FlagState)$
+        - ^github\.com/blackbirdworks/semaphore/retriever\.ManagerConfig$
+        - ^github\.com/blackbirdworks/semaphore/retriever/s3retrieverv2\.(PollerConfig|SharedItemsOptions)$
+        - ^github\.com/blackbirdworks/semaphore/cmdhelpers/manifest/model\.(FlagManifest|FlagDefinition)$
+        - ^github\.com/blackbirdworks/semaphore/modules/core/dto\.(DTO|DTOv1|ExperimentationDto)$
+        - ^github\.com/blackbirdworks/semaphore/modules/core/model\.(VariationResult|RawVarResult)$
+        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/model\..*(Response|ResponseError)$
+        - ^github\.com/blackbirdworks/semaphore/cmd/relayproxy/handler/.*\.(.*Response|.*Output)$
+      # Check only types matching enforce-patterns (or //exhaustruct:enforce).
+      explicit-mode: true
       # Allows empty structures in return statements.
       # Default: false
       allow-empty-returns: true
 
     funcorder:
-      # Checks if the exported methods of a structure are placed before the non-exported ones.
-      # Default: true
-      struct-method: false
+      # Checks that constructors are placed after the structure declaration and
+      # exported methods before unexported ones.
+      constructor: true
+      struct-method: true
 
     funlen:
       # Checks the number of lines in a function.
@@ -489,7 +512,7 @@ linters:
     nolintlint:
       # Exclude following linters from requiring an explanation.
       # Default: []
-      allow-no-explanation: [ funlen, gocognit, golines ]
+      allow-no-explanation: []
       # Enable to require an explanation of nonzero length after each nolint directive.
       # Default: false
       require-explanation: true
@@ -564,6 +587,25 @@ linters:
       # Default: false
       os-temp-dir: true
 
+    varnamelen:
+      ignore-type-assert-ok: true
+      ignore-map-index-ok: true
+      ignore-chan-recv-ok: true
+      ignore-names:
+        - i
+        - ok
+        - t
+        - b
+        - tb
+        - w
+        - r
+        - ctx
+        - err
+        - tt
+        - wg
+        - mu
+        - id
+
   exclusions:
     # Log a warning if an exclusion rule is unused.
     warn-unused: true
@@ -590,6 +632,7 @@ linters:
       - path: '_test\.go'
         linters:
           - ireturn
+          - exhaustruct_v5
           - bodyclose
           - cyclop
           - dupl

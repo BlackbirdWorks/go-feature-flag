@@ -23,11 +23,12 @@ func Test_evaluate(t *testing.T) {
 		flagKey         string
 		expectedType    string
 	}
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
-		errAssertion assert.ErrorAssertionFunc
+
+	tests := []struct {
 		args         args
-		name         string
 		want         model.VariationResult[any]
+		errAssertion assert.ErrorAssertionFunc
+		name         string
 	}{
 		{
 			name: "Test with a rule name",
@@ -184,6 +185,7 @@ func Test_evaluate(t *testing.T) {
 				tt.args.sdkDefaultValue,
 			)
 			tt.errAssertion(t, err)
+
 			if err == nil {
 				assert.Equal(t, tt.want, got)
 			}
@@ -194,7 +196,7 @@ func Test_evaluate(t *testing.T) {
 func Test_evaluate_typeMisMatch(t *testing.T) {
 	t.Parallel()
 
-	f := &flag.InternalFlag{
+	targetFlag := &flag.InternalFlag{
 		Variations: &map[string]*any{
 			"on":  new(any(true)),
 			"off": new(any(false)),
@@ -204,7 +206,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		},
 	}
 	got, err := evaluation.Evaluate[int](
-		f,
+		targetFlag,
 		"my-flag",
 		ffcontext.NewEvaluationContext("e22a40e0-28fa-413c-aef8-4dc6a27593b7"),
 		flag.Context{Service: flag.NewService()},
@@ -212,6 +214,7 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 		42,
 	)
 	require.Error(t, err)
+
 	want := model.VariationResult[int]{
 		VariationType: flag.VariationSDKDefault,
 		Failed:        true,

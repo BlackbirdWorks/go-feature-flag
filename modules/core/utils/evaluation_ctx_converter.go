@@ -2,25 +2,28 @@ package utils
 
 import "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
-// ConvertEvaluationCtxFromRequest convert the result of an unmarshal request from the API to a ffcontext.Context.
+// ConvertEvaluationCtxFromRequest convert the result of an unmarshal request from the API to a
+// ffcontext.EvaluationContext.
 func ConvertEvaluationCtxFromRequest(
 	targetingKey string,
 	custom map[string]any,
-) ffcontext.Context {
-	ctx := ffcontext.NewEvaluationContextBuilder(targetingKey)
-	for k, v := range custom {
-		switch val := v.(type) {
+) ffcontext.EvaluationContext {
+	evalCtx := ffcontext.NewEvaluationContextBuilder(targetingKey)
+
+	for key, rawVal := range custom {
+		switch val := rawVal.(type) {
 		case float64:
 			if IsIntegral(val) {
-				ctx.AddCustom(k, int(val))
+				evalCtx.AddCustom(key, int(val))
 
 				continue
 			}
-			ctx.AddCustom(k, val)
+
+			evalCtx.AddCustom(key, val)
 		default:
-			ctx.AddCustom(k, val)
+			evalCtx.AddCustom(key, val)
 		}
 	}
 
-	return ctx.Build()
+	return evalCtx.Build()
 }

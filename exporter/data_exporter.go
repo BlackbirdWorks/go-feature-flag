@@ -109,6 +109,7 @@ func (d *dataExporterImpl[T]) Stop() {
 
 		return
 	}
+
 	d.stopOnce.Do(func() {
 		d.ticker.Stop()
 		close(d.daemonChan)
@@ -124,13 +125,14 @@ func (d *dataExporterImpl[T]) Flush() {
 // flush is Flush, it also returns the error of the flush (the manager uses it to back off).
 func (d *dataExporterImpl[T]) flush() error {
 	store := d.eventStore
+
 	err := store.ProcessPendingEvents(d.consumerID, d.sendEvents)
 	if err != nil {
 		if d != nil && d.logger != nil {
 			d.logger.Error(err.Error())
 		}
 
-		return err
+		return fmt.Errorf("process pending events: %w", err)
 	}
 	// release the events everybody has consumed instead of waiting for the periodic cleaning
 	if c, ok := store.(interface{ CleanQueue() }); ok {
@@ -160,18 +162,21 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 	if len(events) == 0 {
 		return nil
 	}
+
 	switch exp := d.exporter.Exporter.(type) {
 	case DeprecatedExporterV1:
 		var legacyLogger *log.Logger
 		if d.logger != nil {
 			legacyLogger = d.logger.GetLogLogger(slog.LevelError)
 		}
+
 		switch events := any(events).(type) {
 		case []FeatureEvent:
 			// use dc exporter as a DeprecatedExporterV1
 			err := exp.Export(ctx, legacyLogger, events)
-			d.logger.Warn("You are using an exporter with the old logger." +
+			d.logger.WarnContext(ctx, "You are using an exporter with the old logger."+
 				"Please update your custom exporter to comply to the new Exporter interface.")
+
 			if err != nil {
 				return fmt.Errorf("error while exporting data (deprecated): %w", err)
 			}
@@ -193,6 +198,7 @@ func (d *dataExporterImpl[T]) sendEvents(ctx context.Context, events []T) error 
 		for i, event := range events {
 			exportableEvents[i] = ExportableEvent(event)
 		}
+
 		err := exp.Export(ctx, d.logger, exportableEvents)
 		if err != nil {
 			return fmt.Errorf("error while exporting data: %w", err)

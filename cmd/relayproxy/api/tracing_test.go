@@ -89,6 +89,7 @@ func Test_Tracing(t *testing.T) {
 
 			recorder := tracetest.NewSpanRecorder()
 			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
 			t.Cleanup(func() { _ = provider.Shutdown(t.Context()) })
 
 			conf := testConfig(t)
@@ -102,6 +103,7 @@ func Test_Tracing(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Traceparent", traceparent)
+
 			rec := httptest.NewRecorder()
 			srv.Handler().ServeHTTP(rec, req)
 			assert.Equal(t, tt.wantStatus, rec.Code)
@@ -121,6 +123,7 @@ func Test_Tracing(t *testing.T) {
 
 			// the access record carries the trace and span IDs of the span, like the other lines of the request.
 			entries := logs.All()
+
 			records := make([]string, 0, len(entries))
 			for _, entry := range entries {
 				fields := entry.ContextMap()
@@ -128,15 +131,18 @@ func Test_Tracing(t *testing.T) {
 				assert.Equal(t, span.SpanContext().SpanID().String(), fields["span_id"], entry.Message)
 				records = append(records, entry.Message)
 			}
+
 			assert.Contains(t, records, tt.wantRecord)
 
 			attrs := map[attribute.Key]attribute.Value{}
 			for _, kv := range span.Attributes() {
 				attrs[kv.Key] = kv.Value
 			}
+
 			assert.Equal(t, int64(tt.wantStatus), attrs["http.response.status_code"].AsInt64())
 			assert.Equal(t, tt.method, attrs["http.request.method"].AsString())
 			assert.Equal(t, tt.wantRoute, attrs["http.route"].AsString())
+
 			if tt.wantError {
 				assert.Equal(t, codes.Error, span.Status().Code)
 			} else {

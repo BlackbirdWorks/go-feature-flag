@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -39,11 +40,12 @@ func (c *flagLoadedCollector) Describe(ch chan<- *prom.Desc) {
 	ch <- c.desc
 }
 
-func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
+func (c *flagLoadedCollector) Collect(metricsCh chan<- prom.Metric) {
 	flagsets, err := c.source.AllFlagSets()
 	if err != nil {
 		return
 	}
+
 	for flagsetName, flagset := range flagsets {
 		if flagset == nil {
 			continue
@@ -53,33 +55,36 @@ func (c *flagLoadedCollector) Collect(ch chan<- prom.Metric) {
 		if getFlagsFromCacheReadOnlyErr != nil {
 			continue
 		}
+
 		svc := flagset.EvaluationService()
-		for flagName, f := range flags {
+		for flagName, targetFlag := range flags {
 			metric, constMetricErr := prom.NewConstMetric(
 				c.desc,
 				prom.GaugeValue,
 				1,
 				flagsetName,
 				flagName,
-				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, f)),
+				strconv.FormatBool(isEffectivelyDisabled(svc, flagName, targetFlag)),
 			)
 			if constMetricErr != nil {
 				continue
 			}
-			ch <- metric
+
+			metricsCh <- metric
 		}
 	}
 }
 
 // isEffectivelyDisabled evaluates the flag so scheduled steps and experimentation windows are taken into account.
-func isEffectivelyDisabled(svc *flag.Service, flagName string, f flag.Flag) bool {
+func isEffectivelyDisabled(svc *flag.Service, flagName string, targetFlag flag.Flag) bool {
 	ctx := ffcontext.NewEvaluationContext(flagLoadedEvaluationKey)
-	if internal, ok := f.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
+	if internal, ok := targetFlag.(*flag.InternalFlag); ok && internal.GetBucketingKey() != "" {
 		addNestedAttribute(ctx, internal.GetBucketingKey(), flagLoadedEvaluationKey)
 	}
-	_, details := f.Value(flagName, ctx, flag.Context{Service: svc})
+
+	_, details := targetFlag.Value(flagName, ctx, flag.Context{Service: svc})
 	if details.Reason == flag.ReasonError {
-		return f.IsDisable()
+		return targetFlag.IsDisable()
 	}
 
 	return details.Reason == flag.ReasonDisabled
@@ -88,6 +93,7 @@ func isEffectivelyDisabled(svc *flag.Service, flagName string, f flag.Flag) bool
 // addNestedAttribute sets a dotted key such as "company.id" as nested maps, the shape GetNestedFieldValue reads.
 func addNestedAttribute(ctx ffcontext.EvaluationContext, dottedKey string, value any) {
 	parts := strings.Split(dottedKey, ".")
+
 	current := ctx.GetCustom()
 	for _, part := range parts[:len(parts)-1] {
 		next, ok := current[part].(map[string]any)
@@ -95,8 +101,10 @@ func addNestedAttribute(ctx ffcontext.EvaluationContext, dottedKey string, value
 			next = map[string]any{}
 			current[part] = next
 		}
+
 		current = next
 	}
+
 	current[parts[len(parts)-1]] = value
 }
 
@@ -106,5 +114,10 @@ func (m *Metrics) RegisterFlagLoaded(source FlagsetSource) error {
 		return nil
 	}
 
-	return m.Registry.Register(newFlagLoadedCollector(source))
+	err := m.Registry.Register(newFlagLoadedCollector(source))
+	if err != nil {
+		return fmt.Errorf("register flag loaded collector: %w", err)
+	}
+
+	return nil
 }

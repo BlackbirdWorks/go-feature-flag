@@ -35,21 +35,22 @@ func Endpoints() []Endpoint {
 }
 
 // ParseEndpoint validates an endpoint name. The legacy goff-eval and goff-allflags names are aliases.
-func ParseEndpoint(s string) (Endpoint, error) {
+func ParseEndpoint(name string) (Endpoint, error) {
 	// Legacy spellings from before the rename are still accepted.
-	switch s {
+	switch name {
 	case "goff-eval":
-		s = string(SemaphoreEval)
+		name = string(SemaphoreEval)
 	case "goff-allflags":
-		s = string(SemaphoreAllFlags)
+		name = string(SemaphoreAllFlags)
 	}
+
 	for _, e := range Endpoints() {
-		if string(e) == s {
+		if string(e) == name {
 			return e, nil
 		}
 	}
 
-	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, s, Endpoints())
+	return "", fmt.Errorf("%w %q (want one of %v)", errUnknownEndpoint, name, Endpoints())
 }
 
 // EmitsEvents reports whether evaluating through the endpoint queues feature events in the
@@ -79,6 +80,7 @@ func (e Endpoint) Body(i int) string {
 	user := i % distinctUsers
 	custom := fmt.Sprintf(`"email":"user-%d@example.com","country":"FR","age":34,"plan":"pro",`+
 		`"region":"eu-west-1","beta":true,"version":"1.42.0","device":"ios","company":"acme"`, user)
+
 	switch e {
 	case SemaphoreEval:
 		return fmt.Sprintf(`{"evaluationContext":{"key":"user-%d","custom":{%s}},"defaultValue":false}`, user, custom)

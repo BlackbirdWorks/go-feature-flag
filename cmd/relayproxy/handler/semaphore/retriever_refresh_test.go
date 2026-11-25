@@ -23,7 +23,7 @@ func Test_retriever_refresh_Handler_no_goff(t *testing.T) {
 	require.Error(t, handlerErr)
 	assert.Equal(
 		t,
-		"code=500, message=flagset manager is not initialized",
+		"getting the flag set of the refresh: code=500, message=flagset manager is not initialized",
 		handlerErr.Error(),
 	)
 }

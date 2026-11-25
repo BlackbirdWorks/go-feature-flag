@@ -10,6 +10,7 @@ import (
 // jsonOf returns the JSON document a response body is sent as.
 func jsonOf(t *testing.T, v any) string {
 	t.Helper()
+
 	b, err := json.Marshal(v)
 	require.NoError(t, err)
 

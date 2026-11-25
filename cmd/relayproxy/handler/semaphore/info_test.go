@@ -110,6 +110,7 @@ func Test_info_Handler(t *testing.T) {
 
 			// Parse the response JSON to check the structure
 			var response map[string]any
+
 			encoded, err := json.Marshal(out.Body)
 			require.NoError(t, err)
 			err = json.Unmarshal(encoded, &response)
@@ -120,20 +121,30 @@ func Test_info_Handler(t *testing.T) {
 			assert.True(t, exists, "Response should contain cacheRefresh field")
 
 			// Parse the timestamp string
-			cacheRefresh, err := time.Parse(time.RFC3339, cacheRefreshStr.(string))
+			cacheRefreshRaw, ok := cacheRefreshStr.(string)
+			require.True(t, ok, "cacheRefresh should be a string")
+
+			cacheRefresh, err := time.Parse(time.RFC3339, cacheRefreshRaw)
 			require.NoError(t, err, "cacheRefresh should be a valid RFC3339 timestamp")
 			assert.False(t, cacheRefresh.IsZero(), "cacheRefresh should not be zero time")
 
 			if tt.config.FlagSets != nil {
-				flagsets, hasFlagsets := response["flagsets"]
+				flagsetsRaw, hasFlagsets := response["flagsets"]
 				assert.True(t, hasFlagsets, "Response should contain flagsets field")
-				assert.Len(t, flagsets.(map[string]any), len(tt.config.FlagSets), "Number of flagsets should match")
+
+				flagsets, isMap := flagsetsRaw.(map[string]any)
+				require.True(t, isMap, "flagsets should be a map")
+				assert.Len(t, flagsets, len(tt.config.FlagSets), "Number of flagsets should match")
+
 				for _, flagset := range tt.config.FlagSets {
 					flagsetName := flagset.Name
-					flagsetRefreshDateStr, hasFlagset := flagsets.(map[string]any)[flagsetName]
+					flagsetRefreshDateRaw, hasFlagset := flagsets[flagsetName]
 					assert.True(t, hasFlagset, "Response should contain flagset %s field", flagsetName)
 
-					flagsetRefreshDate, parseErr := time.Parse(time.RFC3339, flagsetRefreshDateStr.(string))
+					flagsetRefreshDateStr, isStr := flagsetRefreshDateRaw.(string)
+					require.True(t, isStr, "flagset refresh date should be a string")
+
+					flagsetRefreshDate, parseErr := time.Parse(time.RFC3339, flagsetRefreshDateStr)
 					require.NoError(t, parseErr, "flagsetRefreshDate should be a valid RFC3339 timestamp")
 					assert.False(t, flagsetRefreshDate.IsZero(), "flagsetRefreshDate should not be zero time")
 				}

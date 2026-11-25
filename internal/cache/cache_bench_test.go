@@ -24,9 +24,10 @@ func benchFlags(b *testing.B, n int) map[string]dto.DTO {
 
 func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
 	tb.Helper()
-	sb := make([]byte, 0, n*128)
+
+	buf := make([]byte, 0, n*128)
 	for i := range n {
-		sb = append(sb, fmt.Sprintf(`flag-%d:
+		buf = append(buf, fmt.Sprintf(`flag-%d:
   variations: {A: true, B: false}
   targeting:
     - query: key eq "user-%d"
@@ -35,35 +36,41 @@ func benchFlagsMap(tb testing.TB, n int) map[string]dto.DTO {
     percentage: {A: 50, B: 50}
 `, i, i)...)
 	}
+
 	var flags map[string]dto.DTO
-	require.NoError(tb, yaml.Unmarshal(sb, &flags))
+	require.NoError(tb, yaml.Unmarshal(buf, &flags))
 
 	return flags
 }
 
 // BenchmarkGetFlag measures the flag lookup done on every evaluation.
 func BenchmarkGetFlag(b *testing.B) {
-	for _, n := range []int{10, 1000} {
-		flags := benchFlags(b, n)
-		b.Run(fmt.Sprintf("flags=%d/serial", n), func(b *testing.B) {
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			_ = m.UpdateCache(flags, nil, false)
+	for _, numFlags := range []int{10, 1000} {
+		flags := benchFlags(b, numFlags)
+		b.Run(fmt.Sprintf("flags=%d/serial", numFlags), func(b *testing.B) {
+			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			_ = cacheMgr.UpdateCache(flags, nil, false)
+
 			b.ReportAllocs()
 			b.ResetTimer()
+
 			for range b.N {
-				if _, err := m.GetFlag("flag-5"); err != nil {
+				_, err := cacheMgr.GetFlag("flag-5")
+				if err != nil {
 					require.NoError(b, err)
 				}
 			}
 		})
-		b.Run(fmt.Sprintf("flags=%d/parallel", n), func(b *testing.B) {
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			_ = m.UpdateCache(flags, nil, false)
+		b.Run(fmt.Sprintf("flags=%d/parallel", numFlags), func(b *testing.B) {
+			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			_ = cacheMgr.UpdateCache(flags, nil, false)
+
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					if _, err := m.GetFlag("flag-5"); err != nil {
+					_, err := cacheMgr.GetFlag("flag-5")
+					if err != nil {
 						assert.NoError(b, err)
 
 						return
@@ -71,29 +78,36 @@ func BenchmarkGetFlag(b *testing.B) {
 				}
 			})
 		})
-		b.Run(fmt.Sprintf("flags=%d/parallel-with-updates", n), func(b *testing.B) {
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			_ = m.UpdateCache(flags, nil, false)
-			var stop atomic.Bool
-			var wg sync.WaitGroup
+		b.Run(fmt.Sprintf("flags=%d/parallel-with-updates", numFlags), func(b *testing.B) {
+			cacheMgr := cache.New(nil, "", &fflog.FFLogger{})
+			_ = cacheMgr.UpdateCache(flags, nil, false)
+
+			var (
+				stop atomic.Bool
+				wg   sync.WaitGroup
+			)
 			wg.Go(func() {
 				for !stop.Load() {
-					_ = m.UpdateCache(flags, nil, false)
+					_ = cacheMgr.UpdateCache(flags, nil, false)
 				}
 			})
 			b.ReportAllocs()
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
-				var f flag.Flag
+				var cachedFlag flag.Flag
+
 				for pb.Next() {
 					var err error
-					if f, err = m.GetFlag("flag-5"); err != nil {
+
+					cachedFlag, err = cacheMgr.GetFlag("flag-5")
+					if err != nil {
 						assert.NoError(b, err)
 
 						return
 					}
 				}
-				_ = f
+
+				_ = cachedFlag
 			})
 			b.StopTimer()
 			stop.Store(true)

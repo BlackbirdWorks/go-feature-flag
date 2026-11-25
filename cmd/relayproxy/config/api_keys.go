@@ -2,8 +2,8 @@ package config
 
 // APIKeys is a struct to store the API keys for the different endpoints.
 type APIKeys struct {
-	Admin      []string `mapstructure:"admin"      koanf:"admin"`
-	Evaluation []string `mapstructure:"evaluation" koanf:"evaluation"`
+	Admin      []string `koanf:"admin"      mapstructure:"admin"`
+	Evaluation []string `koanf:"evaluation" mapstructure:"evaluation"`
 }
 
 type APIKeyType = string
@@ -28,6 +28,7 @@ func (c *Config) APIKeysAdminExists(apiKey string) bool {
 func (c *Config) APIKeyExists(apiKey string) bool {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
+
 	_, ok := c.apiKeysSet[apiKey]
 
 	return ok
@@ -58,6 +59,7 @@ func (c *Config) preloadAPIKeysLocked() {
 	if len(c.FlagSets) > 0 {
 		c.hadFlagSets = true
 	}
+
 	if !c.hadFlagSets {
 		addAPIKeys(c.AuthorizedKeys.Evaluation, EvaluationKeyType)
 		addAPIKeys(c.APIKeys, EvaluationKeyType)
@@ -83,6 +85,7 @@ func (c *Config) preloadAPIKeysLocked() {
 func (c *Config) preloadAPIKeys() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	c.preloadAPIKeysLocked()
 }
 
@@ -92,6 +95,7 @@ func (c *Config) preloadAPIKeys() {
 func (c *Config) ForceReloadAPIKeys() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	c.forceAuthenticatedRequests = false
 	c.apiKeysSet = nil
 	c.preloadAPIKeysLocked()
@@ -103,6 +107,7 @@ func (c *Config) ForceReloadAPIKeys() {
 func (c *Config) ReplaceAPIKeys(authorizedKeys APIKeys, apiKeys []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
 	c.AuthorizedKeys = authorizedKeys
 	c.APIKeys = apiKeys
 	c.preloadAPIKeysLocked()

@@ -30,11 +30,13 @@ func BindBody(r *http.Request, target any) error {
 	if r.ContentLength == 0 {
 		return nil
 	}
+
 	if !IsJSON(r.Header.Get(HeaderContentType)) {
 		return NewHTTPError(http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
 	}
 
 	buf, _ := bodyBuffers.Get().(*bytes.Buffer)
+
 	buf.Reset()
 	defer func() {
 		if buf.Cap() <= maxPooledBody {
@@ -42,7 +44,8 @@ func BindBody(r *http.Request, target any) error {
 		}
 	}()
 
-	if _, err := buf.ReadFrom(r.Body); err != nil {
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
 		return wrapBindError(err)
 	}
 
@@ -51,7 +54,8 @@ func BindBody(r *http.Request, target any) error {
 
 // DecodeJSON decodes a JSON document in target. A failure is a 400.
 func DecodeJSON(data []byte, target any) error {
-	if err := json.Unmarshal(data, target); err != nil {
+	err := json.Unmarshal(data, target)
+	if err != nil {
 		return WrapHTTPError(http.StatusBadRequest, err)
 	}
 
@@ -63,6 +67,7 @@ func BindRawBody(contentType string, raw []byte, target any) error {
 	if len(raw) == 0 {
 		return nil
 	}
+
 	if !IsJSON(contentType) {
 		return NewHTTPError(http.StatusUnsupportedMediaType, http.StatusText(http.StatusUnsupportedMediaType))
 	}

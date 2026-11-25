@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -24,18 +25,18 @@ const (
 	manifestCapabilitiesValue  = "read"
 )
 
+// Ctrl is the controller of the manifest endpoint.
+type Ctrl struct {
+	flagsetManager service.FlagsetManager
+	metrics        metric.Metrics
+}
+
 func NewManifest(
 	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
 	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
-}
-
-// Ctrl is the controller of the manifest endpoint.
-type Ctrl struct {
-	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
 }
 
 // Input is the request of the manifest endpoint.
@@ -57,10 +58,11 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, m.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the manifest: %w", httpErr)
 	}
 
 	logger := logging.FromContext(ctx)
+
 	flags, err := flagset.GetFlagsFromCacheWithContext(ctx)
 	if err != nil {
 		logger.LogAttrs(
@@ -70,15 +72,22 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 			cmdlog.Err(err),
 		)
 
-		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
+		return nil, fmt.Errorf(
+			"reading the flags of the manifest: %w",
+			helper.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache"),
+		)
 	}
 
 	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(logger))
 	if err != nil {
 		logger.LogAttrs(ctx, slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 
-		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
+		return nil, fmt.Errorf(
+			"generating the manifest: %w",
+			helper.NewHTTPError(http.StatusInternalServerError, "error while generating manifest"),
+		)
 	}
+
 	responses := make([]model.ManifestDefinitionSuccessResponse, 0, len(manifest))
 	for k, v := range manifest {
 		responses = append(responses, model.ManifestDefinitionSuccessResponse{
@@ -88,6 +97,7 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 			Description:  v.Description,
 		})
 	}
+
 	sort.Slice(responses, func(i, j int) bool {
 		return responses[i].Key < responses[j].Key
 	})

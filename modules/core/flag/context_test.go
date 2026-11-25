@@ -15,6 +15,7 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 		value any
 		key   string
 	}
+
 	tests := []struct {
 		args                        args
 		expected                    any

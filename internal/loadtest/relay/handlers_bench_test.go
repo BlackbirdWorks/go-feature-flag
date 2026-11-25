@@ -18,17 +18,29 @@ import (
 )
 
 // invoke runs the handler once the way the router would, without any network.
-func invoke(b *testing.B, h func(http.ResponseWriter, *http.Request) error, ep relay.Endpoint, key string, i int) {
+func invoke(
+	b *testing.B,
+	handler func(http.ResponseWriter, *http.Request) error,
+	endpoint relay.Endpoint,
+	key string,
+	i int,
+) {
 	b.Helper()
-	req := httptest.NewRequest(http.MethodPost, ep.Path(key), strings.NewReader(ep.Body(i)))
+
+	req := httptest.NewRequest(http.MethodPost, endpoint.Path(key), strings.NewReader(endpoint.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
+
 	rec := httptest.NewRecorder()
+
 	req.SetPathValue("flagKey", key)
-	if err := h(rec, req); err != nil {
+
+	err := handler(rec, req)
+	if err != nil {
 		assert.NoError(b, err)
 
 		return
 	}
+
 	assert.Equal(b, http.StatusOK, rec.Code, "unexpected status: %s", rec.Body.String())
 }
 
@@ -40,7 +52,9 @@ func BenchmarkHandlers(b *testing.B) {
 		ExporterMode: loadtest.ExporterDiscard,
 	})
 	require.NoError(b, err)
+
 	defer r.Close()
+
 	fm, metrics := r.Services.FlagsetManager, r.Services.Metrics
 	semEval := controller.NewFlagEval(fm, metrics)
 	semAll := controller.NewAllFlags(fm, metrics)
@@ -51,26 +65,29 @@ func BenchmarkHandlers(b *testing.B) {
 		relay.OFREPEval:         ofrepCtrl.Evaluate,
 		relay.OFREPBulk:         ofrepCtrl.BulkEvaluate,
 	}
-	for _, ep := range relay.Endpoints() {
+
+	for _, endpoint := range relay.Endpoints() {
 		for _, track := range []bool{false, true} {
-			if (ep == relay.SemaphoreAllFlags || ep == relay.OFREPBulk) && track {
+			if (endpoint == relay.SemaphoreAllFlags || endpoint == relay.OFREPBulk) && track {
 				continue
 			}
+
 			key := loadtest.FlagKey("rule", "bool", track)
-			h := handlers[ep]
-			b.Run(fmt.Sprintf("%s/track=%t", ep, track), func(b *testing.B) {
+			handler := handlers[endpoint]
+			b.Run(fmt.Sprintf("%s/track=%t", endpoint, track), func(b *testing.B) {
 				b.ReportAllocs()
+
 				for i := range b.N {
-					invoke(b, h, ep, key, i)
+					invoke(b, handler, endpoint, key, i)
 				}
 			})
-			b.Run(fmt.Sprintf("%s/track=%t/parallel", ep, track), func(b *testing.B) {
+			b.Run(fmt.Sprintf("%s/track=%t/parallel", endpoint, track), func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					i := 0
 					for pb.Next() {
 						i++
-						invoke(b, h, ep, key, i)
+						invoke(b, handler, endpoint, key, i)
 					}
 				})
 			})

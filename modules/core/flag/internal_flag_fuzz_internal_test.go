@@ -16,6 +16,7 @@ import (
 // error, whatever the evaluation context.
 func FuzzInternalFlagValue(f *testing.F) {
 	ctx := `{"targetingKey": "user-1", "email": "john@doe.com", "company": {"id": "goff"}, "age": 42}`
+
 	evalDate := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC).Unix()
 	for _, flag := range []string{
 		`{"variations": {"enable": true, "disable": false},
@@ -35,18 +36,24 @@ func FuzzInternalFlagValue(f *testing.F) {
 	} {
 		f.Add(flag, ctx, evalDate)
 	}
+
 	f.Fuzz(func(t *testing.T, flagJSON, ctxJSON string, evalUnix int64) {
 		// Every fuzzed query would otherwise stay in the evaluator cache forever.
 		svc := NewService()
-		var internalFlag InternalFlag
-		var attributes map[string]any
+
+		var (
+			internalFlag InternalFlag
+			attributes   map[string]any
+		)
 		if json.Unmarshal([]byte(flagJSON), &internalFlag) != nil ||
 			json.Unmarshal([]byte(ctxJSON), &attributes) != nil {
 			return
 		}
+
 		if hasKnownFlagGap(&internalFlag) {
 			return
 		}
+
 		date := time.Unix(evalUnix, 0)
 		targetingKey, _ := attributes["targetingKey"].(string)
 		evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, attributes)
@@ -59,6 +66,7 @@ func FuzzInternalFlagValue(f *testing.F) {
 		if err != nil || hasKnownFlagGap(flagAtDate) || flagAtDate.IsValid(svc) != nil {
 			return
 		}
+
 		assert.NotEqual(t, ErrorFlagConfiguration, details.ErrorCode, "%s", details.ErrorMessage)
 	})
 }
@@ -67,19 +75,21 @@ func FuzzInternalFlagValue(f *testing.F) {
 // (scheduled steps included), and flags without default rule but with a
 // scheduled step updating it (Value panics).
 // ponytail: same as hasKnownValidationGap, drop the cases once they are fixed.
-func hasKnownFlagGap(f *InternalFlag) bool {
-	rules := f.GetRules()
-	if f.DefaultRule != nil {
-		rules = append(rules, *f.DefaultRule)
+func hasKnownFlagGap(targetFlag *InternalFlag) bool {
+	rules := targetFlag.GetRules()
+	if targetFlag.DefaultRule != nil {
+		rules = append(rules, *targetFlag.DefaultRule)
 	}
+
 	if slices.ContainsFunc(rules, hasKnownValidationGap) {
 		return true
 	}
-	if f.Scheduled == nil {
+
+	if targetFlag.Scheduled == nil {
 		return false
 	}
 
-	return slices.ContainsFunc(*f.Scheduled, func(step ScheduledStep) bool {
-		return (f.DefaultRule == nil && step.DefaultRule != nil) || hasKnownFlagGap(&step.InternalFlag)
+	return slices.ContainsFunc(*targetFlag.Scheduled, func(step ScheduledStep) bool {
+		return (targetFlag.DefaultRule == nil && step.DefaultRule != nil) || hasKnownFlagGap(&step.InternalFlag)
 	})
 }

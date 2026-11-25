@@ -17,6 +17,7 @@ func TestUserAddCustomAttribute(t *testing.T) {
 		value any
 		name  string
 	}
+
 	tests := []struct {
 		args args
 		user ffcontext.EvaluationContext
@@ -417,8 +418,10 @@ func TestEvaluationContextToMap_DoesNotMutateContext(t *testing.T) {
 
 func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 	t.Parallel()
+
 	newDate := "2025-01-02T03:04:05Z"
 	legacyDate := "2020-01-02T03:04:05Z"
+
 	tests := []struct {
 		attributes map[string]any
 		wantMeta   map[string]any
@@ -498,19 +501,23 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctx := ffcontext.NewEvaluationContext("key")
 			for k, v := range tt.attributes {
 				ctx.AddCustomAttribute(k, v)
 			}
+
 			got := ctx.ExtractGOFFProtectedFields()
 			assert.Equal(t, tt.wantFlags, got.FlagList)
 			assert.Equal(t, tt.wantMeta, got.ExporterMetadata)
+
 			switch {
 			case tt.wantDate == "":
 				assert.Nil(t, got.CurrentDateTime)
 			case assert.NotNil(t, got.CurrentDateTime):
 				assert.True(t, got.CurrentDateTime.Equal(mustParse(t, tt.wantDate)))
 			}
+
 			assert.Equal(t, tt.attributes["other"] == nil, ffcontext.HasReservedKey(tt.attributes))
 		})
 	}
@@ -518,6 +525,7 @@ func TestExtractGOFFProtectedFieldsSemaphoreAndLegacyKeys(t *testing.T) {
 
 func mustParse(t *testing.T, s string) time.Time {
 	t.Helper()
+
 	d, err := time.Parse(time.RFC3339, s)
 	assert.NoError(t, err)
 

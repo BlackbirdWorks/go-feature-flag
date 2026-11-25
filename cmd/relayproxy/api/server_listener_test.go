@@ -25,7 +25,11 @@ func TestServer_WithListener(t *testing.T) {
 	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
-	port := listener.Addr().(*net.TCPAddr).Port
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
+	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: "../../../testdata/flag-config.yaml"}},
@@ -35,13 +39,15 @@ func TestServer_WithListener(t *testing.T) {
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 	t.Cleanup(manager.Close)
-	s := newTestServer(t, proxyConf, service.Services{
+
+	srv := newTestServer(t, proxyConf, service.Services{
 		MonitoringService: service.NewMonitoring(manager),
 		FlagsetManager:    manager,
 		Metrics:           metric.Metrics{},
 	}, log.Slog, api.WithListener(listener))
-	go s.StartWithContext(context.Background())
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	go srv.StartWithContext(context.Background())
+
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitForServer(t, baseURL)
@@ -49,6 +55,7 @@ func TestServer_WithListener(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
+
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

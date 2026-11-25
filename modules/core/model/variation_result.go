@@ -29,7 +29,10 @@ type VariationResult[T JSONType] struct {
 
 // ToJSONStr converts the VariationResult to a JSON string.
 func (v VariationResult[T]) ToJSONStr() string {
-	content, _ := json.Marshal(v)
+	content, err := json.Marshal(v)
+	if err != nil {
+		return ""
+	}
 
 	return string(content)
 }

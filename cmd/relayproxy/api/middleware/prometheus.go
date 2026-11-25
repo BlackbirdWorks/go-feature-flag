@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -37,6 +38,7 @@ func RoutePattern(r *http.Request) string {
 	if _, route, found := strings.Cut(pattern, " "); found {
 		pattern = route
 	}
+
 	if pattern == "" || pattern == "/" {
 		return r.URL.Path
 	}
@@ -48,16 +50,20 @@ func RoutePattern(r *http.Request) string {
 // anchors a path ending with a slash.
 func routeLabel(pattern string) string {
 	var b strings.Builder
+
 	for {
 		start := strings.IndexByte(pattern, '{')
 		if start < 0 {
 			break
 		}
+
 		end := strings.IndexByte(pattern[start:], '}')
 		if end < 0 {
 			break
 		}
+
 		b.WriteString(pattern[:start])
+
 		name := pattern[start+1 : start+end]
 		switch {
 		case name == "$":
@@ -66,8 +72,10 @@ func routeLabel(pattern string) string {
 		default:
 			b.WriteString(":" + name)
 		}
+
 		pattern = pattern[start+end+1:]
 	}
+
 	b.WriteString(pattern)
 
 	return b.String()
@@ -79,6 +87,7 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 	if cfg.HistogramOptsFunc == nil {
 		cfg.HistogramOptsFunc = func(opts prometheus.HistogramOpts) prometheus.HistogramOpts { return opts }
 	}
+
 	labels := []string{"code", "method", "host", "url"}
 
 	requestCount := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -98,6 +107,7 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 		Help:      "The HTTP response sizes in bytes.",
 		Buckets:   sizeBuckets(),
 	}), labels)
+
 	requestSize := prometheus.NewHistogramVec(cfg.HistogramOptsFunc(prometheus.HistogramOpts{
 		Subsystem: cfg.Subsystem,
 		Name:      "request_size_bytes",
@@ -105,8 +115,9 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 		Buckets:   sizeBuckets(),
 	}), labels)
 	for _, c := range []prometheus.Collector{requestCount, requestDuration, responseSize, requestSize} {
-		if err := cfg.Registerer.Register(c); err != nil {
-			return nil, err //nolint:wrapcheck // the error of the registry says what is wrong
+		err := cfg.Registerer.Register(c)
+		if err != nil {
+			return nil, fmt.Errorf("register prometheus collector: %w", err)
 		}
 	}
 
@@ -115,7 +126,9 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 			reqSize := approximateRequestSize(r)
 			rec := newRecorder(w)
 			start := time.Now()
+
 			next.ServeHTTP(rec, r)
+
 			elapsed := time.Since(start).Seconds()
 
 			values := [...]string{
@@ -124,40 +137,50 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 				r.Host,
 				strings.ToValidUTF8(RoutePattern(r), "�"),
 			}
-			if obs, err := requestDuration.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(elapsed)
+
+			durObs, durErr := requestDuration.GetMetricWithLabelValues(values[:]...)
+			if durErr == nil {
+				durObs.Observe(elapsed)
 			}
-			if obs, err := requestCount.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Inc()
+
+			cntObs, cntErr := requestCount.GetMetricWithLabelValues(values[:]...)
+			if cntErr == nil {
+				cntObs.Inc()
 			}
-			if obs, err := requestSize.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(float64(reqSize))
+
+			reqObs, reqErr := requestSize.GetMetricWithLabelValues(values[:]...)
+			if reqErr == nil {
+				reqObs.Observe(float64(reqSize))
 			}
-			if obs, err := responseSize.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(float64(rec.Size()))
+
+			respObs, respErr := responseSize.GetMetricWithLabelValues(values[:]...)
+			if respErr == nil {
+				respObs.Observe(float64(rec.Size()))
 			}
 		})
 	}, nil
 }
 
 func approximateRequestSize(r *http.Request) int {
-	s := 0
+	size := 0
 	if r.URL != nil {
-		s = len(r.URL.Path)
-	}
-	s += len(r.Method) + len(r.Proto)
-	for name, values := range r.Header {
-		s += len(name)
-		for _, value := range values {
-			s += len(value)
-		}
-	}
-	s += len(r.Host)
-	if r.ContentLength != -1 {
-		s += int(r.ContentLength)
+		size = len(r.URL.Path)
 	}
 
-	return s
+	size += len(r.Method) + len(r.Proto)
+	for name, values := range r.Header {
+		size += len(name)
+		for _, value := range values {
+			size += len(value)
+		}
+	}
+
+	size += len(r.Host)
+	if r.ContentLength != -1 {
+		size += int(r.ContentLength)
+	}
+
+	return size
 }
 
 // recorder remembers the status and the number of body bytes that were sent.
@@ -187,6 +210,7 @@ func (r *recorder) WriteHeader(code int) {
 	if r.status == 0 && (code >= http.StatusOK || code == http.StatusSwitchingProtocols) {
 		r.status = code
 	}
+
 	r.ResponseWriter.WriteHeader(code)
 }
 
@@ -195,10 +219,15 @@ func (r *recorder) Write(b []byte) (int, error) {
 	if r.status == 0 {
 		r.status = http.StatusOK
 	}
-	n, err := r.ResponseWriter.Write(b)
-	r.size += int64(n)
 
-	return n, err
+	written, err := r.ResponseWriter.Write(b)
+	r.size += int64(written)
+
+	if err != nil {
+		return written, fmt.Errorf("writing the response body: %w", err)
+	}
+
+	return written, nil
 }
 
 // Unwrap lets [http.ResponseController] reach the underlying writer (flush, hijack, deadlines).

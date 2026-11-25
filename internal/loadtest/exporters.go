@@ -73,9 +73,10 @@ func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []expor
 		select {
 		case <-time.After(e.Delay):
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("exporting the load test events: %w", ctx.Err())
 		}
 	}
+
 	e.Batches.Add(1)
 	e.Events.Add(int64(len(events)))
 

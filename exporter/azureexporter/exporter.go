@@ -49,27 +49,6 @@ type Exporter struct {
 	ServiceURL string
 }
 
-func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
-	url := fmt.Sprintf("https://%s.blob.core.windows.net/", f.AccountName)
-	if f.ServiceURL != "" {
-		url = f.ServiceURL
-	}
-	if f.AccountKey == "" {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, err
-		}
-
-		return azblob.NewClient(url, cred, nil)
-	}
-	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return azblob.NewClientWithSharedKeyCredential(url, cred, nil)
-}
-
 func (f *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -90,7 +69,7 @@ func (f *Exporter) Export(
 
 	outputDir, err := os.MkdirTemp("", "semaphore_AzureBlobStorage_export")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for Azure export: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(outputDir) }()
 
@@ -101,33 +80,75 @@ func (f *Exporter) Export(
 		CsvTemplate:             f.CsvTemplate,
 		ParquetCompressionCodec: f.ParquetCompressionCodec,
 	}
+
 	err = fileExporter.Export(ctx, logger, featureEvents)
 	if err != nil {
-		return err
+		return fmt.Errorf("export events to temp file for Azure: %w", err)
 	}
 
 	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read temp dir for Azure export: %w", err)
 	}
 
 	for _, file := range files {
 		fileName := file.Name()
-		of, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
+
+		fileHandle, openErr := os.Open(path.Clean(outputDir + "/" + fileName))
 		if openErr != nil {
-			logger.Error(
+			logger.ErrorContext(
+				ctx,
 				"[Azure Exporter] impossible to open file",
 				slog.String("path", outputDir+"/"+fileName),
 			)
 
 			continue
 		}
-		if uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName); uploadFileErr != nil {
+
+		uploadFileErr := f.uploadFile(ctx, client, logger, fileHandle, outputDir, fileName)
+		if uploadFileErr != nil {
 			return uploadFileErr
 		}
 	}
 
 	return nil
+}
+
+func (f *Exporter) IsBulk() bool {
+	return true
+}
+
+func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
+	url := fmt.Sprintf("https://%s.blob.core.windows.net/", f.AccountName)
+	if f.ServiceURL != "" {
+		url = f.ServiceURL
+	}
+
+	if f.AccountKey == "" {
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, fmt.Errorf("create default Azure credential: %w", err)
+		}
+
+		client, err := azblob.NewClient(url, cred, nil)
+		if err != nil {
+			return nil, fmt.Errorf("create Azure blob client: %w", err)
+		}
+
+		return client, nil
+	}
+
+	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
+	if err != nil {
+		return nil, fmt.Errorf("create Azure shared key credential: %w", err)
+	}
+
+	client, err := azblob.NewClientWithSharedKeyCredential(url, cred, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create Azure blob client with shared key: %w", err)
+	}
+
+	return client, nil
 }
 
 // uploadFile uploads a single file to Azure Blob Storage and closes the file
@@ -138,10 +159,10 @@ func (f *Exporter) uploadFile(
 	ctx context.Context,
 	client *azblob.Client,
 	logger *fflog.FFLogger,
-	of *os.File,
+	fileHandle *os.File,
 	outputDir, fileName string,
 ) error {
-	defer func() { _ = of.Close() }()
+	defer func() { _ = fileHandle.Close() }()
 
 	// prepend the path
 	source := fileName
@@ -149,23 +170,22 @@ func (f *Exporter) uploadFile(
 		source = f.Path + "/" + fileName
 	}
 
-	if _, err := client.UploadFile(ctx, f.Container, source, of, nil); err != nil {
-		logger.Error(
+	_, err := client.UploadFile(ctx, f.Container, source, fileHandle, nil)
+	if err != nil {
+		logger.ErrorContext(
+			ctx,
 			"[Azure Exporter] failed to upload file",
 			slog.String("path", outputDir+"/"+fileName),
 		)
 
-		return err
+		return fmt.Errorf("upload file to Azure blob: %w", err)
 	}
 
-	logger.Info(
+	logger.InfoContext(
+		ctx,
 		"[Azure Exporter] file uploaded.",
 		slog.String("location", f.Container+"/"+fileName),
 	)
 
 	return nil
-}
-
-func (f *Exporter) IsBulk() bool {
-	return true
 }

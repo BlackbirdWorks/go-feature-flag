@@ -3,6 +3,8 @@ DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
 ALL_GO_MOD_DIRS := ./
+# Build tag sets of the Go sources: the default one (files tagged !docker) and the one of the tagged files.
+GO_TAG_SETS := none docker,bench
 
 # In CI we disable workspace mode.
 ifeq ($(CI),true)
@@ -19,7 +21,7 @@ WHITE  := $(shell tput -Txterm setaf 7)
 CYAN   := $(shell tput -Txterm setaf 6)
 RESET  := $(shell tput -Txterm sgr0)
 
-.PHONY: all test test-unit test-unit-root test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage test-ci-scripts
+.PHONY: vet fix fix-check all test test-unit test-unit-root test-integration test-e2e build vendor fuzz lint lint-install lint-module coverage coverage-report clean-coverage test-ci-scripts
 
 SHELL := bash
 
@@ -226,6 +228,27 @@ lint: lint-install ## Use golintci-lint on all the modules of the project
 	done; \
 	mulint=$$(go tool -n mulint-vet) && go vet -vettool=$$mulint -tags=docker,bench ./... || rc=1; \
 	exit $$rc
+
+# Runs go vet on every module, for every build tag set.
+vet: ## Run go vet on all the modules, with and without the build tags
+	@rc=0; for module in $(ALL_GO_MOD_DIRS); do for tags in $(GO_TAG_SETS); do \
+		echo "→ go vet $$module (tags: $$tags)"; \
+		(cd $$module && $(GOWORK_ENV) $(GOVET) -tags=$$tags ./...) || rc=1; \
+	done; done; exit $$rc
+
+# Fails when go fix would change something.
+fix-check: ## Fail if go fix would rewrite any module, with and without the build tags
+	@rc=0; for module in $(ALL_GO_MOD_DIRS); do for tags in $(GO_TAG_SETS); do \
+		echo "→ go fix -diff $$module (tags: $$tags)"; \
+		(cd $$module && $(GOWORK_ENV) $(GOCMD) fix -diff -tags=$$tags ./...) || rc=1; \
+	done; done; \
+	if [ $$rc -ne 0 ]; then echo "go fix would change the code: run 'make fix'"; fi; exit $$rc
+
+fix: ## Apply go fix on all the modules, with and without the build tags
+	@for module in $(ALL_GO_MOD_DIRS); do for tags in $(GO_TAG_SETS); do \
+		echo "→ go fix $$module (tags: $$tags)"; \
+		(cd $$module && $(GOWORK_ENV) $(GOCMD) fix -tags=$$tags ./...) || exit 1; \
+	done; done
 
 vuln-check: ## Run govulncheck on all modules in the workspace
 	@which govulncheck > /dev/null 2>&1 || $(GOCMD) install golang.org/x/vuln/cmd/govulncheck@latest

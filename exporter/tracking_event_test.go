@@ -65,6 +65,7 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 			require.NoError(t, err)
 			got, err := tt.trackingEvent.FormatInCSV(csvTemplate)
 			tt.wantErr(t, err)
+
 			if err == nil {
 				assert.Equal(t, tt.want, string(got))
 			}
@@ -122,6 +123,7 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 
 			got, err := tt.trackingEvent.FormatInJSON()
 			tt.wantErr(t, err)
+
 			if err == nil {
 				assert.JSONEq(t, tt.want, string(got))
 			}

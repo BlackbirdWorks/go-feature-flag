@@ -67,21 +67,25 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 	}
 
 	reqBody := convertToDiscordMessage(diff)
+
 	payload, err := json.Marshal(reqBody)
 	if err != nil {
 		return fmt.Errorf("error: (Discord Notifier) failed to create message payload; %w", err)
 	}
+
 	request := http.Request{
 		Method: http.MethodPost,
 		URL:    discordURL,
 		Body:   io.NopCloser(bytes.NewReader(payload)),
 		Header: map[string][]string{"Content-Type": {"application/json"}},
 	}
+
 	response, err := c.httpClient.Do(&request)
 	if err != nil {
 		return fmt.Errorf("error: (Discord Notifier) error calling webhook: %w", internal.RedactURLError(err))
 	}
 	defer func() { _ = response.Body.Close() }()
+
 	if response.StatusCode >= http.StatusBadRequest {
 		return fmt.Errorf("%w = %d", errErrorDiscordNotifierWebhook,
 			response.StatusCode,
@@ -108,9 +112,11 @@ func convertToDiscordMessage(diffCache notifier.DiffCache) discordMessage {
 			Color: colorDeleted,
 		})
 	}
+
 	for i := range embeds {
 		embeds[i].Title = truncate(embeds[i].Title, maxDiscordTitle)
 	}
+
 	fitTotalLength(embeds)
 
 	return discordMessage{
@@ -135,15 +141,17 @@ func convertUpdatedFlagsToDiscordEmbed(diffCache notifier.DiffCache) []embed {
 	embeds := make([]embed, 0, len(diffCache.Updated))
 	for key, value := range diffCache.Updated {
 		title := fmt.Sprintf("✏️ Flag \"%s\" updated%s", key, notifier.UpdatedBySuffix(value.After))
-		e := embed{Title: title, Color: colorUpdated}
+		item := embed{Title: title, Color: colorUpdated}
+
 		changes, err := notifier.DescribeChanges(value.Before, value.After)
 		if err != nil {
-			e.Description = fmt.Sprintf("%s: %s", notifier.ChangesUnavailable, err.Error())
+			item.Description = fmt.Sprintf("%s: %s", notifier.ChangesUnavailable, err.Error())
 		} else {
-			e.changes = changes
-			e.Description = notifier.ChangeList(changes, "• ", maxDiscordDescription)
+			item.changes = changes
+			item.Description = notifier.ChangeList(changes, "• ", maxDiscordDescription)
 		}
-		embeds = append(embeds, e)
+
+		embeds = append(embeds, item)
 	}
 
 	return embeds
@@ -178,6 +186,7 @@ type embed struct {
 // in one message. The budget is shared evenly: short lists stay whole and the longest are cut first.
 func fitTotalLength(embeds []embed) {
 	budget := maxDiscordTotal
+
 	lists := make([]int, 0, len(embeds))
 	for i, e := range embeds {
 		budget -= utf8.RuneCountInString(e.Title)
@@ -186,8 +195,10 @@ func fitTotalLength(embeds []embed) {
 
 			continue
 		}
+
 		lists = append(lists, i)
 	}
+
 	sort.SliceStable(lists, func(a, b int) bool {
 		return utf8.RuneCountInString(
 			embeds[lists[a]].Description,
@@ -195,11 +206,13 @@ func fitTotalLength(embeds []embed) {
 			embeds[lists[b]].Description,
 		)
 	})
+
 	for n, i := range lists {
 		share := max(budget/(len(lists)-n), 1)
 		if utf8.RuneCountInString(embeds[i].Description) > share {
 			embeds[i].Description = notifier.ChangeList(embeds[i].changes, "• ", share)
 		}
+
 		budget -= utf8.RuneCountInString(embeds[i].Description)
 	}
 }

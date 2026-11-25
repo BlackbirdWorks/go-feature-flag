@@ -16,12 +16,14 @@ type NotificationService struct {
 func (n *NotificationService) Notify(_, _ map[string]flag.Flag, _ *fflog.FFLogger) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
 	n.NotifyCalls++
 }
 
 func (n *NotificationService) Close() {
 	n.mu.Lock()
 	defer n.mu.Unlock()
+
 	n.CloseCalled = true
 }
 

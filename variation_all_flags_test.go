@@ -27,10 +27,12 @@ func compareJSONWithTimestampHandling(t *testing.T, expectedFilePath string, act
 	require.NoError(t, err, "Failed to read expected JSON file")
 
 	var expectedFlags map[string]any
+
 	err = json.Unmarshal(expected, &expectedFlags)
 	require.NoError(t, err, "Failed to unmarshal expected JSON")
 
 	var actualFlags map[string]any
+
 	err = json.Unmarshal(actualJSON, &actualFlags)
 	require.NoError(t, err, "Failed to unmarshal actual JSON")
 
@@ -140,11 +142,14 @@ func TestAllFlagsState(t *testing.T) {
 				Exporter:         &fileexporter.Exporter{OutputDir: exportDir},
 			}
 
-			var goff *ffclient.GoFeatureFlag
-			var err error
+			var (
+				goff *ffclient.GoFeatureFlag
+				err  error
+			)
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
 				require.NoError(t, err)
+
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -248,11 +253,14 @@ func TestGetFlagStates(t *testing.T) {
 				Exporter:         &fileexporter.Exporter{OutputDir: exportDir},
 			}
 
-			var goff *ffclient.GoFeatureFlag
-			var err error
+			var (
+				goff *ffclient.GoFeatureFlag
+				err  error
+			)
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
 				require.NoError(t, err)
+
 				defer goff.Close()
 			} else {
 				// we close directly so we can test with module not init
@@ -325,11 +333,14 @@ func TestAllFlagsFromCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var goff *ffclient.GoFeatureFlag
-			var err error
+			var (
+				goff *ffclient.GoFeatureFlag
+				err  error
+			)
 			if tt.initModule {
 				goff, err = ffclient.New(tt.config)
 				require.NoError(t, err)
+
 				defer goff.Close()
 
 				flags, getFlagsFromCacheErr := goff.GetFlagsFromCache()
@@ -362,6 +373,7 @@ func TestGetFlagsFromCacheReadOnly(t *testing.T) {
 `), 0o600))
 	goff, err := ffclient.New(ffclient.Config{Retriever: &fileretriever.Retriever{Path: path}})
 	require.NoError(t, err)
+
 	defer goff.Close()
 
 	steps := func(flags map[string]flag.Flag) *[]flag.ScheduledStep {

@@ -45,15 +45,15 @@ func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 
 // swaggerDocument is what the tests read of the OpenAPI document.
 type swaggerDocument struct {
-	OpenAPI    string                    `json:"openapi"    yaml:"openapi"`
-	Paths      map[string]map[string]any `json:"paths"      yaml:"paths"`
+	OpenAPI    string                    `json:"openapi" yaml:"openapi"`
+	Paths      map[string]map[string]any `json:"paths"   yaml:"paths"`
 	Components struct {
 		Schemas map[string]any `json:"schemas" yaml:"schemas"`
 	} `json:"components" yaml:"components"`
 	Info struct {
 		Version string `json:"version" yaml:"version"`
-	} `json:"info"       yaml:"info"`
-	Servers []any `json:"servers"    yaml:"servers"`
+	} `json:"info"    yaml:"info"`
+	Servers []any `json:"servers" yaml:"servers"`
 }
 
 // Test_Swagger checks the documents that the Swagger UI displays. The document describes the whole API (the
@@ -88,7 +88,7 @@ func Test_Swagger(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := newDocsServer(t, tt.monitoringPort)
+			handler := newDocsServer(t, tt.monitoringPort)
 			if tt.concurrent > 0 {
 				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
 				// downgrades are 3.0
@@ -98,27 +98,35 @@ func Test_Swagger(t *testing.T) {
 					{"/swagger/openapi.yaml", "3.1.0"},
 					{"/swagger/openapi-3.0.yaml", "3.0.3"},
 				}
+
 				paths := make([]string, 0, len(documents))
 				for _, d := range documents {
 					paths = append(paths, d.path)
 				}
+
 				var (
 					wg     sync.WaitGroup
 					mu     sync.Mutex
 					bodies = map[string][]string{}
 				)
+
 				for _, path := range paths {
 					for range tt.concurrent {
 						wg.Go(func() {
 							rec := httptest.NewRecorder()
-							h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+							handler.ServeHTTP(
+								rec,
+								httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil),
+							)
 							assert.Equal(t, http.StatusOK, rec.Code)
 							mu.Lock()
+
 							bodies[path] = append(bodies[path], rec.Body.String())
 							mu.Unlock()
 						})
 					}
 				}
+
 				wg.Wait()
 
 				for _, document := range documents {
@@ -132,11 +140,14 @@ func Test_Swagger(t *testing.T) {
 					} else {
 						require.NoError(t, yaml.Unmarshal([]byte(bodies[path][0]), &doc), path)
 					}
+
 					assert.Equal(t, "v9.9.9", doc.Info.Version, path)
 					assert.Equal(t, document.wantVersion, doc.OpenAPI, path)
+
 					for _, p := range tt.wantPaths {
 						assert.Contains(t, doc.Paths, p, path)
 					}
+
 					for _, body := range bodies[path] {
 						assert.Equal(t, bodies[path][0], body, path)
 					}
@@ -146,16 +157,22 @@ func Test_Swagger(t *testing.T) {
 			}
 
 			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/openapi.json", nil))
+			handler.ServeHTTP(
+				rec,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/swagger/openapi.json", nil),
+			)
 			require.Equal(t, http.StatusOK, rec.Code)
+
 			var doc swaggerDocument
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &doc))
 			assert.Equal(t, "v9.9.9", doc.Info.Version)
 			assert.Equal(t, "3.1.0", doc.OpenAPI)
 			assert.Empty(t, doc.Servers)
+
 			for _, path := range tt.wantPaths {
 				assert.Contains(t, doc.Paths, path)
 			}
+
 			assert.Contains(t, doc.Components.Schemas, "HealthResponse")
 			assert.Contains(t, doc.Components.Schemas, "AllFlagRequest")
 			// the schemas of the error model of huma are not used by any operation
@@ -180,13 +197,16 @@ type watchedListener struct {
 func (l *watchedListener) Accept() (net.Conn, error) {
 	conn, err := l.Listener.Accept()
 	if err != nil {
-		return nil, err //nolint:wrapcheck // transparent
+		return nil, err
 	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
 	if l.accepted {
 		return conn, nil
 	}
+
 	l.accepted = true
 
 	return &watchedConn{Conn: conn, listener: l}, nil
@@ -213,7 +233,7 @@ func (c *watchedConn) SetReadDeadline(t time.Time) error {
 	}
 	c.listener.mu.Unlock()
 
-	return c.Conn.SetReadDeadline(t) //nolint:wrapcheck // transparent
+	return c.Conn.SetReadDeadline(t)
 }
 
 // deadlineRecorder is a response writer that records the read deadlines that are set on the connection (huma sets
@@ -274,17 +294,22 @@ func Test_Upload(t *testing.T) {
 				strings.NewReader(`{"events":[]}`),
 			)
 			req.Header.Set("Content-Type", "application/json")
+
 			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 			// real time on purpose: huma sets the deadline from the real clock, and the network deadlines are enforced
 			// by the runtime poller, not by clock.Now.
 			before := time.Now()
+
 			srv.Handler().ServeHTTP(rec, req)
+
 			after := time.Now()
+
 			require.NotEmpty(
 				t,
 				rec.deadlines,
 				"the route set no read deadline: the chain hides the connection from huma",
 			)
+
 			first := rec.deadlines[0]
 			if tt.wantDeadline {
 				assert.False(
@@ -300,6 +325,7 @@ func Test_Upload(t *testing.T) {
 			// the listener of the server: its connections get a read deadline only when the server has a read timeout
 			// (a request of a client that does not stall is served in both cases)
 			var watched *watchedListener
+
 			base := startWrappedServer(t, testConfig(t), func(ln net.Listener) net.Listener {
 				watched = &watchedListener{Listener: ln}
 
@@ -313,6 +339,7 @@ func Test_Upload(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, http.StatusOK, resp.StatusCode)
+
 			first, set := watched.firstDeadline()
 			require.True(t, set, "the server sets a read deadline when it starts to read a request")
 			assert.Equal(t, tt.wantDeadline, !first.IsZero(),
@@ -331,13 +358,16 @@ func Test_Upload(t *testing.T) {
 			)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = conn.Close() })
+
 			_, err = fmt.Fprintf(conn, "POST %s HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n"+
 				"Content-Length: 100000\r\n\r\n{\"events\":[", tt.path)
 			require.NoError(t, err, "the request was sent in full")
 			require.NoError(t, conn.SetReadDeadline(time.Now().Add(30*time.Second)))
 			line, err := bufio.NewReader(conn).ReadString('\n')
+
 			var netErr net.Error
 			require.False(t, errors.As(err, &netErr) && netErr.Timeout(), "the server never ended the stalled upload")
+
 			if err == nil {
 				assert.Contains(t, line, "408", "the answer to a stalled upload is a 408")
 

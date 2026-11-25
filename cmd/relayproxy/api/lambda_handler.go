@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -56,7 +57,12 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV2(
 	req events.APIGatewayV2HTTPRequest,
 ) (
 	events.APIGatewayV2HTTPResponse, error) {
-	return h.adapterAPIGtwV2.ProxyWithContext(ctx, req)
+	res, err := h.adapterAPIGtwV2.ProxyWithContext(ctx, req)
+	if err != nil {
+		return res, fmt.Errorf("proxying the API Gateway V2 event: %w", err)
+	}
+
+	return res, nil
 }
 
 // HandlerAPIGatewayV1 is the function that proxy the lambda events to the API handler for API Gateway V1.
@@ -65,11 +71,21 @@ func (h *awsLambdaHandler) HandlerAPIGatewayV1(
 	req events.APIGatewayProxyRequest,
 ) (
 	events.APIGatewayProxyResponse, error) {
-	return h.adapterAPIGtwV1.ProxyWithContext(ctx, req)
+	res, err := h.adapterAPIGtwV1.ProxyWithContext(ctx, req)
+	if err != nil {
+		return res, fmt.Errorf("proxying the API Gateway V1 event: %w", err)
+	}
+
+	return res, nil
 }
 
 // HandlerALB is the function that proxy the lambda events to the API handler for API Gateway V1.
 func (h *awsLambdaHandler) HandlerALB(ctx context.Context, req events.ALBTargetGroupRequest) (
 	events.ALBTargetGroupResponse, error) {
-	return h.adapterALB.ProxyWithContext(ctx, req)
+	res, err := h.adapterALB.ProxyWithContext(ctx, req)
+	if err != nil {
+		return res, fmt.Errorf("proxying the ALB event: %w", err)
+	}
+
+	return res, nil
 }

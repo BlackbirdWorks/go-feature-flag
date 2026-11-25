@@ -14,18 +14,22 @@ import (
 func retainedHeapKiB(tb testing.TB, rule string) (float64, *Evaluator) {
 	tb.Helper()
 	runtime.GC()
-	var m0, m1 runtime.MemStats
-	runtime.ReadMemStats(&m0)
-	ev, err := NewEvaluator(rule)
+
+	var memBefore, memAfter runtime.MemStats
+	runtime.ReadMemStats(&memBefore)
+
+	eval, err := NewEvaluator(rule)
 	require.NoError(tb, err)
-	_, err = ev.Process(map[string]any{})
+	_, err = eval.Process(map[string]any{})
 	require.NoError(tb, err)
+
 	for range 3 {
 		runtime.GC()
 	}
-	runtime.ReadMemStats(&m1)
 
-	return float64(int64(m1.HeapAlloc)-int64(m0.HeapAlloc)) / 1024, ev
+	runtime.ReadMemStats(&memAfter)
+
+	return float64(int64(memAfter.HeapAlloc)-int64(memBefore.HeapAlloc)) / 1024, eval
 }
 
 // TestInSetSize checks that a long IN list is held as a hash set of the
@@ -64,6 +68,7 @@ func TestInSetSize(t *testing.T) {
 			assert.Equal(t, tt.wantIntSet, cmp.intSet != nil, "int hash set")
 
 			var bytes, slots int
+
 			switch {
 			case cmp.strSet != nil:
 				slots = len(cmp.strSet.tab)
@@ -73,6 +78,7 @@ func TestInSetSize(t *testing.T) {
 				slots = len(cmp.intSet.tab)
 				bytes = 4 * slots
 			}
+
 			assert.GreaterOrEqual(t, slots, tt.n*3/2, "at least 1.5 slots per element")
 			assert.LessOrEqual(t, slots, 4*tt.n, "at most 4 slots per element (power of two over 1.5n)")
 			assert.LessOrEqual(t, float64(bytes)/float64(tt.n), tt.wantMaxPerElem, "bytes per element")
@@ -93,16 +99,19 @@ func BenchmarkInSetHeap(b *testing.B) {
 		{name: "str300k", rule: "s in " + seqStrs(300000)},
 		{name: "int300k", rule: "n in " + seqInts(300000)},
 	}
-	for _, bb := range benches {
-		b.Run(bb.name, func(b *testing.B) {
-			var kib float64
-			var ev *Evaluator
+	for _, bench := range benches {
+		b.Run(bench.name, func(b *testing.B) {
+			var (
+				kib  float64
+				eval *Evaluator
+			)
 			for range b.N {
-				kib, ev = retainedHeapKiB(b, bb.rule)
+				kib, eval = retainedHeapKiB(b, bench.rule)
 			}
+
 			b.ReportMetric(kib, "retained-KiB")
-			b.ReportMetric(float64(len(bb.rule))/1024, "rule-text-KiB")
-			runtime.KeepAlive(ev)
+			b.ReportMetric(float64(len(bench.rule))/1024, "rule-text-KiB")
+			runtime.KeepAlive(eval)
 		})
 	}
 }

@@ -11,37 +11,40 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
-var _ Service = (*notificationService)(nil)
+var _ Service = (*ServiceImpl)(nil)
 
 type Service interface {
 	Close()
 	Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger)
 }
 
-func NewService(notifiers []notifier.Notifier) Service {
-	return &notificationService{
+type ServiceImpl struct {
+	waitGroup *sync.WaitGroup
+	Notifiers []notifier.Notifier
+}
+
+func NewService(notifiers []notifier.Notifier) *ServiceImpl {
+	return &ServiceImpl{
 		Notifiers: notifiers,
 		waitGroup: &sync.WaitGroup{},
 	}
-}
-
-type notificationService struct {
-	waitGroup *sync.WaitGroup
-	Notifiers []notifier.Notifier
 }
 
 // Notify is sending the notification to the notifiers.
 // oldCache is the old cache of the flags.
 // newCache is the new cache of the flags.
 // log is the logger to use.
-func (c *notificationService) Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger) {
+func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger) {
 	diff := c.getDifferences(oldCache, newCache)
 	if diff.HasDiff() {
 		for _, n := range c.Notifiers {
 			c.waitGroup.Add(1)
+
 			notif := n
+
 			go func() {
 				defer c.waitGroup.Done()
+
 				err := notif.Notify(diff)
 				if err != nil {
 					log.Error("error while calling the notifier", slog.Any("error", err.Error()))
@@ -51,20 +54,22 @@ func (c *notificationService) Notify(oldCache, newCache map[string]flag.Flag, lo
 	}
 }
 
-func (c *notificationService) Close() {
+func (c *ServiceImpl) Close() {
 	c.waitGroup.Wait()
 }
 
 // getDifferences is checking what are the difference in the updated cache.
-func (c *notificationService) getDifferences(
+func (c *ServiceImpl) getDifferences(
 	oldCache, newCache map[string]flag.Flag) notifier.DiffCache {
 	diff := notifier.DiffCache{
 		Deleted: map[string]flag.Flag{},
 		Added:   map[string]flag.Flag{},
 		Updated: map[string]notifier.DiffUpdated{},
 	}
+
 	for key := range oldCache {
 		newFlag, inNewCache := newCache[key]
+
 		oldFlag := oldCache[key]
 		if !inNewCache {
 			diff.Deleted[key] = oldFlag

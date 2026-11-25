@@ -17,6 +17,7 @@ func TestUser_AddCustomAttribute(t *testing.T) {
 		value any
 		name  string
 	}
+
 	tests := []struct {
 		args args
 		user ffcontext.EvaluationContext

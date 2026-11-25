@@ -61,23 +61,29 @@ func Test_Redis_Retrieve(t *testing.T) {
 
 			err := retriever.Init(context.TODO(), nil)
 			require.NoError(t, err)
+
 			defer func() {
 				shutdownErr := retriever.Shutdown(context.TODO())
 				assert.NoError(t, shutdownErr)
 			}()
+
 			got, err := retriever.Retrieve(context.Background())
 			tt.wantErr(t, err)
 
 			if err == nil {
 				flagStr := "{"
+
 				var flagStrSb69 strings.Builder
+
 				for index, file := range tt.flagsToLoad {
 					flagName, content := readFile(t, file)
 					flagStrSb69.WriteString(`"` + flagName + `":` + string(content))
+
 					if index < len(tt.flagsToLoad)-1 {
 						flagStrSb69.WriteString(",")
 					}
 				}
+
 				flagStr += flagStrSb69.String()
 				flagStr += "}"
 				assert.JSONEq(t, string(got), flagStr)
@@ -89,6 +95,7 @@ func Test_Redis_Retrieve(t *testing.T) {
 // startRedisAndAddData starts a Redis container, terminated when the test ends, and seeds it with the flag files.
 func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Options {
 	t.Helper()
+
 	ctx := context.TODO()
 
 	//nolint:staticcheck // SA1019: the Redis retriever test still uses the module's RunContainer
@@ -108,6 +115,7 @@ func startRedisAndAddData(t *testing.T, files []string, prefix string) *redis.Op
 	options := &redis.Options{
 		Addr: address,
 	}
+
 	rdb := redis.NewClient(options)
 	defer func() { _ = rdb.Close() }()
 
@@ -197,6 +205,7 @@ func TestRedisShutdown(t *testing.T) {
 		t.Parallel()
 
 		var retriever *redisretriever.Retriever
+
 		err := retriever.Shutdown(context.TODO())
 		require.NoError(t, err)
 		assert.Equal(t, ret.RetrieverNotReady, retriever.Status())
@@ -277,11 +286,14 @@ func Test_Redis_OutputFormat(t *testing.T) {
 
 func readFile(t *testing.T, file string) (string, []byte) {
 	t.Helper()
+
 	content, err := os.ReadFile(filepath.Join("testdata", file))
 	if err != nil {
 		return "", nil
 	}
+
 	require.NoError(t, err)
+
 	flagName := file[:len(file)-5]
 
 	return flagName, content

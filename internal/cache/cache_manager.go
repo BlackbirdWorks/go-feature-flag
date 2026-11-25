@@ -3,6 +3,7 @@ package cache
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -25,7 +26,7 @@ var (
 	errImpossibleToReadThe = errors.New("impossible to read the flag before the initialisation")
 )
 
-var _ Manager = (*cacheManagerImpl)(nil)
+var _ Manager = (*ManagerImpl)(nil)
 
 type Manager interface {
 	UpdateCache(newFlags map[string]dto.DTO, log *fflog.FFLogger, notifyChanges bool) error
@@ -40,10 +41,10 @@ type Manager interface {
 }
 
 //nolint:govet // fieldalignment: the original order is 3-5% faster on GetFlag (cache-line layout, measured)
-type cacheManagerImpl struct {
+type ManagerImpl struct {
 	// inMemoryCache is the current flag cache: it is replaced as a whole by UpdateCache, so the
 	// evaluations read it without taking any lock (nil when the manager is closed).
-	inMemoryCache atomic.Pointer[Cache]
+	inMemoryCache atomic.Pointer[InMemoryCache]
 	// mutex protects latestUpdate and serializes the writers of inMemoryCache.
 	mutex                           sync.RWMutex
 	notificationService             notification.Service
@@ -56,13 +57,13 @@ type cacheManagerImpl struct {
 	service *flag.Service
 }
 
-// Option customizes the Manager that New creates.
-type Option func(*cacheManagerImpl)
+// Option customizes the ManagerImpl that New creates.
+type Option func(*ManagerImpl)
 
 // WithService makes the manager validate its flags with svc, which the caller owns (and closes).
 // By default the manager creates a Service of its own.
 func WithService(svc *flag.Service) Option {
-	return func(m *cacheManagerImpl) { m.service = svc }
+	return func(m *ManagerImpl) { m.service = svc }
 }
 
 func New(
@@ -70,31 +71,35 @@ func New(
 	persistentFlagConfigurationFile string,
 	logger *fflog.FFLogger,
 	opts ...Option,
-) Manager {
-	m := &cacheManagerImpl{
+) *ManagerImpl {
+	mgr := &ManagerImpl{
 		logger:                          logger,
 		mutex:                           sync.RWMutex{},
 		notificationService:             notificationService,
 		persistentFlagConfigurationFile: persistentFlagConfigurationFile,
 	}
 	for _, opt := range opts {
-		opt(m)
+		opt(mgr)
 	}
-	if m.service == nil {
-		m.service = flag.NewService()
-	}
-	var initial Cache = NewInMemoryCache(m.service, logger)
-	m.inMemoryCache.Store(&initial)
 
-	return m
+	if mgr.service == nil {
+		mgr.service = flag.NewService()
+	}
+
+	mgr.inMemoryCache.Store(NewInMemoryCache(mgr.service, logger))
+
+	return mgr
 }
 
 func ConvertToFlagStruct(
 	loadedFlags []byte,
 	fileFormat string,
 ) (map[string]dto.DTO, error) {
-	var newFlags map[string]dto.DTO
-	var err error
+	var (
+		newFlags map[string]dto.DTO
+		err      error
+	)
+
 	switch strings.ToLower(fileFormat) {
 	case "toml":
 		err = toml.Unmarshal(loadedFlags, &newFlags)
@@ -105,10 +110,14 @@ func ConvertToFlagStruct(
 		err = yaml.Unmarshal(loadedFlags, &newFlags)
 	}
 
-	return newFlags, err
+	if err != nil {
+		return newFlags, fmt.Errorf("decoding the flags: %w", err)
+	}
+
+	return newFlags, nil
 }
 
-func (c *cacheManagerImpl) UpdateCache(
+func (c *ManagerImpl) UpdateCache(
 	newFlags map[string]dto.DTO,
 	log *fflog.FFLogger,
 	notifyChanges bool,
@@ -118,14 +127,13 @@ func (c *cacheManagerImpl) UpdateCache(
 	newCacheFlags := newCache.All()
 	oldCacheFlags := map[string]flag.Flag{}
 
-	var swapped Cache = newCache
 	c.mutex.Lock()
-	old := c.inMemoryCache.Swap(&swapped)
+	old := c.inMemoryCache.Swap(newCache)
 	c.latestUpdate = clock.Now()
 	c.mutex.Unlock()
 	// collect flags for compare (the old cache is immutable, no lock needed).
 	if old != nil {
-		oldCacheFlags = (*old).All()
+		oldCacheFlags = old.All()
 	}
 
 	if notifyChanges {
@@ -140,7 +148,7 @@ func (c *cacheManagerImpl) UpdateCache(
 	return nil
 }
 
-func (c *cacheManagerImpl) Close() {
+func (c *ManagerImpl) Close() {
 	// Wait for the in-flight persistence goroutines: nothing must write the persistent flag
 	// configuration file after Close() returned. This cannot deadlock nor race with a new
 	// PersistCache because the retriever manager stops the polling before calling Close(),
@@ -149,39 +157,41 @@ func (c *cacheManagerImpl) Close() {
 
 	// Clear the cache
 	c.inMemoryCache.Store(nil)
+
 	if c.notificationService != nil {
 		c.notificationService.Close()
 	}
 }
 
-func (c *cacheManagerImpl) GetFlag(key string) (flag.Flag, error) {
+//nolint:ireturn // implements cache.Manager, returns the flag.Flag stored in the cache
+func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
 	}
 
-	return (*current).getFlag(key)
+	return current.getFlag(key)
 }
 
-func (c *cacheManagerImpl) AllFlags() (map[string]flag.Flag, error) {
+func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
 	}
 
-	return (*current).All(), nil
+	return current.All(), nil
 }
 
-func (c *cacheManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
+func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
 		return nil, errImpossibleToReadThe
 	}
 
-	return (*current).shared(), nil
+	return current.shared(), nil
 }
 
-func (c *cacheManagerImpl) GetLatestUpdateDate() time.Time {
+func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 
@@ -192,14 +202,15 @@ func (c *cacheManagerImpl) GetLatestUpdateDate() time.Time {
 // It is useful to have a fallback in case of a problem with the retrievers, such as a network issue.
 //
 // The persistence is done in a goroutine to not block the main thread.
-func (c *cacheManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
+func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 	c.persistWg.Go(func() {
-		if _, err := os.Stat(c.persistentFlagConfigurationFile); !os.IsNotExist(err) &&
-			cmp.Equal(oldCache, newCache) {
+		_, statErr := os.Stat(c.persistentFlagConfigurationFile)
+		if !os.IsNotExist(statErr) && cmp.Equal(oldCache, newCache) {
 			c.logger.Debug("No change in the cache, skipping the persist")
 
 			return
 		}
+
 		data, err := yaml.Marshal(newCache)
 		if err != nil {
 			c.logger.Error("Error while marshalling flags to persist", slog.Any("error", err.Error()))
@@ -213,6 +224,7 @@ func (c *cacheManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag)
 
 			return
 		}
+
 		c.logger.Info(
 			"Flags cache persisted to file",
 			slog.String("file", c.persistentFlagConfigurationFile),

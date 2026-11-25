@@ -102,12 +102,15 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeys(t *testing.T) {
 			for _, key := range tt.wantAdmin {
 				assert.Truef(t, cfg.APIKeysAdminExists(key), "admin key %q must be accepted", key)
 			}
+
 			for _, key := range tt.wantNotAdmin {
 				assert.Falsef(t, cfg.APIKeysAdminExists(key), "admin key %q must be rejected", key)
 			}
+
 			for _, key := range tt.wantNotEvaluation {
 				assert.Falsef(t, cfg.APIKeyExists(key), "evaluation key %q must be rejected in flag set mode", key)
 			}
+
 			assert.Equal(t, tt.next.Admin, cfg.GetAuthorizedKeys().Admin)
 			assert.Equal(t, tt.next.Evaluation, cfg.GetAuthorizedKeys().Evaluation)
 			assert.True(t, cfg.APIKeyExists("flagset-key"), "the flagset key must stay accepted")
@@ -132,8 +135,11 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 	withB := reloadWith("admin-b", "admin-keep")
 
 	done := make(chan struct{})
-	var violations atomic.Int64
-	var wg sync.WaitGroup
+
+	var (
+		violations atomic.Int64
+		wg         sync.WaitGroup
+	)
 	for range 8 {
 		wg.Go(func() {
 			for {
@@ -150,6 +156,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 			}
 		})
 	}
+
 	wg.Go(func() {
 		for i := range 200 {
 			if i%2 == 0 {
@@ -158,6 +165,7 @@ func TestFlagsetManager_OnConfigChange_AuthorizedKeysConcurrentReload(t *testing
 				manager.OnConfigChange(withA)
 			}
 		}
+
 		close(done)
 	})
 	wg.Wait()

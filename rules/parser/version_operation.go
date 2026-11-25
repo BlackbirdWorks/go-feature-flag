@@ -1,31 +1,13 @@
 package parser
 
 import (
+	"fmt"
+
 	"github.com/blang/semver/v4"
 )
 
 type VersionOperation struct {
 	NullOperation
-}
-
-func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, semver.Version, error) {
-	var leftVer, rightVer semver.Version
-	leftVal, ok := left.(string)
-	if !ok {
-		return leftVer, rightVer, newInvalidOperandError(left, leftVal)
-	}
-	rightVal, ok := right.(string)
-	if !ok {
-		return leftVer, rightVer, newInvalidOperandError(right, rightVal)
-	}
-	var err error
-	leftVer, err = semver.Make(leftVal)
-	if err != nil {
-		return leftVer, rightVer, err
-	}
-	rightVer, err = semver.Make(rightVal)
-
-	return leftVer, rightVer, err
 }
 
 func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
@@ -80,4 +62,32 @@ func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
 	}
 
 	return leftVer.GE(rightVer), nil
+}
+
+func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, semver.Version, error) {
+	var leftVer, rightVer semver.Version
+
+	leftVal, ok := left.(string)
+	if !ok {
+		return leftVer, rightVer, newInvalidOperandError(left, leftVal)
+	}
+
+	rightVal, ok := right.(string)
+	if !ok {
+		return leftVer, rightVer, newInvalidOperandError(right, rightVal)
+	}
+
+	var err error
+
+	leftVer, err = semver.Make(leftVal)
+	if err != nil {
+		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", leftVal, err)
+	}
+
+	rightVer, err = semver.Make(rightVal)
+	if err != nil {
+		return leftVer, rightVer, fmt.Errorf("parsing the version %q: %w", rightVal, err)
+	}
+
+	return leftVer, rightVer, nil
 }

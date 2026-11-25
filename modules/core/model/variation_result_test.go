@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"encoding/json"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -168,27 +169,30 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			t.Parallel()
 
 			var jsonStr string
-			switch v := tt.result.(type) {
+
+			switch res := tt.result.(type) {
 			case model.VariationResult[bool]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[string]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[int]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[float64]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[map[string]any]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			case model.VariationResult[[]any]:
-				jsonStr = v.ToJSONStr()
+				jsonStr = res.ToJSONStr()
 			}
 
 			// Verify JSON is valid and matches expected
 			var gotJSON map[string]any
+
 			err := json.Unmarshal([]byte(jsonStr), &gotJSON)
 			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
+
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
 			require.NoError(t, err, "Expected JSON should be valid")
 
@@ -197,13 +201,50 @@ func TestVariationResultToJSONStr(t *testing.T) {
 	}
 }
 
+func TestVariationResultToJSONStr_MarshalError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		toJSON   func() string
+		wantJSON string
+	}{
+		{
+			name: "unmarshalable metadata",
+			toJSON: func() string {
+				return model.VariationResult[bool]{
+					Metadata: map[string]any{"bad": math.NaN()},
+				}.ToJSONStr()
+			},
+			wantJSON: "",
+		},
+		{
+			name: "unmarshalable float value",
+			toJSON: func() string {
+				return model.VariationResult[float64]{
+					Value: math.Inf(1),
+				}.ToJSONStr()
+			},
+			wantJSON: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.wantJSON, tt.toJSON())
+		})
+	}
+}
+
 func TestRawVarResultJSONSerialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+	tests := []struct {
+		result   model.RawVarResult
 		name     string
 		wantJSON string
-		result   model.RawVarResult
 	}{
 		{
 			name: "raw var result with all fields",
@@ -343,10 +384,12 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 
 			// Verify JSON matches expected
 			var gotJSON map[string]any
+
 			err = json.Unmarshal(jsonBytes, &gotJSON)
 			require.NoError(t, err, "JSON should be valid")
 
 			var wantJSON map[string]any
+
 			err = json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
 			require.NoError(t, err, "Expected JSON should be valid")
 
@@ -355,6 +398,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			// Test JSON deserialization
 			// Note: JSON unmarshaling converts numbers to float64, so we compare JSON strings instead
 			var deserialized model.RawVarResult
+
 			err = json.Unmarshal(jsonBytes, &deserialized)
 			require.NoError(t, err, "JSON unmarshaling should succeed")
 
@@ -369,10 +413,10 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 func TestVariationResultJSONDeserialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+	tests := []struct {
+		want    model.VariationResult[string]
 		name    string
 		jsonStr string
-		want    model.VariationResult[string]
 		wantErr bool
 	}{
 		{
@@ -415,6 +459,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 			t.Parallel()
 
 			var got model.VariationResult[string]
+
 			err := json.Unmarshal([]byte(tt.jsonStr), &got)
 			if tt.wantErr {
 				assert.Error(t, err)

@@ -108,29 +108,35 @@ func hashNikunjyQuery(query string) uint64 {
 		prime2 = 0xC2B2AE3D27D4EB4F
 		prime3 = 0x165667B19E3779F9
 	)
+
 	b := unsafe.Slice(
 		unsafe.StringData(query),
 		len(query),
 	)
-	h0, h1, h2, h3 := uint64(len(query))*prime3, uint64(prime1), uint64(prime2), uint64(prime3)
-	for ; len(b) >= 32; b = b[32:] {
-		h0 = bits.RotateLeft64((h0^binary.LittleEndian.Uint64(b))*prime1, rotate0)
-		h1 = bits.RotateLeft64((h1^binary.LittleEndian.Uint64(b[8:]))*prime2, rotate1)
-		h2 = bits.RotateLeft64((h2^binary.LittleEndian.Uint64(b[16:]))*prime3, rotate2)
-		h3 = bits.RotateLeft64((h3^binary.LittleEndian.Uint64(b[24:]))*prime1, rotate3)
-	}
-	h := h0 ^ bits.RotateLeft64(h1, mixRotate1) ^ bits.RotateLeft64(h2, mixRotate2) ^ bits.RotateLeft64(h3, mixRotate3)
-	for ; len(b) >= 8; b = b[8:] {
-		h = bits.RotateLeft64((h^binary.LittleEndian.Uint64(b))*prime2, rotate1)
-	}
-	for _, c := range b {
-		h = bits.RotateLeft64((h^uint64(c))*prime1, tailRotate)
-	}
-	h ^= h >> finalShift1
-	h *= prime2
-	h ^= h >> finalShift2
 
-	return h
+	hash0, hash1, hash2, hash3 := uint64(len(query))*prime3, uint64(prime1), uint64(prime2), uint64(prime3)
+	for ; len(b) >= 32; b = b[32:] {
+		hash0 = bits.RotateLeft64((hash0^binary.LittleEndian.Uint64(b))*prime1, rotate0)
+		hash1 = bits.RotateLeft64((hash1^binary.LittleEndian.Uint64(b[8:]))*prime2, rotate1)
+		hash2 = bits.RotateLeft64((hash2^binary.LittleEndian.Uint64(b[16:]))*prime3, rotate2)
+		hash3 = bits.RotateLeft64((hash3^binary.LittleEndian.Uint64(b[24:]))*prime1, rotate3)
+	}
+
+	hashVal := hash0 ^ bits.RotateLeft64(hash1, mixRotate1) ^
+		bits.RotateLeft64(hash2, mixRotate2) ^ bits.RotateLeft64(hash3, mixRotate3)
+	for ; len(b) >= 8; b = b[8:] {
+		hashVal = bits.RotateLeft64((hashVal^binary.LittleEndian.Uint64(b))*prime2, rotate1)
+	}
+
+	for _, byt := range b {
+		hashVal = bits.RotateLeft64((hashVal^uint64(byt))*prime1, tailRotate)
+	}
+
+	hashVal ^= hashVal >> finalShift1
+	hashVal *= prime2
+	hashVal ^= hashVal >> finalShift2
+
+	return hashVal
 }
 
 func newNikunjyEvaluatorCache() *nikunjyEvaluatorCache {
@@ -145,16 +151,18 @@ func newNikunjyEvaluatorCache() *nikunjyEvaluatorCache {
 }
 
 func (c *nikunjyEvaluatorCache) get(query string) (*parser.Evaluator, error) {
-	if v, ok := c.entries.Load(query); ok {
-		return v.(*parser.Evaluator), nil //nolint:errcheck // the maps only ever store this type
+	if v, ok := loadAs[*parser.Evaluator](&c.entries, query); ok {
+		return v, nil
 	}
-	ev, err := parser.NewEvaluator(query)
-	if err != nil {
-		return nil, err
-	}
-	actual, _ := c.entries.LoadOrStore(query, ev)
 
-	return actual.(*parser.Evaluator), nil //nolint:errcheck // the maps only ever store this type
+	eval, err := parser.NewEvaluator(query)
+	if err != nil {
+		return nil, fmt.Errorf("parsing the query: %w", err)
+	}
+
+	actual, _ := c.entries.LoadOrStore(query, eval)
+
+	return asOr(actual, eval), nil
 }
 
 // validate parses the query through the cache and evaluates it on an empty context. That
@@ -167,15 +175,17 @@ func (c *nikunjyEvaluatorCache) validate(query string) error {
 
 // validateEvaluator is validate. It also returns the evaluator of the query.
 func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluator, error) {
-	ev, err := c.get(query)
+	evaluator, err := c.get(query)
 	if err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
-	if _, processErr := ev.Process(map[string]any{}); processErr != nil {
+
+	_, processErr := evaluator.Process(map[string]any{})
+	if processErr != nil {
 		return nil, fmt.Errorf("invalid query: %w", processErr)
 	}
 
-	return ev, nil
+	return evaluator, nil
 }
 
 // retain keeps the entries of the nikunjy queries in rules until rules is garbage
@@ -192,28 +202,35 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 	// entries are kept), never an eviction of what the rebuilt cache holds.
 	epoch := c.epoch.Load()
 	queries := make([]string, 0, len(*rules))
+
 	ruleQueries := make([]nikunjyRuleQuery, 0, len(*rules))
 	for i := range *rules {
 		if known != nil && known[i].evaluator != nil {
 			continue
 		}
+
 		raw := (*rules)[i].GetQuery()
+
 		trimmed := utils.StrTrim(raw)
 		if queryFormatOf(trimmed) != NikunjyQueryFormat {
 			continue
 		}
+
 		queries = append(queries, trimmed)
 		if trimmed != "" {
 			q := nikunjyRuleQuery{rule: i, raw: raw, trimmed: trimmed}
 			if known != nil && known[i].hash != 0 {
 				q.hash, q.hashed = known[i].hash, true
 			}
+
 			ruleQueries = append(ruleQueries, q)
 		}
 	}
+
 	if len(queries) == 0 {
 		return nil
 	}
+
 	c.refsMu.Lock()
 	for _, q := range queries {
 		c.refs[q]++
@@ -242,24 +259,33 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 	if rules == nil || !c.keysEnabled {
 		return nil
 	}
+
 	epoch := c.epoch.Load() // before the references are counted, see retain
-	var found []nikunjyKnownQuery
-	var keys []uint64
+
+	var (
+		found []nikunjyKnownQuery
+		keys  []uint64
+	)
+
 	for i := range *rules {
 		r := &(*rules)[i]
 		if !c.qualifiesForKnown(r) {
 			continue
 		}
+
 		if found == nil {
 			found = make([]nikunjyKnownQuery, len(*rules))
 		}
+
 		key, entry, hash := c.knownEntry(r)
 		if entry == nil {
 			found[i].hash = hash
 
 			continue
 		}
+
 		found[i].evaluator = entry.evaluator
+
 		keys = append(keys, key)
 		// The rule shares the bytes of the text of its key: see index.
 		if unsafe.StringData(
@@ -270,6 +296,7 @@ func (c *nikunjyEvaluatorCache) known(rules *[]Rule) []nikunjyKnownQuery {
 			*r.Query = entry.query
 		}
 	}
+
 	if len(keys) > 0 {
 		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
@@ -290,11 +317,14 @@ func (c *nikunjyEvaluatorCache) qualifiesForKnown(r *Rule) bool {
 // has no key.
 func (c *nikunjyEvaluatorCache) knownEntry(r *Rule) (uint64, *nikunjyKeyedEvaluator, uint64) {
 	raw := *r.Query
+
 	key := r.QueryHash
 	if entry := c.referenceEntry(key, raw); entry != nil {
 		return key, entry, 0
 	}
+
 	hash := c.hash(raw)
+
 	key, entry := c.find(hash, raw)
 	if entry != nil {
 		r.QueryHash = key
@@ -314,32 +344,38 @@ func (c *nikunjyEvaluatorCache) index(rules *[]Rule, queries []nikunjyRuleQuery,
 	if !c.keysEnabled {
 		return
 	}
+
 	epoch := c.epoch.Load() // before the references are counted, see retain
+
 	keys := make([]uint64, 0, len(queries))
-	for _, q := range queries {
-		ev := evaluators[q.rule]
-		r := &(*rules)[q.rule]
-		if ev == nil || len(q.raw) < c.keysMinQueryLen || r.Query == nil || *r.Query != q.raw {
+	for _, query := range queries {
+		evaluator := evaluators[query.rule]
+
+		r := &(*rules)[query.rule]
+		if evaluator == nil || len(query.raw) < c.keysMinQueryLen || r.Query == nil || *r.Query != query.raw {
 			continue // not validated, short, or changed while the rules were validated
 		}
-		hash := q.hash
-		if !q.hashed {
-			hash = c.hash(q.raw)
+
+		hash := query.hash
+		if !query.hashed {
+			hash = c.hash(query.raw)
 		}
-		key, entry := c.intern(q.raw, hash, ev)
+
+		key, entry := c.intern(query.raw, hash, evaluator)
 		keys = append(keys, key)
 		r.QueryHash = key
 		// The rule shares the bytes of the text of its key. The text is the same, but the
 		// evaluation of the rule recognizes it without reading its bytes, and the memory of the
 		// copies that every flag holds is released.
 		if unsafe.StringData(
-			q.raw,
+			query.raw,
 		) != unsafe.StringData(
 			entry.query,
 		) {
 			*r.Query = entry.query
 		}
 	}
+
 	if len(keys) > 0 {
 		runtime.AddCleanup(rules, func(k []uint64) { c.unindexAt(epoch, k) }, keys)
 	}
@@ -351,15 +387,18 @@ func (c *nikunjyEvaluatorCache) referenceEntry(key uint64, raw string) *nikunjyK
 	if key == 0 {
 		return nil
 	}
+
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
-	v, ok := c.byKey.Load(key)
-	if !ok || v.(*nikunjyKeyedEvaluator).query != raw { //nolint:errcheck // the maps only ever store this type
+
+	entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	if !ok || entry.query != raw {
 		return nil
 	}
+
 	c.keyRefs[key]++
 
-	return v.(*nikunjyKeyedEvaluator) //nolint:errcheck // the maps only ever store this type
+	return entry
 }
 
 // find counts a reference to the entry of the text raw, whose hash is hash, and returns its key
@@ -367,16 +406,18 @@ func (c *nikunjyEvaluatorCache) referenceEntry(key uint64, raw string) *nikunjyK
 func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyKeyedEvaluator) {
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
+
 	for key := hash; ; key++ {
 		if key == 0 { // 0 is the key of rules that are not validated
 			continue
 		}
-		v, ok := c.byKey.Load(key)
+
+		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
 			return 0, nil
 		}
-		//nolint:errcheck // the maps only ever store this type
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
+
+		if entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -388,24 +429,30 @@ func (c *nikunjyEvaluatorCache) find(hash uint64, raw string) (uint64, *nikunjyK
 // reference to them. The key is the hash of raw, unless another text has it: the keys are then
 // probed linearly until one is free or has the text raw. So a key never leads to the evaluator of
 // another text. Texts are compared in full, once for each rule that is validated, never while
-// evaluating. ev, the evaluator of raw, is the one of the entry if there is none yet.
-func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evaluator) (uint64, *nikunjyKeyedEvaluator) {
+// comparing queries while evaluating. evaluator is stored when the key has no entry yet.
+func (c *nikunjyEvaluatorCache) intern(
+	raw string,
+	hash uint64,
+	evaluator *parser.Evaluator,
+) (uint64, *nikunjyKeyedEvaluator) {
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
+
 	for key := hash; ; key++ {
 		if key == 0 { // 0 is the key of rules that are not validated
 			continue
 		}
-		v, ok := c.byKey.Load(key)
+
+		entry, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
 		if !ok {
-			entry := &nikunjyKeyedEvaluator{query: raw, evaluator: ev}
+			entry = &nikunjyKeyedEvaluator{query: raw, evaluator: evaluator}
 			c.byKey.Store(key, entry)
 			c.keyRefs[key]++
 
 			return key, entry
 		}
-		//nolint:errcheck // the maps only ever store this type
-		if entry := v.(*nikunjyKeyedEvaluator); entry.query == raw {
+
+		if entry.query == raw {
 			c.keyRefs[key]++
 
 			return key, entry
@@ -419,9 +466,11 @@ func (c *nikunjyEvaluatorCache) intern(raw string, hash uint64, ev *parser.Evalu
 func (c *nikunjyEvaluatorCache) unindexAt(epoch uint64, keys []uint64) {
 	c.keysMu.Lock()
 	defer c.keysMu.Unlock()
+
 	if c.epoch.Load() != epoch {
 		return
 	}
+
 	for _, key := range keys {
 		c.keyRefs[key]--
 		if c.keyRefs[key] <= 0 {
@@ -442,12 +491,9 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 	if key == 0 {
 		return nil
 	}
-	v, ok := c.byKey.Load(key)
-	if !ok {
-		return nil
-	}
-	e := v.(*nikunjyKeyedEvaluator) //nolint:errcheck // the maps only ever store this type
-	if e.query != raw {
+
+	e, ok := loadAs[*nikunjyKeyedEvaluator](&c.byKey, key)
+	if !ok || e.query != raw {
 		return nil
 	}
 
@@ -459,9 +505,11 @@ func (c *nikunjyEvaluatorCache) lookup(key uint64, raw string) *parser.Evaluator
 func (c *nikunjyEvaluatorCache) releaseAt(epoch uint64, queries []string) {
 	c.refsMu.Lock()
 	defer c.refsMu.Unlock()
+
 	if c.epoch.Load() != epoch {
 		return
 	}
+
 	for _, q := range queries {
 		c.refs[q]--
 		if c.refs[q] <= 0 {

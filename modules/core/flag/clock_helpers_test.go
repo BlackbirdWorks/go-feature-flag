@@ -20,10 +20,12 @@ func atFixedNow(ctx ffcontext.Context) ffcontext.Context {
 	if ctx == nil {
 		return nil
 	}
+
 	specifics := ctx.ExtractGOFFProtectedFields()
 	if specifics.CurrentDateTime != nil {
 		return ctx
 	}
+
 	now := fixedNow()
 	specifics.CurrentDateTime = &now
 
@@ -32,8 +34,10 @@ func atFixedNow(ctx ffcontext.Context) ffcontext.Context {
 		if k == ffcontext.ReservedKey || k == ffcontext.LegacyReservedKey {
 			continue
 		}
+
 		out.AddCustomAttribute(k, v)
 	}
+
 	out.AddCustomAttribute(ffcontext.ReservedKey, specifics)
 
 	return out
@@ -50,8 +54,10 @@ func atDate(ctx ffcontext.Context, date time.Time) ffcontext.Context {
 		if k == ffcontext.ReservedKey || k == ffcontext.LegacyReservedKey {
 			continue
 		}
+
 		out.AddCustomAttribute(k, v)
 	}
+
 	out.AddCustomAttribute(ffcontext.ReservedKey, specifics)
 
 	return out

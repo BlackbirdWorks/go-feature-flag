@@ -13,12 +13,13 @@ import (
 )
 
 var (
-	errMissingDefaultRule          = errors.New("missing default rule")
+	errMissingDefaultRule          = errors.New("validating the flag: missing default rule")
 	errInternalValidationErrorFlag = errors.New("internal validation error: flag definition could not be validated")
 )
 
 func TestValidateFlags(t *testing.T) {
 	t.Parallel()
+
 	panicking := dto.DTO{
 		Variations:  &map[string]*any{"a": new(any(true))},
 		DefaultRule: &flag.Rule{ProgressiveRollout: &flag.ProgressiveRollout{}},
@@ -58,14 +59,17 @@ func TestValidateFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			got := configfile.ValidateFlags(tt.flags)
 			assert.Len(t, got, len(tt.want))
+
 			for i, w := range tt.want {
 				assert.Equal(t, w.Flag, got[i].Flag)
 				// modules/core only panics on an empty progressive rollout before its nil guard is released.
-				if got[i].Err.Error() == "invalid progressive rollout, initial and end steps are required" {
+				if got[i].Err.Error() == "validating the flag: invalid progressive rollout, initial and end steps are required" {
 					got[i].Err = w.Err
 				}
+
 				assert.EqualError(t, got[i].Err, w.Err.Error())
 			}
 		})
@@ -80,6 +84,7 @@ func (customError) Error() string { return "custom" }
 
 func TestFlagError(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		err       error
 		wantIsErr error
@@ -103,12 +108,15 @@ func TestFlagError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var err error = configfile.FlagError{Flag: "my-flag", Err: tt.err}
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
+
 			if tt.wantIsErr != nil {
 				require.ErrorIs(t, err, tt.wantIsErr)
 			}
+
 			var ce customError
 			assert.Equal(t, tt.wantAs, errors.As(err, &ce))
 		})

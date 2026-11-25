@@ -30,19 +30,24 @@ func bodyDumpHandler() func(r *http.Request, body []byte) {
 	truncatedBodySuffix := []byte("... truncated ...")
 	truncatedSize := maxBodyLogSize + len(truncatedBodySuffix)
 
+	newTruncatedBuf := func() *[]byte {
+		buf := make([]byte, truncatedSize)
+		copy(buf[maxBodyLogSize:], truncatedBodySuffix)
+
+		return &buf
+	}
+
 	// use a sync.Pool to reuse the same buffer for large requests - this
 	// reduces allocations and can significantly improve performance.
 	bufferPool := &sync.Pool{
 		New: func() any {
-			buf := make([]byte, truncatedSize)
-			copy(buf[maxBodyLogSize:], truncatedBodySuffix)
-
-			return &buf
+			return newTruncatedBuf()
 		},
 	}
 
 	return func(r *http.Request, reqBody []byte) {
 		ctx := r.Context()
+
 		logger := logging.FromContext(ctx)
 		if len(reqBody) <= maxBodyLogSize {
 			logger.LogAttrs(
@@ -56,7 +61,11 @@ func bodyDumpHandler() func(r *http.Request, body []byte) {
 		}
 
 		// body is too large, truncate the request body and log it
-		bufPtr := bufferPool.Get().(*[]byte) //nolint:errcheck // the pool only ever holds *[]byte (see its New func)
+		bufPtr, ok := bufferPool.Get().(*[]byte)
+		if !ok {
+			bufPtr = newTruncatedBuf()
+		}
+
 		truncated := *bufPtr
 		copy(truncated[:maxBodyLogSize], reqBody[:maxBodyLogSize])
 		logger.LogAttrs(

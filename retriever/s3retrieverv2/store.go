@@ -2,6 +2,7 @@ package s3retrieverv2
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -24,16 +25,20 @@ func (s *s3Store) List(ctx context.Context, prefix string, recursive bool) ([]fo
 	if prefix != "" {
 		input.Prefix = aws.String(prefix)
 	}
+
 	if !recursive {
 		input.Delimiter = aws.String("/")
 	}
+
 	var res []folderloader.Entry
+
 	paginator := s3.NewListObjectsV2Paginator(s.r.lister, input)
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("listing a page of objects: %w", err)
 		}
+
 		for _, obj := range page.Contents {
 			res = append(res, folderloader.Entry{Key: aws.ToString(obj.Key), Version: aws.ToString(obj.ETag)})
 		}

@@ -190,9 +190,11 @@ func Test_flag_eval_Handler(t *testing.T) {
 
 			// read wantBody request file
 			var bodyReq io.Reader
+
 			if tt.args.bodyFile != "" {
 				bodyReqContent, readFileErr := os.ReadFile(tt.args.bodyFile)
 				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
+
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
@@ -203,7 +205,9 @@ func Test_flag_eval_Handler(t *testing.T) {
 
 			if tt.want.handlerErr {
 				require.Error(t, handlerErr, "handler should return an error")
+
 				he := &helper.HTTPError{}
+
 				ok := errors.As(handlerErr, &he)
 				if ok {
 					assert.Equal(t, tt.want.errorCode, he.Code)
@@ -226,9 +230,11 @@ func Test_flag_eval_Handler(t *testing.T) {
 func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 	t.Parallel()
 
-	const metricName = "semaphore_flag_evaluations_total"
-	const metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
-		"# TYPE " + metricName + " counter\n"
+	const (
+		metricName   = "semaphore_flag_evaluations_total"
+		metricHeader = "# HELP " + metricName + " Counter events for number of flag evaluation.\n" +
+			"# TYPE " + metricName + " counter\n"
+	)
 
 	tests := []struct {
 		name     string
@@ -276,6 +282,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err, "impossible to create flagset manager")
+
 			defer flagsetManager.Close()
 
 			metrics, err := metric.NewMetrics()
@@ -285,6 +292,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 
 			bodyReqContent, err := os.ReadFile(tt.bodyFile)
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
+
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequest(
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))

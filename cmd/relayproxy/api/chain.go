@@ -53,9 +53,11 @@ func (s *Server) tracingOptions() []tracing.Option {
 	} else if provider := s.otelService.MeterProvider(); provider != nil {
 		opts = append(opts, tracing.WithMeterProvider(provider))
 	}
+
 	if s.tracerProvider != nil {
 		opts = append(opts, tracing.WithTracerProvider(s.tracerProvider))
 	}
+
 	if s.propagator != nil {
 		opts = append(opts, tracing.WithPropagators(s.propagator))
 	}
@@ -97,12 +99,14 @@ func (s *Server) apiChain(mux http.Handler) http.Handler {
 	if s.tracingEnabled() {
 		chain = append(chain, s.tracing())
 	}
+
 	chain = append(chain,
 		s.requestLogger(),
 		s.accessLog(),
 		cleanpath.Handler(),
 		middleware.VersionHeader(s.config),
 	)
+
 	chain = append(chain, middleware.BodyDump(bodyDumpSkipper(s.logger), bodyDumpHandler()))
 	if s.services.Metrics != (metric.Metrics{}) {
 		prom, err := middleware.Prometheus(middleware.PrometheusConfig{

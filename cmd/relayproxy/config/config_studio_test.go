@@ -42,15 +42,18 @@ func flagSetNames(c *config.Config) []string {
 // newStudioServer serves body when the Authorization header matches, it is down when body is empty.
 func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 	t.Helper()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeader {
 			w.WriteHeader(http.StatusUnauthorized)
 
 			return
 		}
+
 		_, _ = w.Write([]byte(body))
 	}))
 	t.Cleanup(srv.Close)
+
 	if body == "" {
 		srv.Close()
 	}
@@ -61,27 +64,32 @@ func newStudioServer(t *testing.T, body, authHeader string) *httptest.Server {
 // writeWithETag answers with status when it is not 200, with 304 when the client already has etag, else with body.
 func writeWithETag(w http.ResponseWriter, r *http.Request, body, etag string, status int) {
 	w.Header().Set("ETag", etag)
+
 	if status != http.StatusOK {
 		w.WriteHeader(status)
 
 		return
 	}
+
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
 
 		return
 	}
+
 	_, _ = w.Write([]byte(body))
 }
 
 // receive returns the next value of ch, it fails the test with msg after 5 seconds.
 func receive[T any](t *testing.T, ch <-chan T, msg string) T {
 	t.Helper()
+
 	select {
 	case v := <-ch:
 		return v
 	case <-time.After(5 * time.Second):
 		require.Fail(t, msg)
+
 		var zero T
 
 		return zero
@@ -211,14 +219,17 @@ flagSets:
 			t.Parallel()
 
 			srv := newStudioServer(t, tt.body, tt.authHeader)
+
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			if tt.cache != "" {
 				require.NoError(t, os.WriteFile(cacheFile, []byte(tt.cache), 0600))
 			}
+
 			environ := make([]string, 0, len(tt.env))
 			for name, value := range tt.env {
 				environ = append(environ, name+"="+value)
 			}
+
 			fileConfig := strings.NewReplacer("{{URL}}", srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -230,6 +241,7 @@ flagSets:
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
 			assert.Equal(t, tt.wantFlagSets, flagSetNames(got))
+
 			if tt.wantInvalid {
 				assert.ErrorContains(t, got.IsValid(), "flagSets and studio cannot be used together")
 			}
@@ -240,18 +252,20 @@ flagSets:
 func TestStudioReload(t *testing.T) {
 	t.Parallel()
 
-	const fileConfig = `server:
+	const (
+		fileConfig = `server:
   port: 2031
 studio:
   url: {{URL}}/flagsets.yaml
   pollingInterval: 50`
-	const twoFlagSets = studioYaml + `
+		twoFlagSets = studioYaml + `
   - name: team-b
     apiKeys:
       - key-b
     retrievers:
       - kind: file
         path: /tmp/flags.yaml`
+	)
 
 	tests := []struct {
 		name         string
@@ -279,13 +293,17 @@ studio:
 			t.Parallel()
 
 			var mu sync.Mutex
+
 			body := studioYaml
+
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				mu.Lock()
 				defer mu.Unlock()
+
 				_, _ = w.Write([]byte(body))
 			}))
 			defer srv.Close()
+
 			configFile := testutils.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, "{{URL}}", srv.URL))
 			f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			f.String("config", "", "Location of your config file")
@@ -293,11 +311,13 @@ studio:
 
 			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
 			defer func() { _ = loader.StopWatchChanges() }()
+
 			initialConfig, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, []string{"team-a"}, flagSetNames(initialConfig))
 
 			configs := make(chan *config.Config, 10)
+
 			loader.AddConfigChangeCallback(func(newConfig *config.Config) { configs <- newConfig })
 
 			if tt.newBody != "" {
@@ -305,6 +325,7 @@ studio:
 				body = tt.newBody
 				mu.Unlock()
 			}
+
 			if tt.newFile != "" {
 				_ = testutils.CopyContentToExistingTempFile(
 					t,
@@ -328,12 +349,15 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 			t.Parallel()
 
 			var mu sync.Mutex
+
 			requests := 0
 			retries := make(chan string, 1)
 			updated := strings.ReplaceAll(studioYaml, "team-a", "team-b")
+
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				defer mu.Unlock()
+
 				requests++
 				switch requests {
 				case 1:
@@ -348,26 +372,34 @@ func TestStudioReloadRetriesFailedFetch(t *testing.T) {
 					case retries <- r.Header.Get("If-None-Match"):
 					default:
 					}
+
 					w.Header().Set("ETag", etag)
+
 					if etag != "" && r.Header.Get("If-None-Match") == etag {
 						w.WriteHeader(http.StatusNotModified)
 
 						return
 					}
+
 					_, _ = w.Write([]byte(updated))
 				}
 			}))
 			defer srv.Close()
+
 			loader := newStudioTestLoader(t, srv.URL, "")
+
 			type observedConfig struct {
 				config   *config.Config
 				requests int
 			}
+
 			configs := make(chan observedConfig, 10)
+
 			loader.AddConfigChangeCallback(func(c *config.Config) {
 				mu.Lock()
 				count := requests
 				mu.Unlock()
+
 				configs <- observedConfig{config: c, requests: count}
 			})
 
@@ -418,24 +450,30 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 			t.Parallel()
 
 			var mu sync.Mutex
+
 			body, etag, status := studioYaml, `"v1"`, http.StatusOK
 			rejected := false
 			attempts := make(chan string, 20)
+
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				mu.Lock()
 				defer mu.Unlock()
+
 				if rejected {
 					select {
 					case attempts <- r.Header.Get("If-None-Match"):
 					default:
 					}
 				}
+
 				writeWithETag(w, r, body, etag, status)
 			}))
 			defer srv.Close()
+
 			cacheFile := filepath.Join(t.TempDir(), "flagsets.cache.yaml")
 			loader := newStudioTestLoader(t, srv.URL, cacheFile)
 			configs := make(chan *config.Config, 10)
+
 			loader.AddConfigChangeCallback(func(c *config.Config) { configs <- c })
 			mu.Lock()
 			body, etag, status, rejected = tt.body, `"v2"`, tt.status, true
@@ -449,6 +487,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 					receive(t, attempts, "Timeout waiting for a retry of the rejected update"),
 				)
 			}
+
 			cached, err := os.ReadFile(cacheFile)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCached, string(cached))
@@ -467,15 +506,18 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	t.Helper()
+
 	fileConfig := "studio:\n  url: " + url + "/flagsets.yaml\n  pollingInterval: 150\n"
 	if cacheFile != "" {
 		fileConfig += "  cacheFile: " + cacheFile + "\n"
 	}
+
 	configFile := testutils.CopyContentToNewTempFile(t, fileConfig)
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	f.String("config", "", "Location of your config file")
 	require.NoError(t, f.Parse([]string{"--config=" + configFile.Name()}))
 	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), "1.0.0", true)
+
 	t.Cleanup(func() { assert.NoError(t, loader.StopWatchChanges()) })
 
 	return loader

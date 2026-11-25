@@ -101,6 +101,7 @@ trackEvents = false
 	type args struct {
 		loadedFlags []byte
 	}
+
 	tests := []struct {
 		expected   map[string]flag.InternalFlag
 		name       string
@@ -273,18 +274,21 @@ variation = "false_var"
 
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "",
 				&fflog.FFLogger{LeveledLogger: slog.Default()})
+
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
 
 				return
 			}
+
 			err = fCache.UpdateCache(newFlags, nil, true)
 			if tt.wantErr {
 				assert.Error(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
 
 				return
 			}
+
 			require.NoError(t, err, "UpdateCache() error = %v, wantErr %v", err, tt.wantErr)
 			// If no error we compare with expected
 			for key, expected := range tt.expected {
@@ -295,6 +299,7 @@ variation = "false_var"
 					got,
 				)
 			}
+
 			fCache.Close()
 		})
 	}
@@ -320,6 +325,7 @@ test-flag:
 	type args struct {
 		loadedFlags []byte
 	}
+
 	tests := []struct {
 		expected   map[string]flag.InternalFlag
 		name       string
@@ -446,12 +452,14 @@ test-flag2:
 			t.Parallel()
 
 			fCache := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
+
 			newFlags, err := cache.ConvertToFlagStruct(tt.args.loadedFlags, tt.flagFormat)
 			if tt.wantErr {
 				assert.Error(t, err)
 
 				return
 			}
+
 			err = fCache.UpdateCache(newFlags, &fflog.FFLogger{LeveledLogger: slog.Default()}, true)
 			require.NoError(t, err)
 
@@ -461,6 +469,7 @@ test-flag2:
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			// If no error we compare with expected
@@ -472,6 +481,7 @@ test-flag2:
 					got,
 				)
 			}
+
 			fCache.Close()
 		})
 	}
@@ -508,6 +518,7 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 
 	file, err := os.CreateTemp(t.TempDir(), "")
 	require.NoError(t, err)
+
 	defer func() { _ = file.Close() }()
 
 	// We start without any cache and we persist it on disk
@@ -547,6 +558,7 @@ func Test_persistCacheAndRestartCacheWithIt(t *testing.T) {
 	fCache2 := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	content, err := os.ReadFile(file.Name())
 	require.NoError(t, err)
+
 	loadedFlagsMap2 := map[string]dto.DTO{}
 	err = yaml.Unmarshal(content, &loadedFlagsMap2)
 	require.NoError(t, err)
@@ -654,16 +666,16 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 
 			// Test UpdateCache without notification
 			mockNotificationService := &mock.NotificationService{}
-			cm := cache.New(
+			cacheMgr := cache.New(
 				mockNotificationService,
 				"",
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 			)
 
-			err := cm.UpdateCache(tt.initialFlags, nil, false)
+			err := cacheMgr.UpdateCache(tt.initialFlags, nil, false)
 			require.NoError(t, err)
 
-			err = cm.UpdateCache(tt.updatedFlags, nil, false)
+			err = cacheMgr.UpdateCache(tt.updatedFlags, nil, false)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
@@ -672,23 +684,23 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"Notify should not be called for UpdateCache",
 			)
 
-			flags, err := cm.AllFlags()
+			flags, err := cacheMgr.AllFlags()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
 				"Cache should hold the updated flags")
 
 			// Test UpdateCacache with notification
 			mockNotificationService = &mock.NotificationService{}
-			cm = cache.New(
+			cacheMgr = cache.New(
 				mockNotificationService,
 				"",
 				&fflog.FFLogger{LeveledLogger: slog.Default()},
 			)
 
-			err = cm.UpdateCache(tt.initialFlags, nil, false)
+			err = cacheMgr.UpdateCache(tt.initialFlags, nil, false)
 			require.NoError(t, err)
 
-			err = cm.UpdateCache(tt.updatedFlags, nil, true)
+			err = cacheMgr.UpdateCache(tt.updatedFlags, nil, true)
 			require.NoError(t, err)
 			assert.Equal(
 				t,
@@ -697,7 +709,7 @@ func TestCacheManager_UpdateCache(t *testing.T) {
 				"Notify should be called once for UpdateCache with notification",
 			)
 
-			flags, err = cm.AllFlags()
+			flags, err = cacheMgr.AllFlags()
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.wantFlags, slices.Collect(maps.Keys(flags)),
 				"Cache should hold the updated flags")

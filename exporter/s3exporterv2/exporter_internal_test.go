@@ -18,34 +18,96 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+type s3ExportFields struct {
+	AwsConfig       *aws.Config
+	Bucket          string
+	Format          string
+	S3Path          string
+	Filename        string
+	CsvTemplate     string
+	S3ClientOptions []func(*s3.Options)
+	nilCtx          bool
+}
+
+type s3ExportCase struct {
+	name         string
+	expectedFile string
+	expectedName string
+	events       []exporter.ExportableEvent
+	fields       s3ExportFields
+	wantErr      bool
+}
+
+func runS3ExportTests(t *testing.T, tests []s3ExportCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			s3ManagerMock := testutils.S3ManagerV2Mock{}
+			s3Exp := &Exporter{
+				Bucket:          tt.fields.Bucket,
+				AwsConfig:       tt.fields.AwsConfig,
+				Format:          tt.fields.Format,
+				S3Path:          tt.fields.S3Path,
+				Filename:        tt.fields.Filename,
+				CsvTemplate:     tt.fields.CsvTemplate,
+				S3ClientOptions: tt.fields.S3ClientOptions,
+				s3Uploader:      &s3ManagerMock,
+			}
+
+			// Verify that S3ClientOptions are correctly set on the Exporter
+			if tt.fields.S3ClientOptions != nil {
+				assert.Equal(
+					t,
+					tt.fields.S3ClientOptions,
+					s3Exp.S3ClientOptions,
+					"S3ClientOptions should be set correctly on the Exporter",
+				)
+			}
+
+			ctx := t.Context()
+			if tt.fields.nilCtx {
+				ctx = nil
+			}
+
+			err := s3Exp.Export(
+				ctx,
+				&fflog.FFLogger{LeveledLogger: slog.Default()},
+				tt.events,
+			)
+			if tt.wantErr {
+				assert.Error(t, err, "Export should error")
+
+				return
+			}
+
+			require.NoError(t, err, "Export should not error")
+			assert.Len(
+				t,
+				s3ManagerMock.S3ManagerMockFileSystem, 1,
+				"we should have 1 file in our mock",
+			)
+
+			expectedContent, _ := os.ReadFile(tt.expectedFile)
+			for k, v := range s3ManagerMock.S3ManagerMockFileSystem {
+				assert.Equal(t, string(expectedContent), v, "invalid file content")
+				assert.Regexp(t, tt.expectedName, k, "invalid file name")
+			}
+		})
+	}
+}
+
 func TestS3_Export(t *testing.T) {
 	t.Parallel()
 
 	hostname, _ := os.Hostname()
-	type fields struct {
-		Context         context.Context
-		AwsConfig       *aws.Config
-		Bucket          string
-		Format          string
-		S3Path          string
-		Filename        string
-		CsvTemplate     string
-		S3ClientOptions []func(*s3.Options)
-	}
-
-	tests := []struct {
-		fields       fields
-		name         string
-		expectedFile string
-		expectedName string
-		events       []exporter.ExportableEvent
-		wantErr      bool
-	}{
+	runS3ExportTests(t, []s3ExportCase{
 		{
 			name: "All default test",
-			fields: fields{
-				Bucket:  "test",
-				Context: context.TODO(),
+			fields: s3ExportFields{
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -65,9 +127,9 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "All default test with nil context",
-			fields: fields{
-				Bucket:  "test",
-				Context: nil,
+			fields: s3ExportFields{
+				Bucket: "test",
+				nilCtx: true,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -87,10 +149,9 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "With DeprecatedExporterV1 Path",
-			fields: fields{
-				S3Path:  "random/path",
-				Bucket:  "test",
-				Context: context.TODO(),
+			fields: s3ExportFields{
+				S3Path: "random/path",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -110,10 +171,9 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "All default CSV",
-			fields: fields{
-				Format:  "csv",
-				Bucket:  "test",
-				Context: context.TODO(),
+			fields: s3ExportFields{
+				Format: "csv",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -133,11 +193,10 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "Custom CSV",
-			fields: fields{
+			fields: s3ExportFields{
 				Format:      "csv",
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
 				Bucket:      "test",
-				Context:     context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -157,11 +216,10 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "Custom FileName",
-			fields: fields{
+			fields: s3ExportFields{
 				Format:   "json",
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
 				Bucket:   "test",
-				Context:  context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -179,12 +237,19 @@ func TestS3_Export(t *testing.T) {
 			expectedFile: "./testdata/all_default.json",
 			expectedName: "^/json-test-[0-9]*$",
 		},
+	})
+}
+
+func TestS3_Export_ErrorsAndOptions(t *testing.T) {
+	t.Parallel()
+
+	hostname, _ := os.Hostname()
+	runS3ExportTests(t, []s3ExportCase{
 		{
 			name: "Invalid format",
-			fields: fields{
-				Format:  "xxx",
-				Bucket:  "test",
-				Context: context.TODO(),
+			fields: s3ExportFields{
+				Format: "xxx",
+				Bucket: "test",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -204,9 +269,8 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "Empty Bucket",
-			fields: fields{
-				Format:  "xxx",
-				Context: context.TODO(),
+			fields: s3ExportFields{
+				Format: "xxx",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -225,10 +289,9 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "Invalid filename template",
-			fields: fields{
+			fields: s3ExportFields{
 				Filename: "{{ .InvalidField}}",
 				Bucket:   "test",
-				Context:  context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -247,10 +310,9 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "Invalid csv formatter",
-			fields: fields{
+			fields: s3ExportFields{
 				Format:      "csv",
 				CsvTemplate: "{{ .Foo}}",
-				Context:     context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -269,14 +331,13 @@ func TestS3_Export(t *testing.T) {
 		},
 		{
 			name: "With S3 Client Options",
-			fields: fields{
+			fields: s3ExportFields{
 				Bucket: "test",
 				S3ClientOptions: []func(*s3.Options){
 					func(o *s3.Options) {
 						o.UseAccelerate = true
 					},
 				},
-				Context: context.TODO(),
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
@@ -294,57 +355,7 @@ func TestS3_Export(t *testing.T) {
 			expectedFile: "./testdata/all_default.json",
 			expectedName: "^/flag-variation-" + hostname + "-[0-9]*\\.json$",
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			s3ManagerMock := testutils.S3ManagerV2Mock{}
-			f := &Exporter{
-				Bucket:          tt.fields.Bucket,
-				AwsConfig:       tt.fields.AwsConfig,
-				Format:          tt.fields.Format,
-				S3Path:          tt.fields.S3Path,
-				Filename:        tt.fields.Filename,
-				CsvTemplate:     tt.fields.CsvTemplate,
-				S3ClientOptions: tt.fields.S3ClientOptions,
-				s3Uploader:      &s3ManagerMock,
-			}
-
-			// Verify that S3ClientOptions are correctly set on the Exporter
-			if tt.fields.S3ClientOptions != nil {
-				assert.Equal(
-					t,
-					tt.fields.S3ClientOptions,
-					f.S3ClientOptions,
-					"S3ClientOptions should be set correctly on the Exporter",
-				)
-			}
-
-			err := f.Export(
-				tt.fields.Context,
-				&fflog.FFLogger{LeveledLogger: slog.Default()},
-				tt.events,
-			)
-			if tt.wantErr {
-				assert.Error(t, err, "Export should error")
-
-				return
-			}
-
-			require.NoError(t, err, "Export should not error")
-			assert.Len(
-				t,
-				s3ManagerMock.S3ManagerMockFileSystem, 1,
-				"we should have 1 file in our mock",
-			)
-			expectedContent, _ := os.ReadFile(tt.expectedFile)
-			for k, v := range s3ManagerMock.S3ManagerMockFileSystem {
-				assert.Equal(t, string(expectedContent), v, "invalid file content")
-				assert.Regexp(t, tt.expectedName, k, "invalid file name")
-			}
-		})
-	}
+	})
 }
 
 func Test_errSDK(t *testing.T) {
@@ -369,6 +380,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
+
 	logger := &fflog.FFLogger{
 		LeveledLogger: slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})),
 	}

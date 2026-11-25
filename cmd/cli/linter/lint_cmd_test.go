@@ -16,6 +16,7 @@ func TestCmdLint(t *testing.T) {
 
 	pterm.DisableStyling()
 	pterm.DisableColor()
+
 	tests := []struct {
 		wantErr           assert.ErrorAssertionFunc
 		name              string
@@ -35,8 +36,8 @@ func TestCmdLint(t *testing.T) {
 			name:    "invalid configuration",
 			args:    []string{"testdata/invalid.json", "--format=json"},
 			wantErr: assert.Error,
-			expectedStderr: "ERROR: testdata/invalid.json: could not parse file (json): invalid character ':' after top" +
-				"-level value\n",
+			expectedStderr: "ERROR: testdata/invalid.json: could not parse file (json): decoding the flags: " +
+				"invalid character ':' after top-level value\n",
 			expectedErrString: "invalid Semaphore configuration",
 		},
 		{
@@ -54,6 +55,7 @@ func TestCmdLint(t *testing.T) {
 			require.NoError(t, err)
 			redirectionStdout, err := os.CreateTemp(t.TempDir(), "out")
 			require.NoError(t, err)
+
 			defer func() {
 				_ = os.Remove(redirectionStderr.Name())
 				_ = os.Remove(redirectionStdout.Name())

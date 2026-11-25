@@ -18,6 +18,7 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 	if variations == nil {
 		return "", errImpossibleToFindType
 	}
+
 	variationTypes := collectVariationTypes(variations)
 
 	// we found the type and return it
@@ -26,7 +27,9 @@ func FlagTypeFromVariations(variations map[string]*any) (model.FlagType, error) 
 			return key, nil
 		}
 	}
+
 	_, okFloat := variationTypes[model.FlagTypeFloat]
+
 	_, okInteger := variationTypes[model.FlagTypeInteger]
 	if len(variationTypes) == 2 && okInteger && okFloat {
 		// we need to check if it is a float or an integer
@@ -44,6 +47,7 @@ func collectVariationTypes(variations map[string]*any) map[model.FlagType]any {
 			// we skip if value is nil
 			continue
 		}
+
 		switch (*val).(type) {
 		case bool:
 			variationTypes[model.FlagTypeBoolean] = any(nil)
@@ -66,15 +70,17 @@ func collectVariationTypes(variations map[string]*any) map[model.FlagType]any {
 
 // numberFlagType is float if one of the variations is a float, integer otherwise.
 func numberFlagType(variations map[string]*any) (model.FlagType, error) {
-	for _, v := range variations {
-		if v == nil {
+	for _, variation := range variations {
+		if variation == nil {
 			// we skip if value is nil
 			continue
 		}
-		kind, err := numberType(*v)
+
+		kind, err := numberType(*variation)
 		if err != nil {
 			return "", err
 		}
+
 		if kind == "float" {
 			return model.FlagTypeFloat, nil
 		}

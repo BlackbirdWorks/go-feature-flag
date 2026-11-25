@@ -19,6 +19,7 @@ func ParseTemplate(name, templateToParse, defaultTemplate string) *template.Temp
 	if templateToParse == "" {
 		templateToParse = defaultTemplate
 	}
+
 	t, err := template.New(name).Parse(templateToParse)
 	if err != nil {
 		t, _ = template.New(name).Parse(defaultTemplate)
@@ -34,6 +35,7 @@ func ComputeFilename(template *template.Template, format string) (string, error)
 	format = strings.ToLower(format)
 
 	var buf bytes.Buffer
+
 	err := template.Execute(&buf, struct {
 		Hostname  string
 		Timestamp string

@@ -15,6 +15,7 @@ func TestSign(t *testing.T) {
 		payloadBody []byte
 		secretToken []byte
 	}
+
 	tests := []struct {
 		name string
 		want string

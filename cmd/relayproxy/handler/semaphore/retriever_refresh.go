@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -46,11 +47,12 @@ func (h *ForceFlagsRefresh) Handle(ctx context.Context, in *RetrieverRefreshInpu
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the refresh: %w", httpErr)
 	}
 
 	_, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(ctx, "retrieverRefresh")
 	defer span.End()
+
 	forceRefreshStatus := flagset.ForceRefresh()
 	span.SetAttributes(attribute.Bool("retrieverRefresh.refreshed", forceRefreshStatus))
 

@@ -1,24 +1,31 @@
 package proxynotifier
 
 import (
+	"fmt"
+
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service/stream"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
-type notifierSSE struct {
+type NotifierSSE struct {
 	sseService  stream.SSEService
 	flagsetName string
 }
 
 // NewNotifierSSE creates a notifier that forwards flag change events to the
 // SSE service scoped to the given flagset name.
-func NewNotifierSSE(sseService stream.SSEService, flagsetName string) notifier.Notifier {
-	return &notifierSSE{
+func NewNotifierSSE(sseService stream.SSEService, flagsetName string) *NotifierSSE {
+	return &NotifierSSE{
 		sseService:  sseService,
 		flagsetName: flagsetName,
 	}
 }
 
-func (n *notifierSSE) Notify(diff notifier.DiffCache) error {
-	return n.sseService.BroadcastFlagChanges(n.flagsetName, diff)
+func (n *NotifierSSE) Notify(diff notifier.DiffCache) error {
+	err := n.sseService.BroadcastFlagChanges(n.flagsetName, diff)
+	if err != nil {
+		return fmt.Errorf("broadcast SSE flag changes: %w", err)
+	}
+
+	return nil
 }

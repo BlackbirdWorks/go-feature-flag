@@ -15,9 +15,12 @@ type redactProbe struct {
 func TestRedactValue(t *testing.T) {
 	t.Parallel()
 
-	s := "plain"
+	plain := "plain"
+
 	var nilPtr *string
+
 	probe := redactProbe{hidden: "x"}
+
 	tests := []struct {
 		want  any
 		value reflect.Value
@@ -27,7 +30,7 @@ func TestRedactValue(t *testing.T) {
 		{name: "invalid value", value: reflect.Value{}, want: nil},
 		{name: "too deep", value: reflect.ValueOf("deep"), depth: maxRedactDepth + 1, want: nil},
 		{name: "nil pointer", value: reflect.ValueOf(nilPtr), want: nil},
-		{name: "pointer to a plain value", value: reflect.ValueOf(&s), want: "plain"},
+		{name: "pointer to a plain value", value: reflect.ValueOf(&plain), want: "plain"},
 		{name: "third party struct is opaque", value: reflect.ValueOf(time.Now()), want: opaqueValue},
 		{name: "function is opaque", value: reflect.ValueOf(func() {}), want: opaqueValue},
 		{name: "channel is opaque", value: reflect.ValueOf(make(chan int)), want: opaqueValue},
@@ -51,6 +54,7 @@ func TestRedactValue(t *testing.T) {
 
 func TestSensitiveNamePattern(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		want bool
@@ -68,6 +72,7 @@ func TestSensitiveNamePattern(t *testing.T) {
 
 func TestConfigStringNeverLeaksSecrets(t *testing.T) {
 	t.Parallel()
+
 	c := &Config{CommonFlagSet: CommonFlagSet{}, APIKeys: []string{"super-secret-key"}}
 	out := c.String()
 	assert.NotContains(t, out, "super-secret-key")

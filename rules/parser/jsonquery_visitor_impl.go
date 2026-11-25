@@ -61,31 +61,20 @@ func NewJSONQueryVisitorImpl(item map[string]any) *JSONQueryVisitorImpl {
 	}
 }
 
-func (j *JSONQueryVisitorImpl) setDebugErr(err error) {
-	j.debugErr = err
-}
-
-func (j *JSONQueryVisitorImpl) setErr(err error) {
-	j.err = err
-}
-
-func (j *JSONQueryVisitorImpl) hasErr() bool {
-	return j.err != nil
-}
-
 func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 	if j.hasErr() {
 		return false
 	}
+
 	switch val := tree.(type) {
 	case *LogicalExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return assertType[bool](val.Accept(j))
 	case *CompareExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return assertType[bool](val.Accept(j))
 	case *ParenExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return assertType[bool](val.Accept(j))
 	case *PresentExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return assertType[bool](val.Accept(j))
 	default:
 		j.setErr(errInvalidRule2)
 
@@ -94,7 +83,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
-	result := ctx.Query().Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	result := assertType[bool](ctx.Query().Accept(j))
 	if ctx.NOT() != nil {
 		return !result
 	}
@@ -103,21 +92,22 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
-	left := ctx.Query(0).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	left := assertType[bool](ctx.Query(0).Accept(j))
+
 	op := ctx.LOGICAL_OPERATOR().GetText()
 	if op == "or" {
 		if left {
 			return left
 		}
 
-		return ctx.Query(1).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return assertType[bool](ctx.Query(1).Accept(j))
 	}
 	// means it is and
 	if !left {
 		return left
 	}
 
-	return ctx.Query(1).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	return assertType[bool](ctx.Query(1).Accept(j))
 }
 
 func (j *JSONQueryVisitorImpl) VisitPresentExp(ctx *PresentExpContext) any {
@@ -129,9 +119,11 @@ func (j *JSONQueryVisitorImpl) VisitPresentExp(ctx *PresentExpContext) any {
 func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 	ctx.AttrPath().Accept(j)
 	ctx.Value().Accept(j)
+
 	if j.hasErr() {
 		return false
 	}
+
 	apply := operationFor(j.currentOperation, ctx.op.GetTokenType())
 	if apply == nil {
 		err := fmt.Errorf(
@@ -144,6 +136,7 @@ func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 		return false
 	}
 	defer func() { j.rightOp = nil }()
+
 	ret, err := apply(j.leftOp, j.rightOp)
 	if err != nil {
 		j.recordCompareError(ctx, err)
@@ -154,98 +147,66 @@ func (j *JSONQueryVisitorImpl) VisitCompareExp(ctx *CompareExpContext) any {
 	return ret
 }
 
-// operationFor returns the method of op that implements the comparison of the token, nil if there is none.
-func operationFor(op Operation, tokenType int) func(Operand, Operand) (bool, error) {
+// operationFor returns the method of operation that implements the comparison of the token, nil if there is none.
+func operationFor(operation Operation, tokenType int) func(Operand, Operand) (bool, error) {
 	switch tokenType {
 	case JsonQueryParserEQ:
-		return op.EQ
+		return operation.EQ
 	case JsonQueryParserNE:
-		return op.NE
+		return operation.NE
 	case JsonQueryParserGT:
-		return op.GT
+		return operation.GT
 	case JsonQueryParserLT:
-		return op.LT
+		return operation.LT
 	case JsonQueryParserLE:
-		return op.LE
+		return operation.LE
 	case JsonQueryParserGE:
-		return op.GE
+		return operation.GE
 	case JsonQueryParserCO:
-		return op.CO
+		return operation.CO
 	case JsonQueryParserSW:
-		return op.SW
+		return operation.SW
 	case JsonQueryParserEW:
-		return op.EW
+		return operation.EW
 	case JsonQueryParserIN:
-		return op.IN
+		return operation.IN
 	default:
 		return nil
 	}
 }
 
-// recordCompareError stores the error of a comparison: an invalid operation is the error of the rule, the
-// other errors are only kept for debugging.
-func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err error) {
-	switch {
-	case errors.Is(err, ErrInvalidOperation):
-		// in case of invalid operation lets rather
-		// be conservative and return false because the rule doesn't even make
-		// sense. It can be argued that it would be false positive if we were
-		// to return true
-		j.setErr(err)
-		j.setDebugErr(
-			newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
-				errValOperation:     ctx.op.GetTokenType(),
-				errValObjectOperand: j.leftOp,
-				errValRuleOperand:   j.rightOp,
-			}),
-		)
-	case errors.Is(err, ErrEvalOperandMissing):
-		j.setDebugErr(
-			newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
-				errValAttrPath: ctx.AttrPath().GetText(),
-			}),
-		)
-	default:
-		msg := "unknown error"
-		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
-			msg = "operands are not the right value type"
-		}
-		j.setDebugErr(
-			newNestedError(err, msg).Set(ErrVals{
-				errValAttrPath:      ctx.AttrPath().GetText(),
-				errValObjectOperand: j.leftOp,
-				errValRuleOperand:   j.rightOp,
-			}),
-		)
-	}
-}
-
 func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 	var item any
+
 	if ctx.SubAttr() == nil || ctx.SubAttr().IsEmpty() {
 		if !j.stack.empty() {
 			item = j.stack.pop()
 		} else {
 			item = j.item
 		}
+
 		if item == nil {
 			return nil
 		}
-		m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+
+		m := assertType[map[string]any](item)
 		j.leftOp = m[ctx.ATTRNAME().GetText()]
 		j.stack.clear()
 
 		return nil
 	}
+
 	if !j.stack.empty() {
 		item = j.stack.peek()
 	} else {
 		item = j.item
 	}
+
 	if item == nil {
 		return nil
 	}
-	m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+
+	m := assertType[map[string]any](item)
 	j.stack.push(m[ctx.ATTRNAME().GetText()])
 
 	return ctx.SubAttr().Accept(j)
@@ -265,6 +226,7 @@ func (j *JSONQueryVisitorImpl) VisitBoolean(ctx *BooleanContext) any {
 
 		return nil
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -297,6 +259,7 @@ func (j *JSONQueryVisitorImpl) VisitString(ctx *StringContext) any {
 
 func (j *JSONQueryVisitorImpl) VisitDouble(ctx *DoubleContext) any {
 	j.currentOperation = &FloatOperation{}
+
 	val, err := strconv.ParseFloat(ctx.GetText(), 64)
 	if err != nil {
 		// an unparsable double leaves the operand nil without an error, like the compiled path
@@ -304,6 +267,7 @@ func (j *JSONQueryVisitorImpl) VisitDouble(ctx *DoubleContext) any {
 
 		return false
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -318,6 +282,7 @@ func (j *JSONQueryVisitorImpl) VisitVersion(ctx *VersionContext) any {
 
 func (j *JSONQueryVisitorImpl) VisitLong(ctx *LongContext) any {
 	j.currentOperation = &IntOperation{}
+
 	val, err := strconv.Atoi(ctx.GetText())
 	if err != nil {
 		j.rightOp = nil
@@ -325,6 +290,7 @@ func (j *JSONQueryVisitorImpl) VisitLong(ctx *LongContext) any {
 
 		return nil
 	}
+
 	j.rightOp = val
 
 	return nil
@@ -344,15 +310,19 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) any
 	if j.rightOp == nil {
 		j.rightOp = make([]int, 0)
 	}
-	list := j.rightOp.([]int) //nolint:errcheck // panics on mismatch, as before
+
+	list := assertType[[]int](j.rightOp)
+
 	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
 		j.setErr(err)
 
 		return nil
 	}
+
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfInts() == nil || ctx.SubListOfInts().IsEmpty() {
 		return nil
 	}
@@ -374,15 +344,19 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfDoubles(ctx *SubListOfDoublesContex
 	if j.rightOp == nil {
 		j.rightOp = make([]float64, 0)
 	}
-	list := j.rightOp.([]float64) //nolint:errcheck // panics on mismatch, as before
+
+	list := assertType[[]float64](j.rightOp)
+
 	val, err := strconv.ParseFloat(ctx.DOUBLE().GetText(), 64)
 	if err != nil {
 		j.setErr(err)
 
 		return nil
 	}
+
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfDoubles() == nil || ctx.SubListOfDoubles().IsEmpty() {
 		return nil
 	}
@@ -404,13 +378,66 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 	if j.rightOp == nil {
 		j.rightOp = make([]string, 0)
 	}
+
 	val := getString(ctx.STRING().GetText())
-	list := j.rightOp.([]string) //nolint:errcheck // panics on mismatch, as before
+	list := assertType[[]string](j.rightOp)
 	list = append(list, val)
 	j.rightOp = list
+
 	if ctx.SubListOfStrings() == nil || ctx.SubListOfStrings().IsEmpty() {
 		return nil
 	}
 
 	return ctx.SubListOfStrings().Accept(j)
+}
+
+func (j *JSONQueryVisitorImpl) setDebugErr(err error) {
+	j.debugErr = err
+}
+
+func (j *JSONQueryVisitorImpl) setErr(err error) {
+	j.err = err
+}
+
+func (j *JSONQueryVisitorImpl) hasErr() bool {
+	return j.err != nil
+}
+
+// recordCompareError stores the error of a comparison: an invalid operation is the error of the rule, the
+// other errors are only kept for debugging.
+func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err error) {
+	switch {
+	case errors.Is(err, ErrInvalidOperation):
+		// in case of invalid operation lets rather
+		// be conservative and return false because the rule doesn't even make
+		// sense. It can be argued that it would be false positive if we were
+		// to return true
+		j.setErr(err)
+		j.setDebugErr(
+			newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
+				errValOperation:     ctx.op.GetTokenType(),
+				errValObjectOperand: j.leftOp,
+				errValRuleOperand:   j.rightOp,
+			}),
+		)
+	case errors.Is(err, ErrEvalOperandMissing):
+		j.setDebugErr(
+			newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
+				errValAttrPath: ctx.AttrPath().GetText(),
+			}),
+		)
+	default:
+		msg := "unknown error"
+		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
+			msg = "operands are not the right value type"
+		}
+
+		j.setDebugErr(
+			newNestedError(err, msg).Set(ErrVals{
+				errValAttrPath:      ctx.AttrPath().GetText(),
+				errValObjectOperand: j.leftOp,
+				errValRuleOperand:   j.rightOp,
+			}),
+		)
+	}
 }

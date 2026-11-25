@@ -14,6 +14,7 @@ func GetNestedFieldValue(ctx map[string]any, bucketingKey string) (any, error) {
 	}
 
 	parts := strings.Split(bucketingKey, ".")
+
 	var current any = ctx
 
 	for _, part := range parts {

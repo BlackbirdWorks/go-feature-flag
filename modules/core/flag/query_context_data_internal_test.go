@@ -31,11 +31,14 @@ type namedMap map[string]any
 // before the fast path), including when that round trip fails.
 func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 	t.Parallel()
+
 	cyclicMap := map[string]any{}
 	cyclicMap["self"] = cyclicMap
 	cyclicSlice := []any{nil}
 	cyclicSlice[0] = cyclicSlice
+
 	var nilPtr *normalizeStruct
+
 	deep := any("leaf")
 	for range 5000 { // deeper than the fast path goes, but not a cycle
 		deep = []any{deep}
@@ -93,25 +96,32 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			for k, v := range tt.custom {
 				ctx.AddCustomAttribute(k, v)
 			}
+
 			qc := &queryContext{svc: NewService(), ctx: ctx}
 			defer qc.release()
+
 			got, gotErr := qc.dataOnce()
 
 			var want any
+
 			raw, wantErr := json.Marshal(utils.ContextToMap(ctx))
 			if wantErr == nil {
 				wantErr = json.Unmarshal(raw, &want)
 			}
+
 			assert.Equal(t, tt.wantErr, wantErr != nil, "the round trip of the attributes")
+
 			if wantErr != nil {
 				assert.Error(t, gotErr, "the round trip fails, so must the fast path")
 
 				return
 			}
+
 			require.NoError(t, gotErr)
 			assert.Equal(t, want, got)
 		})

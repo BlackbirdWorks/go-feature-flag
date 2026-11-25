@@ -53,6 +53,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	logFile, _ := os.CreateTemp(t.TempDir(), "")
 	textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+
 	defer func() { _ = os.Remove(logFile.Name()) }()
 
 	exporterMock := mock.Exporter{}
@@ -65,6 +66,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	exp.Flush()
 	// flush should error and not return any event
 	assert.Empty(t, exporterMock.GetExportedEvents())
+
 	logContent, _ := os.ReadFile(logFile.Name())
 	assert.Equal(t, "error\n", string(logContent))
 }
@@ -96,6 +98,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+
 			defer func() { _ = os.Remove(logFile.Name()) }()
 
 			exporterMock := tt.exporter
@@ -113,6 +116,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 			exp.Flush()
 			// flush should error and not return any event
 			assert.Empty(t, exporterMock.GetExportedEvents())
+
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -152,6 +156,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
 			textHandler := slogutil.MessageOnlyHandler{Writer: logFile}
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(&textHandler)}
+
 			defer func() { _ = os.Remove(logFile.Name()) }()
 
 			exporterMock := tt.exporter
@@ -165,6 +170,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 			exp.Flush()
 			// flush should error and not return any event
 			assert.Len(t, exporterMock.GetExportedEvents(), 100)
+
 			logContent, _ := os.ReadFile(logFile.Name())
 			assert.Equal(t, tt.expectedLog, string(logContent))
 		})
@@ -175,6 +181,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	t.Parallel()
 
 	evStore := exporter.NewEventStore[exporter.FeatureEvent](defaultTestCleanQueueDuration)
+
 	evStore.AddConsumer("slow-consumer")
 	defer evStore.Stop()
 
@@ -190,19 +197,26 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	}, "slow-consumer", evStore, nil)
 
 	var wg sync.WaitGroup
+
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
+
 		exp.Flush()
 	}()
+
 	time.Sleep(10 * time.Millisecond)
+
 	go func() {
 		defer wg.Done()
+
 		exp.Flush()
 	}()
+
 	wg.Wait()
 
 	assert.Equal(t, int32(1), slow.exportCall.Load())
+
 	count, err := evStore.GetPendingEventCount("slow-consumer")
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)

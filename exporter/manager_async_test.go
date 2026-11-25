@@ -20,6 +20,7 @@ type batchAdder interface {
 
 func Test_EventStore_AddAll(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		batches     []int
@@ -40,18 +41,28 @@ func Test_EventStore_AddAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
 			defer store.Stop()
+
 			store.AddConsumer("c")
+
 			for _, n := range tt.batches {
 				batch := make([]testutils.ExportableMockEvent, n)
 				for i := range batch {
 					batch[i] = testutils.NewExportableMockEvent("e")
 				}
-				store.(batchAdder).AddAll(batch)
+
+				ba, ok := store.(batchAdder)
+				require.True(t, ok)
+				ba.AddAll(batch)
 			}
+
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
+
 			pending, err := store.GetPendingEventCount("c")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStored, pending, "offsets are contiguous: dropped events use none")
@@ -67,12 +78,14 @@ type countingExporter struct {
 }
 
 func (c *countingExporter) IsBulk() bool { return c.bulk }
-func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, evts []exporter.ExportableEvent) error {
 	c.calls.Add(1)
+
 	if c.fail {
 		return assert.AnError
 	}
-	c.events.Add(int64(len(ev)))
+
+	c.events.Add(int64(len(evts)))
 
 	return nil
 }
@@ -81,6 +94,7 @@ func (c *countingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exp
 // reached, and Stop waits for the background flushes.
 func Test_Manager_QueueEvents(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		exp        *countingExporter
 		name       string
@@ -114,29 +128,39 @@ func Test_Manager_QueueEvents(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: tt.exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQueued,
 			}}, time.Hour, nil)
-			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
 			require.True(t, ok)
+
 			total := 0
+
 			for range tt.batches {
 				batch := make([]exporter.FeatureEvent, tt.batchSize)
-				am.QueueEvents(batch)
+				asyncMgr.QueueEvents(batch)
+
 				total += tt.batchSize
 			}
-			m.Stop()
+
+			mgr.Stop()
+
 			if tt.wantAll {
 				assert.Equal(t, int64(total), tt.exp.events.Load())
 			}
+
 			if tt.maxCalls > 0 {
 				assert.LessOrEqual(t, tt.exp.calls.Load(), tt.maxCalls)
 			}
+
 			if tt.wantDroped {
-				assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+				dc, dcOK := mgr.(exporter.DroppedEventsCounter)
+				require.True(t, dcOK)
+				assert.Positive(t, dc.DroppedEvents())
 			}
 			// events queued after Stop are only stored: no goroutine is started
-			am.QueueEvents(make([]exporter.FeatureEvent, 3))
+			asyncMgr.QueueEvents(make([]exporter.FeatureEvent, 3))
 		})
 	}
 }

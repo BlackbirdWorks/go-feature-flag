@@ -32,33 +32,41 @@ type ByteSize int64
 // UnmarshalText implements [encoding.TextUnmarshaler], it is used by the koanf decode hook to
 // convert the strings (configuration file and environment variables) to a number of bytes.
 func (b *ByteSize) UnmarshalText(text []byte) error {
-	s := strings.TrimSpace(string(text))
-	if s == "" {
+	raw := strings.TrimSpace(string(text))
+	if raw == "" {
 		// an empty value (for example an empty environment variable) means unset.
 		*b = 0
 
 		return nil
 	}
-	if strings.HasPrefix(s, "-") {
-		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, s)
+
+	if strings.HasPrefix(raw, "-") {
+		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, raw)
 	}
-	if n, err := strconv.ParseUint(s, 10, 63); err == nil {
-		*b = ByteSize(n)
+
+	parsedUint, uintErr := strconv.ParseUint(raw, 10, 63)
+	if uintErr == nil {
+		*b = ByteSize(parsedUint)
 
 		return nil
 	}
-	if _, err := strconv.ParseFloat(s, 64); err == nil {
+
+	_, floatErr := strconv.ParseFloat(raw, 64)
+	if floatErr == nil {
 		// a number without unit that is not an integer (1.5, 1e3), do not truncate it silently.
-		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, s)
+		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, raw)
 	}
-	n, err := humanize.ParseBytes(s)
+
+	parsed, err := humanize.ParseBytes(raw)
 	if err != nil {
-		return fmt.Errorf("invalid size %q: %w", s, err)
+		return fmt.Errorf("invalid size %q: %w", raw, err)
 	}
-	if n > math.MaxInt64 {
-		return fmt.Errorf("%w %q: too large", errInvalidSize, s)
+
+	if parsed > math.MaxInt64 {
+		return fmt.Errorf("%w %q: too large", errInvalidSize, raw)
 	}
-	*b = ByteSize(n)
+
+	*b = ByteSize(parsed)
 
 	return nil
 }
@@ -66,7 +74,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 // Endpoints is the configuration of the endpoints of the relay proxy.
 type Endpoints struct {
 	// ValidateFlags configures the POST /admin/v1/flags/validate endpoint.
-	ValidateFlags ValidateFlagsEndpoint `mapstructure:"validateFlags" koanf:"validateflags"`
+	ValidateFlags ValidateFlagsEndpoint `koanf:"validateflags" mapstructure:"validateFlags"`
 }
 
 // ValidateFlagsEndpoint configures the body size limits of the validate flags endpoint.
@@ -74,13 +82,13 @@ type Endpoints struct {
 type ValidateFlagsEndpoint struct {
 	// MaxJSONBodySize is the maximum size of a JSON body.
 	// Default: 1 MiB
-	MaxJSONBodySize ByteSize `mapstructure:"maxJSONBodySize" koanf:"maxjsonbodysize"`
+	MaxJSONBodySize ByteSize `koanf:"maxjsonbodysize" mapstructure:"maxJSONBodySize"`
 	// MaxYAMLBodySize is the maximum size of a YAML body.
 	// Default: 64 KiB
-	MaxYAMLBodySize ByteSize `mapstructure:"maxYAMLBodySize" koanf:"maxyamlbodysize"`
+	MaxYAMLBodySize ByteSize `koanf:"maxyamlbodysize" mapstructure:"maxYAMLBodySize"`
 	// MaxTOMLBodySize is the maximum size of a TOML body.
 	// Default: 64 KiB
-	MaxTOMLBodySize ByteSize `mapstructure:"maxTOMLBodySize" koanf:"maxtomlbodysize"`
+	MaxTOMLBodySize ByteSize `koanf:"maxtomlbodysize" mapstructure:"maxTOMLBodySize"`
 }
 
 // WithDefaults returns a copy where the unset (zero) limits are replaced by their default.
@@ -88,9 +96,11 @@ func (v ValidateFlagsEndpoint) WithDefaults() ValidateFlagsEndpoint {
 	if v.MaxJSONBodySize == 0 {
 		v.MaxJSONBodySize = DefaultValidateFlagsMaxJSONBodySize
 	}
+
 	if v.MaxYAMLBodySize == 0 {
 		v.MaxYAMLBodySize = DefaultValidateFlagsMaxYAMLBodySize
 	}
+
 	if v.MaxTOMLBodySize == 0 {
 		v.MaxTOMLBodySize = DefaultValidateFlagsMaxTOMLBodySize
 	}

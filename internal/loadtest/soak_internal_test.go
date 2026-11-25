@@ -32,6 +32,7 @@ func samples(heap []uint64, gor []int) []Sample {
 // sawtooth returns warm flat samples followed by n samples alternating between 100 and 10 MiB.
 func sawtooth(warm, n int) []uint64 {
 	const mib = 1 << 20
+
 	out := slices.Repeat([]uint64{10 * mib}, warm)
 	for i := range n {
 		out = append(out, uint64(10+90*(i%2))*mib)
@@ -42,8 +43,11 @@ func sawtooth(warm, n int) []uint64 {
 
 func TestJudge(t *testing.T) {
 	t.Parallel()
+
 	const mib = 1 << 20
+
 	flatG := []int{10, 10, 10, 10, 10, 10, 10, 10}
+
 	tests := []struct {
 		name       string
 		wantReason string
@@ -108,16 +112,20 @@ func TestJudge(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			o := tt.opts
-			o.HeapTolerance = 0.25
-			o.HeapMinGrowthBytes = 32 << 20
-			o.GoroutineSlack = 64
+
+			opts := tt.opts
+			opts.HeapTolerance = 0.25
+			opts.HeapMinGrowthBytes = 32 << 20
+
+			opts.GoroutineSlack = 64
 			if tt.name == "heap leak" {
-				o.HeapMinGrowthBytes = 1
+				opts.HeapMinGrowthBytes = 1
 			}
+
 			r := &Report{Samples: samples(tt.heap, tt.gor)}
-			judge(r, o)
+			judge(r, opts)
 			assert.Equal(t, tt.wantPass, r.Pass, "reasons: %v", r.Reasons)
+
 			if tt.wantReason != "" {
 				require.Len(t, r.Reasons, 1)
 				assert.Contains(t, r.Reasons[0], tt.wantReason)
@@ -128,6 +136,7 @@ func TestJudge(t *testing.T) {
 
 func TestJudge_EvaluationErrorsFail(t *testing.T) {
 	t.Parallel()
+
 	g := []int{10, 10, 10, 10, 10, 10}
 	h := []uint64{1, 1, 1, 1, 1, 1}
 	r := &Report{Samples: samples(h, g), TotalEval: 100, TotalErr: 7}
@@ -139,6 +148,7 @@ func TestJudge_EvaluationErrorsFail(t *testing.T) {
 
 func TestParseExporterMode(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		in      string
 		want    ExporterMode
@@ -153,12 +163,14 @@ func TestParseExporterMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
 			t.Parallel()
+
 			got, err := ParseExporterMode(tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -167,7 +179,9 @@ func TestParseExporterMode(t *testing.T) {
 
 func TestExporter_Export(t *testing.T) {
 	t.Parallel()
+
 	events := make([]exporter.ExportableEvent, 3)
+
 	tests := []struct {
 		name         string
 		mode         ExporterMode
@@ -183,19 +197,21 @@ func TestExporter_Export(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			e := NewExporter(tt.mode)
-			e.Delay = time.Millisecond
-			assert.True(t, e.IsBulk())
-			err := e.Export(context.Background(), nil, events)
+
+			exp := NewExporter(tt.mode)
+			exp.Delay = time.Millisecond
+			assert.True(t, exp.IsBulk())
+			err := exp.Export(context.Background(), nil, events)
 			assert.Equal(t, tt.wantErr, err != nil)
-			assert.Equal(t, tt.wantBatches, e.Batches.Load())
-			assert.Equal(t, tt.wantEvents, e.Events.Load())
-			assert.Equal(t, tt.wantFailures, e.Failures.Load())
+			assert.Equal(t, tt.wantBatches, exp.Batches.Load())
+			assert.Equal(t, tt.wantEvents, exp.Events.Load())
+			assert.Equal(t, tt.wantFailures, exp.Failures.Load())
 		})
 	}
 
 	t.Run("slow honours cancellation", func(t *testing.T) {
 		t.Parallel()
+
 		e := NewExporter(ExporterSlow)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
@@ -215,6 +231,7 @@ func (f *fakeTarget) Eval(_, _ int) error {
 	if f.failEv > 0 && n%int64(f.failEv) == 0 {
 		return errBoom
 	}
+
 	time.Sleep(50 * time.Microsecond)
 
 	return nil
@@ -224,13 +241,16 @@ func (f *fakeTarget) Close()                  { f.closed.Store(true) }
 
 func TestRun_CountsEvaluationsAndErrors(t *testing.T) {
 	t.Parallel()
-	ft := &fakeTarget{failEv: 4}
+
+	target := &fakeTarget{failEv: 4}
+
 	var out bytes.Buffer
-	rep := Run(context.Background(), ft, Options{
+
+	rep := Run(context.Background(), target, Options{
 		Name: "fake", Duration: 600 * time.Millisecond, Interval: 50 * time.Millisecond, Workers: 2,
 		WarmupIntervals: 2, HeapMinGrowthBytes: 1 << 30,
 	}, &out)
-	assert.Equal(t, ft.evals.Load(), rep.TotalEval)
+	assert.Equal(t, target.evals.Load(), rep.TotalEval)
 	assert.Positive(t, rep.TotalErr)
 	assert.False(t, rep.Pass, "evaluation errors fail the verdict")
 	assert.InDelta(t, float64(rep.TotalEval)/4, float64(rep.TotalErr), float64(rep.TotalEval)/4*0.2+4)
@@ -252,13 +272,17 @@ func TestRun_CountsEvaluationsAndErrors(t *testing.T) {
 
 func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 	t.Parallel()
+
 	ctx, cancel := context.WithCancel(context.Background())
+
 	done := make(chan Report, 1)
 	go func() {
 		done <- Run(ctx, &fakeTarget{}, Options{Duration: time.Hour, Interval: time.Hour, Workers: 2}, nil)
 	}()
+
 	time.Sleep(100 * time.Millisecond)
 	cancel()
+
 	select {
 	case rep := <-done:
 		assert.False(t, rep.Pass, "no measured sample: no verdict")
@@ -270,20 +294,25 @@ func TestRun_StopsWhenContextIsCancelled(t *testing.T) {
 
 func TestRun_AbortsOnHeapCap(t *testing.T) {
 	t.Parallel()
+
 	rep := Run(context.Background(), &fakeTarget{}, Options{
 		Duration: 5 * time.Second, Interval: time.Second, Workers: 1, MaxHeapBytes: 1,
 	}, nil)
 	assert.False(t, rep.Pass)
+
 	var found bool
 	for _, r := range rep.Reasons {
 		found = found || strings.Contains(r, "safety cap")
 	}
+
 	assert.True(t, found, "reasons: %v", rep.Reasons)
 }
 
 func TestBucket(t *testing.T) {
 	t.Parallel()
+
 	prev := time.Duration(0)
+
 	for ns := int64(1); ns < 1<<40; ns = ns*3/2 + 1 {
 		b := bucket(ns)
 		up := bucketUpper(b)
@@ -291,6 +320,7 @@ func TestBucket(t *testing.T) {
 		assert.GreaterOrEqual(t, up, prev)
 		prev = up
 	}
+
 	assert.Equal(t, bucket(1), bucket(-5))
 	assert.Equal(t, time.Duration(0), quantile(make([]int64, latBuckets), 0, 0.5))
 }
@@ -299,7 +329,9 @@ func TestFlagKeyAndYAML(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "rule-bool-track", FlagKey("rule", "bool", true))
 	assert.Equal(t, "rule-bool-notrack", FlagKey("rule", "bool", false))
+
 	y := FlagsYAML()
+
 	for _, s := range Scenarios() {
 		for _, ty := range Types() {
 			assert.Contains(t, y, FlagKey(s, ty, true)+":")
@@ -309,16 +341,24 @@ func TestFlagKeyAndYAML(t *testing.T) {
 
 func TestLibraryTarget(t *testing.T) {
 	t.Parallel()
-	lt, err := NewLibraryTarget(LibraryOptions{
+	libTarget, err := NewLibraryTarget(t.Context(), LibraryOptions{
 		FlagKey: "rule-bool-track", ExporterMode: ExporterDiscard, FlushInterval: 20 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	defer lt.Close()
+
+	defer libTarget.Close()
+
 	for i := range 50 {
-		require.NoError(t, lt.Eval(0, i))
+		require.NoError(t, libTarget.Eval(0, i))
 	}
-	assert.Eventually(t, func() bool { return lt.Extra()["exported_events"] > 0 }, 5*time.Second, 20*time.Millisecond)
-	assert.Contains(t, lt.Extra(), "dropped_events")
+
+	assert.Eventually(
+		t,
+		func() bool { return libTarget.Extra()["exported_events"] > 0 },
+		5*time.Second,
+		20*time.Millisecond,
+	)
+	assert.Contains(t, libTarget.Extra(), "dropped_events")
 }
 
 type weightedTarget struct{ n int }
@@ -330,6 +370,7 @@ func (w weightedTarget) FlagsPerCall() int     { return w.n }
 
 func TestFlagsPerCall(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		target Target
 		name   string
@@ -356,6 +397,7 @@ func TestWarmupCount(t *testing.T) {
 
 func TestSummarize(t *testing.T) {
 	t.Parallel()
+
 	hist := func(durations ...time.Duration) []int64 {
 		h := make([]int64, latBuckets)
 		for _, d := range durations {
@@ -364,7 +406,7 @@ func TestSummarize(t *testing.T) {
 
 		return h
 	}
-	us := time.Microsecond
+	microsec := time.Microsecond
 	samples := []Sample{
 		{EvalsPerSec: 1, Errors: 100}, // warm-up, ignored
 		{EvalsPerSec: 1000, Errors: 1},
@@ -372,8 +414,11 @@ func TestSummarize(t *testing.T) {
 	}
 	hists := [][]int64{
 		hist(time.Second), // warm-up, ignored
-		hist(100*us, 100*us, 100*us, 100*us),
-		hist(100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 100*us, 10*time.Millisecond),
+		hist(100*microsec, 100*microsec, 100*microsec, 100*microsec),
+		hist(
+			100*microsec, 100*microsec, 100*microsec, 100*microsec, 100*microsec,
+			100*microsec, 100*microsec, 100*microsec, 100*microsec, 10*time.Millisecond,
+		),
 	}
 
 	w := summarize(samples, hists, 1, 25)
@@ -383,7 +428,7 @@ func TestSummarize(t *testing.T) {
 	assert.Equal(t, 25, w.FlagsPerCall)
 	assert.Equal(t, int64(3), w.Errors, "the warm-up errors are not counted")
 	assert.Less(t, w.P50, time.Millisecond)
-	assert.GreaterOrEqual(t, w.P50, 100*us)
+	assert.GreaterOrEqual(t, w.P50, 100*microsec)
 	assert.GreaterOrEqual(t, w.P99, 10*time.Millisecond, "the slow call shows in the tail")
 	assert.LessOrEqual(t, w.P95, w.P99)
 	assert.Less(t, w.P99, time.Second, "the warm-up latency is not counted")
@@ -393,6 +438,7 @@ func TestSummarize(t *testing.T) {
 
 func TestSummaryPrintsTheWindow(t *testing.T) {
 	t.Parallel()
+
 	var buf bytes.Buffer
 	Report{Name: "x", Pass: true, Window: Window{
 		Samples: 4, CallsPerSec: 100, FlagsPerCall: 3, FlagsPerSec: 300, Errors: 2,

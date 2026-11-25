@@ -46,6 +46,7 @@ type Retriever struct {
 
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *string) error {
 	r.status = retriever.RetrieverNotReady
+
 	r.logger = logger
 	if r.logger == nil {
 		r.logger = &fflog.FFLogger{}
@@ -57,9 +58,10 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger, flagset *s
 	if r.Pools == nil {
 		r.Pools = NewPoolRegistry()
 	}
+
 	if r.pool == nil {
-		r.logger.Info("Initializing PostgreSQL retriever")
-		r.logger.Debug("Using columns", "columns", r.columns)
+		r.logger.InfoContext(ctx, "Initializing PostgreSQL retriever")
+		r.logger.DebugContext(ctx, "Using columns", "columns", r.columns)
 
 		pool, err := r.Pools.GetPool(ctx, r.URI)
 		if err != nil {
@@ -91,6 +93,7 @@ func (r *Retriever) Shutdown(ctx context.Context) error {
 		r.Pools.ReleasePool(ctx, r.URI)
 		r.pool = nil
 	}
+
 	r.status = retriever.RetrieverNotReady
 
 	return nil
@@ -111,7 +114,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		args = []any{r.getFlagset()}
 	}
 
-	r.logger.Debug("Executing PostgreSQL query", slog.String("query", query), slog.Any("args", args))
+	r.logger.DebugContext(ctx, "Executing PostgreSQL query", slog.String("query", query), slog.Any("args", args))
 
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -123,27 +126,34 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	flagConfigs := make(map[string]any)
 
 	for rows.Next() {
-		var flagName string
-		var configData []byte
+		var (
+			flagName   string
+			configData []byte
+		)
 
-		if scanErr := rows.Scan(&flagName, &configData); scanErr != nil {
-			r.logger.Error("Failed to scan row", "error", scanErr)
+		scanErr := rows.Scan(&flagName, &configData)
+		if scanErr != nil {
+			r.logger.ErrorContext(ctx, "Failed to scan row", "error", scanErr)
 
 			continue
 		}
 
 		// Parse the JSON config data into a map
 		var config map[string]any
-		if unmarshalErr := json.Unmarshal(configData, &config); unmarshalErr != nil {
-			r.logger.Error("Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
+
+		unmarshalErr := json.Unmarshal(configData, &config)
+		if unmarshalErr != nil {
+			r.logger.ErrorContext(ctx, "Failed to unmarshal config data", "error", unmarshalErr, "flagName", flagName)
 
 			continue
 		}
+
 		flagConfigs[flagName] = config
 	}
 
 	// Check for any errors that occurred during row iteration
-	if errErr := rows.Err(); errErr != nil {
+	errErr := rows.Err()
+	if errErr != nil {
 		return nil, fmt.Errorf("rows iteration error: %w", errErr)
 	}
 
@@ -158,7 +168,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("failed to marshal flag configurations: %w", err)
 	}
 
-	r.logger.Debug("Retrieved flags from PostgreSQL", "count", len(flagConfigs))
+	r.logger.DebugContext(ctx, "Retrieved flags from PostgreSQL", "count", len(flagConfigs))
 
 	return result, nil
 }

@@ -2,6 +2,7 @@ package postgresqlretriever
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,12 +43,14 @@ func (p *PoolRegistry) GetPool(ctx context.Context, uri string) (*pgxpool.Pool, 
 	// Create a new pool
 	pool, err := pgxpool.New(ctx, uri)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating the PostgreSQL pool: %w", err)
 	}
-	if pingErr := pool.Ping(ctx); pingErr != nil {
+
+	pingErr := pool.Ping(ctx)
+	if pingErr != nil {
 		pool.Close()
 
-		return nil, pingErr
+		return nil, fmt.Errorf("ping postgres pool: %w", pingErr)
 	}
 
 	p.pools[uri] = &poolEntry{

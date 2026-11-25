@@ -15,6 +15,7 @@ import (
 
 func TestByteSize_UnmarshalText(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		text    string
@@ -39,13 +40,16 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var got config.ByteSize
+
 			err := got.UnmarshalText([]byte(tt.text))
 			if tt.wantErr {
 				assert.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})
@@ -54,6 +58,7 @@ func TestByteSize_UnmarshalText(t *testing.T) {
 
 func TestValidateFlagsEndpoint_WithDefaults(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		in   config.ValidateFlagsEndpoint
@@ -87,6 +92,7 @@ func TestValidateFlagsEndpoint_WithDefaults(t *testing.T) {
 
 func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		wantErr string
@@ -118,12 +124,14 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := tt.in.IsValid()
 			if tt.wantErr != "" {
 				assert.ErrorContains(t, err, tt.wantErr)
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}
@@ -131,6 +139,7 @@ func TestValidateFlagsEndpoint_IsValid(t *testing.T) {
 
 func TestEndpoints_IsValid(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		in      config.Endpoints
@@ -157,12 +166,14 @@ func TestEndpoints_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			err := tt.in.IsValid()
 			if tt.wantErr {
 				assert.ErrorContains(t, err, "must not be negative")
 
 				return
 			}
+
 			assert.NoError(t, err)
 		})
 	}
@@ -173,6 +184,7 @@ func TestEndpoints_Loading(t *testing.T) {
 	t.Parallel()
 
 	const base = "retriever:\n  kind: file\n  path: ./flags.yaml\n"
+
 	tests := []struct {
 		env         map[string]string
 		name        string
@@ -230,10 +242,12 @@ func TestEndpoints_Loading(t *testing.T) {
 
 			path := filepath.Join(t.TempDir(), "goff-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
+
 			environ := make([]string, 0, len(tt.env))
 			for k, v := range tt.env {
 				environ = append(environ, k+"="+v)
 			}
+
 			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
 			fs.String("config", "", "Location of your config file")
 			require.NoError(t, fs.Parse([]string{"--config=" + path}))
@@ -241,6 +255,7 @@ func TestEndpoints_Loading(t *testing.T) {
 			got, err := loader.ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got.Endpoints.ValidateFlags)
+
 			if tt.wantInvalid {
 				assert.Error(t, got.IsValid())
 			} else {

@@ -65,8 +65,11 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 				// insert data
 				client, connectErr := mongo.Connect(context.TODO(), options.Client().ApplyURI(uri))
 				require.NoError(t, connectErr)
+
 				coll := client.Database("database").Collection("collection")
+
 				var documents []bson.M
+
 				connectErr = json.Unmarshal([]byte(tt.data), &documents)
 				require.NoError(t, connectErr)
 
@@ -84,15 +87,18 @@ func Test_MongoDBRetriever_Retrieve(t *testing.T) {
 			}
 			assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 			err = mdb.Init(context.TODO(), &fflog.FFLogger{})
+
 			require.NoError(t, err)
 			defer func() {
 				require.NoError(t, mdb.Shutdown(context.TODO()))
 				assert.Equal(t, retriever.RetrieverNotReady, mdb.Status())
 			}()
+
 			assert.Equal(t, retriever.RetrieverReady, mdb.Status())
 
 			got, err := mdb.Retrieve(context.Background())
 			require.NoError(t, err)
+
 			if tt.want == nil {
 				assert.Nil(t, got)
 			} else {
@@ -142,7 +148,9 @@ func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
 
 func removeIDFromJSON(jsonStr string) (string, error) {
 	var data any
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+
+	err := json.Unmarshal([]byte(jsonStr), &data)
+	if err != nil {
 		return "", err
 	}
 
@@ -157,14 +165,15 @@ func removeIDFromJSON(jsonStr string) (string, error) {
 }
 
 func removeIDFields(data any) {
-	switch v := data.(type) {
+	switch typed := data.(type) {
 	case map[string]any:
-		delete(v, "_id")
-		for _, value := range v {
+		delete(typed, "_id")
+
+		for _, value := range typed {
 			removeIDFields(value)
 		}
 	case []any:
-		for _, item := range v {
+		for _, item := range typed {
 			removeIDFields(item)
 		}
 	}

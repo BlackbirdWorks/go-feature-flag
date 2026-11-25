@@ -29,26 +29,33 @@ func (m *scheduledMemo) get(
 ) (*InternalFlag, error) {
 	steps := f.Scheduled
 	key := weak.Make(steps)
-	v, ok := m.entries.Load(key)
+
+	rawEntry, ok := m.entries.Load(key)
 	if !ok {
 		entry := &scheduledEntry{byCount: make([]atomic.Pointer[InternalFlag], len(*steps)+1)}
+
 		var loaded bool
-		v, loaded = m.entries.LoadOrStore(key, entry)
+
+		rawEntry, loaded = m.entries.LoadOrStore(key, entry)
 		if !loaded {
 			runtime.AddCleanup(steps, func(k weak.Pointer[[]ScheduledStep]) { m.entries.Delete(k) }, key)
 		}
 	}
-	entry := v.(*scheduledEntry)   //nolint:errcheck // the map only ever stores *scheduledEntry
-	if due >= len(entry.byCount) { // the steps changed after the entry was created
+
+	entry, ok := rawEntry.(*scheduledEntry)
+	if !ok || due >= len(entry.byCount) { // the steps changed after the entry was created
 		return build()
 	}
+
 	if cached := entry.byCount[due].Load(); cached != nil {
 		return cached, nil
 	}
+
 	built, err := build()
 	if err != nil {
 		return built, err
 	}
+
 	entry.byCount[due].Store(built)
 
 	return built, nil

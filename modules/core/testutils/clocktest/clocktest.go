@@ -32,6 +32,7 @@ func Freeze() {
 // only, before m.Run, and never reassign the clock afterwards.
 func FreezeStepping(step time.Duration) {
 	var calls atomic.Int64
+
 	instant := Instant()
 	//nolint:reassign // the one place that overrides the clock, from the TestMain of the packages that need it.
 	clock.Now = func() time.Time {

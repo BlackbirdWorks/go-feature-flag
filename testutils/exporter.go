@@ -2,12 +2,12 @@ package testutils
 
 import "text/template"
 
-func NewExportableMockEvent(name string) ExportableMockEvent {
-	return ExportableMockEvent{name: name}
-}
-
 type ExportableMockEvent struct {
 	name string
+}
+
+func NewExportableMockEvent(name string) ExportableMockEvent {
+	return ExportableMockEvent{name: name}
 }
 
 func (e ExportableMockEvent) GetUserKey() string {

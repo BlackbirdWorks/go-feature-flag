@@ -16,15 +16,16 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
-func countEntries(m *sync.Map) int {
-	n := 0
-	m.Range(func(_, _ any) bool {
-		n++
+func countEntries(entries *sync.Map) int {
+	count := 0
+
+	entries.Range(func(_, _ any) bool {
+		count++
 
 		return true
 	})
 
-	return n
+	return count
 }
 
 func TestService_StateIsOwnedByTheService(t *testing.T) {
@@ -52,10 +53,11 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			t.Parallel()
 
 			first, other := NewService(), NewService()
-			f := newFlagWithQueries(tt.query)
-			require.NoError(t, f.IsValid(first))
+			flg := newFlagWithQueries(tt.query)
+			require.NoError(t, flg.IsValid(first))
+
 			ctx := ffcontext.NewEvaluationContextBuilder("user").AddCustom("plan", "pro").Build()
-			_, err := (*f.Rules)[0].Evaluate(first, "user", ctx, "flag", false)
+			_, err := (*flg.Rules)[0].Evaluate(first, "user", ctx, "flag", false)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantFirstEntries, countEntries(&first.nikunjy.entries), "entries of the first Service")
@@ -64,7 +66,7 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			first.Close()
 			assert.Equal(t, tt.wantAfterClose, countEntries(&first.nikunjy.entries), "entries after Close")
 			// still usable after Close: it rebuilds what it needs
-			_, err = (*f.Rules)[0].Evaluate(first, "user", ctx, "flag", false)
+			_, err = (*flg.Rules)[0].Evaluate(first, "user", ctx, "flag", false)
 			require.NoError(t, err)
 		})
 	}
@@ -100,8 +102,9 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
-			f := &InternalFlag{
+			flg := &InternalFlag{
 				Variations:      &map[string]*any{"on": new(any(true))},
 				DefaultRule:     &Rule{VariationResult: new("on")},
 				Experimentation: &ExperimentationRollout{Start: new(clocktest.Instant().Add(-time.Hour))},
@@ -113,14 +116,15 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 			)
 
 			for range tt.evaluations {
-				_, details := f.Value("flag", ctx, Context{Service: svc})
+				_, details := flg.Value("flag", ctx, Context{Service: svc})
 				require.Empty(t, details.ErrorCode)
 			}
 
 			assert.Equal(t, tt.wantWarnings, strings.Count(buf.String(), "legacy name"))
 			// another Service has its own warn-once state
 			other := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
-			_, _ = f.Value("flag", ctx, Context{Service: other})
+			_, _ = flg.Value("flag", ctx, Context{Service: other})
+
 			assert.Equal(t, 2*tt.wantWarnings, strings.Count(buf.String(), "legacy name"))
 		})
 	}
@@ -142,10 +146,12 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			opt := WithLogger(slog.New(slog.NewTextHandler(&buf, nil)))
 			if tt.logger != nil {
 				opt = WithLogger(tt.logger)
 			}
+
 			svc := NewService(opt)
 			// a nikunjy query that does not parse is logged by the evaluation
 			r := Rule{Query: new(`plan eq`), VariationResult: new("on")}
@@ -161,6 +167,7 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 	t.Parallel()
 
 	const query = `plan eq "kept-after-close"`
+
 	tests := []struct {
 		// cleanup runs the cleanup of the rule list validated before the reset, for the epoch given.
 		cleanup func(c *nikunjyEvaluatorCache, epoch uint64)
@@ -180,14 +187,17 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 		{
 			name:                  "the keys of the index",
 			wantAfterEarlierEpoch: 1, wantAfterCurrentEpoch: 0,
-			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) {
+			cleanup: func(evalCache *nikunjyEvaluatorCache, epoch uint64) {
 				var keys []uint64
-				c.byKey.Range(func(k, _ any) bool {
-					keys = append(keys, k.(uint64))
+
+				evalCache.byKey.Range(func(k, _ any) bool {
+					if key, ok := k.(uint64); ok {
+						keys = append(keys, key)
+					}
 
 					return true
 				})
-				c.unindexAt(epoch, keys)
+				evalCache.unindexAt(epoch, keys)
 			},
 			count: func(c *nikunjyEvaluatorCache) int { return countEntries(&c.byKey) },
 		},
@@ -197,25 +207,31 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 			t.Parallel()
 
 			svc := newIndexingService()
-			c := svc.nikunjy
-			oldEpoch := c.epoch.Load()
+			evalCache := svc.nikunjy
+			oldEpoch := evalCache.epoch.Load()
 			first := newFlagWithQueries(query)
 			require.NoError(t, first.IsValid(svc))
 			svc.Close()
+
 			rebuilt := newFlagWithQueries(query)
 			require.NoError(t, rebuilt.IsValid(svc))
-			require.Equal(t, 1, tt.count(c), "the rebuilt rule list is cached")
+			require.Equal(t, 1, tt.count(evalCache), "the rebuilt rule list is cached")
 
-			tt.cleanup(c, oldEpoch)
+			tt.cleanup(evalCache, oldEpoch)
 			assert.Equal(
 				t,
 				tt.wantAfterEarlierEpoch,
-				tt.count(c),
+				tt.count(evalCache),
 				"the cleanup of the rule list of the earlier epoch must not evict anything",
 			)
 
-			tt.cleanup(c, c.epoch.Load())
-			assert.Equal(t, tt.wantAfterCurrentEpoch, tt.count(c), "the cleanup of the current epoch does release")
+			tt.cleanup(evalCache, evalCache.epoch.Load())
+			assert.Equal(
+				t,
+				tt.wantAfterCurrentEpoch,
+				tt.count(evalCache),
+				"the cleanup of the current epoch does release",
+			)
 			runtime.KeepAlive(first)
 			runtime.KeepAlive(rebuilt)
 		})
@@ -238,9 +254,10 @@ func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 			t.Parallel()
 
 			var buf bytes.Buffer
+
 			svc := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
 			start, end := clocktest.Instant().Add(-time.Hour), clocktest.Instant().Add(time.Hour)
-			f := &InternalFlag{
+			flg := &InternalFlag{
 				Variations: &map[string]*any{"a": new(any(true)), "b": new(any(false))},
 				DefaultRule: &Rule{ProgressiveRollout: &ProgressiveRollout{
 					Initial: &ProgressiveRolloutStep{Variation: new("a"), Percentage: new(float64(0)), Date: &start},
@@ -253,7 +270,7 @@ func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 			})
 
 			for range tt.evaluations {
-				_, details := f.Value("flag", ctx, Context{Service: svc})
+				_, details := flg.Value("flag", ctx, Context{Service: svc})
 				require.Empty(t, details.ErrorCode)
 			}
 

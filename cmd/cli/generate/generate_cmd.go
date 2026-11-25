@@ -14,7 +14,7 @@ var (
 )
 
 func NewGenerateCmd() *cobra.Command {
-	g := &cobra.Command{
+	generateCmd := &cobra.Command{
 		Use:   "generate",
 		Short: "🏗️ Generate Semaphore related files",
 		Long:  `🏗️ Generate Semaphore relates files (examples: flag manifest, ...)`,
@@ -29,7 +29,7 @@ func NewGenerateCmd() *cobra.Command {
 		SilenceUsage:  true,
 	}
 
-	g.AddCommand(manifest.NewManifestCmd())
+	generateCmd.AddCommand(manifest.NewManifestCmd())
 
-	return g
+	return generateCmd
 }

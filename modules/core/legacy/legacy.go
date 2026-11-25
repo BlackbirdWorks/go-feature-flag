@@ -32,9 +32,11 @@ func (w *Warner) Warn(kind, message string) {
 	if w == nil {
 		return
 	}
+
 	if _, loaded := w.seen.LoadOrStore(kind, struct{}{}); loaded {
 		return
 	}
+
 	w.logf(kind, message)
 }
 

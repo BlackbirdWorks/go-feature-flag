@@ -16,12 +16,14 @@ import (
 // neither the log line nor the error may contain a secret.
 func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *testing.T) {
 	t.Parallel()
+
 	const (
 		sharedAPIKey = "SECRETMARKER-shared-api-key"
 		token        = "SECRETMARKER-github-token"
 		webhook      = "https://hooks.slack.example/SECRETMARKER-webhook"
 		mongoURI     = "mongodb://user:SECRETMARKER-mongo@host/db"
 	)
+
 	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "flags.yaml", AuthToken: token, URI: mongoURI}
 	flagSet := func(name string) config.FlagSet {
 		return config.FlagSet{
@@ -35,9 +37,11 @@ func Test_flagsetManagerImpl_OnConfigChange_invalidConfigDoesNotLogSecrets(t *te
 	require.Error(t, invalid.IsValid())
 
 	var buf bytes.Buffer
+
 	logger, err := cmdlog.New("json", "debug", cmdlog.WithWriter(&buf))
 	require.NoError(t, err)
-	mgr := &flagsetManagerImpl{logger: logger.Slog}
+
+	mgr := &FlagsetManagerImpl{logger: logger.Slog}
 
 	mgr.OnConfigChange(invalid)
 

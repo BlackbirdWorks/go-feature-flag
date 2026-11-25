@@ -46,12 +46,14 @@ func runParallel(n int, fn func(i int)) {
 			}
 		})
 	}
+
 	wg.Wait()
 }
 
 // The evaluation of a flag must never write into the flag, which is shared by all the evaluations.
 func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		endPercentage *float64
 		// wantEndPercentage is the end percentage the flag still has after the evaluations
@@ -66,13 +68,15 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := progressiveFlag(tt.endPercentage)
+
+			targetFlag := progressiveFlag(tt.endPercentage)
+
 			runParallel(300, func(_ int) {
 				ctx := ffcontext.NewEvaluationContext("user")
-				_, d := f.Value("flag", ctx, Context{Service: NewService()})
+				_, d := targetFlag.Value("flag", ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
-			assert.Equal(t, tt.wantEndPercentage, f.DefaultRule.ProgressiveRollout.End.Percentage,
+			assert.Equal(t, tt.wantEndPercentage, targetFlag.DefaultRule.ProgressiveRollout.End.Percentage,
 				"the end percentage of the flag must not be modified by the evaluations")
 		})
 	}
@@ -82,6 +86,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 // by concurrent evaluations, and its custom attributes can be nil.
 func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name       string
 		ctxCustom  map[string]any
@@ -121,7 +126,8 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := &InternalFlag{
+
+			targetFlag := &InternalFlag{
 				Variations: &map[string]*any{
 					"A": new(any(true)),
 					"B": new(any(false)),
@@ -130,15 +136,18 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 				DefaultRule: &Rule{VariationResult: new("B")},
 			}
 			svc := NewService()
-			require.NoError(t, f.IsValid(svc))
+			require.NoError(t, targetFlag.IsValid(svc))
+
 			ctx := &customContext{key: "user", custom: tt.ctxCustom}
+
 			var before map[string]any
 			if tt.ctxCustom != nil {
 				before = map[string]any{}
 				maps.Copy(before, tt.ctxCustom)
 			}
+
 			runParallel(200, func(_ int) {
-				v, _ := f.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
+				v, _ := targetFlag.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)
 			})
 			assert.Equal(t, before, ctx.custom, "the evaluation context must not be modified")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -38,6 +39,7 @@ type Retriever struct {
 func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.logger = logger
 	if r.dbConnection == nil {
 		r.status = retriever.RetrieverNotReady
@@ -46,8 +48,9 @@ func (r *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			return err
+			return fmt.Errorf("connecting to MongoDB: %w", err)
 		}
+
 		r.dbClient = client
 		r.dbConnection = client.Database(r.Database)
 		r.status = retriever.RetrieverReady
@@ -61,8 +64,10 @@ func (r *Retriever) Status() retriever.Status {
 	if r == nil {
 		return retriever.RetrieverNotReady
 	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	if r.status == "" {
 		return retriever.RetrieverNotReady
 	}
@@ -74,18 +79,24 @@ func (r *Retriever) Status() retriever.Status {
 func (r *Retriever) Shutdown(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if r.dbClient == nil {
 		r.status = retriever.RetrieverNotReady
 
 		return nil
 	}
+
 	err := r.dbClient.Disconnect(ctx)
 	// the client is dropped whatever the outcome of the disconnection: the retriever can not be used anymore
 	r.dbClient = nil
 	r.dbConnection = nil
 	r.status = retriever.RetrieverNotReady
 
-	return err
+	if err != nil {
+		return fmt.Errorf("disconnect MongoDB: %w", err)
+	}
+
+	return nil
 }
 
 // Retrieve Reads flag configuration from mongodb and returns it
@@ -94,6 +105,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	r.mu.RLock()
 	dbConnection := r.dbConnection
 	r.mu.RUnlock()
+
 	if dbConnection == nil {
 		return nil, errDatabaseConnectionIsNot
 	}
@@ -105,7 +117,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	cursor, err := coll.Find(ctx, bson.D{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find MongoDB documents: %w", err)
 	}
 	defer func() { _ = cursor.Close(ctx) }()
 
@@ -114,25 +126,27 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	for cursor.Next(ctx) {
 		var doc bson.M
 
-		if decodeErr := cursor.Decode(&doc); decodeErr != nil {
-			return nil, decodeErr
+		decodeErr := cursor.Decode(&doc)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode MongoDB document: %w", decodeErr)
 		}
 
 		if val, ok := doc["flag"]; ok {
 			delete(doc, "flag")
+
 			if str, isString := val.(string); isString {
 				ffDocs[str] = doc
 			} else {
-				r.logger.Error("flag key does not have a string as value")
+				r.logger.ErrorContext(ctx, "flag key does not have a string as value")
 			}
 		} else {
-			r.logger.Error("no 'flag' entry found")
+			r.logger.ErrorContext(ctx, "no 'flag' entry found")
 		}
 	}
 
 	flags, err := json.Marshal(ffDocs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal MongoDB flags: %w", err)
 	}
 
 	return flags, nil

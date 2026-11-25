@@ -32,13 +32,16 @@ import (
 // executed with data, and the port of the server is available as {{ .Port }}. It returns the base URL.
 func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]any) string {
 	t.Helper()
-	ln, port := testutils.ListenLocal(t)
+	listener, port := testutils.ListenLocal(t)
+
 	if data == nil {
 		data = map[string]any{}
 	}
+
 	data["Port"] = port
 	tpl, err := template.New("conf").Parse(yamlTemplate)
 	require.NoError(t, err)
+
 	var buf bytes.Buffer
 	require.NoError(t, tpl.Execute(&buf, data))
 	confPath := filepath.Join(t.TempDir(), "goff-proxy.yaml")
@@ -55,26 +58,30 @@ func startRelayProxyFromYAML(t *testing.T, yamlTemplate string, data map[string]
 
 	metrics, err := metric.NewMetrics()
 	require.NoError(t, err)
-	ws := stream.NewWebsocketService()
+
+	wsSvc := stream.NewWebsocketService()
 	sse := stream.NewSSEService()
 	manager, err := service.NewFlagsetManager(proxyConf, log.Slog,
-		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, sse, ws)
+		[]notifier.Notifier{metric.NewPrometheusNotifier(metrics)}, sse, wsSvc)
 	require.NoError(t, err)
+
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(manager),
-		WebsocketService:  ws,
+		WebsocketService:  wsSvc,
 		SSEService:        sse,
 		FlagsetManager:    manager,
 		Metrics:           metrics,
 	}
-	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(ln))
+
+	s := newTestServer(t, proxyConf, services, log.Slog, api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 	// same order as main.shutdown: the exporters are flushed when the flagsets are closed.
 	t.Cleanup(func() {
-		ws.Close()
+		wsSvc.Close()
 		s.Stop(context.Background())
 		manager.Close()
 	})
+
 	baseURL := fmt.Sprintf("http://127.0.0.1:%d", port)
 	waitForServer(t, baseURL)
 
@@ -91,20 +98,26 @@ type apiResponse struct {
 // postJSON sends a JSON body and decodes the JSON object of the response.
 func postJSON(tb testing.TB, url, apiKey string, body any) apiResponse {
 	tb.Helper()
+
 	b, err := json.Marshal(body)
 	require.NoError(tb, err)
 	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, url, bytes.NewReader(b))
 	require.NoError(tb, err)
 	req.Header.Set("Content-Type", "application/json")
+
 	if apiKey != "" {
 		req.Header.Set("X-Api-Key", apiKey)
 	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	require.NoError(tb, err)
+
 	defer func() { _ = resp.Body.Close() }()
+
 	raw, err := io.ReadAll(resp.Body)
 	require.NoError(tb, err)
+
 	res := apiResponse{Status: resp.StatusCode, Raw: string(raw)}
 	_ = json.Unmarshal(raw, &res.Body) // not JSON for some errors, Body stays nil
 

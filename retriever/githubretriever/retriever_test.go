@@ -19,13 +19,15 @@ func Test_github_Retrieve(t *testing.T) {
 	t.Parallel()
 
 	endRatelimit := clocktest.Instant().Add(1 * time.Hour)
+
 	type fields struct {
 		httpClient     mock.HTTP
-		context        context.Context
 		repositorySlug string
 		filePath       string
 		githubToken    string
+		withCtx        bool
 	}
+
 	tests := []struct {
 		fields  fields
 		name    string
@@ -60,7 +62,7 @@ func Test_github_Retrieve(t *testing.T) {
 				httpClient:     mock.HTTP{},
 				repositorySlug: "thomaspoignant/go-feature-flag",
 				filePath:       "testdata/flag-config.yaml",
-				context:        context.Background(),
+				withCtx:        true,
 			},
 			want: []byte(`test-flag:
   variations:
@@ -168,17 +170,24 @@ func Test_github_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := githubretriever.Retriever{
+			ret := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
 				GithubToken:    tt.fields.githubToken,
 			}
 
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			ret.SetHTTPClient(&tt.fields.httpClient)
+
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+
+			got, err := ret.Retrieve(ctx)
 			if tt.errMsg != "" {
 				require.EqualError(t, err, tt.errMsg)
 			}
+
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -187,9 +196,11 @@ func Test_github_Retrieve(t *testing.T) {
 				err,
 				tt.wantErr,
 			)
+
 			if !tt.wantErr {
 				assert.Equal(t, http.MethodGet, tt.fields.httpClient.Req.Method)
 				assert.Equal(t, tt.want, got)
+
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
@@ -213,6 +224,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		baseURL        string
 		branch         string
 	}
+
 	tests := []struct {
 		fields      fields
 		name        string
@@ -347,7 +359,7 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := githubretriever.Retriever{
+			ret := githubretriever.Retriever{
 				RepositorySlug: tt.fields.repositorySlug,
 				FilePath:       tt.fields.filePath,
 				GithubToken:    tt.fields.githubToken,
@@ -355,12 +367,14 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 				Branch:         tt.fields.branch,
 			}
 
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(context.Background())
+			ret.SetHTTPClient(&tt.fields.httpClient)
+			got, err := ret.Retrieve(context.Background())
 			assert.Equal(t, tt.wantErr, err != nil, "retrieve() error = %v, wantErr %v", err, tt.wantErr)
+
 			if !tt.wantErr {
 				assert.Equal(t, string(tt.want), string(got))
 				assert.Equal(t, tt.expectedURL, tt.fields.httpClient.Req.URL.String())
+
 				if tt.fields.githubToken != "" {
 					assert.Equal(
 						t,
@@ -376,32 +390,33 @@ func Test_github_Retrieve_BaseURL(t *testing.T) {
 func TestRateLimiting(t *testing.T) {
 	t.Parallel()
 
-	h := githubretriever.Retriever{
+	ret := githubretriever.Retriever{
 		RepositorySlug: "thomaspoignant/go-feature-flag",
 		FilePath:       "testdata/flag-config.yaml",
 	}
 
 	httpClient := &mock.HTTP{}
-	h.SetHTTPClient(httpClient)
-	_, err := h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err := ret.Retrieve(context.TODO())
 	require.NoError(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{RateLimit: true}
-	h.SetHTTPClient(httpClient)
-	_, err = h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err = ret.Retrieve(context.TODO())
 	require.Error(t, err)
 	assert.True(t, httpClient.HasBeenCalled)
 
 	httpClient = &mock.HTTP{}
-	h.SetHTTPClient(httpClient)
-	_, err = h.Retrieve(context.TODO())
+	ret.SetHTTPClient(httpClient)
+	_, err = ret.Retrieve(context.TODO())
 	require.Error(t, err)
 	assert.False(t, httpClient.HasBeenCalled)
 }
 
 func Test_github_Retrieve_InvalidBaseURLDoesNotLeak(t *testing.T) {
 	t.Parallel()
+
 	h := githubretriever.Retriever{
 		BaseURL:        "https://user:SECRETMARKER@github.example.com:bad/?token=SECRETMARKER",
 		FilePath:       "flags.yaml",

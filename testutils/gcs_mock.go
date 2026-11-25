@@ -16,7 +16,9 @@ type MockedStorage struct {
 
 func NewMockedGCS(t *testing.T) MockedStorage {
 	t.Helper()
+
 	server := fakestorage.NewServer(nil)
+
 	t.Cleanup(func() {
 		server.Stop()
 	})
@@ -28,6 +30,7 @@ func NewMockedGCS(t *testing.T) MockedStorage {
 
 func (m MockedStorage) WithFiles(t *testing.T, bucketName string, files map[string]string) {
 	t.Helper()
+
 	for filename, name := range files {
 		content, err := os.ReadFile(filename)
 		require.NoError(t, err, "could not read testfile")

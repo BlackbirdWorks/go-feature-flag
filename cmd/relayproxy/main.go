@@ -79,19 +79,20 @@ func main() {
 	}
 
 	// Init pFlag for config file
-	f := newConfigFlagSet()
-	_ = f.Parse(os.Args[1:])
+	flagSet := newConfigFlagSet()
+	_ = flagSet.Parse(os.Args[1:])
 
 	// Init logger
 	logger := log.NewDefault()
 
 	// Loading the configuration in viper
-	proxyConf, err := config.New(f, logger.Slog, version)
+	proxyConf, err := config.New(flagSet, logger.Slog, version)
 	if err != nil {
 		fatal(logger.Slog, "error while reading configuration", log.Err(err))
 	}
 	defer func() {
-		if stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher(); stopConfigChangeWatcherErr != nil {
+		stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher()
+		if stopConfigChangeWatcherErr != nil {
 			logger.Slog.LogAttrs(context.Background(), slog.LevelError,
 				"error while stopping the configuration watcher",
 				log.Err(stopConfigChangeWatcherErr),
@@ -99,7 +100,8 @@ func main() {
 		}
 	}()
 
-	if isValidErr := proxyConf.IsValid(); isValidErr != nil {
+	isValidErr := proxyConf.IsValid()
+	if isValidErr != nil {
 		fatal(logger.Slog, "configuration error", log.Err(isValidErr))
 	}
 
@@ -108,7 +110,8 @@ func main() {
 	}
 
 	// Update the logger's format and level from the config
-	if updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel); updateErr != nil {
+	updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel)
+	if updateErr != nil {
 		fatal(logger.Slog, "configuration error", log.Err(updateErr))
 	}
 
@@ -148,7 +151,9 @@ func main() {
 
 		return
 	}
-	if registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager); registerFlagLoadedErr != nil {
+
+	registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager)
+	if registerFlagLoadedErr != nil {
 		logger.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,
@@ -156,6 +161,7 @@ func main() {
 			log.Err(registerFlagLoadedErr),
 		)
 	}
+
 	services := service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
@@ -169,6 +175,7 @@ func main() {
 	apiServer := api.New(proxyConf, services, logger.Slog, api.WithGlobalTelemetry())
 
 	defer shutdown(logger.Slog, &apiServer, wsService, sseService, flagsetManager)
+
 	apiServer.StartWithContext(context.Background())
 }
 
@@ -188,8 +195,10 @@ func shutdown(
 	flagsetManager service.FlagsetManager,
 ) {
 	logger.Info("Stopping API server")
+
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
+
 	wsService.Close()
 	sseService.Close()
 	apiServer.Stop(ctx)

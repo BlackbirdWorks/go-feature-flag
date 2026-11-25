@@ -16,16 +16,17 @@ type Entry struct {
 
 // ContextMap returns the attributes of the record by key. An error is its message.
 func (e Entry) ContextMap() map[string]any {
-	m := make(map[string]any, len(e.Attrs))
-	for _, a := range e.Attrs {
-		v := a.Value.Resolve().Any()
+	attrsMap := make(map[string]any, len(e.Attrs))
+	for _, attr := range e.Attrs {
+		v := attr.Value.Resolve().Any()
 		if err, ok := v.(error); ok {
 			v = err.Error()
 		}
-		m[a.Key] = v
+
+		attrsMap[attr.Key] = v
 	}
 
-	return m
+	return attrsMap
 }
 
 // ObservedLogs are the records captured by an observer.
@@ -47,6 +48,7 @@ func NewObserver(level slog.Level) (*slog.Logger, *ObservedLogs) {
 func (o *ObservedLogs) All() []Entry {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+
 	out := make([]Entry, 0, len(*o.entries))
 	for _, e := range *o.entries {
 		if o.filter == nil || o.filter(e) {
@@ -87,17 +89,17 @@ type observerHandler struct {
 func (h *observerHandler) Enabled(_ context.Context, l slog.Level) bool { return l >= h.level }
 
 func (h *observerHandler) Handle(_ context.Context, r slog.Record) error {
-	e := Entry{Message: r.Message, Level: r.Level, Attrs: append([]slog.Attr(nil), h.attrs...)}
+	entry := Entry{Message: r.Message, Level: r.Level, Attrs: append([]slog.Attr(nil), h.attrs...)}
 	r.Attrs(func(a slog.Attr) bool {
 		// like the handlers, skip the empty attributes.
 		if !a.Equal(slog.Attr{}) {
-			e.Attrs = append(e.Attrs, a)
+			entry.Attrs = append(entry.Attrs, a)
 		}
 
 		return true
 	})
 	h.logs.mu.Lock()
-	*h.logs.entries = append(*h.logs.entries, e)
+	*h.logs.entries = append(*h.logs.entries, entry)
 	h.logs.mu.Unlock()
 
 	return nil

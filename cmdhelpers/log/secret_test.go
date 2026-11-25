@@ -18,8 +18,8 @@ const secretValue = "SECRETMARKER-hunter2"
 
 // settings is a configuration-like struct holding secrets, as the relay proxy configuration does.
 type settings struct {
-	Name    string     `json:"name"    yaml:"name"`
-	APIKey  log.Secret `json:"apiKey"  yaml:"apiKey"`
+	Name    string     `json:"name"   yaml:"name"`
+	APIKey  log.Secret `json:"apiKey" yaml:"apiKey"`
 	Backend struct {
 		URI log.Secret `json:"uri" yaml:"uri"`
 	} `json:"backend" yaml:"backend"`
@@ -35,25 +35,28 @@ func newSettings() settings {
 func TestSecretIsNeverPrinted(t *testing.T) {
 	t.Parallel()
 
-	s := newSettings()
+	sample := newSettings()
+
 	tests := []struct {
 		got  func(t *testing.T) string
 		name string
 	}{
-		{name: "Sprint", got: func(*testing.T) string { return fmt.Sprint(s.APIKey) }},
-		{name: "%v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%v", s) }},
-		{name: "%+v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%+v", s) }},
-		{name: "%#v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%#v", s) }},
+		{name: "Sprint", got: func(*testing.T) string { return fmt.Sprint(sample.APIKey) }},
+		{name: "%v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%v", sample) }},
+		{name: "%+v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%+v", sample) }},
+		{name: "%#v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%#v", sample) }},
 		{name: "json", got: func(t *testing.T) string {
 			t.Helper()
-			b, err := json.Marshal(s)
+
+			b, err := json.Marshal(sample)
 			require.NoError(t, err)
 
 			return string(b)
 		}},
 		{name: "yaml", got: func(t *testing.T) string {
 			t.Helper()
-			b, err := yaml.Marshal(s)
+
+			b, err := yaml.Marshal(sample)
 			require.NoError(t, err)
 
 			return string(b)
@@ -76,6 +79,7 @@ func TestSecretInTheLogs(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
+
 			logger, err := log.New(format, "debug", log.WithWriter(&out))
 			require.NoError(t, err)
 

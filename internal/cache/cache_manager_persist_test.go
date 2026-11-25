@@ -20,6 +20,7 @@ import (
 
 func persistFlags(t *testing.T) map[string]dto.DTO {
 	t.Helper()
+
 	flags := map[string]dto.DTO{}
 	require.NoError(t, yaml.Unmarshal([]byte(`f:
   variations:
@@ -34,7 +35,9 @@ func persistFlags(t *testing.T) map[string]dto.DTO {
 
 func TestCacheManagerPersist(t *testing.T) {
 	t.Parallel()
+
 	const sentinel = "sentinel"
+
 	tests := []struct {
 		fileInDir   func(dir string) string
 		flags       func(t *testing.T) map[string]dto.DTO
@@ -50,6 +53,7 @@ func TestCacheManagerPersist(t *testing.T) {
 			wantMessage: "Flags cache persisted to file",
 			wantContent: func(t *testing.T, path string) {
 				t.Helper()
+
 				b, err := os.ReadFile(path)
 				require.NoError(t, err)
 				assert.Contains(t, string(b), "variations")
@@ -63,6 +67,7 @@ func TestCacheManagerPersist(t *testing.T) {
 			wantMessage: "No change in the cache, skipping the persist",
 			wantContent: func(t *testing.T, path string) {
 				t.Helper()
+
 				b, err := os.ReadFile(path)
 				require.NoError(t, err)
 				assert.Equal(t, sentinel, string(b))
@@ -75,6 +80,7 @@ func TestCacheManagerPersist(t *testing.T) {
 			wantMessage: "Error while writing flags to file",
 			wantContent: func(t *testing.T, path string) {
 				t.Helper()
+
 				_, err := os.Stat(path)
 				assert.ErrorIs(t, err, os.ErrNotExist)
 			},
@@ -83,10 +89,12 @@ func TestCacheManagerPersist(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			path := tt.fileInDir(t.TempDir())
 			if tt.existing {
 				require.NoError(t, os.WriteFile(path, []byte(sentinel), 0o600))
 			}
+
 			handler := slogassert.New(t, slog.LevelDebug, nil)
 			logger := &fflog.FFLogger{LeveledLogger: slog.New(handler)}
 			m := cache.New(notification.NewService([]notifier.Notifier{}), path, logger)
@@ -102,6 +110,7 @@ func TestCacheManagerPersist(t *testing.T) {
 
 func TestCacheManagerReadsAfterClose(t *testing.T) {
 	t.Parallel()
+
 	m := cache.New(notification.NewService([]notifier.Notifier{}), "", nil)
 	m.Close()
 

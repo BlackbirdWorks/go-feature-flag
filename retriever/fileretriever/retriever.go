@@ -2,6 +2,7 @@ package fileretriever
 
 import (
 	"context"
+	"fmt"
 	"os"
 )
 
@@ -14,7 +15,7 @@ type Retriever struct {
 func (r *Retriever) Retrieve(_ context.Context) ([]byte, error) {
 	content, err := os.ReadFile(r.Path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading the file: %w", err)
 	}
 
 	return content, nil

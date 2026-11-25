@@ -23,12 +23,14 @@ func NewManifestCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			output, err := m.Generate()
 			if err != nil {
 				cmd.SilenceUsage = true
 
 				return err
 			}
+
 			output.PrintLines(cmd)
 
 			return nil

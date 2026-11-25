@@ -16,7 +16,9 @@ import (
 // must keep the same variation, including when the sum of the percentages is not exact.
 func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 	t.Parallel()
+
 	keys := []string{"user-1", "user-2", "user-3", "user-4", "user-5", "user-6", "user-7", "user-8"}
+
 	tests := []struct {
 		name        string
 		percentages map[string]float64
@@ -52,6 +54,7 @@ func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			r := Rule{Percentages: &tt.percentages}
 			for i, key := range keys {
 				got, err := r.EvaluatePercentageRollout(key, "my-flag")
@@ -67,6 +70,7 @@ func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 // the end of the last bucket).
 func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		percentages map[string]float64
 		name        string
@@ -88,16 +92,20 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			r := Rule{Percentages: &tt.percentages}
 			// Repeated: the map order used to be what made the evaluation fail.
 			failures := 0
+
 			for i := range 200000 {
 				got, err := r.EvaluatePercentageRollout(fmt.Sprint("user-", i), "my-flag")
 				require.NoError(t, err, "key %d", i)
+
 				if _, ok := tt.percentages[got]; !ok {
 					failures++
 				}
 			}
+
 			assert.Equal(t, tt.wantFailures, failures)
 		})
 	}
@@ -107,6 +115,7 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 // that has a share, never one without.
 func TestVariationFromBuckets_TopBucket(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		p    map[string]float64
 		name string
@@ -125,6 +134,7 @@ func TestVariationFromBuckets_TopBucket(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			names := []string{"A", "B", "C"}[:len(tt.p)]
 			got, err := variationFromBuckets(tt.p, names, tt.hash)
 			require.NoError(t, err)
@@ -136,23 +146,28 @@ func TestVariationFromBuckets_TopBucket(t *testing.T) {
 // legacyEvaluate is the evaluation before the fix: the percentages are summed in the given order (it used to be the
 // map iteration order) to get the modulus, the buckets are walked in reverse sorted order, and a hash beyond the
 // last bucket is an error (returned as "").
-func legacyEvaluate(p map[string]float64, sumOrder []string, key, flagName string) string {
+func legacyEvaluate(percentages map[string]float64, sumOrder []string, key, flagName string) string {
 	sum := 0.0
 	for _, n := range sumOrder {
-		sum += p[n]
+		sum += percentages[n]
 	}
+
 	hash := utils.BuildHash(flagName, key, uint32(sum*PercentageMultiplier))
-	names := make([]string, 0, len(p))
-	for n := range p {
+
+	names := make([]string, 0, len(percentages))
+	for n := range percentages {
 		names = append(names, n)
 	}
+
 	slices.Sort(names)
+
 	start := 0.0
 	for _, name := range slices.Backward(names) {
-		end := start + p[name]*PercentageMultiplier
+		end := start + percentages[name]*PercentageMultiplier
 		if uint32(start) <= hash && uint32(end) > hash {
 			return name
 		}
+
 		start = end
 	}
 
@@ -163,7 +178,9 @@ func permutations(names []string) [][]string {
 	if len(names) <= 1 {
 		return [][]string{slices.Clone(names)}
 	}
+
 	var out [][]string
+
 	for i := range names {
 		rest := slices.Concat(names[:i:i], names[i+1:])
 		for _, p := range permutations(rest) {
@@ -183,12 +200,14 @@ func percentageConfigs() []map[string]float64 {
 		{16.7, 16.7, 16.6, 16.7, 16.6, 16.7}, {0.1, 0.1, 0.1, 0.1, 0.1, 0.1}, {0.3, 0.6, 0.1}, {0, 0.3, 0.7},
 		{0.7, 0.2, 0}, {0.0001, 0.0002},
 	}
+
 	out := make([]map[string]float64, 0, len(weights))
 	for _, w := range weights {
 		m := map[string]float64{}
 		for i, v := range w {
 			m[letters[i]] = v
 		}
+
 		out = append(out, m)
 	}
 
@@ -202,27 +221,34 @@ func percentageConfigs() []map[string]float64 {
 //   - when the legacy code failed for every order, a variation with a share is served.
 func TestEvaluatePercentageRollout_LegacyCompatibility(t *testing.T) {
 	t.Parallel()
+
 	for i, cfg := range percentageConfigs() {
 		t.Run(fmt.Sprint(i, cfg), func(t *testing.T) {
 			t.Parallel()
+
 			names := make([]string, 0, len(cfg))
 			for n := range cfg {
 				names = append(names, n)
 			}
+
 			slices.Sort(names)
 			orders := permutations(names)
 			r := Rule{Percentages: &cfg}
+
 			for k := range 3000 {
 				key := fmt.Sprint("user-", k)
+
 				legacy := map[string]bool{}
 				for _, o := range orders {
 					legacy[legacyEvaluate(cfg, o, key, "my-flag")] = true
 				}
+
 				got, err := r.EvaluatePercentageRollout(key, "my-flag")
 				require.NoError(t, err, key)
 				require.Positive(t, cfg[got], "variation without share for %s", key)
 				again, _ := r.EvaluatePercentageRollout(key, "my-flag")
 				require.Equal(t, got, again, "not deterministic for %s", key)
+
 				switch {
 				case len(legacy) == 1 && !legacy[""]:
 					require.True(t, legacy[got], "user %s moved to %s", key, got)

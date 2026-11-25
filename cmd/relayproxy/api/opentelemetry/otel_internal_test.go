@@ -28,9 +28,7 @@ var (
 	errTestError = errors.New("test error")
 )
 
-// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -44,6 +42,7 @@ func TestInitSampler(t *testing.T) {
 
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
+
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
@@ -55,6 +54,7 @@ func TestInitSampler(t *testing.T) {
 
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
+
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
@@ -68,9 +68,7 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
-// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -185,40 +183,47 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-// T.Setenv: the OpenTelemetry SDK (third-party code) reads OTEL_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry SDK reads OTEL_* from the process environment
 func TestInit(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
 		svc := NewOtelService()
 		err := svc.Init(context.Background(), &config.Config{})
 		require.NoError(t, err)
+
 		defer func() { _ = svc.Stop(context.Background()) }()
+
 		assert.Nil(t, svc.otelTraceProvider)
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		t.Setenv("OTEL_SDK_DISABLED", "true")
 		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 		require.NoError(t, errC)
+
 		svc := NewOtelService()
 		err := svc.Init(context.Background(), c)
 		require.NoError(t, err)
+
 		defer func() { _ = svc.Stop(context.Background()) }()
+
 		assert.Nil(t, svc.otelTraceProvider)
 	})
 
 	t.Run("an endpoint creates the tracer provider without installing it", func(t *testing.T) {
 		t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+
 		before := otel.GetTracerProvider()
 		svc := NewOtelService()
 		err := svc.Init(context.Background(), &config.Config{
 			OpenTelemetryOtlpEndpoint: "https://example.com:4318",
 		})
 		require.NoError(t, err)
+
 		defer func() { _ = svc.Stop(context.Background()) }()
+
 		assert.NotNil(t, svc.otelTraceProvider)
 		assert.Equal(t, before, otel.GetTracerProvider(), "Init must not change the global provider")
 	})
@@ -247,7 +252,7 @@ func TestNewErrorHandler(t *testing.T) {
 			t.Parallel()
 
 			obs, logs := slogutil.NewObserver(slog.LevelInfo)
-			newErrorHandler(obs).Handle(tt.err)
+			newErrorHandler(t.Context(), obs).Handle(tt.err)
 
 			got := logs.All()
 			require.Len(t, got, 1)
@@ -268,23 +273,26 @@ func TestNewPropagator(t *testing.T) {
 // starts a span reads.
 func TestInstall(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+
 	previous := otel.GetTracerProvider()
+
 	t.Cleanup(func() { otel.SetTracerProvider(previous) })
 
 	svc := NewOtelService()
+
 	require.NoError(
 		t,
 		svc.Init(context.Background(), &config.Config{OpenTelemetryOtlpEndpoint: "https://example.com:4318"}),
 	)
 	defer func() { _ = svc.Stop(context.Background()) }()
 
-	svc.Install(slog.New(slog.DiscardHandler))
+	svc.Install(t.Context(), slog.New(slog.DiscardHandler))
 
 	assert.Same(t, svc.otelTraceProvider, otel.GetTracerProvider())
 
 	// a service that found OpenTelemetry disabled installs a no-op provider
 	disabled := NewOtelService()
-	disabled.Install(slog.New(slog.DiscardHandler))
+	disabled.Install(t.Context(), slog.New(slog.DiscardHandler))
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 
@@ -314,6 +322,7 @@ func TestExportEnvironment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+
 			conf := &config.Config{OpenTelemetryOtlpEndpoint: tt.endpoint}
 			conf.OtelConfig.Exporter.Otlp.Endpoint = tt.otlpEndpoint
 			ExportEnvironment(conf)
@@ -325,9 +334,11 @@ func TestExportEnvironment(t *testing.T) {
 
 func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://example.com:4318")
+
 	f := pflag.NewFlagSet("config", pflag.ContinueOnError)
 	c, errC := config.New(f, slog.New(slog.DiscardHandler), "1.X.X")
 	require.NoError(t, errC)
+
 	c.OpenTelemetryOtlpEndpoint = "https://bogus.com:4317"
 
 	ExportEnvironment(c)
@@ -345,6 +356,7 @@ type shutdownProbe struct {
 func (p *shutdownProbe) shutdown() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.done = true
 
 	return p.err
@@ -393,6 +405,7 @@ func (*memoryMetricExporter) Aggregation(kind sdkmetric.InstrumentKind) sdkmetri
 func (e *memoryMetricExporter) Export(_ context.Context, data *metricdata.ResourceMetrics) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
 	for _, scope := range data.ScopeMetrics {
 		for _, m := range scope.Metrics {
 			e.exported = append(e.exported, m.Name)
@@ -474,12 +487,15 @@ func TestStop(t *testing.T) {
 			assert.True(t, tracerProbe.wasShutDown(), "the tracer provider was shut down")
 			assert.True(t, metrics.probe.wasShutDown(), "the meter provider (its reader and exporter) was shut down")
 			assert.Contains(t, metrics.names(), "test.pending", "the pending metrics were flushed by the shutdown")
+
 			for _, want := range tt.wantErrs {
 				require.ErrorIs(t, stopErr, want)
 			}
+
 			for _, notWant := range tt.wantNotErrors {
 				require.NotErrorIs(t, stopErr, notWant)
 			}
+
 			if len(tt.wantErrs) == 0 {
 				require.NoError(t, stopErr)
 			}

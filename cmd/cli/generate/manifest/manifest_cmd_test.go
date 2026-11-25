@@ -16,6 +16,7 @@ func TestManifestCmd(t *testing.T) {
 
 	pterm.DisableStyling()
 	pterm.DisableColor()
+
 	tests := []struct {
 		assertError      assert.ErrorAssertionFunc
 		name             string
@@ -39,10 +40,11 @@ func TestManifestCmd(t *testing.T) {
 			assertError:      assert.NoError,
 		},
 		{
-			name:          "should error if flag type is invalid",
-			args:          []string{"--config=testdata/input/flag-invalid-flag-type.yaml"},
-			assertError:   assert.Error,
-			expectedError: "invalid configuration for flag test-flag: impossible to find type",
+			name:        "should error if flag type is invalid",
+			args:        []string{"--config=testdata/input/flag-invalid-flag-type.yaml"},
+			assertError: assert.Error,
+			expectedError: "generating the definitions of the manifest: invalid configuration for flag test-flag: " +
+				"impossible to find type",
 		},
 		{
 			name:             "should have int as type if float with .0 and int are mixed",
@@ -70,6 +72,7 @@ func TestManifestCmd(t *testing.T) {
 
 			redirectionStd, err := os.CreateTemp(t.TempDir(), "temp")
 			require.NoError(t, err)
+
 			defer func() { _ = os.Remove(redirectionStd.Name()) }()
 
 			tt.args = append(tt.args, "--flag_manifest_destination", tmpManifest.Name())

@@ -44,6 +44,7 @@ func bigRule() string {
 
 func newBenchEvaluator(b *testing.B, rule string) *Evaluator {
 	b.Helper()
+
 	ev, err := NewEvaluator(rule)
 	require.NoError(b, err)
 
@@ -56,22 +57,25 @@ func newBenchEvaluator(b *testing.B, rule string) *Evaluator {
 // It returns the evaluator, which has now had its first Process call.
 func checkBenchProcess(b *testing.B, rule string, input map[string]any, want bool) *Evaluator {
 	b.Helper()
-	ev := newBenchEvaluator(b, rule)
-	got, err := ev.Process(input)
+	eval := newBenchEvaluator(b, rule)
+	got, err := eval.Process(input)
 	require.NoError(b, err)
 	require.Equal(b, want, got)
-	require.NoError(b, ev.LastDebugErr())
+	require.NoError(b, eval.LastDebugErr())
 
-	return ev
+	return eval
 }
 
 func benchNewAndProcess(b *testing.B, rule string) {
 	b.Helper()
+
 	benchInput := newBenchInput()
+
 	b.Helper()
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
 		ev.Process(benchInput)
@@ -88,12 +92,13 @@ func BenchmarkLogicalExpressionBig(b *testing.B) {
 
 func BenchmarkLogicalExpressionBigTreeCached(b *testing.B) {
 	benchInput := newBenchInput()
-	ev := checkBenchProcess(b, bigRule(), benchInput, false)
+	eval := checkBenchProcess(b, bigRule(), benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
-		ev.Process(benchInput)
-		ev.Reset()
+		eval.Process(benchInput)
+		eval.Reset()
 	}
 }
 
@@ -106,6 +111,7 @@ func BenchmarkLogicalExpressionNested(b *testing.B) {
 // the cold path that builds a debug error, on purpose.
 func BenchmarkProcess(b *testing.B) {
 	benchInput := newBenchInput()
+
 	rules := []struct {
 		name      string
 		rule      string
@@ -128,17 +134,18 @@ func BenchmarkProcess(b *testing.B) {
 		{name: "DebugErr/TypeMismatch", rule: `z gt 123`, wantDebug: true},
 		{name: "DebugErr/Missing", rule: `missing eq "x"`, wantDebug: true},
 	}
-	for _, tc := range rules {
-		b.Run(tc.name, func(b *testing.B) {
-			ev := newBenchEvaluator(b, tc.rule)
-			got, err := ev.Process(benchInput)
+	for _, tt := range rules {
+		b.Run(tt.name, func(b *testing.B) {
+			eval := newBenchEvaluator(b, tt.rule)
+			got, err := eval.Process(benchInput)
 			require.NoError(b, err)
-			require.Equal(b, tc.want, got)
-			require.Equal(b, tc.wantDebug, ev.LastDebugErr() != nil, "debug error")
+			require.Equal(b, tt.want, got)
+			require.Equal(b, tt.wantDebug, eval.LastDebugErr() != nil, "debug error")
 			b.ReportAllocs()
 			b.ResetTimer()
+
 			for range b.N {
-				ev.Process(benchInput)
+				eval.Process(benchInput)
 			}
 		})
 	}
@@ -148,6 +155,7 @@ func BenchmarkProcess(b *testing.B) {
 // concurrent callers; run it with -cpu 1,8 to see contention.
 func BenchmarkProcessParallel(b *testing.B) {
 	const rule = `x eq 1 and y in [1, 2, 3]`
+
 	items := map[string]any{"x": 1, "y": 2}
 	ev := checkBenchProcess(b, rule, items, true)
 	b.ReportAllocs()
@@ -190,7 +198,9 @@ func newBenchInput() map[string]any {
 // BenchmarkNewEvaluator measures construction only (parse and validate).
 func BenchmarkNewEvaluator(b *testing.B) {
 	rule := strings.Join(benchConditions(), " or ")
+
 	b.ReportAllocs()
+
 	for range b.N {
 		newBenchEvaluator(b, rule)
 	}
@@ -203,6 +213,7 @@ func BenchmarkEvaluate(b *testing.B) {
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		Evaluate(rule, benchInput)
 	}
@@ -216,6 +227,7 @@ func BenchmarkNewEvaluatorFirstProcess(b *testing.B) {
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
+
 	for range b.N {
 		ev := newBenchEvaluator(b, rule)
 		ev.Process(benchInput)
@@ -239,6 +251,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ev, err := NewEvaluator(`jh gt 1.2.0`)
 			require.NoError(t, err)
 			got, err := ev.Process(map[string]any{"jh": tt.jh})
@@ -254,6 +267,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 // to false (every condition is walked) without an error or debug error.
 func TestBenchmarkRules(t *testing.T) {
 	benchInput := newBenchInput()
+
 	t.Parallel()
 
 	tests := []struct {
@@ -267,6 +281,7 @@ func TestBenchmarkRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ev, err := NewEvaluator(tt.rule)
 			require.NoError(t, err)
 			got, err := ev.Process(benchInput)

@@ -3,6 +3,7 @@ package pubsubexporter
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"cloud.google.com/go/pubsub" //nolint:staticcheck // SA1019: the v1 pubsub client is still used by the v1 exporter
 	"google.golang.org/api/option"
@@ -43,7 +44,8 @@ func (e *Exporter) Export(
 	events []exporter.ExportableEvent,
 ) error {
 	if e.publisher == nil {
-		if err := e.initPublisher(ctx); err != nil {
+		err := e.initPublisher(ctx)
+		if err != nil {
 			return err
 		}
 	}
@@ -51,7 +53,7 @@ func (e *Exporter) Export(
 	for _, event := range events {
 		messageBody, err := json.Marshal(event)
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal pubsub event: %w", err)
 		}
 
 		_, err = e.publisher.Publish(ctx, &pubsub.Message{
@@ -59,7 +61,7 @@ func (e *Exporter) Export(
 			Attributes: map[string]string{"emitter": "GO Feature Flag"},
 		}).Get(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("publish pubsub event: %w", err)
 		}
 	}
 
@@ -86,6 +88,7 @@ func (e *Exporter) initPublisher(ctx context.Context) error {
 	if e.PublishSettings != nil {
 		topic.PublishSettings = *e.PublishSettings
 	}
+
 	topic.EnableMessageOrdering = e.EnableMessageOrdering
 
 	e.publisher = topic

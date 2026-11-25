@@ -22,12 +22,13 @@ type mockConn struct {
 	throwError    bool
 }
 
-func (m *mockConn) WriteJSON(v any) error {
+func (m *mockConn) WriteJSON(val any) error {
 	if m.throwError {
 		return errErrorWebsocketConnection
 	}
+
 	if m.writeJSONFunc != nil {
-		return m.writeJSONFunc(v)
+		return m.writeJSONFunc(val)
 	}
 
 	return nil
@@ -94,7 +95,9 @@ func TestBroadcastFlagChangesPayload(t *testing.T) {
 
 			websocketService := stream.NewWebsocketService(tt.options...)
 			conn := &mockConn{}
+
 			var received any
+
 			conn.writeJSONFunc = func(v any) error {
 				received = v
 
@@ -188,9 +191,11 @@ func TestBroadcastFlagChangesPerFlagset(t *testing.T) {
 
 			websocketService := stream.NewWebsocketService()
 			clients := map[string]string{"a1": "flagset-a", "a2": "flagset-a", "b1": "flagset-b"}
+
 			got := map[string]bool{}
 			for name, flagsetName := range clients {
 				got[name] = false
+
 				websocketService.Register(&mockConn{writeJSONFunc: func(_ any) error {
 					got[name] = true
 
@@ -295,14 +300,17 @@ func TestBroadcastFlagChangesDeadLock(t *testing.T) {
 	// this will trigger the deregister of the connection, and the BroadcastFlagChanges will try to lock the mutex
 	// in the past we had a deadlock here (see: https://github.com/thomaspoignant/go-feature-flag/issues/3144)
 	conn2 := &mockConn{throwError: true}
+
 	websocketService.Register(conn1, "default")
 	websocketService.Register(conn2, "default")
+
 	conn1WriteJSONCalled := false
 	conn1.writeJSONFunc = func(_ any) error {
 		conn1WriteJSONCalled = true
 
 		return nil
 	}
+
 	websocketService.BroadcastFlagChanges("default", diff)
 	assert.True(t, conn1WriteJSONCalled, "WriteJSON should be called on conn1")
 

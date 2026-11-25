@@ -40,24 +40,26 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 	logger := newOptions(opts).logger
 	definitions := make(map[string]model.FlagDefinition)
 
-	for k, v := range flags {
-		v, ok := v.(*flag.InternalFlag)
-		if !ok || v == nil {
-			logger.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", k))
+	for flagName, rawFlag := range flags {
+		internalFlag, ok := rawFlag.(*flag.InternalFlag)
+		if !ok || internalFlag == nil {
+			logger.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", flagName))
 
 			continue
 		}
-		if v.Variations == nil {
-			logger.Error(fmt.Sprintf("flag %s ignored: no variations provided", k))
+
+		if internalFlag.Variations == nil {
+			logger.Error(fmt.Sprintf("flag %s ignored: no variations provided", flagName))
 
 			continue
 		}
-		flagType, err := helper.FlagTypeFromVariations(*v.Variations)
+
+		flagType, err := helper.FlagTypeFromVariations(*internalFlag.Variations)
 		if err != nil {
-			return definitions, fmt.Errorf("invalid configuration for flag %s: %w", k, err)
+			return definitions, fmt.Errorf("invalid configuration for flag %s: %w", flagName, err)
 		}
 
-		metadata := v.Metadata
+		metadata := internalFlag.Metadata
 		if metadata == nil {
 			m := make(map[string]any)
 			metadata = &m
@@ -65,7 +67,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 
 		defaultValue, ok := (*metadata)["defaultValue"]
 		if !ok {
-			logger.Warn(fmt.Sprintf("flag %s ignored: no default value provided", k))
+			logger.Warn(fmt.Sprintf("flag %s ignored: no default value provided", flagName))
 
 			continue
 		}
@@ -80,7 +82,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 			DefaultValue: defaultValue,
 			Description:  description,
 		}
-		definitions[k] = definition
+		definitions[flagName] = definition
 	}
 
 	return definitions, nil

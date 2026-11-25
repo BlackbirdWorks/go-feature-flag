@@ -45,8 +45,8 @@ func TestLinter_Lint(t *testing.T) {
 				InputFormat: "yaml",
 			},
 			wantErrs: []string{
-				"testdata/invalid.yaml: could not parse file (yaml): yaml: unmarshal errors:\n  line 7: cannot unmarshal !!st" +
-					"r \u0060toto\u0060 into map[string]float64",
+				"testdata/invalid.yaml: could not parse file (yaml): decoding the flags: yaml: unmarshal errors:\n  line 7: " +
+					"cannot unmarshal !!str \u0060toto\u0060 into map[string]float64",
 			},
 		},
 		{
@@ -56,7 +56,8 @@ func TestLinter_Lint(t *testing.T) {
 				InputFormat: "json",
 			},
 			wantErrs: []string{
-				"testdata/invalid.json: could not parse file (json): invalid character ':' after top-level value",
+				"testdata/invalid.json: could not parse file (json): decoding the flags: " +
+					"invalid character ':' after top-level value",
 			},
 		},
 		{
@@ -66,7 +67,7 @@ func TestLinter_Lint(t *testing.T) {
 				InputFormat: "swift",
 			},
 			wantErrs: []string{
-				"testdata/invalid.json: could not parse file (yaml): yaml: line 16: did not find expected key",
+				"testdata/invalid.json: could not parse file (yaml): decoding the flags: yaml: line 16: did not find expected key",
 			},
 		},
 		{
@@ -76,7 +77,7 @@ func TestLinter_Lint(t *testing.T) {
 				InputFormat: "toml",
 			},
 			wantErrs: []string{
-				"testdata/invalid.toml: could not parse file (toml): toml: basic strings cannot have new lines",
+				"testdata/invalid.toml: could not parse file (toml): decoding the flags: toml: basic strings cannot have new lines",
 			},
 		},
 		{
@@ -85,7 +86,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/no-variation.yaml",
 				InputFormat: "yaml",
 			},
-			wantErrs: []string{"testdata/no-variation.yaml: invalid flag flag: no variation available"},
+			wantErrs: []string{
+				"testdata/no-variation.yaml: invalid flag flag: validating the flag: no variation available",
+			},
 		},
 		{
 			name: "no default rule",
@@ -93,7 +96,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/no-default-rule.yaml",
 				InputFormat: "yaml",
 			},
-			wantErrs: []string{"testdata/no-default-rule.yaml: invalid flag flag: missing default rule"},
+			wantErrs: []string{
+				"testdata/no-default-rule.yaml: invalid flag flag: validating the flag: missing default rule",
+			},
 		},
 		{
 			name: "invalid rule",
@@ -101,7 +106,9 @@ func TestLinter_Lint(t *testing.T) {
 				InputFile:   "testdata/invalid-rule.yaml",
 				InputFormat: "yaml",
 			},
-			wantErrs: []string{"testdata/invalid-rule.yaml: invalid flag flag: each targeting should have a query"},
+			wantErrs: []string{
+				"testdata/invalid-rule.yaml: invalid flag flag: validating the flag: each targeting should have a query",
+			},
 		},
 		{
 			name: "invalid file",

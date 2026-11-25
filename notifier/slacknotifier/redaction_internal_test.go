@@ -25,6 +25,7 @@ func (failingClient) Do(req *http.Request) (*http.Response, error) {
 // The Slack webhook URL is the secret of the integration: it must not end up in the errors that are logged.
 func TestNotifier_errorsDoNotContainTheWebhookURL(t *testing.T) {
 	t.Parallel()
+
 	c := Notifier{
 		SlackWebhookURL: "https://hooks.slack.com/services/T0/B0/SECRETMARKER-token",
 		httpClient:      failingClient{},

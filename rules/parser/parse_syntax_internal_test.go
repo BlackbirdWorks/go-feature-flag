@@ -40,15 +40,17 @@ func TestIssue41RuleValidator(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ev, err := NewEvaluator(tt.rule)
+
+			eval, err := NewEvaluator(tt.rule)
 			if tt.wantErr {
 				require.Error(t, err, tt.rule)
-				assert.Nil(t, ev)
+				assert.Nil(t, eval)
 
 				return
 			}
+
 			require.NoError(t, err, tt.rule)
-			assert.NotNil(t, ev)
+			assert.NotNil(t, eval)
 		})
 	}
 }
@@ -72,6 +74,7 @@ func TestNewEvaluatorRejectsInvalidSyntax(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ev, err := NewEvaluator(tt.rule)
 			require.Error(t, err, tt.rule)
 			assert.Nil(t, ev)
@@ -141,6 +144,7 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			ev, err := NewEvaluator(tt.rule)
 			require.NoError(t, err, tt.rule)
 			result, err := ev.Process(tt.input)

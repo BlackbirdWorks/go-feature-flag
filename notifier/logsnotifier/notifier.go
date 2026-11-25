@@ -32,6 +32,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 
 				continue
 			}
+
 			c.Logger.Info("flag is turned ON", slog.String("key", key))
 
 			continue

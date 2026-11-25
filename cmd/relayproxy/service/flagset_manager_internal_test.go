@@ -31,12 +31,15 @@ func Test_flagsetManagerImpl_sharedPollerPerBucket(t *testing.T) {
 
 func testSharedPollerManager(t *testing.T) {
 	t.Helper()
+
 	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 	require.NoError(t, err)
 
-	f := &fakeS3{content: content}
+	fake := &fakeS3{content: content}
+
 	var created atomic.Int32
-	reg := newFakeRegistry(t, f, &created)
+
+	reg := newFakeRegistry(t, fake, &created)
 	nonShared := config.FlagSet{
 		Name:    "isolated",
 		APIKeys: []string{"isolated-key"},
@@ -57,21 +60,21 @@ func testSharedPollerManager(t *testing.T) {
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
 	// all the shared-poller items are pre-registered, so startup lists the directory once
-	assert.EqualValues(t, 1, f.lists.Load())
-	assert.EqualValues(t, 2, f.gets.Load())
+	assert.EqualValues(t, 1, fake.lists.Load())
+	assert.EqualValues(t, 2, fake.gets.Load())
 
 	// a flagset added at runtime joins the same group
-	impl := mgr.(*flagsetManagerImpl)
-	impl.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"), 0)
+	mgr.addFlagset(s3FlagSet("u3", "flags", "p/c.yaml"), 0)
 	assert.EqualValues(t, 1, created.Load())
 	assert.Equal(t, 1, reg.groupCount())
+
 	all, err := mgr.AllFlagSets()
 	require.NoError(t, err)
 	assert.Contains(t, all, "u3")
 
 	// removing flagsets releases the group once the last one is gone
-	impl.removeFlagset(s3FlagSet("u1", "flags", "p/a.yaml"))
-	impl.removeFlagset(s3FlagSet("u2", "flags", "p/b.yaml"))
+	mgr.removeFlagset(s3FlagSet("u1", "flags", "p/a.yaml"))
+	mgr.removeFlagset(s3FlagSet("u2", "flags", "p/b.yaml"))
 	assert.Equal(t, 1, reg.groupCount())
 	mgr.Close()
 	assert.Equal(t, 0, reg.groupCount())
@@ -90,7 +93,7 @@ func Test_flagsetManagerImpl_addFlagset_sharedDuplicate(t *testing.T) {
 
 		// the flagset name is already in the configuration: the new client is closed and released
 		dup := s3FlagSet("u1", "flags", "p/b.yaml")
-		mgr.(*flagsetManagerImpl).addFlagset(dup, 0)
+		mgr.addFlagset(dup, 0)
 		assert.Equal(t, 1, reg.groupCount())
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
@@ -102,67 +105,72 @@ func Test_flagsetManagerImpl_reloadAddsSharedPollerFlagsets(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 		require.NoError(t, err)
-		f := &fakeS3{content: content}
+
+		fake := &fakeS3{content: content}
+
 		flagsets := make([]config.FlagSet, 11)
 		for i := range flagsets {
-			f.keys = append(f.keys, fmt.Sprintf("p/f%d.yaml", i))
-			flagsets[i] = s3FlagSet(fmt.Sprintf("u%d", i), "flags", f.keys[i])
+			fake.keys = append(fake.keys, fmt.Sprintf("p/f%d.yaml", i))
+			flagsets[i] = s3FlagSet(fmt.Sprintf("u%d", i), "flags", fake.keys[i])
 		}
-		reg := newFakeRegistry(t, f, &atomic.Int32{})
+
+		reg := newFakeRegistry(t, fake, &atomic.Int32{})
 		mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
 			&config.Config{FlagSets: flagsets[:1]}, slog.New(slog.DiscardHandler), nil, nil, nil, reg)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, f.lists.Load())
+		require.EqualValues(t, 1, fake.lists.Load())
 
 		// 10 flagsets added in one reload share one listing
 		mgr.OnConfigChange(&config.Config{Server: config.Server{Port: 8080}, FlagSets: flagsets})
 		all, err := mgr.AllFlagSets()
 		require.NoError(t, err)
 		assert.Len(t, all, 11)
-		assert.EqualValues(t, 2, f.lists.Load())
+		assert.EqualValues(t, 2, fake.lists.Load())
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
 	})
 }
 
 func newPollingManager(
-	t *testing.T, f *fakeS3, interval time.Duration, logger *slog.Logger,
-) (*flagsetManagerImpl, *sharedBucketRegistry) {
+	t *testing.T, fake *fakeS3, interval time.Duration, logger *slog.Logger,
+) (*FlagsetManagerImpl, *sharedBucketRegistry) {
 	t.Helper()
+
 	content, err := os.ReadFile("../testdata/semaphore/configuration_flags.yaml")
 	require.NoError(t, err)
-	f.content = content
-	reg := newFakeRegistryWithPolling(t, f, &atomic.Int32{}, interval, false, logger)
-	a, b := s3FlagSet("u1", "flags", "p/a.yaml"), s3FlagSet("u2", "flags", "p/b.yaml")
-	a.PollingInterval, b.PollingInterval = 0, 0
+
+	fake.content = content
+	reg := newFakeRegistryWithPolling(t, fake, &atomic.Int32{}, interval, false, logger)
+	flagsetA, flagsetB := s3FlagSet("u1", "flags", "p/a.yaml"), s3FlagSet("u2", "flags", "p/b.yaml")
+	flagsetA.PollingInterval, flagsetB.PollingInterval = 0, 0
 	mgr, err := newFlagsetManagerWithFlagsetsAndRegistry(
-		&config.Config{FlagSets: []config.FlagSet{a, b}}, logger, nil, nil, nil, reg)
+		&config.Config{FlagSets: []config.FlagSet{flagsetA, flagsetB}}, logger, nil, nil, nil, reg)
 	require.NoError(t, err)
 
-	return mgr.(*flagsetManagerImpl), reg
+	return mgr, reg
 }
 
 func Test_flagsetManagerImpl_sharedPoller(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		f := &fakeS3{}
-		mgr, reg := newPollingManager(t, f, 10*time.Second, slog.New(slog.DiscardHandler))
-		require.EqualValues(t, 1, f.lists.Load())
-		require.EqualValues(t, 2, f.gets.Load())
+		fake := &fakeS3{}
+		mgr, reg := newPollingManager(t, fake, 10*time.Second, slog.New(slog.DiscardHandler))
+		require.EqualValues(t, 1, fake.lists.Load())
+		require.EqualValues(t, 2, fake.gets.Load())
 
 		// the clients do not poll, one listing per polling interval of the relay proxy
 		time.Sleep(2 * time.Minute)
 		synctest.Wait()
-		assert.EqualValues(t, 1+12, f.lists.Load())
-		assert.EqualValues(t, 2, f.gets.Load(), "nothing changed")
+		assert.EqualValues(t, 1+12, fake.lists.Load())
+		assert.EqualValues(t, 2, fake.gets.Load(), "nothing changed")
 
 		// only the flagset of the changed object downloads it
-		f.setETag("p/a.yaml", `"y"`)
+		fake.setETag("p/a.yaml", `"y"`)
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
-		assert.EqualValues(t, 1+13, f.lists.Load())
-		assert.Equal(t, 2, f.getCount("p/a.yaml"))
-		assert.Equal(t, 1, f.getCount("p/b.yaml"))
+		assert.EqualValues(t, 1+13, fake.lists.Load())
+		assert.Equal(t, 2, fake.getCount("p/a.yaml"))
+		assert.Equal(t, 1, fake.getCount("p/b.yaml"))
 
 		mgr.Close()
 		assert.Equal(t, 0, reg.groupCount())
@@ -173,33 +181,35 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		core, logs := slogutil.NewObserver(slog.LevelInfo)
-		f := &fakeS3{}
-		mgr, reg := newPollingManager(t, f, 10*time.Second, core)
+		fake := &fakeS3{}
+		mgr, reg := newPollingManager(t, fake, 10*time.Second, core)
 		// a new top-level pollingInterval is applied to the running poller, the flagsets are not rebuilt
-		a, b := s3FlagSet("u1", "flags", "p/a.yaml"), s3FlagSet("u2", "flags", "p/b.yaml")
-		a.PollingInterval, b.PollingInterval = 0, 0
-		b.PollingInterval = 20000
+		flagsetA, flagsetB := s3FlagSet("u1", "flags", "p/a.yaml"), s3FlagSet("u2", "flags", "p/b.yaml")
+		flagsetA.PollingInterval, flagsetB.PollingInterval = 0, 0
+		flagsetB.PollingInterval = 20000
 		added := s3FlagSet("u3", "flags", "p/c.yaml")
 		added.PollingInterval = 20000
 		before, err := mgr.AllFlagSets()
 		require.NoError(t, err)
-		mgr.config = &config.Config{FlagSets: []config.FlagSet{a, b}}
+
+		mgr.config = &config.Config{FlagSets: []config.FlagSet{flagsetA, flagsetB}}
 		mgr.OnConfigChange(&config.Config{
 			Server:          config.Server{Port: 8080},
 			PollingInterval: 30000,
-			FlagSets:        []config.FlagSet{a, b, added},
+			FlagSets:        []config.FlagSet{flagsetA, flagsetB, added},
 		})
 		after, err := mgr.AllFlagSets()
 		require.NoError(t, err)
 		assert.Same(t, before["u1"], after["u1"])
-		lists := f.lists.Load() // the added flagset did its own initial listing
+
+		lists := fake.lists.Load() // the added flagset did its own initial listing
 
 		time.Sleep(29 * time.Second)
 		synctest.Wait()
-		assert.Equal(t, lists, f.lists.Load())
+		assert.Equal(t, lists, fake.lists.Load())
 		time.Sleep(time.Second)
 		synctest.Wait()
-		assert.Equal(t, lists+1, f.lists.Load())
+		assert.Equal(t, lists+1, fake.lists.Load())
 
 		assert.Equal(t, 1, logs.FilterMessageSnippet("polling of the shared pollers updated").Len())
 		// every flagset (the existing one and the one added by the reload) is warned once
@@ -212,7 +222,7 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		mgr.OnConfigChange(&config.Config{
 			Server:          config.Server{Port: 8080},
 			PollingInterval: 30000,
-			FlagSets:        []config.FlagSet{a, b, added},
+			FlagSets:        []config.FlagSet{flagsetA, flagsetB, added},
 		})
 		assert.Equal(t, 1, logs.FilterMessageSnippet("polling of the shared pollers updated").Len())
 		mgr.Close()
@@ -222,7 +232,9 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 
 func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *testing.T) {
 	t.Parallel()
+
 	retriever := &retrieverconf.RetrieverConf{Kind: "file", Path: "../testdata/semaphore/configuration_flags.yaml"}
+
 	tests := []struct {
 		name          string
 		startupTop    time.Duration
@@ -248,23 +260,24 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			existing := config.FlagSet{Name: "existing", APIKeys: []string{"k1"}, Retriever: retriever}
 			cfg := &config.Config{
 				FlagSets:                   []config.FlagSet{existing},
 				ExporterCleanQueueInterval: tt.startupTop,
 			}
-			m, err := NewFlagsetManager(cfg, slog.New(slog.DiscardHandler), nil, nil, nil)
+			mgr, err := NewFlagsetManager(cfg, slog.New(slog.DiscardHandler), nil, nil, nil)
 			require.NoError(t, err)
-			t.Cleanup(m.Close)
+			t.Cleanup(mgr.Close)
 
 			var got, calls atomic.Int64
-			impl := m.(*flagsetManagerImpl)
-			impl.clientOptions = []clientOption{
-				withClientFactory(func(c ffclient.Config) (*ffclient.GoFeatureFlag, error) {
-					calls.Add(1)
-					got.Store(int64(c.ExporterCleanQueueInterval))
 
-					return ffclient.New(c)
+			mgr.clientOptions = []clientOption{
+				withClientFactory(func(clientCfg ffclient.Config) (*ffclient.GoFeatureFlag, error) {
+					calls.Add(1)
+					got.Store(int64(clientCfg.ExporterCleanQueueInterval))
+
+					return ffclient.New(clientCfg)
 				}),
 			}
 
@@ -272,13 +285,14 @@ func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *t
 				Name: "added", APIKeys: []string{"k2"},
 				Retriever: retriever, ExporterCleanQueueInterval: tt.addedOverride,
 			}
-			impl.onConfigChangeWithFlagsets(&config.Config{
+			mgr.onConfigChangeWithFlagsets(&config.Config{
 				FlagSets:                   []config.FlagSet{existing, added},
 				ExporterCleanQueueInterval: tt.reloadTop,
 			})
 			assert.Equal(t, int64(1), calls.Load(), "the added flagset must be built exactly once")
 			assert.Equal(t, tt.want, time.Duration(got.Load()))
-			client, err := m.FlagSet("k2")
+
+			client, err := mgr.FlagSet("k2")
 			require.NoError(t, err)
 			assert.NotNil(t, client)
 		})

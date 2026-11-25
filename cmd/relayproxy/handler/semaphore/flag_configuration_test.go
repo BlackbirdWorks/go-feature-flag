@@ -30,6 +30,7 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 		bodyLocation string
 		statusCode   int
 	}
+
 	test := []struct {
 		name        string
 		requestBody string
@@ -119,13 +120,16 @@ func TestFlagConfigurationAPICtrl_Handler_DefaultMode(t *testing.T) {
 func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 	t.Parallel()
 
-	const configFlagsLocation = testdataDir + "/configuration_flags.yaml"
-	const configFlagsLocation2 = testdataDir + "/config_flags_v2.yaml"
+	const (
+		configFlagsLocation  = testdataDir + "/configuration_flags.yaml"
+		configFlagsLocation2 = testdataDir + "/config_flags_v2.yaml"
+	)
 
 	type want struct {
 		bodyLocation string
 		statusCode   int
 	}
+
 	test := []struct {
 		name        string
 		requestBody string
@@ -232,7 +236,9 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 
 			if tt.want.statusCode == http.StatusBadRequest && tt.apiKey == "invalid-api-key" {
 				require.Error(t, err, "handler should return an error for invalid API key")
+
 				he := &helper.HTTPError{}
+
 				ok := errors.As(err, &he)
 				if ok {
 					assert.Equal(t, tt.want.statusCode, he.Code)
@@ -256,10 +262,12 @@ func TestFlagConfigurationAPICtrl_Handler_FlagsetMode(t *testing.T) {
 func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) {
 	t.Parallel()
 
-	const metricName = "semaphore_flag_configuration_total"
-	const want = "# HELP " + metricName + " Counter events for number of configuration api requests.\n" +
-		"# TYPE " + metricName + " counter\n" +
-		metricName + " 1\n"
+	const (
+		metricName = "semaphore_flag_configuration_total"
+		want       = "# HELP " + metricName + " Counter events for number of configuration api requests.\n" +
+			"# TYPE " + metricName + " counter\n" +
+			metricName + " 1\n"
+	)
 
 	conf := config.Config{
 		FlagSets: []config.FlagSet{
@@ -333,6 +341,7 @@ func TestFlagConfigurationAPICtrl_Handler_FlagConfigurationMetric(t *testing.T) 
 				Request: controller.NewRequest(tt.apiKey, "application/json"),
 				RawBody: requestBody,
 			})
+
 			var statusCode int
 			if handlerErr == nil {
 				statusCode = out.Status

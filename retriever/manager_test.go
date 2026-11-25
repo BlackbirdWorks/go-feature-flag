@@ -186,13 +186,13 @@ func findRetrieverByName(retrievers []retriever.Retriever, name string) retrieve
 // initCalled reports whether Init was recorded as called on a mock retriever.
 // The second return value is false when r is not an initializable mock type.
 func initCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.InitCalled, true
+		return typed.InitCalled, true
 	default:
 		return false, false
 	}
@@ -200,13 +200,13 @@ func initCalled(r retriever.Retriever) (bool, bool) {
 
 // statusCalled reports whether Status was recorded as called on a mock retriever.
 func statusCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.StatusCalled, true
+		return typed.StatusCalled, true
 	default:
 		return false, false
 	}
@@ -214,13 +214,13 @@ func statusCalled(r retriever.Retriever) (bool, bool) {
 
 // shutdownCalled reports whether Shutdown was recorded as called on a mock retriever.
 func shutdownCalled(r retriever.Retriever) (bool, bool) {
-	switch v := r.(type) {
+	switch typed := r.(type) {
 	case *mockretriever.InitializableRetrieverLegacy:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	case *mockretriever.InitializableRetriever:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	case *mockretriever.InitializableRetrieverWithFlagset:
-		return v.ShutdownCalled, true
+		return typed.ShutdownCalled, true
 	default:
 		return false, false
 	}
@@ -235,6 +235,7 @@ func assertCalls(
 	method string,
 ) {
 	t.Helper()
+
 	for name := range expected {
 		r := findRetrieverByName(retrievers, name)
 		require.NotNil(t, r, "Retriever %s should have been found", name)
@@ -248,12 +249,15 @@ func assertCalls(
 // case expects to have been initialized.
 func assertInitCalls(t *testing.T, retrievers []retriever.Retriever, expected map[string]bool) {
 	t.Helper()
+
 	for name, shouldBeCalled := range expected {
 		if !shouldBeCalled {
 			continue
 		}
+
 		r := findRetrieverByName(retrievers, name)
 		assert.NotNil(t, r, "Retriever %s should have been found", name)
+
 		if called, ok := initCalled(r); ok {
 			assert.True(t, called, "Init should have been called on %s", name)
 		}
@@ -310,8 +314,8 @@ variation = "A"
 			name:       "Empty FormatHinter falls back to global yaml and fails on toml content",
 			hintFormat: "",
 			globalFmt:  "yaml",
-			wantErr: "impossible to retrieve the flags, please check your configuration: yaml: unmarshal errors:\n  lin" +
-				"e 1: cannot unmarshal !!seq into map[string]dto.DTO",
+			wantErr: "impossible to retrieve the flags, please check your configuration: decoding the flags: " +
+				"yaml: unmarshal errors:\n  line 1: cannot unmarshal !!seq into map[string]dto.DTO",
 		},
 	}
 
@@ -336,9 +340,11 @@ variation = "A"
 			} else {
 				require.NoError(t, err)
 			}
+
 			flags, allErr := cacheManager.AllFlags()
 			require.NoError(t, allErr)
 			assert.Equal(t, tt.wantFlags, slices.Sorted(maps.Keys(flags)))
+
 			_ = manager.Shutdown(ctx)
 		})
 	}
@@ -354,6 +360,7 @@ type countingRetriever struct {
 func (r *countingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.calls++
 
 	return []byte(`{"test-flag":{"variations":{"A":true,"B":false},` +
@@ -369,6 +376,7 @@ func (r *countingRetriever) Calls() int {
 
 func newPollingManager(t *testing.T, r retriever.Retriever) *retriever.Manager {
 	t.Helper()
+
 	logger := fflog.FFLogger{}
 	cacheManager := cache.New(notification.NewService([]notifier.Notifier{}), "", &logger)
 	// ManagerConfig.PollingInterval is not clamped, the 1s floor lives in ffclient.Config.
@@ -393,6 +401,7 @@ func TestManagerShutdownStopsThePolling(t *testing.T) {
 		time.Second, 10*time.Millisecond, "the polling never started")
 
 	require.NoError(t, manager.Shutdown(ctx))
+
 	callsAtShutdown := r.Calls()
 
 	require.Never(t, func() bool { return r.Calls() > callsAtShutdown },
@@ -411,6 +420,7 @@ func TestManagerStopPollingIsIdempotent(t *testing.T) {
 	require.NoError(t, manager.Init(ctx))
 
 	var shutdownErr error
+
 	assert.NotPanics(t, func() {
 		manager.StopPolling()
 		manager.StopPolling()
@@ -435,6 +445,7 @@ func TestManagerStopPollingWithPollingDisabled(t *testing.T) {
 	require.NoError(t, manager.Init(ctx))
 
 	var shutdownErr error
+
 	assert.NotPanics(t, func() {
 		manager.StartPolling(ctx)
 		manager.StopPolling()

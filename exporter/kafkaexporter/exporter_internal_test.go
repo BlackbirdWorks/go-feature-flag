@@ -191,6 +191,7 @@ func TestExporter_Export(t *testing.T) {
 			}
 
 			logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
+
 			err := exp.Export(context.Background(), logger, tt.events)
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -210,7 +211,9 @@ func TestExporter_Export(t *testing.T) {
 				}
 			}
 
-			assert.Equal(t, want, (exp.sender).(*messageSenderMock).messages)
+			sender, ok := exp.sender.(*messageSenderMock)
+			require.True(t, ok)
+			assert.Equal(t, want, sender.messages)
 		})
 	}
 }

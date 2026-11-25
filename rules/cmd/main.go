@@ -11,7 +11,8 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	err := run()
+	if err != nil {
 		log.Fatal(err)
 	}
 }
@@ -21,29 +22,39 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error reading obj from file: %w", err)
 	}
+
 	rulesBytes, err := os.ReadFile("rules.txt")
 	if err != nil {
 		return fmt.Errorf("error reading rule from file: %w", err)
 	}
+
 	rulesString := string(rulesBytes)
+
 	var info map[string]any
-	if unmarshalErr := json.Unmarshal(jsonFile, &info); unmarshalErr != nil {
+
+	unmarshalErr := json.Unmarshal(jsonFile, &info)
+	if unmarshalErr != nil {
 		return fmt.Errorf("error decoding obj from file: %w", unmarshalErr)
 	}
-	ev, err := parser.NewEvaluator(rulesString)
+
+	evaluator, err := parser.NewEvaluator(rulesString)
 	if err != nil {
 		return fmt.Errorf("error making evaluator from the rule %v: %w", rulesString, err)
 	}
-	ans, err := ev.Process(info)
+
+	ans, err := evaluator.Process(info)
 	if err != nil {
-		return err
+		return fmt.Errorf("evaluate rule: %w", err)
 	}
+
 	fmt.Fprintf(os.Stdout, `
 		Rule: %v
 		Object: %v
 		Answer: %v
 	`+"\n", rulesString, info, ans)
-	if debugErr := ev.LastDebugErr(); debugErr != nil {
+
+	debugErr := evaluator.LastDebugErr()
+	if debugErr != nil {
 		fmt.Fprintln(os.Stdout, "Last debug error", debugErr)
 	}
 

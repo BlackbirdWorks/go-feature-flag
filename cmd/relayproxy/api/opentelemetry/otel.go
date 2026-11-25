@@ -141,6 +141,7 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 	if v := config.OtelConfig.Service.Name; v != "" {
 		serviceName = v
 	}
+
 	res, err := initResource(ctx, serviceName, config.Version, config.OtelConfig.Resource.Attributes)
 	if err != nil {
 		return fmt.Errorf("initializing OTel resources: %w", err)
@@ -153,12 +154,16 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 			return fmt.Errorf("initializing OTel metric exporter: %w", err)
 		}
 	}
+
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithResource(res))
-	if err = runtime.Start(runtime.WithMeterProvider(provider)); err != nil {
+
+	err = runtime.Start(runtime.WithMeterProvider(provider))
+	if err != nil {
 		_ = provider.Shutdown(ctx)
 
 		return fmt.Errorf("starting the Go runtime metrics: %w", err)
 	}
+
 	s.meterProvider = provider
 
 	return nil
@@ -168,39 +173,37 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 // the global OpenTelemetry provider, with the error handler and the propagator of the relay proxy.
 // The OpenTelemetry API only offers process-wide registration, so it is the startup wiring (main) that
 // asks for it.
-func (s *OtelService) Install(logger *slog.Logger) {
+func (s *OtelService) Install(ctx context.Context, logger *slog.Logger) {
 	if s.otelTraceProvider == nil {
 		otel.SetTracerProvider(noop.NewTracerProvider())
 
 		return
 	}
+
 	otel.SetTracerProvider(s.otelTraceProvider)
-	otel.SetErrorHandler(newErrorHandler(logger))
+	otel.SetErrorHandler(newErrorHandler(ctx, logger))
 	otel.SetTextMapPropagator(newPropagator())
 }
 
-// newErrorHandler logs the OTel errors rather than the default log package.
-func newErrorHandler(logger *slog.Logger) otel.ErrorHandler {
-	return otelErrHandler(func(err error) {
-		logger.LogAttrs(context.Background(), slog.LevelError, "OTel error", cmdlog.Err(err))
+// newErrorHandler logs the OTel errors rather than the default log package. The handler has no context of its
+// own: it logs with the values of ctx, and keeps logging once ctx is cancelled (the errors of the shutdown).
+func newErrorHandler(ctx context.Context, logger *slog.Logger) otel.ErrorHandlerFunc {
+	logCtx := context.WithoutCancel(ctx)
+
+	return otel.ErrorHandlerFunc(func(err error) {
+		logger.LogAttrs(logCtx, slog.LevelError, "OTel error", cmdlog.Err(err))
 	})
 }
 
 // newPropagator is the propagator of the relay proxy: W3C trace context and baggage.
+//
+//nolint:ireturn // the SDK only exposes the TextMapPropagator interface it constructs
 func newPropagator() propagation.TextMapPropagator {
 	return propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
 }
-
-type otelErrHandler func(err error)
-
-func (o otelErrHandler) Handle(err error) {
-	o(err)
-}
-
-var _ otel.ErrorHandler = otelErrHandler(nil)
 
 func initResource(ctx context.Context, serviceName, version string,
 	attribs map[string]string) (*resource.Resource, error) {
@@ -209,7 +212,7 @@ func initResource(ctx context.Context, serviceName, version string,
 		attrs = append(attrs, attribute.String(k, v))
 	}
 
-	return resource.New(ctx,
+	res, err := resource.New(ctx,
 		resource.WithAttributes(attrs...),
 		resource.WithProcessPID(),
 		resource.WithProcessExecutableName(),
@@ -227,6 +230,11 @@ func initResource(ctx context.Context, serviceName, version string,
 			semconv.ServiceVersionKey.String(version),
 		),
 	)
+	if err != nil {
+		return nil, fmt.Errorf("create OpenTelemetry resource: %w", err)
+	}
+
+	return res, nil
 }
 
 // initSampler determines which sampling strategy to use. If OTEL_TRACES_SAMPLER
@@ -236,6 +244,8 @@ func initResource(ctx context.Context, serviceName, version string,
 // JAEGER_SAMPLER_MAX_OPERATIONS).
 // If it's set to any other value, we return nil and sdktrace.NewTracerProvider
 // will set up the initSampler from the environment.
+//
+//nolint:ireturn // selects among several SDK samplers at runtime, the SDK only exposes the interface
 func initSampler(serviceName string, conf *config.Config) (sdktrace.Sampler, error) {
 	sampler := conf.OtelConfig.Traces.Sampler
 	if sampler == "" {
@@ -274,11 +284,13 @@ func jaegerRemoteSamplerOpts(conf *config.Config) (string, time.Duration, int, e
 	}
 
 	samplerRefreshInterval := defaultSamplingRefreshInterval
+
 	if v := conf.JaegerConfig.Sampler.Refresh.Interval; v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
 			return "", 0, 0, fmt.Errorf("parsing JAEGER_SAMPLER_REFRESH_INTERVAL: %w", err)
 		}
+
 		samplerRefreshInterval = d
 	}
 
@@ -298,12 +310,14 @@ func (s *OtelService) Stop(ctx context.Context) error {
 	if s.otelExporter != nil {
 		errs = append(errs, s.otelExporter.Shutdown(ctx))
 	}
+
 	if s.otelTraceProvider != nil {
 		errs = append(errs, s.otelTraceProvider.Shutdown(ctx))
 	}
 	// Shutdown flushes the metrics that were not exported yet.
 	if s.meterProvider != nil {
-		if err := s.meterProvider.Shutdown(ctx); err != nil {
+		err := s.meterProvider.Shutdown(ctx)
+		if err != nil {
 			errs = append(errs, fmt.Errorf("stopping the OTel meter provider: %w", err))
 		}
 	}

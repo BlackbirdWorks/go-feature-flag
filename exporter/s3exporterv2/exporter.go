@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -57,35 +58,14 @@ type Exporter struct {
 	init            sync.Once
 }
 
-func (f *Exporter) initializeUploader(ctx context.Context) error {
-	var initErr error
-	f.init.Do(func() {
-		if f.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
-
-				return
-			}
-			f.AwsConfig = &cfg
-		}
-
-		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
-		f.s3Uploader = transfermanager.New(client)
-	})
-
-	return initErr
-}
-
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
 	events []exporter.ExportableEvent,
 ) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
+
 	if f.s3Uploader == nil {
 		initErr := f.initializeUploader(ctx)
 		if initErr != nil {
@@ -96,7 +76,7 @@ func (f *Exporter) Export(
 	// Create a temp directory to store the file we will produce
 	outputDir, err := os.MkdirTemp("", "semaphore_s3_export")
 	if err != nil {
-		return err
+		return fmt.Errorf("create temp dir for S3 export: %w", err)
 	}
 	defer func() { _ = os.RemoveAll(outputDir) }()
 
@@ -109,33 +89,64 @@ func (f *Exporter) Export(
 		CsvTemplate:             f.CsvTemplate,
 		ParquetCompressionCodec: f.ParquetCompressionCodec,
 	}
+
 	err = fileExporter.Export(ctx, logger, events)
 	if err != nil {
-		return err
+		return fmt.Errorf("export events to temp file for S3: %w", err)
 	}
 
 	// Upload all the files in the folder to export
 	files, err := os.ReadDir(outputDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("read temp dir for S3 export: %w", err)
 	}
+
 	for _, file := range files {
 		// read file
-		of, openErr := os.Open(outputDir + "/" + file.Name())
+		fileHandle, openErr := os.Open(outputDir + "/" + file.Name())
 		if openErr != nil {
-			logger.Error(
+			logger.ErrorContext(
+				ctx,
 				"[S3Exporter] impossible to open the file",
 				slog.String("path", outputDir+"/"+file.Name()),
 			)
 
 			continue
 		}
-		if uploadFileErr := f.uploadFile(ctx, logger, of, file.Name()); uploadFileErr != nil {
+
+		uploadFileErr := f.uploadFile(ctx, logger, fileHandle, file.Name())
+		if uploadFileErr != nil {
 			return uploadFileErr
 		}
 	}
 
 	return nil
+}
+
+func (f *Exporter) IsBulk() bool {
+	return true
+}
+
+func (f *Exporter) initializeUploader(ctx context.Context) error {
+	var initErr error
+
+	f.init.Do(func() {
+		if f.AwsConfig == nil {
+			cfg, err := config.LoadDefaultConfig(ctx)
+			if err != nil {
+				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
+
+				return
+			}
+
+			f.AwsConfig = &cfg
+		}
+
+		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
+		f.s3Uploader = transfermanager.New(client)
+	})
+
+	return initErr
 }
 
 // uploadFile uploads a single file to S3 and closes the file handle before
@@ -144,29 +155,26 @@ func (f *Exporter) Export(
 func (f *Exporter) uploadFile(
 	ctx context.Context,
 	logger *fflog.FFLogger,
-	of *os.File,
+	fileHandle *os.File,
 	fileName string,
 ) error {
-	defer func() { _ = of.Close() }()
+	defer func() { _ = fileHandle.Close() }()
 
 	result, err := f.s3Uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: aws.String(f.Bucket),
 		Key:    aws.String(f.S3Path + "/" + fileName),
-		Body:   of,
+		Body:   fileHandle,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("upload export file to S3: %w", err)
 	}
 
 	location := ""
 	if result.Location != nil {
 		location = *result.Location
 	}
-	logger.Info("[S3Exporter] file uploaded.", slog.String("location", location))
+
+	logger.InfoContext(ctx, "[S3Exporter] file uploaded.", slog.String("location", location))
 
 	return nil
-}
-
-func (f *Exporter) IsBulk() bool {
-	return true
 }

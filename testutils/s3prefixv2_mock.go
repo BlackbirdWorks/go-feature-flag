@@ -47,9 +47,11 @@ type S3PrefixMock struct {
 func (m *S3PrefixMock) Put(key, content string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if m.objects == nil {
 		m.objects = map[string][]byte{}
 	}
+
 	m.objects[key] = []byte(content)
 }
 
@@ -57,14 +59,17 @@ func (m *S3PrefixMock) Put(key, content string) {
 func (m *S3PrefixMock) SetDownloadErrKey(key string, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if m.downloadErrKeys == nil {
 		m.downloadErrKeys = map[string]error{}
 	}
+
 	if err == nil {
 		delete(m.downloadErrKeys, key)
 
 		return
 	}
+
 	m.downloadErrKeys[key] = err
 }
 
@@ -72,6 +77,7 @@ func (m *S3PrefixMock) SetDownloadErrKey(key string, err error) {
 func (m *S3PrefixMock) Delete(key string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	delete(m.objects, key)
 }
 
@@ -95,6 +101,7 @@ func (m *S3PrefixMock) DownloadCalls(key string) int {
 func (m *S3PrefixMock) TotalDownloadCalls() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	total := 0
 	for _, c := range m.downloadCalls {
 		total += c
@@ -104,7 +111,8 @@ func (m *S3PrefixMock) TotalDownloadCalls() int {
 }
 
 func etagOf(content []byte) string {
-	return fmt.Sprintf("\"%x\"", md5.Sum(content)) //nolint:gosec // fake ETag
+	//nolint:gosec // G401: MD5 generates an S3-compatible mock ETag header, not a security digest
+	return fmt.Sprintf("\"%x\"", md5.Sum(content))
 }
 
 // ListObjectsV2 mimics the S3 API (prefix, delimiter, continuation token, max keys).
@@ -115,10 +123,12 @@ func (m *S3PrefixMock) ListObjectsV2(
 ) (*s3.ListObjectsV2Output, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.listCalls++
 	if m.ListErr != nil {
 		return nil, m.ListErr
 	}
+
 	prefix := aws.ToString(params.Prefix)
 	delimiter := aws.ToString(params.Delimiter)
 	after := aws.ToString(params.ContinuationToken)
@@ -127,21 +137,26 @@ func (m *S3PrefixMock) ListObjectsV2(
 	if pageSize <= 0 {
 		pageSize = 1000
 	}
+
 	out := &s3.ListObjectsV2Output{IsTruncated: aws.Bool(false)}
 	seenPrefixes := map[string]bool{}
 	count := 0
-	for _, k := range m.sortedKeys(prefix) {
-		if k <= after {
+
+	for _, key := range m.sortedKeys(prefix) {
+		if key <= after {
 			continue
 		}
+
 		if count == pageSize {
 			out.IsTruncated = aws.Bool(true)
 
 			break
 		}
+
 		count++
-		out.NextContinuationToken = aws.String(k)
-		if cp := commonPrefix(k, prefix, delimiter); cp != "" {
+
+		out.NextContinuationToken = aws.String(key)
+		if cp := commonPrefix(key, prefix, delimiter); cp != "" {
 			if !seenPrefixes[cp] {
 				seenPrefixes[cp] = true
 				out.CommonPrefixes = append(out.CommonPrefixes, s3types.CommonPrefix{Prefix: aws.String(cp)})
@@ -149,31 +164,22 @@ func (m *S3PrefixMock) ListObjectsV2(
 
 			continue
 		}
-		obj := s3types.Object{Key: aws.String(k)}
+
+		obj := s3types.Object{Key: aws.String(key)}
 		if !m.NoETag {
-			obj.ETag = aws.String(etagOf(m.objects[k]))
+			obj.ETag = aws.String(etagOf(m.objects[key]))
 		}
+
 		out.Contents = append(out.Contents, obj)
 	}
+
 	if !aws.ToBool(out.IsTruncated) {
 		out.NextContinuationToken = nil
 	}
+
 	out.KeyCount = aws.Int32(int32(count))
 
 	return out, nil
-}
-
-// sortedKeys returns the sorted keys starting with prefix.
-func (m *S3PrefixMock) sortedKeys(prefix string) []string {
-	keys := make([]string, 0, len(m.objects))
-	for k := range m.objects {
-		if strings.HasPrefix(k, prefix) {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-
-	return keys
 }
 
 // commonPrefix returns the "folder" the key is rolled up into when a delimiter is used, or "".
@@ -181,7 +187,9 @@ func commonPrefix(key, prefix, delimiter string) string {
 	if delimiter == "" {
 		return ""
 	}
+
 	rest := strings.TrimPrefix(key, prefix)
+
 	i := strings.Index(rest, delimiter)
 	if i < 0 {
 		return ""
@@ -199,31 +207,55 @@ func (m *S3PrefixMock) DownloadObject(
 	if m.BeforeDownload != nil {
 		m.BeforeDownload(aws.ToString(input.Key))
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if m.downloadCalls == nil {
 		m.downloadCalls = map[string]int{}
 	}
+
 	key := aws.ToString(input.Key)
+
 	m.downloadCalls[key]++
 	if m.DownloadErr != nil {
 		return nil, m.DownloadErr
 	}
-	if err := m.downloadErrKeys[key]; err != nil {
+
+	err := m.downloadErrKeys[key]
+	if err != nil {
 		return nil, err
 	}
+
 	if input.WriterAt == nil {
 		return nil, errWriterAtIsRequired
 	}
+
 	content, ok := m.objects[key]
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errNoSuchKey, key)
 	}
+
 	_, _ = input.WriterAt.WriteAt(content, 0)
+
 	out := &transfermanager.DownloadObjectOutput{}
 	if !m.NoETag {
 		out.ETag = aws.String(etagOf(content))
 	}
 
 	return out, nil
+}
+
+// sortedKeys returns the sorted keys starting with prefix.
+func (m *S3PrefixMock) sortedKeys(prefix string) []string {
+	keys := make([]string, 0, len(m.objects))
+	for k := range m.objects {
+		if strings.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }

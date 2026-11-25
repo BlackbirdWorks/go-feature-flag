@@ -110,11 +110,16 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 		wantErr   string
 		wantMatch bool
 	}{
-		{name: "context that does not encode", value: make(chan int), wantErr: "json: unsupported type: chan int"},
 		{
-			name:    "context that encodes but does not decode",
-			value:   json.Number("1e1000"),
-			wantErr: "json: cannot unmarshal number 1e1000 into Go struct field .bad of type float64",
+			name:    "context that does not encode",
+			value:   make(chan int),
+			wantErr: "encoding the evaluation context: json: unsupported type: chan int",
+		},
+		{
+			name:  "context that encodes but does not decode",
+			value: json.Number("1e1000"),
+			wantErr: "decoding the evaluation context: json: cannot unmarshal number 1e1000 into Go struct field " +
+				".bad of type float64",
 		},
 	}
 	for _, tt := range tests {
@@ -187,7 +192,7 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) {
 	t.Parallel()
 
-	f := InternalFlag{
+	internalFlag := InternalFlag{
 		Variations: &map[string]*any{
 			"nikunjy":     new(any("nikunjy")),
 			"jsonlogic":   new(any("jsonlogic")),
@@ -201,6 +206,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		},
 		DefaultRule: &Rule{VariationResult: new("default")},
 	}
+
 	tests := []struct {
 		name string
 		plan string
@@ -217,7 +223,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
 
-			value, details := f.Value(
+			value, details := internalFlag.Value(
 				"mixed-formats",
 				ctx,
 				Context{Service: NewService(), DefaultSdkValue: "sdk-default"},

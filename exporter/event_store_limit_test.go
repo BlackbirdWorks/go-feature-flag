@@ -27,6 +27,7 @@ type droppedCounter interface{ DroppedEvents() int64 }
 
 func Test_EventStoreWithLimit(t *testing.T) {
 	t.Parallel()
+
 	process := func(
 		out *[]testutils.ExportableMockEvent,
 		err error,
@@ -35,6 +36,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 			if err != nil {
 				return err
 			}
+
 			*out = append(*out, events...)
 
 			return nil
@@ -71,15 +73,22 @@ func Test_EventStoreWithLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var onDropTotal int64
-			var mu sync.Mutex
+
+			var (
+				onDropTotal int64
+				mu          sync.Mutex
+			)
+
 			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](
 				time.Hour, tt.limit, func(total int64) { mu.Lock(); onDropTotal = total; mu.Unlock() })
 			defer store.Stop()
+
 			store.AddConsumer("c")
+
 			for i := range tt.adds {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 			}
+
 			var out []testutils.ExportableMockEvent
 			if tt.consume {
 				err := store.ProcessPendingEvents("c", process(&out, tt.consumeErr))
@@ -89,6 +98,7 @@ func Test_EventStoreWithLimit(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
+
 			gotOut := slices.Collect(func(yield func(string) bool) {
 				for _, e := range out {
 					if !yield(e.GetKey()) {
@@ -97,11 +107,15 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				}
 			})
 			assert.Equal(t, tt.wantOut, gotOut)
+
 			for i := range tt.addsAfter {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}
+
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
 			mu.Lock()
 			assert.Equal(t, tt.wantDropped, onDropTotal)
 			mu.Unlock()
@@ -112,13 +126,18 @@ func Test_EventStoreWithLimit(t *testing.T) {
 // the events that are kept are the oldest ones and are delivered in order, once.
 func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 	t.Parallel()
+
 	store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, 3, nil)
 	defer store.Stop()
+
 	store.AddConsumer("c")
+
 	for i := range 6 {
 		store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("e%d", i)))
 	}
+
 	var got []string
+
 	require.NoError(
 		t,
 		store.ProcessPendingEvents("c", func(_ context.Context, ev []testutils.ExportableMockEvent) error {
@@ -134,6 +153,7 @@ func Test_EventStoreWithLimit_KeepsOldestInOrder(t *testing.T) {
 
 func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name        string
 		limit       int64
@@ -148,9 +168,12 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			store := exporter.NewEventStoreWithLimit[testutils.ExportableMockEvent](time.Hour, tt.limit, nil)
 			defer store.Stop()
+
 			store.AddConsumer("c")
+
 			var wg sync.WaitGroup
 			for range tt.workers {
 				wg.Go(func() {
@@ -160,9 +183,12 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 					}
 				})
 			}
+
 			wg.Wait()
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
 		})
 	}
 }
@@ -170,6 +196,7 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 // a consumer that always fails must neither grow the store, nor be called on every event.
 func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		maxMem  int64
@@ -183,22 +210,29 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			exp := &failingExporter{}
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
+
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: tt.maxMem, MaxQueuedEvents: tt.maxQ,
 			}}, time.Hour, nil)
-			defer m.Stop()
-			const n = 100000
+			defer mgr.Stop()
+
+			const totalEvents = 100000
 			// The flush backoff compares time.Now().UnixNano() (wall clock) against its deadline, on
 			// purpose: it paces real goroutines, and the package clock is frozen by TestMain. Measure
 			// the elapsed time on that same wall clock. A backwards wall-clock step during the test
 			// is out of scope (a negative elapsed is treated as 0).
 			begin := time.Now().UnixNano()
-			for range n {
-				m.AddEvent(exporter.FeatureEvent{Key: "k"})
+
+			for range totalEvents {
+				mgr.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
+
 			elapsed := max(time.Duration(time.Now().UnixNano()-begin), 0)
-			assert.Equal(t, int64(n)-tt.wantCap, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Equal(t, int64(totalEvents)-tt.wantCap, dc.DroppedEvents())
 			// Without backoff the exporter would have been called for every event above the threshold.
 			// A failed flush delays the next event-count flush by flushRetryBackoff (1s) from the end
 			// of the failed attempt, so two attempts start at least 1s apart: during elapsed, at most
@@ -224,6 +258,7 @@ type queueCleaner interface{ CleanQueue() }
 // consumers has not consumed anything yet (its offset is then the initial offset).
 func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		consumeBoth  bool
@@ -235,19 +270,27 @@ func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			store := exporter.NewEventStore[testutils.ExportableMockEvent](time.Hour)
 			defer store.Stop()
+
 			store.AddConsumer("a")
 			store.AddConsumer("b")
+
 			for range 5 {
 				store.Add(testutils.NewExportableMockEvent("e"))
 			}
+
 			noop := func(context.Context, []testutils.ExportableMockEvent) error { return nil }
 			require.NoError(t, store.ProcessPendingEvents("a", noop))
+
 			if tt.consumeBoth {
 				require.NoError(t, store.ProcessPendingEvents("b", noop))
 			}
-			store.(queueCleaner).CleanQueue()
+
+			qc, ok := store.(queueCleaner)
+			require.True(t, ok)
+			qc.CleanQueue()
 			assert.Equal(t, tt.wantAfterGet, store.GetTotalEventCount())
 		})
 	}

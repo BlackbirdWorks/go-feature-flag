@@ -56,33 +56,39 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 		url = fmt.Sprintf("https://%s.blob.core.windows.net/", r.AccountName)
 	}
 
-	var client *azblob.Client
-	var err error
+	var (
+		client *azblob.Client
+		err    error
+	)
 
 	if r.AccountKey == "" {
 		var cred *azidentity.DefaultAzureCredential
+
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			return err
+			return fmt.Errorf("create default Azure credential: %w", err)
 		}
+
 		client, err = azblob.NewClient(url, cred, nil)
 	} else {
 		var cred *azblob.SharedKeyCredential
+
 		cred, err = azblob.NewSharedKeyCredential(r.AccountName, r.AccountKey)
 		if err != nil {
 			r.status = retriever.RetrieverError
 
-			return err
+			return fmt.Errorf("create Azure shared key credential: %w", err)
 		}
+
 		client, err = azblob.NewClientWithSharedKeyCredential(url, cred, nil)
 	}
 
 	if err != nil {
 		r.status = retriever.RetrieverError
 
-		return err
+		return fmt.Errorf("create Azure blob client: %w", err)
 	}
 
 	r.client = client
@@ -121,7 +127,7 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	fileStream, err := r.client.DownloadStream(ctx, r.Container, r.Object, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("download Azure blob %s: %w", r.Object, err)
 	}
 
 	retryReader := fileStream.NewRetryReader(ctx, nil)

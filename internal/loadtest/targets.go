@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,36 +37,43 @@ type LibraryOptions struct {
 }
 
 // NewLibraryTarget starts a library client on the generated flags.
-func NewLibraryTarget(o LibraryOptions) (*LibraryTarget, error) {
+func NewLibraryTarget(ctx context.Context, opts LibraryOptions) (*LibraryTarget, error) {
 	dir, err := os.MkdirTemp("", "ffsoak")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create soak temp dir: %w", err)
 	}
+
 	path := filepath.Join(dir, "flags.yaml")
-	if writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600); writeFileErr != nil {
-		return nil, writeFileErr
+
+	writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600)
+	if writeFileErr != nil {
+		return nil, fmt.Errorf("write soak flag file: %w", writeFileErr)
 	}
-	if o.FlushInterval == 0 {
-		o.FlushInterval = time.Second
+
+	if opts.FlushInterval == 0 {
+		opts.FlushInterval = time.Second
 	}
-	if o.MaxEventInMemory == 0 {
-		o.MaxEventInMemory = 100000
+
+	if opts.MaxEventInMemory == 0 {
+		opts.MaxEventInMemory = 100000
 	}
-	exp := NewExporter(o.ExporterMode)
-	c, err := ffclient.New(ffclient.Config{
+
+	exp := NewExporter(opts.ExporterMode)
+
+	client, err := ffclient.NewWithContext(ctx, ffclient.Config{
 		PollingInterval: time.Hour,
 		Retriever:       &fileretriever.Retriever{Path: path},
 		DataExporter: ffclient.DataExporter{
-			FlushInterval:    o.FlushInterval,
-			MaxEventInMemory: o.MaxEventInMemory,
+			FlushInterval:    opts.FlushInterval,
+			MaxEventInMemory: opts.MaxEventInMemory,
 			Exporter:         exp,
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("init soak ffclient: %w", err)
 	}
 
-	return &LibraryTarget{client: c, exporter: exp, flagKey: o.FlagKey, dir: dir}, nil
+	return &LibraryTarget{client: client, exporter: exp, flagKey: opts.FlagKey, dir: dir}, nil
 }
 
 // Eval implements Target.
@@ -82,9 +90,13 @@ func (l *LibraryTarget) Eval(worker, i int) error {
 		AddCustom("device", "ios").
 		AddCustom("company", "acme").
 		Build()
-	_, err := l.client.BoolVariation(l.flagKey, ctx, false)
 
-	return err
+	_, err := l.client.BoolVariation(l.flagKey, ctx, false)
+	if err != nil {
+		return fmt.Errorf("evaluate bool flag %s: %w", l.flagKey, err)
+	}
+
+	return nil
 }
 
 // Extra implements Target.

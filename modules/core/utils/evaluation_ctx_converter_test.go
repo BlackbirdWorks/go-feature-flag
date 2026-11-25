@@ -16,6 +16,7 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 		Custom map[string]any
 		Key    string
 	}
+
 	tests := []struct {
 		fields fields
 		want   ffcontext.Context

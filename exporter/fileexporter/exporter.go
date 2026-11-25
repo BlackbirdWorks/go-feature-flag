@@ -74,25 +74,29 @@ func (f *Exporter) Export(
 	if f.Format == "" {
 		f.Format = "json"
 	}
+
 	f.Format = strings.ToLower(f.Format)
 
 	// Get the filename
 	filename, err := exporter.ComputeFilename(f.filenameTemplate, f.Format)
 	if err != nil {
-		return err
+		return fmt.Errorf("compute export filename: %w", err)
 	}
 
 	// Handle empty OutputDir and remove trailing slash
 	outputDir := strings.TrimRight(f.OutputDir, "/")
+
 	var filePath string
 	if outputDir == "" {
 		filePath = filename
 	} else {
 		// Ensure OutputDir exists or create it
 		//nolint:gosec // G302/G304: the path is chosen by the operator
-		if mkdirAllErr := os.MkdirAll(outputDir, 0755); mkdirAllErr != nil {
+		mkdirAllErr := os.MkdirAll(outputDir, 0755)
+		if mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
+
 		filePath = filepath.Join(outputDir, filename)
 	}
 
@@ -113,12 +117,15 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 	//nolint:gosec // G302/G304: the path is chosen by the operator
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return err
+		return fmt.Errorf("open export file %s: %w", filePath, err)
 	}
 	defer func() { _ = file.Close() }()
+
 	for _, event := range events {
-		var line []byte
-		var innerErr error
+		var (
+			line     []byte
+			innerErr error
+		)
 
 		// Convert the line in the right format
 		switch f.Format {
@@ -134,6 +141,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		if innerErr != nil {
 			return fmt.Errorf("impossible to format the event in %s: %w", f.Format, innerErr)
 		}
+
 		_, errWrite := file.Write(line)
 		if errWrite != nil {
 			return fmt.Errorf("error while writing the export file: %w", errWrite)
@@ -146,6 +154,7 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEvent) error {
 	parquetFeatureEvents := make([]exporter.FeatureEvent, 0)
 	parquetTrackingEvents := make([]exporter.TrackingEvent, 0)
+
 	for _, event := range events {
 		switch ev := any(event).(type) {
 		case exporter.FeatureEvent:
@@ -156,6 +165,7 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 			// do nothing
 		}
 	}
+
 	if len(parquetTrackingEvents) > 0 {
 		return f.writeParquetTrackingEvent(filePath, parquetTrackingEvents)
 	}
@@ -165,36 +175,44 @@ func (f *Exporter) writeParquet(filePath string, events []exporter.ExportableEve
 
 // writeParquetFeatureEvent writes the feature events in a parquet file.
 func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.FeatureEvent) error {
-	fw, err := local.NewLocalFileWriter(filePath)
+	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet file writer: %w", err)
 	}
-	defer func() { _ = fw.Close() }()
+	defer func() { _ = fileWriter.Close() }()
 
-	pw, err := writer.NewParquetWriter(fw, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
+	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet feature writer: %w", err)
 	}
 
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
-		f.ParquetCompressionCodec,
-	); compressionCodecFromStringErr == nil {
-		pw.CompressionType = ct
+	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
+
+	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
+	if compressionCodecFromStringErr == nil {
+		pqWriter.CompressionType = ct
 	}
 
 	for _, event := range events {
 		eventValue, convertValueForParquetErr := event.ConvertValueForParquet()
 		if convertValueForParquetErr != nil {
-			return convertValueForParquetErr
+			return fmt.Errorf("convert event value for parquet: %w", convertValueForParquetErr)
 		}
+
 		event.Value = eventValue
-		if convertValueForParquetErr = pw.Write(event); convertValueForParquetErr != nil {
+
+		convertValueForParquetErr = pqWriter.Write(event)
+		if convertValueForParquetErr != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", convertValueForParquetErr)
 		}
 	}
 
-	return pw.WriteStop()
+	err = pqWriter.WriteStop()
+	if err != nil {
+		return fmt.Errorf("stop parquet feature writer: %w", err)
+	}
+
+	return nil
 }
 
 // writeParquetTrackingEvent writes the tracking events in a parquet file.
@@ -202,29 +220,35 @@ func (f *Exporter) writeParquetTrackingEvent(
 	filePath string,
 	events []exporter.TrackingEvent,
 ) error {
-	fw, err := local.NewLocalFileWriter(filePath)
+	fileWriter, err := local.NewLocalFileWriter(filePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet file writer: %w", err)
 	}
-	defer func() { _ = fw.Close() }()
+	defer func() { _ = fileWriter.Close() }()
 
-	pw, err := writer.NewParquetWriter(fw, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
+	pqWriter, err := writer.NewParquetWriter(fileWriter, new(exporter.TrackingEvent), int64(runtime.NumCPU()))
 	if err != nil {
-		return err
+		return fmt.Errorf("create parquet tracking writer: %w", err)
 	}
 
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
-		f.ParquetCompressionCodec,
-	); compressionCodecFromStringErr == nil {
-		pw.CompressionType = ct
+	pqWriter.CompressionType = parquet.CompressionCodec_SNAPPY
+
+	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
+	if compressionCodecFromStringErr == nil {
+		pqWriter.CompressionType = ct
 	}
 
 	for _, event := range events {
-		if err = pw.Write(event); err != nil {
+		err = pqWriter.Write(event)
+		if err != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", err)
 		}
 	}
 
-	return pw.WriteStop()
+	err = pqWriter.WriteStop()
+	if err != nil {
+		return fmt.Errorf("stop parquet tracking writer: %w", err)
+	}
+
+	return nil
 }

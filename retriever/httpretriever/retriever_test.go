@@ -19,12 +19,13 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 
 	type fields struct {
 		httpClient mock.HTTP
-		context    context.Context
 		header     http.Header
 		url        string
 		method     string
 		body       string
+		withCtx    bool
 	}
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -62,7 +63,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				method:     http.MethodGet,
 				body:       "",
 				header:     nil,
-				context:    context.Background(),
+				withCtx:    true,
 			},
 			want: []byte(`test-flag:
   variations:
@@ -138,14 +139,20 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			h := httpretriever.Retriever{
+			ret := httpretriever.Retriever{
 				URL:    tt.fields.url,
 				Method: tt.fields.method,
 				Body:   tt.fields.body,
 				Header: tt.fields.header,
 			}
-			h.SetHTTPClient(&tt.fields.httpClient)
-			got, err := h.Retrieve(tt.fields.context)
+			ret.SetHTTPClient(&tt.fields.httpClient)
+
+			var ctx context.Context
+			if tt.fields.withCtx {
+				ctx = t.Context()
+			}
+
+			got, err := ret.Retrieve(ctx)
 			assert.Equal(
 				t,
 				tt.wantErr,
@@ -174,6 +181,7 @@ func (c statusClient) Do(_ *http.Request) (*http.Response, error) {
 
 func TestRetriever_ErrorDoesNotLeakCredentials(t *testing.T) {
 	t.Parallel()
+
 	h := httpretriever.Retriever{
 		URL: "https://user:SECRETMARKER@flags.example.com/SECRETMARKER/flags.yaml?token=SECRETMARKER",
 	}

@@ -94,8 +94,9 @@ func (e *Exporter) initializeProducer() error {
 		e.Settings.Producer.Return.Successes = true // Needs to be true for sync producers
 	}
 
-	if err := e.Settings.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	validateErr := e.Settings.Validate()
+	if validateErr != nil {
+		return fmt.Errorf("invalid configuration: %w", validateErr)
 	}
 
 	if e.dialer == nil {
@@ -106,6 +107,7 @@ func (e *Exporter) initializeProducer() error {
 	}
 
 	var err error
+
 	e.sender, err = e.dialer(e.Settings.Addresses, e.Settings.Config)
 	if err != nil {
 		err = fmt.Errorf("producer: %w", err)
@@ -122,6 +124,11 @@ func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error)
 	case formatJSON:
 		fallthrough
 	default:
-		return json.Marshal(event)
+		b, err := json.Marshal(event)
+		if err != nil {
+			return nil, fmt.Errorf("marshal kafka event: %w", err)
+		}
+
+		return b, nil
 	}
 }

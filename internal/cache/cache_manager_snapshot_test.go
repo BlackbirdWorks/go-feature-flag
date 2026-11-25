@@ -20,6 +20,7 @@ import (
 // not change what the cache serves to the evaluations or to the next snapshot.
 func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		want   any
 		mutate func(f *flag.InternalFlag)
@@ -48,21 +49,23 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			require.NoError(t, m.UpdateCache(benchFlagsMap(t, 3), nil, false))
 
-			snap, err := m.AllFlags()
+			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
+
+			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
+
 			f, ok := snap["flag-1"].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(f)
 			delete(snap, "flag-2")
 
-			live, err := m.GetFlag("flag-1")
+			live, err := mgr.GetFlag("flag-1")
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, tt.read(live))
 
-			again, err := m.AllFlags()
+			again, err := mgr.AllFlags()
 			require.NoError(t, err)
 			assert.Len(t, again, 3)
 			assert.Equal(t, tt.want, tt.read(again["flag-1"]))
@@ -74,34 +77,42 @@ func Test_AllFlags_ReturnsDetachedFlags(t *testing.T) {
 // replaced concurrently (meant to run with -race).
 func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 	t.Parallel()
-	m := cache.New(nil, "", &fflog.FFLogger{})
+
+	mgr := cache.New(nil, "", &fflog.FFLogger{})
 	flags := benchFlagsMap(t, 5)
-	require.NoError(t, m.UpdateCache(flags, nil, false))
+	require.NoError(t, mgr.UpdateCache(flags, nil, false))
 
 	var wg sync.WaitGroup
 	for range 4 {
 		wg.Go(func() {
 			for range 200 {
-				snap, err := m.AllFlags()
+				snap, err := mgr.AllFlags()
 				if err != nil {
 					return
 				}
+
 				for _, f := range snap {
 					d := true
-					f.(*flag.InternalFlag).Disable = &d
+					if iflag, ok := f.(*flag.InternalFlag); assert.True(t, ok) {
+						iflag.Disable = &d
+					}
 				}
-				if live, getFlagErr := m.GetFlag("flag-1"); getFlagErr == nil {
+
+				live, getFlagErr := mgr.GetFlag("flag-1")
+				if getFlagErr == nil {
 					_ = live.IsDisable()
 				}
 			}
 		})
 	}
+
 	for range 50 {
-		require.NoError(t, m.UpdateCache(flags, nil, false))
+		require.NoError(t, mgr.UpdateCache(flags, nil, false))
 	}
+
 	wg.Wait()
 
-	live, err := m.GetFlag("flag-1")
+	live, err := mgr.GetFlag("flag-1")
 	require.NoError(t, err)
 	assert.False(t, live.IsDisable())
 }
@@ -135,26 +146,43 @@ const nestedFlagYAML = `nested:
 // (variations, rules, metadata, rollouts) is not shared with the live flags.
 func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
-		mutate func(f *flag.InternalFlag)
+		mutate func(t *testing.T, f *flag.InternalFlag)
 		name   string
 		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
 		wantLiveChanged bool
 	}{
-		{name: "variation value", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
+
 			v := *(*f.Variations)["A"]
-			v.(map[string]any)["k"].([]any)[2].(map[string]any)["deep"] = "hacked"
-			v.(map[string]any)["k"].([]any)[0] = "hacked"
+			m, ok := v.(map[string]any)
+			require.True(t, ok)
+			kSlice, ok := m["k"].([]any)
+			require.True(t, ok)
+			nested, ok := kSlice[2].(map[string]any)
+			require.True(t, ok)
+
+			nested["deep"] = "hacked"
+			kSlice[0] = "hacked"
 		}},
-		{name: "variation replaced", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
 			x := any("hacked")
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
-		{name: "metadata", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
-			(*f.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
+		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
+
+			owner, ok := (*f.Metadata)["owner"].(map[string]any)
+			require.True(t, ok)
+			team, ok := owner["team"].([]any)
+			require.True(t, ok)
+
+			team[0] = "hacked"
 		}},
-		{name: "targeting rule", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
 			r := &(*f.Rules)[0]
 			*r.Query = "hacked"
 			*r.VariationResult = "hacked"
@@ -166,15 +194,25 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		{
 			name:            "default rule",
 			wantLiveChanged: false,
-			mutate:          func(f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
+			mutate:          func(_ *testing.T, f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
 		},
 		{
-			name: "experimentation", wantLiveChanged: false,
-			mutate: func(f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
+			name:            "experimentation",
+			wantLiveChanged: false,
+			mutate: func(_ *testing.T, f *flag.InternalFlag) {
+				*f.Experimentation.Start = f.Experimentation.End.Add(1)
+			},
 		},
-		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
+
 			step := &(*f.Scheduled)[0]
-			(*step.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
+			owner, ok := (*step.Metadata)["owner"].(map[string]any)
+			require.True(t, ok)
+			team, ok := owner["team"].([]any)
+			require.True(t, ok)
+
+			team[0] = "hacked"
 			(*step.Variations)["A"] = nil
 			*step.Date = step.Date.Add(1)
 		}},
@@ -182,20 +220,25 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var flags map[string]dto.DTO
 			require.NoError(t, yaml.Unmarshal([]byte(nestedFlagYAML), &flags))
-			m := cache.New(nil, "", &fflog.FFLogger{})
-			require.NoError(t, m.UpdateCache(flags, nil, false))
-			live, err := m.GetFlag("nested")
+
+			mgr := cache.New(nil, "", &fflog.FFLogger{})
+			require.NoError(t, mgr.UpdateCache(flags, nil, false))
+			live, err := mgr.GetFlag("nested")
 			require.NoError(t, err)
 			before, err := json.Marshal(live)
 			require.NoError(t, err)
 
-			snap, err := m.AllFlags()
+			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
-			tt.mutate(snap["nested"].(*flag.InternalFlag))
 
-			live, err = m.GetFlag("nested")
+			iflag, ok := snap["nested"].(*flag.InternalFlag)
+			require.True(t, ok)
+			tt.mutate(t, iflag)
+
+			live, err = mgr.GetFlag("nested")
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -213,17 +256,19 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 // (same pointers as the evaluation lookup) and fails before the initialisation.
 func Test_AllFlagsReadOnly_ReturnsTheLiveFlags(t *testing.T) {
 	t.Parallel()
-	m := cache.New(nil, "", &fflog.FFLogger{})
-	m.Close()
-	_, err := m.AllFlagsReadOnly()
+
+	mgr := cache.New(nil, "", &fflog.FFLogger{})
+	mgr.Close()
+	_, err := mgr.AllFlagsReadOnly()
 	require.Error(t, err)
 
-	m = cache.New(nil, "", &fflog.FFLogger{})
-	require.NoError(t, m.UpdateCache(benchFlagsMap(t, 3), nil, false))
-	shared, err := m.AllFlagsReadOnly()
+	mgr = cache.New(nil, "", &fflog.FFLogger{})
+	require.NoError(t, mgr.UpdateCache(benchFlagsMap(t, 3), nil, false))
+	shared, err := mgr.AllFlagsReadOnly()
 	require.NoError(t, err)
 	require.Len(t, shared, 3)
-	live, err := m.GetFlag("flag-1")
+
+	live, err := mgr.GetFlag("flag-1")
 	require.NoError(t, err)
 	assert.Same(t, live, shared["flag-1"])
 }

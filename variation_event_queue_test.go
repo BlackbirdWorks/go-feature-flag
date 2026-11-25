@@ -31,14 +31,16 @@ type queueTestExporter struct {
 }
 
 func (e *queueTestExporter) IsBulk() bool { return e.bulk }
-func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
+func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
 	if e.block != nil {
 		<-e.block
 	}
+
 	if e.fail {
 		return errFailing
 	}
-	e.events.Add(int64(len(ev)))
+
+	e.events.Add(int64(len(events)))
 
 	return nil
 }
@@ -54,10 +56,12 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []ex
 // The growth must therefore stay below evals/goroutineRatio.
 func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	t.Parallel()
+
 	const flagFile = "testdata/flag-config.yaml"
 	// goroutineRatio: the growth must be under 1/10 of the evaluations (>= 500 for 5000 evaluations),
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
+
 	tests := []struct {
 		exp         func() *queueTestExporter
 		name        string
@@ -102,6 +106,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			exp := tt.exp()
 			release := func() {
 				if exp.block != nil {
@@ -109,7 +114,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 				}
 			}
 			before := runtime.NumGoroutine()
-			c, err := ffclient.New(ffclient.Config{
+			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
 				Retriever:       &fileretriever.Retriever{Path: flagFile},
 				EventQueueSize:  tt.queueSize,
@@ -119,12 +124,16 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			var wg sync.WaitGroup
-			var maxG atomic.Int64
+			var (
+				wg   sync.WaitGroup
+				maxG atomic.Int64
+			)
+
 			for range 4 {
 				wg.Go(func() {
 					for range tt.evals / 4 {
-						_, _ = c.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)
 						}
@@ -133,27 +142,33 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			}
 			// the evaluations must never wait for a blocked exporter.
 			done := make(chan struct{})
+
 			go func() { wg.Wait(); close(done) }()
+
 			select {
 			case <-done:
 			case <-time.After(time.Minute):
 				release()
 				require.Fail(t, "evaluations are blocked by the exporter")
 			}
+
 			if exp.block != nil {
 				// the exporter is still blocked: parked goroutines are still alive.
 				maxG.Store(max(maxG.Load(), int64(runtime.NumGoroutine())))
 				assert.Less(t, int(maxG.Load())-before, tt.evals/goroutineRatio,
 					"goroutines must not grow with the evaluations")
 			}
+
 			release()
-			c.Close()
+			client.Close()
+
 			if tt.wantAll {
 				assert.Equal(t, int64(tt.evals), exp.events.Load())
-				assert.Zero(t, c.DroppedEvents())
+				assert.Zero(t, client.DroppedEvents())
 			}
+
 			if tt.wantDropped {
-				assert.Positive(t, c.DroppedEvents())
+				assert.Positive(t, client.DroppedEvents())
 			}
 		})
 	}

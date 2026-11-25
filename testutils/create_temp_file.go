@@ -10,15 +10,19 @@ import (
 
 func CopyFileToNewTempFile(t *testing.T, src string) *os.File {
 	t.Helper()
-	if _, err := os.Stat(src); os.IsNotExist(err) {
+
+	_, statErr := os.Stat(src)
+	if os.IsNotExist(statErr) {
 		require.Fail(t, "File does not exist: "+src)
 	}
+
 	srcContent, err := os.ReadFile(src)
 	require.NoError(t, err)
 
 	dir := t.TempDir()
 	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -35,6 +39,7 @@ func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 	dir := t.TempDir()
 	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
+
 	defer func() {
 		_ = file.Close()
 	}()
@@ -48,6 +53,7 @@ func CopyContentToNewTempFile(t *testing.T, content string) *os.File {
 
 func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) *os.File {
 	t.Helper()
+
 	err := os.WriteFile(file.Name(), []byte(content), 0600) //nolint:gosec // G703 - path from caller's temp file
 
 	require.NoError(t, err)
@@ -58,9 +64,12 @@ func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) 
 
 func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.File {
 	t.Helper()
-	if _, err := os.Stat(src); os.IsNotExist(err) {
+
+	_, statErr := os.Stat(src)
+	if os.IsNotExist(statErr) {
 		require.Fail(t, "File does not exist: "+src)
 	}
+
 	srcContent, err := os.ReadFile(src)
 	require.NoError(t, err)
 
@@ -69,8 +78,10 @@ func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.Fil
 
 func ReplaceInFile(t *testing.T, file *os.File, old, newStr string) {
 	t.Helper()
+
 	content, err := os.ReadFile(file.Name())
 	require.NoError(t, err)
+
 	updated := strings.Replace(string(content), old, newStr, 1)
 	err = os.WriteFile(file.Name(), []byte(updated), 0600) //nolint:gosec // G703 - path from caller's file is safe
 	require.NoError(t, err)
@@ -79,8 +90,10 @@ func ReplaceInFile(t *testing.T, file *os.File, old, newStr string) {
 
 func ReplaceAndCopyFileToExistingFile(t *testing.T, src string, dstFile *os.File, old, newStr string) *os.File {
 	t.Helper()
+
 	srcContent, err := os.ReadFile(src)
 	require.NoError(t, err)
+
 	updatedContent := strings.Replace(string(srcContent), old, newStr, 1)
 
 	return CopyContentToExistingTempFile(t, updatedContent, dstFile)
@@ -92,6 +105,7 @@ func ReplaceAndCopyFileToExistingFile(t *testing.T, src string, dstFile *os.File
 // causing the reload to read stale or empty file content.
 func syncFile(t *testing.T, filePath string) {
 	t.Helper()
+
 	file, err := os.OpenFile(filePath, os.O_RDWR, 0600)
 	require.NoError(t, err, "failed to open file for syncing: %s", filePath)
 	err = file.Sync()

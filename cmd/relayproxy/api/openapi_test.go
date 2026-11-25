@@ -33,6 +33,7 @@ func TestOpenAPI(t *testing.T) {
 
 				return
 			}
+
 			want, err := os.ReadFile(tt.file)
 			require.NoError(t, err, "missing golden file, run with GOLDEN_UPDATE=1")
 			assert.Equal(t, string(want), string(got))

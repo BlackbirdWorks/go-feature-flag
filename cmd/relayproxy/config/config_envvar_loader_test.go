@@ -19,9 +19,12 @@ import (
 func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 	t.Parallel()
 
-	const topLevel = "retrievers:\n  - kind: file\n    path: /file/a.yaml\n  - kind: file\n    path: /file/b.yaml\n"
-	const flagsets = "flagsets:\n  - name: fs1\n    apiKeys: [k1]\n    retrievers:\n" +
-		"      - kind: file\n        path: /file/fs-a.yaml\n"
+	const (
+		topLevel = "retrievers:\n  - kind: file\n    path: /file/a.yaml\n  - kind: file\n    path: /file/b.yaml\n"
+		flagsets = "flagsets:\n  - name: fs1\n    apiKeys: [k1]\n    retrievers:\n" +
+			"      - kind: file\n        path: /file/fs-a.yaml\n"
+	)
+
 	fileRetrievers := []retrieverconf.RetrieverConf{
 		{Kind: "file", Path: "/file/a.yaml"}, {Kind: "file", Path: "/file/b.yaml"},
 	}
@@ -103,27 +106,34 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 
 			path := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
-			fs := pflag.NewFlagSet("config", pflag.ContinueOnError)
-			fs.String("config", "", "Location of your config file")
-			require.NoError(t, fs.Parse([]string{"--config=" + path}))
 
-			var got *config.Config
-			var err error
+			flagSet := pflag.NewFlagSet("config", pflag.ContinueOnError)
+			flagSet.String("config", "", "Location of your config file")
+			require.NoError(t, flagSet.Parse([]string{"--config=" + path}))
+
+			var (
+				got *config.Config
+				err error
+			)
+
 			require.NotPanics(t, func() {
-				got, err = config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
+				got, err = config.NewConfigLoader(flagSet, slog.New(slog.DiscardHandler), "1.0.0", false, withEnviron(tt.env...)).
 					ToConfig()
 			})
+
 			if tt.wantUnmarshalError {
 				require.Error(t, err)
 
 				return
 			}
+
 			require.NoError(t, err)
 
 			if tt.wantRetrievers != nil {
 				require.NotNil(t, got.Retrievers)
 				assert.Equal(t, tt.wantRetrievers, *got.Retrievers)
 			}
+
 			if tt.wantFlagsetRetr != nil {
 				require.Len(t, got.FlagSets, 1)
 				assert.Equal(t, "fs1", got.FlagSets[0].Name)

@@ -52,7 +52,7 @@ var errNoService = errors.New("no flag.Service: pass the Service of the client i
 
 // NewService creates an empty Service.
 func NewService(opts ...ServiceOption) *Service {
-	s := &Service{
+	svc := &Service{
 		nikunjy: newNikunjyEvaluatorCache(),
 		queryMaps: sync.Pool{
 			New: func() any { return make(map[string]any, queryMapSize) },
@@ -60,29 +60,14 @@ func NewService(opts ...ServiceOption) *Service {
 		logger: slog.New(slog.DiscardHandler),
 	}
 	for _, opt := range opts {
-		opt(s)
+		opt(svc)
 	}
-	s.legacy = legacy.NewWarner(func(kind, message string) {
-		s.logger.Warn(message, slog.String("legacyName", kind))
+
+	svc.legacy = legacy.NewWarner(func(kind, message string) {
+		svc.logger.Warn(message, slog.String("legacyName", kind))
 	})
 
-	return s
-}
-
-// evaluationDate is the date of an evaluation: the currentDateTime of the context, or the clock.
-// It also reports, once, that the context uses the legacy attribute name.
-func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
-	specifics := ctx.ExtractGOFFProtectedFields()
-	if specifics.UsedLegacyKey {
-		s.legacy.Warn(legacy.KindEvaluationContext, "the evaluation context attribute \""+
-			ffcontext.LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+
-			ffcontext.ReservedKey+"\" is preferred")
-	}
-	if specifics.CurrentDateTime == nil {
-		return clock.Now()
-	}
-
-	return *specifics.CurrentDateTime
+	return svc
 }
 
 // queryMapSize is the initial size of the maps that queryMaps hands out.
@@ -94,7 +79,25 @@ func (s *Service) Close() {
 	if s == nil {
 		return
 	}
+
 	s.nikunjy.reset()
 	s.scheduled.entries.Clear()
 	s.compiled.Clear()
+}
+
+// evaluationDate is the date of an evaluation: the currentDateTime of the context, or the clock.
+// It also reports, once, that the context uses the legacy attribute name.
+func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
+	specifics := ctx.ExtractGOFFProtectedFields()
+	if specifics.UsedLegacyKey {
+		s.legacy.Warn(legacy.KindEvaluationContext, "the evaluation context attribute \""+
+			ffcontext.LegacyReservedKey+"\" is a legacy name, it is still accepted but \""+
+			ffcontext.ReservedKey+"\" is preferred")
+	}
+
+	if specifics.CurrentDateTime == nil {
+		return clock.Now()
+	}
+
+	return *specifics.CurrentDateTime
 }

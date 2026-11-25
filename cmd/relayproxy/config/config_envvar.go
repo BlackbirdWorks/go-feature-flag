@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/knadh/koanf/maps"
-	"github.com/knadh/koanf/v2"
 
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
@@ -49,30 +48,36 @@ func (p *environProvider) ReadBytes() ([]byte, error) {
 
 // Read returns the variables that start with the prefix, mapped with the callback, as a nested map.
 func (p *environProvider) Read() (map[string]any, error) {
-	mp := make(map[string]any)
+	envMap := make(map[string]any)
+
 	var skipped []string
+
 	for _, kv := range p.environ() {
 		name, value, _ := strings.Cut(kv, "=")
 		if !strings.HasPrefix(name, p.prefix) {
 			continue
 		}
+
 		if p.skip != nil && p.skip(strings.TrimPrefix(name, p.prefix), value) {
 			skipped = append(skipped, name)
 
 			continue
 		}
+
 		key, mapped := p.cb(name, value)
 		if key == "" {
 			continue
 		}
-		mp[key] = mapped
+
+		envMap[key] = mapped
 	}
+
 	if p.skipped != nil && len(skipped) > 0 {
 		slices.Sort(skipped)
 		p.skipped(skipped)
 	}
 
-	return maps.Unflatten(mp, "."), nil
+	return maps.Unflatten(envMap, "."), nil
 }
 
 var (
@@ -133,7 +138,7 @@ func isServiceLinkURL(value string) bool {
 	return false
 }
 
-func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) koanf.Provider {
+func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) *environProvider {
 	return &environProvider{prefix: prefix, environ: c.environ(),
 		skip: func(key, value string) bool { return prefix != "" && isServiceLink(key, value) },
 		skipped: func(names []string) {
@@ -145,7 +150,7 @@ func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) koanf.
 				slog.Any("names", names),
 			)
 		},
-		cb: func(key, v string) (string, any) {
+		cb: func(key, val string) (string, any) {
 			key = strings.TrimPrefix(key, prefix)
 			switch {
 			case strings.HasPrefix(key, "RETRIEVERS"),
@@ -154,37 +159,38 @@ func (c *Loader) mapEnvVariablesProvider(prefix string, log *slog.Logger) koanf.
 				strings.HasPrefix(key, "FLAGSETS"),
 				strings.HasPrefix(key, "EXPORTERS"):
 				configMap := c.k.Raw()
-				modifiedConfigMap, err := loadArrayEnv(key, v, configMap)
+
+				modifiedConfigMap, err := loadArrayEnv(key, val, configMap)
 				if err != nil {
 					log.LogAttrs(context.Background(), slog.LevelError,
 						"config: error loading array env",
 						slog.String("key", key),
 						// the value of the variable may be a secret (API key, token, ...): only log its size.
-						slog.Int("valueLength", len(v)),
+						slog.Int("valueLength", len(val)),
 						cmdlog.Err(err),
 					)
 
-					return key, v
+					return key, val
 				}
 				// Update the global config with the modified configMap
 				for configKey, configValue := range modifiedConfigMap {
 					_ = c.k.Set(configKey, configValue)
 				}
 
-				return key, v
+				return key, val
 			case strings.HasSuffix(key, "KAFKA_ADDRESSES"),
 				strings.HasSuffix(key, "APIKEYS"),
 				strings.HasPrefix(key, "AUTHORIZEDKEYS_EVALUATION"),
 				strings.HasPrefix(key, "AUTHORIZEDKEYS_ADMIN"):
 				transformedKey := strings.ReplaceAll(strings.ToLower(key), "_", ".")
 
-				return transformedKey, strings.Split(v, ",")
+				return transformedKey, strings.Split(val, ",")
 			case key == "OTEL_RESOURCE_ATTRIBUTES":
-				c.parseOtelResourceAttributes(v, log)
+				c.parseOtelResourceAttributes(val, log)
 
-				return key, v
+				return key, val
 			default:
-				return strings.ReplaceAll(strings.ToLower(key), "_", "."), v
+				return strings.ReplaceAll(strings.ToLower(key), "_", "."), val
 			}
 		}}
 }
@@ -199,11 +205,12 @@ func (c *Loader) environ() func() []string {
 }
 
 // Load the ENV Like:RETRIEVERS_0_HEADERS_AUTHORIZATION.
-func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error) {
-	paths := normalizePaths(s)
+func loadArrayEnv(envKey, val string, configMap map[string]any) (map[string]any, error) {
+	paths := normalizePaths(envKey)
 	if len(paths) < minArrayEnvPaths {
-		return configMap, fmt.Errorf("%w %q: expected <ARRAY>_<INDEX>_<FIELD>", errEnvironmentVariable, s)
+		return configMap, fmt.Errorf("%w %q: expected <ARRAY>_<INDEX>_<FIELD>", errEnvironmentVariable, envKey)
 	}
+
 	prefixKey := paths[0]
 
 	configArray, ok := configMap[prefixKey].([]any)
@@ -215,23 +222,25 @@ func loadArrayEnv(s, v string, configMap map[string]any) (map[string]any, error)
 
 	index, err := strconv.Atoi(paths[1])
 	if err != nil {
-		return configMap, fmt.Errorf("environment variable %q: invalid index %q: %w", s, paths[1], err)
+		return configMap, fmt.Errorf("environment variable %q: invalid index %q: %w", envKey, paths[1], err)
 	}
+
 	if index < 0 {
-		return configMap, fmt.Errorf("%w %q: negative index %d", errEnvironmentVariable, s, index)
+		return configMap, fmt.Errorf("%w %q: negative index %d", errEnvironmentVariable, envKey, index)
 	}
 
 	configItem, err := fetchOrInitConfigItemAtIndex(configArray, index)
 	if err != nil {
-		return configMap, fmt.Errorf("environment variable %q: %w", s, err)
+		return configMap, fmt.Errorf("environment variable %q: %w", envKey, err)
 	}
+
 	keys := paths[2:]
 
 	if shouldHandleRecursively(prefixKey, keys) {
-		return handleRecursiveConfig(keys, v, configItem, configArray, index, configMap, prefixKey)
+		return handleRecursiveConfig(keys, val, configItem, configArray, index, configMap, prefixKey)
 	}
 
-	return handleDirectConfig(keys, v, configItem, configArray, index, configMap, prefixKey)
+	return handleDirectConfig(keys, val, configItem, configArray, index, configMap, prefixKey)
 }
 
 // normalizePaths splits the input string and converts all parts to lowercase.
@@ -275,7 +284,7 @@ func shouldHandleRecursively(prefixKey string, keys []string) bool {
 // handleRecursiveConfig processes recursive configuration for flagsets.
 func handleRecursiveConfig(
 	keys []string,
-	v string,
+	val string,
 	configItem map[string]any,
 	configArray []any,
 	index int,
@@ -283,7 +292,8 @@ func handleRecursiveConfig(
 	prefixKey string,
 ) (map[string]any, error) {
 	recursiveKey := strings.Join(keys, "_")
-	modifiedNestedConfig, err := loadArrayEnv(recursiveKey, v, configItem)
+
+	modifiedNestedConfig, err := loadArrayEnv(recursiveKey, val, configItem)
 	if err != nil {
 		return configMap, err
 	}
@@ -295,7 +305,7 @@ func handleRecursiveConfig(
 
 // handleDirectConfig processes direct configuration assignment.
 func handleDirectConfig(keys []string,
-	v string,
+	val string,
 	configItem map[string]any,
 	configArray []any,
 	index int,
@@ -309,7 +319,7 @@ func handleDirectConfig(keys []string,
 	}
 
 	lastKey := keys[len(keys)-1]
-	value := parseValue(lastKey, keys, v)
+	value := parseValue(lastKey, keys, val)
 	currentMap[lastKey] = value
 
 	return updateConfigArray(configArray, index, configItem, configMap, prefixKey)
@@ -392,6 +402,7 @@ func expandArray(configArray []any, index int) []any {
 // The expected format is "key1=value1,key2=value2,...".
 func (c *Loader) parseOtelResourceAttributes(attributes string, log *slog.Logger) {
 	configMap := c.k.Raw()
+
 	otel, ok := configMap["otel"].(map[string]any)
 	if !ok {
 		otel = make(map[string]any)
@@ -411,7 +422,7 @@ func (c *Loader) parseOtelResourceAttributes(attributes string, log *slog.Logger
 	}
 
 	for i, attr := range strings.Split(attributes, ",") {
-		k, v, found := strings.Cut(attr, "=")
+		attrKey, attrVal, found := strings.Cut(attr, "=")
 		if !found {
 			log.LogAttrs(
 				context.Background(),
@@ -423,7 +434,7 @@ func (c *Loader) parseOtelResourceAttributes(attributes string, log *slog.Logger
 			continue
 		}
 
-		attrs[k] = v
+		attrs[attrKey] = attrVal
 	}
 
 	_ = c.k.Set("otel", otel)

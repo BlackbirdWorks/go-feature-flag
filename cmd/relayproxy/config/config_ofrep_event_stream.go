@@ -24,11 +24,11 @@ type OfrepEventStream struct {
 	// BaseURL (optional) is the public base URL clients should use to reach the relay proxy,
 	// for example https://gofeatureflag.example.com. The path of the SSE endpoint is appended
 	// automatically. When empty, the eventStreams field is not added to the response.
-	BaseURL string `mapstructure:"baseUrl" koanf:"baseurl"`
+	BaseURL string `koanf:"baseurl" mapstructure:"baseUrl"`
 
 	// InactivityDelaySec (optional) is advertised to the client as the delay in seconds after
 	// which it should consider the stream inactive. When 0 the field is omitted.
-	InactivityDelaySec int `mapstructure:"inactivityDelaySec" koanf:"inactivitydelaysec"`
+	InactivityDelaySec int `koanf:"inactivitydelaysec" mapstructure:"inactivityDelaySec"`
 }
 
 // IsEnabled returns true if the eventStreams field should be added to the OFREP bulk
@@ -42,18 +42,21 @@ func (o OfrepEventStream) IsValid() error {
 	if o.InactivityDelaySec < 0 {
 		return fmt.Errorf("%w %d", errOfrepEventStreamInactivityDelaySecMustBe, o.InactivityDelaySec)
 	}
+
 	if o.BaseURL == "" {
 		return nil
 	}
 	// the URL may embed credentials (user info): it must never be part of an error that is logged.
-	u, err := url.Parse(o.BaseURL)
+	parsedURL, err := url.Parse(o.BaseURL)
 	if err != nil {
 		return fmt.Errorf("ofrepEventStream.baseUrl is not a valid URL: %w", internal.RedactURLError(err))
 	}
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+
+	if (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" {
 		return errOfrepEventStreamBaseURLMustBe
 	}
-	if u.RawQuery != "" || u.Fragment != "" {
+
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
 		return errOfrepEventStreamBaseURLMustNot
 	}
 

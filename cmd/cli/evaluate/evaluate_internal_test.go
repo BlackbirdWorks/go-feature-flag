@@ -45,6 +45,7 @@ func buildEvaluate(
 	if err != nil {
 		return evaluate{}, err
 	}
+
 	if customize != nil {
 		customize(r)
 	}
@@ -60,13 +61,15 @@ func buildEvaluate(
 // assertEvaluate runs a single evaluateTestCase and verifies its outcome.
 func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 	t.Helper()
-	e, err := tt.initEvaluate()
+
+	eval, err := tt.initEvaluate()
 	if err != nil {
 		tt.wantErr(t, err)
 
 		return
 	}
-	m, err := e.Evaluate()
+
+	got, err := eval.Evaluate()
 	tt.wantErr(t, err)
 
 	if tt.expectedErr != "" {
@@ -75,15 +78,28 @@ func assertEvaluate(t *testing.T, tt evaluateTestCase) {
 		// Unix vs "The system cannot find the file specified." on Windows).
 		assert.Contains(t, err.Error(), tt.expectedErr)
 	}
+
 	if tt.expectedResult != nil {
-		assert.Equal(t, tt.expectedResult, m)
+		assert.Equal(t, tt.expectedResult, got)
+	}
+}
+
+func runEvaluateTests(t *testing.T, tests []evaluateTestCase) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertEvaluate(t, tt)
+		})
 	}
 }
 
 func Test_Evaluate(t *testing.T) {
 	t.Parallel()
 
-	tests := []evaluateTestCase{
+	runEvaluateTests(t, []evaluateTestCase{
 		{
 			name: "Should error is config file does not exist",
 			initEvaluate: func() (evaluate, error) {
@@ -95,8 +111,9 @@ func Test_Evaluate(t *testing.T) {
 			wantErr: assert.Error,
 			// OS-specific suffix ("no such file or directory" / "The system cannot
 			// find the file specified.") is intentionally omitted; asserted via Contains.
-			expectedErr: "impossible to initialize the retrievers, please check your configuration: impossible to retrieve" +
-				" the flags, please check your configuration: open testdata/invalid.yaml:",
+			expectedErr: "initializing the evaluation client: impossible to initialize the retrievers, please check your " +
+				"configuration: impossible to retrieve the flags, please check your configuration: reading the file: " +
+				"open testdata/invalid.yaml:",
 		},
 		{
 			name: "Should error if no evaluation context provided with flag containing percentage rules",
@@ -250,6 +267,13 @@ func Test_Evaluate(t *testing.T) {
 				},
 			},
 		},
+	})
+}
+
+func Test_Evaluate_RemoteRetrievers(t *testing.T) {
+	t.Parallel()
+
+	runEvaluateTests(t, []evaluateTestCase{
 		{
 			name: "Should evaluate a flag from a github repository",
 			initEvaluate: func() (evaluate, error) {
@@ -444,12 +468,5 @@ func Test_Evaluate(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			assertEvaluate(t, tt)
-		})
-	}
+	})
 }

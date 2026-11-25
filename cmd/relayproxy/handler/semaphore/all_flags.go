@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 
 	"go.opentelemetry.io/otel"
@@ -14,40 +15,47 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/flagstate"
 )
 
-type allFlags struct {
+// AllFlags is the controller for the /v1/allflags endpoint.
+type AllFlags struct {
 	flagsetManager service.FlagsetManager
 	metrics        metric.Metrics
 }
 
-func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) RawHandler {
-	return &allFlags{
+// NewAllFlags initializes the controller for the /v1/allflags endpoint.
+func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) *AllFlags {
+	return &AllFlags{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
 }
 
 // Handler is the entry point for the allFlags endpoint.
-func (h *allFlags) Handler(w http.ResponseWriter, r *http.Request) error {
+func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
-	if err := helper.BindBody(r, reqBody); err != nil {
-		return err
+
+	err := helper.BindBody(r, reqBody)
+	if err != nil {
+		return fmt.Errorf("reading the request of all flags: %w", err)
 	}
 	// validation that we have a reqBody key
-	if err := assertRequest(reqBody); err != nil {
-		return err
+	assertErr := assertRequest(reqBody)
+	if assertErr != nil {
+		return assertErr
 	}
 
 	evaluationCtx, err := evaluationContextFromRequest(reqBody)
 	if err != nil {
 		return err
 	}
+
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
+
 	_, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
 	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
-		return httpErr
+		return fmt.Errorf("getting the flag set of all flags: %w", httpErr)
 	}
 
 	var allFlags flagstate.AllFlags
@@ -65,6 +73,7 @@ func (h *allFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	for key := range allFlags.GetFlags() {
 		flagNames = append(flagNames, key)
 	}
+
 	h.metrics.IncAllFlag(flagNames...)
 
 	span.SetAttributes(
@@ -72,5 +81,10 @@ func (h *allFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 		attribute.Int("AllFlagsState.numberEvaluation", len(allFlags.GetFlags())),
 	)
 
-	return helper.WriteJSON(w, http.StatusOK, allFlags)
+	werr := helper.WriteJSON(w, http.StatusOK, allFlags)
+	if werr != nil {
+		return fmt.Errorf("writing the response of all flags: %w", werr)
+	}
+
+	return nil
 }

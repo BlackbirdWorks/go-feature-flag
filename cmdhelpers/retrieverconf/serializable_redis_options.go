@@ -12,77 +12,77 @@ import (
 // This allows the configuration to be passed via command line or JSON files.
 type SerializableRedisOptions struct {
 	// Network type, either tcp or unix. Default is tcp.
-	Network string `mapstructure:"network" koanf:"network" json:"network,omitempty"`
+	Network string `json:"network,omitempty" koanf:"network" mapstructure:"network"`
 	// Addr is the address formatted as host:port
-	Addr string `mapstructure:"addr" koanf:"addr" json:"addr"`
+	Addr string `json:"addr" koanf:"addr" mapstructure:"addr"`
 	// ClientName will execute the `CLIENT SETNAME ClientName` command for each conn.
-	ClientName string `mapstructure:"clientName" koanf:"clientname" json:"clientName,omitempty"`
+	ClientName string `json:"clientName,omitempty" koanf:"clientname" mapstructure:"clientName"`
 	// IdentitySuffix is an optional suffix to append to the client name.
-	IdentitySuffix string `mapstructure:"identitySuffix" koanf:"identitysuffix" json:"identitySuffix,omitempty"`
+	IdentitySuffix string `json:"identitySuffix,omitempty" koanf:"identitysuffix" mapstructure:"identitySuffix"`
 	// Username is used to authenticate the current connection
-	Username string `mapstructure:"username" koanf:"username" json:"username,omitempty"`
+	Username string `json:"username,omitempty" koanf:"username" mapstructure:"username"`
 	// Password is an optional password.
-	Password string `mapstructure:"password" koanf:"password" json:"password,omitempty"`
+	Password string `json:"password,omitempty" koanf:"password" mapstructure:"password"`
 	// WriteTimeout for socket writes in milliseconds. If reached, commands will fail
 	// with a timeout instead of blocking.
 	// Default is ReadTimeout.
-	WriteTimeoutMs int64 `mapstructure:"writeTimeout" koanf:"writetimeout" json:"writeTimeout,omitempty"`
+	WriteTimeoutMs int64 `json:"writeTimeout,omitempty" koanf:"writetimeout" mapstructure:"writeTimeout"`
 	// PoolSize is the maximum number of socket connections.
 	// Default is 10 connections per every available CPU.
-	PoolSize int `mapstructure:"poolSize" koanf:"poolsize" json:"poolSize,omitempty"`
+	PoolSize int `json:"poolSize,omitempty" koanf:"poolsize" mapstructure:"poolSize"`
 	// MinRetryBackoff is the minimum backoff between each retry in milliseconds.
 	// -1 disables backoff. Default is 8 milliseconds.
-	MinRetryBackoffMs int64 `mapstructure:"minRetryBackoff" koanf:"minretrybackoff" json:"minRetryBackoff,omitempty"`
+	MinRetryBackoffMs int64 `json:"minRetryBackoff,omitempty" koanf:"minretrybackoff" mapstructure:"minRetryBackoff"`
 	// MaxRetryBackoff is the maximum backoff between each retry in milliseconds.
 	// -1 disables backoff. Default is 512 milliseconds.
-	MaxRetryBackoffMs int64 `mapstructure:"maxRetryBackoff" koanf:"maxretrybackoff" json:"maxRetryBackoff,omitempty"`
+	MaxRetryBackoffMs int64 `json:"maxRetryBackoff,omitempty" koanf:"maxretrybackoff" mapstructure:"maxRetryBackoff"`
 	// DialTimeout for establishing new connections in milliseconds.
 	// Default is 5 seconds (5000ms).
-	DialTimeoutMs int64 `mapstructure:"dialTimeout" koanf:"dialtimeout" json:"dialTimeout,omitempty"`
+	DialTimeoutMs int64 `json:"dialTimeout,omitempty" koanf:"dialtimeout" mapstructure:"dialTimeout"`
 	// ReadTimeout for socket reads in milliseconds. If reached, commands will fail
 	// with a timeout instead of blocking.
 	// -1 = no timeout (block indefinitely)
 	// -2 = disables SetReadDeadline calls completely
 	// Default is 3 seconds (3000ms).
-	ReadTimeoutMs int64 `mapstructure:"readTimeout" koanf:"readtimeout" json:"readTimeout,omitempty"`
+	ReadTimeoutMs int64 `json:"readTimeout,omitempty" koanf:"readtimeout" mapstructure:"readTimeout"`
 	// DB is the database to be selected after connecting to the server.
-	DB int `mapstructure:"db" koanf:"db" json:"db,omitempty"`
+	DB int `json:"db,omitempty" koanf:"db" mapstructure:"db"`
 	// Protocol 2 or 3. Use the version to negotiate RESP version with redis-server.
 	// Default is 3.
-	Protocol int `mapstructure:"protocol" koanf:"protocol" json:"protocol,omitempty"`
+	Protocol int `json:"protocol,omitempty" koanf:"protocol" mapstructure:"protocol"`
 	// ConnMaxLifetime is the maximum amount of time a connection may be reused in milliseconds.
 	// Default is to not close aged connections.
-	ConnMaxLifetimeMs int64 `mapstructure:"connMaxLifetime" koanf:"connmaxlifetime" json:"connMaxLifetime,omitempty"`
+	ConnMaxLifetimeMs int64 `json:"connMaxLifetime,omitempty" koanf:"connmaxlifetime" mapstructure:"connMaxLifetime"`
 	// MaxRetries is the maximum number of retries before giving up.
 	// -1 (not 0) disables retries. Default is 3 retries.
-	MaxRetries int `mapstructure:"maxRetries" koanf:"maxretries" json:"maxRetries,omitempty"`
+	MaxRetries int `json:"maxRetries,omitempty" koanf:"maxretries" mapstructure:"maxRetries"`
 	// PoolTimeout is the amount of time client waits for connection if all
 	// connections are busy before returning an error in milliseconds.
 	// Default is ReadTimeout + 1 second.
-	PoolTimeoutMs int64 `mapstructure:"poolTimeout" koanf:"pooltimeout" json:"poolTimeout,omitempty"`
+	PoolTimeoutMs int64 `json:"poolTimeout,omitempty" koanf:"pooltimeout" mapstructure:"poolTimeout"`
 	// MinIdleConns is the minimum number of idle connections which is useful when
 	// establishing new connection is slow.
 	// Default is 0 (no idle connections are retained).
-	MinIdleConns int `mapstructure:"minIdleConns" koanf:"minidleconns" json:"minIdleConns,omitempty"`
+	MinIdleConns int `json:"minIdleConns,omitempty" koanf:"minidleconns" mapstructure:"minIdleConns"`
 	// MaxIdleConns is the maximum number of idle connections.
 	// Default is 0 (unlimited).
-	MaxIdleConns int `mapstructure:"maxIdleConns" koanf:"maxidleconns" json:"maxIdleConns,omitempty"`
+	MaxIdleConns int `json:"maxIdleConns,omitempty" koanf:"maxidleconns" mapstructure:"maxIdleConns"`
 	// ConnMaxIdleTime is the maximum amount of time a connection may be idle in milliseconds.
 	// Should be less than server's timeout.
 	// Default is 30 minutes (1800000ms). -1 disables idle timeout check.
-	ConnMaxIdleTimeMs int64 `mapstructure:"connMaxIdleTime" koanf:"connmaxidletime" json:"connMaxIdleTime,omitempty"`
+	ConnMaxIdleTimeMs int64 `json:"connMaxIdleTime,omitempty" koanf:"connmaxidletime" mapstructure:"connMaxIdleTime"`
 	// PoolFIFO uses FIFO mode for each node connection pool GET/PUT (default LIFO).
-	PoolFIFO bool `mapstructure:"poolFIFO" koanf:"poolfifo" json:"poolFIFO,omitempty"`
+	PoolFIFO bool `json:"poolFIFO,omitempty" koanf:"poolfifo" mapstructure:"poolFIFO"`
 	// TLS Config (simplified - only enable/disable for now)
 	// For more complex TLS configurations, use the non-serializable RedisOptions
-	TLSEnabled bool `mapstructure:"tlsEnabled" koanf:"tlsenabled" json:"tlsEnabled,omitempty"`
+	TLSEnabled bool `json:"tlsEnabled,omitempty" koanf:"tlsenabled" mapstructure:"tlsEnabled"`
 	// DisableIndentity disables set-lib on connect.
-	DisableIndentity bool `mapstructure:"disableIndentity" koanf:"disableindentity" json:"disableIndentity,omitempty"`
+	DisableIndentity bool `json:"disableIndentity,omitempty" koanf:"disableindentity" mapstructure:"disableIndentity"`
 	// DisableIdentity disables set-lib on connect.
-	DisableIdentity bool `mapstructure:"disableIdentity" koanf:"disableidentity" json:"disableIdentity,omitempty"`
+	DisableIdentity bool `json:"disableIdentity,omitempty" koanf:"disableidentity" mapstructure:"disableIdentity"`
 	// ContextTimeoutEnabled controls whether the client respects context timeouts and deadlines.
 	// Default is false.
-	ContextTimeoutEnabled bool `mapstructure:"contextTimeoutEnabled" koanf:"contexttimeoutenabled" json:"contextTimeoutEnabled,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	ContextTimeoutEnabled bool `json:"contextTimeoutEnabled,omitempty" koanf:"contexttimeoutenabled" mapstructure:"contextTimeoutEnabled"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 }
 
 // ToRedisOptions converts SerializableRedisOptions to redis.Options.
@@ -116,24 +116,31 @@ func (s *SerializableRedisOptions) ToRedisOptions() *redis.Options {
 	if s.MinRetryBackoffMs != 0 {
 		opts.MinRetryBackoff = time.Duration(s.MinRetryBackoffMs) * time.Millisecond
 	}
+
 	if s.MaxRetryBackoffMs != 0 {
 		opts.MaxRetryBackoff = time.Duration(s.MaxRetryBackoffMs) * time.Millisecond
 	}
+
 	if s.DialTimeoutMs != 0 {
 		opts.DialTimeout = time.Duration(s.DialTimeoutMs) * time.Millisecond
 	}
+
 	if s.ReadTimeoutMs != 0 {
 		opts.ReadTimeout = time.Duration(s.ReadTimeoutMs) * time.Millisecond
 	}
+
 	if s.WriteTimeoutMs != 0 {
 		opts.WriteTimeout = time.Duration(s.WriteTimeoutMs) * time.Millisecond
 	}
+
 	if s.PoolTimeoutMs != 0 {
 		opts.PoolTimeout = time.Duration(s.PoolTimeoutMs) * time.Millisecond
 	}
+
 	if s.ConnMaxIdleTimeMs != 0 {
 		opts.ConnMaxIdleTime = time.Duration(s.ConnMaxIdleTimeMs) * time.Millisecond
 	}
+
 	if s.ConnMaxLifetimeMs != 0 {
 		opts.ConnMaxLifetime = time.Duration(s.ConnMaxLifetimeMs) * time.Millisecond
 	}

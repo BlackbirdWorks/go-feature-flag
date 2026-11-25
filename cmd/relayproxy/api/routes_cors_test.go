@@ -45,35 +45,44 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 	ln, port := testutils.ListenLocal(t)
 	conf.Server.Port = port
 	opts := []api.Option{api.WithListener(ln)}
+
 	var monitoringURL string
+
 	if withMonitoring {
 		monitoringLn, monitoringPort := testutils.ListenLocal(t)
 		conf.Server.MonitoringPort = monitoringPort
+
 		opts = append(opts, api.WithMonitoringListener(monitoringLn))
 		monitoringURL = fmt.Sprintf("http://localhost:%d", monitoringPort)
 	}
+
 	log := newTestLogger(t)
 
 	metricsV2, err := metric.NewMetrics()
 	require.NoError(t, err)
+
 	wsService := stream.NewWebsocketService()
 	t.Cleanup(wsService.Close)
+
 	flagsetManager, err := service.NewFlagsetManager(conf, log.Slog, nil, nil, nil)
 	require.NoError(t, err)
 
-	s := newTestServer(t, conf, service.Services{
+	srv := newTestServer(t, conf, service.Services{
 		MonitoringService: service.NewMonitoring(flagsetManager),
 		WebsocketService:  wsService,
 		FlagsetManager:    flagsetManager,
 		Metrics:           metricsV2,
 	}, log.Slog, opts...)
-	go func() { s.StartWithContext(context.Background()) }()
-	t.Cleanup(func() { s.Stop(context.Background()) })
+	go func() { srv.StartWithContext(context.Background()) }()
+
+	t.Cleanup(func() { srv.Stop(context.Background()) })
 
 	baseURL := fmt.Sprintf("http://localhost:%d", port)
+
 	if withMonitoring {
 		waitForServer(t, monitoringURL)
 	}
+
 	waitForServer(t, baseURL)
 
 	return baseURL, monitoringURL
@@ -83,11 +92,14 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 // closed for the caller since every assertion here is on headers and status code.
 func doRequest(t *testing.T, method, url string, headers map[string]string) *http.Response {
 	t.Helper()
+
 	req, err := http.NewRequest(method, url, nil)
 	require.NoError(t, err)
+
 	for name, value := range headers {
 		req.Header.Set(name, value)
 	}
+
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = resp.Body.Close() })

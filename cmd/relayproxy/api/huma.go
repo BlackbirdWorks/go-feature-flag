@@ -47,19 +47,22 @@ func jsonFormat() huma.Format {
 // status error for, which it wraps in its RFC 9457 model) are turned into the same body: huma has no error factory
 // per API (its factories are package variables), the transformer of the API is the place that is not global.
 func errorTransformer(exposeError bool) huma.Transformer {
-	return func(ctx huma.Context, _ string, v any) (any, error) {
-		if model, ok := v.(*huma.ErrorModel); ok {
+	return func(ctx huma.Context, _ string, val any) (any, error) {
+		if model, ok := val.(*huma.ErrorModel); ok {
 			ctx.SetHeader(helper.HeaderContentType, helper.MIMEApplicationJSON)
+
 			herr := modelError(model)
 			reqlog.RecordError(ctx.Context(), herr)
 			_, body := helper.ErrorResponse(herr, exposeError)
 
 			return body, nil
 		}
-		herr, ok := errors.AsType[*helper.HTTPError](asError(v))
+
+		herr, ok := errors.AsType[*helper.HTTPError](asError(val))
 		if !ok {
-			return v, nil
+			return val, nil
 		}
+
 		_, body := helper.ErrorResponse(herr, exposeError)
 		reqlog.RecordError(ctx.Context(), herr)
 
@@ -80,9 +83,11 @@ func modelError(model *huma.ErrorModel) *helper.HTTPError {
 	if model.Detail != "" {
 		details = append(details, detailError(model.Detail))
 	}
+
 	for _, d := range model.Errors {
 		details = append(details, detailError(d.Message))
 	}
+
 	if len(details) == 0 {
 		return helper.NewHTTPError(model.Status, "")
 	}
@@ -98,6 +103,8 @@ func asError(v any) error {
 
 // newHumaAPI returns the huma API that holds the operations of the relay proxy. The document is generated from
 // them. huma serves nothing by itself (no document, no docs page): the relay proxy owns its routes.
+//
+//nolint:ireturn // returns the huma.API that the huma adapter constructs, which only exposes the interface
 func newHumaAPI(
 	mux *http.ServeMux,
 	exposeError, docs bool,
@@ -110,6 +117,7 @@ func newHumaAPI(
 		cfg.OpenAPIPath, cfg.DocsPath = "/swagger/openapi", "/swagger/index.html"
 		cfg.DocsRenderer = huma.DocsRendererSwaggerUI
 	}
+
 	cfg.CreateHooks = nil
 	cfg.Formats = map[string]huma.Format{"application/json": jsonFormat(), "json": jsonFormat()}
 	cfg.DefaultFormat = "application/json"

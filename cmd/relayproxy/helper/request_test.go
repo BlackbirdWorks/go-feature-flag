@@ -40,9 +40,11 @@ func TestAPIKey(t *testing.T) {
 			if tt.xAPIKey != "" {
 				req.Header.Set(helper.XAPIKeyHeader, tt.xAPIKey)
 			}
+
 			if tt.authorization != "" {
 				req.Header.Set(helper.AuthorizationHeader, tt.authorization)
 			}
+
 			assert.Equal(t, tt.expectedAPIKey, helper.APIKey(req))
 		})
 	}
@@ -52,6 +54,7 @@ func TestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	flagset := &ffclient.GoFeatureFlag{}
+
 	tests := []struct {
 		manager     *mock.MockFlagsetManager
 		wantFlagSet *ffclient.GoFeatureFlag
@@ -76,19 +79,24 @@ func TestFlagSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var got *ffclient.GoFeatureFlag
-			var err *helper.HTTPError
+			var (
+				got *ffclient.GoFeatureFlag
+				err *helper.HTTPError
+			)
 			if tt.manager == nil {
 				got, err = helper.FlagSet(nil, "key")
 			} else {
 				got, err = helper.FlagSet(tt.manager, "key")
 			}
+
 			assert.Equal(t, tt.wantFlagSet, got)
+
 			if tt.wantCode == 0 {
 				require.Nil(t, err)
 
 				return
 			}
+
 			require.NotNil(t, err)
 			assert.Equal(t, tt.wantCode, err.Code)
 			assert.Equal(t, tt.wantMessage, err.Message)

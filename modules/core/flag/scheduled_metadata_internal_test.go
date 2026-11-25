@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
@@ -14,11 +15,13 @@ import (
 // must not change the next evaluations (the scheduled flag is memoized and shared).
 func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 	t.Parallel()
+
 	metadata := func() *map[string]any {
 		return &map[string]any{
 			"release": map[string]any{"owner": "team", "tags": []any{"a", map[string]any{"k": "v"}}},
 		}
 	}
+
 	tests := []struct {
 		name string
 		flag func(base time.Time) *InternalFlag
@@ -63,22 +66,35 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			f := tt.flag(clocktest.Instant())
+
+			flg := tt.flag(clocktest.Instant())
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			_, first := f.Value("flag", ctx, Context{Service: NewService()})
-			rel := first.Metadata["release"].(map[string]any)
+			_, first := flg.Value("flag", ctx, Context{Service: NewService()})
+			rel, ok := first.Metadata["release"].(map[string]any)
+			require.True(t, ok)
+
 			rel["owner"] = "changed"
-			rel["tags"].([]any)[0] = "changed"
-			rel["tags"].([]any)[1].(map[string]any)["k"] = "changed"
+			tags, ok := rel["tags"].([]any)
+			require.True(t, ok)
+
+			tags[0] = "changed"
+			tagMap, ok := tags[1].(map[string]any)
+			require.True(t, ok)
+
+			tagMap["k"] = "changed"
+
 			if first.RuleName != nil {
 				*first.RuleName = "changed"
 			}
-			_, second := f.Value("flag", ctx, Context{Service: NewService()})
+
+			_, second := flg.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
+
 			gotRuleName := ""
 			if second.RuleName != nil {
 				gotRuleName = *second.RuleName
 			}
+
 			assert.Equal(t, tt.wantRuleName, gotRuleName)
 		})
 	}

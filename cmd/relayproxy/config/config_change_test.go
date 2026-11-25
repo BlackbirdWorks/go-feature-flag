@@ -87,20 +87,24 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+
+			srv, watcher := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
-				s.Stop(context.Background())
-				_ = c.StopConfigChangeWatcher()
+				srv.Stop(context.Background())
+
+				_ = watcher.StopConfigChangeWatcher()
 			}()
+
 			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
@@ -191,20 +195,24 @@ func TestConfigChangeFlagsetModeAPIKeyChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+
+			srv, watcher := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
-				s.Stop(context.Background())
-				_ = c.StopConfigChangeWatcher()
+				srv.Stop(context.Background())
+
+				_ = watcher.StopConfigChangeWatcher()
 			}()
+
 			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20d"}}`
@@ -274,23 +282,26 @@ func TestConfigChangeFlagsetInvalidChanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+
 			callbackCalled := make(chan bool, 1)
 			// Create observed logger to capture error logs
 			core, observedLogs := slogutil.NewObserver(slog.LevelError)
 			observedLogger := core
-			s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
+			s, cfg := newAPIServerWithLogger(t, listener, configFile, observedLogger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 
 			defer func() {
 				s.Stop(context.Background())
-				_ = c.StopConfigChangeWatcher()
+
+				_ = cfg.StopConfigChangeWatcher()
 			}()
+
 			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
@@ -372,20 +383,24 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ln, port := testutils.ListenLocal(t)
+			listener, port := testutils.ListenLocal(t)
 			portStr := strconv.Itoa(port)
 			urlAPIAllFlags := localhostURL + portStr + allFlagsEndpoint
 			configFile := testutils.CopyFileToNewTempFile(t, tt.initialConfigFile)
 			testutils.ReplaceInFile(t, configFile, "1031", portStr)
+
 			callbackCalled := make(chan bool, 1)
 			logger := slog.New(slog.DiscardHandler)
-			s, c := newAPIServerWithLogger(t, ln, configFile, logger, func(_ *config.Config) {
+
+			srv, watcher := newAPIServerWithLogger(t, listener, configFile, logger, func(_ *config.Config) {
 				callbackCalled <- true
 			})
 			defer func() {
-				s.Stop(context.Background())
-				_ = c.StopConfigChangeWatcher()
+				srv.Stop(context.Background())
+
+				_ = watcher.StopConfigChangeWatcher()
 			}()
+
 			waitForHealth(t, localhostURL+portStr)
 
 			body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20d"}}`
@@ -415,21 +430,25 @@ func TestConfigChangeFlagsetAddRemove(t *testing.T) {
 func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 	t.Parallel()
 
-	ln, listenPort := testutils.ListenLocal(t)
+	listener, listenPort := testutils.ListenLocal(t)
 	port := strconv.Itoa(listenPort)
 	urlAPIAllFlags := localhostURL + port + allFlagsEndpoint
 	configFile := testutils.CopyFileToNewTempFile(t, "../testdata/config/flagset-modify-config.yaml")
 	testutils.ReplaceInFile(t, configFile, "1031", port)
+
 	callbackCalled := make(chan bool, 1)
 	core, observedLogs := slogutil.NewObserver(slog.LevelError)
 	observedLogger := core
-	s, c := newAPIServerWithLogger(t, ln, configFile, observedLogger, func(_ *config.Config) {
+
+	srv, watcher := newAPIServerWithLogger(t, listener, configFile, observedLogger, func(_ *config.Config) {
 		callbackCalled <- true
 	})
 	defer func() {
-		s.Stop(context.Background())
-		_ = c.StopConfigChangeWatcher()
+		srv.Stop(context.Background())
+
+		_ = watcher.StopConfigChangeWatcher()
 	}()
+
 	waitForHealth(t, localhostURL+port)
 
 	body := `{"evaluationContext":{"key":"08b5ffb7-7109-42f4-a6f2-b85560fbd20f"}}`
@@ -468,21 +487,22 @@ func TestConfigChangeFlagsetForbiddenModification(t *testing.T) {
 
 func newAPIServerWithLogger(
 	t *testing.T,
-	ln net.Listener,
+	listener net.Listener,
 	configFile *os.File,
 	logger *slog.Logger,
 	callback func(newConfig *config.Config),
 ) (api.Server, *config.Config) {
 	t.Helper()
+
 	f := pflag.NewFlagSet("test", pflag.ContinueOnError)
 	f.String("config", "", "Location of your config file")
 	err := f.Parse([]string{"--config=" + configFile.Name()})
 	require.NoError(t, err)
 
-	c, err := config.New(f, logger, "v0.0.0")
+	cfg, err := config.New(f, logger, "v0.0.0")
 	require.NoError(t, err)
 
-	flagsetManager, err := service.NewFlagsetManager(c, logger, nil, nil, nil)
+	flagsetManager, err := service.NewFlagsetManager(cfg, logger, nil, nil, nil)
 	require.NoError(t, err)
 
 	services := service.Services{
@@ -492,30 +512,35 @@ func newAPIServerWithLogger(
 		Metrics:           metric.Metrics{},
 	}
 
-	c.AttachConfigChangeCallback(callback)
+	cfg.AttachConfigChangeCallback(callback)
 
 	// a fatal error of the server fails the test and ends the goroutine of the server instead of the process.
 	exit := func() {
 		assert.Fail(t, "the server exited with a fatal error")
 		runtime.Goexit()
 	}
-	s := api.New(c, services, logger, api.WithExit(exit), api.WithListener(ln))
+
+	s := api.New(cfg, services, logger, api.WithExit(exit), api.WithListener(listener))
 	go func() { s.StartWithContext(context.Background()) }()
 
-	return s, c
+	return s, cfg
 }
 
 // doHTTPRequestAndCheck performs an HTTP POST request and verifies the response against expected checks.
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
+
 	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
 	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
+
 	if check.apiKey != "" {
 		request.Header.Set(helper.XAPIKeyHeader, check.apiKey)
 	}
+
 	response, err := http.DefaultClient.Do(request)
 	require.NoError(t, err)
+
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, check.expectedStatus, response.StatusCode,
@@ -526,12 +551,14 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 	if len(check.bodyContains) > 0 || len(check.bodyNotContains) > 0 {
 		responseBody, readAllErr := io.ReadAll(response.Body)
 		require.NoError(t, readAllErr)
+
 		bodyStr := string(responseBody)
 
 		for _, expected := range check.bodyContains {
 			assert.Contains(t, bodyStr, expected,
 				"%s: expected body to contain %q for apiKey=%q", phase, expected, check.apiKey)
 		}
+
 		for _, notExpected := range check.bodyNotContains {
 			assert.NotContains(t, bodyStr, notExpected,
 				"%s: expected body NOT to contain %q for apiKey=%q", phase, notExpected, check.apiKey)
@@ -548,6 +575,7 @@ func waitForHealth(t *testing.T, baseURL string) {
 		if err != nil {
 			return false
 		}
+
 		_ = resp.Body.Close()
 
 		return resp.StatusCode == http.StatusOK

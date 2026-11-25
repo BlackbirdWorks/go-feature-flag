@@ -1,20 +1,9 @@
 package parser
 
+import "slices"
+
 type FloatOperation struct {
 	NullOperation
-}
-
-func (o *FloatOperation) get(left Operand, right Operand) (float64, float64, error) {
-	if left == nil {
-		return 0, 0, ErrEvalOperandMissing
-	}
-	leftVal, err := toFloat(left)
-	if err != nil {
-		return 0, 0, err
-	}
-	rightVal, err := toFloat(right)
-
-	return leftVal, rightVal, err
 }
 
 func (o *FloatOperation) EQ(left Operand, right Operand) (bool, error) {
@@ -76,16 +65,30 @@ func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	rightVal, ok := right.([]float64)
 	if !ok {
 		return false, newInvalidOperandError(right, rightVal)
 	}
-	// an explicit loop: slices.Contains is measurably slower on this evaluation path
-	for _, num := range rightVal { //nolint:modernize // see above
-		if num == leftVal {
-			return true, nil
-		}
+
+	if slices.Contains(rightVal, leftVal) {
+		return true, nil
 	}
 
 	return false, nil
+}
+
+func (o *FloatOperation) get(left Operand, right Operand) (float64, float64, error) {
+	if left == nil {
+		return 0, 0, ErrEvalOperandMissing
+	}
+
+	leftVal, err := toFloat(left)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	rightVal, err := toFloat(right)
+
+	return leftVal, rightVal, err
 }

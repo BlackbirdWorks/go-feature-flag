@@ -22,6 +22,11 @@ type Request struct {
 	contentType string
 }
 
+// NewRequest returns the Request of a request with the API key and the content type.
+func NewRequest(apiKey, contentType string) Request {
+	return Request{apiKey: apiKey, contentType: contentType}
+}
+
 // Resolve implements huma.Resolver.
 func (r *Request) Resolve(ctx huma.Context) []error {
 	r.apiKey = helper.APIKeyFromHeaders(ctx.Header)
@@ -42,17 +47,14 @@ func (r *Request) ContentType() string { return r.contentType }
 //
 // A readTimeout of zero or less means no bound: it is not the default (the server uses 30 seconds), an operator
 // who disabled the read timeout of the server asked for it.
-func BodyOpts(op *huma.Operation, readTimeout time.Duration) {
-	op.MaxBodyBytes = -1
-	op.BodyReadTimeout = readTimeout
-	if readTimeout <= 0 {
-		op.BodyReadTimeout = -1
-	}
-	op.SkipValidateBody = true
-	op.SkipValidateParams = true
-}
+func BodyOpts(operation *huma.Operation, readTimeout time.Duration) {
+	operation.MaxBodyBytes = -1
 
-// NewRequest returns the Request of a request with the API key and the content type.
-func NewRequest(apiKey, contentType string) Request {
-	return Request{apiKey: apiKey, contentType: contentType}
+	operation.BodyReadTimeout = readTimeout
+	if readTimeout <= 0 {
+		operation.BodyReadTimeout = -1
+	}
+
+	operation.SkipValidateBody = true
+	operation.SkipValidateParams = true
 }

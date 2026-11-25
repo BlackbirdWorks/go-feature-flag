@@ -34,28 +34,7 @@ func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache 
 	}
 }
 
-func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
-	if err := value.IsValid(fc.Service); err == nil {
-		fc.Flags[key] = &value
-	} else {
-		fc.Logger.Error("[cache] invalid configuration for flag",
-			slog.String("key", key), slog.Any("error", err.Error()))
-	}
-}
-
-// getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
-// allocation-free. The caller must not modify it.
-func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
-	f, ok := fc.Flags[key]
-	if !ok {
-		// callers expect a usable (empty) flag next to the error
-		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
-	}
-
-	return f, nil
-}
-
-func (fc *InMemoryCache) Copy() Cache {
+func (fc *InMemoryCache) Copy() *InMemoryCache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
 		inMemoryCache.addFlag(k, *v)
@@ -76,6 +55,47 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 	return c
 }
 
+func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
+	cache := make(map[string]*flag.InternalFlag, len(flags))
+	for key, flagDto := range flags {
+		flagToAdd := flagDto.Convert()
+
+		err := flagToAdd.IsValid(fc.Service)
+		if err == nil {
+			cache[key] = &flagToAdd
+		} else {
+			fc.Logger.Error("[cache] invalid configuration for flag",
+				slog.String("key", key), slog.Any("error", err.Error()))
+		}
+	}
+
+	fc.Flags = cache
+}
+
+func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
+	err := value.IsValid(fc.Service)
+	if err == nil {
+		fc.Flags[key] = &value
+	} else {
+		fc.Logger.Error("[cache] invalid configuration for flag",
+			slog.String("key", key), slog.Any("error", err.Error()))
+	}
+}
+
+// getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
+// allocation-free. The caller must not modify it.
+//
+//nolint:ireturn // returns the flag.Flag stored in the cache (the cache holds the interface of the public API)
+func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
+	cachedFlag, ok := fc.Flags[key]
+	if !ok {
+		// callers expect a usable (empty) flag next to the error
+		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
+	}
+
+	return cachedFlag, nil
+}
+
 // shared returns the flags of the cache without copying them. The caller must treat them as
 // read-only and must not hand them to code that does not.
 func (fc *InMemoryCache) shared() map[string]flag.Flag {
@@ -85,18 +105,4 @@ func (fc *InMemoryCache) shared() map[string]flag.Flag {
 	}
 
 	return c
-}
-
-func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
-	cache := make(map[string]*flag.InternalFlag, len(flags))
-	for key, flagDto := range flags {
-		flagToAdd := flagDto.Convert()
-		if err := flagToAdd.IsValid(fc.Service); err == nil {
-			cache[key] = &flagToAdd
-		} else {
-			fc.Logger.Error("[cache] invalid configuration for flag",
-				slog.String("key", key), slog.Any("error", err.Error()))
-		}
-	}
-	fc.Flags = cache
 }

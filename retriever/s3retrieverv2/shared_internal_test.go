@@ -45,18 +45,19 @@ func (emptyBucket) DownloadObject(
 
 func TestSharedItems_etagOf(t *testing.T) {
 	t.Parallel()
-	g, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
 		Bucket: "b", Lister: emptyBucket{}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
-	g.Retriever("a/registered.yaml")
+	group.Retriever("a/registered.yaml")
 	// the key is not registered and out of the listed prefix, so the loop gives up.
-	_, err = g.etagOf(t.Context(), "b/unregistered.yaml")
+	_, err = group.etagOf(t.Context(), "b/unregistered.yaml")
 	assert.ErrorContains(t, err, "not registered")
 }
 
 func TestSharedItems_listingPrefix(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name string
 		want string
@@ -74,6 +75,7 @@ func TestSharedItems_listingPrefix(t *testing.T) {
 		{name: "opaque leading slash", keys: []string{"/a", "/b"}, want: "/"},
 		{name: "opaque parent segment", keys: []string{"dir/../a", "dir/../b"}, want: "dir/../"},
 		{name: "never cuts a multi-byte character", keys: []string{"é/é1.yaml", "é/é2.yaml", "è/f.yaml"}, want: ""},
+		//nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		{name: "multi-byte prefix", keys: []string{"日本/a.yaml", "日本/b.yaml"}, want: "日本/"},
 	}
 	for _, tt := range tests {
@@ -106,15 +108,16 @@ func (u unrelatedBucket) ListObjectsV2(
 
 func TestSharedItems_listingKeepsRegisteredKeysOnly(t *testing.T) {
 	t.Parallel()
-	g, err := NewSharedItems(t.Context(), SharedItemsOptions{
+	group, err := NewSharedItems(t.Context(), SharedItemsOptions{
 		Bucket: "b", Lister: unrelatedBucket{n: 5000}, Downloader: emptyBucket{},
 	})
 	require.NoError(t, err)
-	_, err = g.etagOf(t.Context(), g.Retriever("d/flags.yaml").item)
+	_, err = group.etagOf(t.Context(), group.Retriever("d/flags.yaml").item)
 	require.NoError(t, err)
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, g.listing)
+	group.mu.Lock()
+	defer group.mu.Unlock()
+
+	assert.Equal(t, map[string]string{"d/flags.yaml": "x"}, group.listing)
 }
 
 // tokenLister returns truncated pages following a token policy.
@@ -137,6 +140,7 @@ func (l *tokenLister) ListObjectsV2(
 
 func TestSharedItems_list(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name      string
 		next      func(n int64) string
@@ -165,6 +169,7 @@ func TestSharedItems_list(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			l := &tokenLister{next: tt.next}
 			g := &SharedItems{bucket: "b", lister: l}
 			_, err := g.list(t.Context(), "p/", nil)

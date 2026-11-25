@@ -2,38 +2,12 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
 type StringOperation struct {
 	NullOperation
-}
-
-func (o *StringOperation) getString(operand Operand) (string, error) {
-	switch opVal := operand.(type) {
-	case string:
-		return opVal, nil
-	case fmt.Stringer:
-		return opVal.String(), nil
-	default:
-		return "", newInvalidOperandError(operand, opVal)
-	}
-}
-
-func (o *StringOperation) get(left Operand, right Operand) (string, string, error) {
-	if left == nil {
-		return "", "", ErrEvalOperandMissing
-	}
-	leftVal, err := o.getString(left)
-	if err != nil {
-		return "", "", err
-	}
-	rightVal, err := o.getString(right)
-	if err != nil {
-		return "", "", err
-	}
-
-	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
 }
 
 func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
@@ -127,12 +101,39 @@ func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
 	if !ok {
 		return ok, newInvalidOperandError(right, rightVal)
 	}
-	// an explicit loop: slices.Contains is measurably slower on this evaluation path
-	for _, val := range rightVal { //nolint:modernize // see above
-		if leftVal == val {
-			return true, nil
-		}
+
+	if slices.Contains(rightVal, leftVal) {
+		return true, nil
 	}
 
 	return false, nil
+}
+
+func (o *StringOperation) getString(operand Operand) (string, error) {
+	switch opVal := operand.(type) {
+	case string:
+		return opVal, nil
+	case fmt.Stringer:
+		return opVal.String(), nil
+	default:
+		return "", newInvalidOperandError(operand, opVal)
+	}
+}
+
+func (o *StringOperation) get(left Operand, right Operand) (string, string, error) {
+	if left == nil {
+		return "", "", ErrEvalOperandMissing
+	}
+
+	leftVal, err := o.getString(left)
+	if err != nil {
+		return "", "", err
+	}
+
+	rightVal, err := o.getString(right)
+	if err != nil {
+		return "", "", err
+	}
+
+	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
 }

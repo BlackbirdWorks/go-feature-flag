@@ -59,32 +59,39 @@ type CollectEvalDataOutput struct {
 }
 
 // Handle is the entry point for the data/collector endpoint.
-func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) (*CollectEvalDataOutput, error) {
+func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInput) (*CollectEvalDataOutput, error) {
 	ctx, span := otel.Tracer(configfile.OtelTracerName).Start(ctx, "collectEventData")
 	defer span.End()
 
 	reqBody := new(model.CollectEvalDataRequest)
-	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
-		return nil, helper.NewHTTPError(
+
+	bindErr := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
+	if bindErr != nil {
+		return nil, fmt.Errorf("binding the evaluation data: %w", helper.NewHTTPError(
 			http.StatusBadRequest,
-			fmt.Sprintf("collectEvalData: invalid input data %v", err))
+			fmt.Sprintf("collectEvalData: invalid input data %v", bindErr)))
 	}
+
 	if reqBody.Events == nil {
-		return nil, helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")
+		return nil, fmt.Errorf(
+			"checking the evaluation data: %w",
+			helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data"),
+		)
 	}
 
 	span.SetAttributes(attribute.Int("collectEventData.eventCollectionSize", len(reqBody.Events)))
 
 	// The flag set is looked up after the body is read, not taken from the authentication: the events are
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
-	flagset, httpErr := helper.FlagSet(h.flagsetManager, in.APIKey())
+	flagset, httpErr := helper.FlagSet(h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the evaluation data: %w", httpErr)
 	}
 
 	logger := logging.FromContext(ctx)
 	counterTracking := 0
 	counterEvaluation := 0
+
 	for i, event := range reqBody.Events {
 		// Check if context is cancelled before processing each event, to avoid
 		// long delays on large payloads.
@@ -107,7 +114,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 		switch event["kind"] {
 		case "tracking":
-			e, err := convertTrackingEvent(event, logger)
+			trackingEv, err := convertTrackingEvent(ctx, event, logger)
 			if err != nil {
 				logger.LogAttrs(ctx, slog.LevelError,
 					"impossible to convert the event to a tracking event",
@@ -116,10 +123,12 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 				continue
 			}
-			flagset.CollectTrackingEventData(e)
+
+			flagset.CollectTrackingEventData(trackingEv)
+
 			counterTracking++
 		default:
-			e, err := convertFeatureEvent(event, reqBody.Meta, logger)
+			featureEv, err := convertFeatureEvent(ctx, event, reqBody.Meta, logger)
 			if err != nil {
 				logger.LogAttrs(
 					ctx,
@@ -130,7 +139,9 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 				continue
 			}
-			flagset.CollectEventData(e)
+
+			flagset.CollectEventData(featureEv)
+
 			counterEvaluation++
 		}
 	}
@@ -147,45 +158,55 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 }
 
 func convertTrackingEvent(
+	ctx context.Context,
 	event map[string]any,
 	logger *slog.Logger,
 ) (exporter.TrackingEvent, error) {
-	var e exporter.TrackingEvent
+	var trackingEv exporter.TrackingEvent
+
 	marshalled, err := json.Marshal(event)
 	if err != nil {
-		return exporter.TrackingEvent{}, err
+		return exporter.TrackingEvent{}, fmt.Errorf("marshal tracking event: %w", err)
 	}
-	err = json.Unmarshal(marshalled, &e)
-	if err != nil {
-		return exporter.TrackingEvent{}, err
-	}
-	e.CreationDate = formatCreationDate(e.CreationDate, logger)
 
-	return e, nil
+	err = json.Unmarshal(marshalled, &trackingEv)
+	if err != nil {
+		return exporter.TrackingEvent{}, fmt.Errorf("unmarshal tracking event: %w", err)
+	}
+
+	trackingEv.CreationDate = formatCreationDate(ctx, trackingEv.CreationDate, logger)
+
+	return trackingEv, nil
 }
 
-func convertFeatureEvent(event map[string]any,
+func convertFeatureEvent(
+	ctx context.Context,
+	event map[string]any,
 	metadata exporter.FeatureEventMetadata,
 	logger *slog.Logger) (exporter.FeatureEvent, error) {
-	var e exporter.FeatureEvent
-	err := mapstructure.Decode(event, &e)
-	if err != nil {
-		return exporter.FeatureEvent{}, err
-	}
-	if e.Source == "" {
-		e.Source = "PROVIDER_CACHE"
-	}
-	if metadata != nil {
-		e.Metadata = metadata
-	}
-	e.CreationDate = formatCreationDate(e.CreationDate, logger)
+	var featureEv exporter.FeatureEvent
 
-	return e, nil
+	err := mapstructure.Decode(event, &featureEv)
+	if err != nil {
+		return exporter.FeatureEvent{}, fmt.Errorf("decode feature event: %w", err)
+	}
+
+	if featureEv.Source == "" {
+		featureEv.Source = "PROVIDER_CACHE"
+	}
+
+	if metadata != nil {
+		featureEv.Metadata = metadata
+	}
+
+	featureEv.CreationDate = formatCreationDate(ctx, featureEv.CreationDate, logger)
+
+	return featureEv, nil
 }
 
-func formatCreationDate(input int64, logger *slog.Logger) int64 {
+func formatCreationDate(ctx context.Context, input int64, logger *slog.Logger) int64 {
 	if input > maxCreationDateSeconds {
-		logger.LogAttrs(context.Background(), slog.LevelWarn,
+		logger.LogAttrs(ctx, slog.LevelWarn,
 			"creationDate received is in milliseconds, we convert it to seconds",
 			slog.Int64("creationDate", input))
 		// if we receive a timestamp in milliseconds, we convert it to seconds

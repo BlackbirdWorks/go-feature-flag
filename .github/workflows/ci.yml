@@ -132,6 +132,8 @@ jobs:
           persist-credentials: false
       - uses: $/.github/actions/setup-go
       - run: make lint
+      - run: make vet
+      - run: make fix-check
       # Optional target: it runs only once the Makefile defines it, so this
       # job needs no change when it lands.
       - name: Run mulint (if the target exists)

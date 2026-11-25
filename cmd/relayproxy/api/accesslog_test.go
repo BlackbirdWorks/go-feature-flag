@@ -82,26 +82,32 @@ func Test_AccessLog(t *testing.T) {
 			req.URL.Path = strings.SplitN(tt.target, "?", 2)[0]
 			req.RequestURI = tt.target
 			req.Header.Set("X-Request-ID", "req-1")
+
 			rec := httptest.NewRecorder()
 			srv.Handler().ServeHTTP(rec, req)
 			require.Equal(t, tt.wantStatus, rec.Code)
 
 			got := map[string]slog.Level{}
+
 			for _, entry := range logs.All() {
 				fields := entry.ContextMap()
 				// every line of the request, the ones of the handlers and middleware as well as the access
 				// record, carries the request ID: the request logger is in the context of the request.
 				assert.Equal(t, "req-1", fields["request_id"], entry.Message)
+
 				if entry.Message == "Request info" {
 					continue // the dump of the body, at the debug level
 				}
+
 				got[entry.Message] = entry.Level
 				if entry.Message == "panic recovered" {
 					continue
 				}
+
 				assert.Equal(t, tt.wantRequest, fields["request"])
 				assert.Equal(t, int64(tt.wantStatus), fields["status"])
 			}
+
 			assert.Equal(t, tt.wantRecords, got)
 		})
 	}

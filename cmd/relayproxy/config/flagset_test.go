@@ -259,6 +259,7 @@ func TestConfigAddFlagSet(t *testing.T) {
 
 		got := cfg.GetFlagSets()
 		require.Len(t, got, 2)
+
 		keys, err := cfg.GetFlagSetAPIKeys(flagset2Name)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"key-2"}, keys)
@@ -298,6 +299,7 @@ func TestConfigRemoveFlagSet(t *testing.T) {
 		got := cfg.GetFlagSets()
 		require.Len(t, got, 1)
 		assert.Equal(t, flagset2Name, got[0].Name)
+
 		_, err = cfg.GetFlagSetAPIKeys(flagset1Name)
 		assert.Error(t, err)
 	})
@@ -328,8 +330,10 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 		},
 	}
 
-	const numGoroutines = 100
-	const numIterations = 50
+	const (
+		numGoroutines = 100
+		numIterations = 50
+	)
 
 	var wg sync.WaitGroup
 	wg.Add(numGoroutines * 2) // readers and writers
@@ -338,6 +342,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
+
 			for j := range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				newKeys := []string{fmt.Sprintf("key-%d-%d", id, j)}
@@ -351,6 +356,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 	for i := range numGoroutines {
 		go func(id int) {
 			defer wg.Done()
+
 			for range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
 				keys, err := cfg.GetFlagSetAPIKeys(flagsetName)

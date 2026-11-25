@@ -25,6 +25,7 @@ func (failingClient) Do(req *http.Request) (*http.Response, error) {
 // The endpoint URL may carry credentials: it must not end up in the errors that are logged.
 func TestNotifier_errorsDoNotContainTheWebhookURL(t *testing.T) {
 	t.Parallel()
+
 	c := Notifier{
 		EndpointURL: "https://user:SECRETMARKER-pass@hooks.example.com/hook?token=SECRETMARKER-q",
 		httpClient:  failingClient{},

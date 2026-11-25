@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -38,13 +39,11 @@ func CallHTTPAPI(
 		method = http.MethodGet
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
 	if err != nil {
-		return nil, internal.RedactURLError(err)
+		return nil, fmt.Errorf("building the HTTP API request: %w", internal.RedactURLError(err))
 	}
 
 	// Add header if some are passed
@@ -61,7 +60,7 @@ func CallHTTPAPI(
 	if err != nil {
 		// http.Client.Do can return a non-nil response (body already closed) together with an error when
 		// CheckRedirect fails: keep it so the callers still see the status and the headers.
-		return resp, internal.RedactURLError(err)
+		return resp, fmt.Errorf("calling the HTTP API: %w", internal.RedactURLError(err))
 	}
 
 	return resp, nil

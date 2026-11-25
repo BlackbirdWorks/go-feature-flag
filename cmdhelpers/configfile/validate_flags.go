@@ -35,10 +35,13 @@ func (e FlagError) Unwrap() error { return e.Err }
 // Service of their own, that is dropped with the call: validating does not touch the state of a client.
 func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 	var errs []FlagError
+
 	svc := flag.NewService()
 	defer svc.Close()
+
 	for _, key := range slices.Sorted(maps.Keys(flags)) {
-		if err := validateFlag(svc, flags[key]); err != nil {
+		err := validateFlag(svc, flags[key])
+		if err != nil {
 			errs = append(errs, FlagError{Flag: key, Err: err})
 		}
 	}
@@ -55,7 +58,13 @@ func validateFlag(svc *flag.Service, flagDto dto.DTO) (err error) {
 			err = errInternalValidation
 		}
 	}()
+
 	f := flagDto.Convert()
 
-	return f.IsValid(svc)
+	werr := f.IsValid(svc)
+	if werr != nil {
+		return fmt.Errorf("validating the flag: %w", werr)
+	}
+
+	return nil
 }

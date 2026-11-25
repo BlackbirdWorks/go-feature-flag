@@ -41,20 +41,24 @@ type Target struct {
 // NewTarget starts a relay proxy and returns a soak target for the endpoint.
 // It rejects an unknown endpoint, and a slow or failing exporter on an endpoint that does not
 // emit events (the exporter would be bypassed and the soak would not measure what it claims).
-func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
-	if err := validateTarget(o, endpoint, flagKey); err != nil {
-		return nil, err
-	}
-	o.Listen = true
-	r, err := Start(o)
+func NewTarget(opts Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
+	err := validateTarget(opts, endpoint, flagKey)
 	if err != nil {
 		return nil, err
 	}
+
+	opts.Listen = true
+
+	r, err := Start(opts)
+	if err != nil {
+		return nil, err
+	}
+
 	t := &Target{
 		relay:    r,
 		endpoint: endpoint,
 		flagKey:  flagKey,
-		h2c:      o.H2C,
+		h2c:      opts.H2C,
 		perCall:  1,
 		client: &http.Client{
 			Timeout: clientTimeout,
@@ -62,12 +66,13 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 				MaxIdleConns:        workers * connsPerWorker,
 				MaxIdleConnsPerHost: workers * connsPerWorker,
 				IdleConnTimeout:     time.Minute,
-				Protocols:           clientProtocols(o.H2C),
+				Protocols:           clientProtocols(opts.H2C),
 			},
 		},
 	}
 	if !endpoint.EmitsEvents() {
-		if t.perCall, err = t.countFlagsPerCall(); err != nil {
+		t.perCall, err = t.countFlagsPerCall()
+		if err != nil {
 			t.Close()
 
 			return nil, err
@@ -80,53 +85,39 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 // clientProtocols is HTTP/1.1 with keep-alive, or HTTP/2 over cleartext with prior knowledge (no HTTP/1.1
 // fallback, so a server that does not speak h2c is an error and not a silent downgrade).
 func clientProtocols(h2c bool) *http.Protocols {
-	var p http.Protocols
+	var protocols http.Protocols
 	if h2c {
-		p.SetUnencryptedHTTP2(true)
+		protocols.SetUnencryptedHTTP2(true)
 	} else {
-		p.SetHTTP1(true)
+		protocols.SetHTTP1(true)
 	}
 
-	return &p
-}
-
-// countFlagsPerCall sends one request and counts the flags of the bulk response.
-func (t *Target) countFlagsPerCall() (int, error) {
-	req, err := t.endpoint.NewRequest(t.relay.BaseURL, t.flagKey, 0)
-	if err != nil {
-		return 0, err
-	}
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
-	}
-
-	return countFlags(body)
+	return &protocols
 }
 
 // countFlags returns the number of flags of a bulk response: the "flags" member is an object keyed by flag
 // (all flags endpoint) or an array (OFREP bulk).
 func countFlags(body []byte) (int, error) {
-	var v struct {
+	var resp struct {
 		Flags json.RawMessage `json:"flags"`
 	}
-	if err := json.Unmarshal(body, &v); err != nil {
+
+	err := json.Unmarshal(body, &resp)
+	if err != nil {
 		return 0, fmt.Errorf("invalid bulk response: %w", err)
 	}
+
 	var asArray []json.RawMessage
-	if err := json.Unmarshal(v.Flags, &asArray); err == nil {
+
+	err = json.Unmarshal(resp.Flags, &asArray)
+	if err == nil {
 		return max(1, len(asArray)), nil
 	}
+
 	var asMap map[string]json.RawMessage
-	if err := json.Unmarshal(v.Flags, &asMap); err != nil {
+
+	err = json.Unmarshal(resp.Flags, &asMap)
+	if err != nil {
 		return 0, fmt.Errorf("bulk response without flags: %w", err)
 	}
 
@@ -145,31 +136,36 @@ func (t *Target) Protocol() string {
 	return "HTTP/1.1"
 }
 
-func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
-	if _, err := ParseEndpoint(string(endpoint)); err != nil {
+func validateTarget(opts Options, endpoint Endpoint, flagKey string) error {
+	_, err := ParseEndpoint(string(endpoint))
+	if err != nil {
 		return err
 	}
-	if o.ExporterMode != "" {
-		if _, err := loadtest.ParseExporterMode(string(o.ExporterMode)); err != nil {
-			return err
+
+	if opts.ExporterMode != "" {
+		_, parseErr := loadtest.ParseExporterMode(string(opts.ExporterMode))
+		if parseErr != nil {
+			return fmt.Errorf("parsing the exporter mode of the target: %w", parseErr)
 		}
 	}
+
 	if !endpoint.EmitsEvents() &&
-		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) {
+		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) {
 		return fmt.Errorf(
 			"%w %q does not emit events, so exporter %q would never be exercised: use %s or %s",
 			errEndpoint,
 			endpoint,
-			o.ExporterMode,
+			opts.ExporterMode,
 			SemaphoreEval,
 			OFREPEval,
 		)
 	}
+
 	if endpoint.EmitsEvents() &&
-		(o.ExporterMode == loadtest.ExporterSlow || o.ExporterMode == loadtest.ExporterFailing) &&
-		!tracksEvents(o.FlagsYAML, flagKey) {
+		(opts.ExporterMode == loadtest.ExporterSlow || opts.ExporterMode == loadtest.ExporterFailing) &&
+		!tracksEvents(opts.FlagsYAML, flagKey) {
 		return fmt.Errorf("flag %q has trackEvents disabled, so exporter %q would never be exercised: %w",
-			flagKey, o.ExporterMode, errChooseFlagWithTracking)
+			flagKey, opts.ExporterMode, errChooseFlagWithTracking)
 	}
 
 	return nil
@@ -182,9 +178,12 @@ func tracksEvents(flagsYAML, flagKey string) bool {
 	var flags map[string]struct {
 		TrackEvents *bool `yaml:"trackEvents"`
 	}
-	if err := yaml.Unmarshal([]byte(flagsYAML), &flags); err != nil {
+
+	err := yaml.Unmarshal([]byte(flagsYAML), &flags)
+	if err != nil {
 		return true
 	}
+
 	f, ok := flags[flagKey]
 
 	return !ok || f.TrackEvents == nil || *f.TrackEvents
@@ -196,15 +195,19 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 	if endpoint != SemaphoreEval {
 		return nil
 	}
-	var v struct {
+
+	var evalResp struct {
 		ErrorCode string `json:"errorCode"`
 		Failed    bool   `json:"failed"`
 	}
-	if err := json.Unmarshal(body, &v); err != nil {
+
+	err := json.Unmarshal(body, &evalResp)
+	if err != nil {
 		return fmt.Errorf("invalid response: %w", err)
 	}
-	if v.Failed {
-		return fmt.Errorf("%w: %s", errEvaluationFailed, v.ErrorCode)
+
+	if evalResp.Failed {
+		return fmt.Errorf("%w: %s", errEvaluationFailed, evalResp.ErrorCode)
 	}
 
 	return nil
@@ -216,21 +219,26 @@ func (t *Target) Eval(worker, i int) error {
 	if err != nil {
 		return err
 	}
+
 	resp, err := t.client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("execute relay eval request: %w", err)
 	}
+
 	defer func() { _ = resp.Body.Close() }()
+
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		return fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
 	}
+
 	if want := 1 + btoi(t.h2c); resp.ProtoMajor != want {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		return fmt.Errorf("%w%d, expected HTTP/%d", errResponseProtocolIsHTTP, resp.ProtoMajor, want)
 	}
+
 	if t.endpoint != SemaphoreEval {
 		// the body is never inspected: drain it (to reuse the connection) without buffering it,
 		// a bulk response is large and would distort the memory measurements of the soak
@@ -238,6 +246,7 @@ func (t *Target) Eval(worker, i int) error {
 
 		return nil
 	}
+
 	body, _ := io.ReadAll(resp.Body)
 
 	return checkResponse(t.endpoint, body)
@@ -255,6 +264,32 @@ func (t *Target) Extra() map[string]int64 {
 func (t *Target) Close() {
 	t.client.CloseIdleConnections()
 	t.relay.Close()
+}
+
+// countFlagsPerCall sends one request and counts the flags of the bulk response.
+func (t *Target) countFlagsPerCall() (int, error) {
+	req, err := t.endpoint.NewRequest(t.relay.BaseURL, t.flagKey, 0)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("execute relay count request: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("read relay response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
+	}
+
+	return countFlags(body)
 }
 
 func btoi(b bool) int {

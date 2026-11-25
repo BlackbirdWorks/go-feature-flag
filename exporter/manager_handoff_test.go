@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 )
@@ -13,6 +14,7 @@ import (
 // take them: reaching the flush threshold in the middle of the handoff lets the exporter make room.
 func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name      string
 		handoffs  []int
@@ -28,8 +30,10 @@ func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			exps := make([]*countingExporter, tt.exporters)
 			cfgs := make([]exporter.Config, tt.exporters)
+
 			for i := range exps {
 				exps[i] = &countingExporter{bulk: true}
 				cfgs[i] = exporter.Config{
@@ -37,14 +41,24 @@ func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 					MaxEventInMemory: tt.threshold, MaxQueuedEvents: tt.limit,
 				}
 			}
-			m := exporter.NewManager[exporter.FeatureEvent](cfgs, time.Hour, nil)
+
+			mgr := exporter.NewManager[exporter.FeatureEvent](cfgs, time.Hour, nil)
+
+			asyncMgr, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
+
 			total := 0
+
 			for _, n := range tt.handoffs {
-				m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, n))
+				asyncMgr.QueueEvents(make([]exporter.FeatureEvent, n))
 				total += n
 			}
-			m.Stop()
-			assert.Zero(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+
+			mgr.Stop()
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Zero(t, dc.DroppedEvents())
+
 			for _, e := range exps {
 				assert.Equal(t, int64(total), e.events.Load())
 			}

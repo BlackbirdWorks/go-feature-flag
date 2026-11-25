@@ -51,13 +51,9 @@ const (
 var _ exporter.Exporter = &Exporter{}
 
 type bigQueryClient interface {
-	Inserter(dataset, table string) inserter
+	Put(ctx context.Context, dataset, table string, src any) error
 	EnsureTable(ctx context.Context, dataset, table string, schema bigquery.Schema) error
 	Close() error
-}
-
-type inserter interface {
-	Put(ctx context.Context, src any) error
 }
 
 type rowSaver struct {
@@ -105,11 +101,13 @@ func (e *Exporter) Export(
 	if err != nil {
 		return err
 	}
+
 	if len(rows) == 0 {
 		return nil
 	}
 
-	if initClientErr := e.initClient(ctx); initClientErr != nil {
+	initClientErr := e.initClient(ctx)
+	if initClientErr != nil {
 		return initClientErr
 	}
 
@@ -135,11 +133,6 @@ func (e *Exporter) initClient(ctx context.Context) error {
 			return
 		}
 
-		newClientFunc := e.newClientFunc
-		if newClientFunc == nil {
-			newClientFunc = newBigQueryClient
-		}
-
 		var opts []option.ClientOption
 		if len(e.GoogleCredentials) > 0 {
 			opts = append(
@@ -148,7 +141,11 @@ func (e *Exporter) initClient(ctx context.Context) error {
 			)
 		}
 
-		e.client, e.initErr = newClientFunc(ctx, e.ProjectID, opts...)
+		if e.newClientFunc != nil {
+			e.client, e.initErr = e.newClientFunc(ctx, e.ProjectID, opts...)
+		} else {
+			e.client, e.initErr = newBigQueryClient(ctx, e.ProjectID, opts...)
+		}
 	})
 
 	return e.initErr
@@ -163,16 +160,20 @@ func (e *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, big
 		if err != nil {
 			return nil, nil, err
 		}
+
 		if rowType == "" {
 			// Skip events this exporter does not handle.
 			continue
 		}
+
 		if eventType == "" {
 			eventType = rowType
 		}
+
 		if eventType != rowType {
 			return nil, nil, errBigqueryExporterReceivedMixed
 		}
+
 		rows = append(rows, row)
 	}
 
@@ -217,17 +218,19 @@ func (e *Exporter) exportRows(
 	rows []rowSaver,
 ) error {
 	if e.AutoMigrate {
-		if err := e.client.EnsureTable(ctx, e.DatasetID, table, schema); err != nil {
-			return err
+		err := e.client.EnsureTable(ctx, e.DatasetID, table, schema)
+		if err != nil {
+			return fmt.Errorf("ensure BigQuery table: %w", err)
 		}
 	}
 
-	ins := e.client.Inserter(e.DatasetID, table)
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
 		end := min(start+maxRowsPerInsert, len(rows))
-		if err := ins.Put(ctx, rows[start:end]); err != nil {
-			return err
+
+		err := e.client.Put(ctx, e.DatasetID, table, rows[start:end])
+		if err != nil {
+			return fmt.Errorf("insert rows into BigQuery: %w", err)
 		}
 	}
 
@@ -245,6 +248,7 @@ func featureEventRow(event exporter.FeatureEvent) (rowSaver, error) {
 	if err != nil {
 		return rowSaver{}, err
 	}
+
 	metadata, err := jsonString(event.Metadata)
 	if err != nil {
 		return rowSaver{}, err
@@ -273,6 +277,7 @@ func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
 	if err != nil {
 		return rowSaver{}, err
 	}
+
 	evaluationContext, err := jsonString(event.EvaluationContext)
 	if err != nil {
 		return rowSaver{}, err
@@ -295,7 +300,7 @@ func trackingEventRow(event exporter.TrackingEvent) (rowSaver, error) {
 func jsonString(value any) (string, error) {
 	b, err := json.Marshal(value)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal BigQuery JSON field: %w", err)
 	}
 
 	return string(b), nil
@@ -337,9 +342,12 @@ func credentialsType(creds []byte) option.CredentialsType {
 	var parsed struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal(creds, &parsed); err != nil {
+
+	err := json.Unmarshal(creds, &parsed)
+	if err != nil {
 		return option.ServiceAccount
 	}
+
 	switch parsed.Type {
 	case "authorized_user":
 		return option.AuthorizedUser
@@ -356,10 +364,10 @@ func newBigQueryClient(
 	ctx context.Context,
 	projectID string,
 	opts ...option.ClientOption,
-) (bigQueryClient, error) {
+) (*realBigQueryClient, error) {
 	client, err := bigquery.NewClient(ctx, projectID, opts...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create BigQuery client: %w", err)
 	}
 
 	return &realBigQueryClient{client: client}, nil
@@ -369,8 +377,17 @@ type realBigQueryClient struct {
 	client *bigquery.Client
 }
 
-func (c *realBigQueryClient) Inserter(dataset, table string) inserter {
+func (c *realBigQueryClient) Inserter(dataset, table string) *bigquery.Inserter {
 	return c.client.Dataset(dataset).Table(table).Inserter()
+}
+
+func (c *realBigQueryClient) Put(ctx context.Context, dataset, table string, src any) error {
+	err := c.Inserter(dataset, table).Put(ctx, src)
+	if err != nil {
+		return fmt.Errorf("put rows to BigQuery inserter: %w", err)
+	}
+
+	return nil
 }
 
 func (c *realBigQueryClient) EnsureTable(
@@ -379,20 +396,27 @@ func (c *realBigQueryClient) EnsureTable(
 	schema bigquery.Schema,
 ) error {
 	bqDataset := c.client.Dataset(dataset)
-	if err := bqDataset.Create(ctx, nil); err != nil && !isAlreadyExists(err) {
-		return err
+
+	err := bqDataset.Create(ctx, nil)
+	if err != nil && !isAlreadyExists(err) {
+		return fmt.Errorf("create BigQuery dataset: %w", err)
 	}
 
-	err := bqDataset.Table(table).Create(ctx, &bigquery.TableMetadata{Schema: schema})
+	err = bqDataset.Table(table).Create(ctx, &bigquery.TableMetadata{Schema: schema})
 	if err != nil && !isAlreadyExists(err) {
-		return err
+		return fmt.Errorf("create BigQuery table: %w", err)
 	}
 
 	return nil
 }
 
 func (c *realBigQueryClient) Close() error {
-	return c.client.Close()
+	err := c.client.Close()
+	if err != nil {
+		return fmt.Errorf("close BigQuery client: %w", err)
+	}
+
+	return nil
 }
 
 func isAlreadyExists(err error) bool {

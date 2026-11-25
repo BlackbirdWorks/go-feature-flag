@@ -54,6 +54,7 @@ func (e *HTTPError) Error() string {
 	if msg == "" {
 		msg = http.StatusText(e.Code)
 	}
+
 	if e.err == nil {
 		return fmt.Sprintf("code=%d, message=%v", e.Code, msg)
 	}
@@ -63,8 +64,8 @@ func (e *HTTPError) Error() string {
 
 // ErrorBody is the JSON body sent for an error.
 type ErrorBody struct {
-	Message string `json:"message"         example:"Not Found"`
-	Error   string `json:"error,omitempty" example:"the wrapped error, only at the debug level"`
+	Message string `example:"Not Found"                                  json:"message"`
+	Error   string `example:"the wrapped error, only at the debug level" json:"error,omitempty"`
 }
 
 // StatusError is the error of a status that has no HTTPError: the body is the text of the status.
@@ -86,6 +87,7 @@ var (
 // when it has one (500 otherwise) and its message. exposeError adds the wrapped error to the body.
 func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 	code := http.StatusInternalServerError
+
 	var sc interface{ StatusCode() int }
 	if errors.As(err, &sc) {
 		if c := sc.StatusCode(); c != 0 {
@@ -93,13 +95,14 @@ func ErrorResponse(err error, exposeError bool) (int, ErrorBody) {
 		}
 	}
 
-	if he, ok := errors.AsType[*HTTPError](err); ok {
-		body := ErrorBody{Message: he.Message}
+	if httpErr, ok := errors.AsType[*HTTPError](err); ok {
+		body := ErrorBody{Message: httpErr.Message}
 		if body.Message == "" {
 			body.Message = http.StatusText(code)
 		}
-		if exposeError && he.err != nil {
-			body.Error = he.err.Error()
+
+		if exposeError && httpErr.err != nil {
+			body.Error = httpErr.err.Error()
 		}
 
 		return code, body
@@ -118,7 +121,12 @@ func WriteJSON(w http.ResponseWriter, code int, v any) error {
 	w.Header().Set(HeaderContentType, MIMEApplicationJSON)
 	w.WriteHeader(code)
 
-	return json.NewEncoder(w).Encode(v)
+	err := json.NewEncoder(w).Encode(v)
+	if err != nil {
+		return fmt.Errorf("encoding the JSON response: %w", err)
+	}
+
+	return nil
 }
 
 // WriteError sends the error as the response. It sends nothing for a HEAD request but the status.
@@ -129,6 +137,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 	h.Del("Content-Encoding")
 	h.Del("Content-Length")
 	h.Del("Content-Disposition")
+
 	if r.Method == http.MethodHead {
 		w.WriteHeader(code)
 		// commit the response now: the router must not add a body of its own.
@@ -136,6 +145,7 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 
 		return
 	}
+
 	_ = WriteJSON(w, code, body)
 }
 
@@ -143,7 +153,8 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 // kept for the access log.
 func Handle(h func(http.ResponseWriter, *http.Request) error, exposeError bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := h(w, r); err != nil {
+		err := h(w, r)
+		if err != nil {
 			reqlog.RecordError(r.Context(), err)
 			WriteError(w, r, err, exposeError)
 		}

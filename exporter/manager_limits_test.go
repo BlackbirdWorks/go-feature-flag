@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -23,6 +24,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 	if !e.recovered.Load() {
 		return assert.AnError
 	}
+
 	e.events.Add(int64(len(ev)))
 
 	return nil
@@ -33,6 +35,7 @@ func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []expor
 // has a larger one.
 func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name         string
 		smallLimit   int64
@@ -55,20 +58,28 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 			t.Parallel()
 			// the small exporter is down: its events wait for it to recover (final flush).
 			small, large := &outageExporter{}, &countingExporter{bulk: true}
-			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
+			mgr := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
+			am, ok := mgr.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
+
 			for range tt.events {
 				if tt.async {
-					m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 1))
+					am.QueueEvents(make([]exporter.FeatureEvent, 1))
 				} else {
-					m.AddEvent(exporter.FeatureEvent{})
+					mgr.AddEvent(exporter.FeatureEvent{})
 				}
 			}
-			dropped := m.(exporter.DroppedEventsCounter).DroppedEvents()
+
+			dc, ok := mgr.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+
+			dropped := dc.DroppedEvents()
+
 			small.recovered.Store(true)
-			m.Stop()
+			mgr.Stop()
 			assert.LessOrEqual(t, small.events.Load(), tt.wantSmallMax, "the small exporter keeps at most its limit")
 			assert.Equal(t, tt.wantLarge, large.events.Load(), "the other exporter loses nothing")
 			assert.Equal(t, tt.wantDropped, dropped, "every event given up is counted")

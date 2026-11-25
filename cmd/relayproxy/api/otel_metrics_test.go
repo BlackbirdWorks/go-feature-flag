@@ -48,19 +48,24 @@ func Test_OTelMetrics(t *testing.T) {
 			if tt.path != "/health" {
 				method = http.MethodPost
 			}
+
 			srv.Handler().ServeHTTP(httptest.NewRecorder(),
 				httptest.NewRequestWithContext(t.Context(), method, tt.path, nil))
 
 			var data metricdata.ResourceMetrics
 			require.NoError(t, reader.Collect(t.Context(), &data))
+
 			var routes []string
+
 			for _, scope := range data.ScopeMetrics {
 				for _, m := range scope.Metrics {
 					if m.Name != "http.server.request.duration" {
 						continue
 					}
+
 					histogram, ok := m.Data.(metricdata.Histogram[float64])
 					require.True(t, ok)
+
 					for _, point := range histogram.DataPoints {
 						if route, found := point.Attributes.Value("http.route"); found {
 							routes = append(routes, route.AsString())
@@ -68,6 +73,7 @@ func Test_OTelMetrics(t *testing.T) {
 					}
 				}
 			}
+
 			assert.Equal(t, []string{tt.wantRoute}, routes)
 		})
 	}

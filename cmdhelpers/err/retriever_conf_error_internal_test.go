@@ -184,6 +184,7 @@ func TestRetrieverConfError_ImplementsError(t *testing.T) {
 	t.Parallel()
 
 	var _ error = &RetrieverConfError{}
+
 	err := NewRetrieverConfError("test", "test")
 	require.NotNil(t, err, "expected non-nil error")
 	assert.Equal(t, "test", err.property, "property should match")

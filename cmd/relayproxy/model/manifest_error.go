@@ -5,6 +5,6 @@ type ManifestError struct {
 }
 
 type ManifestErrorDetails struct {
-	Message string `json:"message" example:"Authorization header required"`
-	Status  int    `json:"status"  example:"401"`
+	Message string `example:"Authorization header required" json:"message"`
+	Status  int    `example:"401"                           json:"status"`
 }

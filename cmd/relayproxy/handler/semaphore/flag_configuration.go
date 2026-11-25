@@ -50,7 +50,7 @@ type FlagConfigurationResponse struct {
 type FlagConfigurationInput struct {
 	Request
 
-	IfNoneMatch string `header:"If-None-Match" doc:"The request will be processed only if ETag doesn't match."`
+	IfNoneMatch string `doc:"The request will be processed only if ETag doesn't match." header:"If-None-Match"`
 	// RawBody is the JSON document of a FlagConfigurationRequest, the handler decodes it.
 	RawBody []byte `contentType:"application/json"`
 }
@@ -66,7 +66,7 @@ type FlagConfigurationOutput struct {
 // served is answered with the FlagConfigurationResponse that describes the error.
 func (h *FlagConfigurationAPICtrl) Handle(
 	ctx context.Context,
-	in *FlagConfigurationInput,
+	input *FlagConfigurationInput,
 ) (*FlagConfigurationOutput, error) {
 	h.metrics.IncFlagConfigurationCall()
 
@@ -74,28 +74,36 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	defer span.End()
 
 	reqBody := new(FlagConfigurationRequest)
-	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
+
+	err := helper.BindRawBody(input.ContentType(), input.RawBody, reqBody)
+	if err != nil {
 		return &FlagConfigurationOutput{
-			Status: http.StatusBadRequest,
+			Status:       http.StatusBadRequest,
+			LastModified: "",
 			Body: FlagConfigurationResponse{
-				ErrorCode:    FlagConfigErrorInvalidRequest,
-				ErrorDetails: fmt.Sprintf("impossible to read request body: %s", err),
+				Flags:                       nil,
+				EvaluationContextEnrichment: nil,
+				ErrorCode:                   FlagConfigErrorInvalidRequest,
+				ErrorDetails:                fmt.Sprintf("impossible to read request body: %s", err),
 			},
 		}, nil
 	}
 
-	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		return nil, httpErr
+		return nil, fmt.Errorf("getting the flag set of the flag configuration: %w", httpErr)
 	}
 
 	flags, err := flagset.GetFlagsFromCache()
 	if err != nil {
 		return &FlagConfigurationOutput{
-			Status: http.StatusInternalServerError,
+			Status:       http.StatusInternalServerError,
+			LastModified: "",
 			Body: FlagConfigurationResponse{
-				ErrorCode:    FlagConfigErrorRetrievingFlags,
-				ErrorDetails: fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
+				Flags:                       nil,
+				EvaluationContextEnrichment: nil,
+				ErrorCode:                   FlagConfigErrorRetrievingFlags,
+				ErrorDetails:                fmt.Sprintf("impossible to retrieve flag configuration: %s", err),
 			},
 		}, nil
 	}
@@ -103,11 +111,13 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	// filter if we have a list of flags in the request.
 	if len(reqBody.Flags) > 0 {
 		tmpFlags := map[string]flag.Flag{}
+
 		for _, flagKey := range reqBody.Flags {
 			if _, ok := flags[flagKey]; ok {
 				tmpFlags[flagKey] = flags[flagKey]
 			}
 		}
+
 		flags = tmpFlags
 	}
 
@@ -119,6 +129,8 @@ func (h *FlagConfigurationAPICtrl) Handle(
 		Body: FlagConfigurationResponse{
 			EvaluationContextEnrichment: flagset.GetEvaluationContextEnrichment(),
 			Flags:                       flags,
+			ErrorCode:                   "",
+			ErrorDetails:                "",
 		},
 	}, nil
 }

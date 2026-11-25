@@ -7,22 +7,22 @@ import (
 // ProgressiveRollout represents how to progressively roll out a originalRule.
 type ProgressiveRollout struct {
 	// Initial contains a description of the initial state of the rollout.
-	Initial *ProgressiveRolloutStep `json:"initial,omitempty" yaml:"initial,omitempty" toml:"initial,omitempty" jsonschema:"title=initial,description=A description of the initial state of the rollout."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Initial *ProgressiveRolloutStep `json:"initial,omitempty" jsonschema:"title=initial,description=A description of the initial state of the rollout." toml:"initial,omitempty" yaml:"initial,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// End contains what describes the end status of the rollout.
-	End *ProgressiveRolloutStep `json:"end,omitempty" yaml:"end,omitempty" toml:"end,omitempty" jsonschema:"title=initial,description=A description of the end state of the rollout."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	End *ProgressiveRolloutStep `json:"end,omitempty" jsonschema:"title=initial,description=A description of the end state of the rollout." toml:"end,omitempty" yaml:"end,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 }
 
 // ProgressiveRolloutStep define a progressive rollout step (initial and end).
 type ProgressiveRolloutStep struct {
 	// Variation - name of the variation for this step
-	Variation *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"required,title=variation,description=Name of the variation to apply."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Variation *string `json:"variation,omitempty" jsonschema:"required,title=variation,description=Name of the variation to apply." toml:"variation,omitempty" yaml:"variation,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Percentage is the percentage (initial or end) for the progressive rollout
-	Percentage *float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"required,title=percentage,description=The percentage (initial or end) for the progressive rollout."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Percentage *float64 `json:"percentage,omitempty" jsonschema:"required,title=percentage,description=The percentage (initial or end) for the progressive rollout." toml:"percentage,omitempty" yaml:"percentage,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Date is the time it starts or ends.
-	Date *time.Time `json:"date,omitempty" yaml:"date,omitempty" toml:"date,omitempty" jsonschema:"required,title=date,description=Date is the time it starts or ends."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Date *time.Time `json:"date,omitempty" jsonschema:"required,title=date,description=Date is the time it starts or ends." toml:"date,omitempty" yaml:"date,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 }
 
 func (p *ProgressiveRolloutStep) getVariation() string {
@@ -47,9 +47,11 @@ func (p *ProgressiveRolloutStep) mergeStep(updatedStep *ProgressiveRolloutStep) 
 	if updatedStep.Variation != nil {
 		p.Variation = updatedStep.Variation
 	}
+
 	if updatedStep.Date != nil {
 		p.Date = updatedStep.Date
 	}
+
 	if updatedStep.Percentage != nil {
 		p.Percentage = updatedStep.Percentage
 	}
