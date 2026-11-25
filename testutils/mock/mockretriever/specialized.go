@@ -22,7 +22,7 @@ func NewContextAwareRetriever() *ContextAwareRetriever {
 }
 
 // Retrieve returns the mock flag configuration unless ctx is cancelled.
-func (_ *ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
+func (*ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 	select {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("retrieving with the mock retriever: %w", ctx.Err())
@@ -32,7 +32,7 @@ func (_ *ContextAwareRetriever) Retrieve(ctx context.Context) ([]byte, error) {
 }
 
 // Init initializes the mock retriever and honours context cancellation.
-func (_ *ContextAwareRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
+func (*ContextAwareRetriever) Init(ctx context.Context, _ *fflog.FFLogger) error {
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("initializing the mock retriever: %w", ctx.Err())
@@ -42,12 +42,12 @@ func (_ *ContextAwareRetriever) Init(ctx context.Context, _ *fflog.FFLogger) err
 }
 
 // Shutdown stops the mock retriever.
-func (_ *ContextAwareRetriever) Shutdown(_ context.Context) error {
+func (*ContextAwareRetriever) Shutdown(_ context.Context) error {
 	return nil
 }
 
 // Status returns the current status of the mock retriever.
-func (_ *ContextAwareRetriever) Status() retriever.Status {
+func (*ContextAwareRetriever) Status() retriever.Status {
 	return retriever.RetrieverReady
 }
 
@@ -63,7 +63,7 @@ func NewStatusChangingRetriever() *StatusChangingRetriever {
 }
 
 // Retrieve returns the mock flag configuration.
-func (_ *StatusChangingRetriever) Retrieve(_ context.Context) ([]byte, error) {
+func (*StatusChangingRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	return []byte(defaultFlagConfig), nil
 }
 
@@ -105,7 +105,7 @@ func NewRecoverableRetriever(name string) *RecoverableRetriever {
 }
 
 // Retrieve returns the mock flag configuration.
-func (_ *RecoverableRetriever) Retrieve(_ context.Context) ([]byte, error) {
+func (*RecoverableRetriever) Retrieve(_ context.Context) ([]byte, error) {
 	return []byte(defaultFlagConfig), nil
 }
 
@@ -122,7 +122,7 @@ func (m *RecoverableRetriever) Init(_ context.Context, _ *fflog.FFLogger) error 
 }
 
 // Shutdown stops the mock retriever.
-func (_ *RecoverableRetriever) Shutdown(_ context.Context) error {
+func (*RecoverableRetriever) Shutdown(_ context.Context) error {
 	return nil
 }
 

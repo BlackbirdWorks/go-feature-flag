@@ -31,7 +31,7 @@ func NewMonitoring(flagsetManager FlagsetManager) *MonitoringImpl {
 }
 
 // Health returns a static object to show that the server is initialized.
-func (_ *MonitoringImpl) Health() model.HealthResponse {
+func (*MonitoringImpl) Health() model.HealthResponse {
 	return model.HealthResponse{
 		Initialized: true,
 	}

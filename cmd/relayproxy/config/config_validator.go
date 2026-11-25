@@ -185,7 +185,7 @@ func (c *Config) validateFlagSets() error {
 }
 
 // validateFlagSetCommonConfig validates the CommonFlagSet configuration for a single flagset.
-func (_ *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
+func (*Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
 	err := validateRetrievers(flagset.Retriever, flagset.Retrievers)
 	if err != nil {
 		return err

@@ -130,7 +130,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 }
 
 // validateSinglePercentage validates a single percentage.
-func (_ *Rule) validateSinglePercentage(p float64, errCtx string) error {
+func (*Rule) validateSinglePercentage(p float64, errCtx string) error {
 	if p < 0 || math.IsNaN(p) || math.IsInf(p, 0) {
 		return fmt.Errorf("%w: %s has a negative or non-finite percentage (%v)", errInvalidPercentage, errCtx, p)
 	}

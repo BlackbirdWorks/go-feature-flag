@@ -115,7 +115,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk returns true because BigQuery rows are flushed in batches.
-func (_ *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }
 
@@ -151,7 +151,7 @@ func (e *Exporter) initClient(ctx context.Context) error {
 	return e.initErr
 }
 
-func (_ *Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, bigquery.Schema, error) {
+func (*Exporter) buildRows(events []exporter.ExportableEvent) ([]rowSaver, bigquery.Schema, error) {
 	rows := make([]rowSaver, 0, len(events))
 	eventType := ""
 

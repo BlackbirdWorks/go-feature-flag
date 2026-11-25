@@ -286,7 +286,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk returns true because events are inserted in batches.
-func (_ *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return true
 }
 

@@ -154,6 +154,6 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 // OutputFormat declares that this retriever always returns JSON-encoded data,
 // so the manager can pick the JSON parser regardless of the global FileFormat.
-func (_ *Retriever) OutputFormat() string {
+func (*Retriever) OutputFormat() string {
 	return "json"
 }

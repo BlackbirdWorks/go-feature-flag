@@ -95,7 +95,7 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 	return result
 }
 
-// VisitLogicalExp evaluates an and or or expression of two queries.
+// VisitLogicalExp evaluates an and/or expression of two queries.
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
 	left := assertType[bool](ctx.Query(0).Accept(j))
 

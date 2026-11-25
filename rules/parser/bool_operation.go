@@ -25,7 +25,7 @@ func (o *BoolOperation) NE(left, right Operand) (bool, error) {
 	return l != r, nil
 }
 
-func (_ *BoolOperation) get(left, right Operand) (bool, bool, error) {
+func (*BoolOperation) get(left, right Operand) (bool, bool, error) {
 	if left == nil {
 		return false, false, ErrEvalOperandMissing
 	}

@@ -63,7 +63,7 @@ func (c *ServiceImpl) Close() {
 }
 
 // getDifferences is checking what are the difference in the updated cache.
-func (_ *ServiceImpl) getDifferences(
+func (*ServiceImpl) getDifferences(
 	oldCache, newCache map[string]flag.Flag) notifier.DiffCache {
 	diff := notifier.DiffCache{
 		Deleted: map[string]flag.Flag{},

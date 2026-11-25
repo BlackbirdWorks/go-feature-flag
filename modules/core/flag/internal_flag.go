@@ -658,7 +658,7 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 }
 
 // rulesRequireBucketing checks if any of the rules require bucketing.
-func (_ *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
+func (*InternalFlag) rulesRequireBucketing(rules []Rule) bool {
 	for _, rule := range rules {
 		if rule.RequiresBucketing() {
 			return true
@@ -674,7 +674,7 @@ func (f *InternalFlag) defaultRuleRequiresBucketing() bool {
 }
 
 // requiresBucketingCheck checks if the bucketing is required and returns the appropriate error.
-func (_ *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
+func (*InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
 	if requiresBucketing {
 		return "", &internalerror.EmptyBucketingKeyError{Message: fmt.Sprintf("Empty %s key", key)}
 	}

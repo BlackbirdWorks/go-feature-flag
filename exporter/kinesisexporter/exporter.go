@@ -342,7 +342,7 @@ func backoff(attempt int) time.Duration {
 }
 
 // IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (_ *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return false
 }
 
@@ -446,7 +446,7 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 }
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
-func (_ *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
+func (*Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
 	b, err := json.Marshal(event)
 	if err != nil {
 		return nil, fmt.Errorf("marshal kinesis event: %w", err)

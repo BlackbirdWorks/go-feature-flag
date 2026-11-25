@@ -58,7 +58,7 @@ func NewExporter(mode ExporterMode) *Exporter {
 }
 
 // IsBulk implements exporter.CommonExporter.
-func (_ *Exporter) IsBulk() bool { return true }
+func (*Exporter) IsBulk() bool { return true }
 
 // Export implements exporter.Exporter.
 func (e *Exporter) Export(ctx context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {

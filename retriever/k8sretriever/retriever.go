@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 )
@@ -43,7 +43,7 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	configMap, err := s.client.CoreV1().
 		ConfigMaps(s.Namespace).
-		Get(ctx, s.ConfigMapName, v1.GetOptions{})
+		Get(ctx, s.ConfigMapName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf(
 			"unable to read from config map %s.%s, error: %w", s.ConfigMapName, s.Namespace, err,

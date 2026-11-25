@@ -201,6 +201,7 @@ func Run(ctx context.Context, t Target, opts Options, out io.Writer) Report {
 		stats[w] = &workerStats{}
 
 		st := stats[w]
+
 		wg.Go(func() {
 			evalLoop(ctx, t, w, st)
 		})

@@ -69,7 +69,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk always returns false as PubSub exporter sends each exporter.FeatureEvent as a separate message.
-func (_ *Exporter) IsBulk() bool {
+func (*Exporter) IsBulk() bool {
 	return false
 }
 

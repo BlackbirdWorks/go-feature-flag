@@ -219,7 +219,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 	m.triggerFlushes(store, async)
 }
 
-func (_ *managerImpl[T]) addAll(store EventStore[T], events []T) {
+func (*managerImpl[T]) addAll(store EventStore[T], events []T) {
 	if batch, ok := store.(interface{ AddAll([]T) }); ok {
 		batch.AddAll(events)
 

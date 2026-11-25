@@ -42,7 +42,7 @@ type environProvider struct {
 }
 
 // ReadBytes is not supported by the environment provider.
-func (_ *environProvider) ReadBytes() ([]byte, error) {
+func (*environProvider) ReadBytes() ([]byte, error) {
 	return nil, errEnvProviderDoesNot
 }
 
