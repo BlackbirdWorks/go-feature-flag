@@ -16,6 +16,19 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	badFlag                     = "bad-flag"
+	defaultValue2               = "defaultValue"
+	description2                = "description"
+	emptyJson                   = "empty.json"
+	fixtureFalse                = "False"
+	fixtureTrue                 = "True"
+	half                        = "Half"
+	invalidConfigurationForFlag = "invalid configuration for flag bad-flag: impossible to find type"
+	key                         = "key"
+	one                         = "One"
+)
+
 // captureHandler stores every slog record so tests can assert message content
 // and severity emitted by GenerateDefinition. The handler is wired in as the
 // logger passed with manifest.WithLogger.
@@ -72,7 +85,7 @@ func defaultRule(variation string) *flag.Rule {
 // and whose default rule selects the variation passed in.
 func boolFlag(defaultVariation string, metadata map[string]any) flag.InternalFlag {
 	return flag.InternalFlag{
-		Variations:  variationsPtr(map[string]any{"True": true, "False": false}),
+		Variations:  variationsPtr(map[string]any{fixtureTrue: true, fixtureFalse: false}),
 		DefaultRule: defaultRule(defaultVariation),
 		Metadata:    metadataPtr(metadata),
 	}
@@ -156,14 +169,14 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name:       "empty input produces empty manifest",
 			flags:      map[string]flag.InternalFlag{},
-			goldenFile: "empty.json",
+			goldenFile: emptyJson,
 		},
 		{
 			name: "boolean flag",
 			flags: map[string]flag.InternalFlag{
-				"boolean-flag": boolFlag("False", map[string]any{
-					"defaultValue": false,
-					"description":  "a boolean flag",
+				"boolean-flag": boolFlag(fixtureFalse, map[string]any{
+					defaultValue2: false,
+					description2:  "a boolean flag",
 				}),
 			},
 			goldenFile: "boolean.json",
@@ -172,10 +185,10 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "boolean flag with experimentation",
 			flags: map[string]flag.InternalFlag{
 				"exp-flag": boolFlagWithExperimentation(
-					"False",
+					fixtureFalse,
 					map[string]any{
-						"defaultValue": false,
-						"description":  "A/B experiment",
+						defaultValue2: false,
+						description2:  "A/B experiment",
 					},
 					time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC),
 					time.Date(2026, 6, 30, 23, 59, 59, 0, time.UTC),
@@ -190,8 +203,8 @@ func TestGenerateDefinition(t *testing.T) {
 					Variations:  variationsPtr(map[string]any{"A": "a", "B": "b"}),
 					DefaultRule: defaultRule("A"),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": "a",
-						"description":  "strings",
+						defaultValue2: "a",
+						description2:  "strings",
 					}),
 				},
 			},
@@ -201,11 +214,11 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "integer flag",
 			flags: map[string]flag.InternalFlag{
 				"int-flag": {
-					Variations:  variationsPtr(map[string]any{"One": 1, "Two": 2}),
-					DefaultRule: defaultRule("One"),
+					Variations:  variationsPtr(map[string]any{one: 1, "Two": 2}),
+					DefaultRule: defaultRule(one),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": 1,
-						"description":  "ints",
+						defaultValue2: 1,
+						description2:  "ints",
 					}),
 				},
 			},
@@ -215,10 +228,10 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "float flag without description",
 			flags: map[string]flag.InternalFlag{
 				"float-flag": {
-					Variations:  variationsPtr(map[string]any{"Half": 0.5, "OneAndHalf": 1.5}),
-					DefaultRule: defaultRule("Half"),
+					Variations:  variationsPtr(map[string]any{half: 0.5, "OneAndHalf": 1.5}),
+					DefaultRule: defaultRule(half),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": 0.5,
+						defaultValue2: 0.5,
 					}),
 				},
 			},
@@ -229,13 +242,13 @@ func TestGenerateDefinition(t *testing.T) {
 			flags: map[string]flag.InternalFlag{
 				"object-flag": {
 					Variations: variationsPtr(map[string]any{
-						"A": map[string]any{"key": "value-a"},
-						"B": map[string]any{"key": "value-b"},
+						"A": map[string]any{key: "value-a"},
+						"B": map[string]any{key: "value-b"},
 					}),
 					DefaultRule: defaultRule("A"),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": map[string]any{"key": "value-a"},
-						"description":  "objects",
+						defaultValue2: map[string]any{key: "value-a"},
+						description2:  "objects",
 					}),
 				},
 			},
@@ -245,11 +258,11 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "int and float .0 mix resolves to integer",
 			flags: map[string]flag.InternalFlag{
 				"mixed-flag": {
-					Variations:  variationsPtr(map[string]any{"Whole": 1, "Half": 2.0}),
+					Variations:  variationsPtr(map[string]any{"Whole": 1, half: 2.0}),
 					DefaultRule: defaultRule("Whole"),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": 1,
-						"description":  "int as float",
+						defaultValue2: 1,
+						description2:  "int as float",
 					}),
 				},
 			},
@@ -259,11 +272,11 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "int and non-whole float mix resolves to float",
 			flags: map[string]flag.InternalFlag{
 				"mixed-flag": {
-					Variations:  variationsPtr(map[string]any{"One": 1, "OneAndHalf": 1.5}),
-					DefaultRule: defaultRule("One"),
+					Variations:  variationsPtr(map[string]any{one: 1, "OneAndHalf": 1.5}),
+					DefaultRule: defaultRule(one),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": 1,
-						"description":  "float and int",
+						defaultValue2: 1,
+						description2:  "float and int",
 					}),
 				},
 			},
@@ -272,8 +285,8 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name: "missing description metadata defaults to empty string",
 			flags: map[string]flag.InternalFlag{
-				"minimal-flag": boolFlag("False", map[string]any{
-					"defaultValue": false,
+				"minimal-flag": boolFlag(fixtureFalse, map[string]any{
+					defaultValue2: false,
 				}),
 			},
 			goldenFile: "no_description.json",
@@ -281,9 +294,9 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name: "non-string description is ignored",
 			flags: map[string]flag.InternalFlag{
-				"weird-flag": boolFlag("False", map[string]any{
-					"defaultValue": false,
-					"description":  42,
+				"weird-flag": boolFlag(fixtureFalse, map[string]any{
+					defaultValue2: false,
+					description2:  42,
 				}),
 			},
 			goldenFile: "description_non_string.json",
@@ -299,31 +312,31 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "flag without metadata is skipped and logged",
 			flags: map[string]flag.InternalFlag{
 				"no-meta": {
-					Variations:  variationsPtr(map[string]any{"True": true, "False": false}),
-					DefaultRule: defaultRule("False"),
+					Variations:  variationsPtr(map[string]any{fixtureTrue: true, fixtureFalse: false}),
+					DefaultRule: defaultRule(fixtureFalse),
 				},
 			},
-			goldenFile: "empty.json",
+			goldenFile: emptyJson,
 			wantLogs:   []string{"flag no-meta ignored: no default value provided"},
 		},
 		{
 			name: "metadata without defaultValue is skipped and logged",
 			flags: map[string]flag.InternalFlag{
-				"no-default": boolFlag("False", map[string]any{
-					"description": "no default",
+				"no-default": boolFlag(fixtureFalse, map[string]any{
+					description2: "no default",
 				}),
 			},
-			goldenFile: "empty.json",
+			goldenFile: emptyJson,
 			wantLogs:   []string{"flag no-default ignored: no default value provided"},
 		},
 		{
 			name: "valid flag is kept while invalid sibling is skipped",
 			flags: map[string]flag.InternalFlag{
-				"valid-flag": boolFlag("True", map[string]any{
-					"defaultValue": true,
+				"valid-flag": boolFlag(fixtureTrue, map[string]any{
+					defaultValue2: true,
 				}),
-				"skipped-flag": boolFlag("True", map[string]any{
-					"description": "no default",
+				"skipped-flag": boolFlag(fixtureTrue, map[string]any{
+					description2: "no default",
 				}),
 			},
 			goldenFile: "partial_skip.json",
@@ -332,15 +345,15 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		{
 			name: "multiple valid flags are all serialized",
 			flags: map[string]flag.InternalFlag{
-				"flag-a": boolFlag("True", map[string]any{
-					"defaultValue": true,
+				"flag-a": boolFlag(fixtureTrue, map[string]any{
+					defaultValue2: true,
 				}),
 				"flag-b": {
-					Variations:  variationsPtr(map[string]any{"One": 1, "Two": 2}),
-					DefaultRule: defaultRule("One"),
+					Variations:  variationsPtr(map[string]any{one: 1, "Two": 2}),
+					DefaultRule: defaultRule(one),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": 1,
-						"description":  "second",
+						defaultValue2: 1,
+						description2:  "second",
 					}),
 				},
 			},
@@ -349,43 +362,43 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 		{
 			name: "unsupported variation type returns wrapped error",
 			flags: map[string]flag.InternalFlag{
-				"bad-flag": {
+				badFlag: {
 					Variations: variationsPtr(map[string]any{
 						"Slice": []int{1, 2, 3},
 					}),
 					DefaultRule: defaultRule("Slice"),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": []int{1, 2, 3},
+						defaultValue2: []int{1, 2, 3},
 					}),
 				},
 			},
-			wantErr: "invalid configuration for flag bad-flag: impossible to find type",
+			wantErr: invalidConfigurationForFlag,
 		},
 		{
 			name: "incompatible variation types return wrapped error",
 			flags: map[string]flag.InternalFlag{
-				"bad-flag": {
+				badFlag: {
 					Variations:  variationsPtr(map[string]any{"A": true, "B": "string"}),
 					DefaultRule: defaultRule("A"),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": true,
+						defaultValue2: true,
 					}),
 				},
 			},
-			wantErr: "invalid configuration for flag bad-flag: impossible to find type",
+			wantErr: invalidConfigurationForFlag,
 		},
 		{
 			name: "empty variations map returns wrapped error",
 			flags: map[string]flag.InternalFlag{
-				"bad-flag": {
+				badFlag: {
 					Variations:  variationsPtr(map[string]any{}),
 					DefaultRule: defaultRule(""),
 					Metadata: metadataPtr(map[string]any{
-						"defaultValue": "ignored",
+						defaultValue2: "ignored",
 					}),
 				},
 			},
-			wantErr: "invalid configuration for flag bad-flag: impossible to find type",
+			wantErr: invalidConfigurationForFlag,
 		},
 	})
 }

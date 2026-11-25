@@ -109,7 +109,7 @@ func TestFlagError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var err error = configfile.FlagError{Flag: "my-flag", Err: tt.err}
+			var err error = configfile.FlagError{Flag: myFlag, Err: tt.err}
 			assert.Equal(t, tt.wantMsg, err.Error())
 			assert.Equal(t, tt.err, errors.Unwrap(err))
 

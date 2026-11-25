@@ -13,6 +13,15 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+const (
+	admin               = "admin"
+	localhost6379       = "localhost:6379"
+	redisExampleCom6380 = "redis.example.com:6380"
+	secret              = "secret"
+	tcp                 = "tcp"
+	test                = "test"
+)
+
 func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 	t.Parallel()
 
@@ -25,20 +34,20 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 		{
 			name: "basic configuration with addr and password",
 			input: &retrieverconf.SerializableRedisOptions{
-				Addr:     "localhost:6379",
-				Password: "secret",
+				Addr:     localhost6379,
+				Password: secret,
 				DB:       1,
 			},
-			want: &redis.Options{Addr: "localhost:6379", Password: "secret", DB: 1},
+			want: &redis.Options{Addr: localhost6379, Password: secret, DB: 1},
 		},
 		{
 			name: "full configuration",
 			input: &retrieverconf.SerializableRedisOptions{
-				Network:               "tcp",
-				Addr:                  "redis.example.com:6380",
+				Network:               tcp,
+				Addr:                  redisExampleCom6380,
 				ClientName:            "semaphore",
 				Protocol:              3,
-				Username:              "admin",
+				Username:              admin,
 				Password:              "password123",
 				DB:                    2,
 				MaxRetries:            5,
@@ -56,17 +65,17 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				PoolFIFO:              true,
 				ContextTimeoutEnabled: true,
 				DisableIndentity:      false,
-				IdentitySuffix:        "test",
+				IdentitySuffix:        test,
 			},
 			want: &redis.Options{
-				Network: "tcp", Addr: "redis.example.com:6380", ClientName: "semaphore", Protocol: 3,
-				Username: "admin", Password: "password123", DB: 2, MaxRetries: 5,
+				Network: tcp, Addr: redisExampleCom6380, ClientName: "semaphore", Protocol: 3,
+				Username: admin, Password: "password123", DB: 2, MaxRetries: 5,
 				MinRetryBackoff: 100 * time.Millisecond, MaxRetryBackoff: 1000 * time.Millisecond,
 				DialTimeout: 10000 * time.Millisecond, ReadTimeout: 5000 * time.Millisecond,
 				WriteTimeout: 5000 * time.Millisecond, PoolSize: 20, PoolTimeout: 6000 * time.Millisecond,
 				MinIdleConns: 5, MaxIdleConns: 15, ConnMaxIdleTime: 300000 * time.Millisecond,
 				ConnMaxLifetime: 600000 * time.Millisecond, PoolFIFO: true, ContextTimeoutEnabled: true,
-				IdentitySuffix: "test",
+				IdentitySuffix: test,
 			},
 		},
 		{
@@ -91,9 +100,9 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 		{
 			name: "zero values are not set (use redis defaults)",
 			input: &retrieverconf.SerializableRedisOptions{
-				Addr: "localhost:6379",
+				Addr: localhost6379,
 			},
-			want: &redis.Options{Addr: "localhost:6379"},
+			want: &redis.Options{Addr: localhost6379},
 		},
 	}
 
@@ -112,13 +121,13 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 	t.Parallel()
 
 	basic := &retrieverconf.SerializableRedisOptions{
-		Addr:     "localhost:6379",
-		Password: "secret",
+		Addr:     localhost6379,
+		Password: secret,
 		DB:       1,
 	}
 	full := &retrieverconf.SerializableRedisOptions{
-		Network:               "tcp",
-		Addr:                  "redis.example.com:6380",
+		Network:               tcp,
+		Addr:                  redisExampleCom6380,
 		ClientName:            "test-client",
 		Protocol:              3,
 		Username:              "user",
@@ -140,7 +149,7 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 		PoolFIFO:              true,
 		ContextTimeoutEnabled: true,
 		DisableIndentity:      false,
-		IdentitySuffix:        "test",
+		IdentitySuffix:        test,
 	}
 
 	tests := []struct {
@@ -188,10 +197,10 @@ func TestSerializableRedisOptions_JSONStructure(t *testing.T) {
 	err := json.Unmarshal([]byte(jsonStr), &opts)
 	require.NoError(t, err)
 
-	assert.Equal(t, "localhost:6379", opts.Addr)
-	assert.Equal(t, "secret", opts.Password)
+	assert.Equal(t, localhost6379, opts.Addr)
+	assert.Equal(t, secret, opts.Password)
 	assert.Equal(t, 1, opts.DB)
-	assert.Equal(t, "admin", opts.Username)
+	assert.Equal(t, admin, opts.Username)
 	assert.Equal(t, 3, opts.MaxRetries)
 	assert.Equal(t, int64(5000), opts.DialTimeoutMs)
 	assert.Equal(t, int64(3000), opts.ReadTimeoutMs)

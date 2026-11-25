@@ -9,6 +9,27 @@ import (
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 )
 
+const (
+	azureBlobStorage      = "azureBlobStorage"
+	bEGINRSAPRIVATEKEY    = "-----BEGIN RSA PRIVATE KEY-----\n..."
+	configmap             = "configmap"
+	eby8VdM02             = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq"
+	flags                 = "flags/"
+	flagsConfigYaml       = "flags/config.yaml"
+	github                = "github"
+	googleStorage         = "googleStorage"
+	http2                 = "http"
+	mongodb               = "mongodb"
+	myorgMyrepo           = "myorg/myrepo"
+	noBucketPropertyFound = "no \"bucket\" property found for kind \"s3\""
+	postgresql            = "postgresql"
+	redis2                = "redis"
+	testBucket            = "testBucket"
+	testYaml              = "test.yaml"
+	xXX                   = "XXX"
+	xxx                   = "xxx"
+)
+
 type retrieverConfValidCase struct {
 	name     string
 	errValue string
@@ -58,7 +79,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind GitHubRetriever without repo slug",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "github",
+				Kind: github,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"repositorySlug\" property found for kind \"github\"",
@@ -67,7 +88,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			name: "kind GitlabRetriever, with URL but without path",
 			fields: retrieverconf.RetrieverConf{
 				Kind: "gitlab",
-				URL:  "XXX",
+				URL:  xXX,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"repositorySlug\" property found for kind \"gitlab\"",
@@ -77,7 +98,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			fields: retrieverconf.RetrieverConf{
 				Kind:           "gitlab",
 				RepositorySlug: "aaa/bbb",
-				URL:            "XXX",
+				URL:            xXX,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"path\" property found for kind \"gitlab\"",
@@ -96,15 +117,15 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 				Kind: "s3",
 			},
 			wantErr:  true,
-			errValue: invalidPrefix + "no \"bucket\" property found for kind \"s3\"",
+			errValue: invalidPrefix + noBucketPropertyFound,
 		},
 		{
 			name: "kind S3Retriever with item and prefix",
 			fields: retrieverconf.RetrieverConf{
 				Kind:   "s3",
-				Bucket: "testBucket",
-				Item:   "test.yaml",
-				Prefix: "flags/",
+				Bucket: testBucket,
+				Item:   testYaml,
+				Prefix: flags,
 			},
 			wantErr:  true,
 			errValue: "invalid retriever: item and prefix are mutually exclusive for kind \"s3\"",
@@ -112,7 +133,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind s3 with item and pattern",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "s3", Bucket: "testBucket", Item: "test.yaml", Pattern: "*.yaml",
+				Kind: "s3", Bucket: testBucket, Item: testYaml, Pattern: "*.yaml",
 			},
 			wantErr:  true,
 			errValue: "invalid retriever: pattern and recursive can only be used without item for kind \"s3\"",
@@ -120,7 +141,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind s3 with item and recursive",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "s3", Bucket: "testBucket", Item: "test.yaml", Recursive: true,
+				Kind: "s3", Bucket: testBucket, Item: testYaml, Recursive: true,
 			},
 			wantErr:  true,
 			errValue: "invalid retriever: pattern and recursive can only be used without item for kind \"s3\"",
@@ -128,7 +149,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind s3 with invalid pattern",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "s3", Bucket: "testBucket", Prefix: "flags/", Pattern: "[a-",
+				Kind: "s3", Bucket: testBucket, Prefix: flags, Pattern: "[a-",
 			},
 			wantErr:  true,
 			errValue: "invalid retriever: invalid pattern \"[a-\": syntax error in pattern for kind \"s3\"",
@@ -136,7 +157,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind s3 with pattern containing a slash",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "s3", Bucket: "testBucket", Prefix: "flags/", Pattern: "sub/*.yaml",
+				Kind: "s3", Bucket: testBucket, Prefix: flags, Pattern: "sub/*.yaml",
 			},
 			wantErr: true,
 			errValue: "invalid retriever: invalid pattern \"sub/*.yaml\": it is matched against the file name only and can" +
@@ -146,15 +167,15 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			name: "kind s3 with prefix and no bucket",
 			fields: retrieverconf.RetrieverConf{
 				Kind:   "s3",
-				Prefix: "flags/",
+				Prefix: flags,
 			},
 			wantErr:  true,
-			errValue: invalidPrefix + "no \"bucket\" property found for kind \"s3\"",
+			errValue: invalidPrefix + noBucketPropertyFound,
 		},
 		{
 			name: "kind HTTPRetriever without URL",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "http",
+				Kind: http2,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"url\" property found for kind \"http\"",
@@ -162,7 +183,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind HTTPRetriever with client certificate but without client key",
 			fields: retrieverconf.RetrieverConf{
-				Kind:               "http",
+				Kind:               http2,
 				URL:                "https://gofeatureflag.org/my-flag-test.yaml",
 				HTTPClientCertPath: "client.crt",
 			},
@@ -172,7 +193,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind HTTPRetriever with client key but without client certificate",
 			fields: retrieverconf.RetrieverConf{
-				Kind:              "http",
+				Kind:              http2,
 				URL:               "https://gofeatureflag.org/my-flag-test.yaml",
 				HTTPClientKeyPath: "client.key",
 			},
@@ -182,7 +203,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind GCP without Object",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "googleStorage",
+				Kind: googleStorage,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"object\" property found for kind \"googleStorage\"",
@@ -190,7 +211,7 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind GitHubRetriever without path",
 			fields: retrieverconf.RetrieverConf{
-				Kind:           "github",
+				Kind:           github,
 				RepositorySlug: "thomaspoignant/go-feature-flag",
 			},
 			wantErr:  true,
@@ -208,16 +229,16 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 			name: "kind s3 without bucket",
 			fields: retrieverconf.RetrieverConf{
 				Kind: "s3",
-				Item: "test.yaml",
+				Item: testYaml,
 			},
 			wantErr:  true,
-			errValue: invalidPrefix + "no \"bucket\" property found for kind \"s3\"",
+			errValue: invalidPrefix + noBucketPropertyFound,
 		},
 		{
 			name: "kind google storage without bucket",
 			fields: retrieverconf.RetrieverConf{
-				Kind:   "googleStorage",
-				Object: "test.yaml",
+				Kind:   googleStorage,
+				Object: testYaml,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"bucket\" property found for kind \"googleStorage\"",
@@ -225,10 +246,10 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind azureBlobStorage without object",
 			fields: retrieverconf.RetrieverConf{
-				Kind:        "azureBlobStorage",
+				Kind:        azureBlobStorage,
 				Container:   "testcontainer",
 				AccountName: "devstoreaccount1",
-				AccountKey:  "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq",
+				AccountKey:  eby8VdM02,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"object\" property found for kind \"azureBlobStorage\"",
@@ -236,10 +257,10 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind azureBlobStorage without accountName",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "azureBlobStorage",
+				Kind:       azureBlobStorage,
 				Container:  "testcontainer",
 				Object:     "flag-config.yaml",
-				AccountKey: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq",
+				AccountKey: eby8VdM02,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"accountName\" property found for kind \"azureBlobStorage\"",
@@ -247,10 +268,10 @@ func TestRetrieverConf_IsValid(t *testing.T) {
 		{
 			name: "kind azureBlobStorage without container",
 			fields: retrieverconf.RetrieverConf{
-				Kind:        "azureBlobStorage",
+				Kind:        azureBlobStorage,
 				Object:      "flag-config.yaml",
 				AccountName: "devstoreaccount1",
-				AccountKey:  "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq",
+				AccountKey:  eby8VdM02,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"container\" property found for kind \"azureBlobStorage\"",
@@ -266,25 +287,25 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 			name: "valid s3",
 			fields: retrieverconf.RetrieverConf{
 				Kind:   "s3",
-				Item:   "test.yaml",
-				Bucket: "testBucket",
+				Item:   testYaml,
+				Bucket: testBucket,
 			},
 		},
 		{
 			name: "valid s3 without item nor prefix (bucket root)",
 			fields: retrieverconf.RetrieverConf{
 				Kind:   "s3",
-				Bucket: "testBucket",
+				Bucket: testBucket,
 			},
 		},
 		{
 			name: "valid s3 with prefix",
 			fields: retrieverconf.RetrieverConf{
 				Kind:      "s3",
-				Prefix:    "flags/",
+				Prefix:    flags,
 				Pattern:   "*.yaml",
 				Recursive: true,
-				Bucket:    "testBucket",
+				Bucket:    testBucket,
 			},
 		},
 		{
@@ -293,25 +314,25 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 				Kind:      "s3",
 				Prefix:    "/",
 				Recursive: true,
-				Bucket:    "testBucket",
+				Bucket:    testBucket,
 			},
 		},
 		{
 			name: "valid googleStorage",
 			fields: retrieverconf.RetrieverConf{
-				Kind:   "googleStorage",
-				Object: "test.yaml",
-				Bucket: "testBucket",
+				Kind:   googleStorage,
+				Object: testYaml,
+				Bucket: testBucket,
 			},
 		},
 		{
 			name: "valid github",
 			fields: retrieverconf.RetrieverConf{
-				Kind:           "github",
+				Kind:           github,
 				RepositorySlug: "thomaspoignant/go-feature-flag",
 				Branch:         "main",
 				Path:           "testdata/config.yaml",
-				GithubToken:    "XXX",
+				GithubToken:    xXX,
 				Timeout:        5000,
 			},
 		},
@@ -325,7 +346,7 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "valid http",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "http",
+				Kind:       http2,
 				URL:        "http://perdu.com/flags",
 				HTTPMethod: http.MethodGet,
 				HTTPBody:   `{"yo"": "yo"}`,
@@ -338,10 +359,10 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind k8s configmap without namespace",
 			fields: retrieverconf.RetrieverConf{
-				Kind:      "configmap",
+				Kind:      configmap,
 				Namespace: "",
-				Key:       "xxx",
-				ConfigMap: "xxx",
+				Key:       xxx,
+				ConfigMap: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"namespace\" property found for kind \"configmap\"",
@@ -349,9 +370,9 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind k8s configmap without key",
 			fields: retrieverconf.RetrieverConf{
-				Kind:      "configmap",
-				Namespace: "xxx",
-				ConfigMap: "xxx",
+				Kind:      configmap,
+				Namespace: xxx,
+				ConfigMap: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"key\" property found for kind \"configmap\"",
@@ -359,9 +380,9 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind k8s configmap without ConfigMap",
 			fields: retrieverconf.RetrieverConf{
-				Kind:      "configmap",
-				Namespace: "xxx",
-				Key:       "xxx",
+				Kind:      configmap,
+				Namespace: xxx,
+				Key:       xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"configmap\" property found for kind \"configmap\"",
@@ -369,19 +390,19 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind k8s valid",
 			fields: retrieverconf.RetrieverConf{
-				Kind:      "configmap",
-				Namespace: "xxx",
-				Key:       "xxx",
-				ConfigMap: "xxx",
+				Kind:      configmap,
+				Namespace: xxx,
+				Key:       xxx,
+				ConfigMap: xxx,
 			},
 		},
 		{
 			name: "kind mongoDB without URI",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "mongodb",
+				Kind:       mongodb,
 				URI:        "",
-				Collection: "xxx",
-				Database:   "xxx",
+				Collection: xxx,
+				Database:   xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"uri\" property found for kind \"mongodb\"",
@@ -389,8 +410,8 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind redis without options (old RedisOptions)",
 			fields: retrieverconf.RetrieverConf{
-				Kind:        "redis",
-				RedisPrefix: "xxx",
+				Kind:        redis2,
+				RedisPrefix: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"redisOptions\" property found for kind \"redis\"",
@@ -398,44 +419,44 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind redis with RedisOptions",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "redis",
+				Kind: redis2,
 				RedisOptions: &retrieverconf.SerializableRedisOptions{
-					Addr: "localhost:6379",
+					Addr: localhost6379,
 				},
-				RedisPrefix: "xxx",
+				RedisPrefix: xxx,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind redis with SerializableRedisOptions",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "redis",
+				Kind: redis2,
 				RedisOptions: &retrieverconf.SerializableRedisOptions{
-					Addr: "localhost:6379",
+					Addr: localhost6379,
 				},
-				RedisPrefix: "xxx",
+				RedisPrefix: xxx,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind redis with RedisOptions",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "redis",
+				Kind: redis2,
 				RedisOptions: &retrieverconf.SerializableRedisOptions{
 					Addr: "new:6379",
 				},
-				RedisPrefix: "xxx",
+				RedisPrefix: xxx,
 			},
 			wantErr: false,
 		},
 		{
 			name: "kind redis with RedisOptions but empty Addr",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "redis",
+				Kind: redis2,
 				RedisOptions: &retrieverconf.SerializableRedisOptions{
 					Addr: "",
 				},
-				RedisPrefix: "xxx",
+				RedisPrefix: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"redisOptions.addr\" property found for kind \"redis\"",
@@ -443,11 +464,11 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind redis with RedisOptions but empty Addr (2)",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "redis",
+				Kind: redis2,
 				RedisOptions: &retrieverconf.SerializableRedisOptions{
 					Addr: "",
 				},
-				RedisPrefix: "xxx",
+				RedisPrefix: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"redisOptions.addr\" property found for kind \"redis\"",
@@ -455,10 +476,10 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind mongoDB without Collection",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "mongodb",
-				URI:        "xxx",
+				Kind:       mongodb,
+				URI:        xxx,
 				Collection: "",
-				Database:   "xxx",
+				Database:   xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"collection\" property found for kind \"mongodb\"",
@@ -466,9 +487,9 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind mongoDB without database",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "mongodb",
-				URI:        "xxx",
-				Collection: "xxx",
+				Kind:       mongodb,
+				URI:        xxx,
+				Collection: xxx,
 				Database:   "",
 			},
 			wantErr:  true,
@@ -477,25 +498,25 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind mongoDB valid",
 			fields: retrieverconf.RetrieverConf{
-				Kind:       "mongodb",
-				URI:        "xxx",
-				Collection: "xxx",
-				Database:   "xxx",
+				Kind:       mongodb,
+				URI:        xxx,
+				Collection: xxx,
+				Database:   xxx,
 			},
 		},
 		{
 			name: "kind postgresql valid",
 			fields: retrieverconf.RetrieverConf{
-				Kind:  "postgresql",
-				URI:   "xxx",
-				Table: "xxx",
+				Kind:  postgresql,
+				URI:   xxx,
+				Table: xxx,
 			},
 		},
 		{
 			name: "kind postgresql invalid without URI",
 			fields: retrieverconf.RetrieverConf{
-				Kind:  "postgresql",
-				Table: "xxx",
+				Kind:  postgresql,
+				Table: xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"uri\" property found for kind \"postgresql\"",
@@ -503,8 +524,8 @@ func TestRetrieverConf_IsValid_CloudAndHTTP(t *testing.T) {
 		{
 			name: "kind postgresql invalid without Table",
 			fields: retrieverconf.RetrieverConf{
-				Kind: "postgresql",
-				URI:  "xxx",
+				Kind: postgresql,
+				URI:  xxx,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + "no \"table\" property found for kind \"postgresql\"",
@@ -524,9 +545,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "valid: App auth with inline PEM key",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                 "github",
-				RepositorySlug:       "myorg/myrepo",
-				Path:                 "flags/config.yaml",
+				Kind:                 github,
+				RepositorySlug:       myorgMyrepo,
+				Path:                 flagsConfigYaml,
 				GitHubAppID:          12345,
 				GitHubInstallationID: 67890,
 				GitHubAppPrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----",
@@ -536,9 +557,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "valid: App auth with key file",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                    "github",
-				RepositorySlug:          "myorg/myrepo",
-				Path:                    "flags/config.yaml",
+				Kind:                    github,
+				RepositorySlug:          myorgMyrepo,
+				Path:                    flagsConfigYaml,
 				GitHubAppID:             12345,
 				GitHubInstallationID:    67890,
 				GitHubAppPrivateKeyFile: "/var/secrets/app.pem",
@@ -548,9 +569,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "valid: PAT auth (no App fields)",
 			fields: retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "myorg/myrepo",
-				Path:           "flags/config.yaml",
+				Kind:           github,
+				RepositorySlug: myorgMyrepo,
+				Path:           flagsConfigYaml,
 				AuthToken:      "ghp_xxxx",
 			},
 			wantErr: false,
@@ -558,22 +579,22 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "valid: no auth",
 			fields: retrieverconf.RetrieverConf{
-				Kind:           "github",
-				RepositorySlug: "myorg/myrepo",
-				Path:           "flags/config.yaml",
+				Kind:           github,
+				RepositorySlug: myorgMyrepo,
+				Path:           flagsConfigYaml,
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid: token and App fields together",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                 "github",
-				RepositorySlug:       "myorg/myrepo",
-				Path:                 "flags/config.yaml",
+				Kind:                 github,
+				RepositorySlug:       myorgMyrepo,
+				Path:                 flagsConfigYaml,
 				AuthToken:            "ghp_xxxx",
 				GitHubAppID:          12345,
 				GitHubInstallationID: 67890,
-				GitHubAppPrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...",
+				GitHubAppPrivateKey:  bEGINRSAPRIVATEKEY,
 			},
 			wantErr: true,
 			errValue: `invalid retriever: token and GitHub App fields (githubAppId, githubInstallationId, githubAppPrivate` +
@@ -582,11 +603,11 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "invalid: App fields missing AppID",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                 "github",
-				RepositorySlug:       "myorg/myrepo",
-				Path:                 "flags/config.yaml",
+				Kind:                 github,
+				RepositorySlug:       myorgMyrepo,
+				Path:                 flagsConfigYaml,
 				GitHubInstallationID: 67890,
-				GitHubAppPrivateKey:  "-----BEGIN RSA PRIVATE KEY-----\n...",
+				GitHubAppPrivateKey:  bEGINRSAPRIVATEKEY,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + `no "githubAppId" property found for kind "github"`,
@@ -594,11 +615,11 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "invalid: App fields missing InstallationID",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                "github",
-				RepositorySlug:      "myorg/myrepo",
-				Path:                "flags/config.yaml",
+				Kind:                github,
+				RepositorySlug:      myorgMyrepo,
+				Path:                flagsConfigYaml,
 				GitHubAppID:         12345,
-				GitHubAppPrivateKey: "-----BEGIN RSA PRIVATE KEY-----\n...",
+				GitHubAppPrivateKey: bEGINRSAPRIVATEKEY,
 			},
 			wantErr:  true,
 			errValue: invalidPrefix + `no "githubInstallationId" property found for kind "github"`,
@@ -606,9 +627,9 @@ func TestRetrieverConf_validateGitHubAuth(t *testing.T) {
 		{
 			name: "invalid: App fields missing private key",
 			fields: retrieverconf.RetrieverConf{
-				Kind:                 "github",
-				RepositorySlug:       "myorg/myrepo",
-				Path:                 "flags/config.yaml",
+				Kind:                 github,
+				RepositorySlug:       myorgMyrepo,
+				Path:                 flagsConfigYaml,
 				GitHubAppID:          12345,
 				GitHubInstallationID: 67890,
 			},

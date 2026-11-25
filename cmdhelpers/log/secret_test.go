@@ -45,7 +45,7 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 		{name: "%v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%v", sample) }},
 		{name: "%+v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%+v", sample) }},
 		{name: "%#v of the struct", got: func(*testing.T) string { return fmt.Sprintf("%#v", sample) }},
-		{name: "json", got: func(t *testing.T) string {
+		{name: json2, got: func(t *testing.T) string {
 			t.Helper()
 
 			b, err := json.Marshal(sample)
@@ -74,13 +74,13 @@ func TestSecretIsNeverPrinted(t *testing.T) {
 func TestSecretInTheLogs(t *testing.T) {
 	t.Parallel()
 
-	for _, format := range []string{"json", "logfmt"} {
+	for _, format := range []string{json2, logfmt} {
 		t.Run(format, func(t *testing.T) {
 			t.Parallel()
 
 			var out bytes.Buffer
 
-			logger, err := log.New(format, "debug", log.WithWriter(&out))
+			logger, err := log.New(format, debug, log.WithWriter(&out))
 			require.NoError(t, err)
 
 			// the three ways a secret reaches the logs: a secret attribute, a secret field of a struct, an
