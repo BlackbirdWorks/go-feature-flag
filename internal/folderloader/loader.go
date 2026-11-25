@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/blackbirdworks/semaphore/internal"
+	"log/slog"
 	"path"
 	"slices"
 	"strings"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -56,7 +56,7 @@ type Store interface {
 // Options are the settings of a Loader.
 type Options struct {
 	// Logger is used for the warnings, nothing is logged when it is nil.
-	Logger *fflog.FFLogger
+	Logger *slog.Logger
 	// Prefix is the folder to load. Leading "/" are trimmed and a trailing "/" is added if missing.
 	// "" and "/" are the root.
 	Prefix string
@@ -90,7 +90,7 @@ type Loader struct {
 	prefix  string
 	opts    Options
 	// logger is the logger of the options, or one that discards everything.
-	logger *fflog.FFLogger
+	logger *slog.Logger
 }
 
 // New creates a Loader reading the files from store.

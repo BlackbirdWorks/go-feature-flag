@@ -8,7 +8,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var _ Service = (*ServiceImpl)(nil)
@@ -16,7 +15,7 @@ var _ Service = (*ServiceImpl)(nil)
 // Service dispatches flag change notifications to the notifiers.
 type Service interface {
 	Close()
-	Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger)
+	Notify(oldCache, newCache map[string]flag.Flag, log *slog.Logger)
 }
 
 // ServiceImpl is the default Service implementation.
@@ -37,7 +36,7 @@ func NewService(notifiers []notifier.Notifier) *ServiceImpl {
 // oldCache is the old cache of the flags.
 // newCache is the new cache of the flags.
 // log is the logger to use.
-func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger) {
+func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *slog.Logger) {
 	diff := c.getDifferences(oldCache, newCache)
 	if diff.HasDiff() {
 		for _, n := range c.Notifiers {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -21,13 +20,13 @@ type InMemoryCache struct {
 	// Flags are the flags by key. A flag of the map is shared by every reader: it must be treated
 	// as read-only once it is in the map.
 	Flags  map[string]*flag.InternalFlag
-	Logger *fflog.FFLogger
+	Logger *slog.Logger
 	// Service validates the flags that are added, and keeps the parses of their queries.
 	Service *flag.Service
 }
 
 // NewInMemoryCache creates an empty cache, which validates its flags with svc.
-func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache {
+func NewInMemoryCache(svc *flag.Service, logger *slog.Logger) *InMemoryCache {
 	return &InMemoryCache{
 		Flags:   map[string]*flag.InternalFlag{},
 		Logger:  logger,

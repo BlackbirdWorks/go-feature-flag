@@ -20,7 +20,6 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 var (
@@ -31,7 +30,7 @@ var _ Manager = (*ManagerImpl)(nil)
 
 // Manager caches the flag configurations and gives access to the flags.
 type Manager interface {
-	UpdateCache(newFlags map[string]dto.DTO, log *fflog.FFLogger, notifyChanges bool) error
+	UpdateCache(newFlags map[string]dto.DTO, log *slog.Logger, notifyChanges bool) error
 	Close()
 	GetFlag(key string) (flag.Flag, error)
 	// AllFlags returns a snapshot of the flags that the caller is free to change.
@@ -53,7 +52,7 @@ type ManagerImpl struct {
 	mutex                           sync.RWMutex
 	notificationService             notification.Service
 	latestUpdate                    time.Time
-	logger                          *fflog.FFLogger
+	logger                          *slog.Logger
 	persistentFlagConfigurationFile string
 	// persistWg tracks the in-flight PersistCache goroutines.
 	persistWg sync.WaitGroup
@@ -74,7 +73,7 @@ func WithService(svc *flag.Service) Option {
 func New(
 	notificationService notification.Service,
 	persistentFlagConfigurationFile string,
-	logger *fflog.FFLogger,
+	logger *slog.Logger,
 	opts ...Option,
 ) *ManagerImpl {
 	logger = internal.LoggerOrDiscard(logger)
@@ -128,7 +127,7 @@ func ConvertToFlagStruct(
 // UpdateCache replaces the cached flags with the flags of the new configuration.
 func (c *ManagerImpl) UpdateCache(
 	newFlags map[string]dto.DTO,
-	log *fflog.FFLogger,
+	log *slog.Logger,
 	notifyChanges bool,
 ) error {
 	newCache := NewInMemoryCache(c.service, c.logger)
