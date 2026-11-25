@@ -53,7 +53,8 @@ const (
 	variationB                    = "variation_B"
 	variationC                    = "variation_C"
 	variationD                    = "variation_D"
-	fixtureFalse                  = "fixtureFalse"
+	variationFalseName            = "variationFalse"
+	variationTrueName             = "variationTrue"
 )
 
 type internalFlagValueArgs struct {
@@ -1207,8 +1208,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			name: "Should apply the most recent scheduled step when two steps edit the same rule name (newest date wins)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"fixtureTrue": new(any(true)),
-					fixtureFalse:  new(any(false)),
+					variationTrueName:  new(any(true)),
+					variationFalseName: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1216,12 +1217,12 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 						Query: new(
 							varEnvironmentUUID0Ffcc,
 						),
-						VariationResult: new(fixtureFalse),
+						VariationResult: new(variationFalseName),
 					},
 				},
 				DefaultRule: &flag.Rule{
 					Name:            new("Default"),
-					VariationResult: new(fixtureFalse),
+					VariationResult: new(variationFalseName),
 				},
 				Metadata: &map[string]any{
 					"type":       "ADVANCED_FLAG",
@@ -1235,7 +1236,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 								Query: new(
 									varEnvironmentUUID0Ffcc,
 								),
-								VariationResult: new(fixtureFalse),
+								VariationResult: new(variationFalseName),
 							},
 						},
 						Date: new(time.Date(2026, 6, 11, 9, 50, 0, 0, time.UTC)),
@@ -1247,7 +1248,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 								Query: new(
 									varEnvironmentUUID0Ffcc,
 								),
-								VariationResult: new("fixtureTrue"),
+								VariationResult: new(variationTrueName),
 							},
 						},
 						Date: new(time.Date(2026, 6, 11, 9, 49, 0, 0, time.UTC)),
@@ -1268,11 +1269,11 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					DefaultSdkValue: false,
 				},
 			},
-			// Newest scheduled step (09:50, fixtureFalse) must win over the
-			// older one (09:49, fixtureTrue).
+			// Newest scheduled step (09:50, variationFalseName) must win over the
+			// older one (09:49, variationTrueName).
 			want: false,
 			want1: flag.ResolutionDetails{
-				Variant:   fixtureFalse,
+				Variant:   variationFalseName,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
 				RuleName:  new(devEnvironment),
