@@ -1,7 +1,7 @@
 name: Release
 
 # A release is cut by running this workflow by hand (workflow_dispatch) on main and choosing
-# a bump type (patch, minor or major). The workflow reads the latest stable vMAJOR.MINOR.PATCH
+# a bump type (minor or major). The workflow reads the latest stable vMAJOR.MINOR.PATCH
 # tag, computes the next version, creates the annotated tag and publishes it, all in this one
 # run (a tag pushed with GITHUB_TOKEN does not start another workflow run, so the release job
 # is chained to the tag job here instead):
@@ -31,10 +31,9 @@ on:
         description: "Version part to increment from the latest stable tag (no tag yet: the first release is v0.1.0 whatever is chosen)"
         type: choice
         options:
-          - patch
           - minor
           - major
-        default: patch
+        default: minor
       dry_run:
         description: "Compute the next version and build everything, but create no tag and publish nothing"
         type: boolean

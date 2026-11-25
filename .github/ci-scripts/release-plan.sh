@@ -3,7 +3,7 @@
 # whether it is a dry run. Inputs come from the environment (never interpolated into code):
 #   EVENT_NAME         push | workflow_dispatch
 #   REF, REF_NAME      github.ref (refs/heads/main, refs/tags/v0.1.0), github.ref_name
-#   INPUT_BUMP         patch | minor | major     (workflow_dispatch)
+#   INPUT_BUMP         minor | major             (workflow_dispatch)
 #   INPUT_DRY_RUN      true | false              (workflow_dispatch)
 #   INPUT_RELEASE_TAG  existing tag to re-publish, or empty (workflow_dispatch)
 # It reads the tags of the git repository in the current directory and appends
@@ -42,19 +42,23 @@ else
     [[ "${REF:-}" == refs/heads/main ]] || fail "a release is cut from main only: pick main in 'Use workflow from'"
     create=true
   fi
-  bump="${INPUT_BUMP:-patch}"
+  bump="${INPUT_BUMP:-minor}"
+  # Checked before the tag lookup so a wrong bump is refused for the first release too.
+  case "$bump" in
+    minor | major) ;;
+    patch) fail "bump 'patch' is not offered: choose minor or major" ;;
+    *) fail "unknown bump '$bump' (minor or major)" ;;
+  esac
   # Latest stable tag, highest version first. Pre-release tags are ignored.
   latest=$(git tag --list 'v*' | grep -E "$stable_re" | sort -V | tail -1 || true)
   if [[ -z "$latest" ]]; then
     # First release: v0.1.0 whatever the bump (the owner's chosen first version).
     tag=v0.1.0
   else
-    IFS=. read -r major minor patch <<< "${latest#v}"
+    IFS=. read -r major minor _ <<< "${latest#v}"
     case "$bump" in
       major) tag="v$((major + 1)).0.0" ;;
       minor) tag="v${major}.$((minor + 1)).0" ;;
-      patch) tag="v${major}.${minor}.$((patch + 1))" ;;
-      *) fail "unknown bump '$bump' (patch, minor or major)" ;;
     esac
   fi
   # The Go module path has no /vN suffix: a tag at major >= 2 would be invisible to the
