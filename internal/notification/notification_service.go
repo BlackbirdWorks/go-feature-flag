@@ -13,16 +13,19 @@ import (
 
 var _ Service = (*ServiceImpl)(nil)
 
+// Service dispatches flag change notifications to the notifiers.
 type Service interface {
 	Close()
 	Notify(oldCache, newCache map[string]flag.Flag, log *fflog.FFLogger)
 }
 
+// ServiceImpl is the default Service implementation.
 type ServiceImpl struct {
 	waitGroup *sync.WaitGroup
 	Notifiers []notifier.Notifier
 }
 
+// NewService returns a notification service that sends flag changes to the notifiers.
 func NewService(notifiers []notifier.Notifier) *ServiceImpl {
 	return &ServiceImpl{
 		Notifiers: notifiers,
@@ -54,6 +57,7 @@ func (c *ServiceImpl) Notify(oldCache, newCache map[string]flag.Flag, log *fflog
 	}
 }
 
+// Close stops the notification service.
 func (c *ServiceImpl) Close() {
 	c.waitGroup.Wait()
 }

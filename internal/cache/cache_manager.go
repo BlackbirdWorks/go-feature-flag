@@ -28,6 +28,7 @@ var (
 
 var _ Manager = (*ManagerImpl)(nil)
 
+// Manager caches the flag configurations and gives access to the flags.
 type Manager interface {
 	UpdateCache(newFlags map[string]dto.DTO, log *fflog.FFLogger, notifyChanges bool) error
 	Close()
@@ -40,6 +41,8 @@ type Manager interface {
 	GetLatestUpdateDate() time.Time
 }
 
+// ManagerImpl is the default Manager implementation, which keeps the flags in memory.
+//
 //nolint:govet // fieldalignment: the original order is 3-5% faster on GetFlag (cache-line layout, measured)
 type ManagerImpl struct {
 	// inMemoryCache is the current flag cache: it is replaced as a whole by UpdateCache, so the
@@ -66,6 +69,7 @@ func WithService(svc *flag.Service) Option {
 	return func(m *ManagerImpl) { m.service = svc }
 }
 
+// New returns a cache manager configured with the given options.
 func New(
 	notificationService notification.Service,
 	persistentFlagConfigurationFile string,
@@ -91,6 +95,7 @@ func New(
 	return mgr
 }
 
+// ConvertToFlagStruct converts the flag configuration DTOs to internal flags.
 func ConvertToFlagStruct(
 	loadedFlags []byte,
 	fileFormat string,
@@ -117,6 +122,7 @@ func ConvertToFlagStruct(
 	return newFlags, nil
 }
 
+// UpdateCache replaces the cached flags with the flags of the new configuration.
 func (c *ManagerImpl) UpdateCache(
 	newFlags map[string]dto.DTO,
 	log *fflog.FFLogger,
@@ -148,6 +154,7 @@ func (c *ManagerImpl) UpdateCache(
 	return nil
 }
 
+// Close releases the resources of the cache manager.
 func (c *ManagerImpl) Close() {
 	// Wait for the in-flight persistence goroutines: nothing must write the persistent flag
 	// configuration file after Close() returned. This cannot deadlock nor race with a new
@@ -163,6 +170,8 @@ func (c *ManagerImpl) Close() {
 	}
 }
 
+// GetFlag returns the cached flag with the given key, or an error if the flag does not exist.
+//
 //nolint:ireturn // implements cache.Manager, returns the flag.Flag stored in the cache
 func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	current := c.inMemoryCache.Load()
@@ -173,6 +182,7 @@ func (c *ManagerImpl) GetFlag(key string) (flag.Flag, error) {
 	return current.getFlag(key)
 }
 
+// AllFlags returns a copy of all the cached flags.
 func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
@@ -182,6 +192,7 @@ func (c *ManagerImpl) AllFlags() (map[string]flag.Flag, error) {
 	return current.All(), nil
 }
 
+// AllFlagsReadOnly returns all the cached flags without copying them, and callers must not modify them.
 func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
 	current := c.inMemoryCache.Load()
 	if current == nil {
@@ -191,6 +202,7 @@ func (c *ManagerImpl) AllFlagsReadOnly() (map[string]flag.Flag, error) {
 	return current.shared(), nil
 }
 
+// GetLatestUpdateDate returns the time of the last cache update.
 func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()

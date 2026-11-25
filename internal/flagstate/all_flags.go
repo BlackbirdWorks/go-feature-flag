@@ -59,6 +59,7 @@ func (a *AllFlags) IsValid() bool {
 	return a.valid
 }
 
+// GetFlags returns the state of every flag by name.
 func (a *AllFlags) GetFlags() map[string]FlagState {
 	return a.flags
 }

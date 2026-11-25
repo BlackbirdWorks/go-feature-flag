@@ -16,6 +16,7 @@ var (
 
 var _ Cache = (*InMemoryCache)(nil)
 
+// InMemoryCache stores the flags in memory.
 type InMemoryCache struct {
 	// Flags are the flags by key. A flag of the map is shared by every reader: it must be treated
 	// as read-only once it is in the map.
@@ -34,6 +35,7 @@ func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache 
 	}
 }
 
+// Copy returns a copy of the cache that holds the same flags.
 func (fc *InMemoryCache) Copy() *InMemoryCache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
@@ -55,6 +57,7 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 	return c
 }
 
+// Init replaces the cached flags with the given flags.
 func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
