@@ -1,9 +1,11 @@
 package parser
 
+// BoolOperation compares boolean operands for equality and inequality.
 type BoolOperation struct {
 	NullOperation
 }
 
+// EQ reports whether two boolean operands are equal.
 func (o *BoolOperation) EQ(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -13,6 +15,7 @@ func (o *BoolOperation) EQ(left Operand, right Operand) (bool, error) {
 	return l == r, nil
 }
 
+// NE reports whether two boolean operands are not equal.
 func (o *BoolOperation) NE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {

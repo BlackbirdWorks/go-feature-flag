@@ -11,24 +11,30 @@ const (
 	msg2 = "msg"
 )
 
+// ErrVals holds the key-value context attached to a NestedError.
 type ErrVals map[string]any
 
+// Dupe returns a shallow copy of the values.
 func (e ErrVals) Dupe() ErrVals {
 	ret := make(ErrVals)
 	maps.Copy(ret, e)
 
 	return ret
 }
+
+// Merge copies the entries of vals into e.
 func (e ErrVals) Merge(vals ErrVals) {
 	maps.Copy(e, vals)
 }
 
+// NestedError wraps an error with a message and the values that describe it.
 type NestedError struct {
 	Err  error
 	Vals ErrVals
 	Msg  string
 }
 
+// Original returns the innermost error of a chain of NestedError values.
 func (e *NestedError) Original() error {
 	// Exact type, not errors.As: an error that merely wraps a NestedError is the original.
 	//nolint:errorlint // exact *NestedError check stops unwrapping outer wrappers
@@ -54,6 +60,7 @@ func (e *NestedError) Error() string {
 	return string(data)
 }
 
+// Set merges vals into the values of the error and returns the error.
 func (e *NestedError) Set(vals ErrVals) *NestedError {
 	if e.Vals == nil {
 		e.Vals = make(ErrVals)

@@ -2,10 +2,12 @@ package parser
 
 import "slices"
 
+// FloatOperation compares floating-point operands.
 type FloatOperation struct {
 	NullOperation
 }
 
+// EQ reports whether two floating-point operands are equal.
 func (o *FloatOperation) EQ(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -15,6 +17,7 @@ func (o *FloatOperation) EQ(left Operand, right Operand) (bool, error) {
 	return l == r, nil
 }
 
+// NE reports whether two floating-point operands are not equal.
 func (o *FloatOperation) NE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -24,6 +27,7 @@ func (o *FloatOperation) NE(left Operand, right Operand) (bool, error) {
 	return l != r, nil
 }
 
+// GT reports whether the left operand is greater than the right operand.
 func (o *FloatOperation) GT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -33,6 +37,7 @@ func (o *FloatOperation) GT(left Operand, right Operand) (bool, error) {
 	return l > r, nil
 }
 
+// LT reports whether the left operand is less than the right operand.
 func (o *FloatOperation) LT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -42,6 +47,7 @@ func (o *FloatOperation) LT(left Operand, right Operand) (bool, error) {
 	return l < r, nil
 }
 
+// GE reports whether the left operand is greater than or equal to the right operand.
 func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -51,6 +57,7 @@ func (o *FloatOperation) GE(left Operand, right Operand) (bool, error) {
 	return l >= r, nil
 }
 
+// LE reports whether the left operand is less than or equal to the right operand.
 func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -60,6 +67,7 @@ func (o *FloatOperation) LE(left Operand, right Operand) (bool, error) {
 	return l <= r, nil
 }
 
+// IN reports whether the left operand is one of the values in the right operand.
 func (o *FloatOperation) IN(left Operand, right Operand) (bool, error) {
 	leftVal, err := toFloat(left)
 	if err != nil {

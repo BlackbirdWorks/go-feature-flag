@@ -10,10 +10,12 @@ const (
 	parsingTheVersionQ = "parsing the version %q: %w"
 )
 
+// VersionOperation compares semantic version operands.
 type VersionOperation struct {
 	NullOperation
 }
 
+// EQ reports whether two versions are equal.
 func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -23,6 +25,7 @@ func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
 	return leftVer.EQ(rightVer), nil
 }
 
+// NE reports whether two versions are not equal.
 func (v *VersionOperation) NE(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -32,6 +35,7 @@ func (v *VersionOperation) NE(left Operand, right Operand) (bool, error) {
 	return leftVer.NE(rightVer), nil
 }
 
+// LT reports whether the left version is lower than the right one.
 func (v *VersionOperation) LT(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -41,6 +45,7 @@ func (v *VersionOperation) LT(left Operand, right Operand) (bool, error) {
 	return leftVer.LT(rightVer), nil
 }
 
+// GT reports whether the left version is higher than the right one.
 func (v *VersionOperation) GT(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -50,6 +55,7 @@ func (v *VersionOperation) GT(left Operand, right Operand) (bool, error) {
 	return leftVer.GT(rightVer), nil
 }
 
+// LE reports whether the left version is lower than or equal to the right one.
 func (v *VersionOperation) LE(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -59,6 +65,7 @@ func (v *VersionOperation) LE(left Operand, right Operand) (bool, error) {
 	return leftVer.LE(rightVer), nil
 }
 
+// GE reports whether the left version is higher than or equal to the right one.
 func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {

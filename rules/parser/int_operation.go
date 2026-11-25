@@ -2,10 +2,12 @@ package parser
 
 import "slices"
 
+// IntOperation compares integer operands.
 type IntOperation struct {
 	NullOperation
 }
 
+// EQ reports whether two integer operands are equal.
 func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -15,6 +17,7 @@ func (o *IntOperation) EQ(left Operand, right Operand) (bool, error) {
 	return l == r, nil
 }
 
+// NE reports whether two integer operands are not equal.
 func (o *IntOperation) NE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -24,6 +27,7 @@ func (o *IntOperation) NE(left Operand, right Operand) (bool, error) {
 	return l != r, nil
 }
 
+// GT reports whether the left operand is greater than the right operand.
 func (o *IntOperation) GT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -33,6 +37,7 @@ func (o *IntOperation) GT(left Operand, right Operand) (bool, error) {
 	return l > r, nil
 }
 
+// LT reports whether the left operand is less than the right operand.
 func (o *IntOperation) LT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -42,6 +47,7 @@ func (o *IntOperation) LT(left Operand, right Operand) (bool, error) {
 	return l < r, nil
 }
 
+// GE reports whether the left operand is greater than or equal to the right operand.
 func (o *IntOperation) GE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -51,6 +57,7 @@ func (o *IntOperation) GE(left Operand, right Operand) (bool, error) {
 	return l >= r, nil
 }
 
+// LE reports whether the left operand is less than or equal to the right operand.
 func (o *IntOperation) LE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -60,6 +67,7 @@ func (o *IntOperation) LE(left Operand, right Operand) (bool, error) {
 	return l <= r, nil
 }
 
+// IN reports whether the left operand is one of the values in the right operand.
 func (o *IntOperation) IN(left Operand, right Operand) (bool, error) {
 	leftVal, ok := left.(int)
 	if !ok {

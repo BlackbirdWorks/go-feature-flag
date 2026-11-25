@@ -37,6 +37,7 @@ type Evaluator struct {
 	once          sync.Once
 }
 
+// NewEvaluator parses and compiles a JSON query rule into an Evaluator.
 func NewEvaluator(rule string) (ret *Evaluator, retErr error) { //nolint:nonamedreturns // recover sets the result
 	// antlr lib has panics for exceptions so we have to put a recover here
 	// in the unlikely case there is an exception
@@ -85,12 +86,14 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 	return tree, nil
 }
 
+// Reset clears the last debug error recorded by the evaluator.
 func (e *Evaluator) Reset() error {
 	e.lastDebugErr.Store(nil)
 
 	return nil
 }
 
+// LastDebugErr returns the last debug error recorded by the evaluator, or nil if there is none.
 func (e *Evaluator) LastDebugErr() error {
 	if p := e.lastDebugErr.Load(); p != nil {
 		return *p
@@ -196,6 +199,7 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 	return assertType[bool](result), visitor.err
 }
 
+// Evaluate reports whether the rule matches the items, and false if the rule does not compile.
 func Evaluate(rule string, items map[string]any) bool {
 	ev, err := NewEvaluator(rule)
 	if err != nil {

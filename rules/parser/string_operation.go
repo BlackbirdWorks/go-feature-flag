@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
+// StringOperation compares string operands.
 type StringOperation struct {
 	NullOperation
 }
 
+// EQ reports whether two string operands are equal.
 func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -19,6 +21,7 @@ func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
 	return l == r, nil
 }
 
+// NE reports whether two string operands are not equal.
 func (o *StringOperation) NE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -28,6 +31,7 @@ func (o *StringOperation) NE(left Operand, right Operand) (bool, error) {
 	return l != r, nil
 }
 
+// GT reports whether the left string operand sorts after the right one.
 func (o *StringOperation) GT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -37,6 +41,7 @@ func (o *StringOperation) GT(left Operand, right Operand) (bool, error) {
 	return l > r, nil
 }
 
+// LT reports whether the left string operand sorts before the right one.
 func (o *StringOperation) LT(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -46,6 +51,7 @@ func (o *StringOperation) LT(left Operand, right Operand) (bool, error) {
 	return l < r, nil
 }
 
+// GE reports whether the left string operand sorts at or after the right one.
 func (o *StringOperation) GE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -55,6 +61,7 @@ func (o *StringOperation) GE(left Operand, right Operand) (bool, error) {
 	return l >= r, nil
 }
 
+// LE reports whether the left string operand sorts at or before the right one.
 func (o *StringOperation) LE(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -64,6 +71,7 @@ func (o *StringOperation) LE(left Operand, right Operand) (bool, error) {
 	return l <= r, nil
 }
 
+// CO reports whether the left string operand contains the right one.
 func (o *StringOperation) CO(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -73,6 +81,7 @@ func (o *StringOperation) CO(left Operand, right Operand) (bool, error) {
 	return strings.Contains(l, r), nil
 }
 
+// SW reports whether the left string operand starts with the right one.
 func (o *StringOperation) SW(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -82,6 +91,7 @@ func (o *StringOperation) SW(left Operand, right Operand) (bool, error) {
 	return strings.HasPrefix(l, r), nil
 }
 
+// EW reports whether the left string operand ends with the right one.
 func (o *StringOperation) EW(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -91,6 +101,7 @@ func (o *StringOperation) EW(left Operand, right Operand) (bool, error) {
 	return strings.HasSuffix(l, r), nil
 }
 
+// IN reports whether the left string operand is one of the values in the right operand.
 func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
 	leftVal, err := o.getString(left)
 	if err != nil {
