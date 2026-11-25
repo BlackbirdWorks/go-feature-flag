@@ -132,7 +132,6 @@ scream-level-feature:
           Selects a key from the evaluation context that will be used in place
           of the <code>targetingKey</code> for the purpose of evaluating which
           variant to serve.
-
           If <code>bucketingKey</code> is set and the value is missing from the context, the flag will not be evaluated.
         </p>
       </td>
@@ -304,7 +303,6 @@ scream-level-feature:
         </p>
       </td>
     </tr>
-
   </tbody>
 </table>
 

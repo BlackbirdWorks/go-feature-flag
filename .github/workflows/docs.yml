@@ -1,0 +1,97 @@
+name: Deploy Docs
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref (tag or branch) to build documentation from"
+        type: string
+        required: false
+        default: ""
+      version:
+        description: "Version label displayed in the documentation navbar"
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional version label override (defaults to latest tag or dev)"
+        type: string
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: build docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Resolve documentation version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="$INPUT_VERSION"
+          if [[ -z "$version" ]]; then
+            version=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo "dev")
+          fi
+          echo "SEMAPHORE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Building documentation for version: $version"
+
+      - name: Install dependencies and build site
+        env:
+          DOCS_BASE: ${{ steps.pages.outputs.base_path }}/
+        run: |
+          npm --prefix docs ci
+          npm --prefix docs run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: [build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e3f51346 # v5.0.1

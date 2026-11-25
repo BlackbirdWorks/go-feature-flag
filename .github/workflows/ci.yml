@@ -50,6 +50,7 @@ jobs:
       contents: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -64,6 +65,7 @@ jobs:
         run: |
           if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "docs=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           changed=$(git diff --name-only HEAD^1 HEAD)
@@ -74,6 +76,11 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+          if grep -qE '^docs/' <<< "$changed"; then
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs=false" >> "$GITHUB_OUTPUT"
           fi
 
   # Two jobs so the FIPS compile (a different toolchain configuration that
@@ -610,6 +617,32 @@ jobs:
             grep -q '^ENTRYPOINT \[' "$f" || { echo "::error file=$f::the image must set an ENTRYPOINT"; exit 1; }
           done
 
+  # Build the VitePress documentation site when docs/ changes.
+  docs-build:
+    name: docs (vitepress build)
+    needs: [changes]
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - name: Build documentation site
+        run: |
+          npm --prefix docs ci
+          npm --prefix docs run build
+
   # Single required check for branch protection. `needs` lists every job above;
   # a job skipped by the path filter counts as success, a failed or cancelled
   # one (any matrix leg included) fails the gate. `if: always()` makes the gate
@@ -633,6 +666,7 @@ jobs:
       - fuzz
       - provider-tests
       - release-check
+      - docs-build
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
