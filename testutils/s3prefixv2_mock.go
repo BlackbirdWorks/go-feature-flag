@@ -5,7 +5,7 @@ import (
 	"crypto/md5" //nolint:gosec // only used to fake an ETag
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -255,7 +255,7 @@ func (m *S3PrefixMock) sortedKeys(prefix string) []string {
 		}
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	return keys
 }

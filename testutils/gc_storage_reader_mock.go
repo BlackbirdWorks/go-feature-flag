@@ -19,7 +19,7 @@ type GCStorageReaderMock struct {
 	ShouldFail bool
 }
 
-func (r *GCStorageReaderMock) Close() error {
+func (_ *GCStorageReaderMock) Close() error {
 	return nil
 }
 

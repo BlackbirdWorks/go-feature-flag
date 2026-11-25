@@ -24,7 +24,7 @@ func NewEventStore[T exporter.ExportableEvent]() exporter.EventStore[T] {
 	return store
 }
 
-func (e *implMockEventStore[T]) AddConsumer(_ string) {
+func (_ *implMockEventStore[T]) AddConsumer(_ string) {
 	// nothing to do
 }
 
@@ -58,6 +58,6 @@ func (e *implMockEventStore[T]) GetTotalEventCount() int64 {
 	return int64(len(e.store))
 }
 
-func (e *implMockEventStore[T]) Stop() {
+func (_ *implMockEventStore[T]) Stop() {
 	// nothing to do
 }

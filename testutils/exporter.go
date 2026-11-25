@@ -23,7 +23,7 @@ func (e ExportableMockEvent) GetKey() string {
 }
 
 // GetCreationDate returns the creation date of the event as a Unix timestamp.
-func (e ExportableMockEvent) GetCreationDate() int64 {
+func (_ ExportableMockEvent) GetCreationDate() int64 {
 	return 0
 }
 

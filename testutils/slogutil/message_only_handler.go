@@ -23,7 +23,7 @@ func (h *MessageOnlyHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 // Enabled implements the [slog.Handler] interface.
-func (h *MessageOnlyHandler) Enabled(_ context.Context, _ slog.Level) bool {
+func (_ *MessageOnlyHandler) Enabled(_ context.Context, _ slog.Level) bool {
 	return true
 }
 
