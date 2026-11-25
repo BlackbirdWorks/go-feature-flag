@@ -87,10 +87,8 @@ func parseRule(rule string) (antlr.ParseTree, error) {
 }
 
 // Reset clears the last debug error recorded by the evaluator.
-func (e *Evaluator) Reset() error {
+func (e *Evaluator) Reset() {
 	e.lastDebugErr.Store(nil)
-
-	return nil
 }
 
 // LastDebugErr returns the last debug error recorded by the evaluator, or nil if there is none.

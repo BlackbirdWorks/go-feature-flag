@@ -25,3 +25,6 @@ func (n *NotifierWebsocket) Notify(diff notifier.DiffCache) error {
 
 	return nil
 }
+
+// compile-time check of the interface implemented by the type.
+var _ notifier.Notifier = (*NotifierWebsocket)(nil)

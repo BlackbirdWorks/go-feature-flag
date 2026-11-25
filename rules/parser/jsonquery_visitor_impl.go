@@ -465,3 +465,6 @@ func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err er
 		)
 	}
 }
+
+// compile-time check of the interface implemented by the type.
+var _ JsonQueryVisitor = (*JSONQueryVisitorImpl)(nil)

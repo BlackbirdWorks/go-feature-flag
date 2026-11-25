@@ -1,6 +1,9 @@
 package log
 
-import "log/slog"
+import (
+	"encoding"
+	"log/slog"
+)
 
 // RedactedValue is what a [Secret] prints instead of its content.
 const RedactedValue = "[REDACTED]"
@@ -35,3 +38,6 @@ func Err(err error) slog.Attr {
 
 	return slog.Any(ErrorKey, err)
 }
+
+// compile-time check of the interface implemented by the type.
+var _ encoding.TextMarshaler = Secret("")

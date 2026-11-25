@@ -139,3 +139,9 @@ func (m *RecoverableRetriever) Status() retriever.Status {
 func (m *RecoverableRetriever) GetName() string {
 	return m.Name
 }
+
+// compile-time check of the interface implemented by the type.
+var (
+	_ retriever.InitializableRetriever = (*StatusChangingRetriever)(nil)
+	_ retriever.InitializableRetriever = (*RecoverableRetriever)(nil)
+)

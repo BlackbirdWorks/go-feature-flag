@@ -1046,7 +1046,7 @@ func testProcessStaleDebugErr(t *testing.T) {
 		name  string
 	}{
 		{name: "clean call", clear: func(eval *Evaluator) { _, _ = eval.Process(good) }},
-		{name: "reset", clear: func(eval *Evaluator) { _ = eval.Reset() }},
+		{name: "reset", clear: func(eval *Evaluator) { eval.Reset() }},
 		{name: "panicking call", clear: func(eval *Evaluator) {
 			eval.testHookPanic = func() { panic("p") }
 			_, _ = eval.Process(good)

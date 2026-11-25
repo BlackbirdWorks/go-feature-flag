@@ -26,3 +26,6 @@ func NewHealth(monitoring service.Monitoring) *Health {
 func (h *Health) Handle(_ context.Context, _ *struct{}) (*HealthOutput, error) {
 	return &HealthOutput{Body: h.monitoringService.Health()}, nil
 }
+
+// compile-time check of the huma handler signature of the method.
+var _ func(context.Context, *struct{}) (*HealthOutput, error) = (*Health)(nil).Handle

@@ -231,3 +231,6 @@ func (r *Retriever) getFlagset() string {
 
 	return ""
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetrieverWithFlagset = (*Retriever)(nil)

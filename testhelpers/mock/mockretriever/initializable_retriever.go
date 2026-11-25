@@ -68,3 +68,6 @@ func (m *InitializableRetriever) Status() retriever.Status {
 func (m *InitializableRetriever) GetName() string {
 	return m.Name
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetriever = (*InitializableRetriever)(nil)

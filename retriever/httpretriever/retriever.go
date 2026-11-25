@@ -76,6 +76,8 @@ func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	return nil
 }
 
+var _ retriever.InitializableRetriever = (*Retriever)(nil)
+
 // Shutdown gracefully shutdown the retriever and set the status as not ready.
 func (r *Retriever) Shutdown(_ context.Context) error {
 	r.httpClient = nil

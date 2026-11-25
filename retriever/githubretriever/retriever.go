@@ -474,3 +474,6 @@ func (r *Retriever) updateRateLimit(headers http.Header) {
 		}
 	}
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetriever = (*Retriever)(nil)

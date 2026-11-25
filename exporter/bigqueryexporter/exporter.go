@@ -426,3 +426,6 @@ func isAlreadyExists(err error) bool {
 
 	return false
 }
+
+// compile-time check of the interface implemented by the type.
+var _ bigquery.ValueSaver = rowSaver{}

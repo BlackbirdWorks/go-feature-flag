@@ -146,3 +146,6 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 
 	return body, nil
 }
+
+// compile-time check of the interface implemented by the type.
+var _ retriever.InitializableRetriever = (*Retriever)(nil)

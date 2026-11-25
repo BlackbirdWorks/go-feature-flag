@@ -59,3 +59,6 @@ func BodyOpts(operation *huma.Operation, readTimeout time.Duration) {
 	operation.SkipValidateBody = true
 	operation.SkipValidateParams = true
 }
+
+// compile-time check of the interface implemented by the type.
+var _ huma.Resolver = (*Request)(nil)

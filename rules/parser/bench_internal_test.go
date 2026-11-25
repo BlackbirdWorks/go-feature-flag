@@ -106,7 +106,7 @@ func BenchmarkLogicalExpressionBigTreeCached(b *testing.B) {
 	for range b.N {
 		_, err := eval.Process(benchInput)
 		require.NoError(b, err)
-		require.NoError(b, eval.Reset())
+		eval.Reset()
 	}
 }
 

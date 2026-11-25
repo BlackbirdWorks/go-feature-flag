@@ -1,6 +1,9 @@
 package testhelpers
 
-import "text/template"
+import (
+	"github.com/blackbirdworks/semaphore/exporter"
+	"text/template"
+)
 
 // ExportableMockEvent is an exportable evaluation event used in tests.
 type ExportableMockEvent struct {
@@ -36,3 +39,6 @@ func (e ExportableMockEvent) FormatInCSV(_ *template.Template) ([]byte, error) {
 func (e ExportableMockEvent) FormatInJSON() ([]byte, error) {
 	return []byte(`{"name":"` + e.name + `"}`), nil
 }
+
+// compile-time check of the interface implemented by the type.
+var _ exporter.ExportableEvent = ExportableMockEvent{}

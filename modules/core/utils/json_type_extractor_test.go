@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
@@ -30,9 +29,7 @@ func Test_JSONTypeExtractor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := utils.JSONTypeExtractor(tt.input)
-			require.NoError(t, err, "unexpected error")
-			assert.Equal(t, tt.expected, got)
+			assert.Equal(t, tt.expected, utils.JSONTypeExtractor(tt.input))
 		})
 	}
 }
