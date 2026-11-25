@@ -88,9 +88,6 @@ type Config struct {
 	// evaluation response so that providers can subscribe to changes instead of polling.
 	// It is enabled when OfrepEventStream.BaseURL is set.
 	OfrepEventStream OfrepEventStream `koanf:"ofrepeventstream" mapstructure:"ofrepEventStream"`
-	// Deprecated: use AuthorizedKeys instead
-	// APIKeys list of API keys that authorized to use endpoints
-	APIKeys []string `koanf:"apikeys" mapstructure:"apiKeys"`
 	// Server is the server configuration, including host, port, and unix socket
 	Server Server `koanf:"server" mapstructure:"server"`
 	// CommonFlagSet is the common flag set for the relay proxy
@@ -113,7 +110,6 @@ type Config struct {
 	// mutex is used to protect the configuration from concurrent access during runtime
 	// it applies to the following fields:
 	// - AuthorizedKeys
-	// - APIKeys
 	// - FlagSets
 	// - apiKeysSet
 	// - forceAuthenticatedRequests
@@ -194,16 +190,6 @@ func (c *Config) IsUsingFlagsets() bool {
 	return len(c.FlagSets) > 0
 }
 
-// SetAPIKeys replaces the API keys of the configuration.
-//
-// Deprecated: use SetAuthorizedKeys instead.
-func (c *Config) SetAPIKeys(apiKeys []string) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.APIKeys = apiKeys
-}
-
 // SetAuthorizedKeys sets the authorized keys for the configuration.
 func (c *Config) SetAuthorizedKeys(authorizedKeys APIKeys) {
 	c.mutex.Lock()
@@ -221,15 +207,4 @@ func (c *Config) GetAuthorizedKeys() APIKeys {
 		Admin:      append([]string(nil), c.AuthorizedKeys.Admin...),
 		Evaluation: append([]string(nil), c.AuthorizedKeys.Evaluation...),
 	}
-}
-
-// GetAPIKeys returns a copy of the APIKeys with proper synchronization.
-func (c *Config) GetAPIKeys() []string {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	// Return a copy to avoid external modification
-	result := make([]string, len(c.APIKeys))
-	copy(result, c.APIKeys)
-
-	return result
 }

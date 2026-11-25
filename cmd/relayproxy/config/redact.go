@@ -54,7 +54,6 @@ func fieldClassification() map[string]bool {
 		"config.ValidateFlagsEndpoint.MaxJSONBodySize": plainField,
 		"config.Config.DisableVersionHeader":           plainField, // a boolean
 		"config.Config.AuthorizedKeys":                 secretField,
-		"config.Config.APIKeys":                        secretField,
 		// FlagSet
 		"config.FlagSet.APIKeys": secretField,
 		// APIKeys (admin / evaluation keys)

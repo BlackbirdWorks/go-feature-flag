@@ -221,12 +221,10 @@ func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
 	tests := []struct {
 		name     string
 		keys     config.APIKeys
-		apiKeys  []string
 		wantWarn int
 	}{
 		{name: "no evaluation key", keys: config.APIKeys{Admin: []string{"admin"}}, wantWarn: 0},
 		{name: "authorizedKeys.evaluation", keys: config.APIKeys{Evaluation: []string{"k"}}, wantWarn: 1},
-		{name: "top-level apiKeys", apiKeys: []string{"k"}, wantWarn: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,7 +234,6 @@ func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
 			manager, err := service.NewFlagsetManager(&config.Config{
 				FlagSets:       []config.FlagSet{authorizedKeysFlagset()},
 				AuthorizedKeys: tt.keys,
-				APIKeys:        tt.apiKeys, //nolint:staticcheck // SA1019: the test covers the deprecated setting
 			}, obs, nil, nil, nil)
 			require.NoError(t, err)
 			t.Cleanup(manager.Close)

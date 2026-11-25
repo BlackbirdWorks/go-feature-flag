@@ -490,7 +490,7 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 
 	m.warnIfUnnamedFlagsetsChanged(currentFlagsets, newConfig.FlagSets)
 
-	// The authorized keys (admin keys) and the top-level API keys are reloadable too. They are replaced
+	// The authorized keys are reloadable too. They are replaced
 	// together with the accepted key set, in one step, so that no request sees a partial update.
 	newAuthorizedKeys := newConfig.GetAuthorizedKeys()
 	if !cmp.Equal(
@@ -501,7 +501,7 @@ func (m *FlagsetManagerImpl) onConfigChangeWithFlagsets(newConfig *config.Config
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 	}
 
-	m.config.ReplaceAPIKeys(newAuthorizedKeys, newConfig.GetAPIKeys())
+	m.config.ReplaceAPIKeys(newAuthorizedKeys)
 
 	if newConfig.HasUnroutableEvaluationKeys() {
 		m.logger.Warn(unroutableKeysWarning)
@@ -784,20 +784,18 @@ func logAPIKeyCollisions(logger *slog.Logger, collisions map[string][2]string) {
 }
 
 // onConfigChangeWithDefault is called when the configuration changes in default mode.
-// The only configuration that can be changed is the API Keys and the AuthorizedKeys.
+// The only configuration that can be changed is the AuthorizedKeys.
 // All the other configuration changes are not supported.
 func (m *FlagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config) {
 	reloadAPIKeys := false
 	// on default mode, we can only change the API Keys, all the other configuration changes are not supported
 	// We need to read the current values with proper locking to avoid data races
 	currentAuthorizedKeys := m.config.GetAuthorizedKeys()
-	currentAPIKeys := m.config.GetAPIKeys()
 	newAuthorizedKeys := newConfig.GetAuthorizedKeys()
-	newAPIKeys := newConfig.GetAPIKeys()
 
 	if !cmp.Equal(m.config, newConfig,
-		cmpopts.IgnoreUnexported(config.Config{}), cmpopts.IgnoreFields(config.Config{}, "APIKeys", "AuthorizedKeys")) {
-		m.logger.Warn("Configuration changed not supported: only API Keys and AuthorizedKeys can be " +
+		cmpopts.IgnoreUnexported(config.Config{}), cmpopts.IgnoreFields(config.Config{}, "AuthorizedKeys")) {
+		m.logger.Warn("Configuration changed not supported: only AuthorizedKeys can be " +
 			"changed during runtime in default mode")
 	}
 
@@ -808,15 +806,6 @@ func (m *FlagsetManagerImpl) onConfigChangeWithDefault(newConfig *config.Config)
 	) {
 		m.logger.Info("Configuration changed: reloading the AuthorizedKeys")
 		m.config.SetAuthorizedKeys(newAuthorizedKeys)
-
-		reloadAPIKeys = true
-	}
-
-	//nolint:staticcheck // SA1019: the deprecated setting is still supported
-	if !cmp.Equal(currentAPIKeys, newAPIKeys) {
-		m.logger.Info("Configuration changed: reloading the APIKeys")
-		//nolint:staticcheck // SA1019: the deprecated setting is still supported
-		m.config.SetAPIKeys(newAPIKeys)
 
 		reloadAPIKeys = true
 	}

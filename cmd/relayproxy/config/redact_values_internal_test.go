@@ -73,7 +73,7 @@ func TestSensitiveNamePattern(t *testing.T) {
 func TestConfigStringNeverLeaksSecrets(t *testing.T) {
 	t.Parallel()
 
-	c := &Config{CommonFlagSet: CommonFlagSet{}, APIKeys: []string{"super-secret-key"}}
+	c := &Config{CommonFlagSet: CommonFlagSet{}, AuthorizedKeys: APIKeys{Admin: []string{"super-secret-key"}}}
 	out := c.String()
 	assert.NotContains(t, out, "super-secret-key")
 	assert.Contains(t, out, RedactedValue)

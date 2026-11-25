@@ -372,9 +372,11 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				},
 				Version:       wildcardVersion,
 				EnableSwagger: true,
-				APIKeys: []string{
-					apikey12,
-					apikey22,
+				AuthorizedKeys: config.APIKeys{
+					Evaluation: []string{
+						apikey12,
+						apikey22,
+					},
 				},
 				LogLevel: "",
 			},
@@ -401,9 +403,11 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				},
 				Version:       wildcardVersion,
 				EnableSwagger: true,
-				APIKeys: []string{
-					apikey12,
-					apikey22,
+				AuthorizedKeys: config.APIKeys{
+					Evaluation: []string{
+						apikey12,
+						apikey22,
+					},
 				},
 				LogLevel: config.DefaultLogLevel,
 			},

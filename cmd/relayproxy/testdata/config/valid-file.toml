@@ -1,8 +1,10 @@
 pollingInterval = 1000
 startWithRetrieverError = false
 enableSwagger = true
-apiKeys = [ "apikey1", "apikey2" ]
 host = ""
+
+[authorizedKeys]
+evaluation = [ "apikey1", "apikey2" ]
 
 [server]
 port = 1031
