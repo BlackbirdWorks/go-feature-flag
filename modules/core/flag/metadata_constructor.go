@@ -3,7 +3,7 @@ package flag
 import "maps"
 
 const (
-	evaluatedRuleName2 = "evaluatedRuleName"
+	evaluatedRuleNameKey = "evaluatedRuleName"
 )
 
 // constructMetadata is the internal generic func used to enhance model.VariationResult adding
@@ -20,7 +20,7 @@ func constructMetadata(
 		metadata = make(map[string]any)
 	}
 
-	metadata[evaluatedRuleName2] = *ruleName
+	metadata[evaluatedRuleNameKey] = *ruleName
 
 	return metadata
 }

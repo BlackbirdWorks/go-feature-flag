@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestHash(t *testing.T) {
@@ -52,8 +53,8 @@ func TestBuildHash(t *testing.T) {
 		{
 			name: "all fields",
 			args: args{
-				flagKey:       myFlag,
-				bucketingKey:  e56F628,
+				flagKey:       fixtures.FlagKeyMy,
+				bucketingKey:  userKeyUUID,
 				maxPercentage: 100000,
 			},
 			want: 70272,
@@ -62,7 +63,7 @@ func TestBuildHash(t *testing.T) {
 			name: "empty flag key",
 			args: args{
 				flagKey:       "",
-				bucketingKey:  e56F628,
+				bucketingKey:  userKeyUUID,
 				maxPercentage: 100000,
 			},
 			want: 74237,
@@ -98,7 +99,7 @@ func TestBuildHash(t *testing.T) {
 			name: "max percentage is the largest uint32",
 			args: args{
 				flagKey:       "flag",
-				bucketingKey:  user2,
+				bucketingKey:  fixtures.User,
 				maxPercentage: 4294967295,
 			},
 			want: 3459711972,

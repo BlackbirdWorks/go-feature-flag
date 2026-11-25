@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	abc       = "abc"
 	keyEqAbc  = `key eq "abc"`
 	varKeyAbc = `{"==": [{"var": "key"}, "abc"]}`
 )
@@ -25,9 +25,9 @@ func TestService_CompiledQuery(t *testing.T) {
 		wantFormat  QueryFormat
 		wantDecoded bool
 	}{
-		{name: nikunjy2, raw: keyEqAbc, wantTrimmed: keyEqAbc, wantFormat: NikunjyQueryFormat},
+		{name: NikunjyQueryFormat, raw: keyEqAbc, wantTrimmed: keyEqAbc, wantFormat: NikunjyQueryFormat},
 		{
-			name: jsonlogic2, raw: varKeyAbc,
+			name: JSONLogicQueryFormat, raw: varKeyAbc,
 			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
 		},
 		{
@@ -95,7 +95,13 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 			assert.Equal(t, tt.wantTrimmed, r.GetTrimmedQuery())
 
 			if tt.evaluate {
-				_, err := r.Evaluate(svc, abc, ffcontext.NewEvaluationContext(abc), flag2, false)
+				_, err := r.Evaluate(
+					svc,
+					fixtures.Abc,
+					ffcontext.NewEvaluationContext(fixtures.Abc),
+					fixtures.FlagKeyBare,
+					false,
+				)
 				require.NoError(t, err)
 			}
 

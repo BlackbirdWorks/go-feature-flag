@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	fixtureFalse = "false"
+	falseLiteral = "false"
 	null         = "null"
 )
 
@@ -27,7 +27,7 @@ func isJSONLogicTruthy(v any) bool {
 		return false
 	}
 	switch string(b) {
-	case fixtureFalse, null, `""`, "0", "[]":
+	case falseLiteral, null, `""`, "0", "[]":
 		return false
 	}
 	return true

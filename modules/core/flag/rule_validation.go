@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	wSDoesNot = "%w %s does not exist"
+	wrapNotExistFormat = "%w %s does not exist"
 )
 
 var (
@@ -113,7 +113,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 		count += pct
 
 		if _, ok := variations[variationKey]; !ok {
-			return fmt.Errorf(wSDoesNot, errInvalidPercentageVariation, variationKey)
+			return fmt.Errorf(wrapNotExistFormat, errInvalidPercentageVariation, variationKey)
 		}
 	}
 
@@ -171,14 +171,14 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 
 	endVar := progRollout.End.getVariation()
 	if _, ok := variations[endVar]; !ok {
-		return fmt.Errorf(wSDoesNot, errInvalidProgressiveRolloutEnd,
+		return fmt.Errorf(wrapNotExistFormat, errInvalidProgressiveRolloutEnd,
 			endVar,
 		)
 	}
 
 	initialVar := progRollout.Initial.getVariation()
 	if _, ok := variations[initialVar]; !ok {
-		return fmt.Errorf(wSDoesNot, errInvalidProgressiveRolloutInitialVariation,
+		return fmt.Errorf(wrapNotExistFormat, errInvalidProgressiveRolloutInitialVariation,
 			initialVar,
 		)
 	}

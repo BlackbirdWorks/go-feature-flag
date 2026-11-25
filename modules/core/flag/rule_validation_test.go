@@ -32,8 +32,8 @@ func TestRule_IsValid(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
-		variationB: new(any(valueB2)),
+		variationA: new(any(valueAUnderscore)),
+		variationB: new(any(valueBUnderscore)),
 		variationC: new(any(valueC)),
 	}
 
@@ -202,8 +202,8 @@ func TestRule_validatePercentages(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
-		variationB: new(any(valueB2)),
+		variationA: new(any(valueAUnderscore)),
+		variationB: new(any(valueBUnderscore)),
 		variationC: new(any(valueC)),
 	}
 
@@ -275,7 +275,7 @@ func TestRule_validatePercentages(t *testing.T) {
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  invalidPercentagesShouldNot2,
+			wantErrMsg:  invalidPercentagesShouldNotBe,
 		},
 		{
 			name: "percentages with non-existent variation should fail",
@@ -408,8 +408,8 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
-		variationB: new(any(valueB2)),
+		variationA: new(any(valueAUnderscore)),
+		variationB: new(any(valueBUnderscore)),
 		variationC: new(any(valueC)),
 	}
 
@@ -581,8 +581,8 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
-		variationB: new(any(valueB2)),
+		variationA: new(any(valueAUnderscore)),
+		variationB: new(any(valueBUnderscore)),
 		variationC: new(any(valueC)),
 	}
 
@@ -786,8 +786,8 @@ func TestRule_validateVariationResult(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
-		variationB: new(any(valueB2)),
+		variationA: new(any(valueAUnderscore)),
+		variationB: new(any(valueBUnderscore)),
 		variationC: new(any(valueC)),
 	}
 
@@ -918,7 +918,7 @@ func TestRule_isQueryValid(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
+		variationA: new(any(valueAUnderscore)),
 	}
 
 	tests := []struct {
@@ -1072,7 +1072,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		variationA: new(any(valueA2)),
+		variationA: new(any(valueAUnderscore)),
 	}
 
 	tests := []struct {

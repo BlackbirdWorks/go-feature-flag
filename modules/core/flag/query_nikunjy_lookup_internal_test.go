@@ -15,6 +15,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/rules/parser"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
@@ -792,7 +793,7 @@ func TestHashNikunjyQuery(t *testing.T) {
 	}{
 		{name: "same text in two strings", a: strings.Clone(long), b: strings.Clone(long), wantEqual: true},
 		{name: "empty and a zero byte", a: "", b: "\x00"},
-		{name: "a text and the text with a zero byte", a: abc, b: "abc\x00"},
+		{name: "a text and the text with a zero byte", a: fixtures.Abc, b: "abc\x00"},
 		{name: "one byte of a short text", a: keyEqA, b: keyEqB},
 		{name: "one byte of a long text, first block", a: long, b: "1" + long[1:]},
 		{name: "one byte of a long text, middle", a: long, b: long[:50] + "X" + long[51:]},
@@ -972,7 +973,7 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 			assert.Equal(t, tt.wantIndexed, rule.QueryHash != 0)
 			assert.True(
 				t,
-				applies(svc, rule, user0000001) || !strings.Contains(tt.query, user3),
+				applies(svc, rule, user0000001) || !strings.Contains(tt.query, userPrefix),
 				"the rule evaluates either way",
 			)
 			runtime.KeepAlive(flg)

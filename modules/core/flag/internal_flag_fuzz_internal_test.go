@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // FuzzInternalFlagValue checks that a flag which is valid at the evaluation date
@@ -55,12 +56,12 @@ func FuzzInternalFlagValue(f *testing.F) {
 		}
 
 		date := time.Unix(evalUnix, 0)
-		targetingKey, _ := attributes[targetingKey2].(string)
+		targetingKey, _ := attributes[fixtures.TargetingKeyAttribute].(string)
 		evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, attributes)
-		evalCtx.AddCustomAttribute(gofeatureflag, map[string]any{currentDateTime2: date})
+		evalCtx.AddCustomAttribute(fixtures.GoFeatureFlagOrg, map[string]any{fixtures.CurrentDateTime: date})
 		// evaluation.Evaluate calls Value on flags that were never validated,
 		// so any flag must evaluate without panicking.
-		_, details := internalFlag.Value(myFlag, evalCtx, Context{Service: svc})
+		_, details := internalFlag.Value(fixtures.FlagKeyMy, evalCtx, Context{Service: svc})
 
 		flagAtDate, err := internalFlag.applyScheduledRolloutSteps(svc, date)
 		if err != nil || hasKnownFlagGap(flagAtDate) || flagAtDate.IsValid(svc) != nil {

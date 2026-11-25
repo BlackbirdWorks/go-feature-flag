@@ -6,11 +6,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	alice = "alice"
-	user2 = "user"
 )
 
 func TestGetNestedFieldValue(t *testing.T) {
@@ -26,7 +26,7 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "simple nested string",
 			ctx: map[string]any{
-				user2: map[string]any{
+				fixtures.User: map[string]any{
 					"name": alice,
 				},
 			},
@@ -76,7 +76,7 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "trying to navigate into non-map value returns error",
 			ctx: map[string]any{
-				user2: map[string]any{
+				fixtures.User: map[string]any{
 					"name": alice, // name is a string, not a map
 				},
 			},

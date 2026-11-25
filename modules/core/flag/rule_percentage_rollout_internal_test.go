@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	myFlag = "my-flag"
-	user3  = "user-"
+	userPrefix = "user-"
 )
 
 // TestEvaluatePercentageRollout_PinnedAssignments pins the bucketing of known keys. The expected values were
@@ -22,7 +22,7 @@ const (
 func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 	t.Parallel()
 
-	keys := []string{user1, user22, user32, "user-4", "user-5", "user-6", "user-7", "user-8"}
+	keys := []string{fixtures.UserKeyOne, userTwo, userThree, "user-4", "user-5", "user-6", "user-7", "user-8"}
 
 	tests := []struct {
 		name        string
@@ -62,7 +62,7 @@ func TestEvaluatePercentageRollout_PinnedAssignments(t *testing.T) {
 
 			r := Rule{Percentages: &tt.percentages}
 			for i, key := range keys {
-				got, err := r.EvaluatePercentageRollout(key, myFlag)
+				got, err := r.EvaluatePercentageRollout(key, fixtures.FlagKeyMy)
 				require.NoError(t, err)
 				assert.Equal(t, tt.want[i], got, key)
 			}
@@ -103,7 +103,7 @@ func TestEvaluatePercentageRollout_AlwaysFindsAVariation(t *testing.T) {
 			failures := 0
 
 			for i := range 200000 {
-				got, err := r.EvaluatePercentageRollout(fmt.Sprint(user3, i), myFlag)
+				got, err := r.EvaluatePercentageRollout(fmt.Sprint(userPrefix, i), fixtures.FlagKeyMy)
 				require.NoError(t, err, "key %d", i)
 
 				if _, ok := tt.percentages[got]; !ok {
@@ -241,17 +241,17 @@ func TestEvaluatePercentageRollout_LegacyCompatibility(t *testing.T) {
 			r := Rule{Percentages: &cfg}
 
 			for k := range 3000 {
-				key := fmt.Sprint(user3, k)
+				key := fmt.Sprint(userPrefix, k)
 
 				legacy := map[string]bool{}
 				for _, o := range orders {
-					legacy[legacyEvaluate(cfg, o, key, myFlag)] = true
+					legacy[legacyEvaluate(cfg, o, key, fixtures.FlagKeyMy)] = true
 				}
 
-				got, err := r.EvaluatePercentageRollout(key, myFlag)
+				got, err := r.EvaluatePercentageRollout(key, fixtures.FlagKeyMy)
 				require.NoError(t, err, key)
 				require.Positive(t, cfg[got], "variation without share for %s", key)
-				again, _ := r.EvaluatePercentageRollout(key, myFlag)
+				again, _ := r.EvaluatePercentageRollout(key, fixtures.FlagKeyMy)
 				require.Equal(t, got, again, "not deterministic for %s", key)
 
 				switch {

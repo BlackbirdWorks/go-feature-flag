@@ -8,14 +8,12 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	group2   = "group"
 	groupE   = "group-e"
 	language = "language"
-	testFlag = "test-flag"
-	user1    = "user-1"
 )
 
 // BenchmarkRuleEvaluate_NikunjyComplex measures the per-call cost of evaluating a
@@ -31,7 +29,7 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 				`and clubsTimeSpent le 3600 and concurrencyLocked eq true and segment eq 0`,
 		),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
 		AddCustom(language, "ar").
 		AddCustom("isNewUser", true).
 		AddCustom("clubsTimeSpent", 1500).
@@ -43,7 +41,7 @@ func BenchmarkRuleEvaluate_NikunjyComplex(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = rule.Evaluate(svc, user1, ctx, testFlag, false)
+		_, _ = rule.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyTest, false)
 	}
 }
 
@@ -62,11 +60,17 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 			VariationResult: new("on"),
 			Query:           new(fmt.Sprintf(`group eq "group-%d"`, i)),
 		}
-		_, _ = rules[i].Evaluate(svc, user1, ffcontext.NewEvaluationContext(user1), "warm-up", false)
+		_, _ = rules[i].Evaluate(
+			svc,
+			fixtures.UserKeyOne,
+			ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
+			"warm-up",
+			false,
+		)
 	}
 
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
-		AddCustom(group2, "group-0").
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.Group, "group-0").
 		Build()
 
 	b.ReportAllocs()
@@ -80,7 +84,7 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 			b.StartTimer()
 		}
 
-		_, _ = rules[i%queries].Evaluate(svc, user1, ctx, testFlag, false)
+		_, _ = rules[i%queries].Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyTest, false)
 	}
 }
 
@@ -92,7 +96,7 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 		VariationResult: new("on"),
 		Query:           new(`language eq "ar"`),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
 		AddCustom(language, "ar").
 		Build()
 
@@ -100,7 +104,7 @@ func BenchmarkRuleEvaluate_NikunjySimple(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = rule.Evaluate(svc, user1, ctx, testFlag, false)
+		_, _ = rule.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyTest, false)
 	}
 }
 
@@ -120,7 +124,7 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 		VariationResult: new("on"),
 		Query:           new(`userId in [` + strings.Join(users, ", ") + `]`),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
 		AddCustom("userId", "ffffffff-0000-4000-8000-000000000000").
 		Build()
 
@@ -128,7 +132,7 @@ func BenchmarkRuleEvaluate_NikunjyLargeIn(b *testing.B) {
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = rule.Evaluate(svc, user1, ctx, testFlag, false)
+		_, _ = rule.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyTest, false)
 	}
 }
 
@@ -147,15 +151,15 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 
 	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on": new(any(true)),
-			off2: new(any(false)),
+			"on":                  new(any(true)),
+			fixtures.VariationOff: new(any(false)),
 		},
 		Rules:       &rules,
-		DefaultRule: &flag.Rule{VariationResult: new(off2)},
+		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
-		AddCustom(group2, groupE).
-		AddCustom(plan2, pro).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.Group, groupE).
+		AddCustom(fixtures.Plan, fixtures.Pro).
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()
@@ -186,15 +190,15 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 
 	flg := flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on": new(any(true)),
-			off2: new(any(false)),
+			"on":                  new(any(true)),
+			fixtures.VariationOff: new(any(false)),
 		},
 		Rules:       &rules,
-		DefaultRule: &flag.Rule{VariationResult: new(off2)},
+		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
-		AddCustom(group2, groupE).
-		AddCustom(plan2, pro).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.Group, groupE).
+		AddCustom(fixtures.Plan, fixtures.Pro).
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()
@@ -217,7 +221,7 @@ func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
 		VariationResult: new("on"),
 		Query:           new(`language eq "ar"`),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
 		AddCustom(language, "ar").
 		Build()
 
@@ -225,7 +229,7 @@ func BenchmarkRuleEvaluate_NikunjySimpleParallel(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_, _ = rule.Evaluate(svc, user1, ctx, testFlag, false)
+			_, _ = rule.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyTest, false)
 		}
 	})
 }

@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	attributes2        = "attributes"
+	attributesKey      = "attributes"
 	randomTargetingKey = "random-targetingKey"
-	test2              = "test"
 )
 
 func TestNewUser(t *testing.T) {
@@ -31,12 +32,12 @@ func TestNewUser(t *testing.T) {
 		{
 			name: "Builder with attributes attribute",
 			got: NewEvaluationContextBuilder(randomTargetingKey).
-				AddCustom(test2, attributes2).
+				AddCustom(fixtures.Test, attributesKey).
 				Build(),
 			want: EvaluationContext{
 				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					test2: attributes2,
+					fixtures.Test: attributesKey,
 				},
 			},
 		},
@@ -44,12 +45,12 @@ func TestNewUser(t *testing.T) {
 			name: "Builder with attributes attribute",
 			got: NewEvaluationContextBuilder(randomTargetingKey).
 				Anonymous(true).
-				AddCustom(test2, attributes2).
+				AddCustom(fixtures.Test, attributesKey).
 				Build(),
 			want: EvaluationContext{
 				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					test2:              attributes2,
+					fixtures.Test:      attributesKey,
 					anonymousAttribute: true,
 				},
 			},

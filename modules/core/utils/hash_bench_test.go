@@ -4,10 +4,7 @@ import (
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-)
-
-const (
-	myFlag = "my-flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func BenchmarkBuildHash(b *testing.B) {
@@ -23,7 +20,7 @@ func BenchmarkBuildHash(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_ = utils.BuildHash(myFlag, tt.key, 100000)
+				_ = utils.BuildHash(fixtures.FlagKeyMy, tt.key, 100000)
 			}
 		})
 	}

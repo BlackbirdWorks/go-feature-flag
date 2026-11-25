@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	changed2 = "changed"
+	changedName = "changed"
 )
 
 func TestInternalFlag_DeepCopy(t *testing.T) {
@@ -154,8 +154,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	assert.Equal(t, orig, copied)
 
 	(*copied.Rules)[0].ProgressiveRollout.End.Percentage = flt(9)
-	*(*copied.Rules)[0].ProgressiveRollout.Initial.Variation = changed2
-	*(*copied.Rules)[0].Name = changed2
+	*(*copied.Rules)[0].ProgressiveRollout.Initial.Variation = changedName
+	*(*copied.Rules)[0].Name = changedName
 	(*(*copied.Rules)[0].Percentages)["A"] = 9
 	*copied.DefaultRule.Percentages = map[string]float64{}
 	*copied.Experimentation.Start = time.Time{}
@@ -163,8 +163,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	aVal, ok := (*(*copied.Scheduled)[0].Metadata)["a"].([]any)
 	require.True(t, ok)
 
-	aVal[0] = changed2
-	*copied.Version = changed2
+	aVal[0] = changedName
+	*copied.Version = changedName
 
 	assert.Equal(t, build(), orig)
 }

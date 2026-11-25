@@ -8,22 +8,14 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	bucketKey = "bucketKey"
-	key       = "key"
-	keyEqKey  = "key eq \"key\""
-	keyEqKey2 = "key eq \"key2\""
-	keyEqKey3 = "key eq \"key3\""
-	rule1     = "rule1"
-	rule2     = "rule2"
-	rule3     = "rule3"
-	value     = "value"
-	var12     = "var1"
-	var22     = "var2"
-	varFalse  = "var_false"
-	varTrue   = "var_true"
+	bucketKey     = "bucketKey"
+	keyEqKeyTwo   = "key eq \"key2\""
+	keyEqKeyThree = "key eq \"key3\""
+	ruleThree     = "rule3"
 )
 
 func TestConvertV1DtoToInternalFlag(t *testing.T) {
@@ -39,26 +31,26 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 			input: dto.DTO{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
-					var12: new(any(var12)),
-					var22: new(any(var22)),
+					fixtures.VarOne: new(any(fixtures.VarOne)),
+					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
 				Rules: &[]flag.Rule{{
-					Name:        new(rule1),
-					Query:       new(keyEqKey),
-					Percentages: &map[string]float64{varTrue: 100, varFalse: 0}},
+					Name:        new(fixtures.RuleOne),
+					Query:       new(fixtures.QueryKeyEqKey),
+					Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					{
-						Name:  new(rule2),
-						Query: new(keyEqKey2),
+						Name:  new(fixtures.RuleTwo),
+						Query: new(keyEqKeyTwo),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  new(var12),
+								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  new(var22),
+								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -67,19 +59,19 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						},
 					},
 					{
-						Name:            new(rule3),
-						Query:           new(keyEqKey3),
-						VariationResult: new(var22),
+						Name:            new(ruleThree),
+						Query:           new(keyEqKeyThree),
+						VariationResult: new(fixtures.VarTwo),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new(var12),
+					VariationResult: new(fixtures.VarOne),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 						DefaultRule: &flag.Rule{
-							VariationResult: new(var22),
+							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
@@ -87,7 +79,7 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
-				Metadata:    &map[string]any{key: value},
+				Metadata:    &map[string]any{fixtures.Key: fixtures.Value},
 				TrackEvents: new(true),
 				Disable:     new(false),
 				Version:     new("v1"),
@@ -95,26 +87,26 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 			expected: flag.InternalFlag{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
-					var12: new(any(var12)),
-					var22: new(any(var22)),
+					fixtures.VarOne: new(any(fixtures.VarOne)),
+					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
 				Rules: &[]flag.Rule{{
-					Name:        new(rule1),
-					Query:       new(keyEqKey),
-					Percentages: &map[string]float64{varTrue: 100, varFalse: 0}},
+					Name:        new(fixtures.RuleOne),
+					Query:       new(fixtures.QueryKeyEqKey),
+					Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0}},
 					{
-						Name:  new(rule2),
-						Query: new(keyEqKey2),
+						Name:  new(fixtures.RuleTwo),
+						Query: new(keyEqKeyTwo),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  new(var12),
+								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date: new(
 									time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC),
 								),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  new(var22),
+								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date: new(
 									time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -123,13 +115,13 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 						},
 					},
 					{
-						Name:            new(rule3),
-						Query:           new(keyEqKey3),
-						VariationResult: new(var22),
+						Name:            new(ruleThree),
+						Query:           new(keyEqKeyThree),
+						VariationResult: new(fixtures.VarTwo),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new(var12),
+					VariationResult: new(fixtures.VarOne),
 				},
 				TrackEvents: new(true),
 				Disable:     new(false),
@@ -138,7 +130,7 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 						DefaultRule: &flag.Rule{
-							VariationResult: new(var22),
+							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
@@ -146,7 +138,7 @@ func TestConvertV1DtoToInternalFlag(t *testing.T) {
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
-				Metadata: &map[string]any{key: value},
+				Metadata: &map[string]any{fixtures.Key: fixtures.Value},
 			},
 		},
 		{
@@ -178,45 +170,45 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 			input: flag.InternalFlag{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
-					var12: new(any(var12)),
-					var22: new(any(var22)),
+					fixtures.VarOne: new(any(fixtures.VarOne)),
+					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:        new(rule1),
-						Query:       new(keyEqKey),
-						Percentages: &map[string]float64{varTrue: 100, varFalse: 0},
+						Name:        new(fixtures.RuleOne),
+						Query:       new(fixtures.QueryKeyEqKey),
+						Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0},
 					},
 					{
-						Name:  new(rule2),
-						Query: new(keyEqKey2),
+						Name:  new(fixtures.RuleTwo),
+						Query: new(keyEqKeyTwo),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  new(var12),
+								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  new(var22),
+								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},
 					},
 					{
-						Name:            new(rule3),
-						Query:           new(keyEqKey3),
-						VariationResult: new(var22),
+						Name:            new(ruleThree),
+						Query:           new(keyEqKeyThree),
+						VariationResult: new(fixtures.VarTwo),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new(var12),
+					VariationResult: new(fixtures.VarOne),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 						DefaultRule: &flag.Rule{
-							VariationResult: new(var22),
+							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
@@ -224,7 +216,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
-				Metadata:    &map[string]any{key: value},
+				Metadata:    &map[string]any{fixtures.Key: fixtures.Value},
 				TrackEvents: new(true),
 				Disable:     new(false),
 				Version:     new("v1"),
@@ -232,45 +224,45 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 			expected: dto.DTO{
 				BucketingKey: new(bucketKey),
 				Variations: &map[string]*any{
-					var12: new(any(var12)),
-					var22: new(any(var22)),
+					fixtures.VarOne: new(any(fixtures.VarOne)),
+					fixtures.VarTwo: new(any(fixtures.VarTwo)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:        new(rule1),
-						Query:       new(keyEqKey),
-						Percentages: &map[string]float64{varTrue: 100, varFalse: 0},
+						Name:        new(fixtures.RuleOne),
+						Query:       new(fixtures.QueryKeyEqKey),
+						Percentages: &map[string]float64{fixtures.VarTrue: 100, fixtures.VarFalse: 0},
 					},
 					{
-						Name:  new(rule2),
-						Query: new(keyEqKey2),
+						Name:  new(fixtures.RuleTwo),
+						Query: new(keyEqKeyTwo),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
-								Variation:  new(var12),
+								Variation:  new(fixtures.VarOne),
 								Percentage: new(float64(30)),
 								Date:       new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 							End: &flag.ProgressiveRolloutStep{
-								Variation:  new(var22),
+								Variation:  new(fixtures.VarTwo),
 								Percentage: new(float64(70)),
 								Date:       new(time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC)),
 							},
 						},
 					},
 					{
-						Name:            new(rule3),
-						Query:           new(keyEqKey3),
-						VariationResult: new(var22),
+						Name:            new(ruleThree),
+						Query:           new(keyEqKeyThree),
+						VariationResult: new(fixtures.VarTwo),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new(var12),
+					VariationResult: new(fixtures.VarOne),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Date: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 						DefaultRule: &flag.Rule{
-							VariationResult: new(var22),
+							VariationResult: new(fixtures.VarTwo),
 						},
 					},
 				},
@@ -278,7 +270,7 @@ func TestConvertInternalFlagToDto(t *testing.T) {
 					Start: new(time.Date(2021, 1, 1, 0, 0, 0, 0, time.UTC)),
 					End:   new(time.Date(2022, 1, 2, 0, 0, 0, 0, time.UTC)),
 				},
-				Metadata:    &map[string]any{key: value},
+				Metadata:    &map[string]any{fixtures.Key: fixtures.Value},
 				TrackEvents: new(true),
 				Disable:     new(false),
 				Version:     new("v1"),

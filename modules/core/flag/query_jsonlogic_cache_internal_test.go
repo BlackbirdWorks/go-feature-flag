@@ -15,13 +15,14 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	dsp2  = "dsp"
-	naN   = "NaN"
-	tags2 = "tags"
-	ttd   = "ttd"
+	dspName  = "dsp"
+	naN      = "NaN"
+	tagsName = "tags"
+	ttd      = "ttd"
 )
 
 type namedBool bool
@@ -45,7 +46,7 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 		{name: "named bool false", value: namedBool(false)},
 		{name: "*string empty", value: &empty},
 		{name: "named string empty", value: namedString("")},
-		{name: "raw false", value: json.RawMessage(fixtureFalse)},
+		{name: "raw false", value: json.RawMessage(falseLiteral)},
 		{name: "*bool true", value: &tr, want: true},
 		{name: "named bool true", value: namedBool(true), want: true},
 		{name: "named string", value: namedString("x"), want: true},
@@ -71,11 +72,15 @@ func TestAsJSONData(t *testing.T) {
 	}{
 		{
 			name:   "flat context",
-			value:  map[string]any{key2: user1, anonymous: false, dsp2: "42", "score": 1.5},
+			value:  map[string]any{fixtures.Key: fixtures.UserKeyOne, anonymous: false, dspName: "42", "score": 1.5},
 			wantOK: true,
 		},
 		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
-		{name: nested2, value: map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}}, wantOK: true},
+		{
+			name:   fixtures.Nested,
+			value:  map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}},
+			wantOK: true,
+		},
 		{name: "empty", value: map[string]any{}, wantOK: true},
 		{name: "nil map and slice", value: map[string]any{"m": map[string]any(nil), "s": []any(nil)}, wantOK: true},
 		{name: "invalid utf8 value", value: map[string]any{"a": "\xff"}},
@@ -132,14 +137,14 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 		`{"+": [0.5, 0.5]}`,
 	}
 	ctxs := []ffcontext.Context{
-		ffcontext.NewEvaluationContext(abc),
+		ffcontext.NewEvaluationContext(fixtures.Abc),
 		ffcontext.NewEvaluationContextBuilder("def").
-			AddCustom(dsp2, ttd).AddCustom("floor", 1.2).
-			AddCustom(tags2, []any{"a", "b"}).
+			AddCustom(dspName, ttd).AddCustom("floor", 1.2).
+			AddCustom(tagsName, []any{"a", "b"}).
 			AddCustom("orgs", []any{map[string]any{"id": 1}}).
-			AddCustom(plan2, map[string]any{"cat": []any{"enter", "prise"}}).
+			AddCustom(fixtures.Plan, map[string]any{"cat": []any{"enter", "prise"}}).
 			Build(),
-		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom(tags2, []any{}).Build(),
+		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom(tagsName, []any{}).Build(),
 	}
 	svc := NewService()
 	for _, q := range queries {
@@ -164,12 +169,12 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 		"named_false":  namedBool(false),
 		"ptr_empty":    &empty,
 		"named_empty":  namedString(""),
-		"raw_false":    json.RawMessage(fixtureFalse),
+		"raw_false":    json.RawMessage(falseLiteral),
 		"ptr_true":     &tr,
 		"named_true":   namedBool(true),
 		"named_string": namedString("x"),
 	}
-	ctx := ffcontext.NewEvaluationContext(abc)
+	ctx := ffcontext.NewEvaluationContext(fixtures.Abc)
 	svc := NewService()
 	for name, result := range results {
 		op := "goff_test_" + name
@@ -206,7 +211,7 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 		if compiled.format != JSONLogicQueryFormat {
 			return
 		}
-		evalCtx := utils.ConvertEvaluationCtxFromRequest(key2, attributes)
+		evalCtx := utils.ConvertEvaluationCtxFromRequest(fixtures.Key, attributes)
 		assert.Equal(
 			t,
 			applyReference(t, compiled.trimmed, evalCtx),
@@ -218,7 +223,7 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 	query := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"==": [{"var": "inventory"}, "web"]}]}`
 	ctx := ffcontext.NewEvaluationContextBuilder("request-1").
-		AddCustom(dsp2, ttd).
+		AddCustom(dspName, ttd).
 		AddCustom("inventory", "web").
 		Build()
 	b.Run("jsonlogic.Apply", func(b *testing.B) {
@@ -247,8 +252,8 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 		wg.Go(func() {
 			dsp := []string{ttd, "xandr"}[i%2]
 			ctx := ffcontext.NewEvaluationContextBuilder("k").
-				AddCustom(dsp2, dsp).
-				AddCustom(tags2, []any{"a", "b"}).
+				AddCustom(dspName, dsp).
+				AddCustom(tagsName, []any{"a", "b"}).
 				Build()
 			for range 200 {
 				assert.Equal(t, dsp == ttd, evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}))
@@ -267,7 +272,7 @@ func applyReference(t *testing.T, query string, ctx ffcontext.Context) bool {
 		return false
 	}
 	switch strings.TrimSpace(result.String()) {
-	case fixtureFalse, null, `""`, "0", "[]":
+	case falseLiteral, null, `""`, "0", "[]":
 		return false
 	default:
 		return true

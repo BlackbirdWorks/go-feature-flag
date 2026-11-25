@@ -10,21 +10,18 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
-)
-
-const (
-	user2 = "user"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func serviceTestFlag() *flag.InternalFlag {
 	return &flag.InternalFlag{
-		Variations: &map[string]*any{"on": new(any(true)), off2: new(any(false))},
+		Variations: &map[string]*any{"on": new(any(true)), fixtures.VariationOff: new(any(false))},
 		Rules: &[]flag.Rule{{
-			Name:            new(targeting2),
+			Name:            new(targetingKey),
 			Query:           new(`plan eq "pro"`),
 			VariationResult: new("on"),
 		}},
-		DefaultRule: &flag.Rule{VariationResult: new(off2)},
+		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
 }
 
@@ -58,9 +55,13 @@ func TestInternalFlag_Value_RequiresTheService(t *testing.T) {
 			t.Parallel()
 
 			f := serviceTestFlag()
-			ctx := ffcontext.NewEvaluationContextBuilder(user2).AddCustom(plan2, pro).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
-			got, details := f.Value(flag2, ctx, flag.Context{DefaultSdkValue: "sdk-default", Service: tt.service})
+			got, details := f.Value(
+				fixtures.FlagKeyBare,
+				ctx,
+				flag.Context{DefaultSdkValue: "sdk-default", Service: tt.service},
+			)
 
 			assert.Equal(t, tt.wantValue, got)
 			assert.Equal(t, tt.wantVariant, details.Variant)
@@ -86,9 +87,9 @@ func TestRule_Evaluate_RequiresTheService(t *testing.T) {
 			t.Parallel()
 
 			r := flag.Rule{Query: new(`plan eq "pro"`), VariationResult: new("on")}
-			ctx := ffcontext.NewEvaluationContextBuilder(user2).AddCustom(plan2, pro).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
-			got, err := r.Evaluate(tt.service, user2, ctx, flag2, false)
+			got, err := r.Evaluate(tt.service, fixtures.User, ctx, fixtures.FlagKeyBare, false)
 
 			assert.Equal(t, tt.want, got)
 
@@ -127,11 +128,11 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 		{
 			name: "static flag with a rule on the date attribute of the context",
 			flag: &flag.InternalFlag{
-				Variations: &map[string]*any{"on": new(any(true)), off2: new(any(false))},
+				Variations: &map[string]*any{"on": new(any(true)), fixtures.VariationOff: new(any(false))},
 				Rules: &[]flag.Rule{{
 					Query: new(`semaphore.currentDateTime ne ""`), VariationResult: new("on"),
 				}},
-				DefaultRule: &flag.Rule{VariationResult: new(off2)},
+				DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 			},
 			wantEarly: "on", wantLate: "on",
 		},
@@ -148,11 +149,11 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 
 			svc := flag.NewService()
 
-			base := ffcontext.NewEvaluationContextBuilder(user2).AddCustom(plan2, pro).Build()
+			base := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 			for date, want := range map[time.Time]string{early: tt.wantEarly, late: tt.wantLate} {
 				ctx := flag.EnrichContext(base, nil)
 				ctx = withDate(ctx, date)
-				_, details := tt.flag.Value(flag2, ctx, flag.Context{Service: svc})
+				_, details := tt.flag.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 				assert.Equal(t, want, details.Variant, "variant at %s", date)
 			}
 		})
@@ -166,7 +167,7 @@ func withDate(ctx ffcontext.Context, date time.Time) ffcontext.EvaluationContext
 		out.AddCustomAttribute(k, v)
 	}
 
-	out.AddCustomAttribute(ffcontext.ReservedKey, map[string]any{currentDateTime2: date.Format(time.RFC3339)})
+	out.AddCustomAttribute(ffcontext.ReservedKey, map[string]any{fixtures.CurrentDateTime: date.Format(time.RFC3339)})
 
 	return out
 }

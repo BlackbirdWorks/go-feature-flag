@@ -11,58 +11,49 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	company                      = "company"
-	companyID                    = "company.id"
-	currentDateTime2             = "currentDateTime"
-	dEVEnvironment               = "DEV environment"
-	defaultSdk                   = "default-sdk"
-	description2                 = "description"
-	environment2                 = "environment"
-	errorInTheConfiguration      = "error in the configuration, no variation available for this rule"
-	evaluatedRuleName2           = "evaluatedRuleName"
-	versionOneZeroZero           = "1.0.0"
-	gofeatureflag                = "gofeatureflag"
-	httpsIssueLinkGOFF           = "https://issue.link/GOFF-1"
-	invalidPercentagesShouldNot  = "invalid percentages: should not be empty"
-	invalidPercentagesShouldNot2 = "invalid percentages: should not be equal to 0"
-	issueLink                    = "issue-link"
-	keyEq5                       = "key eq 5"
-	keyEqNotUser                 = "key eq \"not-user-key\""
-	keyEqUserKey                 = "key eq \"user-key\""
-	myFlag                       = "my-flag"
-	notExpectedValueS            = "not expected value: %s"
-	nothingToReturn              = "nothing to return"
-	rule1                        = "Rule1"
-	rule2                        = "rule2"
-	ruleA                        = "rule-a"
-	sdkDefault                   = "SdkDefault"
-	semaphore                    = "semaphore"
-	targetingKeyEq1              = "targetingKey eq 1"
-	teamID                       = "teamId"
-	testRule                     = "test-rule"
-	thisIsAFlag                  = "this is a flag"
-	userKey                      = "user-key"
-	valueA                       = "valueA"
-	valueA2                      = "value_A"
-	valueB                       = "valueB"
-	valueB2                      = "value_B"
-	valueC                       = "value_C"
-	valueD                       = "value_D"
-	valueDefault                 = "value_default"
-	valueQWERTY                  = "value_QWERTY"
-	varA2                        = "varA"
-	varB2                        = "varB"
-	varEnvironmentUUID0Ffcc      = `{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`
-	varKeyNotUser                = `{"==":[{"var":"key"},"not-user-key"]}`
-	varKeyUserKey                = `{"==":[{"var":"key"},"user-key"]}`
-	variationA                   = "variation_A"
-	variationB                   = "variation_B"
-	variationC                   = "variation_C"
-	variationD                   = "variation_D"
-	variationFalse2              = "fixtureFalse"
+	companyID                     = "company.id"
+	devEnvironment                = "DEV environment"
+	defaultSdk                    = "default-sdk"
+	environmentKey                = "environment"
+	errorInTheConfiguration       = "error in the configuration, no variation available for this rule"
+	httpsIssueLinkGOFF            = "https://issue.link/GOFF-1"
+	invalidPercentagesShouldNot   = "invalid percentages: should not be empty"
+	invalidPercentagesShouldNotBe = "invalid percentages: should not be equal to 0"
+	keyEqFive                     = "key eq 5"
+	keyEqNotUser                  = "key eq \"not-user-key\""
+	keyEqUserKey                  = "key eq \"user-key\""
+	notExpectedValueS             = "not expected value: %s"
+	nothingToReturn               = "nothing to return"
+	ruleOne                       = "Rule1"
+	ruleA                         = "rule-a"
+	sdkDefault                    = "SdkDefault"
+	semaphore                     = "semaphore"
+	targetingKeyEqOne             = "targetingKey eq 1"
+	teamID                        = "teamId"
+	testRule                      = "test-rule"
+	thisIsAFlag                   = "this is a flag"
+	valueA                        = "valueA"
+	valueAUnderscore              = "value_A"
+	valueB                        = "valueB"
+	valueBUnderscore              = "value_B"
+	valueC                        = "value_C"
+	valueD                        = "value_D"
+	valueDefault                  = "value_default"
+	valueQWERTY                   = "value_QWERTY"
+	varAName                      = "varA"
+	varBName                      = "varB"
+	varEnvironmentUUID0Ffcc       = `{"===":[{"var":"EnvironmentUUID"},"0ffcc8da-1f70-4229-8ef7-b5a3130cdd52"]}`
+	varKeyNotUser                 = `{"==":[{"var":"key"},"not-user-key"]}`
+	varKeyUserKey                 = `{"==":[{"var":"key"},"user-key"]}`
+	variationA                    = "variation_A"
+	variationB                    = "variation_B"
+	variationC                    = "variation_C"
+	variationD                    = "variation_D"
+	fixtureFalse                  = "fixtureFalse"
 )
 
 type internalFlagValueArgs struct {
@@ -158,13 +149,13 @@ func TestInternalFlag_Value(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
@@ -175,8 +166,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -192,13 +183,13 @@ func TestInternalFlag_Value(t *testing.T) {
 					Percentages:     &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
@@ -209,8 +200,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -219,13 +210,13 @@ func TestInternalFlag_Value(t *testing.T) {
 			flag: flag.InternalFlag{
 				Disable: new(true),
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 				},
@@ -236,8 +227,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -249,13 +240,13 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 				},
@@ -266,8 +257,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -279,15 +270,15 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(gofeatureflag, map[string]any{
-						currentDateTime2: fixedNow().Add(6 * time.Second).Format(time.RFC3339),
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.GoFeatureFlagOrg, map[string]any{
+						fixtures.CurrentDateTime: fixedNow().Add(6 * time.Second).Format(time.RFC3339),
 					}).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -300,8 +291,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -313,13 +304,13 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 				},
@@ -330,8 +321,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -351,7 +342,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule12),
+						Name:            new(fixtures.RuleOne),
 						Query:           new(keyEqUserKey),
 						VariationResult: new(variationB),
 					},
@@ -360,13 +351,13 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
@@ -376,12 +367,12 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				Variant:   variationB,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
-				RuleName:  new(rule12),
+				RuleName:  new(fixtures.RuleOne),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule12,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
 			},
 		},
@@ -394,7 +385,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule12),
+						Name:            new(fixtures.RuleOne),
 						Query:           new(varKeyUserKey),
 						VariationResult: new(variationB),
 					},
@@ -403,13 +394,13 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
 				},
@@ -419,12 +410,12 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				Variant:   variationB,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
-				RuleName:  new(rule12),
+				RuleName:  new(fixtures.RuleOne),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule12,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
 			},
 		},
@@ -432,18 +423,18 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 			name: "Should match the 2nd rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule12),
+						Name:            new(fixtures.RuleOne),
 						Query:           new(keyEqNotUser),
 						VariationResult: new(variationC),
 					},
 					{
-						Name:            new(rule2),
+						Name:            new(fixtures.RuleTwo),
 						Query:           new(keyEqUserKey),
 						VariationResult: new(variationC),
 					},
@@ -452,13 +443,13 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -468,12 +459,12 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				Variant:   variationC,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(1),
-				RuleName:  new(rule2),
+				RuleName:  new(fixtures.RuleTwo),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule2,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
 			},
 		},
@@ -481,20 +472,20 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 			name: "Should match the 2nd rule (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name: new(rule12),
+						Name: new(fixtures.RuleOne),
 						Query: new(
 							varKeyNotUser,
 						),
 						VariationResult: new(variationC),
 					},
 					{
-						Name:            new(rule2),
+						Name:            new(fixtures.RuleTwo),
 						Query:           new(varKeyUserKey),
 						VariationResult: new(variationC),
 					},
@@ -503,13 +494,13 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -519,12 +510,12 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				Variant:   variationC,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(1),
-				RuleName:  new(rule2),
+				RuleName:  new(fixtures.RuleTwo),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule2,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
 			},
 		},
@@ -539,8 +530,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 			name: "Should match a rule with no name",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				Rules: &[]flag.Rule{
@@ -557,13 +548,13 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -575,8 +566,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -584,8 +575,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 			name: "Should match a rule with no name (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				Rules: &[]flag.Rule{
@@ -604,13 +595,13 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -622,8 +613,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -631,8 +622,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 			name: "Should match only the first rule that apply (even if more than one can apply)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -654,14 +645,14 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(company, semaphore).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.UserCompany, semaphore).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -674,8 +665,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -683,8 +674,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 			name: "Should match only the first rule that apply (even if more than one can apply) (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -710,14 +701,14 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(company, semaphore).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.UserCompany, semaphore).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -730,8 +721,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -746,8 +737,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 			name: "Should ignore a rule that is disabled",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -770,14 +761,14 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(company, semaphore).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.UserCompany, semaphore).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -790,8 +781,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				RuleIndex: new(2),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -799,8 +790,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 			name: "Should return an error if rule is invalid",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -814,13 +805,13 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -831,8 +822,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -841,8 +832,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 			name: "Should return an error if rule is invalid (jsonLogic)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -856,13 +847,13 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -873,8 +864,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -883,8 +874,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 			name: "Should return an error if no targeting match and we have no default rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -898,13 +889,13 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -915,8 +906,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				ErrorMessage: "no default targeting for the flag",
 			},
@@ -925,8 +916,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 			name: "Should return an error if default rule is invalid",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 					variationD: new(any(valueD)),
 				},
@@ -934,13 +925,13 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -951,8 +942,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -968,15 +959,15 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 			name: "Should not have any change if all scheduled steps are in the future",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -994,19 +985,19 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1014,15 +1005,15 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 			name: "Should change if all scheduled steps are in the future BUT context override is in the future too",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1040,23 +1031,23 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(gofeatureflag, map[string]string{
-						currentDateTime2: fixedNow().Add(1 * time.Minute).Format(time.RFC3339),
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.GoFeatureFlagOrg, map[string]string{
+						fixtures.CurrentDateTime: fixedNow().Add(1 * time.Minute).Format(time.RFC3339),
 					}).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueB2,
+			want: valueBUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1064,15 +1055,15 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 			name: "Should only apply 1 scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1090,19 +1081,19 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueB2,
+			want: valueBUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1110,15 +1101,15 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 			name: "Should only apply 1 scheduled step if step at the exact same time",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1136,9 +1127,9 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(gofeatureflag, ffcontext.GoffContextSpecifics{
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.GoFeatureFlagOrg, ffcontext.GoffContextSpecifics{
 						CurrentDateTime: new(
 							time.Date(2022, 1, 1, 12, 12, 12, 12, time.UTC),
 						),
@@ -1148,13 +1139,13 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueB2,
+			want: valueBUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1169,15 +1160,15 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			name: "Should apply all scheduled steps in the past",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1195,8 +1186,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -1206,8 +1197,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1215,21 +1206,21 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			name: "Should apply the most recent scheduled step when two steps edit the same rule name (newest date wins)",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"fixtureTrue":   new(any(true)),
-					variationFalse2: new(any(false)),
+					"fixtureTrue": new(any(true)),
+					fixtureFalse:  new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name: new(dEVEnvironment),
+						Name: new(devEnvironment),
 						Query: new(
 							varEnvironmentUUID0Ffcc,
 						),
-						VariationResult: new(variationFalse2),
+						VariationResult: new(fixtureFalse),
 					},
 				},
 				DefaultRule: &flag.Rule{
 					Name:            new("Default"),
-					VariationResult: new(variationFalse2),
+					VariationResult: new(fixtureFalse),
 				},
 				Metadata: &map[string]any{
 					"type":       "ADVANCED_FLAG",
@@ -1239,11 +1230,11 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					{ // newest date, listed first
 						Rules: &[]flag.Rule{
 							{
-								Name: new(dEVEnvironment),
+								Name: new(devEnvironment),
 								Query: new(
 									varEnvironmentUUID0Ffcc,
 								),
-								VariationResult: new(variationFalse2),
+								VariationResult: new(fixtureFalse),
 							},
 						},
 						Date: new(time.Date(2026, 6, 11, 9, 50, 0, 0, time.UTC)),
@@ -1251,7 +1242,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					{ // oldest date, listed second
 						Rules: &[]flag.Rule{
 							{
-								Name: new(dEVEnvironment),
+								Name: new(devEnvironment),
 								Query: new(
 									varEnvironmentUUID0Ffcc,
 								),
@@ -1263,10 +1254,10 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
 					AddCustom("EnvironmentUUID", "0ffcc8da-1f70-4229-8ef7-b5a3130cdd52").
-					AddCustom(gofeatureflag, ffcontext.GoffContextSpecifics{
+					AddCustom(fixtures.GoFeatureFlagOrg, ffcontext.GoffContextSpecifics{
 						CurrentDateTime: new(
 							time.Date(2026, 6, 11, 9, 51, 0, 0, time.UTC),
 						),
@@ -1280,14 +1271,14 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			// older one (09:49, fixtureTrue).
 			want: false,
 			want1: flag.ResolutionDetails{
-				Variant:   variationFalse2,
+				Variant:   fixtureFalse,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
-				RuleName:  new(dEVEnvironment),
+				RuleName:  new(devEnvironment),
 				Metadata: map[string]any{
-					"type":             "ADVANCED_FLAG",
-					"metadataId":       "5cbd0920-7b2c-4186-9cca-3313de925fe2",
-					evaluatedRuleName2: dEVEnvironment,
+					"type":                     "ADVANCED_FLAG",
+					"metadataId":               "5cbd0920-7b2c-4186-9cca-3313de925fe2",
+					fixtures.EvaluatedRuleName: devEnvironment,
 				},
 			},
 		},
@@ -1295,16 +1286,16 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			name: "Should keep rules added by an earlier scheduled step when a later step adds another rule",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{ // older step adds rule-a
@@ -1330,9 +1321,9 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user: ffcontext.NewEvaluationContextBuilder("user-a").
-					AddCustom(gofeatureflag, ffcontext.GoffContextSpecifics{
+					AddCustom(fixtures.GoFeatureFlagOrg, ffcontext.GoffContextSpecifics{
 						CurrentDateTime: new(
 							time.Date(2026, 6, 11, 9, 51, 0, 0, time.UTC),
 						),
@@ -1344,16 +1335,16 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 			},
 			// rule-a (added by the older step) must survive after the newer step
 			// adds rule-b, so a "user-a" context still matches rule-a.
-			want: valueB2,
+			want: valueBUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationB,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
 				RuleName:  new(ruleA),
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: ruleA,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: ruleA,
 				},
 			},
 		},
@@ -1368,15 +1359,15 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 			name: "Should ignore scheduled steps with no dates",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1387,19 +1378,19 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1407,12 +1398,12 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 			name: "Should update a rule that exists with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule12),
+						Name:            new(fixtures.RuleOne),
 						Query:           new(keyEqUserKey),
 						VariationResult: new(variationB),
 					},
@@ -1421,8 +1412,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1432,7 +1423,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 						},
 						Rules: &[]flag.Rule{
 							{
-								Name:            new(rule12),
+								Name:            new(fixtures.RuleOne),
 								VariationResult: new(variationC),
 							},
 						},
@@ -1440,8 +1431,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -1451,11 +1442,11 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				Variant:   variationC,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(0),
-				RuleName:  new(rule12),
+				RuleName:  new(fixtures.RuleOne),
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule12,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
 			},
 		},
@@ -1463,16 +1454,16 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 			name: "Should update default rule with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationC),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1487,7 +1478,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -1498,8 +1489,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				Variant: variationC,
 				Reason:  flag.ReasonSplit,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1507,19 +1498,19 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 			name: "Should add a new rule with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule12),
+						Name:            new(fixtures.RuleOne),
 						Query:           new(keyEqUserKey),
 						VariationResult: new(variationB),
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
@@ -1532,7 +1523,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 						},
 						Rules: &[]flag.Rule{
 							{
-								Name:            new(rule2),
+								Name:            new(fixtures.RuleTwo),
 								Query:           new("key eq \"user-key-123\""),
 								VariationResult: new(variationC),
 							},
@@ -1541,7 +1532,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user:     ffcontext.NewEvaluationContextBuilder("user-key-123").Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -1552,11 +1543,11 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				Variant:   variationC,
 				Reason:    flag.ReasonTargetingMatch,
 				RuleIndex: new(1),
-				RuleName:  new(rule2),
+				RuleName:  new(fixtures.RuleTwo),
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: rule2,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
 			},
 		},
@@ -1571,15 +1562,15 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 			name: "Should apply all the changes if all scheduled steps are in the past",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1597,8 +1588,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -1608,8 +1599,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1617,28 +1608,28 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 			name: "Should disable the flag with a scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Disable:     new(true),
 						TrackEvents: new(false),
-						Version:     new(versionOneZeroZero),
+						Version:     new(fixtures.VersionOneZeroZero),
 						Date:        new(fixedNow().Add(-2 * time.Second)),
 					},
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -1648,8 +1639,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: flag.VariationSDKDefault,
 				Reason:  flag.ReasonDisabled,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1657,15 +1648,15 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 			name: "Should create an experimentation for a dedicated time",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1678,19 +1669,19 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1698,21 +1689,21 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 			name: "Should not apply a scheduled step inside another scheduled step",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						Variations: &map[string]*any{
 							variationA: new(any("value_AB")),
-							variationB: new(any(valueB2)),
+							variationB: new(any(valueBUnderscore)),
 						},
 						Scheduled: &[]flag.ScheduledStep{
 							{
@@ -1727,8 +1718,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -1738,8 +1729,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1754,8 +1745,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 			name: "Should return the false value if not in between initial and end percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
@@ -1772,25 +1763,25 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonSplit,
 				Cacheable: false,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1798,8 +1789,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH if rule apply and return a simple variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1812,18 +1803,18 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonTargetingMatch,
@@ -1831,9 +1822,9 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: testRule,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: testRule,
 				},
 			},
 		},
@@ -1841,8 +1832,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH_SPLIT if rule apply and has percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1858,18 +1849,18 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonTargetingMatchSplit,
@@ -1877,9 +1868,9 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: testRule,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: testRule,
 				},
 			},
 		},
@@ -1887,8 +1878,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 			name: "Should return the reason TARGETING_MATCH_SPLIT if rule apply and has progressive rollout",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1912,18 +1903,18 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonTargetingMatchSplit,
@@ -1931,9 +1922,9 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: false,
 				Metadata: map[string]any{
-					description2:       thisIsAFlag,
-					issueLink:          httpsIssueLinkGOFF,
-					evaluatedRuleName2: testRule,
+					fixtures.Description:       thisIsAFlag,
+					fixtures.IssueLink:         httpsIssueLinkGOFF,
+					fixtures.EvaluatedRuleName: testRule,
 				},
 			},
 		},
@@ -1948,8 +1939,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 			name: "Should return the reason SPLIT if rule not apply and has percentage",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -1965,25 +1956,25 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonSplit,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1991,8 +1982,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 			name: "Should return the reason DEFAULT if rule not apply and has default variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -2005,25 +1996,25 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonDefault,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2031,32 +2022,32 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 			name: "Should return the reason STATIC if no rule and has default variation",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2064,8 +2055,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 			name: "Should return the reason STATIC if no rule and has default percentage to 100%",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
@@ -2074,25 +2065,25 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
 			},
-			want: valueA2,
+			want: valueAUnderscore,
 			want1: flag.ResolutionDetails{
 				Variant:   variationA,
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2118,8 +2109,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					VariationResult: new("B"),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2128,7 +2119,7 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: true,
 					EvaluationContextEnrichment: map[string]any{
-						env2: "development",
+						fixtures.Env: "development",
 					},
 				},
 			},
@@ -2139,8 +2130,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Cacheable: true,
 				RuleIndex: new(0),
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2169,12 +2160,12 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 					EvaluationContextEnrichment: map[string]any{
-						environment2: prod,
+						environmentKey: fixtures.Prod,
 					},
 				},
 			},
@@ -2204,14 +2195,14 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user: ffcontext.NewEvaluationContextBuilder("key1").
-					AddCustom(environment2, "dev").
+					AddCustom(environmentKey, "dev").
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 					EvaluationContextEnrichment: map[string]any{
-						environment2: prod,
+						environmentKey: fixtures.Prod,
 					},
 				},
 			},
@@ -2231,8 +2222,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					description2: make(chan int),
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: make(chan int),
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -2245,8 +2236,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user:     ffcontext.NewEvaluationContext(userKey),
+				flagName: fixtures.FlagKeyMy,
+				user:     ffcontext.NewEvaluationContext(fixtures.UserKeyUser),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 				},
@@ -2270,12 +2261,12 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user:     ffcontext.NewEvaluationContext(""),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
@@ -2287,8 +2278,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2303,13 +2294,13 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				BucketingKey: new(teamID),
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user: ffcontext.NewEvaluationContextBuilder("toto").
 					AddCustom(teamID, "").
 					Build(),
@@ -2323,8 +2314,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2342,12 +2333,12 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
+				flagName: fixtures.FlagKeyMy,
 				user:     ffcontext.NewEvaluationContext(""),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
@@ -2361,8 +2352,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				ErrorMessage: "Error: Empty targeting key",
 				Cacheable:    false,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2383,8 +2374,8 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			name: "Should use custom bucketing key when set",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				BucketingKey: new(teamID),
@@ -2396,8 +2387,8 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
 					AddCustom(teamID, team123).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
@@ -2411,8 +2402,8 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			name: "Should use nested bucketing key when set",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				BucketingKey: new(companyID),
@@ -2424,10 +2415,10 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
 					AddCustom(teamID, team123).
-					AddCustom(company, map[string]any{
+					AddCustom(fixtures.UserCompany, map[string]any{
 						"id": "company-456",
 					}).
 					Build(),
@@ -2478,8 +2469,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when bucketing key not found",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				BucketingKey: new(teamID),
@@ -2491,8 +2482,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName:    myFlag,
-				user:        ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				flagName:    fixtures.FlagKeyMy,
+				user:        ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flagContext: flag.Context{Service: flag.NewService()},
 			},
 			want: flag.ResolutionDetails{
@@ -2506,8 +2497,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when nested bucketing key not found",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				BucketingKey: new(companyID),
@@ -2519,9 +2510,9 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(company, map[string]any{
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.UserCompany, map[string]any{
 						"name": "acme-corp",
 					}).
 					Build(),
@@ -2538,8 +2529,8 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 			name: "Should return error when nested bucketing key is not a string",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					variationA: new(any(valueA2)),
-					variationB: new(any(valueB2)),
+					variationA: new(any(valueAUnderscore)),
+					variationB: new(any(valueBUnderscore)),
 					variationC: new(any(valueC)),
 				},
 				BucketingKey: new(companyID),
@@ -2551,9 +2542,9 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 				},
 			},
 			args: internalFlagValueArgs{
-				flagName: myFlag,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(company, map[string]any{
+				flagName: fixtures.FlagKeyMy,
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
+					AddCustom(fixtures.UserCompany, map[string]any{
 						"id": 12345,
 					}).
 					Build(),
@@ -2582,8 +2573,8 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 
 	flg := &flag.InternalFlag{
 		Variations: &map[string]*any{
-			variationA: new(any(valueA2)),
-			variationB: new(any(valueB2)),
+			variationA: new(any(valueAUnderscore)),
+			variationB: new(any(valueBUnderscore)),
 		},
 		DefaultRule: &flag.Rule{
 			ProgressiveRollout: &flag.ProgressiveRollout{
@@ -2601,8 +2592,8 @@ func TestFlag_ProgressiveRollout(t *testing.T) {
 		},
 	}
 
-	user := ffcontext.NewEvaluationContextBuilder("test").AddCustom(anonymous, true).Build()
-	flagName := testFlag
+	user := ffcontext.NewEvaluationContextBuilder("test").AddCustom(fixtures.Anonymous, true).Build()
+	flagName := fixtures.FlagKeyTest
 
 	// We evaluate the same flag at different dates: before the initial step, at the initial step,
 	// and at the end of the progressive rollout.
@@ -2649,13 +2640,13 @@ func TestInternalFlag_GetVariations(t *testing.T) {
 			name: "Should return variations if map is not empty",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					varA2: new(any(valueA)),
-					varB2: new(any(valueB)),
+					varAName: new(any(valueA)),
+					varBName: new(any(valueB)),
 				},
 			},
 			want: map[string]*any{
-				varA2: new(any(valueA)),
-				varB2: new(any(valueB)),
+				varAName: new(any(valueA)),
+				varBName: new(any(valueB)),
 			},
 		},
 	}
@@ -2682,7 +2673,7 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 			flag: flag.InternalFlag{
 				Rules: nil,
 			},
-			ruleName: rule12,
+			ruleName: fixtures.RuleOne,
 			want:     nil,
 		},
 		{
@@ -2690,7 +2681,7 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 			flag: flag.InternalFlag{
 				Rules: &[]flag.Rule{},
 			},
-			ruleName: rule12,
+			ruleName: fixtures.RuleOne,
 			want:     nil,
 		},
 		{
@@ -2701,11 +2692,11 @@ func TestInternalFlag_GetRuleIndexByName(t *testing.T) {
 						Name: new("rule0"),
 					},
 					{
-						Name: new(rule12),
+						Name: new(fixtures.RuleOne),
 					},
 				},
 			},
-			ruleName: rule12,
+			ruleName: fixtures.RuleOne,
 			want:     new(1),
 		},
 	}
@@ -2737,8 +2728,8 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 			name: "Should return nil if variation does not exist",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					varA2: new(any(valueA)),
-					varB2: new(any(valueB)),
+					varAName: new(any(valueA)),
+					varBName: new(any(valueB)),
 				},
 			},
 			variation: "varC",
@@ -2748,22 +2739,22 @@ func TestInternalFlag_GetVariationValue(t *testing.T) {
 			name: "Should return variation value if exists",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					varA2: new(any(valueA)),
-					varB2: new(any(valueB)),
+					varAName: new(any(valueA)),
+					varBName: new(any(valueB)),
 				},
 			},
-			variation: varA2,
+			variation: varAName,
 			want:      valueA,
 		},
 		{
 			name: "Should return nil if variation value is nil",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					varA2: new(any(nil)),
-					varB2: new(any(valueB)),
+					varAName: new(any(nil)),
+					varBName: new(any(valueB)),
 				},
 			},
-			variation: varA2,
+			variation: varAName,
 			want:      nil,
 		},
 	}
@@ -2806,8 +2797,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "all variations should have the same type",
@@ -2824,8 +2815,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			wantErr: assert.NoError,
@@ -2838,14 +2829,14 @@ func TestInternalFlag_IsValid(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule1),
+						Name:            new(ruleOne),
 						Query:           new("key eq 1"),
 						VariationResult: new("A"),
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "missing default rule",
@@ -2861,12 +2852,12 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:            new(rule1),
+						Name:            new(ruleOne),
 						Query:           new("key eq 1"),
 						VariationResult: new("A"),
 					},
@@ -2886,13 +2877,13 @@ func TestInternalFlag_IsValid(t *testing.T) {
 						VariationResult: new("A"),
 					},
 					{
-						Name:            new(rule1),
+						Name:            new(ruleOne),
 						Query:           new("key eq 4"),
 						VariationResult: new("A"),
 					},
 					{
 						Name:            new(""),
-						Query:           new(keyEq5),
+						Query:           new(keyEqFive),
 						VariationResult: new("A"),
 					},
 				},
@@ -2914,11 +2905,11 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
-			errorMsg: invalidPercentagesShouldNot2,
+			errorMsg: invalidPercentagesShouldNotBe,
 			wantErr:  assert.Error,
 		},
 		{
@@ -2932,8 +2923,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: invalidPercentagesShouldNot,
@@ -2960,13 +2951,13 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:  new(rule1),
-						Query: new(keyEq5),
+						Name:  new(ruleOne),
+						Query: new(keyEqFive),
 						Percentages: &map[string]float64{
 							"A": 0o0,
 							"B": 0,
@@ -2974,7 +2965,7 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					},
 				},
 			},
-			errorMsg: invalidPercentagesShouldNot2,
+			errorMsg: invalidPercentagesShouldNotBe,
 			wantErr:  assert.Error,
 		},
 		{
@@ -2987,13 +2978,13 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:        new(rule1),
-						Query:       new(keyEq5),
+						Name:        new(ruleOne),
+						Query:       new(keyEqFive),
 						Percentages: &map[string]float64{},
 					},
 				},
@@ -3016,7 +3007,7 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name: new(rule1),
+						Name: new(ruleOne),
 						Percentages: &map[string]float64{
 							"A": 90,
 							"B": 10,
@@ -3024,8 +3015,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "each targeting should have a query",
@@ -3039,8 +3030,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(nothingToReturn),
@@ -3057,8 +3048,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(nothingToReturn),
@@ -3087,13 +3078,13 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
-						Name:    new(rule1),
-						Query:   new(keyEq5),
+						Name:    new(ruleOne),
+						Query:   new(keyEqFive),
 						Disable: new(true),
 						Percentages: &map[string]float64{
 							"A": 90,
@@ -3207,7 +3198,7 @@ func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           new(targetingKeyEq1),
+						Query:           new(targetingKeyEqOne),
 						VariationResult: new("C"),
 					},
 				},
@@ -3227,7 +3218,7 @@ func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query: new(targetingKeyEq1),
+						Query: new(targetingKeyEqOne),
 						Percentages: &map[string]float64{
 							"A": 90,
 							"B": 5,
@@ -3251,7 +3242,7 @@ func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query: new(targetingKeyEq1),
+						Query: new(targetingKeyEqOne),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("C"),
@@ -3282,7 +3273,7 @@ func TestInternalFlag_IsValid_RolloutAndQueryErrors(t *testing.T) {
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query: new(targetingKeyEq1),
+						Query: new(targetingKeyEqOne),
 						ProgressiveRollout: &flag.ProgressiveRollout{
 							Initial: &flag.ProgressiveRolloutStep{
 								Variation:  new("A"),
@@ -3334,15 +3325,15 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 	cases := 1000
 	internalFlag := flag.InternalFlag{
 		Variations: &map[string]*any{
-			variationA: new(any(valueA2)),
-			variationB: new(any(valueB2)),
+			variationA: new(any(valueAUnderscore)),
+			variationB: new(any(valueBUnderscore)),
 		},
 		DefaultRule: &flag.Rule{
 			VariationResult: new(variationA),
 		},
 		Metadata: &map[string]any{
-			description2: thisIsAFlag,
-			issueLink:    httpsIssueLinkGOFF,
+			fixtures.Description: thisIsAFlag,
+			fixtures.IssueLink:   httpsIssueLinkGOFF,
 		},
 		Scheduled: &[]flag.ScheduledStep{
 			{
@@ -3369,14 +3360,14 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					description2: thisIsAFlag,
-					issueLink:    httpsIssueLinkGOFF,
+					fixtures.Description: thisIsAFlag,
+					fixtures.IssueLink:   httpsIssueLinkGOFF,
 				},
 			}
 
 			got, got1 := internalFlag.Value(
-				flag2,
-				ffcontext.NewEvaluationContextBuilder(userKey).Build(),
+				fixtures.FlagKeyBare,
+				ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).Build(),
 				flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
 				},
@@ -3411,9 +3402,9 @@ func TestInternalFlag_GetVersion(t *testing.T) {
 		{
 			name: "Should return version if not nil",
 			flag: flag.InternalFlag{
-				Version: new(versionOneZeroZero),
+				Version: new(fixtures.VersionOneZeroZero),
 			},
-			want: versionOneZeroZero,
+			want: fixtures.VersionOneZeroZero,
 		},
 	}
 	for _, tt := range tests {

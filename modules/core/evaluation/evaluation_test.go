@@ -10,13 +10,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	e22A40  = "e22a40e0-28fa-413c-aef8-4dc6a27593b7"
-	intType = "int"
-	myFlag  = "my-flag"
-	off2    = "off"
+	targetingKeyUUID = "e22a40e0-28fa-413c-aef8-4dc6a27593b7"
 )
 
 func Test_evaluate(t *testing.T) {
@@ -42,15 +40,15 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on": new(any(true)),
-						off2: new(any(false)),
+						"on":                  new(any(true)),
+						fixtures.VariationOff: new(any(false)),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
 					},
 				},
-				flagKey:         myFlag,
-				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
+				flagKey:         fixtures.FlagKeyMy,
+				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
 				flagCtx:         flag.Context{Service: flag.NewService()},
 				expectedType:    "bool",
 				sdkDefaultValue: false,
@@ -70,15 +68,15 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on": nil,
-						off2: nil,
+						"on":                  nil,
+						fixtures.VariationOff: nil,
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
 					},
 				},
-				flagKey:         myFlag,
-				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
+				flagKey:         fixtures.FlagKeyMy,
+				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
 				flagCtx:         flag.Context{Service: flag.NewService()},
 				expectedType:    "bool",
 				sdkDefaultValue: false,
@@ -98,17 +96,17 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on": new(any(float64(3))),
-						off2: new(any(float64(0))),
+						"on":                  new(any(float64(3))),
+						fixtures.VariationOff: new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
 					},
 				},
-				flagKey:         myFlag,
-				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
+				flagKey:         fixtures.FlagKeyMy,
+				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
 				flagCtx:         flag.Context{Service: flag.NewService()},
-				expectedType:    intType,
+				expectedType:    fixtures.IntType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
@@ -126,17 +124,17 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on": new(any(float64(3))),
-						off2: new(any(float64(0))),
+						"on":                  new(any(float64(3))),
+						fixtures.VariationOff: new(any(float64(0))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
 					},
 				},
-				flagKey:         myFlag,
-				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
+				flagKey:         fixtures.FlagKeyMy,
+				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
 				flagCtx:         flag.Context{Service: flag.NewService()},
-				expectedType:    intType,
+				expectedType:    fixtures.IntType,
 				sdkDefaultValue: 0,
 			},
 			want: model.VariationResult[any]{
@@ -154,15 +152,15 @@ func Test_evaluate(t *testing.T) {
 			args: args{
 				flag: &flag.InternalFlag{
 					Variations: &map[string]*any{
-						"on": new(any(float64(3.5))),
-						off2: new(any(float64(0.3))),
+						"on":                  new(any(float64(3.5))),
+						fixtures.VariationOff: new(any(float64(0.3))),
 					},
 					DefaultRule: &flag.Rule{
 						VariationResult: new("on"),
 					},
 				},
-				flagKey:         myFlag,
-				evaluationCtx:   ffcontext.NewEvaluationContext(e22A40),
+				flagKey:         fixtures.FlagKeyMy,
+				evaluationCtx:   ffcontext.NewEvaluationContext(targetingKeyUUID),
 				flagCtx:         flag.Context{Service: flag.NewService()},
 				expectedType:    "float",
 				sdkDefaultValue: 0,
@@ -205,8 +203,8 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 
 	targetFlag := &flag.InternalFlag{
 		Variations: &map[string]*any{
-			"on": new(any(true)),
-			off2: new(any(false)),
+			"on":                  new(any(true)),
+			fixtures.VariationOff: new(any(false)),
 		},
 		DefaultRule: &flag.Rule{
 			VariationResult: new("on"),
@@ -214,10 +212,10 @@ func Test_evaluate_typeMisMatch(t *testing.T) {
 	}
 	got, err := evaluation.Evaluate[int](
 		targetFlag,
-		myFlag,
-		ffcontext.NewEvaluationContext(e22A40),
+		fixtures.FlagKeyMy,
+		ffcontext.NewEvaluationContext(targetingKeyUUID),
 		flag.Context{Service: flag.NewService()},
-		intType,
+		fixtures.IntType,
 		42,
 	)
 	require.Error(t, err)

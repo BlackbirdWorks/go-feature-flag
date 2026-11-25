@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestNikunjyEvaluatorCache_Validate(t *testing.T) {
@@ -128,7 +129,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 // load, then evaluating it once.
 func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 	variations := map[string]*any{"on": new(any(true))}
-	ctx := ffcontext.NewEvaluationContext(user1)
+	ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyOne)
 	svc := NewService()
 
 	b.ReportAllocs()
@@ -148,7 +149,7 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
 		require.NoError(b, r.IsValid(svc, false, variations))
-		_, _ = r.Evaluate(svc, user1, ctx, "test-flag", false)
+		_, _ = r.Evaluate(svc, fixtures.UserKeyOne, ctx, "test-flag", false)
 	}
 }
 

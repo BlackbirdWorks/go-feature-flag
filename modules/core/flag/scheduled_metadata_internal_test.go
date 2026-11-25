@@ -9,6 +9,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 // the details handed to the caller belong to the evaluation: editing the metadata or the rule name
@@ -18,7 +19,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 
 	metadata := func() *map[string]any {
 		return &map[string]any{
-			"release": map[string]any{"owner": "team", tags2: []any{"a", map[string]any{"k": "v"}}},
+			"release": map[string]any{"owner": "team", tagsName: []any{"a", map[string]any{"k": "v"}}},
 		}
 	}
 
@@ -68,26 +69,26 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			t.Parallel()
 
 			flg := tt.flag(clocktest.Instant())
-			ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
-			_, first := flg.Value(flag2, ctx, Context{Service: NewService()})
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+			_, first := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: NewService()})
 			rel, ok := first.Metadata["release"].(map[string]any)
 			require.True(t, ok)
 
-			rel["owner"] = changed2
-			tags, ok := rel[tags2].([]any)
+			rel["owner"] = changedName
+			tags, ok := rel[tagsName].([]any)
 			require.True(t, ok)
 
-			tags[0] = changed2
+			tags[0] = changedName
 			tagMap, ok := tags[1].(map[string]any)
 			require.True(t, ok)
 
-			tagMap["k"] = changed2
+			tagMap["k"] = changedName
 
 			if first.RuleName != nil {
-				*first.RuleName = changed2
+				*first.RuleName = changedName
 			}
 
-			_, second := flg.Value(flag2, ctx, Context{Service: NewService()})
+			_, second := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
 
 			gotRuleName := ""
@@ -103,7 +104,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 func withoutRuleName(m map[string]any) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		if k != evaluatedRuleName2 {
+		if k != evaluatedRuleNameKey {
 			out[k] = v
 		}
 	}

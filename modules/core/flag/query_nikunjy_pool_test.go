@@ -11,6 +11,7 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
@@ -44,8 +45,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(keyEqAbc),
 			},
 			args: args{
-				key:      abc,
-				ctx:      ffcontext.NewEvaluationContext(abc),
+				key:      fixtures.Abc,
+				ctx:      ffcontext.NewEvaluationContext(fixtures.Abc),
 				flagName: "test-pool",
 			},
 			want:    "on",
@@ -131,8 +132,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`??? not a valid query !!!`),
 			},
 			args: args{
-				key:      user1,
-				ctx:      ffcontext.NewEvaluationContext(user1),
+				key:      fixtures.UserKeyOne,
+				ctx:      ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
 				flagName: "test-pool-invalid",
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
@@ -178,8 +179,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`missingField eq "value"`),
 			},
 			args: args{
-				key:      user1,
-				ctx:      ffcontext.NewEvaluationContext(user1),
+				key:      fixtures.UserKeyOne,
+				ctx:      ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
 				flagName: "test-pool-missing-attr",
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
@@ -196,8 +197,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`@@@ garbage`),
 			},
 			args: args{
-				key:      user1,
-				ctx:      ffcontext.NewEvaluationContext(user1),
+				key:      fixtures.UserKeyOne,
+				ctx:      ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
 				flagName: "test-pool-invalid-var",
 			},
 			want: "",
@@ -348,7 +349,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 		VariationResult: new("on"),
 		Query:           new(`!!! invalid syntax !!!`),
 	}
-	ctx := ffcontext.NewEvaluationContext(user1)
+	ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyOne)
 
 	const goroutines = 30
 
@@ -361,7 +362,13 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 		wg.Go(func() {
 			idx := i
 
-			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), user1, ctx, "test-concurrent-invalid", false)
+			results[idx], errs[idx] = rule.Evaluate(
+				flag.NewService(),
+				fixtures.UserKeyOne,
+				ctx,
+				"test-concurrent-invalid",
+				false,
+			)
 		})
 	}
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
@@ -18,12 +19,12 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 	}{
 		{
 			name:        "2 variations",
-			percentages: map[string]float64{varA2: 50, varB2: 50},
+			percentages: map[string]float64{varAName: 50, varBName: 50},
 		},
 		{
 			name: "5 variations",
 			percentages: map[string]float64{
-				varA2: 20, varB2: 20, "varC": 20, "varD": 20, "varE": 20,
+				varAName: 20, varBName: 20, "varC": 20, "varD": 20, "varE": 20,
 			},
 		},
 	}
@@ -35,7 +36,7 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, _ = rule.Evaluate(svc, key, ctx, myFlag, true)
+				_, _ = rule.Evaluate(svc, key, ctx, fixtures.FlagKeyMy, true)
 			}
 		})
 	}
@@ -49,7 +50,7 @@ func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 			`{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
 		AddCustom(language, "ar").
 		AddCustom("clubsTimeSpent", 1500).
 		Build()
@@ -57,6 +58,6 @@ func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = rule.Evaluate(svc, user1, ctx, myFlag, false)
+		_, _ = rule.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyMy, false)
 	}
 }

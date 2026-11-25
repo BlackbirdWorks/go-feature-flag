@@ -8,10 +8,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-)
-
-const (
-	user123 = "user-123"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestRule_RequiresBucketing(t *testing.T) {
@@ -25,7 +22,7 @@ func TestRule_RequiresBucketing(t *testing.T) {
 		{
 			name: "Should not require bucketing - static variation",
 			rule: flag.Rule{
-				VariationResult: new(enabled2),
+				VariationResult: new(fixtures.VariationEnabled),
 			},
 			expected: false,
 		},
@@ -33,8 +30,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - has percentages",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					enabled2:  50,
-					disabled2: 50,
+					fixtures.VariationEnabled:  50,
+					fixtures.VariationDisabled: 50,
 				},
 			},
 			expected: true,
@@ -51,12 +48,12 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new(disabled2),
+						Variation:  new(fixtures.VariationDisabled),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow()),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new(enabled2),
+						Variation:  new(fixtures.VariationEnabled),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(time.Hour)),
 					},
@@ -91,20 +88,20 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for static variation",
 			rule: flag.Rule{
-				VariationResult: new(enabled2),
+				VariationResult: new(fixtures.VariationEnabled),
 			},
 			key:           "",
 			ctx:           ffcontext.NewEvaluationContext(""),
 			expectedError: false,
-			expectedValue: enabled2,
+			expectedValue: fixtures.VariationEnabled,
 			description:   "Static variation should work without key",
 		},
 		{
 			name: "Should fail with empty key for percentage rule",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					enabled2:  50,
-					disabled2: 50,
+					fixtures.VariationEnabled:  50,
+					fixtures.VariationDisabled: 50,
 				},
 			},
 			key:           "",
@@ -116,12 +113,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			name: "Should succeed with key for percentage rule",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					enabled2:  50,
-					disabled2: 50,
+					fixtures.VariationEnabled:  50,
+					fixtures.VariationDisabled: 50,
 				},
 			},
-			key:           user123,
-			ctx:           ffcontext.NewEvaluationContext(user123),
+			key:           fixtures.UserKeyNumbered,
+			ctx:           ffcontext.NewEvaluationContext(fixtures.UserKeyNumbered),
 			expectedError: false,
 			description:   "Percentage rule should work with key",
 		},
@@ -130,12 +127,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new(disabled2),
+						Variation:  new(fixtures.VariationDisabled),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new(enabled2),
+						Variation:  new(fixtures.VariationEnabled),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(time.Hour)),
 					},
@@ -149,18 +146,18 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for query-only rule",
 			rule: flag.Rule{
-				Query:           new(anonymousEqTrue),
-				VariationResult: new(enabled2),
+				Query:           new(fixtures.AnonymousEqTrue),
+				VariationResult: new(fixtures.VariationEnabled),
 			},
 			key: "",
 			ctx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute(anonymous, true)
+				ctx.AddCustomAttribute(fixtures.Anonymous, true)
 
 				return ctx
 			}(),
 			expectedError: false,
-			expectedValue: enabled2,
+			expectedValue: fixtures.VariationEnabled,
 			description:   "Query-only rule should work without key",
 		},
 	}
@@ -169,7 +166,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), testFlag, false)
+			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), fixtures.FlagKeyTest, false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

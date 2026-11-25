@@ -10,13 +10,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	abc         = "abc"
 	userKeyUUID = "96ac59e6-7492-436b-b15a-ba1d797d2423"
 	keyEqAbc    = "key eq \"abc\""
-	rule12      = "rule1"
 	userkey     = "userkey"
 	variationE  = "variation_E"
 )
@@ -81,11 +80,11 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "No query, default variation result",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(abc),
+				user: ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -93,13 +92,13 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Ignore query if default variation result",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new("key eq \"def\""),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: true,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -107,39 +106,39 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "User does not match the query",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new("key eq \"def\""),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "User does not match the query (jsonlogic)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"==": [{"var": "key"}, "def"]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "User match the query",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(keyEqAbc),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -147,13 +146,13 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "JSONLogic rule return string 'true'",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new("{\"cat\": [\"t\", \"r\", \"u\", \"e\"]}"),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -162,13 +161,13 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "User match the query (jsonlogic)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -177,15 +176,15 @@ func TestRuleEvaluate(t *testing.T) {
 			// GHSA-mw4w-7w23-cg45: a context value shaped like JSON Logic must not be executed.
 			name: "JSONLogic does not execute logic coming from the context",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"some":[{"var":"orgs"},{"==":[{"var":"plan"},"enterprise"]}]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user: ffcontext.NewEvaluationContextBuilder(abc).
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.Abc).
 					AddCustom("orgs", []any{map[string]any{"id": 1}}).
-					AddCustom(plan2, map[string]any{"cat": []any{"enter", "prise"}}).
+					AddCustom(fixtures.Plan, map[string]any{"cat": []any{"enter", "prise"}}).
 					Build(),
 			},
 			wantErr: assert.Error,
@@ -193,33 +192,33 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Invalid json for query",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "Invalid jsonlogic query (valid JSON but invalid query format)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"xxx": [{"var": "key"}, "abc"]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "No match and no default variation",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 			},
 			args:    ruleEvaluateArgs{},
 			wantErr: assert.Error,
@@ -227,7 +226,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage ignore variation result",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Percentages: &map[string]float64{
 					variationB: 0,
@@ -243,7 +242,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage in 1st bucket",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationC: 9,
 					variationB: 91,
@@ -258,7 +257,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage more than 100%",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationC: 91,
 					variationB: 91,
@@ -273,7 +272,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage in 2nd bucket",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationD: 70,
 					variationC: 10,
@@ -289,7 +288,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage in 3rd bucket",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationD: 70,
 					variationC: 10,
@@ -305,7 +304,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Percentage + user match query",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationD: 70,
 					variationC: 10,
@@ -322,7 +321,7 @@ func TestRuleEvaluate(t *testing.T) {
 		{
 			name: "Progressive rollout ignore percentage",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationA: 100,
 				},
@@ -358,7 +357,7 @@ func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
 		{
 			name: "Progressive rollout before ramp",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -381,7 +380,7 @@ func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
 		{
 			name: "Progressive rollout after ramp",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -404,7 +403,7 @@ func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
 		{
 			name: "Progressive rollout in the ramp serve initial variation",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -427,7 +426,7 @@ func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
 		{
 			name: "Progressive rollout in the ramp serve end variation",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -450,7 +449,7 @@ func TestRuleEvaluate_ProgressiveRollout(t *testing.T) {
 		{
 			name: "Progressive rollout in the ramp serve end variation no percentage specified",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation: new(variationB),
@@ -478,7 +477,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout initial before end",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -498,7 +497,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout no initial step",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					End: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationC),
@@ -513,7 +512,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout no end step",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -528,7 +527,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout initial step with no variation",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Percentage: new(float64(0)),
@@ -547,7 +546,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout end step with no variation",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -566,7 +565,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout no initial date",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -585,7 +584,7 @@ func TestRuleEvaluate_ProgressiveRolloutErrors(t *testing.T) {
 		{
 			name: "Progressive rollout no end date",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(variationB),
@@ -611,39 +610,39 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 		{
 			name: "User does not match the query (JsonLogic)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"==": [{"var": "key"}, "def"]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "User partially matches with in array operator (JsonLogic)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"in": [{"var": "key"}, ["abcdef", "1234"]]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			wantErr: assert.Error,
 		},
 		{
 			name: "User match the query (JsonLogic)",
 			rule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(`{"==": [{"var": "key"}, "abc"]}`),
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -651,7 +650,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 		{
 			name: "Percentage + user match query (JsonLogic)",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationD: 70,
 					variationC: 10,
@@ -670,7 +669,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 		{
 			name: "Invalid JsonLogic logic rule",
 			rule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationD: 70,
 					variationC: 10,
@@ -694,7 +693,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
 					AddCustom("version", "1.0.0-11").
 					Build(),
 			},
@@ -710,7 +709,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user: ffcontext.NewEvaluationContextBuilder(userKey).
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyUser).
 					AddCustom("version", "1.0.0-2").
 					Build(),
 			},
@@ -732,28 +731,28 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge simple rule",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 			},
 			updatedRule: flag.Rule{
 				VariationResult: new(variationB),
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationB),
 			},
 		},
 		{
 			name: "merge rule with disable set to true",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 			},
 			updatedRule: flag.Rule{
 				Disable: new(true),
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Disable:         new(true),
 			},
@@ -761,7 +760,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule with disable set to false",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Disable:         new(true),
 			},
@@ -769,7 +768,7 @@ func TestRule_MergeRules(t *testing.T) {
 				Disable: new(false),
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Disable:         new(false),
 			},
@@ -777,7 +776,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge percentage",
 			originalRule: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationA: 10,
 					variationB: 10,
@@ -794,7 +793,7 @@ func TestRule_MergeRules(t *testing.T) {
 				},
 			},
 			want: flag.Rule{
-				Name: new(rule12),
+				Name: new(fixtures.RuleOne),
 				Percentages: &map[string]float64{
 					variationA:    10,
 					variationB:    10,
@@ -807,7 +806,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule with query",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(keyEqAbc),
 			},
@@ -815,7 +814,7 @@ func TestRule_MergeRules(t *testing.T) {
 				Query: new("key eq \"cde\""),
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new("key eq \"cde\""),
 			},
@@ -823,7 +822,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule remove query",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(keyEqAbc),
 			},
@@ -831,7 +830,7 @@ func TestRule_MergeRules(t *testing.T) {
 				Query: new(""),
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				Query:           new(""),
 			},
@@ -839,7 +838,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule with progressive rollout no rollout before",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 			},
 			updatedRule: flag.Rule{
@@ -859,7 +858,7 @@ func TestRule_MergeRules(t *testing.T) {
 				},
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
@@ -880,7 +879,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule with progressive rollout update initial step",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
@@ -909,7 +908,7 @@ func TestRule_MergeRules(t *testing.T) {
 				},
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
@@ -931,7 +930,7 @@ func TestRule_MergeRules(t *testing.T) {
 		{
 			name: "merge rule with progressive rollout update end step",
 			originalRule: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
@@ -959,7 +958,7 @@ func TestRule_MergeRules(t *testing.T) {
 				},
 			},
 			want: flag.Rule{
-				Name:            new(rule12),
+				Name:            new(fixtures.RuleOne),
 				VariationResult: new(variationA),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{

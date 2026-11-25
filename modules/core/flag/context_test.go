@@ -6,11 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
-)
-
-const (
-	env2 = "env"
-	prod = "prod"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
@@ -31,28 +27,28 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 			name:                        "Add a new key to a nil map",
 			EvaluationContextEnrichment: nil,
 			args: args{
-				key:   env2,
-				value: prod,
+				key:   fixtures.Env,
+				value: fixtures.Prod,
 			},
-			expected: prod,
+			expected: fixtures.Prod,
 		},
 		{
 			name:                        "Add a new key to an existing map",
 			EvaluationContextEnrichment: map[string]any{"john": "doe"},
 			args: args{
-				key:   env2,
-				value: prod,
+				key:   fixtures.Env,
+				value: fixtures.Prod,
 			},
-			expected: prod,
+			expected: fixtures.Prod,
 		},
 		{
 			name:                        "Override an existing key",
-			EvaluationContextEnrichment: map[string]any{env2: "dev"},
+			EvaluationContextEnrichment: map[string]any{fixtures.Env: "dev"},
 			args: args{
-				key:   env2,
-				value: prod,
+				key:   fixtures.Env,
+				value: fixtures.Prod,
 			},
-			expected: prod,
+			expected: fixtures.Prod,
 		},
 	}
 	for _, tt := range tests {

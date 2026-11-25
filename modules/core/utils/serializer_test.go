@@ -7,11 +7,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-)
-
-const (
-	anonymous2 = "anonymous"
-	key2       = "key"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func TestUserToMap(t *testing.T) {
@@ -24,26 +20,26 @@ func TestUserToMap(t *testing.T) {
 	}{
 		{
 			name: "complete user",
-			u: ffcontext.NewEvaluationContextBuilder(key2).
-				AddCustom(anonymous2, false).
+			u: ffcontext.NewEvaluationContextBuilder(fixtures.Key).
+				AddCustom(fixtures.Anonymous, false).
 				AddCustom("email", "contact@gofeatureflag.org").
 				Build(),
 			want: map[string]any{
-				key2:           key2,
-				anonymous2:     false,
-				"email":        "contact@gofeatureflag.org",
-				"targetingKey": key2,
+				fixtures.Key:       fixtures.Key,
+				fixtures.Anonymous: false,
+				"email":            "contact@gofeatureflag.org",
+				"targetingKey":     fixtures.Key,
 			},
 		},
 		{
 			name: "anonymous user",
-			u: ffcontext.NewEvaluationContextBuilder(key2).
-				AddCustom(anonymous2, true).
+			u: ffcontext.NewEvaluationContextBuilder(fixtures.Key).
+				AddCustom(fixtures.Anonymous, true).
 				Build(),
 			want: map[string]any{
-				key2:           key2,
-				anonymous2:     true,
-				"targetingKey": key2,
+				fixtures.Key:       fixtures.Key,
+				fixtures.Anonymous: true,
+				"targetingKey":     fixtures.Key,
 			},
 		},
 	}

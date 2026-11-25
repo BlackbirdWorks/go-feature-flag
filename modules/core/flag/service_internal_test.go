@@ -14,12 +14,11 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	flag2      = "flag"
 	legacyName = "legacy name"
-	user2      = "user"
 )
 
 func countEntries(entries *sync.Map) int {
@@ -62,8 +61,8 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			flg := newFlagWithQueries(tt.query)
 			require.NoError(t, flg.IsValid(first))
 
-			ctx := ffcontext.NewEvaluationContextBuilder(user2).AddCustom(plan2, pro).Build()
-			_, err := (*flg.Rules)[0].Evaluate(first, user2, ctx, flag2, false)
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+			_, err := (*flg.Rules)[0].Evaluate(first, fixtures.User, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantFirstEntries, countEntries(&first.nikunjy.entries), "entries of the first Service")
@@ -72,7 +71,7 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			first.Close()
 			assert.Equal(t, tt.wantAfterClose, countEntries(&first.nikunjy.entries), "entries after Close")
 			// still usable after Close: it rebuilds what it needs
-			_, err = (*flg.Rules)[0].Evaluate(first, user2, ctx, flag2, false)
+			_, err = (*flg.Rules)[0].Evaluate(first, fixtures.User, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
 		})
 	}
@@ -115,21 +114,21 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 				DefaultRule:     &Rule{VariationResult: new("on")},
 				Experimentation: &ExperimentationRollout{Start: new(clocktest.Instant().Add(-time.Hour))},
 			}
-			ctx := ffcontext.NewEvaluationContext(user2)
+			ctx := ffcontext.NewEvaluationContext(fixtures.User)
 			ctx.AddCustomAttribute(
 				tt.attribute,
-				map[string]any{currentDateTime2: clocktest.Instant().Format(time.RFC3339)},
+				map[string]any{fixtures.CurrentDateTime: clocktest.Instant().Format(time.RFC3339)},
 			)
 
 			for range tt.evaluations {
-				_, details := flg.Value(flag2, ctx, Context{Service: svc})
+				_, details := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: svc})
 				require.Empty(t, details.ErrorCode)
 			}
 
 			assert.Equal(t, tt.wantWarnings, strings.Count(buf.String(), legacyName))
 			// another Service has its own warn-once state
 			other := NewService(WithLogger(slog.New(slog.NewTextHandler(&buf, nil))))
-			_, _ = flg.Value(flag2, ctx, Context{Service: other})
+			_, _ = flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: other})
 
 			assert.Equal(t, 2*tt.wantWarnings, strings.Count(buf.String(), legacyName))
 		})
@@ -161,7 +160,13 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 			svc := NewService(opt)
 			// a nikunjy query that does not parse is logged by the evaluation
 			r := Rule{Query: new(`plan eq`), VariationResult: new("on")}
-			_, err := r.Evaluate(svc, user2, ffcontext.NewEvaluationContext(user2), flag2, false)
+			_, err := r.Evaluate(
+				svc,
+				fixtures.User,
+				ffcontext.NewEvaluationContext(fixtures.User),
+				fixtures.FlagKeyBare,
+				false,
+			)
 			require.Error(t, err)
 
 			assert.Equal(t, tt.wantLogged, buf.Len() > 0)
@@ -270,13 +275,13 @@ func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 					End:     &ProgressiveRolloutStep{Variation: new("b"), Percentage: new(float64(100)), Date: &end},
 				}},
 			}
-			ctx := ffcontext.NewEvaluationContext(user2)
+			ctx := ffcontext.NewEvaluationContext(fixtures.User)
 			ctx.AddCustomAttribute(ffcontext.LegacyReservedKey, map[string]any{
-				currentDateTime2: clocktest.Instant().Format(time.RFC3339),
+				fixtures.CurrentDateTime: clocktest.Instant().Format(time.RFC3339),
 			})
 
 			for range tt.evaluations {
-				_, details := flg.Value(flag2, ctx, Context{Service: svc})
+				_, details := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: svc})
 				require.Empty(t, details.ErrorCode)
 			}
 

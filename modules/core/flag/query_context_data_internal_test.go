@@ -11,6 +11,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 type normalizeStruct struct {
@@ -97,7 +98,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
 			for k, v := range tt.custom {
 				ctx.AddCustomAttribute(k, v)
 			}

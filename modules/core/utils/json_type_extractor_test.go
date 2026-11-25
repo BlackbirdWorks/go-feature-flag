@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func Test_JSONTypeExtractor(t *testing.T) {
@@ -22,7 +23,7 @@ func Test_JSONTypeExtractor(t *testing.T) {
 		{"bool", true, "(bool)"},
 		{"[]interface", []any{1, "two", 3.0}, "([]interface{})"},
 		{"map", map[string]any{"key1": "value1", "key2": 2}, "(map[string]interface{})"},
-		{null, nil, ""},
+		{fixtures.Null, nil, ""},
 	}
 
 	for _, tt := range tests {

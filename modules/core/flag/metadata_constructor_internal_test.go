@@ -42,7 +42,7 @@ func Test_constructMetadataParallel(t *testing.T) {
 			t.Parallel()
 
 			got := constructMetadata(sharedMetadata, &tt.wantEvaluatedRuleName)
-			assert.Equal(t, tt.wantEvaluatedRuleName, got[evaluatedRuleName2])
+			assert.Equal(t, tt.wantEvaluatedRuleName, got[evaluatedRuleNameKey])
 		})
 	}
 }
@@ -74,7 +74,7 @@ func Test_ConstructMetadata(t *testing.T) {
 			name:         "nil metadata, non-empty rule",
 			flagMetadata: nil,
 			ruleName:     &rule,
-			want:         map[string]any{evaluatedRuleName2: testRule},
+			want:         map[string]any{evaluatedRuleNameKey: testRule},
 		},
 		{
 			name:         "non-nil metadata, nil rule",
@@ -92,7 +92,7 @@ func Test_ConstructMetadata(t *testing.T) {
 			name:         "non-nil metadata, non-empty rule",
 			flagMetadata: map[string]any{foo: bar},
 			ruleName:     &rule,
-			want:         map[string]any{foo: bar, evaluatedRuleName2: testRule},
+			want:         map[string]any{foo: bar, evaluatedRuleNameKey: testRule},
 		},
 	}
 

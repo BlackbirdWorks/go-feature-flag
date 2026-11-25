@@ -12,16 +12,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 	"github.com/blackbirdworks/semaphore/modules/core/testhelpers/clocktest"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	flag2       = "flag"
-	keyEqUser1  = `key eq "user-1" and plan eq "pro"`
-	off2        = "off"
-	plan2       = "plan"
-	pro         = "pro"
-	someoneElse = "someone-else"
-	targeting2  = "targeting"
+	keyEqUserOneAnd = `key eq "user-1" and plan eq "pro"`
+	someoneElse     = "someone-else"
+	targetingKey    = "targeting"
 )
 
 // largeInQuery returns `key in ["user-0000000", ...]` with 300000 ids, a ~4.5 MB query.
@@ -54,13 +51,13 @@ func newValidatedFlag(b *testing.B, svc *flag.Service, query string) *flag.Inter
 	b.Helper()
 
 	flg := &flag.InternalFlag{
-		Variations: &map[string]*any{"on": new(any(true)), off2: new(any(false))},
+		Variations: &map[string]*any{"on": new(any(true)), fixtures.VariationOff: new(any(false))},
 		Rules: &[]flag.Rule{{
-			Name:            new(targeting2),
+			Name:            new(targetingKey),
 			Query:           new(query),
 			VariationResult: new("on"),
 		}},
-		DefaultRule: &flag.Rule{VariationResult: new(off2)},
+		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
 	require.NoError(b, flg.IsValid(svc))
 
@@ -91,7 +88,7 @@ func benchValue(b *testing.B, svc *flag.Service, flags []*flag.InternalFlag, key
 	b.ResetTimer()
 
 	for i := range b.N {
-		flags[i%len(flags)].Value(flag2, ctx, flag.Context{Service: svc})
+		flags[i%len(flags)].Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -141,7 +138,7 @@ func BenchmarkInternalFlagValue_LargeIn300kParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			flags[i%len(flags)].Value(flag2, ctx, flag.Context{Service: svc})
+			flags[i%len(flags)].Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 			i++
 		}
 	})
@@ -174,13 +171,13 @@ func benchReload(b *testing.B, ids int) {
 		next := make([]*flag.InternalFlag, 100)
 		for j := range next {
 			next[j] = &flag.InternalFlag{
-				Variations: &map[string]*any{"on": new(any(true)), off2: new(any(false))},
+				Variations: &map[string]*any{"on": new(any(true)), fixtures.VariationOff: new(any(false))},
 				Rules: &[]flag.Rule{{
-					Name:            new(targeting2),
+					Name:            new(targetingKey),
 					Query:           new(strings.Clone(query)),
 					VariationResult: new("on"),
 				}},
-				DefaultRule: &flag.Rule{VariationResult: new(off2)},
+				DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 			}
 		}
 
@@ -203,14 +200,14 @@ func BenchmarkInternalFlagIsValid_Reload100FlagsSharing20kIn(b *testing.B)   { b
 // not regress.
 func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 	svc := flag.NewService()
-	flg := newValidatedFlag(b, svc, keyEqUser1)
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	flg := newValidatedFlag(b, svc, keyEqUserOneAnd)
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		flg.Value(flag2, ctx, flag.Context{Service: svc})
+		flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -233,14 +230,14 @@ func BenchmarkInternalFlagValue_LargeIn300kGCEvery10(b *testing.B) {
 			b.StartTimer()
 		}
 
-		flg.Value(flag2, ctx, flag.Context{Service: svc})
+		flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
 func newSmallFlag(i int, query string) *flag.InternalFlag {
 	flg := &flag.InternalFlag{
-		Variations:  &map[string]*any{"on": new(any(true)), off2: new(any(false))},
-		DefaultRule: &flag.Rule{VariationResult: new(off2)},
+		Variations:  &map[string]*any{"on": new(any(true)), fixtures.VariationOff: new(any(false))},
+		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
 	if query != "" {
 		flg.Rules = &[]flag.Rule{{
@@ -309,28 +306,28 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 		require.NoError(b, flags[i].IsValid(svc))
 	}
 
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := range b.N {
-		flags[i%len(flags)].Value(flag2, ctx, flag.Context{Service: svc})
+		flags[i%len(flags)].Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
 func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 	svc := flag.NewService()
-	flg := newSmallFlag(0, keyEqUser1)
+	flg := newSmallFlag(0, keyEqUserOneAnd)
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			flg.Value(flag2, ctx, flag.Context{Service: svc})
+			flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 		}
 	})
 }
@@ -340,13 +337,13 @@ func BenchmarkInternalFlagValue_NoQuery(b *testing.B) {
 	flg := newSmallFlag(0, "")
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContext(user1)
+	ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyOne)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		flg.Value(flag2, ctx, flag.Context{Service: svc})
+		flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -355,13 +352,13 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	flg := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		flg.Value(flag2, ctx, flag.Context{Service: svc})
+		flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -370,16 +367,16 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 	svc := flag.NewService()
 	r := flag.Rule{
-		Query:           new(keyEqUser1),
+		Query:           new(keyEqUserOneAnd),
 		VariationResult: new("on"),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		_, _ = r.Evaluate(svc, user1, ctx, flag2, false)
+		_, _ = r.Evaluate(svc, fixtures.UserKeyOne, ctx, fixtures.FlagKeyBare, false)
 	}
 }
 
@@ -387,24 +384,24 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 // flag through JSON on every evaluation.
 func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	svc := flag.NewService()
-	flg := newSmallFlag(0, keyEqUser1)
+	flg := newSmallFlag(0, keyEqUserOneAnd)
 	past := clocktest.Instant().Add(-time.Hour)
 	flg.Scheduled = &[]flag.ScheduledStep{{
 		Rules: &[]flag.Rule{{
 			Name:  new("rule-0"),
-			Query: new(keyEqUser1),
+			Query: new(keyEqUserOneAnd),
 		}},
 		Date: &past,
 	}}
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for range b.N {
-		flg.Value(flag2, ctx, flag.Context{Service: svc})
+		flg.Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 	}
 }
 
@@ -423,7 +420,7 @@ func heapInUse() float64 {
 // change every query (heap-reloads-B).
 func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 	svc := flag.NewService()
-	ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
 
 	for range b.N {
 		base := heapInUse()
@@ -432,7 +429,7 @@ func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 			for j := range flags {
 				flags[j] = newSmallFlag(j, fmt.Sprintf(`key eq "user-%d-%d" and plan eq "pro"`, generation, j))
 				require.NoError(b, flags[j].IsValid(svc))
-				flags[j].Value(flag2, ctx, flag.Context{Service: svc})
+				flags[j].Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 			}
 
 			return flags
@@ -469,7 +466,7 @@ func BenchmarkHeap_LargeListReloads(b *testing.B) {
 			current = make([]*flag.InternalFlag, 5)
 			for j := range current {
 				current[j] = newValidatedFlag(b, svc, strings.Clone(query))
-				current[j].Value(flag2, ctx, flag.Context{Service: svc})
+				current[j].Value(fixtures.FlagKeyBare, ctx, flag.Context{Service: svc})
 			}
 		}
 

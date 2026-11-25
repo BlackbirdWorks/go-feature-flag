@@ -9,16 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	defaultVariation = "default"
-	jsonlogic22      = "jsonlogic-2"
-	key2             = "key"
-	plan2            = "plan"
-	pro              = "pro"
-	targetingKey2    = "targetingKey"
-	user1            = "user-1"
+	jsonlogicTwo = "jsonlogic-2"
 )
 
 func TestQueryContext_MapOnce(t *testing.T) {
@@ -31,13 +26,24 @@ func TestQueryContext_MapOnce(t *testing.T) {
 	}{
 		{
 			name: "context with custom attributes",
-			ctx:  ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build(),
-			want: map[string]any{plan2: pro, anonymous: false, key2: user1, targetingKey2: user1},
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+				AddCustom(fixtures.Plan, fixtures.Pro).
+				Build(),
+			want: map[string]any{
+				fixtures.Plan:                  fixtures.Pro,
+				anonymous:                      false,
+				fixtures.Key:                   fixtures.UserKeyOne,
+				fixtures.TargetingKeyAttribute: fixtures.UserKeyOne,
+			},
 		},
 		{
 			name: "context without custom attributes",
-			ctx:  ffcontext.NewEvaluationContext(user1),
-			want: map[string]any{anonymous: false, key2: user1, targetingKey2: user1},
+			ctx:  ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
+			want: map[string]any{
+				anonymous:                      false,
+				fixtures.Key:                   fixtures.UserKeyOne,
+				fixtures.TargetingKeyAttribute: fixtures.UserKeyOne,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -70,12 +76,14 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 	}{
 		{
 			name: "context with custom attributes",
-			ctx:  ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build(),
+			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+				AddCustom(fixtures.Plan, fixtures.Pro).
+				Build(),
 			want: `{"anonymous": false, "key": "user-1", "plan": "pro", "targetingKey": "user-1"}`,
 		},
 		{
 			name: "context without custom attributes",
-			ctx:  ffcontext.NewEvaluationContext(user1),
+			ctx:  ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
 			want: `{"anonymous": false, "key": "user-1", "targetingKey": "user-1"}`,
 		},
 	}
@@ -101,7 +109,9 @@ func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
 
 	queryCtx := &queryContext{
 		svc: NewService(),
-		ctx: ffcontext.NewEvaluationContextBuilder(user1).AddCustom("unsupported", make(chan int)).Build(),
+		ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+			AddCustom("unsupported", make(chan int)).
+			Build(),
 	}
 
 	_, err := queryCtx.jsonOnce()
@@ -138,7 +148,7 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			queryCtx := &queryContext{
 				svc: NewService(),
-				ctx: ffcontext.NewEvaluationContextBuilder(user1).AddCustom("bad", tt.value).Build(),
+				ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom("bad", tt.value).Build(),
 			}
 			query := `{"==": [{"var": "key"}, "user-1"]}`
 
@@ -189,9 +199,9 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext(user1)}
+			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext(fixtures.UserKeyOne)}
 
-			_, err := tt.rule.evaluate(user1, queryCtx, myFlag, tt.isDefault)
+			_, err := tt.rule.evaluate(fixtures.UserKeyOne, queryCtx, fixtures.FlagKeyMy, tt.isDefault)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMapped, queryCtx.parsedEvalCtxAsMap != nil)
@@ -204,17 +214,17 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 	internalFlag := InternalFlag{
 		Variations: &map[string]*any{
-			nikunjy2:         new(any(nikunjy2)),
-			jsonlogic2:       new(any(jsonlogic2)),
-			jsonlogic22:      new(any(jsonlogic22)),
-			defaultVariation: new(any(defaultVariation)),
+			NikunjyQueryFormat:      new(any(NikunjyQueryFormat)),
+			JSONLogicQueryFormat:    new(any(JSONLogicQueryFormat)),
+			jsonlogicTwo:            new(any(jsonlogicTwo)),
+			fixtures.FlagsetDefault: new(any(fixtures.FlagsetDefault)),
 		},
 		Rules: &[]Rule{
-			{Query: new(`plan eq "free"`), VariationResult: new(nikunjy2)},
-			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new(jsonlogic2)},
-			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new(jsonlogic22)},
+			{Query: new(`plan eq "free"`), VariationResult: new(NikunjyQueryFormat)},
+			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new(JSONLogicQueryFormat)},
+			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new(jsonlogicTwo)},
 		},
-		DefaultRule: &Rule{VariationResult: new(defaultVariation)},
+		DefaultRule: &Rule{VariationResult: new(fixtures.FlagsetDefault)},
 	}
 
 	tests := []struct {
@@ -222,16 +232,16 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		plan string
 		want string
 	}{
-		{name: "nikunjy rule matches", plan: free, want: nikunjy2},
-		{name: "nikunjy rule misses and jsonlogic rule matches", plan: pro, want: jsonlogic2},
-		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: jsonlogic22},
-		{name: "no rule matches", plan: "enterprise", want: defaultVariation},
+		{name: "nikunjy rule matches", plan: fixtures.Free, want: NikunjyQueryFormat},
+		{name: "nikunjy rule misses and jsonlogic rule matches", plan: fixtures.Pro, want: JSONLogicQueryFormat},
+		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: jsonlogicTwo},
+		{name: "no rule matches", plan: "enterprise", want: fixtures.FlagsetDefault},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, tt.plan).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, tt.plan).Build()
 
 			value, details := internalFlag.Value(
 				"mixed-formats",

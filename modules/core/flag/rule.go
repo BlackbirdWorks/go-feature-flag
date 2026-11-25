@@ -19,10 +19,8 @@ import (
 )
 
 const (
-	fixtureError = "error"
-	jsonlogic2   = "jsonlogic"
-	nikunjy2     = "nikunjy"
-	query2       = "query"
+	errorLiteral = "error"
+	queryName    = "query"
 )
 
 const (
@@ -45,9 +43,9 @@ type QueryFormat = string
 
 const (
 	// NikunjyQueryFormat is the query format of the Nikunjy query language.
-	NikunjyQueryFormat QueryFormat = nikunjy2
+	NikunjyQueryFormat QueryFormat = "nikunjy"
 	// JSONLogicQueryFormat is the query format of JSON Logic queries.
-	JSONLogicQueryFormat QueryFormat = jsonlogic2
+	JSONLogicQueryFormat QueryFormat = "jsonlogic"
 )
 
 // Rule represents a rule applied by the flag.
@@ -211,7 +209,7 @@ func evaluateNikunjy(eval *parser.Evaluator, query string, queryCtx *queryContex
 		if r := recover(); r != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
-				slog.String(query2, query),
+				slog.String(queryName, query),
 			)
 
 			success = false
@@ -225,7 +223,7 @@ func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, map
 	ok, err := ev.Process(mapCtx)
 	if err != nil {
 		logger.Error("error while evaluating the nikunjy query",
-			slog.String(query2, query), slog.Any(fixtureError, err))
+			slog.String(queryName, query), slog.Any(errorLiteral, err))
 
 		return false
 	}
@@ -247,7 +245,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		if r := recover(); r != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
-				slog.String(query2, query),
+				slog.String(queryName, query),
 			)
 
 			success = false
@@ -263,7 +261,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 				context.Background(),
 				"error while marshalling the context for the jsonlogic query",
 				slog.Any("mapCtx", mapCtx),
-				slog.Any(fixtureError, err.Error()),
+				slog.Any(errorLiteral, err.Error()),
 			)
 
 			return false
@@ -272,7 +270,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
-				slog.String(query2, query), slog.Any(fixtureError, err.Error()))
+				slog.String(queryName, query), slog.Any(errorLiteral, err.Error()))
 
 			return false
 		}
@@ -282,7 +280,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		evaluator, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
 			queryCtx.svc.logger.Error("error while parsing the nikunjy query",
-				slog.String(query2, query), slog.Any(fixtureError, err))
+				slog.String(queryName, query), slog.Any(errorLiteral, err))
 
 			return false
 		}

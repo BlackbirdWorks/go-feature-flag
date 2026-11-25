@@ -4,10 +4,7 @@ import (
 	"testing"
 
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
-)
-
-const (
-	null = "null"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 func BenchmarkIsJSONObject(b *testing.B) {
@@ -23,7 +20,7 @@ func BenchmarkIsJSONObject(b *testing.B) {
 			name:  "jsonlogic query",
 			input: `{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		},
-		{name: null, input: null},
+		{name: fixtures.Null, input: fixtures.Null},
 		{
 			name:  "whitespace-prefixed object",
 			input: "  \n\t{\"==\":[{\"var\":\"language\"},\"ar\"]}",
