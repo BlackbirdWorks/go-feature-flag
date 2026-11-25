@@ -99,19 +99,13 @@ func Start(opts Options) (_ *Relay, err error) {
 	}()
 
 	if opts.Listen {
-		// The listener stays bound until the server serves on it: closing it to reuse its port would let
-		// another test (or an outgoing connection) take the port before the server binds it.
-		listener, err = (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+		var port int
+
+		listener, port, err = listenLoopback()
 		if err != nil {
-			return nil, fmt.Errorf("listen on loopback: %w", err)
+			return nil, err
 		}
 
-		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-		if !ok {
-			return nil, fmt.Errorf("%w: %T", errUnexpectedListenerAddr, listener.Addr())
-		}
-
-		port := tcpAddr.Port
 		conf.Server.Port = port
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}
@@ -146,13 +140,31 @@ func Start(opts Options) (_ *Relay, err error) {
 		listener = nil
 		r.BaseURL = baseURL
 
-		waitHealthyErr := waitHealthy(baseURL)
-		if waitHealthyErr != nil {
-			return nil, waitHealthyErr
+		err = waitHealthy(baseURL)
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return r, nil
+}
+
+// listenLoopback binds a free loopback port. The listener stays bound until the server serves on it: closing it
+// to reuse its port would let another test (or an outgoing connection) take the port before the server binds it.
+func listenLoopback() (net.Listener, int, error) {
+	listener, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, 0, fmt.Errorf("listen on loopback: %w", err)
+	}
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+
+		return nil, 0, fmt.Errorf("%w: %T", errUnexpectedListenerAddr, listener.Addr())
+	}
+
+	return listener, tcpAddr.Port, nil
 }
 
 func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {

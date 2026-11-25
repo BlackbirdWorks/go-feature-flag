@@ -151,28 +151,11 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.fetch(ctx, requestURL, token)
+	resp, err := r.fetchWithRetry(ctx, requestURL, token)
 	if err != nil {
 		return nil, err
 	}
 
-	// On a 401 with App auth, the cached token may have just expired.
-	// Invalidate it and retry once with a fresh token.
-	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
-		_ = resp.Body.Close()
-
-		r.invalidateCachedToken()
-
-		token, err = r.resolveToken(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err = r.fetch(ctx, requestURL, token)
-		if err != nil {
-			return nil, err
-		}
-	}
 	defer func() { _ = resp.Body.Close() }()
 
 	checkResponseErrorErr := r.checkResponseError(resp, requestURL)
@@ -186,6 +169,30 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// fetchWithRetry fetches the URL. On a 401 with App auth, the cached token may have just expired: it is
+// invalidated and the request is retried once with a fresh token.
+func (r *Retriever) fetchWithRetry(ctx context.Context, requestURL, token string) (*http.Response, error) {
+	resp, err := r.fetch(ctx, requestURL, token)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized && r.isAppAuth() {
+		_ = resp.Body.Close()
+
+		r.invalidateCachedToken()
+
+		token, err = r.resolveToken(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return r.fetch(ctx, requestURL, token)
+	}
+
+	return resp, nil
 }
 
 // SetHTTPClient is here if you want to override the default [http.Client] we are using.

@@ -219,49 +219,37 @@ func (n *compareNode) setRight(state *evalState) {
 
 	switch n.valKind {
 	case valueInts:
-		var list []int
-		if state.rightOp == nil {
-			list = []int{}
-		} else {
-			list = assertType[[]int](state.rightOp)
-		}
-
-		list = append(list, assertType[[]int](n.listOp)...)
-		state.rightOp = list
+		state.rightOp = appendList(state.rightOp, assertType[[]int](n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueDoubles:
-		var list []float64
-		if state.rightOp == nil {
-			list = []float64{}
-		} else {
-			list = assertType[[]float64](state.rightOp)
-		}
-
-		list = append(list, assertType[[]float64](n.listOp)...)
-		state.rightOp = list
+		state.rightOp = appendList(state.rightOp, assertType[[]float64](n.listOp))
 
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
 	case valueStrings:
-		var list []string
-		if state.rightOp == nil {
-			list = []string{}
-		} else {
-			list = assertType[[]string](state.rightOp)
-		}
-
-		list = append(list, assertType[[]string](n.listValue())...)
-		state.rightOp = list
+		state.rightOp = appendList(state.rightOp, assertType[[]string](n.listValue()))
 	case valueConst:
 		state.rightOp = n.rightOp
 		if n.valErr != nil {
 			state.err = cloneErr(n.valErr)
 		}
 	}
+}
+
+// appendList returns the list held by current (an empty one when there is none) followed by add.
+func appendList[T any](current any, add []T) []T {
+	var list []T
+	if current == nil {
+		list = []T{}
+	} else {
+		list = assertType[[]T](current)
+	}
+
+	return append(list, add...)
 }
 
 func (n *compareNode) evalCompare(state *evalState) bool {

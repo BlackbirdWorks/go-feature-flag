@@ -209,7 +209,7 @@ func redactValue(val reflect.Value, depth int) any {
 	}
 
 	switch kind := val.Kind(); {
-	case kind == reflect.Pointer || kind == reflect.Interface:
+	case isIndirectKind(kind):
 		if val.IsNil() {
 			return nil
 		}
@@ -221,30 +221,11 @@ func redactValue(val reflect.Value, depth int) any {
 		}
 
 		return redactStruct(val, depth)
-	case kind == reflect.Slice || kind == reflect.Array:
-		out := make([]any, 0, val.Len())
-		for i := range val.Len() {
-			out = append(out, redactValue(val.Index(i), depth+1))
-		}
-
-		return out
+	case isSequenceKind(kind):
+		return redactSlice(val, depth)
 	case kind == reflect.Map:
-		out := make(map[string]any, val.Len())
-
-		iter := val.MapRange()
-		for iter.Next() {
-			key := fmt.Sprint(iter.Key().Interface())
-			if sensitiveNamePattern.MatchString(key) {
-				out[key] = RedactedValue
-
-				continue
-			}
-
-			out[key] = redactValue(iter.Value(), depth+1)
-		}
-
-		return out
-	case kind == reflect.Func || kind == reflect.Chan || kind == reflect.UnsafePointer:
+		return redactMap(val, depth)
+	case isOpaqueKind(kind):
 		return opaqueValue
 	}
 
@@ -253,4 +234,46 @@ func redactValue(val reflect.Value, depth int) any {
 	}
 
 	return opaqueValue
+}
+
+// redactSlice redacts every element of a slice or an array.
+func redactSlice(val reflect.Value, depth int) []any {
+	out := make([]any, 0, val.Len())
+	for i := range val.Len() {
+		out = append(out, redactValue(val.Index(i), depth+1))
+	}
+
+	return out
+}
+
+// redactMap redacts the values of a map, and the ones whose key looks sensitive entirely.
+func redactMap(val reflect.Value, depth int) map[string]any {
+	out := make(map[string]any, val.Len())
+
+	iter := val.MapRange()
+	for iter.Next() {
+		key := fmt.Sprint(iter.Key().Interface())
+		if sensitiveNamePattern.MatchString(key) {
+			out[key] = RedactedValue
+
+			continue
+		}
+
+		out[key] = redactValue(iter.Value(), depth+1)
+	}
+
+	return out
+}
+
+func isSequenceKind(kind reflect.Kind) bool {
+	return kind == reflect.Slice || kind == reflect.Array
+}
+
+// isOpaqueKind reports the kinds that have no loggable content.
+func isOpaqueKind(kind reflect.Kind) bool {
+	return kind == reflect.Func || kind == reflect.Chan || kind == reflect.UnsafePointer
+}
+
+func isIndirectKind(kind reflect.Kind) bool {
+	return kind == reflect.Pointer || kind == reflect.Interface
 }

@@ -533,13 +533,19 @@ func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isD
 		return "", errRuleNotApply
 	}
 
+	return r.evaluateOutcome(key, flagName, queryCtx)
+}
+
+// evaluateOutcome returns the variation of a rule that applies: the one of its progressive rollout, its
+// percentage rollout or its fixed variation.
+func (r *Rule) evaluateOutcome(key, flagName string, queryCtx *queryContext) (string, error) {
 	if r.ProgressiveRollout != nil {
 		if key == "" {
 			return "", errProgressiveRolloutRequiresA
 		}
 
 		// only the progressive rollout depends on the date: the clock is not read for the other rules.
-		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
+		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(queryCtx.ctx))
 	}
 
 	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
@@ -575,14 +581,7 @@ func (r *Rule) getVariationFromProgressiveRollout(
 	hash uint32,
 	evaluationDate time.Time,
 ) (string, error) {
-	isRolloutValid := r.ProgressiveRollout != nil &&
-		r.ProgressiveRollout.Initial != nil &&
-		r.ProgressiveRollout.Initial.Date != nil &&
-		r.ProgressiveRollout.Initial.Variation != nil &&
-		r.ProgressiveRollout.End != nil &&
-		r.ProgressiveRollout.End.Date != nil &&
-		r.ProgressiveRollout.End.Variation != nil &&
-		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
+	isRolloutValid := r.ProgressiveRollout.isValid()
 
 	if !isRolloutValid {
 		return "", errErrorInTheProgressive
@@ -623,6 +622,19 @@ func (r *Rule) getVariationFromProgressiveRollout(
 	}
 
 	return r.ProgressiveRollout.Initial.getVariation(), nil
+}
+
+// isValid reports whether the rollout has everything it needs: both steps with a date and a variation, the end
+// after the beginning.
+func (p *ProgressiveRollout) isValid() bool {
+	return p != nil &&
+		p.Initial != nil &&
+		p.Initial.Date != nil &&
+		p.Initial.Variation != nil &&
+		p.End != nil &&
+		p.End.Date != nil &&
+		p.End.Variation != nil &&
+		p.End.Date.After(*p.Initial.Date)
 }
 
 // MergeSetOfRules is taking a collection of rules and merge it with the updates

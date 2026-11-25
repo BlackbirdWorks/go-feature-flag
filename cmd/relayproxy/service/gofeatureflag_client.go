@@ -121,6 +121,34 @@ func NewGoFeatureFlagClient(
 	return newGoFeatureFlagClient(cFlagSet, logger, notifiers)
 }
 
+// collectNotifiers builds the notifiers of the flagset and appends the given ones.
+func collectNotifiers(
+	cFlagSet *config.FlagSet, logger *slog.Logger, extra []notifier.Notifier,
+) ([]notifier.Notifier, error) {
+	var err error
+
+	notif := make([]notifier.Notifier, 0, len(extra))
+	if cFlagSet.Notifiers != nil {
+		notif, err = initNotifier(cFlagSet.Notifiers, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
+	// fixed in version v1.46.0
+	//nolint:staticcheck // SA1019: the deprecated setting is still supported
+	fixNotifiers := cFlagSet.FixNotifiers
+	if len(notif) == 0 && fixNotifiers != nil {
+		notif, err = initNotifier(fixNotifiers, logger)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// end of backward compatibility for the notifier field in version v1.66.0
+	return append(notif, extra...), nil
+}
+
 func newGoFeatureFlagClient(
 	cFlagSet *config.FlagSet,
 	logger *slog.Logger,
@@ -157,26 +185,10 @@ func newGoFeatureFlagClient(
 		return nil, err
 	}
 
-	notif := make([]notifier.Notifier, 0, len(notifiers))
-	if cFlagSet.Notifiers != nil {
-		notif, err = initNotifier(cFlagSet.Notifiers, logger)
-		if err != nil {
-			return nil, err
-		}
+	notif, err := collectNotifiers(cFlagSet, logger, notifiers)
+	if err != nil {
+		return nil, err
 	}
-
-	// backward compatibility for the notifier field, it was called "notifier" instead of "notifiers"
-	// fixed in version v1.46.0
-	//nolint:staticcheck // SA1019: the deprecated setting is still supported
-	fixNotifiers := cFlagSet.FixNotifiers
-	if len(notif) == 0 && fixNotifiers != nil {
-		notif, err = initNotifier(fixNotifiers, logger)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// end of backward compatibility for the notifier field in version v1.66.0
-	notif = append(notif, notifiers...)
 
 	clientCfg := ffclient.Config{
 		PollingInterval:                 clientPollingInterval(cFlagSet),

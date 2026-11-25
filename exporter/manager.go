@@ -280,29 +280,7 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	ended := m.flushEnded
 	m.flushEndedMu.Unlock()
 
-	// the room is made by the consumers that hold the most events: wait if one of them is flushing.
-	counts := make([]int64, len(m.consumers))
-	most := int64(-1)
-
-	for i, c := range m.consumers {
-		count, err := store.GetPendingEventCount(c.GetConsumerID())
-		if err != nil {
-			count = -1
-		}
-
-		counts[i] = count
-		most = max(most, count)
-	}
-
-	var waitFor []int
-
-	for i, count := range counts {
-		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
-			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
-			waitFor = append(waitFor, i)
-		}
-	}
-
+	waitFor := m.consumersToWaitFor(store)
 	if len(waitFor) == 0 {
 		return false
 	}
@@ -333,6 +311,34 @@ func (m *managerImpl[T]) waitForRoom(store EventStore[T], deadline time.Time) bo
 	case <-m.stopCh:
 		return false
 	}
+}
+
+// consumersToWaitFor returns the indexes of the consumers that hold the most pending events and are flushing
+// without being stalled or backing off: the room is made by them.
+func (m *managerImpl[T]) consumersToWaitFor(store EventStore[T]) []int {
+	counts := make([]int64, len(m.consumers))
+	most := int64(-1)
+
+	for i, c := range m.consumers {
+		count, err := store.GetPendingEventCount(c.GetConsumerID())
+		if err != nil {
+			count = -1
+		}
+
+		counts[i] = count
+		most = max(most, count)
+	}
+
+	var waitFor []int
+
+	for i, count := range counts {
+		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
+			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
+			waitFor = append(waitFor, i)
+		}
+	}
+
+	return waitFor
 }
 
 // signalFlushEnded wakes up the handoffs waiting in waitForRoom.

@@ -44,34 +44,24 @@ func wrapFactory[T retriever.Retriever](
 
 // factoryFor returns the factory function of a retriever kind.
 func factoryFor(kind retrieverconf.RetrieverKind) (retrieverFactory, bool) {
-	switch kind {
-	case retrieverconf.GitHubRetriever:
-		return wrapFactory(createGitHubRetriever), true
-	case retrieverconf.GitlabRetriever:
-		return wrapFactory(createGitlabRetriever), true
-	case retrieverconf.BitbucketRetriever:
-		return wrapFactory(createBitbucketRetriever), true
-	case retrieverconf.FileRetriever:
-		return wrapFactory(createFileRetriever), true
-	case retrieverconf.S3Retriever:
-		return wrapFactory(createS3Retriever), true
-	case retrieverconf.HTTPRetriever:
-		return wrapFactory(createHTTPRetriever), true
-	case retrieverconf.GoogleStorageRetriever:
-		return wrapFactory(createGoogleStorageRetriever), true
-	case retrieverconf.KubernetesRetriever:
-		return wrapFactory(createKubernetesRetriever), true
-	case retrieverconf.MongoDBRetriever:
-		return wrapFactory(createMongoDBRetriever), true
-	case retrieverconf.RedisRetriever:
-		return wrapFactory(createRedisRetriever), true
-	case retrieverconf.AzBlobStorageRetriever:
-		return wrapFactory(createAzBlobStorageRetriever), true
-	case retrieverconf.PostgreSQLRetriever:
-		return wrapFactory(createPostgreSQLRetriever), true
-	default:
-		return nil, false
+	factories := map[retrieverconf.RetrieverKind]retrieverFactory{
+		retrieverconf.GitHubRetriever: wrapFactory(createGitHubRetriever),
+		retrieverconf.GitlabRetriever: wrapFactory(createGitlabRetriever),
+		retrieverconf.BitbucketRetriever: wrapFactory(createBitbucketRetriever),
+		retrieverconf.FileRetriever: wrapFactory(createFileRetriever),
+		retrieverconf.S3Retriever: wrapFactory(createS3Retriever),
+		retrieverconf.HTTPRetriever: wrapFactory(createHTTPRetriever),
+		retrieverconf.GoogleStorageRetriever: wrapFactory(createGoogleStorageRetriever),
+		retrieverconf.KubernetesRetriever: wrapFactory(createKubernetesRetriever),
+		retrieverconf.MongoDBRetriever: wrapFactory(createMongoDBRetriever),
+		retrieverconf.RedisRetriever: wrapFactory(createRedisRetriever),
+		retrieverconf.AzBlobStorageRetriever: wrapFactory(createAzBlobStorageRetriever),
+		retrieverconf.PostgreSQLRetriever: wrapFactory(createPostgreSQLRetriever),
 	}
+
+	factory, ok := factories[kind]
+
+	return factory, ok
 }
 
 // Option customizes InitRetriever.
