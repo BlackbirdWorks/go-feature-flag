@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -67,7 +68,7 @@ func (s *scriptedSender) SendMessages(
 func testEvents(n int) []exporter.ExportableEvent {
 	evs := make([]exporter.ExportableEvent, n)
 	for i := range evs {
-		evs[i] = &exporter.FeatureEvent{Kind: feature, Key: fmt.Sprintf("flag-%d", i)}
+		evs[i] = &exporter.FeatureEvent{Kind: fixtures.Feature, Key: fmt.Sprintf("flag-%d", i)}
 	}
 
 	return evs

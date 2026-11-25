@@ -16,28 +16,19 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
 	amount                   = "amount"
-	bad                      = "bad"
-	checkout                 = "checkout"
 	country                  = "country"
-	fakeDataset              = "fake-dataset"
 	fakeDatasetFeatureTable  = "fake-dataset.feature-table"
 	fakeDatasetTrackingTable = "fake-dataset.tracking-table"
 	fakeProject              = "fake-project"
-	feature                  = "feature"
 	featureTable             = "feature-table"
-	flagKey                  = "flag-key"
 	putRowsFailed            = "put rows failed"
-	sERVER                   = "SERVER"
-	tracking                 = "tracking"
 	trackingTable            = "tracking-table"
 	unsupportedTypeFunc      = "unsupported type: func"
-	user                     = "user"
-	userKey                  = "user-key"
-	variationA               = "variation-a"
 )
 
 var (
@@ -62,22 +53,22 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	client := newMockBigQueryClient()
 	exp := &Exporter{
 		ProjectID:     fakeProject,
-		DatasetID:     fakeDataset,
+		DatasetID:     fixtures.FakeDataset,
 		TableName:     featureTable,
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind:         feature,
-			ContextKind:  user,
-			UserKey:      userKey,
+			Kind:         fixtures.Feature,
+			ContextKind:  fixtures.User,
+			UserKey:      fixtures.UserKeyUser,
 			CreationDate: 1617970547,
-			Key:          flagKey,
-			Variation:    variationA,
+			Key:          fixtures.FlagKeyGeneric,
+			Variation:    fixtures.VariationA,
 			Value:        map[string]any{"enabled": true},
 			Default:      false,
 			Version:      "v1",
-			Source:       sERVER,
+			Source:       fixtures.SERVER,
 			Metadata:     map[string]any{"provider": "go"},
 		},
 	}
@@ -93,16 +84,16 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	require.True(t, ok)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, map[string]bigquery.Value{
-		"kind":          feature,
-		"context_kind":  user,
-		"user_key":      userKey,
+		"kind":          fixtures.Feature,
+		"context_kind":  fixtures.User,
+		"user_key":      fixtures.UserKeyUser,
 		"creation_date": int64(1617970547),
-		"key":           flagKey,
-		"variation":     variationA,
+		"key":           fixtures.FlagKeyGeneric,
+		"variation":     fixtures.VariationA,
 		"value":         `{"enabled":true}`,
 		"default":       false,
 		"version":       "v1",
-		"source":        sERVER,
+		"source":        fixtures.SERVER,
 		"metadata":      `{"provider":"go"}`,
 	}, rows[0].values)
 	assert.Equal(t, "flag-key|user-key|1617970547", rows[0].insertID)
@@ -115,17 +106,17 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 	client := newMockBigQueryClient()
 	exp := &Exporter{
 		ProjectID:     fakeProject,
-		DatasetID:     fakeDataset,
+		DatasetID:     fixtures.FakeDataset,
 		TableName:     trackingTable,
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
 		exporter.TrackingEvent{
-			Kind:              tracking,
-			ContextKind:       user,
-			UserKey:           userKey,
+			Kind:              fixtures.Tracking,
+			ContextKind:       fixtures.User,
+			UserKey:           fixtures.UserKeyUser,
 			CreationDate:      1617970547,
-			Key:               checkout,
+			Key:               fixtures.Checkout,
 			TrackingDetails:   map[string]any{amount: 42},
 			EvaluationContext: map[string]any{country: "FR"},
 		},
@@ -142,11 +133,11 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 	require.True(t, ok)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, map[string]bigquery.Value{
-		"kind":               tracking,
-		"context_kind":       user,
-		"user_key":           userKey,
+		"kind":               fixtures.Tracking,
+		"context_kind":       fixtures.User,
+		"user_key":           fixtures.UserKeyUser,
 		"creation_date":      int64(1617970547),
-		"key":                checkout,
+		"key":                fixtures.Checkout,
 		"tracking_details":   `{"amount":42}`,
 		"evaluation_context": `{"country":"FR"}`,
 	}, rows[0].values)
@@ -160,22 +151,43 @@ func TestExporter_ExportMixedBatchReturnsError(t *testing.T) {
 	client := newMockBigQueryClient()
 	exp := &Exporter{
 		ProjectID:     fakeProject,
-		DatasetID:     fakeDataset,
+		DatasetID:     fixtures.FakeDataset,
 		TableName:     "events-table",
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind: feature, ContextKind: user, UserKey: userKey, CreationDate: 1617970547, Key: flagKey,
-			Variation: variationA, Value: true, Default: false, Version: "v1", Source: sERVER,
+			Kind:         fixtures.Feature,
+			ContextKind:  fixtures.User,
+			UserKey:      fixtures.UserKeyUser,
+			CreationDate: 1617970547,
+			Key:          fixtures.FlagKeyGeneric,
+			Variation:    fixtures.VariationA,
+			Value:        true,
+			Default:      false,
+			Version:      "v1",
+			Source:       fixtures.SERVER,
 		},
 		exporter.TrackingEvent{
-			Kind: tracking, ContextKind: user, UserKey: userKey, CreationDate: 1617970548, Key: checkout,
-			TrackingDetails: map[string]any{amount: 42}, EvaluationContext: map[string]any{country: "FR"},
+			Kind:              fixtures.Tracking,
+			ContextKind:       fixtures.User,
+			UserKey:           fixtures.UserKeyUser,
+			CreationDate:      1617970548,
+			Key:               fixtures.Checkout,
+			TrackingDetails:   map[string]any{amount: 42},
+			EvaluationContext: map[string]any{country: "FR"},
 		},
 		exporter.FeatureEvent{
-			Kind: feature, ContextKind: user, UserKey: "user-key-2", CreationDate: 1617970549, Key: "flag-key-2",
-			Variation: "variation-b", Value: false, Default: true, Version: "v2", Source: sERVER,
+			Kind:         fixtures.Feature,
+			ContextKind:  fixtures.User,
+			UserKey:      "user-key-2",
+			CreationDate: 1617970549,
+			Key:          "flag-key-2",
+			Variation:    "variation-b",
+			Value:        false,
+			Default:      true,
+			Version:      "v2",
+			Source:       fixtures.SERVER,
 		},
 	}
 
@@ -200,10 +212,10 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: true,
 			tableName:   featureTable,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Value: true},
 			},
 			wantEnsureTableCalls: []ensureTableCall{
-				{dataset: fakeDataset, table: featureTable, schema: featureEventSchema()},
+				{dataset: fixtures.FakeDataset, table: featureTable, schema: featureEventSchema()},
 			},
 		},
 		{
@@ -211,10 +223,10 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: true,
 			tableName:   trackingTable,
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{Kind: tracking},
+				exporter.TrackingEvent{Kind: fixtures.Tracking},
 			},
 			wantEnsureTableCalls: []ensureTableCall{
-				{dataset: fakeDataset, table: trackingTable, schema: trackingEventSchema()},
+				{dataset: fixtures.FakeDataset, table: trackingTable, schema: trackingEventSchema()},
 			},
 		},
 		{
@@ -222,7 +234,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			autoMigrate: false,
 			tableName:   featureTable,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Value: true},
 			},
 			wantEnsureTableCalls: nil,
 		},
@@ -242,7 +254,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			client := newMockBigQueryClient()
 			exp := &Exporter{
 				ProjectID:     fakeProject,
-				DatasetID:     fakeDataset,
+				DatasetID:     fixtures.FakeDataset,
 				TableName:     tt.tableName,
 				AutoMigrate:   tt.autoMigrate,
 				newClientFunc: mockNewClientFunc(client),
@@ -263,11 +275,11 @@ func TestExporter_DefaultTableName(t *testing.T) {
 	client := newMockBigQueryClient()
 	exp := &Exporter{
 		ProjectID:     fakeProject,
-		DatasetID:     fakeDataset,
+		DatasetID:     fixtures.FakeDataset,
 		newClientFunc: mockNewClientFunc(client),
 	}
 	events := []exporter.ExportableEvent{
-		exporter.FeatureEvent{Kind: feature, Value: true},
+		exporter.FeatureEvent{Kind: fixtures.Feature, Value: true},
 	}
 
 	err := exp.Export(ctx, nil, events)
@@ -305,7 +317,7 @@ func TestExporter_ExportSkipsEmptyBatches(t *testing.T) {
 			initCalled := false
 			exp := &Exporter{
 				ProjectID: fakeProject,
-				DatasetID: fakeDataset,
+				DatasetID: fixtures.FakeDataset,
 				newClientFunc: func(
 					context.Context,
 					string,
@@ -346,7 +358,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "client initialization error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Key: flagKey, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			newClientErr:        clientErr,
 			wantErrContains:     "client init failed",
@@ -355,7 +367,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "feature value marshal error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Value: func() {}},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Value: func() {}},
 			},
 			wantErrContains: unsupportedTypeFunc,
 		},
@@ -363,9 +375,9 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name: "feature metadata marshal error",
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:     feature,
+					Kind:     fixtures.Feature,
 					Value:    true,
-					Metadata: map[string]any{bad: func() {}},
+					Metadata: map[string]any{fixtures.Bad: func() {}},
 				},
 			},
 			wantErrContains: unsupportedTypeFunc,
@@ -374,8 +386,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name: "tracking details marshal error",
 			events: []exporter.ExportableEvent{
 				exporter.TrackingEvent{
-					Kind:            tracking,
-					TrackingDetails: map[string]any{bad: func() {}},
+					Kind:            fixtures.Tracking,
+					TrackingDetails: map[string]any{fixtures.Bad: func() {}},
 				},
 			},
 			wantErrContains: unsupportedTypeFunc,
@@ -384,9 +396,9 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name: "tracking evaluation context marshal error",
 			events: []exporter.ExportableEvent{
 				exporter.TrackingEvent{
-					Kind:              tracking,
+					Kind:              fixtures.Tracking,
 					TrackingDetails:   map[string]any{amount: 42},
-					EvaluationContext: map[string]any{bad: func() {}},
+					EvaluationContext: map[string]any{fixtures.Bad: func() {}},
 				},
 			},
 			wantErrContains: unsupportedTypeFunc,
@@ -395,7 +407,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name:        "auto migrate returns error",
 			autoMigrate: true,
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Key: flagKey, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			client:              &mockBigQueryClient{ensureTableErr: ensureErr},
 			wantErrContains:     "ensure table failed",
@@ -404,7 +416,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "feature insert returns error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Key: flagKey, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Key: fixtures.FlagKeyGeneric, Value: true},
 			},
 			client:              &mockBigQueryClient{putErr: putErr},
 			wantErrContains:     putRowsFailed,
@@ -414,8 +426,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 			name: "tracking insert returns error",
 			events: []exporter.ExportableEvent{
 				exporter.TrackingEvent{
-					Kind:              tracking,
-					Key:               checkout,
+					Kind:              fixtures.Tracking,
+					Key:               fixtures.Checkout,
 					TrackingDetails:   map[string]any{amount: 42},
 					EvaluationContext: map[string]any{country: "FR"},
 				},
@@ -430,8 +442,8 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "mixed event types returns error",
 			events: []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Key: flagKey, Value: true},
-				exporter.TrackingEvent{Kind: tracking, Key: checkout},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Key: fixtures.FlagKeyGeneric, Value: true},
+				exporter.TrackingEvent{Kind: fixtures.Tracking, Key: fixtures.Checkout},
 			},
 			wantErrContains:     "mixed event types",
 			wantNewClientCalled: false,
@@ -458,7 +470,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 
 			exp := &Exporter{
 				ProjectID:   fakeProject,
-				DatasetID:   fakeDataset,
+				DatasetID:   fixtures.FakeDataset,
 				TableName:   tableName,
 				AutoMigrate: tt.autoMigrate,
 				newClientFunc: func(
@@ -490,7 +502,7 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 	client := newMockBigQueryClient()
 	exp := &Exporter{
 		ProjectID:     fakeProject,
-		DatasetID:     fakeDataset,
+		DatasetID:     fixtures.FakeDataset,
 		TableName:     featureTable,
 		newClientFunc: mockNewClientFunc(client),
 	}
@@ -498,10 +510,10 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 	events := make([]exporter.ExportableEvent, 0, maxRowsPerInsert+3)
 	for i := range maxRowsPerInsert + 3 {
 		events = append(events, exporter.FeatureEvent{
-			Kind:         feature,
+			Kind:         fixtures.Feature,
 			UserKey:      fmt.Sprintf("user-%d", i),
 			CreationDate: int64(i),
-			Key:          flagKey,
+			Key:          fixtures.FlagKeyGeneric,
 			Value:        true,
 		})
 	}
@@ -529,7 +541,7 @@ func TestExporter_InitClientOnce(t *testing.T) {
 
 	exp := &Exporter{
 		ProjectID: fakeProject,
-		DatasetID: fakeDataset,
+		DatasetID: fixtures.FakeDataset,
 		newClientFunc: func(
 			context.Context,
 			string,
@@ -594,7 +606,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 			client := newMockBigQueryClient()
 			exp := &Exporter{
 				ProjectID:         fakeProject,
-				DatasetID:         fakeDataset,
+				DatasetID:         fixtures.FakeDataset,
 				TableName:         featureTable,
 				GoogleCredentials: tt.credentials,
 				newClientFunc: func(
@@ -610,7 +622,7 @@ func TestExporter_InitClientPassesCredentialsOptions(t *testing.T) {
 			}
 
 			err := exp.Export(context.TODO(), nil, []exporter.ExportableEvent{
-				exporter.FeatureEvent{Kind: feature, Value: true},
+				exporter.FeatureEvent{Kind: fixtures.Feature, Value: true},
 			})
 
 			require.NoError(t, err)
@@ -673,7 +685,7 @@ func TestRowSaver_Save(t *testing.T) {
 	t.Parallel()
 
 	row := rowSaver{
-		values:   map[string]bigquery.Value{colKey: flagKey},
+		values:   map[string]bigquery.Value{colKey: fixtures.FlagKeyGeneric},
 		insertID: "flag-key|user-key|123",
 	}
 
@@ -733,7 +745,7 @@ type unsupportedEvent struct {
 }
 
 func (unsupportedEvent) GetUserKey() string {
-	return userKey
+	return fixtures.UserKeyUser
 }
 
 func (u unsupportedEvent) GetKey() string {

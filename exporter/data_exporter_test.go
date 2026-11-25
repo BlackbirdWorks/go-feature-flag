@@ -15,6 +15,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -51,7 +52,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
 	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
-			Kind: feature,
+			Kind: fixtures.Feature,
 		})
 	}
 
@@ -97,7 +98,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			evStore := mock.NewEventStore[testhelpers.ExportableMockEvent]()
 			for range 100 {
-				evStore.Add(testhelpers.NewExportableMockEvent(feature))
+				evStore.Add(testhelpers.NewExportableMockEvent(fixtures.Feature))
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -155,7 +156,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
 			for range 100 {
-				evStore.Add(exporter.FeatureEvent{Kind: feature})
+				evStore.Add(exporter.FeatureEvent{Kind: fixtures.Feature})
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -191,7 +192,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	defer evStore.Stop()
 
 	for range 100 {
-		evStore.Add(exporter.FeatureEvent{Kind: feature})
+		evStore.Add(exporter.FeatureEvent{Kind: fixtures.Feature})
 	}
 
 	slow := &slowExporter{delay: 200 * time.Millisecond}

@@ -17,16 +17,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/azureexporter"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-)
-
-const (
-	aBCD               = "ABCD"
-	anonymousUser      = "anonymousUser"
-	feature            = "feature"
-	unspecifiedAddress = "0.0.0.0"
-	variationDefault   = "Default"
-	randomKey          = "random-key"
 )
 
 const containerName = "testcontainer"
@@ -51,12 +43,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -74,12 +66,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -97,12 +89,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -120,12 +112,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -143,12 +135,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -166,12 +158,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -187,12 +179,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -204,12 +196,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			exporter: azureexporter.Exporter{},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -223,12 +215,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -244,12 +236,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -309,11 +301,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			unspecifiedAddress,
+			fixtures.UnspecifiedAddress,
 			"--queueHost",
-			unspecifiedAddress,
+			fixtures.UnspecifiedAddress,
 			"--tableHost",
-			unspecifiedAddress,
+			fixtures.UnspecifiedAddress,
 			"--skipApiVersionCheck",
 		),
 	)

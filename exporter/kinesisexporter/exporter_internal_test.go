@@ -14,13 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	feature             = "feature"
-	variationDefault    = "default"
-	json2               = "json"
 	testExplicitHashKey = "test-explicit-hash-key"
 	testStream          = "test-stream"
 	testStreamArn       = "test-stream-arn"
@@ -43,7 +42,7 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   json2,
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
@@ -79,7 +78,7 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   json2,
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
 		Settings: NewSettings(WithStreamArn(testStream)),
 	}
@@ -117,7 +116,7 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format: json2,
+		Format: protocol.FormatJSON,
 		sender: &mock,
 	}
 
@@ -139,7 +138,7 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format: json2,
+		Format: protocol.FormatJSON,
 		sender: &mock,
 		Settings: NewSettings(
 			WithStreamName(testStream),
@@ -173,7 +172,7 @@ func TestExporter_ExportSenderError(t *testing.T) {
 	mock := MockKinesisSenderWithError{}
 
 	exp := Exporter{
-		Format:   json2,
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
@@ -196,28 +195,28 @@ func TestExporterSettingsCreation(t *testing.T) {
 
 	{
 		settings := NewSettings()
-		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamArn(testStreamArn))
-		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Equal(t, testStreamArn, *settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithStreamName(testStreamName))
-		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Equal(t, testStreamName, *settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(WithExplicitHashKey(testExplicitHashKey))
-		assert.Equal(t, variationDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtures.FlagsetDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)
@@ -250,7 +249,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	t.Parallel()
 
 	event := exporter.FeatureEvent{
-		Kind:         feature,
+		Kind:         fixtures.Feature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,
@@ -264,7 +263,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format:   json2,
+		Format:   protocol.FormatJSON,
 		sender:   &mock,
 		Settings: NewSettings(WithStreamName(testStream)),
 	}
@@ -288,7 +287,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 
 func NewFeatureEvent() *exporter.FeatureEvent {
 	return &exporter.FeatureEvent{
-		Kind:         feature,
+		Kind:         fixtures.Feature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,

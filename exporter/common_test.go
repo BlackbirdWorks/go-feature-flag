@@ -9,12 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
 const (
-	filenameFormat2                    = "filenameFormat"
+	filenameFormatKey                  = "filenameFormat"
 	flagVariation                      = "flag-variation"
-	json2                              = "json"
 	kindContextKindUserKeyCreationDate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{" +
 		"{ .CreationDate}};{{ .Key}};{{ .Variation}};"
 	randomName    = "random-name"
@@ -107,11 +108,11 @@ func TestComputeFilename(t *testing.T) {
 			name: "Nothing to template",
 			args: args{
 				template: exporter.ParseTemplate(
-					filenameFormat2,
+					filenameFormatKey,
 					flagVariation,
 					flagVariation,
 				),
-				format: json2,
+				format: protocol.FormatJSON,
 			},
 			want:    flagVariation,
 			wantErr: assert.NoError,
@@ -120,11 +121,11 @@ func TestComputeFilename(t *testing.T) {
 			name: "With extension",
 			args: args{
 				template: exporter.ParseTemplate(
-					filenameFormat2,
+					filenameFormatKey,
 					"flag-variation.{{ .Format }}",
 					flagVariation,
 				),
-				format: json2,
+				format: protocol.FormatJSON,
 			},
 			want:    "flag-variation.json",
 			wantErr: assert.NoError,
@@ -133,11 +134,11 @@ func TestComputeFilename(t *testing.T) {
 			name: "Multiple templates",
 			args: args{
 				template: exporter.ParseTemplate(
-					filenameFormat2,
+					filenameFormatKey,
 					"flag-variation-{{ .Hostname}}.{{ .Format}}",
 					flagVariation,
 				),
-				format: json2,
+				format: protocol.FormatJSON,
 			},
 			want:    "flag-variation-" + hostname + ".json",
 			wantErr: assert.NoError,
@@ -191,15 +192,15 @@ func TestFormatEventInCSV(t *testing.T) {
 					exporter.DefaultCsvTemplate,
 				),
 				event: exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       sERVER,
+					Source:       fixtures.SERVER,
 				},
 			},
 			want:    "feature;anonymousUser;ABCD;1617970547;random-key;Default;YO;false;SERVER\n",
@@ -247,15 +248,15 @@ func TestFormatEventInJSON(t *testing.T) {
 		{
 			name: "valid",
 			args: args{event: exporter.FeatureEvent{
-				Kind:         feature,
-				ContextKind:  anonymousUser,
-				UserKey:      aBCD,
+				Kind:         fixtures.Feature,
+				ContextKind:  fixtures.UserKeyAnonymous,
+				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
-				Key:          randomKey,
-				Variation:    variationDefault,
+				Key:          fixtures.UserKeyRandom,
+				Variation:    fixtures.VariationDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       sERVER,
+				Source:       fixtures.SERVER,
 			}},
 			want: "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":161797" +
 				"0547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\"," +

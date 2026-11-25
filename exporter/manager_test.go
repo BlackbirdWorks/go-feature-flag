@@ -22,16 +22,14 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/mock"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	anonymous   = "anonymous"
-	defaultVar2 = "defaultVar"
-	leakcheck   = "leakcheck"
-	sERVER      = "SERVER"
-	testFlag    = "test-flag"
+	defaultVarKey = "defaultVar"
+	leakcheck     = "leakcheck"
 )
 
 var (
@@ -86,15 +84,15 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 			// Initialize inputEvents slice
 			inputEvents := []exporter.FeatureEvent{
 				exporter.NewFeatureEvent(
-					ffcontext.NewEvaluationContextBuilder(aBCD).
-						AddCustom(anonymous, true).
+					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
+						AddCustom(fixtures.Anonymous, true).
 						Build(),
-					randomKey,
+					fixtures.UserKeyRandom,
 					"YO",
-					defaultVar2,
+					defaultVarKey,
 					false,
 					"",
-					sERVER,
+					fixtures.SERVER,
 					nil,
 				),
 			}
@@ -164,15 +162,15 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 			inputEvents := make([]exporter.FeatureEvent, 0, 101)
 			for range 101 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-					ffcontext.NewEvaluationContextBuilder(aBCD).
-						AddCustom(anonymous, true).
+					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
+						AddCustom(fixtures.Anonymous, true).
 						Build(),
-					randomKey,
+					fixtures.UserKeyRandom,
 					"YO",
-					defaultVar2,
+					defaultVarKey,
 					false,
 					"",
-					sERVER,
+					fixtures.SERVER,
 					nil,
 				))
 			}
@@ -236,15 +234,15 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 			inputEvents := make([]exporter.FeatureEvent, 0, 100001)
 			for range 100001 {
 				inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-					ffcontext.NewEvaluationContextBuilder(aBCD).
-						AddCustom(anonymous, true).
+					ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).
+						AddCustom(fixtures.Anonymous, true).
 						Build(),
-					randomKey,
+					fixtures.UserKeyRandom,
 					"YO",
-					defaultVar2,
+					defaultVarKey,
 					false,
 					"",
-					sERVER,
+					fixtures.SERVER,
 					nil,
 				))
 			}
@@ -290,8 +288,8 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	inputEvents := make([]exporter.FeatureEvent, 0, 201)
 	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-			ffcontext.NewEvaluationContextBuilder(aBCD).AddCustom(anonymous, true).Build(),
-			randomKey, "YO", defaultVar2, false, "", sERVER, nil))
+			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -324,8 +322,8 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-			ffcontext.NewEvaluationContextBuilder(aBCD).AddCustom(anonymous, true).Build(),
-			randomKey, "YO", defaultVar2, false, "", sERVER, nil))
+			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -390,7 +388,7 @@ func TestAddExporterMetadataFromContextToExporter(t *testing.T) {
 
 			defer goff.Close()
 
-			_, err = goff.BoolVariation(testFlag, tt.ctx, false)
+			_, err = goff.BoolVariation(fixtures.FlagKeyTest, tt.ctx, false)
 			require.NoError(t, err)
 
 			// The event is collected in a goroutine and exported by the flush ticker, so we
@@ -443,8 +441,8 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-			ffcontext.NewEvaluationContextBuilder(aBCD).AddCustom(anonymous, true).Build(),
-			randomKey, "YO", defaultVar2, false, "", sERVER, nil))
+			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -494,8 +492,8 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	inputEvents := make([]exporter.FeatureEvent, 0, 100)
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
-			ffcontext.NewEvaluationContextBuilder(aBCD).AddCustom(anonymous, true).Build(),
-			randomKey, "YO", defaultVar2, false, "", sERVER, nil))
+			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
 	}
 
 	go func(mgr exporter.Manager[exporter.FeatureEvent]) {
@@ -543,17 +541,17 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			// create users
 			user1 := ffcontext.
 				NewEvaluationContextBuilder("aea2fdc1-b9a0-417a-b707-0c9083de68e3").
-				AddCustom(anonymous, true).
+				AddCustom(fixtures.Anonymous, true).
 				Build()
 			user2 := ffcontext.NewEvaluationContext("332460b9-a8aa-4f7a-bc5d-9cc33632df9a")
 
-			_, _ = client.BoolVariation(testFlag, user1, false)
-			_, _ = client.BoolVariation(testFlag, user2, false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, user1, false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, user2, false)
 			_, _ = client.StringVariation("test-flag2", user1, "defaultValue")
 			_, _ = client.JSONVariation(
 				"test-flag2",
 				user1,
-				map[string]any{"test": toto},
+				map[string]any{"test": fixtures.Toto},
 			)
 			// Events are collected in a goroutine (see notifyVariation) and exported by the
 			// flush ticker. A fixed sleep only gives us one or two ticks of margin, so a CI
@@ -566,8 +564,8 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 
 			// Close() waits for the in-flight collect goroutines and then flushes, so the last
 			// 2 events are exported synchronously and this assertion needs no waiting.
-			_, _ = client.BoolVariation(testFlag, user1, false)
-			_, _ = client.BoolVariation(testFlag, user2, false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, user1, false)
+			_, _ = client.BoolVariation(fixtures.FlagKeyTest, user2, false)
 			client.Close() // a flush is triggered here
 			assert.Len(t, mockExporter.GetExportedEvents(), 6)
 		})
@@ -647,8 +645,8 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 					)
 					mgr.Start()
 					mgr.AddEvent(exporter.NewFeatureEvent(
-						ffcontext.NewEvaluationContextBuilder(aBCD).Build(),
-						randomKey, "YO", defaultVar2, false, "", sERVER, nil))
+						ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).Build(),
+						fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
 
 					started = max(started, goroutinesLabeled(leakcheck, label))
 

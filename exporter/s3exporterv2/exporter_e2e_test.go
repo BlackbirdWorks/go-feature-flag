@@ -20,15 +20,13 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/s3exporterv2"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
-	enabled               = "enabled"
 	jsonFileSuffixPattern = `-[0-9]+\.json$`
-	myFlag                = "my-flag"
-	userD                 = "user-%d"
 )
 
 func events(n int) []exporter.ExportableEvent {
@@ -37,10 +35,10 @@ func events(n int) []exporter.ExportableEvent {
 		res = append(res, exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
-			UserKey:      fmt.Sprintf(userD, i),
+			UserKey:      fmt.Sprintf(fixtures.UserKeyFormat, i),
 			CreationDate: int64(1617970547 + i),
-			Key:          myFlag,
-			Variation:    enabled,
+			Key:          fixtures.FlagKeyMy,
+			Variation:    fixtures.VariationEnabled,
 			Value:        fmt.Sprintf("value-%d", i),
 			Default:      false,
 			Source:       "SERVER",
@@ -135,10 +133,10 @@ func TestE2E_Export(t *testing.T) {
 				require.NoError(t, parquetReader.Read(&got))
 
 				for i, e := range got {
-					assert.Equal(t, fmt.Sprintf(userD, i), e.UserKey)
-					assert.Equal(t, myFlag, e.Key)
+					assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), e.UserKey)
+					assert.Equal(t, fixtures.FlagKeyMy, e.Key)
 					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), e.Value) // parquet stores the JSON encoding
-					assert.Equal(t, enabled, e.Variation)
+					assert.Equal(t, fixtures.VariationEnabled, e.Variation)
 				}
 			},
 		},
@@ -171,10 +169,10 @@ func checkJSON(t *testing.T, content []byte, n int) {
 	for i, l := range lines {
 		var e exporter.FeatureEvent
 		require.NoError(t, json.Unmarshal([]byte(l), &e))
-		assert.Equal(t, fmt.Sprintf(userD, i), e.UserKey)
-		assert.Equal(t, myFlag, e.Key)
+		assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), e.UserKey)
+		assert.Equal(t, fixtures.FlagKeyMy, e.Key)
 		assert.Equal(t, fmt.Sprintf("value-%d", i), e.Value)
-		assert.Equal(t, enabled, e.Variation)
+		assert.Equal(t, fixtures.VariationEnabled, e.Variation)
 	}
 }
 

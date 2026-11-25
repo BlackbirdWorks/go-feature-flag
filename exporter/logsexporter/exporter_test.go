@@ -12,16 +12,9 @@ import (
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
 	"github.com/blackbirdworks/semaphore/testhelpers"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/testhelpers/slogutil"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-)
-
-const (
-	aBCD             = "ABCD"
-	anonymousUser    = "anonymousUser"
-	feature          = "feature"
-	variationDefault = "Default"
-	randomKey        = "random-key"
 )
 
 func TestLog_Export(t *testing.T) {
@@ -47,12 +40,12 @@ func TestLog_Export(t *testing.T) {
 			fields: fields{LogFormat: ""},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -66,12 +59,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -85,12 +78,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -104,12 +97,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},

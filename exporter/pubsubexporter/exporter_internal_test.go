@@ -16,15 +16,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
-)
-
-const (
-	aBCD             = "ABCD"
-	anonymousUser    = "anonymousUser"
-	feature          = "feature"
-	variationDefault = "Default"
-	randomKey        = "random-key"
 )
 
 var (
@@ -68,12 +61,12 @@ func TestExporter_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -88,10 +81,10 @@ func TestExporter_Export(t *testing.T) {
 				exporter.FeatureEvent{
 					Kind:         "feature1",
 					ContextKind:  "anonymousUser1",
-					UserKey:      aBCD,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
 					Key:          "random-key1",
-					Variation:    variationDefault,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -101,7 +94,7 @@ func TestExporter_Export(t *testing.T) {
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970527,
 					Key:          "random-key2",
-					Variation:    variationDefault,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      true,
 				},
@@ -126,12 +119,12 @@ func TestExporter_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -145,12 +138,12 @@ func TestExporter_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -164,12 +157,12 @@ func TestExporter_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -194,12 +187,12 @@ func TestExporter_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         feature,
-					ContextKind:  anonymousUser,
-					UserKey:      aBCD,
+					Kind:         fixtures.Feature,
+					ContextKind:  fixtures.UserKeyAnonymous,
+					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
-					Key:          randomKey,
-					Variation:    variationDefault,
+					Key:          fixtures.UserKeyRandom,
+					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
 				},
