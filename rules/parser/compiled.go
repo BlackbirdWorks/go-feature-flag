@@ -310,7 +310,7 @@ func (n *compareNode) evalCompare(state *evalState) bool {
 // listValue returns the parsed list as an operand. A packed long string
 // list is expanded into a fresh []string; that only happens off the hash
 // lookup path (errors, stale operands, operators other than IN).
-func (n *compareNode) listValue() Operand {
+func (n *compareNode) listValue() any {
 	if n.strSet != nil {
 		return n.strSet.slice()
 	}
@@ -387,7 +387,7 @@ func (n *compareNode) setDebugErr(state *evalState, err error) {
 
 // copyOperand copies compiled IN lists before they are exposed through a
 // debug error so callers cannot mutate the shared rule constants.
-func copyOperand(operand Operand) Operand {
+func copyOperand(operand Operand) any {
 	switch val := operand.(type) {
 	case []int:
 		return append(make([]int, 0, len(val)), val...)
@@ -645,6 +645,8 @@ func validBuild(build string) bool {
 
 // compileValue pre-parses the right-hand side of a comparison into target and
 // returns the Operation the visitor would have selected for it.
+//
+//nolint:ireturn // factory: selects the operation implementation from the value kind at runtime
 func compileValue(target *compareNode, v IValueContext, src *sourceText) Operation {
 	switch ctx := v.(type) {
 	case *BooleanContext:
