@@ -11,6 +11,16 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	defaultRule    = "defaultRule"
+	fixtureDefault = "Default"
+	fixtureFalse   = "False"
+	fixtureTrue    = "True"
+	keyEqRandomKey = "key eq \"random-key\""
+	rule1          = "rule1"
+	testFlag       = "test-flag"
+)
+
 type logNotifierCase struct {
 	diff        notifier.DiffCache
 	expectedLog *slogassert.LogMessageMatch
@@ -43,17 +53,17 @@ func TestLogNotifier_Notify(t *testing.T) {
 			name: "Flag deleted",
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{
-					"test-flag": &flag.InternalFlag{
+					testFlag: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("defaultRule"),
+							Name: new(defaultRule),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -65,7 +75,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Message: "flag removed",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"key": "test-flag",
+					key2: testFlag,
 				},
 				AllAttrsMatch: true,
 			},
@@ -75,39 +85,39 @@ func TestLogNotifier_Notify(t *testing.T) {
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
+					testFlag: {
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
@@ -119,7 +129,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Message: "flag updated",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"key": "test-flag",
+					key2: testFlag,
 				},
 				AllAttrsMatch: true,
 			},
@@ -129,47 +139,47 @@ func TestLogNotifier_Notify(t *testing.T) {
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
+					testFlag: {
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 						},
 						After: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 							Disable: new(true),
 						},
@@ -181,7 +191,7 @@ func TestLogNotifier_Notify(t *testing.T) {
 				Message: "flag is turned OFF",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"key": "test-flag",
+					key2: testFlag,
 				},
 				AllAttrsMatch: true,
 			},
@@ -202,22 +212,22 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 					"add-test-flag": &flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
-								Name:  new("rule1"),
-								Query: new("key eq \"random-key\""),
+								Name:  new(rule1),
+								Query: new(keyEqRandomKey),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name:            new("defaultRule"),
-							VariationResult: new("Default"),
+							Name:            new(defaultRule),
+							VariationResult: new(fixtureDefault),
 						},
 					},
 				},
@@ -226,7 +236,7 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 				Message: "flag added",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"key": "add-test-flag",
+					key2: "add-test-flag",
 				},
 				AllAttrsMatch: true,
 			},
@@ -236,47 +246,47 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 			diff: notifier.DiffCache{
 				Deleted: map[string]flag.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
+					testFlag: {
 						After: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 						},
 						Before: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 							Disable: new(true),
 						},
@@ -288,7 +298,7 @@ func TestLogNotifier_Notify_AddAndToggle(t *testing.T) {
 				Message: "flag is turned ON",
 				Level:   slog.LevelInfo,
 				Attrs: map[string]any{
-					"key": "test-flag",
+					key2: testFlag,
 				},
 				AllAttrsMatch: true,
 			},

@@ -15,6 +15,14 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	authorization = "Authorization"
+	first         = "first"
+	second        = "second"
+	testSecret    = "test-secret"
+	xCustom       = "X-Custom"
+)
+
 type headerTestHTTPClient func(*http.Request) (*http.Response, error)
 
 func (f headerTestHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -33,7 +41,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 		{name: "nil headers", wantAuthorization: ""},
 		{
 			name:              "custom headers",
-			headers:           map[string][]string{"Authorization": {"Bearer test-token"}},
+			headers:           map[string][]string{authorization: {"Bearer test-token"}},
 			wantAuthorization: "Bearer test-token",
 		},
 	}
@@ -59,7 +67,7 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			})
 			whNotifier := Notifier{
 				EndpointURL: "https://example.com/hook",
-				Secret:      "test-secret",
+				Secret:      testSecret,
 				Headers:     tt.headers,
 				httpClient:  client,
 			}
@@ -85,9 +93,9 @@ func TestWebhookNotifierConcurrentSignatures(t *testing.T) {
 			for _, req := range captured {
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
-				assert.Equal(t, signer.Sign(body, []byte(whNotifier.Secret)), req.Header.Get("X-Hub-Signature-256"))
-				assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
-				assert.Equal(t, tt.wantAuthorization, req.Header.Get("Authorization"))
+				assert.Equal(t, signer.Sign(body, []byte(whNotifier.Secret)), req.Header.Get(xHubSignature256))
+				assert.Equal(t, applicationJson, req.Header.Get(contentType))
+				assert.Equal(t, tt.wantAuthorization, req.Header.Get(authorization))
 			}
 
 			close(release)
@@ -114,22 +122,22 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 		name        string
 		secret      string
 	}{
-		{name: "nil headers", secret: "test-secret", wantHeaders: nil},
+		{name: "nil headers", secret: testSecret, wantHeaders: nil},
 		{
-			name: "signed request", secret: "test-secret",
+			name: "signed request", secret: testSecret,
 			headers: map[string][]string{
-				"X-Custom": {"first", "second"}, "Content-Type": {"text/plain"},
-				"X-Hub-Signature-256": {"configured-signature"},
+				xCustom: {first, second}, contentType: {"text/plain"},
+				xHubSignature256: {"configured-signature"},
 			},
 			wantHeaders: http.Header{
-				"X-Custom": {"first", "second"}, "Content-Type": {"text/plain"},
-				"X-Hub-Signature-256": {"configured-signature"},
+				xCustom: {first, second}, contentType: {"text/plain"},
+				xHubSignature256: {"configured-signature"},
 			},
 		},
 		{
 			name:        "unsigned request",
-			headers:     map[string][]string{"X-Custom": {"first", "second"}},
-			wantHeaders: http.Header{"X-Custom": {"first", "second"}},
+			headers:     map[string][]string{xCustom: {first, second}},
+			wantHeaders: http.Header{xCustom: {first, second}},
 		},
 	}
 	for _, tt := range tests {
@@ -142,18 +150,18 @@ func TestWebhookNotifierPreservesConfiguredHeaders(t *testing.T) {
 				Secret:      tt.secret,
 				Headers:     tt.headers,
 				httpClient: headerTestHTTPClient(func(req *http.Request) (*http.Response, error) {
-					assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
-					assert.Equal(t, original.Values("X-Custom"), req.Header.Values("X-Custom"))
+					assert.Equal(t, applicationJson, req.Header.Get(contentType))
+					assert.Equal(t, original.Values(xCustom), req.Header.Values(xCustom))
 
 					if tt.secret == "" {
-						assert.Empty(t, req.Header.Get("X-Hub-Signature-256"))
+						assert.Empty(t, req.Header.Get(xHubSignature256))
 					} else {
 						body, err := io.ReadAll(req.Body)
 						require.NoError(t, err)
-						assert.Equal(t, signer.Sign(body, []byte(tt.secret)), req.Header.Get("X-Hub-Signature-256"))
+						assert.Equal(t, signer.Sign(body, []byte(tt.secret)), req.Header.Get(xHubSignature256))
 					}
 					// A client changing a request header must not mutate the configuration's value slice.
-					if values := req.Header.Values("X-Custom"); len(values) > 0 {
+					if values := req.Header.Values(xCustom); len(values) > 0 {
 						values[0] = "changed by client"
 					}
 

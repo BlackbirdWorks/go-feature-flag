@@ -11,6 +11,10 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	null = "null"
+)
+
 func TestFlagChanges(t *testing.T) {
 	t.Parallel()
 
@@ -19,11 +23,11 @@ func TestFlagChanges(t *testing.T) {
 	baseFlag := func() *flag.InternalFlag {
 		return &flag.InternalFlag{
 			Variations: &map[string]*any{
-				"on":  new(any(true)),
-				"off": new(any(false)),
+				"on": new(any(true)),
+				off2: new(any(false)),
 			},
-			DefaultRule: &flag.Rule{VariationResult: new("off")},
-			Metadata:    &map[string]any{"team": "payments"},
+			DefaultRule: &flag.Rule{VariationResult: new(off2)},
+			Metadata:    &map[string]any{"team": payments},
 		}
 	}
 
@@ -35,31 +39,31 @@ func TestFlagChanges(t *testing.T) {
 		{
 			name:   "should show a disabled flag without pointer syntax",
 			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
-			want:   []notifier.FieldChange{{Path: "Disable", From: "null", To: "true"}},
+			want:   []notifier.FieldChange{{Path: disable, From: null, To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
 			update: func(f *flag.InternalFlag) {
 				f.Rules = &[]flag.Rule{{
-					Name:            new("beta"),
+					Name:            new(beta),
 					Query:           new(`country eq "FR"`),
 					VariationResult: new("on"),
 				}}
 			},
 			want: []notifier.FieldChange{{
 				Path: "Rules",
-				From: "null",
+				From: null,
 				To:   `[{"name":"beta","query":"country eq \"FR\"","variation":"on"}]`,
 			}},
 		},
 		{
 			name: "should show a percentage rollout sorted by path",
 			update: func(f *flag.InternalFlag) {
-				f.DefaultRule = &flag.Rule{Percentages: &map[string]float64{"on": 10, "off": 90}}
+				f.DefaultRule = &flag.Rule{Percentages: &map[string]float64{"on": 10, off2: 90}}
 			},
 			want: []notifier.FieldChange{
-				{Path: "DefaultRule.Percentages", From: "null", To: `{"off":90,"on":10}`},
-				{Path: "DefaultRule.VariationResult", From: `"off"`, To: "null"},
+				{Path: "DefaultRule.Percentages", From: null, To: `{"off":90,"on":10}`},
+				{Path: "DefaultRule.VariationResult", From: `"off"`, To: null},
 			},
 		},
 		{
@@ -69,28 +73,28 @@ func TestFlagChanges(t *testing.T) {
 			},
 			want: []notifier.FieldChange{{
 				Path: "Experimentation",
-				From: "null",
+				From: null,
 				To:   `{"start":"2026-10-05T09:00:00Z","end":"2026-10-12T09:00:00Z"}`,
 			}},
 		},
 		{
 			name: "should report a metadata key that was added",
 			update: func(f *flag.InternalFlag) {
-				f.Metadata = &map[string]any{"team": "payments", "owner": "jane"}
+				f.Metadata = &map[string]any{"team": payments, owner: jane}
 			},
-			want: []notifier.FieldChange{{Path: "Metadata.owner", From: "null", To: `"jane"`}},
+			want: []notifier.FieldChange{{Path: "Metadata.owner", From: null, To: `"jane"`}},
 		},
 		{
 			name:   "should report a metadata key that was removed",
 			update: func(f *flag.InternalFlag) { f.Metadata = &map[string]any{} },
-			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: "null"}},
+			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: null}},
 		},
 		{
 			name: "should report a variation that was added",
 			update: func(f *flag.InternalFlag) {
-				(*f.Variations)["beta"] = new(any("blue"))
+				(*f.Variations)[beta] = new(any("blue"))
 			},
-			want: []notifier.FieldChange{{Path: "Variations.beta", From: "null", To: `"blue"`}},
+			want: []notifier.FieldChange{{Path: "Variations.beta", From: null, To: `"blue"`}},
 		},
 		{
 			name:   "should return nothing when the flag did not change",
@@ -129,9 +133,9 @@ func TestReadableValue(t *testing.T) {
 		value any
 		want  string
 	}{
-		{name: "nil", value: nil, want: "null"},
+		{name: "nil", value: nil, want: null},
 		{name: "string pointer", value: new("on"), want: `"on"`},
-		{name: "map", value: map[string]float64{"on": 50, "off": 50}, want: `{"off":50,"on":50}`},
+		{name: "map", value: map[string]float64{"on": 50, off2: 50}, want: `{"off":50,"on":50}`},
 		{name: "keeps HTML characters as typed", value: "a < b && c", want: `"a < b && c"`},
 		{name: "falls back to Go syntax when JSON cannot encode the value", value: make(chan int), want: "(chan int)"},
 	}

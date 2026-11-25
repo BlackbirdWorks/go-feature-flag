@@ -16,6 +16,13 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	applicationJson  = "application/json"
+	contentType      = "Content-Type"
+	hostname2        = "hostname"
+	xHubSignature256 = "X-Hub-Signature-256"
+)
+
 var (
 	errInvalidNotifierConfigurationNo = errors.New(
 		"invalid notifier configuration, no endpointURL provided for the webhook notifier",
@@ -106,9 +113,9 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		}
 
 		// if no hostname provided we return the hostname of the current machine
-		if _, ok := c.Meta["hostname"]; !ok {
+		if _, ok := c.Meta[hostname2]; !ok {
 			hostname, _ := os.Hostname()
-			c.Meta["hostname"] = hostname
+			c.Meta[hostname2] = hostname
 		}
 	})
 
@@ -135,11 +142,11 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		headers = make(http.Header)
 	}
 
-	headers.Set("Content-Type", "application/json")
+	headers.Set(contentType, applicationJson)
 
 	// if a secret is provided we sign the body and add this signature as a header.
 	if c.Secret != "" {
-		headers.Set("X-Hub-Signature-256", signer.Sign(payload, []byte(c.Secret)))
+		headers.Set(xHubSignature256, signer.Sign(payload, []byte(c.Secret)))
 	}
 
 	request := http.Request{

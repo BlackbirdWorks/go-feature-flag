@@ -17,6 +17,15 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	defaultRule    = "defaultRule"
+	fixtureDefault = "Default"
+	fixtureFalse   = "False"
+	fixtureTrue    = "True"
+	jane           = "jane"
+	rule1          = "rule1"
+)
+
 func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 	t.Parallel()
 
@@ -35,50 +44,50 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 					"test-flag3": &flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
-								Name:  new("rule1"),
+								Name:  new(rule1),
 								Query: new("key eq \"random-key\""),
 								Percentages: &map[string]float64{
-									"False": 95,
-									"True":  5,
+									fixtureFalse: 95,
+									fixtureTrue:  5,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": new(any("default")),
-							"False":   new(any("false")),
-							"True":    new(any("test")),
+							fixtureDefault: new(any("default")),
+							fixtureFalse:   new(any("false")),
+							fixtureTrue:    new(any("test")),
 						},
 						DefaultRule: &flag.Rule{
-							Name:            new("defaultRule"),
-							VariationResult: new("Default"),
+							Name:            new(defaultRule),
+							VariationResult: new(fixtureDefault),
 						},
 						TrackEvents: new(true),
 						Disable:     new(false),
 						Version:     new("1.1"),
-						Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+						Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 					},
 				},
 				Deleted: map[string]flag.Flag{
 					"test-flag": &flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
-								Name:  new("rule1"),
+								Name:  new(rule1),
 								Query: new("key eq \"random-key\""),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
 						Variations: &map[string]*any{
-							"Default": new(any(false)),
-							"False":   new(any(false)),
-							"True":    new(any(true)),
+							fixtureDefault: new(any(false)),
+							fixtureFalse:   new(any(false)),
+							fixtureTrue:    new(any(true)),
 						},
-						Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+						Metadata: &map[string]any{notifier.UpdatedByMetadataKey: jane},
 						DefaultRule: &flag.Rule{
-							Name:            new("defaultRule"),
-							VariationResult: new("Default"),
+							Name:            new(defaultRule),
+							VariationResult: new(fixtureDefault),
 						},
 					},
 				},
@@ -86,15 +95,15 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 					"test-flag2": {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
@@ -105,28 +114,28 @@ func TestMicrosoftTeamsNotifier_Notify(t *testing.T) {
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(true)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
+									Name:  new(rule1),
 									Query: new("key eq \"not-a-ke\""),
 									Percentages: &map[string]float64{
-										"False": 20,
-										"True":  80,
+										fixtureFalse: 20,
+										fixtureTrue:  80,
 									},
 								},
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 							Disable:     new(true),
 							TrackEvents: new(false),
 							Version:     new("1.1"),
-							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 						},
 					},
 				},

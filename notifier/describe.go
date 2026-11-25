@@ -14,6 +14,10 @@ import (
 )
 
 const (
+	sT = "%s: %t"
+)
+
+const (
 	// maxRuleParts and maxPatchParts are the numbers of parts of the description of a rule and of a patch.
 	maxRuleParts  = 5
 	maxPatchParts = 3
@@ -197,7 +201,7 @@ func (d *describer) toggle(subject, field string, before, after *bool, defaultVa
 		// A scheduled step sets the value at its date, whatever the default is,
 		// and leaves it alone when the field is absent.
 		if after == nil {
-			d.addf("%s: %s no longer set", subject, d.code(fmt.Sprintf("%s: %t", field, *before)))
+			d.addf("%s: %s no longer set", subject, d.code(fmt.Sprintf(sT, field, *before)))
 
 			return
 		}
@@ -211,9 +215,9 @@ func (d *describer) toggle(subject, field string, before, after *bool, defaultVa
 	case oldValue != newValue:
 		d.addf("%s %s", subject, onFalse)
 	case before == nil && after != nil:
-		d.addf("%s: %s added (already the default)", subject, d.code(fmt.Sprintf("%s: %t", field, *after)))
+		d.addf("%s: %s added (already the default)", subject, d.code(fmt.Sprintf(sT, field, *after)))
 	case before != nil && after == nil:
-		d.addf("%s: %s removed (already the default)", subject, d.code(fmt.Sprintf("%s: %t", field, *before)))
+		d.addf("%s: %s removed (already the default)", subject, d.code(fmt.Sprintf(sT, field, *before)))
 	}
 }
 

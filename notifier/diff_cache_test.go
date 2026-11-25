@@ -9,6 +9,14 @@ import (
 	"github.com/blackbirdworks/semaphore/notifier"
 )
 
+const (
+	defaultRule2   = "defaultRule"
+	fixtureDefault = "Default"
+	fixtureFalse   = "False"
+	fixtureTrue    = "True"
+	flag2          = "flag"
+)
+
 func TestDiffCache_HasDiff(t *testing.T) {
 	t.Parallel()
 
@@ -41,17 +49,17 @@ func TestDiffCache_HasDiff(t *testing.T) {
 			name: "only Deleted",
 			fields: fields{
 				Deleted: map[string]flag.Flag{
-					"flag": &flag.InternalFlag{
+					flag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"True":    new(any(true)),
-							"False":   new(any(true)),
+							fixtureDefault: new(any(true)),
+							fixtureTrue:    new(any(true)),
+							fixtureFalse:   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("defaultRule"),
+							Name: new(defaultRule2),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -65,17 +73,17 @@ func TestDiffCache_HasDiff(t *testing.T) {
 			name: "only Added",
 			fields: fields{
 				Added: map[string]flag.Flag{
-					"flag": &flag.InternalFlag{
+					flag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"True":    new(any(true)),
-							"False":   new(any(true)),
+							fixtureDefault: new(any(true)),
+							fixtureTrue:    new(any(true)),
+							fixtureFalse:   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("defaultRule"),
+							Name: new(defaultRule2),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
@@ -91,32 +99,32 @@ func TestDiffCache_HasDiff(t *testing.T) {
 				Added:   map[string]flag.Flag{},
 				Deleted: map[string]flag.Flag{},
 				Updated: map[string]notifier.DiffUpdated{
-					"flag": {
+					flag2: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"True":    new(any(true)),
-								"False":   new(any(true)),
+								fixtureDefault: new(any(true)),
+								fixtureTrue:    new(any(true)),
+								fixtureFalse:   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule2),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"True":    new(any(true)),
-								"False":   new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureTrue:    new(any(true)),
+								fixtureFalse:   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule2),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
@@ -129,64 +137,64 @@ func TestDiffCache_HasDiff(t *testing.T) {
 			name: "all fields",
 			fields: fields{
 				Added: map[string]flag.Flag{
-					"flag": &flag.InternalFlag{
+					flag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"True":    new(any(true)),
-							"False":   new(any(true)),
+							fixtureDefault: new(any(true)),
+							fixtureTrue:    new(any(true)),
+							fixtureFalse:   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("defaultRule"),
+							Name: new(defaultRule2),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
 				},
 				Deleted: map[string]flag.Flag{
-					"flag": &flag.InternalFlag{
+					flag2: &flag.InternalFlag{
 						Variations: &map[string]*any{
-							"Default": new(any(true)),
-							"True":    new(any(true)),
-							"False":   new(any(true)),
+							fixtureDefault: new(any(true)),
+							fixtureTrue:    new(any(true)),
+							fixtureFalse:   new(any(true)),
 						},
 						DefaultRule: &flag.Rule{
-							Name: new("defaultRule"),
+							Name: new(defaultRule2),
 							Percentages: &map[string]float64{
-								"False": 0,
-								"True":  100,
+								fixtureFalse: 0,
+								fixtureTrue:  100,
 							},
 						},
 					},
 				},
 				Updated: map[string]notifier.DiffUpdated{
-					"flag": {
+					flag2: {
 						Before: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(true)),
-								"True":    new(any(true)),
-								"False":   new(any(true)),
+								fixtureDefault: new(any(true)),
+								fixtureTrue:    new(any(true)),
+								fixtureFalse:   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule2),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},
 						After: &flag.InternalFlag{
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"True":    new(any(true)),
-								"False":   new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureTrue:    new(any(true)),
+								fixtureFalse:   new(any(true)),
 							},
 							DefaultRule: &flag.Rule{
-								Name: new("defaultRule"),
+								Name: new(defaultRule2),
 								Percentages: &map[string]float64{
-									"False": 0,
-									"True":  100,
+									fixtureFalse: 0,
+									fixtureTrue:  100,
 								},
 							},
 						},

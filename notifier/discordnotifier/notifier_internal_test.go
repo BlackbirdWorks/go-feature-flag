@@ -17,6 +17,19 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	defaultRule        = "defaultRule"
+	fixture11          = "1.1"
+	fixtureDefault     = "Default"
+	fixtureFalse       = "False"
+	fixtureTrue        = "True"
+	httpsDiscordComApi = "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+	jane               = "jane"
+	keyEqRandomKey     = "key eq \"random-key\""
+	rule1              = "rule1"
+	testFlag           = "test-flag"
+)
+
 type discordNotifyArgs struct {
 	diff       notifier.DiffCache
 	url        string
@@ -77,26 +90,26 @@ func discordGenericFlag() *flag.InternalFlag {
 	return &flag.InternalFlag{
 		Rules: &[]flag.Rule{
 			{
-				Name:  new("rule1"),
-				Query: new("key eq \"random-key\""),
+				Name:  new(rule1),
+				Query: new(keyEqRandomKey),
 				Percentages: &map[string]float64{
-					"False": 95,
-					"True":  5,
+					fixtureFalse: 95,
+					fixtureTrue:  5,
 				},
 			},
 		},
 		Variations: &map[string]*any{
-			"Default": new(any("default")),
-			"False":   new(any("false")),
-			"True":    new(any("test")),
+			fixtureDefault: new(any("default")),
+			fixtureFalse:   new(any("false")),
+			fixtureTrue:    new(any("test")),
 		},
 		DefaultRule: &flag.Rule{
-			Name:            new("defaultRule"),
-			VariationResult: new("Default"),
+			Name:            new(defaultRule),
+			VariationResult: new(fixtureDefault),
 		},
 		TrackEvents: new(true),
 		Disable:     new(false),
-		Version:     new("1.1"),
+		Version:     new(fixture11),
 	}
 }
 
@@ -112,57 +125,57 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results.json",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComApi,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
 					Added: map[string]flag.Flag{
 						"test-flag3": &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 95,
-										"True":  5,
+										fixtureFalse: 95,
+										fixtureTrue:  5,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any("default")),
-								"False":   new(any("false")),
-								"True":    new(any("test")),
+								fixtureDefault: new(any("default")),
+								fixtureFalse:   new(any("false")),
+								fixtureTrue:    new(any("test")),
 							},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 							TrackEvents: new(true),
 							Disable:     new(false),
-							Version:     new("1.1"),
-							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Version:     new(fixture11),
+							Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 						},
 					},
 					Deleted: map[string]flag.Flag{
-						"test-flag": &flag.InternalFlag{
+						testFlag: &flag.InternalFlag{
 							Rules: &[]flag.Rule{
 								{
-									Name:  new("rule1"),
-									Query: new("key eq \"random-key\""),
+									Name:  new(rule1),
+									Query: new(keyEqRandomKey),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 							},
 							Variations: &map[string]*any{
-								"Default": new(any(false)),
-								"False":   new(any(false)),
-								"True":    new(any(true)),
+								fixtureDefault: new(any(false)),
+								fixtureFalse:   new(any(false)),
+								fixtureTrue:    new(any(true)),
 							},
-							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+							Metadata: &map[string]any{notifier.UpdatedByMetadataKey: jane},
 							DefaultRule: &flag.Rule{
-								Name:            new("defaultRule"),
-								VariationResult: new("Default"),
+								Name:            new(defaultRule),
+								VariationResult: new(fixtureDefault),
 							},
 						},
 					},
@@ -170,15 +183,15 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 						"test-flag2": {
 							Before: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any(false)),
-									"False":   new(any(false)),
-									"True":    new(any(true)),
+									fixtureDefault: new(any(false)),
+									fixtureFalse:   new(any(false)),
+									fixtureTrue:    new(any(true)),
 								},
 								DefaultRule: &flag.Rule{
-									Name: new("defaultRule"),
+									Name: new(defaultRule),
 									Percentages: &map[string]float64{
-										"False": 0,
-										"True":  100,
+										fixtureFalse: 0,
+										fixtureTrue:  100,
 									},
 								},
 								Metadata: &map[string]any{notifier.UpdatedByMetadataKey: "john"},
@@ -189,28 +202,28 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 							},
 							After: &flag.InternalFlag{
 								Variations: &map[string]*any{
-									"Default": new(any("strDefault")),
-									"False":   new(any("strFalse")),
-									"True":    new(any("strTrue")),
+									fixtureDefault: new(any("strDefault")),
+									fixtureFalse:   new(any("strFalse")),
+									fixtureTrue:    new(any("strTrue")),
 								},
 								Rules: &[]flag.Rule{
 									{
-										Name:  new("rule1"),
+										Name:  new(rule1),
 										Query: new("key eq \"not-a-ke\""),
 										Percentages: &map[string]float64{
-											"False": 20,
-											"True":  80,
+											fixtureFalse: 20,
+											fixtureTrue:  80,
 										},
 									},
 								},
 								DefaultRule: &flag.Rule{
-									Name:            new("defaultRule"),
-									VariationResult: new("Default"),
+									Name:            new(defaultRule),
+									VariationResult: new(fixtureDefault),
 								},
 								Disable:     new(true),
 								TrackEvents: new(false),
-								Version:     new("1.1"),
-								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: "jane"},
+								Version:     new(fixture11),
+								Metadata:    &map[string]any{notifier.UpdatedByMetadataKey: jane},
 							},
 						},
 					},
@@ -223,7 +236,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results_limit_max.json",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComApi,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
 					Added: map[string]flag.Flag{
@@ -233,7 +246,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 						"test-flag6": genericFlag,
 					},
 					Deleted: map[string]flag.Flag{
-						"test-flag":   genericFlag,
+						testFlag:      genericFlag,
 						"test-flag1":  genericFlag,
 						"test-flag2":  genericFlag,
 						"test-flag7":  genericFlag,
@@ -258,7 +271,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) webhook call failed with statusCode = 400",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComApi,
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
 			},
@@ -270,7 +283,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) error calling webhook: random error",
 			},
 			args: discordNotifyArgs{
-				url:        "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				url:        httpsDiscordComApi,
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 				forceError: true,
@@ -336,7 +349,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_capsDescription(t *testing.T) {
 
 			embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
 				Updated: map[string]notifier.DiffUpdated{
-					"test-flag": {
+					testFlag: {
 						Before: &flag.InternalFlag{Metadata: &map[string]any{}},
 						After:  &flag.InternalFlag{Metadata: &after},
 					},
@@ -359,7 +372,7 @@ func TestConvertUpdatedFlagsToDiscordEmbed_diffError(t *testing.T) {
 
 	broken := otherFlag{}
 	embeds := convertUpdatedFlagsToDiscordEmbed(notifier.DiffCache{
-		Updated: map[string]notifier.DiffUpdated{"test-flag": {Before: broken, After: broken}},
+		Updated: map[string]notifier.DiffUpdated{testFlag: {Before: broken, After: broken}},
 	})
 	require.Len(t, embeds, 1)
 	assert.Contains(t, embeds[0].Description, notifier.ChangesUnavailable)
