@@ -72,7 +72,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: testdataFlagConfigYaml},
 				LeveledLogger:   slog.New(sink),
 				EventQueueSize:  tt.queueSize,
 				DataExporter: ffclient.DataExporter{
@@ -94,7 +94,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 						default:
 						}
 
-						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation(testFlag, ffcontext.NewEvaluationContext(user2), false)
 
 						counters[i].Add(1)
 					}

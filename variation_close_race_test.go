@@ -75,7 +75,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			calls := &atomic.Int64{}
 			newCtx := func(blockAt int64, reached, gate chan struct{}) ffcontext.Context {
 				return gatedContext{
-					Context: ffcontext.NewEvaluationContext("user"),
+					Context: ffcontext.NewEvaluationContext(user2),
 					calls:   calls, blockAt: blockAt, reached: reached, gate: gate,
 				}
 			}
@@ -94,7 +94,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			second := &queueTestExporter{bulk: tt.bulk}
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval: time.Hour,
-				Retriever:       &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:       &fileretriever.Retriever{Path: testdataFlagConfigYaml},
 				DataExporters: []ffclient.DataExporter{
 					{Exporter: hook, FlushInterval: time.Hour},
 					{Exporter: second, FlushInterval: time.Hour},
@@ -105,7 +105,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			// 1. a first evaluation, to learn how many calls build an event, and to have something to flush.
 			calls.Store(0)
 
-			_, _ = client.BoolVariation("test-flag", newCtx(0, nil, nil), false)
+			_, _ = client.BoolVariation(testFlag, newCtx(0, nil, nil), false)
 			perEvaluation := calls.Load()
 			require.Positive(t, perEvaluation)
 
@@ -115,7 +115,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			go func() {
 				defer close(lateDone)
 
-				_, _ = client.BoolVariation("test-flag", newCtx(perEvaluation, reached, gate), false)
+				_, _ = client.BoolVariation(testFlag, newCtx(perEvaluation, reached, gate), false)
 			}()
 
 			select {

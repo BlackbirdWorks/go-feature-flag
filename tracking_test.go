@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils/mock"
 )
 
+const (
+	anonymous2         = "anonymous"
+	fixture1668D845051 = "1668d845-051d-4dd9-907a-7ebe6aa2c9da"
+	value              = "value"
+)
+
 func TestValidTrackingEvent(t *testing.T) {
 	t.Parallel()
 
@@ -33,28 +39,28 @@ func TestValidTrackingEvent(t *testing.T) {
 
 	goff.Track(
 		"my-feature-flag",
-		ffcontext.NewEvaluationContextBuilder("1668d845-051d-4dd9-907a-7ebe6aa2c9da").
+		ffcontext.NewEvaluationContextBuilder(fixture1668D845051).
 			AddCustom("admin", true).
-			AddCustom("anonymous", true).
+			AddCustom(anonymous2, true).
 			Build(),
-		map[string]any{"additional data": "value"},
+		map[string]any{"additional data": value},
 	)
 
 	assert.Len(t, exp.ExportedEvents, 1)
-	assert.Equal(t, "1668d845-051d-4dd9-907a-7ebe6aa2c9da", exp.ExportedEvents[0].UserKey)
+	assert.Equal(t, fixture1668D845051, exp.ExportedEvents[0].UserKey)
 	assert.Equal(t, "my-feature-flag", exp.ExportedEvents[0].Key)
 	assert.Equal(
 		t,
 		map[string]any{
-			"targetingKey": "1668d845-051d-4dd9-907a-7ebe6aa2c9da",
+			"targetingKey": fixture1668D845051,
 			"admin":        true,
-			"anonymous":    true,
+			anonymous2:     true,
 		},
 		exp.ExportedEvents[0].EvaluationContext,
 	)
 	assert.Equal(
 		t,
-		map[string]any{"additional data": "value"},
+		map[string]any{"additional data": value},
 		exp.ExportedEvents[0].TrackingDetails,
 	)
 }

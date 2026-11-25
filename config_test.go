@@ -20,6 +20,10 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	init123 = "init-123"
+)
+
 // contextKey is the type of the keys of the values the tests put in a context.
 type contextKey string
 
@@ -162,7 +166,7 @@ func TestConfig_GetRetrievers(t *testing.T) {
 				PollingInterval: 3 * time.Second,
 				Retriever: &githubretriever.Retriever{
 					RepositorySlug: "thomaspoignant/go-feature-flag",
-					FilePath:       "testdata/flag-config.yaml",
+					FilePath:       testdataFlagConfigYaml,
 					GithubToken:    "XXX",
 				},
 			},
@@ -343,10 +347,10 @@ func TestNewWithContext(t *testing.T) {
 	}{
 		{
 			name:            "custom context propagates to retriever lifecycle",
-			initVal:         "init-123",
+			initVal:         init123,
 			closeVal:        "close-456",
-			wantInitVal:     "init-123",
-			wantRetrieveVal: "init-123",
+			wantInitVal:     init123,
+			wantRetrieveVal: init123,
 			wantShutdownVal: "close-456",
 		},
 		{

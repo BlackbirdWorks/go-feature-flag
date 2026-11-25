@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	legacy2 = "[legacy] "
+)
+
 func TestConfig_serviceLogger(t *testing.T) {
 	t.Parallel()
 
@@ -65,10 +69,10 @@ func TestConfig_serviceLogger_FollowsTheLegacyLogger(t *testing.T) {
 		redirect     bool
 	}{
 		{name: "same output", prefix: "", flags: 0, wantFirst: "msg=one"},
-		{name: "the prefix of the legacy logger", prefix: "[legacy] ", flags: 0, wantFirst: "[legacy] "},
+		{name: "the prefix of the legacy logger", prefix: legacy2, flags: 0, wantFirst: legacy2},
 		{
 			name:      "the flags of the legacy logger",
-			prefix:    "[legacy] ",
+			prefix:    legacy2,
 			flags:     log.Lmsgprefix,
 			wantFirst: "[legacy] time=",
 		},

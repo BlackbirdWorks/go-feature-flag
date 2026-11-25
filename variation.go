@@ -17,6 +17,10 @@ import (
 )
 
 const (
+	env2 = "env"
+)
+
+const (
 	// The number of workers is half the CPUs, at most maxWorkers.
 	maxWorkers     = 4
 	workersDivisor = 2
@@ -526,7 +530,7 @@ func (g *GoFeatureFlag) evaluationEnrichment() map[string]any {
 				enrichment = make(map[string]any, 1)
 			}
 
-			enrichment["env"] = g.config.Environment
+			enrichment[env2] = g.config.Environment
 		}
 
 		g.enrichment = enrichment

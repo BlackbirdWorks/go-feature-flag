@@ -57,7 +57,7 @@ func (e *queueTestExporter) Export(_ context.Context, _ *fflog.FFLogger, events 
 func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 	t.Parallel()
 
-	const flagFile = "testdata/flag-config.yaml"
+	const flagFile = testdataFlagConfigYaml
 	// goroutineRatio: the growth must be under 1/10 of the evaluations (>= 500 for 5000 evaluations),
 	// far above the noise of the parallel tests and far below a goroutine per evaluation.
 	const goroutineRatio = 10
@@ -132,7 +132,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 			for range 4 {
 				wg.Go(func() {
 					for range tt.evals / 4 {
-						_, _ = client.BoolVariation("test-flag", ffcontext.NewEvaluationContext("user"), false)
+						_, _ = client.BoolVariation(testFlag, ffcontext.NewEvaluationContext(user2), false)
 
 						if g := int64(runtime.NumGoroutine()); g > maxG.Load() {
 							maxG.Store(g)

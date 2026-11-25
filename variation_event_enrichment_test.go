@@ -17,6 +17,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	region2 = "region"
+	user2   = "user"
+)
+
 type collectingExporter struct {
 	events []exporter.FeatureEvent
 	mu     sync.Mutex
@@ -42,7 +47,7 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 	t.Parallel()
 
 	meta := func(region string) map[string]any {
-		return map[string]any{"gofeatureflag": map[string]any{"exporterMetadata": map[string]any{"region": region}}}
+		return map[string]any{gofeatureflag: map[string]any{"exporterMetadata": map[string]any{region2: region}}}
 	}
 
 	tests := []struct {
@@ -55,20 +60,20 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 		{
 			name:         "no enrichment",
 			callerCustom: meta("us"),
-			wantMetadata: map[string]any{"region": "us"},
-			wantKind:     "user",
+			wantMetadata: map[string]any{region2: "us"},
+			wantKind:     user2,
 		},
 		{
 			name:         "enriched metadata, caller has none",
 			enrichment:   meta("eu"),
-			wantMetadata: map[string]any{"region": "eu"},
-			wantKind:     "user",
+			wantMetadata: map[string]any{region2: "eu"},
+			wantKind:     user2,
 		},
 		{name: "enriched metadata wins over the caller's", enrichment: meta("eu"), callerCustom: meta("us"),
-			wantMetadata: map[string]any{"region": "eu"}, wantKind: "user"},
-		{name: "enriched anonymous", enrichment: map[string]any{"anonymous": true}, wantKind: "anonymousUser"},
-		{name: "unrelated enrichment changes nothing", enrichment: map[string]any{"env": "prod"},
-			callerCustom: meta("us"), wantMetadata: map[string]any{"region": "us"}, wantKind: "user"},
+			wantMetadata: map[string]any{region2: "eu"}, wantKind: user2},
+		{name: "enriched anonymous", enrichment: map[string]any{anonymous2: true}, wantKind: "anonymousUser"},
+		{name: "unrelated enrichment changes nothing", enrichment: map[string]any{"env": prod},
+			callerCustom: meta("us"), wantMetadata: map[string]any{region2: "us"}, wantKind: user2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,18 +82,18 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			exp := &collectingExporter{}
 			client, err := ffclient.New(ffclient.Config{
 				PollingInterval:             time.Hour,
-				Retriever:                   &fileretriever.Retriever{Path: "testdata/flag-config.yaml"},
+				Retriever:                   &fileretriever.Retriever{Path: testdataFlagConfigYaml},
 				EvaluationContextEnrichment: tt.enrichment,
 				DataExporter:                ffclient.DataExporter{Exporter: exp, FlushInterval: time.Hour},
 			})
 			require.NoError(t, err)
 
-			ctx := ffcontext.NewEvaluationContext("user")
+			ctx := ffcontext.NewEvaluationContext(user2)
 			for k, v := range tt.callerCustom {
 				ctx.AddCustomAttribute(k, v)
 			}
 
-			_, err = client.BoolVariation("test-flag", ctx, false)
+			_, err = client.BoolVariation(testFlag, ctx, false)
 			require.NoError(t, err)
 			client.Close()
 

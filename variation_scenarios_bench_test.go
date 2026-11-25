@@ -18,6 +18,10 @@ import (
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
 
+const (
+	fixtureBool = "bool"
+)
+
 func newBenchClient(b *testing.B, yaml string, withExporter bool) *ffclient.GoFeatureFlag {
 	b.Helper()
 	dir := b.TempDir()
@@ -53,12 +57,12 @@ func getScenarioClient(b *testing.B) *ffclient.GoFeatureFlag {
 
 // benchContext builds a realistic evaluation context (about 10 attributes).
 func benchContext(i int) ffcontext.Context {
-	return ffcontext.NewEvaluationContextBuilder(fmt.Sprintf("user-%d", i%1000)).
+	return ffcontext.NewEvaluationContextBuilder(fmt.Sprintf(userD, i%1000)).
 		AddCustom("email", fmt.Sprintf("user-%d@example.com", i%1000)).
 		AddCustom("country", "FR").
 		AddCustom("age", 34).
-		AddCustom("plan", "pro").
-		AddCustom("region", "eu-west-1").
+		AddCustom(plan, "pro").
+		AddCustom(region2, "eu-west-1").
 		AddCustom("beta", true).
 		AddCustom("version", "1.42.0").
 		AddCustom("device", "ios").
@@ -72,7 +76,7 @@ func evalOne(client *ffclient.GoFeatureFlag, key, typ string, ctx ffcontext.Cont
 	switch typ {
 	case "string":
 		_, err = client.StringVariation(key, ctx, "x")
-	case "json":
+	case json2:
 		_, err = client.JSONVariation(key, ctx, map[string]any{})
 	default:
 		_, err = client.BoolVariation(key, ctx, false)
@@ -90,7 +94,7 @@ func BenchmarkScenarios(b *testing.B) {
 			for _, track := range []bool{false, true} {
 				// to keep the matrix readable, only bool is run for every scenario;
 				// string and json are run for the no-rule and the targeting scenarios.
-				if typ != "bool" && scenario != "norule" && scenario != "rule" {
+				if typ != fixtureBool && scenario != "norule" && scenario != "rule" {
 					continue
 				}
 
@@ -114,7 +118,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
-			key := loadtest.FlagKey(sc, "bool", track)
+			key := loadtest.FlagKey(sc, fixtureBool, track)
 			b.Run(fmt.Sprintf("%s/bool/track=%t", sc, track), func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
@@ -122,7 +126,7 @@ func BenchmarkScenariosParallel(b *testing.B) {
 					for pb.Next() {
 						i++
 
-						err := evalOne(client, key, "bool", benchContext(i))
+						err := evalOne(client, key, fixtureBool, benchContext(i))
 						if err != nil {
 							assert.NoError(b, err)
 
@@ -169,20 +173,20 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 
 	for _, sc := range loadtest.Scenarios() {
 		for _, track := range []bool{false, true} {
-			key := loadtest.FlagKey(sc, "bool", track)
+			key := loadtest.FlagKey(sc, fixtureBool, track)
 			name := fmt.Sprintf("%s/track=%t", sc, track)
 			b.Run(name, func(b *testing.B) {
 				b.ReportAllocs()
 
 				for range b.N {
-					require.NoError(b, evalOne(client, key, "bool", ctx))
+					require.NoError(b, evalOne(client, key, fixtureBool, ctx))
 				}
 			})
 			b.Run(name+"/parallel", func(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						err := evalOne(client, key, "bool", ctx)
+						err := evalOne(client, key, fixtureBool, ctx)
 						if err != nil {
 							assert.NoError(b, err)
 
