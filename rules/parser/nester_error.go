@@ -26,7 +26,8 @@ type NestedError struct {
 
 func (e *NestedError) Original() error {
 	// Exact type, not errors.As: an error that merely wraps a NestedError is the original.
-	if nested, ok := e.Err.(*NestedError); ok { //nolint:errorlint // see above
+	//nolint:errorlint // exact *NestedError check stops unwrapping outer wrappers
+	if nested, ok := e.Err.(*NestedError); ok {
 		return nested.Original()
 	}
 

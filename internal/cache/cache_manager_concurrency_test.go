@@ -50,7 +50,8 @@ func Test_CacheManager_ReadWhileUpdating(t *testing.T) {
 						if err == nil {
 							assert.NotNil(t, f)
 						} else if !tt.close {
-							assert.NoError(t, err) //nolint:testifylint // off the test goroutine
+							//nolint:testifylint // called inside worker goroutine where require is unsafe
+							assert.NoError(t, err)
 						}
 
 						all, err := mgr.AllFlags()

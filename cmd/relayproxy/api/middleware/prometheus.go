@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -116,7 +117,7 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 	for _, c := range []prometheus.Collector{requestCount, requestDuration, responseSize, requestSize} {
 		err := cfg.Registerer.Register(c)
 		if err != nil {
-			return nil, err //nolint:wrapcheck // the error of the registry says what is wrong
+			return nil, fmt.Errorf("register prometheus collector: %w", err)
 		}
 	}
 
@@ -222,7 +223,7 @@ func (r *recorder) Write(b []byte) (int, error) {
 	n, err := r.ResponseWriter.Write(b)
 	r.size += int64(n)
 
-	//nolint:wrapcheck // transparent http.ResponseWriter decorator preserves underlying Write error
+	//nolint:wrapcheck // http.ResponseWriter decorator forwards the underlying Write error unwrapped
 	return n, err
 }
 

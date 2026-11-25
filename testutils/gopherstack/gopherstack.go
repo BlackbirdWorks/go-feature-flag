@@ -135,7 +135,8 @@ func waitHealthy(ctx context.Context, endpoint string) error {
 			return fmt.Errorf("create gopherstack health request: %w", err)
 		}
 
-		resp, err := client.Do(req) //nolint:gosec // same endpoint
+		//nolint:gosec // G107/G704: probes the testcontainer or GOPHERSTACK_ENDPOINT health URL
+		resp, err := client.Do(req)
 		if err == nil {
 			_ = resp.Body.Close()
 			if resp.StatusCode == http.StatusOK {

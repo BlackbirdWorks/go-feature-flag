@@ -97,7 +97,7 @@ func TestAllocations(t *testing.T) {
 		{name: "json disabled", format: "json", level: slog.LevelDebug},
 		{name: "logfmt disabled", format: "logfmt", level: slog.LevelDebug},
 	}
-	//nolint:paralleltest // see above
+	//nolint:paralleltest // subtests call AllocsPerRun, which counts allocations from concurrent tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := newBenchLogger(t, tt.format)

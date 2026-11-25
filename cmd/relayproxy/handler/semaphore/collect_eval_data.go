@@ -82,7 +82,6 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	// acknowledged to the flag set, which must not have been closed by a reload while the body was received.
 	flagset, httpErr := helper.FlagSet(h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		//nolint:wrapcheck // helper.FlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 

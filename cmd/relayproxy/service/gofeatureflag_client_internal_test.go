@@ -61,14 +61,13 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 
 	sharedValid := s3FlagSet("a", "b1", "p/a.yaml")
 	sharedFolder := s3FlagSet("a", "b1", "")
-	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
-		name       string
 		retrievers *[]retrieverconf.RetrieverConf
 		shared     *config.FlagSet
 		reg        *sharedBucketRegistry
-		wantLen    int
 		wantErr    assert.ErrorAssertionFunc
+		name       string
+		wantLen    int
 	}{
 		{
 			name:    "shared-poller flagset with a registry",
@@ -200,12 +199,11 @@ func shutdownReleasing(t *testing.T, r []retriever.Retriever) {
 func Test_initExporters(t *testing.T) {
 	t.Parallel()
 
-	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
-		name      string
 		exporters *[]config.ExporterConf
 		exporter  *config.ExporterConf
 		wantErr   assert.ErrorAssertionFunc
+		name      string
 	}{
 		{
 			name:    "both exporter and exporters",
@@ -294,13 +292,12 @@ func Test_initExporters(t *testing.T) {
 func Test_initExporter(t *testing.T) {
 	t.Parallel()
 
-	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
 	tests := []struct {
-		name                   string
-		conf                   *config.ExporterConf
-		want                   ffclient.DataExporter
-		wantErr                assert.ErrorAssertionFunc
 		wantType               exporter.CommonExporter
+		conf                   *config.ExporterConf
+		wantErr                assert.ErrorAssertionFunc
+		name                   string
+		want                   ffclient.DataExporter
 		skipCompleteValidation bool
 	}{
 		{
@@ -613,12 +610,12 @@ func Test_initNotifier(t *testing.T) {
 	type args struct {
 		c []config.NotifierConf
 	}
-	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+
 	tests := []struct {
+		wantErr assert.ErrorAssertionFunc
 		name    string
 		args    args
 		want    []notifier.Notifier
-		wantErr assert.ErrorAssertionFunc
 	}{
 		{
 			name: "valid",
@@ -696,12 +693,12 @@ func testKafkaSCRAMSettings(mechanism sarama.SASLMechanism) kafkaexporter.Settin
 				ReadTimeout                      time.Duration
 				WriteTimeout                     time.Duration
 				ResolveCanonicalBootstrapServers bool
-				//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+				//nolint:govet // fieldalignment: anonymous struct type must match sarama.Config.Net.TLS
 				TLS struct {
 					Enable bool
 					Config *tls.Config
 				}
-				//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+				//nolint:govet // fieldalignment: anonymous struct type must match sarama.Config.Net.SASL
 				SASL struct {
 					Enable                   bool
 					Mechanism                sarama.SASLMechanism
@@ -717,13 +714,13 @@ func testKafkaSCRAMSettings(mechanism sarama.SASLMechanism) kafkaexporter.Settin
 				}
 				KeepAlive time.Duration
 				LocalAddr net.Addr
-				//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+				//nolint:govet // fieldalignment: anonymous struct type must match sarama.Config.Net.Proxy
 				Proxy struct {
 					Enable bool
 					Dialer proxy.Dialer
 				}
 			}{
-				//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+				//nolint:govet // fieldalignment: anonymous struct type must match sarama.Config.Net.SASL
 				SASL: struct {
 					Enable                   bool
 					Mechanism                sarama.SASLMechanism
@@ -822,13 +819,13 @@ func TestSetKafkaConfig(t *testing.T) {
 		t.Parallel()
 
 		defaults := sarama.NewConfig()
-		//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+
 		tests := []struct {
-			name string
+			want any
 			user func(c *sarama.Config)
 			// got reads the setting from the merged configuration, want is its expected value.
 			got  func(c *sarama.Config) any
-			want any
+			name string
 		}{
 			{
 				name: "DialTimeout", user: func(c *sarama.Config) { c.Net.DialTimeout = 5 * time.Second },
@@ -1029,11 +1026,11 @@ func Test_initLeveledLogger_FlagsetAttribute(t *testing.T) {
 
 func Test_newGoFeatureFlagClient_ReleasesSharedPollerRetrieverOnFailure(t *testing.T) {
 	t.Parallel()
-	//nolint:govet // fieldalignment: the type must be identical to the anonymous type of sarama.Config.Net
+
 	tests := []struct {
-		name       string
 		s3         *fakeS3
 		mod        func(fs *config.FlagSet)
+		name       string
 		wantGroups int
 	}{
 		{

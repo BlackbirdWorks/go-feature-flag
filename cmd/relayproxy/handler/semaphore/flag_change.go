@@ -44,7 +44,6 @@ type FlagChangeOutput struct {
 func (h *FlagChangeAPICtrl) Handle(ctx context.Context, in *FlagChangeInput) (*FlagChangeOutput, error) {
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, in.APIKey())
 	if httpErr != nil {
-		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 

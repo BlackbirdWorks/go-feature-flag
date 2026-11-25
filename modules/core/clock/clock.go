@@ -15,5 +15,5 @@ import "time"
 // Measured durations (time.Since, deadlines of network connections, retry back-offs) do not go
 // through it: they need the real clock.
 //
-//nolint:gochecknoglobals // the single allowed global, see above.
+//nolint:gochecknoglobals // single allowed global so tests can swap wall-clock time via clocktest
 var Now = time.Now

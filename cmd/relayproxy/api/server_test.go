@@ -1512,7 +1512,7 @@ func shortSocketDir(tb testing.TB) string {
 	tb.Helper()
 
 	// t.TempDir() embeds the test name: too long for a socket path.
-	//nolint:usetesting // see above
+	//nolint:usetesting // t.TempDir() embeds the test name, exceeding the ~104-byte unix socket path limit
 	dir, err := os.MkdirTemp("", "sock")
 	require.NoError(tb, err)
 	tb.Cleanup(func() { _ = os.RemoveAll(dir) })

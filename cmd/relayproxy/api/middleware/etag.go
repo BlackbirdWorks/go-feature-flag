@@ -22,7 +22,8 @@ type etagBuffer struct {
 	status int
 }
 
-func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} } //nolint:gosec // see above
+//nolint:gosec // G401: SHA-1 is used as an HTTP ETag content fingerprint, not for security
+func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} }
 
 func (b *etagBuffer) Write(data []byte) (int, error) {
 	if b.status == 0 {

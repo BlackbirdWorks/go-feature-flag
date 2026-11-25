@@ -16,13 +16,13 @@ func TestFromFlagEvaluation(t *testing.T) {
 
 	evaluatedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+	tests := []struct {
+		expected      flagstate.FlagState
 		flagCtx       flag.Context
 		evaluationCtx ffcontext.Context
 		currentFlag   flag.Flag
 		name          string
 		key           string
-		expected      flagstate.FlagState
 	}{
 		{
 			name:          "Flag is disabled",

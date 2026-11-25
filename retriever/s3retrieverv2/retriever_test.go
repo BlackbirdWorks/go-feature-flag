@@ -405,7 +405,8 @@ func retrieveN(t *testing.T, r *s3retrieverv2.Retriever, currStep step) ([][]byt
 	for callIdx := range calls {
 		wg.Go(func() {
 			if currStep.nilCtx {
-				results[callIdx], errs[callIdx] = r.Retrieve(nil) //nolint:staticcheck // nil ctx is supported
+				//nolint:staticcheck // SA1012: Retrieve accepts nil context defensively; test covers that behavior
+				results[callIdx], errs[callIdx] = r.Retrieve(nil)
 
 				return
 			}

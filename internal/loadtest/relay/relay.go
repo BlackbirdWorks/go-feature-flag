@@ -3,6 +3,7 @@ package relay
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +30,8 @@ const (
 	readyTimeout      = 15 * time.Second
 	readyPollInterval = 20 * time.Millisecond
 )
+
+var errUnexpectedListenerAddr = errors.New("unexpected listener address type")
 
 // Options configures Start.
 type Options struct {
@@ -102,8 +105,13 @@ func Start(opts Options) (_ *Relay, err error) {
 		if err != nil {
 			return nil, fmt.Errorf("listen on loopback: %w", err)
 		}
-		//nolint:errcheck,forcetypeassert // a tcp listener always has a *net.TCPAddr
-		port := listener.Addr().(*net.TCPAddr).Port
+
+		tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+		if !ok {
+			return nil, fmt.Errorf("%w: %T", errUnexpectedListenerAddr, listener.Addr())
+		}
+
+		port := tcpAddr.Port
 		conf.Server.Port = port
 		baseURL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	}

@@ -22,49 +22,8 @@ import (
 const (
 	// keyValueParts is the number of parts of a "key:value" or "key=value" argument.
 	keyValueParts = 2
-)
 
-//nolint:funlen
-func NewEvaluateCmd() *cobra.Command {
-	// Flag values are local to each command so several commands can exist (and run) at once.
-	var (
-		evalFlagFormat string
-		kind           string
-		evalConfigFile string
-		path           string
-		authToken      string
-		githubToken    string
-		repositorySlug string
-		branch         string
-		baseURL        string
-		bucket         string
-		item           string
-		url            string
-		method         string
-		body           string
-		headers        []string
-		timeout        int64
-		object         string
-		namespace      string
-		configMap      string
-		key            string
-		uri            string
-		database       string
-		collection     string
-		container      string
-		accountName    string
-		accountKey     string
-		table          string
-		columns        []string
-		evalFlag       string
-		evalCtx        string
-		checkMode      bool
-	)
-
-	evaluateCmd := &cobra.Command{
-		Use:   "evaluate",
-		Short: "⚙️ Evaluate feature flags based on configuration and context",
-		Example: `
+	evaluateCmdExample = `
 # Evaluate a specific flag using deprecated flag --config
 evaluate --config ./config.yaml --flag flag1 --ctx '{"targetingKey": "user-123"}'
 
@@ -109,140 +68,192 @@ evaluate --kind azureblob --container my-container --account-name my-account-nam
 # Evaluate a specific flag using postgres retriever
 evaluate --kind postgres --table my-table --column my-column:my-column-type --flag flag1
 --ctx '{"targetingKey": "user-123"}'
-`,
+`
+)
+
+type evaluateFlags struct {
+	evalFlagFormat string
+	kind           string
+	evalConfigFile string
+	path           string
+	authToken      string
+	githubToken    string
+	repositorySlug string
+	branch         string
+	baseURL        string
+	bucket         string
+	item           string
+	url            string
+	method         string
+	body           string
+	object         string
+	namespace      string
+	configMap      string
+	key            string
+	uri            string
+	database       string
+	collection     string
+	container      string
+	accountName    string
+	accountKey     string
+	table          string
+	evalFlag       string
+	evalCtx        string
+	headers        []string
+	columns        []string
+	timeout        int64
+	checkMode      bool
+}
+
+func NewEvaluateCmd() *cobra.Command {
+	// Flag values are local to each command so several commands can exist (and run) at once.
+	flags := &evaluateFlags{}
+
+	evaluateCmd := &cobra.Command{
+		Use:     "evaluate",
+		Short:   "⚙️ Evaluate feature flags based on configuration and context",
+		Example: evaluateCmdExample,
 		Long: "⚙️ Evaluate feature flags based on configuration and context," +
 			" if no specific flag requested it will evaluate all flags",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			parsedHeaders := parseHTTPHeaders(headers)
-			parsedColumns := parsePostgresColumns(columns)
-
-			retrieverConf := retrieverconf.RetrieverConf{
-				Kind:           retrieverconf.RetrieverKind(kind),
-				RepositorySlug: repositorySlug,
-				Branch:         branch,
-				Path: func() string {
-					if path != "" {
-						return path
-					}
-
-					return evalConfigFile
-				}(),
-				GithubToken: githubToken, //nolint:staticcheck // we keep the deprecated flag for backward compatibility
-				AuthToken:   authToken,
-				BaseURL:     baseURL,
-				Bucket:      bucket,
-				Item:        item,
-				URL:         url,
-				Timeout:     timeout,
-				HTTPMethod:  method,
-				HTTPBody:    body,
-				HTTPHeaders: parsedHeaders,
-				Object:      object,
-				Namespace:   namespace,
-				ConfigMap:   configMap,
-				Key:         key,
-				URI:         uri,
-				Database:    database,
-				Collection:  collection,
-				Container:   container,
-				AccountName: accountName,
-				AccountKey:  accountKey,
-				Table:       table,
-				Columns:     parsedColumns,
-			}
-
-			err := retrieverConf.IsValid()
-			if err != nil {
-				rcErr := &rerr.RetrieverConfError{}
-				if errors.As(err, &rcErr) {
-					return cliMessageError(rcErr.CliErrorMessage())
-				}
-
-				//nolint:wrapcheck // CLI command preserves retriever validation error
-				return err
-			}
-
-			if checkMode {
-				return runCheck(cmd, retrieverConf)
-			}
-
-			return runEvaluate(cmd, args, evalFlagFormat, retrieverConf, evalFlag, evalCtx)
+			return runEvaluateCmd(cmd, args, flags)
 		},
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	evaluateCmd.Flags().StringVarP(&evalFlagFormat,
+
+	registerEvaluateFlags(evaluateCmd, flags)
+
+	return evaluateCmd
+}
+
+func registerEvaluateFlags(cmd *cobra.Command, flags *evaluateFlags) {
+	cmd.Flags().StringVarP(&flags.evalFlagFormat,
 		"format", "f", "yaml", "Format of your input file (YAML, JSON or TOML)")
-	evaluateCmd.Flags().StringVarP(&kind,
+	cmd.Flags().StringVarP(&flags.kind,
 		"kind", "k", "file", "Kind of the configuration file (file, http, redis, gitlab, k8s, ...)")
-	evaluateCmd.Flags().StringVarP(&evalConfigFile,
+	cmd.Flags().StringVarP(&flags.evalConfigFile,
 		"config", "c", "", "Location of your Semaphore local configuration file")
-	evaluateCmd.Flags().StringVarP(&path, "path", "p", "",
+	cmd.Flags().StringVarP(&flags.path, "path", "p", "",
 		"Path to your Semaphore configuration file (local or remote)")
-	evaluateCmd.Flags().StringVar(&authToken,
+	cmd.Flags().StringVar(&flags.authToken,
 		"auth-token", "", "Authentication token to access your configuration file")
-	evaluateCmd.Flags().StringVar(&githubToken,
+	cmd.Flags().StringVar(&flags.githubToken,
 		"github-token", "", "Authentication token to access your configuration file on GitHub")
-	evaluateCmd.Flags().StringVar(&repositorySlug,
+	cmd.Flags().StringVar(&flags.repositorySlug,
 		"repository-slug", "", "Repository slug to access your configuration file on GitHub")
-	evaluateCmd.Flags().StringVar(&branch,
+	cmd.Flags().StringVar(&flags.branch,
 		"branch", "", "Branch to access your configuration file on GitHub")
-	evaluateCmd.Flags().StringVar(&baseURL,
+	cmd.Flags().StringVar(&flags.baseURL,
 		"base-url", "", "Base URL of your configuration file on Gitlab")
-	evaluateCmd.Flags().StringVar(&bucket,
+	cmd.Flags().StringVar(&flags.bucket,
 		"bucket", "", "Bucket of your configuration file on S3")
-	evaluateCmd.Flags().StringVar(&item,
+	cmd.Flags().StringVar(&flags.item,
 		"item", "", "Item of your configuration file on S3")
-	evaluateCmd.Flags().StringVar(&url,
+	cmd.Flags().StringVar(&flags.url,
 		"url", "", "URL of your configuration file on HTTP")
-	evaluateCmd.Flags().StringVar(&method,
+	cmd.Flags().StringVar(&flags.method,
 		"method", "GET", "HTTP method to access your configuration file on HTTP")
-	evaluateCmd.Flags().StringVar(&body,
+	cmd.Flags().StringVar(&flags.body,
 		"body", "", "Http body to access your configuration file on HTTP")
-	evaluateCmd.Flags().StringArrayVar(&headers,
+	cmd.Flags().StringArrayVar(&flags.headers,
 		"header", nil,
 		"HTTP header to access your configuration file on HTTP (may be repeated). "+
 			"See example of `evaluate` command for usages")
-	evaluateCmd.Flags().Int64Var(&timeout,
+	cmd.Flags().Int64Var(&flags.timeout,
 		"timeout", 0, "Timeout in seconds to access your configuration file on HTTP")
-	evaluateCmd.Flags().StringVar(&evalFlag,
+	cmd.Flags().StringVar(&flags.evalFlag,
 		"flag", "",
 		"Name of the flag to evaluate, if empty we will return the evaluation of all the flags")
-	evaluateCmd.Flags().StringVar(&evalCtx,
+	cmd.Flags().StringVar(&flags.evalCtx,
 		"ctx", "{}", "Evaluation context in JSON format")
-	evaluateCmd.Flags().BoolVar(&checkMode,
+	cmd.Flags().BoolVar(&flags.checkMode,
 		"check-mode", false,
 		"Check only mode - when set, the command will not perform any evaluation and returns "+
 			"the configuration of spanned retriever")
-	evaluateCmd.Flags().StringVar(&object,
+	cmd.Flags().StringVar(&flags.object,
 		"object", "", "Object of your configuration file on GCS")
-	evaluateCmd.Flags().StringVar(&namespace,
+	cmd.Flags().StringVar(&flags.namespace,
 		"namespace", "default", "Namespace of your configuration file on K8s")
-	evaluateCmd.Flags().StringVar(&configMap,
+	cmd.Flags().StringVar(&flags.configMap,
 		"config-map", "", "Config map of your configuration file on K8s")
-	evaluateCmd.Flags().StringVar(&key,
+	cmd.Flags().StringVar(&flags.key,
 		"key", "", "Key of your configuration file on K8s")
-	evaluateCmd.Flags().StringVar(&uri,
+	cmd.Flags().StringVar(&flags.uri,
 		"uri", "", "URI of your configuration file")
-	evaluateCmd.Flags().StringVar(&database,
+	cmd.Flags().StringVar(&flags.database,
 		"database", "", "Database of your configuration file on MongoDB")
-	evaluateCmd.Flags().StringVar(&collection,
+	cmd.Flags().StringVar(&flags.collection,
 		"collection", "", "Collection of your configuration file on MongoDB")
-	evaluateCmd.Flags().StringVar(&container,
+	cmd.Flags().StringVar(&flags.container,
 		"container", "", "Container of your configuration file on Azure Blob Storage")
-	evaluateCmd.Flags().StringVar(&accountName,
+	cmd.Flags().StringVar(&flags.accountName,
 		"account-name", "", "Account name of your configuration file on Azure Blob Storage")
-	evaluateCmd.Flags().StringVar(&accountKey,
+	cmd.Flags().StringVar(&flags.accountKey,
 		"account-key", "", "Account key of your configuration file on Azure Blob Storage")
-	evaluateCmd.Flags().StringVar(&table,
+	cmd.Flags().StringVar(&flags.table,
 		"table", "", "Postgres table of your configuration file on Postgres")
-	evaluateCmd.Flags().StringArrayVar(&columns,
+	cmd.Flags().StringArrayVar(&flags.columns,
 		"column", nil,
 		"Postgres column mapping of your configuration file on Postgres (may be repeated)")
-	_ = evaluateCmd.Flags().MarkDeprecated("github-token", "Use auth-token instead")
-	_ = evaluateCmd.Flags().MarkDeprecated("config", "Use path instead")
+	_ = cmd.Flags().MarkDeprecated("github-token", "Use auth-token instead")
+	_ = cmd.Flags().MarkDeprecated("config", "Use path instead")
+}
 
-	return evaluateCmd
+func runEvaluateCmd(cmd *cobra.Command, args []string, flags *evaluateFlags) error {
+	parsedHeaders := parseHTTPHeaders(flags.headers)
+	parsedColumns := parsePostgresColumns(flags.columns)
+
+	retrieverPath := flags.path
+	if retrieverPath == "" {
+		retrieverPath = flags.evalConfigFile
+	}
+
+	retrieverConf := retrieverconf.RetrieverConf{
+		Kind:           retrieverconf.RetrieverKind(flags.kind),
+		RepositorySlug: flags.repositorySlug,
+		Branch:         flags.branch,
+		Path:           retrieverPath,
+		GithubToken:    flags.githubToken, //nolint:staticcheck // backward compatibility for deprecated --github-token flag
+		AuthToken:      flags.authToken,
+		BaseURL:        flags.baseURL,
+		Bucket:         flags.bucket,
+		Item:           flags.item,
+		URL:            flags.url,
+		Timeout:        flags.timeout,
+		HTTPMethod:     flags.method,
+		HTTPBody:       flags.body,
+		HTTPHeaders:    parsedHeaders,
+		Object:         flags.object,
+		Namespace:      flags.namespace,
+		ConfigMap:      flags.configMap,
+		Key:            flags.key,
+		URI:            flags.uri,
+		Database:       flags.database,
+		Collection:     flags.collection,
+		Container:      flags.container,
+		AccountName:    flags.accountName,
+		AccountKey:     flags.accountKey,
+		Table:          flags.table,
+		Columns:        parsedColumns,
+	}
+
+	err := retrieverConf.IsValid()
+	if err != nil {
+		rcErr := &rerr.RetrieverConfError{}
+		if errors.As(err, &rcErr) {
+			return cliMessageError(rcErr.CliErrorMessage())
+		}
+
+		//nolint:wrapcheck // CLI command preserves retriever validation error
+		return err
+	}
+
+	if flags.checkMode {
+		return runCheck(cmd, retrieverConf)
+	}
+
+	return runEvaluate(cmd, args, flags.evalFlagFormat, retrieverConf, flags.evalFlag, flags.evalCtx)
 }
 
 func runEvaluate(
@@ -309,7 +320,7 @@ func runCheck(
 	retrieverConf retrieverconf.RetrieverConf) error {
 	output := helper.Output{}
 
-	//nolint:musttag,gosec // G117 - retriever config output is intentional for CLI display
+	//nolint:musttag,gosec // G117: CLI --check-mode outputs the parsed retriever config as JSON
 	detailed, err := json.MarshalIndent(retrieverConf, "", "  ")
 	if err != nil {
 		//nolint:wrapcheck // CLI command preserves JSON encoding error

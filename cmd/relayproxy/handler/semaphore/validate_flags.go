@@ -116,7 +116,6 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 		outcome = metric.ValidateFlagsOutcomeInvalid
 	}
 
-	//nolint:wrapcheck // helper.WriteJSON writes the committed HTTP response directly
 	return outcome, helper.WriteJSON(w, status, resp)
 }
 
@@ -125,7 +124,8 @@ func (h *ValidateFlags) validate(w http.ResponseWriter, r *http.Request) (string
 // tooLargeMessage is the error message returned when the body exceeds the limit of its format.
 func tooLargeMessage(maxSize int64, format string) string {
 	// limits are validated as non-negative, the conversion cannot overflow.
-	size := humanize.IBytes(uint64(maxSize)) //nolint:gosec // see above
+	//nolint:gosec // G115: limits are validated as non-negative, so uint64(maxSize) cannot overflow
+	size := humanize.IBytes(uint64(maxSize))
 
 	return fmt.Sprintf("request body too large (max %s for %s)", size, format)
 }

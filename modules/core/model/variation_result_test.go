@@ -241,10 +241,10 @@ func TestVariationResultToJSONStr_MarshalError(t *testing.T) {
 func TestRawVarResultJSONSerialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+	tests := []struct {
+		result   model.RawVarResult
 		name     string
 		wantJSON string
-		result   model.RawVarResult
 	}{
 		{
 			name: "raw var result with all fields",
@@ -413,10 +413,10 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 func TestVariationResultJSONDeserialization(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
+	tests := []struct {
+		want    model.VariationResult[string]
 		name    string
 		jsonStr string
-		want    model.VariationResult[string]
 		wantErr bool
 	}{
 		{

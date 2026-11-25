@@ -91,7 +91,6 @@ func (h *FlagConfigurationAPICtrl) Handle(
 
 	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, input.APIKey())
 	if httpErr != nil {
-		//nolint:wrapcheck // helper.RequestFlagSet already returns *helper.HTTPError
 		return nil, httpErr
 	}
 

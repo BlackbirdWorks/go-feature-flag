@@ -111,7 +111,8 @@ func (m *S3PrefixMock) TotalDownloadCalls() int {
 }
 
 func etagOf(content []byte) string {
-	return fmt.Sprintf("\"%x\"", md5.Sum(content)) //nolint:gosec // fake ETag
+	//nolint:gosec // G401: MD5 generates an S3-compatible mock ETag header, not a security digest
+	return fmt.Sprintf("\"%x\"", md5.Sum(content))
 }
 
 // ListObjectsV2 mimics the S3 API (prefix, delimiter, continuation token, max keys).

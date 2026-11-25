@@ -24,11 +24,11 @@ func Test_evaluate(t *testing.T) {
 		expectedType    string
 	}
 
-	tests := []struct { //nolint:govet // fieldalignment: the table holds a type whose field order is an output order
-		errAssertion assert.ErrorAssertionFunc
+	tests := []struct {
 		args         args
-		name         string
 		want         model.VariationResult[any]
+		errAssertion assert.ErrorAssertionFunc
+		name         string
 	}{
 		{
 			name: "Test with a rule name",

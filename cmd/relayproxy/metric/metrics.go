@@ -72,9 +72,166 @@ type Metrics struct {
 	opts                     MetricsOpts
 }
 
-// NewMetrics is the constructor for the custom metrics
-//
-//nolint:funlen
+type metricCounters struct {
+	allFlagCounter           prom.Counter
+	collectEvalDataCounter   prom.Counter
+	flagChange               prom.Counter
+	flagCreateCounter        prom.Counter
+	flagDeleteCounter        prom.Counter
+	flagUpdateCounter        prom.Counter
+	forceRefreshCounter      prom.Counter
+	flagConfigurationCounter prom.Counter
+	getManifestCounter       prom.Counter
+}
+
+type metricCounterVecs struct {
+	flagEvaluationCounter   *prom.CounterVec
+	allFlagCounterWithFlag  *prom.CounterVec
+	flagUpdateCounterVec    *prom.CounterVec
+	flagDeleteCounterVec    *prom.CounterVec
+	flagCreateCounterVec    *prom.CounterVec
+	validateFlagsCounterVec *prom.CounterVec
+}
+
+func newMetricCounters() metricCounters {
+	return metricCounters{
+		// counts the number of call to the all flag endpoint
+		allFlagCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "all_flag_evaluations_total",
+			Help:      "Counter events for number of all flags requests.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of tracking events collected through the API
+		collectEvalDataCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "collect_eval_data_total",
+			Help:      "Counter events for data collector.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of flag changes (create, update, delete) from your configuration
+		flagChange: prom.NewCounter(prom.CounterOpts{
+			Name:      "flag_changes_total",
+			Help:      "Counter that counts the number of flag changes.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of new flag created from your configuration
+		flagCreateCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "flag_create_total",
+			Help:      "Counter that counts the number of flag created.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of flag deleted from your configuration
+		flagDeleteCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "flag_delete_total",
+			Help:      "Counter that counts the number of flag deleted.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of flag updated from your configuration
+		flagUpdateCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "flag_update_total",
+			Help:      "Counter that counts the number of flag updated.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of flag updated from your configuration
+		forceRefreshCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "force_refresh_total",
+			Help:      "Counter that counts the number of force refresh.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of call to the flag configuration endpoint
+		flagConfigurationCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "flag_configuration_total",
+			Help:      "Counter events for number of configuration api requests.",
+			Subsystem: SubSystem,
+		}),
+		// counts the number of calls to the manifest endpoint
+		getManifestCounter: prom.NewCounter(prom.CounterOpts{
+			Name:      "get_manifest_total",
+			Help:      "Counter events for number of getManifest api requests.",
+			Subsystem: SubSystem,
+		}),
+	}
+}
+
+func newMetricCounterVecs() metricCounterVecs {
+	return metricCounterVecs{
+		// counts the number of flag evaluations
+		flagEvaluationCounter: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "flag_evaluations_total",
+			Help:      "Counter events for number of flag evaluation.",
+			Subsystem: SubSystem,
+		}, []string{flagNameLabel}),
+		// counts the number of bulk evaluations along with flag
+		allFlagCounterWithFlag: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "all_flags_evaluations_with_flag_total",
+			Help:      "Counter events for all flags bulk evaluations with individual flag names",
+			Subsystem: SubSystem,
+		}, []string{flagNameLabel}),
+		// counts the number of update per flag
+		flagUpdateCounterVec: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "flag_update_by_flag_total",
+			Help:      "Counter events for number of update per flag.",
+			Subsystem: SubSystem,
+		}, []string{flagNameLabel}),
+		// counts the number of delete per flag
+		flagDeleteCounterVec: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "flag_delete_by_flag_total",
+			Help:      "Counter events for number of delete per flag.",
+			Subsystem: SubSystem,
+		}, []string{flagNameLabel}),
+		// flagCreateCounterVec counts the number of create per flag
+		flagCreateCounterVec: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "flag_create_by_flag_total",
+			Help:      "Counter events for number of create per flag.",
+			Subsystem: SubSystem,
+		}, []string{flagNameLabel}),
+		// counts the number of call to the validate flags endpoint per outcome
+		validateFlagsCounterVec: prom.NewCounterVec(prom.CounterOpts{
+			Name:      "validate_flags_total",
+			Help:      "Counter events for number of calls to the validate flags endpoint, per outcome.",
+			Subsystem: SubSystem,
+		}, []string{outcomeLabel}),
+	}
+}
+
+func registerMetricCollectors(
+	reg *prom.Registry,
+	counters metricCounters,
+	counterVecs metricCounterVecs,
+	version string,
+) error {
+	metricToRegister := []prom.Collector{
+		counterVecs.flagEvaluationCounter,
+		counters.allFlagCounter,
+		counterVecs.allFlagCounterWithFlag,
+		counters.collectEvalDataCounter,
+		counters.flagChange,
+		counters.flagCreateCounter,
+		counters.flagDeleteCounter,
+		counters.flagUpdateCounter,
+		counterVecs.flagUpdateCounterVec,
+		counterVecs.flagDeleteCounterVec,
+		counterVecs.flagCreateCounterVec,
+		counters.forceRefreshCounter,
+		counterVecs.validateFlagsCounterVec,
+		counters.flagConfigurationCounter,
+		counters.getManifestCounter,
+		versioncollector.NewCollector(SubSystem, versionOptions(version)...),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		collectors.NewGoCollector(),
+	}
+
+	// register all the metric in the custom registry
+	for _, metric := range metricToRegister {
+		err := reg.Register(metric)
+		if err != nil {
+			return fmt.Errorf("register metric: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// NewMetrics is the constructor for the custom metrics.
 func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	// default opts
 	metricsOpts := &MetricsOpts{
@@ -87,158 +244,31 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 	}
 
 	customRegistry := prom.NewRegistry()
+	counters := newMetricCounters()
+	counterVecs := newMetricCounterVecs()
 
-	// counts the number of flag evaluations
-	flagEvaluationCounter := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_evaluations_total",
-		Help:      "Counter events for number of flag evaluation.",
-		Subsystem: SubSystem,
-	}, []string{flagNameLabel})
-
-	// counts the number of call to the all flag endpoint
-	allFlagCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "all_flag_evaluations_total",
-		Help:      "Counter events for number of all flags requests.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of bulk evaluations along with flag
-	allFlagCounterWithFlag := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "all_flags_evaluations_with_flag_total",
-		Help:      "Counter events for all flags bulk evaluations with individual flag names",
-		Subsystem: SubSystem,
-	}, []string{flagNameLabel})
-
-	// counts the number of tracking events collected through the API
-	collectEvalDataCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "collect_eval_data_total",
-		Help:      "Counter events for data collector.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of flag changes (create, update, delete) from your configuration
-	flagChange := prom.NewCounter(prom.CounterOpts{
-		Name:      "flag_changes_total",
-		Help:      "Counter that counts the number of flag changes.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of new flag created from your configuration
-	flagCreateCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "flag_create_total",
-		Help:      "Counter that counts the number of flag created.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of flag deleted from your configuration
-	flagDeleteCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "flag_delete_total",
-		Help:      "Counter that counts the number of flag deleted.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of flag updated from your configuration
-	flagUpdateCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "flag_update_total",
-		Help:      "Counter that counts the number of flag updated.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of update per flag
-	flagUpdateCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_update_by_flag_total",
-		Help:      "Counter events for number of update per flag.",
-		Subsystem: SubSystem,
-	}, []string{flagNameLabel})
-
-	// counts the number of delete per flag
-	flagDeleteCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_delete_by_flag_total",
-		Help:      "Counter events for number of delete per flag.",
-		Subsystem: SubSystem,
-	}, []string{flagNameLabel})
-
-	// flagCreateCounterVec counts the number of create per flag
-	flagCreateCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "flag_create_by_flag_total",
-		Help:      "Counter events for number of create per flag.",
-		Subsystem: SubSystem,
-	}, []string{flagNameLabel})
-
-	// counts the number of flag updated from your configuration
-	forceRefreshCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "force_refresh_total",
-		Help:      "Counter that counts the number of force refresh.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of call to the validate flags endpoint per outcome
-	validateFlagsCounterVec := prom.NewCounterVec(prom.CounterOpts{
-		Name:      "validate_flags_total",
-		Help:      "Counter events for number of calls to the validate flags endpoint, per outcome.",
-		Subsystem: SubSystem,
-	}, []string{outcomeLabel})
-
-	// counts the number of call to the flag configuration endpoint
-	flagConfigurationCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "flag_configuration_total",
-		Help:      "Counter events for number of configuration api requests.",
-		Subsystem: SubSystem,
-	})
-
-	// counts the number of calls to the manifest endpoint
-	getManifestCounter := prom.NewCounter(prom.CounterOpts{
-		Name:      "get_manifest_total",
-		Help:      "Counter events for number of getManifest api requests.",
-		Subsystem: SubSystem,
-	})
-
-	metricToRegister := []prom.Collector{
-		flagEvaluationCounter,
-		allFlagCounter,
-		allFlagCounterWithFlag,
-		collectEvalDataCounter,
-		flagChange,
-		flagCreateCounter,
-		flagDeleteCounter,
-		flagUpdateCounter,
-		flagUpdateCounterVec,
-		flagDeleteCounterVec,
-		flagCreateCounterVec,
-		forceRefreshCounter,
-		validateFlagsCounterVec,
-		flagConfigurationCounter,
-		getManifestCounter,
-		versioncollector.NewCollector(SubSystem, versionOptions(metricsOpts.Version)...),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		collectors.NewGoCollector(),
-	}
-
-	// register all the metric in the custom registry
-	for _, metric := range metricToRegister {
-		err := customRegistry.Register(metric)
-		if err != nil {
-			return Metrics{}, fmt.Errorf("register metric: %w", err)
-		}
+	err := registerMetricCollectors(customRegistry, counters, counterVecs, metricsOpts.Version)
+	if err != nil {
+		return Metrics{}, err
 	}
 
 	return Metrics{
 		opts:                     *metricsOpts,
-		flagEvaluationCounter:    *flagEvaluationCounter,
-		allFlagCounter:           allFlagCounter,
-		allFlagCounterWithFlag:   *allFlagCounterWithFlag,
-		collectEvalDataCounter:   collectEvalDataCounter,
-		flagChange:               flagChange,
-		flagCreateCounter:        flagCreateCounter,
-		flagDeleteCounter:        flagDeleteCounter,
-		flagUpdateCounter:        flagUpdateCounter,
-		flagUpdateCounterVec:     *flagUpdateCounterVec,
-		flagDeleteCounterVec:     *flagDeleteCounterVec,
-		flagCreateCounterVec:     *flagCreateCounterVec,
-		forceRefreshCounter:      forceRefreshCounter,
-		validateFlagsCounterVec:  *validateFlagsCounterVec,
-		flagConfigurationCounter: flagConfigurationCounter,
-		getManifestCounter:       getManifestCounter,
+		flagEvaluationCounter:    *counterVecs.flagEvaluationCounter,
+		allFlagCounter:           counters.allFlagCounter,
+		allFlagCounterWithFlag:   *counterVecs.allFlagCounterWithFlag,
+		collectEvalDataCounter:   counters.collectEvalDataCounter,
+		flagChange:               counters.flagChange,
+		flagCreateCounter:        counters.flagCreateCounter,
+		flagDeleteCounter:        counters.flagDeleteCounter,
+		flagUpdateCounter:        counters.flagUpdateCounter,
+		flagUpdateCounterVec:     *counterVecs.flagUpdateCounterVec,
+		flagDeleteCounterVec:     *counterVecs.flagDeleteCounterVec,
+		flagCreateCounterVec:     *counterVecs.flagCreateCounterVec,
+		forceRefreshCounter:      counters.forceRefreshCounter,
+		validateFlagsCounterVec:  *counterVecs.validateFlagsCounterVec,
+		flagConfigurationCounter: counters.flagConfigurationCounter,
+		getManifestCounter:       counters.getManifestCounter,
 		Registry:                 customRegistry,
 	}, nil
 }
@@ -381,7 +411,7 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
 	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
 
-	//nolint:wrapcheck // transparent prometheus.Gatherer decorator preserves Gather error and partial families
+	//nolint:wrapcheck // prometheus.Gatherer decorator forwards Gather error and partial families unwrapped
 	return out, err
 }
 

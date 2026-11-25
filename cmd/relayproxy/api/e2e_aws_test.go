@@ -127,10 +127,7 @@ flagsets:
       item: flags/b.yaml
 `
 
-// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
-// reads from the process environment; third-party code reads it.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv so the AWS SDK default config chain reads test endpoint/credentials
 func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -549,10 +546,7 @@ brand-new:
 	}, 30*time.Second, 200*time.Millisecond, "new flag of flag set b never served")
 }
 
-// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
-// reads from the process environment; third-party code reads it.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv so the AWS SDK default config chain reads test endpoint/credentials
 func TestE2E_RelayProxy_TopLevelS3Retriever(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)
@@ -693,10 +687,7 @@ type sinkEvent struct {
 	Key, UserKey, Variation string
 }
 
-// Sets the AWS SDK environment (AWS_ENDPOINT_URL, credentials) that the AWS SDK default config chain of the relay proxy
-// reads from the process environment; third-party code reads it.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv so the AWS SDK default config chain reads test endpoint/credentials
 func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 	// no t.Parallel(): t.Setenv, see the comment at the top of the file.
 	srv := gopherstack.Connect(t)

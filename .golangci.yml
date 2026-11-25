@@ -531,7 +531,7 @@ linters:
     nolintlint:
       # Exclude following linters from requiring an explanation.
       # Default: []
-      allow-no-explanation: [ funlen, gocognit, golines ]
+      allow-no-explanation: []
       # Enable to require an explanation of nonzero length after each nolint directive.
       # Default: false
       require-explanation: true
@@ -630,6 +630,7 @@ linters:
         - '\.New.*Error\('
         - '\(context\.Context\)\.Err\('
         - '^func github\.com/blackbirdworks/semaphore/internal\.RedactURLError\('
+        - '^func github\.com/blackbirdworks/semaphore/cmd/relayproxy/helper\.(WriteJSON|RequestFlagSet|BindBody|FlagSet)\('
 
   exclusions:
     # Log a warning if an exclusion rule is unused.

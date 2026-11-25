@@ -28,9 +28,7 @@ var (
 	errTestError = errors.New("test error")
 )
 
-// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -70,9 +68,7 @@ func TestInitSampler(t *testing.T) {
 	})
 }
 
-// T.Setenv: the OpenTelemetry and Jaeger SDKs (third-party code) read OTEL_*/JAEGER_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		f := pflag.NewFlagSet("config", pflag.ContinueOnError)
@@ -187,9 +183,7 @@ func TestInitResource(t *testing.T) {
 	})
 }
 
-// T.Setenv: the OpenTelemetry SDK (third-party code) reads OTEL_* from the process environment.
-//
-//nolint:paralleltest // see the comment above
+//nolint:paralleltest // uses t.Setenv because OpenTelemetry SDK reads OTEL_* from the process environment
 func TestInit(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
 		svc := NewOtelService()

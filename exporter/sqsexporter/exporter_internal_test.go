@@ -35,7 +35,7 @@ func (s *SQSSendMessageAPIMock) SendMessage(_ context.Context,
 
 	s.messages = append(s.messages, *params)
 
-	return nil, nil //nolint:nilnil // mock SQS client: the exporter ignores the output
+	return &sqs.SendMessageOutput{}, nil
 }
 
 func TestSQSIsBulk(t *testing.T) {

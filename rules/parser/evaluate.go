@@ -191,7 +191,8 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 		return false, visitor.err
 	}
 
-	return result.(bool), visitor.err //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+	//nolint:errcheck,forcetypeassert // evaluation path: preserves panic-on-mismatch contract for visitor result
+	return result.(bool), visitor.err
 }
 
 func Evaluate(rule string, items map[string]any) bool {

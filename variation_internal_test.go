@@ -65,7 +65,7 @@ func (c *cacheMock) GetLatestUpdateDate() time.Time {
 }
 
 func (c *cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
-	return nil, nil //nolint:nilnil // mock cache: conversion is never used
+	return nil, assert.AnError
 }
 func (c *cacheMock) UpdateCache(_ map[string]dto.DTO, _ *fflog.FFLogger, _ bool) error {
 	return nil
@@ -76,11 +76,9 @@ func (c *cacheMock) GetFlag(_ string) (flag.Flag, error) {
 	return c.flag, c.err
 }
 
-//nolint:nilnil // mock cache: not used
-func (c *cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, nil }
+func (c *cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, assert.AnError }
 
-//nolint:nilnil // mock cache: not used
-func (c *cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, nil }
+func (c *cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, assert.AnError }
 
 // assertExpectedLog waits for the async logger to flush and asserts that a log
 // message containing expectedLog was emitted. It is a no-op when expectedLog is

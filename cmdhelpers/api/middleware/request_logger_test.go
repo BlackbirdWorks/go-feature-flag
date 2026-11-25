@@ -283,7 +283,7 @@ func TestLogRequest(t *testing.T) {
 // TestLogRequestDisabledLevel checks that a disabled level costs nothing: no record, no allocation.
 // It is not parallel on purpose: AllocsPerRun counts the allocations of the parallel tests too.
 //
-//nolint:paralleltest // see above
+//nolint:paralleltest // AllocsPerRun counts allocations from concurrent tests across the process
 func TestLogRequestDisabledLevel(t *testing.T) {
 	obs, logs := slogutil.NewObserver(slog.LevelError)
 	rec := middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/v1/eval?apiKey=x"}

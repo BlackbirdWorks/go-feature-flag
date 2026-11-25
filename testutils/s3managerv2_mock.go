@@ -3,7 +3,6 @@ package testutils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -44,7 +43,7 @@ func (s *S3ManagerV2Mock) UploadObject(
 
 	_, err := io.Copy(buf, uploadInput.Body)
 	if err != nil {
-		fmt.Println(err) //nolint:forbidigo // mock server diagnostics
+		_, _ = os.Stderr.WriteString(err.Error() + "\n")
 	}
 
 	s.S3ManagerMockFileSystem[*uploadInput.Key] = buf.String()

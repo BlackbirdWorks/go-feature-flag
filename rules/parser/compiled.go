@@ -150,7 +150,8 @@ func (st *evalState) resolve(path []string) {
 			return
 		}
 
-		m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+		//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
+		m := item.(map[string]any)
 		st.stack.push(m[name])
 	}
 
@@ -166,7 +167,8 @@ func (st *evalState) resolve(path []string) {
 		return
 	}
 
-	m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+	//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
+	m := item.(map[string]any)
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -219,10 +221,12 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []int{}
 		} else {
-			list = state.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
+			list = state.rightOp.([]int)
 		}
 
-		state.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
+		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
+		state.rightOp = append(list, n.listOp.([]int)...)
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
 		}
@@ -231,9 +235,10 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []float64{}
 		} else {
-			list = state.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
+			list = state.rightOp.([]float64)
 		}
-		//nolint:errcheck,forcetypeassert,gocritic // stale operand
+		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
 		state.rightOp = append(list, n.listOp.([]float64)...)
 		if n.listErr != nil {
 			state.err = cloneErr(n.listErr)
@@ -243,9 +248,10 @@ func (n *compareNode) setRight(state *evalState) {
 		if state.rightOp == nil {
 			list = []string{}
 		} else {
-			list = state.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			//nolint:errcheck,forcetypeassert // evaluation hot path: preserves panic-on-mismatch contract
+			list = state.rightOp.([]string)
 		}
-		//nolint:errcheck,forcetypeassert,gocritic // stale operand
+		//nolint:errcheck,forcetypeassert,gocritic // evaluation hot path: preserves mismatch panic and appendAssign
 		state.rightOp = append(list, n.listValue().([]string)...)
 	default:
 		state.rightOp = n.rightOp
@@ -283,7 +289,8 @@ func (n *compareNode) evalCompare(state *evalState) bool {
 	if err != nil {
 		// operations return their errors unwrapped, so the exact type is checked; errors.As here costs
 		// the evaluation path (measured), and this block is inlined on purpose.
-		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst { //nolint:errorlint // see setDebugErr
+		//nolint:errorlint // evaluation hot path: operations return *InvalidOperandError unwrapped
+		if eio, ok := err.(*InvalidOperandError); ok && n.valKind != valueConst {
 			// the operand may be the shared compiled list
 			c := *eio
 			c.Val = copyOperand(c.Val)
@@ -349,7 +356,7 @@ func (n *compareNode) setDebugErr(state *evalState, err error) {
 	// Operations return these sentinels and *InvalidOperandError unwrapped; the exact comparisons are kept
 	// because the wrapping-aware forms measurably slow the evaluation path.
 	switch err {
-	case ErrInvalidOperation: //nolint:errorlint // see above
+	case ErrInvalidOperation: //nolint:errorlint // evaluation hot path: operations return ErrInvalidOperation unwrapped
 		// in case of invalid operation lets rather
 		// be conservative and return false because the rule doesn't even make
 		// sense. It can be argued that it would be false positive if we were
@@ -366,7 +373,8 @@ func (n *compareNode) setDebugErr(state *evalState, err error) {
 		})
 	default:
 		msg := "unknown error"
-		if _, ok := err.(*InvalidOperandError); ok { //nolint:errorlint // see above
+		//nolint:errorlint // evaluation hot path: operations return *InvalidOperandError unwrapped
+		if _, ok := err.(*InvalidOperandError); ok {
 			msg = "operands are not the right value type"
 		}
 
@@ -434,7 +442,8 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 		}
 
 		if _, ok := operation.(*VersionOperation); ok {
-			ruleVersion := cmpNode.rightOp.(string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
+			//nolint:errcheck,forcetypeassert // compile path: VersionOperation guarantees string rightOp
+			ruleVersion := cmpNode.rightOp.(string)
 			cmpNode.version = compileVersionCompare(ruleVersion, cmpNode.opType)
 		}
 
@@ -559,7 +568,8 @@ func parsePlainVersion(raw string) (semver.Version, bool) {
 
 	core := raw
 	// IndexByte rather than strings.Cut: this runs on every version evaluation and Cut adds a call layer.
-	if i := strings.IndexByte(raw, '+'); i >= 0 { //nolint:modernize // see above
+	//nolint:modernize // evaluation hot path: strings.IndexByte avoids strings.Cut overhead per semver eval
+	if i := strings.IndexByte(raw, '+'); i >= 0 {
 		if !validBuild(raw[i+1:]) {
 			return ver, false
 		}
