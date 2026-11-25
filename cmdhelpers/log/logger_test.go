@@ -63,6 +63,7 @@ func goldenRecords() []struct {
 			slog.Any("list", []string{"a", "b c"}), slog.Any("bytes", []byte("raw body")),
 		}},
 		{msg: "special chars", level: slog.LevelInfo, attrs: []slog.Attr{
+			//nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 			slog.String("s", "quote\" back\\ nl\n tab\t unicode é 日本"), slog.String("empty", ""),
 			slog.String("space", "a b"), slog.String("eq", "a=b"),
 		}},

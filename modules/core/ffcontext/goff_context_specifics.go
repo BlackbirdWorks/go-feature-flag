@@ -24,7 +24,7 @@ func (g *GoffContextSpecifics) addCurrentDateTime(currentDateTime any) {
 	case time.Time:
 		g.CurrentDateTime = &value
 	case string:
-		if currentDateTime, err := time.ParseInLocation(time.RFC3339, value, time.Local); err == nil {
+		if currentDateTime, err := time.Parse(time.RFC3339, value); err == nil {
 			g.CurrentDateTime = &currentDateTime
 		}
 

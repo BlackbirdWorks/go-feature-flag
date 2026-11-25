@@ -74,6 +74,7 @@ func TestSharedItems_listingPrefix(t *testing.T) {
 		{name: "opaque leading slash", keys: []string{"/a", "/b"}, want: "/"},
 		{name: "opaque parent segment", keys: []string{"dir/../a", "dir/../b"}, want: "dir/../"},
 		{name: "never cuts a multi-byte character", keys: []string{"é/é1.yaml", "é/é2.yaml", "è/f.yaml"}, want: ""},
+		//nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		{name: "multi-byte prefix", keys: []string{"日本/a.yaml", "日本/b.yaml"}, want: "日本/"},
 	}
 	for _, tt := range tests {

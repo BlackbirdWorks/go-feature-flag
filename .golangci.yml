@@ -118,6 +118,7 @@ linters:
     - gomoddirectives # manages the use of 'replace', 'retract', and 'excludes' directives in go.mod
     - goprintffuncname # checks that printf-like functions are named with f at the end
     - gosec # inspects source code for security problems
+    - gosmopolitan # checks for i18n/l10n anti-patterns (Han string literals and time.Local)
     - govet # reports suspicious constructs, such as Printf calls whose arguments do not align with the format string
     - iface # checks the incorrect use of interfaces, helping developers avoid interface pollution
     - ineffassign # detects when assignments to existing variables are not used
@@ -197,7 +198,6 @@ linters:
     - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
     - funcorder # constructors next to their type is the project layout; 10 findings
-    - gosmopolitan # the tests use Han strings and time.Local on purpose (unicode and local time behaviour)
     - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen
     - noinlineerr # inline error handling is the project style

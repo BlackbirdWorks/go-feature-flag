@@ -61,7 +61,7 @@ func randStrList(r *rand.Rand, n int) string {
 		"null",
 		"x y",
 		`q\"q`,
-		"日本",
+		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		"İ",
 		"i",
 	}
@@ -269,7 +269,7 @@ func TestInSetDifferential(t *testing.T) {
 		"null",
 		"i",
 		"İ",
-		"日本",
+		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
 		0,
 		1,
 		3,
