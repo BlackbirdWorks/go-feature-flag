@@ -1,4 +1,4 @@
-package go_integration_tests
+package integrationtests_test
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	gofeatureflag "github.com/open-feature/go-sdk-contrib/providers/go-feature-flag/pkg"
 	of "github.com/open-feature/go-sdk/openfeature"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -58,19 +59,23 @@ func withOverrides(base of.EvaluationContext, overrides map[string]any) of.Evalu
 	newAttributes := make(map[string]any, len(base.Attributes()))
 	maps.Copy(newAttributes, base.Attributes())
 	maps.Copy(newAttributes, overrides)
+
 	return of.NewEvaluationContext("d45e303a-38c2-11ed-a261-0242ac120002", newAttributes)
 }
 
 func TestProvider_module_BooleanEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue bool
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid boolean flag with TARGETING_MATCH reason",
@@ -171,14 +176,16 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
 				tt.args.flag,
@@ -187,11 +194,12 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -200,15 +208,18 @@ func TestProvider_module_BooleanEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_StringEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue string
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
-		name string
-		args args
 		want of.StringEvaluationDetails
+		args args
+		name string
 	}{
 		{
 			name: "should resolve a valid string flag with TARGETING_MATCH reason",
@@ -331,22 +342,25 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.StringValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -355,15 +369,18 @@ func TestProvider_module_StringEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_FloatEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue float64
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.FloatEvaluationDetails
 		name string
 		args args
-		want of.FloatEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid float flag with TARGETING_MATCH reason",
@@ -464,22 +481,25 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.FloatValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -488,15 +508,18 @@ func TestProvider_module_FloatEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_IntEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue int64
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.IntEvaluationDetails
 		name string
 		args args
-		want of.IntEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid float flag with TARGETING_MATCH reason",
@@ -597,22 +620,25 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.IntValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -621,15 +647,18 @@ func TestProvider_module_IntEvaluation(t *testing.T) {
 }
 
 func TestProvider_module_ObjectEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
-		flag         string
-		defaultValue any
 		evalCtx      of.EvaluationContext
+		defaultValue any
+		flag         string
 	}
+
 	tests := []struct {
-		name string
-		args args
 		want of.InterfaceEvaluationDetails
+		args args
+		name string
 	}{
 		{
 			name: "should resolve a valid interface flag with TARGETING_MATCH reason",
@@ -713,22 +742,25 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.ObjectValueDetails(context.TODO(), tt.args.flag, tt.args.defaultValue, tt.args.evalCtx)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -737,13 +769,16 @@ func TestProvider_module_ObjectEvaluation(t *testing.T) {
 }
 
 func TestProvider_apikey_relay_proxy(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
 		apiKey string
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve a valid flag with an apiKey",
@@ -810,15 +845,17 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       "http://localhost:1032/",
 				APIKey:         tt.args.apiKey,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
 				flagBoolTargetingMatch,
@@ -827,11 +864,12 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)
@@ -840,15 +878,18 @@ func TestProvider_apikey_relay_proxy(t *testing.T) {
 }
 
 func TestProvider_rules_semverEvaluation(t *testing.T) {
+	t.Parallel()
+
 	type args struct {
+		evalCtx      of.EvaluationContext
 		flag         string
 		defaultValue bool
-		evalCtx      of.EvaluationContext
 	}
+
 	tests := []struct {
+		want of.BooleanEvaluationDetails
 		name string
 		args args
-		want of.BooleanEvaluationDetails
 	}{
 		{
 			name: "should resolve with TARGETING_MATCH reason for valid semver match",
@@ -905,14 +946,16 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			provider, err := gofeatureflag.NewProvider(gofeatureflag.ProviderOptions{
 				Endpoint:       relayProxyURL,
 				EvaluationType: gofeatureflag.EvaluationTypeRemote,
 			})
-			assert.NoError(t, err)
-			err = of.SetProviderAndWait(provider)
-			assert.NoError(t, err)
-			client := of.NewClient("test-app")
+			require.NoError(t, err)
+			err = of.SetNamedProviderAndWait(t.Name(), provider)
+			require.NoError(t, err)
+			client := of.NewClient(t.Name())
 			value, err := client.BooleanValueDetails(
 				context.TODO(),
 				tt.args.flag,
@@ -921,11 +964,12 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 			)
 
 			if tt.want.ErrorCode != "" {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				want := fmt.Sprintf("error code: %s: %s", tt.want.ErrorCode, tt.want.ErrorMessage)
 				assert.Equal(t, want, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			assert.Equal(t, tt.want, value)

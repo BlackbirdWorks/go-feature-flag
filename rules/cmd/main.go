@@ -47,15 +47,21 @@ func run() error {
 		return fmt.Errorf("evaluate rule: %w", err)
 	}
 
-	fmt.Fprintf(os.Stdout, `
+	_, err = fmt.Fprintf(os.Stdout, `
 		Rule: %v
 		Object: %v
 		Answer: %v
 	`+"\n", rulesString, info, ans)
+	if err != nil {
+		return fmt.Errorf("write rule result: %w", err)
+	}
 
 	debugErr := evaluator.LastDebugErr()
 	if debugErr != nil {
-		fmt.Fprintln(os.Stdout, "Last debug error", debugErr)
+		_, err = fmt.Fprintln(os.Stdout, "Last debug error", debugErr)
+		if err != nil {
+			return fmt.Errorf("write debug error: %w", err)
+		}
 	}
 
 	return nil
