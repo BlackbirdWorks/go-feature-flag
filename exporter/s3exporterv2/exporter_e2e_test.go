@@ -123,20 +123,21 @@ func TestE2E_Export(t *testing.T) {
 
 				defer func() { _ = fr.Close() }()
 
-				parquetReader, err := reader.NewParquetReader(fr, new(*exporter.FeatureEvent), int64(runtime.NumCPU()))
+				parquetReader, err := reader.NewParquetReader(fr, new(exporter.FeatureEvent), int64(runtime.NumCPU()))
 				require.NoError(t, err)
 
 				defer parquetReader.ReadStop()
 
 				require.Equal(t, int64(count), parquetReader.GetNumRows())
-				got := make([]*exporter.FeatureEvent, parquetReader.GetNumRows())
+				got := make([]exporter.FeatureEvent, parquetReader.GetNumRows())
 				require.NoError(t, parquetReader.Read(&got))
 
-				for i, e := range got {
-					assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), e.UserKey)
-					assert.Equal(t, fixtures.FlagKeyMy, e.Key)
-					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), e.Value) // parquet stores the JSON encoding
-					assert.Equal(t, fixtures.VariationEnabled, e.Variation)
+				for i := range got {
+					event := &got[i]
+					assert.Equal(t, fmt.Sprintf(fixtures.UserKeyFormat, i), event.UserKey)
+					assert.Equal(t, fixtures.FlagKeyMy, event.Key)
+					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), event.Value) // parquet stores the JSON encoding
+					assert.Equal(t, fixtures.VariationEnabled, event.Variation)
 				}
 			},
 		},
