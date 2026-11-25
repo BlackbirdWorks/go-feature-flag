@@ -2,6 +2,7 @@ package discordnotifier
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"unicode/utf8"
 
@@ -101,8 +102,8 @@ func convertToDiscordMessage(diffCache notifier.DiffCache) discordMessage {
 	embeds = append(embeds, convertUpdatedFlagsToDiscordEmbed(diffCache)...)
 	embeds = append(embeds, convertAddedFlagsToDiscordEmbed(diffCache)...)
 
-	sort.Slice(embeds, func(i, j int) bool {
-		return embeds[i].Title < embeds[j].Title
+	slices.SortFunc(embeds, func(a, b embed) int {
+		return cmp.Compare(a.Title, b.Title)
 	})
 
 	if len(embeds) > maxDiscordEmbeds {
@@ -199,12 +200,8 @@ func fitTotalLength(embeds []embed) {
 		lists = append(lists, i)
 	}
 
-	sort.SliceStable(lists, func(a, b int) bool {
-		return utf8.RuneCountInString(
-			embeds[lists[a]].Description,
-		) < utf8.RuneCountInString(
-			embeds[lists[b]].Description,
-		)
+	slices.SortStableFunc(lists, func(a, b int) int {
+		return cmp.Compare(utf8.RuneCountInString(embeds[a].Description), utf8.RuneCountInString(embeds[b].Description))
 	})
 
 	for n, i := range lists {

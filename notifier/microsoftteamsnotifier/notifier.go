@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	goteamsnotify "github.com/atc0005/go-teams-notify/v2"
@@ -61,7 +61,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 		deletedKeys = append(deletedKeys, k)
 	}
 
-	sort.Strings(deletedKeys)
+	slices.Sort(deletedKeys)
 
 	for _, key := range deletedKeys {
 		fmt.Fprintf(&msgText, "\n * ❌ Flag **%s** deleted", key)
@@ -73,7 +73,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 		addedKeys = append(addedKeys, k)
 	}
 
-	sort.Strings(addedKeys)
+	slices.Sort(addedKeys)
 
 	for _, key := range addedKeys {
 		fmt.Fprintf(&msgText, "\n * 🆕 Flag **%s** created%s", key, notifier.UpdatedBySuffix(diffCache.Added[key]))
@@ -85,7 +85,7 @@ func convertToMicrosoftTeamsMessage(diffCache notifier.DiffCache) string {
 		updatedKeys = append(updatedKeys, k)
 	}
 
-	sort.Strings(updatedKeys)
+	slices.Sort(updatedKeys)
 
 	for _, key := range updatedKeys {
 		value := diffCache.Updated[key]
