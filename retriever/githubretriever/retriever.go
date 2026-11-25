@@ -84,7 +84,7 @@ type Retriever struct {
 
 // installationTokenResponse is the JSON body returned by the access_tokens endpoint.
 type installationTokenResponse struct {
-	ExpiresAt time.Time `json:"expires_at"`
+	ExpiresAt time.Time `json:"expires_at"` //nolint:tagliatelle // GitHub REST API (installation access token)
 	Token     string    `json:"token"`
 }
 

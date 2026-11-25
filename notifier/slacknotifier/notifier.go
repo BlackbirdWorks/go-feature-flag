@@ -158,7 +158,7 @@ func convertAddedFlagsToSlackMessage(diff notifier.DiffCache) []attachment {
 }
 
 type slackMessage struct {
-	IconURL     string       `json:"icon_url,omitempty"`
+	IconURL     string       `json:"icon_url,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Text        string       `json:"text"`
 	Attachments []attachment `json:"attachments"`
 }
@@ -167,9 +167,9 @@ type attachment struct {
 	Color      string   `json:"color"`
 	Title      string   `json:"title"`
 	Text       string   `json:"text,omitempty"`
-	FooterIcon string   `json:"footer_icon,omitempty"`
+	FooterIcon string   `json:"footer_icon,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Footer     string   `json:"footer,omitempty"`
-	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
+	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"` //nolint:tagliatelle // Slack incoming webhook API
 	Fields     []Field  `json:"fields"`
 }
 

@@ -72,7 +72,7 @@ type SerializableRedisOptions struct {
 	// Default is 30 minutes (1800000ms). -1 disables idle timeout check.
 	ConnMaxIdleTimeMs int64 `json:"connMaxIdleTime,omitempty" koanf:"connmaxidletime" mapstructure:"connMaxIdleTime"`
 	// PoolFIFO uses FIFO mode for each node connection pool GET/PUT (default LIFO).
-	PoolFIFO bool `json:"poolFIFO,omitempty" koanf:"poolfifo" mapstructure:"poolFIFO"`
+	PoolFIFO bool `json:"poolFifo,omitempty" koanf:"poolfifo" mapstructure:"poolFIFO"`
 	// TLS Config (simplified - only enable/disable for now)
 	// For more complex TLS configurations, use the non-serializable RedisOptions
 	TLSEnabled bool `json:"tlsEnabled,omitempty" koanf:"tlsenabled" mapstructure:"tlsEnabled"`
