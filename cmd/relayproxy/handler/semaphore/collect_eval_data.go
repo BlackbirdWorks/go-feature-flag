@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/go-viper/mapstructure/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -30,7 +31,6 @@ const (
 // CollectEvalData is the controller of the endpoint that collects the events of the providers.
 type CollectEvalData struct {
 	flagsetManager service.FlagsetManager
-	logger         *slog.Logger
 	metrics        metric.Metrics
 }
 
@@ -38,12 +38,10 @@ type CollectEvalData struct {
 func NewCollectEvalData(
 	flagsetManager service.FlagsetManager,
 	metrics metric.Metrics,
-	logger *slog.Logger,
 ) *CollectEvalData {
 	return &CollectEvalData{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
-		logger:         logger,
 	}
 }
 
@@ -84,6 +82,7 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 		return nil, httpErr
 	}
 
+	logger := logging.FromContext(ctx)
 	counterTracking := 0
 	counterEvaluation := 0
 	for i, event := range reqBody.Events {
@@ -108,9 +107,9 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 
 		switch event["kind"] {
 		case "tracking":
-			e, err := convertTrackingEvent(event, h.logger)
+			e, err := convertTrackingEvent(event, logger)
 			if err != nil {
-				h.logger.LogAttrs(context.Background(), slog.LevelError,
+				logger.LogAttrs(ctx, slog.LevelError,
 					"impossible to convert the event to a tracking event",
 					cmdlog.Err(err),
 				)
@@ -120,10 +119,10 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 			flagset.CollectTrackingEventData(e)
 			counterTracking++
 		default:
-			e, err := convertFeatureEvent(event, reqBody.Meta, h.logger)
+			e, err := convertFeatureEvent(event, reqBody.Meta, logger)
 			if err != nil {
-				h.logger.LogAttrs(
-					context.Background(),
+				logger.LogAttrs(
+					ctx,
 					slog.LevelError,
 					"impossible to convert the event to a feature event",
 					cmdlog.Err(err),

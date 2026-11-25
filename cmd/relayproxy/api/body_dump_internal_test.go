@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,7 +66,8 @@ func Test_bodyDumpHandler(t *testing.T) {
 			t.Parallel()
 
 			logger, recorded := slogutil.NewObserver(slog.LevelDebug)
-			bodyDumpHandler(logger)(nil, []byte(tt.body))
+			req := httptest.NewRequestWithContext(logging.NewContext(t.Context(), logger), http.MethodPost, "/", nil)
+			bodyDumpHandler()(req, []byte(tt.body))
 
 			logs := recorded.All()
 			require.Len(t, logs, 1)
@@ -81,7 +83,8 @@ func Test_bodyDumpHandler(t *testing.T) {
 func Benchmark_bodyDumpHandler(b *testing.B) {
 	core, _ := slogutil.NewObserver(slog.LevelDebug)
 	logger := core
-	handler := bodyDumpHandler(logger)
+	handler := bodyDumpHandler()
+	req := httptest.NewRequestWithContext(logging.NewContext(b.Context(), logger), http.MethodPost, "/", nil)
 
 	b.Run("small body", func(b *testing.B) {
 		body := []byte(strings.Repeat("x", 100))
@@ -89,7 +92,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			handler(nil, body)
+			handler(req, body)
 		}
 	})
 
@@ -99,7 +102,7 @@ func Benchmark_bodyDumpHandler(b *testing.B) {
 		b.ResetTimer()
 
 		for b.Loop() {
-			handler(nil, body)
+			handler(req, body)
 		}
 	})
 }

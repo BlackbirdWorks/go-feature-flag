@@ -33,7 +33,8 @@ func (okMonitoring) Info() (model.InfoResponse, error) { return model.InfoRespon
 // Test_AccessLog checks what a request leaves in the logs: the access record shows the request as the client sent it
 // (an unclean path included: cleanpath serves the cleaned one, inside the access log) with the status that was
 // answered, and a panicking handler leaves the recovery record at the error level next to the access record of its
-// 500 (the recovery is inside the access log).
+// 500 (the recovery is inside the access log). The lines the middleware write while the request is served (the
+// recovery, the dump of the body) carry the request ID like the access record.
 func Test_AccessLog(t *testing.T) {
 	t.Parallel()
 
@@ -87,6 +88,10 @@ func Test_AccessLog(t *testing.T) {
 
 			got := map[string]slog.Level{}
 			for _, entry := range logs.All() {
+				fields := entry.ContextMap()
+				// every line of the request, the ones of the handlers and middleware as well as the access
+				// record, carries the request ID: the request logger is in the context of the request.
+				assert.Equal(t, "req-1", fields["request_id"], entry.Message)
 				if entry.Message == "Request info" {
 					continue // the dump of the body, at the debug level
 				}
@@ -94,10 +99,8 @@ func Test_AccessLog(t *testing.T) {
 				if entry.Message == "panic recovered" {
 					continue
 				}
-				fields := entry.ContextMap()
 				assert.Equal(t, tt.wantRequest, fields["request"])
 				assert.Equal(t, int64(tt.wantStatus), fields["status"])
-				assert.Equal(t, "req-1", fields["request_id"])
 			}
 			assert.Equal(t, tt.wantRecords, got)
 		})

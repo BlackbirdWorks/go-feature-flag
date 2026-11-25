@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/accesslog"
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
@@ -20,11 +22,13 @@ import (
 // requestLogger is the access log of a plain handler, as the relay proxy builds it.
 func requestLogger(logger *slog.Logger, debug bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return logging.Handler(next,
-			logging.WithLogger(logger),
-			logging.WithAccessLogFunc(middleware.AccessLog()),
-			logging.WithRequestSkip(middleware.SkipRequest(debug)),
+		access := accesslog.Handler(
+			accesslog.WithLogger(logger),
+			accesslog.WithRecordFunc(middleware.AccessLog()),
+			accesslog.WithRequestSkip(middleware.SkipRequest(debug)),
 		)
+
+		return logging.Handler(access(next), logging.WithLogger(logger))
 	}
 }
 
@@ -185,10 +189,18 @@ var errBoom = errors.New("boom")
 func TestLogRequest(t *testing.T) {
 	t.Parallel()
 
+	tracedSpan := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{
+			0x4b, 0xf9, 0x2f, 0x35, 0x77, 0xb3, 0x4d, 0xa6, 0xa3, 0xce, 0x92, 0x9d, 0x0e, 0x0e, 0x47, 0x36,
+		},
+		SpanID: trace.SpanID{0x00, 0xf0, 0x67, 0xaa, 0x0e, 0x0e, 0x0e, 0x0e},
+	})
+
 	tests := []struct {
 		wantContext map[string]any
 		name        string
 		wantMessage string
+		span        trace.SpanContext
 		rec         middleware.RequestRecord
 		wantLevel   slog.Level
 	}{
@@ -218,6 +230,17 @@ func TestLogRequest(t *testing.T) {
 			},
 		},
 		{
+			name:      "traced",
+			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/"},
+			span:      tracedSpan,
+			wantLevel: slog.LevelDebug, wantMessage: "Success",
+			wantContext: map[string]any{
+				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /", "status": int64(200),
+				"size": int64(0), "user_agent": "", "request_id": "", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+				"span_id": "00f067aa0e0e0e0e",
+			},
+		},
+		{
 			name:      "redirection",
 			rec:       middleware.RequestRecord{Status: http.StatusFound, Method: http.MethodGet, URI: "/"},
 			wantLevel: slog.LevelDebug, wantMessage: "Redirection",
@@ -241,7 +264,8 @@ func TestLogRequest(t *testing.T) {
 			t.Parallel()
 
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			middleware.LogRequest(t.Context(), obs, &tt.rec)
+			ctx := trace.ContextWithSpanContext(t.Context(), tt.span)
+			middleware.LogRequest(ctx, obs, &tt.rec)
 
 			got := logs.All()
 			require.Len(t, got, 1)

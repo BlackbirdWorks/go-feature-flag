@@ -1,9 +1,10 @@
 package controller
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
+
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
@@ -15,19 +16,16 @@ import (
 func NewSSEFlagChange(
 	sseService stream.SSEService,
 	flagsetManager service.FlagsetManager,
-	logger *slog.Logger,
 ) RawHandler {
 	return &sseFlagChange{
 		sseService:     sseService,
 		flagsetManager: flagsetManager,
-		logger:         logger,
 	}
 }
 
 type sseFlagChange struct {
 	sseService     stream.SSEService
 	flagsetManager service.FlagsetManager
-	logger         *slog.Logger
 }
 
 // Handler is the entry point for the SSE endpoint to be notified of flag changes.
@@ -38,11 +36,10 @@ func (h *sseFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 		return helper.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	h.logger.LogAttrs(
-		context.Background(),
+	logging.FromContext(r.Context()).LogAttrs(
+		r.Context(),
 		slog.LevelDebug,
 		"SSE client connecting",
-		slog.String("flagset", flagsetName),
 	)
 
 	// r3labs/sse routes by the "stream" query parameter.

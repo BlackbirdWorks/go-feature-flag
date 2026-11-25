@@ -306,8 +306,8 @@ github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xW
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
-github.com/blackbirdworks/huma-middleware v0.1.0 h1:r96C9wSYqjwEP0XkxvuTTXWVCOP/gfPJgk0ZWBFJHtk=
-github.com/blackbirdworks/huma-middleware v0.1.0/go.mod h1:4nqoJrToxXx2EiVdE3tJlCR/AMstsmAuDvf7dDWv7Pc=
+github.com/blackbirdworks/huma-middleware v0.2.0 h1:/yztYT0rmFi5c+oS9gZ2ZKoRuNAm8Su5L5vkxvR8HH4=
+github.com/blackbirdworks/huma-middleware v0.2.0/go.mod h1:4nqoJrToxXx2EiVdE3tJlCR/AMstsmAuDvf7dDWv7Pc=
 github.com/blang/semver/v4 v4.0.0 h1:1PFHFE6yCCTv8C1TeyNNarDzntLi7wMI5i/pzqYIsAM=
 github.com/blang/semver/v4 v4.0.0/go.mod h1:IbckMUScFkM3pff0VJDNKRiT6TG/YpiHIM2yvyW5YoQ=
 github.com/bobg/gcsobj v0.1.2/go.mod h1:vS49EQ1A1Ib8FgrL58C8xXYZyOCR2TgzAdopy6/ipa8=

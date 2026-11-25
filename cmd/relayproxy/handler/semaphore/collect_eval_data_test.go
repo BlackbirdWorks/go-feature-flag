@@ -5,12 +5,14 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -22,7 +24,22 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/retrieverconf"
 	"github.com/blackbirdworks/semaphore/notifier"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
+
+// requestContext returns the context of a request that went through the request logger, as the relay proxy installs
+// it: the logger of the context writes to logger and carries the request ID.
+func requestContext(t *testing.T, logger *slog.Logger, requestID string) context.Context {
+	t.Helper()
+
+	var served *http.Request
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", nil)
+	req.Header.Set("X-Request-ID", requestID)
+	logging.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { served = r }),
+		logging.WithLogger(logger)).ServeHTTP(httptest.NewRecorder(), req)
+
+	return served.Context()
+}
 
 func Test_collect_eval_data_Handler(t *testing.T) {
 	t.Parallel()
@@ -33,6 +50,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		collectedDataFile string
 		httpCode          int
 		errorCode         int
+		warnings          int
 		handlerErr        bool
 	}
 	type args struct {
@@ -208,6 +226,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 				httpCode:          http.StatusOK,
 				bodyFile:          testdataDir + "/collect_eval_data/valid_response.json",
 				collectedDataFile: testdataDir + "/collect_eval_data/valid_collected_data_with_timestamp_ms.json",
+				warnings:          1,
 			},
 		},
 		{
@@ -253,8 +272,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			logger := slog.New(slog.DiscardHandler)
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, logger)
+			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
 
 			// read wantBody request file
 			var bodyReq []byte
@@ -264,11 +282,18 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 				require.NoError(t, readFileErr, "request wantBody file missing %s", tt.args.bodyFile)
 			}
 
-			out, handlerErr := ctrl.Handle(t.Context(), &controller.CollectEvalDataInput{
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
+			out, handlerErr := ctrl.Handle(requestContext(t, logger, "req-1"), &controller.CollectEvalDataInput{
 				Request: controller.NewRequest(tt.apiKey, "application/json"),
 				RawBody: bodyReq,
 			})
 
+			// the lines of the handler go through the logger of the request, with its request ID.
+			require.Len(t, logs.All(), tt.want.warnings)
+			for _, entry := range logs.All() {
+				assert.Equal(t, slog.LevelWarn, entry.Level)
+				assert.Equal(t, "req-1", entry.ContextMap()["request_id"])
+			}
 			if tt.want.handlerErr {
 				assertCollectEvalDataHandlerError(t, handlerErr, tt.want.errorCode, tt.want.errorMsg)
 
@@ -342,7 +367,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	t.Cleanup(func() { flagsetManager.Close() })
 
-	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
+	ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
 
 	// large payload with 20,000 events to ensure processing takes time
 	event := `{"kind":"feature","contextKind":"user","userKey":"u","creationDate":1680246000,"key":"f","variation":"` +
@@ -494,7 +519,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
-			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{}, slog.New(slog.DiscardHandler))
+			ctrl := controller.NewCollectEvalData(flagsetManager, metric.Metrics{})
 			bodyReq, err := os.ReadFile(
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)

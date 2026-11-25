@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"go.opentelemetry.io/otel"
 
 	controller "github.com/blackbirdworks/semaphore/cmd/relayproxy/handler/semaphore"
@@ -24,18 +25,16 @@ const (
 )
 
 func NewManifest(
-	flagsetManager service.FlagsetManager, metrics metric.Metrics, logger *slog.Logger) *Ctrl {
+	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
 	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
-		logger:         logger,
 	}
 }
 
 // Ctrl is the controller of the manifest endpoint.
 type Ctrl struct {
 	flagsetManager service.FlagsetManager
-	logger         *slog.Logger
 	metrics        metric.Metrics
 }
 
@@ -61,10 +60,11 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		return nil, httpErr
 	}
 
+	logger := logging.FromContext(ctx)
 	flags, err := flagset.GetFlagsFromCacheWithContext(ctx)
 	if err != nil {
-		m.logger.LogAttrs(
-			context.Background(),
+		logger.LogAttrs(
+			ctx,
 			slog.LevelError,
 			"error while getting flags from cache",
 			cmdlog.Err(err),
@@ -73,9 +73,9 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while getting flags from cache")
 	}
 
-	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(m.logger))
+	manifest, err := manifestHelper.GenerateDefinitionFromFlags(flags, manifestHelper.WithLogger(logger))
 	if err != nil {
-		m.logger.LogAttrs(context.Background(), slog.LevelError, "error while generating manifest", cmdlog.Err(err))
+		logger.LogAttrs(ctx, slog.LevelError, "error while generating manifest", cmdlog.Err(err))
 
 		return nil, helper.NewHTTPError(http.StatusInternalServerError, "error while generating manifest")
 	}

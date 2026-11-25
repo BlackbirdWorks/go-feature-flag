@@ -2,14 +2,19 @@ package helper_test
 
 import (
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ffclient "github.com/blackbirdworks/semaphore"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
+	"github.com/blackbirdworks/semaphore/testutils/slogutil"
 )
 
 var (
@@ -103,13 +108,15 @@ func TestRequestFlagSetName(t *testing.T) {
 		name         string
 		apiKey       string
 		wantName     string
+		wantLogged   []any
 		authenticate bool
 		wantAuth     bool
 		wantErr      bool
 	}{
 		{name: "the name resolved by the authentication is used", apiKey: "key", authenticate: true,
-			wantName: "tenant", wantAuth: true},
-		{name: "the name of the key is looked up without authentication", apiKey: "key", wantName: "tenant"},
+			wantName: "tenant", wantAuth: true, wantLogged: []any{"tenant"}},
+		{name: "the name of the key is looked up without authentication", apiKey: "key", wantName: "tenant",
+			wantLogged: []any{"tenant"}},
 		{name: "a key without flag set is an error", apiKey: "other", wantErr: true},
 		{name: "a key without flag set is not authenticated", apiKey: "other", authenticate: true, wantErr: true},
 	}
@@ -117,7 +124,12 @@ func TestRequestFlagSetName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
+			logger, logs := slogutil.NewObserver(slog.LevelDebug)
+			var served *http.Request
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+			logging.Handler(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { served = r }),
+				logging.WithLogger(logger)).ServeHTTP(httptest.NewRecorder(), req)
+			ctx := served.Context()
 			if tt.authenticate {
 				authCtx, ok := helper.AuthenticateFlagSetName(ctx, manager, tt.apiKey)
 				assert.Equal(t, tt.wantAuth, ok)
@@ -127,6 +139,17 @@ func TestRequestFlagSetName(t *testing.T) {
 			name, err := helper.RequestFlagSetName(ctx, manager, tt.apiKey)
 			assert.Equal(t, tt.wantName, name)
 			assert.Equal(t, tt.wantErr, err != nil)
+
+			// the name is added to the logs of the request, once, however it was resolved.
+			logging.FromContext(ctx).InfoContext(ctx, "probe")
+			require.Equal(t, 1, logs.Len())
+			var logged []any
+			for _, attr := range logs.All()[0].Attrs {
+				if attr.Key == "flagset" {
+					logged = append(logged, attr.Value.Any())
+				}
+			}
+			assert.Equal(t, tt.wantLogged, logged)
 		})
 	}
 }
