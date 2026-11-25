@@ -126,7 +126,7 @@ func newTarget(ctx context.Context, opts options) (loadtest.Target, error) {
 			return nil, fmt.Errorf("%w %q (want http1 or h2c)", errUnknownProtocol, opts.protocol)
 		}
 
-		//nolint:contextcheck // relay.Target owns its own loopback server lifecycle stopped by Target.Close
+		//nolint:contextcheck // the relay of the target owns its loopback server, Target.Close stops it (ctx does not)
 		t, relayErr := relay.NewTarget(relay.Options{
 			FlagsYAML: loadtest.FlagsYAML(), ExporterMode: mode, H2C: opts.protocol == "h2c",
 			FlushIntervalMs: opts.flushMs, MaxEventInMemory: opts.maxEvents,

@@ -173,7 +173,7 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 // the global OpenTelemetry provider, with the error handler and the propagator of the relay proxy.
 // The OpenTelemetry API only offers process-wide registration, so it is the startup wiring (main) that
 // asks for it.
-func (s *OtelService) Install(logger *slog.Logger) {
+func (s *OtelService) Install(ctx context.Context, logger *slog.Logger) {
 	if s.otelTraceProvider == nil {
 		otel.SetTracerProvider(noop.NewTracerProvider())
 
@@ -181,14 +181,17 @@ func (s *OtelService) Install(logger *slog.Logger) {
 	}
 
 	otel.SetTracerProvider(s.otelTraceProvider)
-	otel.SetErrorHandler(newErrorHandler(logger))
+	otel.SetErrorHandler(newErrorHandler(ctx, logger))
 	otel.SetTextMapPropagator(newPropagator())
 }
 
-// newErrorHandler logs the OTel errors rather than the default log package.
-func newErrorHandler(logger *slog.Logger) otel.ErrorHandlerFunc {
+// newErrorHandler logs the OTel errors rather than the default log package. The handler has no context of its
+// own: it logs with the values of ctx, and keeps logging once ctx is cancelled (the errors of the shutdown).
+func newErrorHandler(ctx context.Context, logger *slog.Logger) otel.ErrorHandlerFunc {
+	logCtx := context.WithoutCancel(ctx)
+
 	return otel.ErrorHandlerFunc(func(err error) {
-		logger.LogAttrs(context.Background(), slog.LevelError, "OTel error", cmdlog.Err(err))
+		logger.LogAttrs(logCtx, slog.LevelError, "OTel error", cmdlog.Err(err))
 	})
 }
 

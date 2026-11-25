@@ -252,7 +252,7 @@ func TestNewErrorHandler(t *testing.T) {
 			t.Parallel()
 
 			obs, logs := slogutil.NewObserver(slog.LevelInfo)
-			newErrorHandler(obs).Handle(tt.err)
+			newErrorHandler(t.Context(), obs).Handle(tt.err)
 
 			got := logs.All()
 			require.Len(t, got, 1)
@@ -286,13 +286,13 @@ func TestInstall(t *testing.T) {
 	)
 	defer func() { _ = svc.Stop(context.Background()) }()
 
-	svc.Install(slog.New(slog.DiscardHandler))
+	svc.Install(t.Context(), slog.New(slog.DiscardHandler))
 
 	assert.Same(t, svc.otelTraceProvider, otel.GetTracerProvider())
 
 	// a service that found OpenTelemetry disabled installs a no-op provider
 	disabled := NewOtelService()
-	disabled.Install(slog.New(slog.DiscardHandler))
+	disabled.Install(t.Context(), slog.New(slog.DiscardHandler))
 	assert.Equal(t, noop.NewTracerProvider(), otel.GetTracerProvider())
 }
 

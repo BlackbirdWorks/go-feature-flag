@@ -53,8 +53,7 @@ func (s *Server) StartWithContext(ctx context.Context) {
 	}
 
 	if err == nil && s.installGlobalTelemetry {
-		//nolint:contextcheck // otel.ErrorHandler.Handle has no context parameter
-		s.otelService.Install(s.logger)
+		s.otelService.Install(ctx, s.logger)
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)

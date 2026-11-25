@@ -1,6 +1,7 @@
 package ffclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -356,7 +357,7 @@ func getVariation[T model.JSONType](
 
 // startEventWorker starts the goroutines that move the evaluation events from the queue to the
 // exporters. It does nothing when there is no exporter for the evaluation events.
-func (g *GoFeatureFlag) startEventWorker() {
+func (g *GoFeatureFlag) startEventWorker(ctx context.Context) {
 	if g.featureEventDataExporter == nil {
 		return
 	}
@@ -370,7 +371,7 @@ func (g *GoFeatureFlag) startEventWorker() {
 	g.eventWorkerStop = make(chan struct{})
 
 	g.dropSignal = make(chan struct{}, 1)
-	go g.reportDrops()
+	go g.reportDrops(ctx)
 	// A single worker adds about 600k events/s to the exporters (one mutex and a copy of the event
 	// per event): a few workers keep up with an evaluation rate of millions per second.
 	workers := max(1, min(maxWorkers, runtime.GOMAXPROCS(0)/workersDivisor))
@@ -466,7 +467,10 @@ const dropLogInterval = 10 * time.Second
 // reportDrops writes (at most once every dropLogInterval) the warning about the events dropped
 // because the queue was full. It runs in its own goroutine, which is not waited by Close, so that
 // a slow or blocked log sink never delays an evaluation, a worker or the shutdown.
-func (g *GoFeatureFlag) reportDrops() {
+func (g *GoFeatureFlag) reportDrops(ctx context.Context) {
+	// the warnings outlive the initialization, so they keep the values of ctx but not its cancellation.
+	logCtx := context.WithoutCancel(ctx)
+
 	for {
 		select {
 		case <-g.dropSignal:
@@ -474,8 +478,8 @@ func (g *GoFeatureFlag) reportDrops() {
 			return
 		}
 
-		g.config.internalLogger.Error(
-			"the exporters are not keeping up, evaluation events are dropped (drop-newest)",
+		g.config.internalLogger.ErrorContext(
+			logCtx, "the exporters are not keeping up, evaluation events are dropped (drop-newest)",
 			slog.Int64("totalDroppedEvents", g.droppedEvents.Load()))
 
 		timer := time.NewTimer(dropLogInterval)

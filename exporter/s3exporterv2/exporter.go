@@ -14,6 +14,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
@@ -59,13 +60,11 @@ type Exporter struct {
 
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
-	ctx context.Context, //nolint:contextcheck // defensive fallback when a caller passes a nil context
+	ctx context.Context,
 	logger *fflog.FFLogger,
 	events []exporter.ExportableEvent,
 ) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	if f.s3Uploader == nil {
 		initErr := f.initializeUploader(ctx)

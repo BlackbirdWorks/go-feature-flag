@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/exporter"
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/internal/cache"
 	"github.com/blackbirdworks/semaphore/internal/notification"
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
@@ -59,12 +60,8 @@ func New(config Config) (*GoFeatureFlag, error) {
 }
 
 // NewWithContext creates a new semaphore instance using ctx to initialize the configured retrievers.
-//
-//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	config.Initialize()
 
@@ -76,7 +73,7 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 
 	if config.Offline {
 		// in case we are in offline mode, we don't need to initialize the cache since we will not use it.
-		goFF.config.internalLogger.Info("Semaphore is in offline mode")
+		goFF.config.internalLogger.InfoContext(ctx, "Semaphore is in offline mode")
 
 		return goFF, nil
 	}
@@ -92,8 +89,8 @@ func NewWithContext(ctx context.Context, config Config) (*GoFeatureFlag, error) 
 	goFF.retrieverManager = retrieverManager
 	goFF.featureEventDataExporter, goFF.trackingEventDataExporter = initializeDataExporters(
 		config, goFF.config.internalLogger)
-	goFF.startEventWorker()
-	config.internalLogger.Debug("Semaphore is initialized")
+	goFF.startEventWorker(ctx)
+	config.internalLogger.DebugContext(ctx, "Semaphore is initialized")
 
 	return goFF, nil
 }
@@ -192,16 +189,12 @@ func (g *GoFeatureFlag) Close() {
 // CloseWithContext waits until background workers are done, passing ctx to retriever shutdown.
 // The events of the evaluations that finish while CloseWithContext runs are exported by its final flush;
 // an evaluation that finishes after CloseWithContext has returned has nowhere to send its event.
-//
-//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (g *GoFeatureFlag) CloseWithContext(ctx context.Context) {
 	if g == nil {
 		return
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	if g.retrieverManager != nil {
 		_ = g.retrieverManager.Shutdown(ctx)

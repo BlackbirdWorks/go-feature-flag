@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
+	"github.com/blackbirdworks/semaphore/internal"
 	"github.com/blackbirdworks/semaphore/retriever"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
@@ -160,16 +161,12 @@ func newS3Client(ctx context.Context, opts SharedItemsOptions) (*s3.Client, erro
 }
 
 // NewSharedItems builds the group of a bucket. The S3 clients are built like Retriever.Init does.
-//
-//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems, error) {
 	if opts.Bucket == "" {
 		return nil, errImpossibleToInitShared
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	lister, downloader := opts.Lister, opts.Downloader
 	if lister == nil || downloader == nil {
@@ -287,12 +284,8 @@ func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 
 // Shutdown removes the item from the group. It waits for the refresh of the item in flight (until
 // ctx is done), so the consumer can be closed safely afterwards.
-//
-//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	r.group.deregister(ctx, r)
 	r.status.Store(retriever.RetrieverNotReady)
@@ -310,12 +303,8 @@ func (r *SharedItemRetriever) Status() retriever.Status {
 }
 
 // Retrieve returns the content of the item.
-//
-//nolint:contextcheck // defensive fallback when a caller passes a nil context
 func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	if r.Status() != retriever.RetrieverReady {
 		return nil, errSharedS3RetrieverIs
@@ -414,9 +403,10 @@ func (g *SharedItems) activeLocked() <-chan struct{} {
 	return g.active
 }
 
-// activeContext returns a context cancelled when active is closed or when the returned cancel func is called.
-func activeContext(active <-chan struct{}) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+// activeContext returns a context that has the values of parent, but not its cancellation: it is cancelled when
+// active is closed or when the returned cancel func is called.
+func activeContext(parent context.Context, active <-chan struct{}) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 
 	go func() {
 		select {
@@ -550,8 +540,8 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 
 			return item, err
 		}
-		//nolint:contextcheck // shared listing uses group lifecycle context so one cancelled caller does not abort others
-		flight := g.listingLocked()
+
+		flight := g.listingLocked(ctx)
 		g.mu.Unlock()
 
 		select {
@@ -577,7 +567,7 @@ func (g *SharedItems) etagOf(ctx context.Context, key string) (listedItem, error
 
 // listingLocked returns the listing in progress, and starts one if there is none. The caller must
 // hold g.mu.
-func (g *SharedItems) listingLocked() *sharedListing {
+func (g *SharedItems) listingLocked(ctx context.Context) *sharedListing {
 	if g.inflight != nil {
 		return g.inflight
 	}
@@ -590,7 +580,7 @@ func (g *SharedItems) listingLocked() *sharedListing {
 	for k := range g.keyRefs {
 		wanted[k] = struct{}{}
 	}
-	go g.runListing(g.activeLocked(), flight, g.prefix, wanted, g.seq)
+	go g.runListing(ctx, g.activeLocked(), flight, g.prefix, wanted, g.seq)
 
 	return flight
 }
@@ -598,9 +588,10 @@ func (g *SharedItems) listingLocked() *sharedListing {
 // runListing lists the objects under prefix and publishes the result. It does not depend on the
 // context of a caller so that a cancelled caller does not fail the others.
 func (g *SharedItems) runListing(
-	active <-chan struct{}, flight *sharedListing, prefix string, wanted map[string]struct{}, seq uint64,
+	parent context.Context, active <-chan struct{}, flight *sharedListing, prefix string, wanted map[string]struct{},
+	seq uint64,
 ) {
-	ctx, cancel := activeContext(active)
+	ctx, cancel := activeContext(parent, active)
 	defer cancel()
 
 	start := time.Now()
@@ -730,8 +721,8 @@ func (g *SharedItems) content(
 	if dlOp == nil {
 		dlOp = &sharedDownload{done: make(chan struct{})}
 		entry.dl = dlOp
-		//nolint:contextcheck // shared download uses group lifecycle context so one cancelled caller does not abort others
-		go g.runDownload(g.activeChan(), entry, dlOp, key)
+
+		go g.runDownload(ctx, g.activeChan(), entry, dlOp, key)
 	}
 	entry.mu.Unlock()
 
@@ -745,8 +736,10 @@ func (g *SharedItems) content(
 
 // runDownload downloads the object and publishes the result, it does not depend on the context
 // of a caller so that a cancelled caller does not fail the others.
-func (g *SharedItems) runDownload(active <-chan struct{}, entry *sharedContent, dlOp *sharedDownload, key string) {
-	ctx, cancel := activeContext(active)
+func (g *SharedItems) runDownload(
+	parent context.Context, active <-chan struct{}, entry *sharedContent, dlOp *sharedDownload, key string,
+) {
+	ctx, cancel := activeContext(parent, active)
 	defer cancel()
 
 	data, dlETag, startedAt, err := g.download(ctx, active, key)
@@ -832,8 +825,7 @@ func (g *SharedItems) nextDelay() time.Duration {
 // logged, the next poll tries again.
 func (g *SharedItems) pollOnce(ctx context.Context) {
 	g.mu.Lock()
-	//nolint:contextcheck // shared listing uses group lifecycle context independent of caller cancellation
-	flight := g.listingLocked()
+	flight := g.listingLocked(ctx)
 	logger := g.logger
 	g.mu.Unlock()
 

@@ -21,7 +21,7 @@ var (
 
 // CallHTTPAPI is the default function to make an HTTP call in the retrievers.
 func CallHTTPAPI(
-	ctx context.Context, //nolint:contextcheck // defensive fallback when a caller passes a nil context
+	ctx context.Context,
 	url, method, body string,
 	timeout time.Duration,
 	header http.Header,
@@ -38,9 +38,7 @@ func CallHTTPAPI(
 		method = http.MethodGet
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = internal.ContextOrBackground(ctx)
 
 	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
 	if err != nil {
