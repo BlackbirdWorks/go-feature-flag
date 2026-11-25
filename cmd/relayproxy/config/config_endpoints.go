@@ -66,7 +66,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 // Endpoints is the configuration of the endpoints of the relay proxy.
 type Endpoints struct {
 	// ValidateFlags configures the POST /admin/v1/flags/validate endpoint.
-	ValidateFlags ValidateFlagsEndpoint `mapstructure:"validateFlags" koanf:"validateflags"`
+	ValidateFlags ValidateFlagsEndpoint `koanf:"validateflags" mapstructure:"validateFlags"`
 }
 
 // ValidateFlagsEndpoint configures the body size limits of the validate flags endpoint.
@@ -74,13 +74,13 @@ type Endpoints struct {
 type ValidateFlagsEndpoint struct {
 	// MaxJSONBodySize is the maximum size of a JSON body.
 	// Default: 1 MiB
-	MaxJSONBodySize ByteSize `mapstructure:"maxJSONBodySize" koanf:"maxjsonbodysize"`
+	MaxJSONBodySize ByteSize `koanf:"maxjsonbodysize" mapstructure:"maxJSONBodySize"`
 	// MaxYAMLBodySize is the maximum size of a YAML body.
 	// Default: 64 KiB
-	MaxYAMLBodySize ByteSize `mapstructure:"maxYAMLBodySize" koanf:"maxyamlbodysize"`
+	MaxYAMLBodySize ByteSize `koanf:"maxyamlbodysize" mapstructure:"maxYAMLBodySize"`
 	// MaxTOMLBodySize is the maximum size of a TOML body.
 	// Default: 64 KiB
-	MaxTOMLBodySize ByteSize `mapstructure:"maxTOMLBodySize" koanf:"maxtomlbodysize"`
+	MaxTOMLBodySize ByteSize `koanf:"maxtomlbodysize" mapstructure:"maxTOMLBodySize"`
 }
 
 // WithDefaults returns a copy where the unset (zero) limits are replaced by their default.

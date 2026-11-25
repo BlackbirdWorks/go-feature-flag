@@ -63,8 +63,8 @@ func (e *HTTPError) Error() string {
 
 // ErrorBody is the JSON body sent for an error.
 type ErrorBody struct {
-	Message string `json:"message"         example:"Not Found"`
-	Error   string `json:"error,omitempty" example:"the wrapped error, only at the debug level"`
+	Message string `example:"Not Found"                                  json:"message"`
+	Error   string `example:"the wrapped error, only at the debug level" json:"error,omitempty"`
 }
 
 // StatusError is the error of a status that has no HTTPError: the body is the text of the status.

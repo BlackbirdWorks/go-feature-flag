@@ -2,9 +2,9 @@ package config
 
 type Swagger struct {
 	// Host is the host to use for the swagger.
-	Host string `mapstructure:"host" koanf:"host"`
+	Host string `koanf:"host" mapstructure:"host"`
 	// Enabled is the flag to enable the swagger.
-	Enabled bool `mapstructure:"enabled" koanf:"enabled"`
+	Enabled bool `koanf:"enabled" mapstructure:"enabled"`
 }
 
 // IsSwaggerEnabled is the function to check if the swagger is enabled.

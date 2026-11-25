@@ -2,8 +2,8 @@ package config
 
 // APIKeys is a struct to store the API keys for the different endpoints.
 type APIKeys struct {
-	Admin      []string `mapstructure:"admin"      koanf:"admin"`
-	Evaluation []string `mapstructure:"evaluation" koanf:"evaluation"`
+	Admin      []string `koanf:"admin"      mapstructure:"admin"`
+	Evaluation []string `koanf:"evaluation" mapstructure:"evaluation"`
 }
 
 type APIKeyType = string

@@ -50,7 +50,7 @@ type FlagConfigurationResponse struct {
 type FlagConfigurationInput struct {
 	Request
 
-	IfNoneMatch string `header:"If-None-Match" doc:"The request will be processed only if ETag doesn't match."`
+	IfNoneMatch string `doc:"The request will be processed only if ETag doesn't match." header:"If-None-Match"`
 	// RawBody is the JSON document of a FlagConfigurationRequest, the handler decodes it.
 	RawBody []byte `contentType:"application/json"`
 }

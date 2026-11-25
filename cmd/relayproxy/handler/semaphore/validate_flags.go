@@ -26,13 +26,13 @@ type ValidateFlags struct {
 
 // FlagValidationError is the validation error of a single flag.
 type FlagValidationError struct {
-	Flag    string `json:"flag"    example:"my-flag"`
-	Message string `json:"message" example:"missing default rule"`
+	Flag    string `example:"my-flag"              json:"flag"`
+	Message string `example:"missing default rule" json:"message"`
 }
 
 // FlagValidationResponse is the response of the validate flags endpoint.
 type FlagValidationResponse struct {
-	Version string                `json:"version" example:"v1.0.0"`
+	Version string                `example:"v1.0.0" json:"version"`
 	Errors  []FlagValidationError `json:"errors"`
 	Valid   bool                  `json:"valid"`
 }

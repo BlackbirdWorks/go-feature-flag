@@ -14,14 +14,14 @@ var (
 )
 
 type NotifierConf struct {
-	Kind NotifierKind `mapstructure:"kind" koanf:"kind"`
+	Kind NotifierKind `koanf:"kind" mapstructure:"kind"`
 	// Deprecated: Use WebhookURL instead
-	SlackWebhookURL string              `mapstructure:"slackWebhookUrl" koanf:"slackwebhookurl"`
-	EndpointURL     string              `mapstructure:"endpointUrl"     koanf:"endpointurl"`
-	Secret          string              `mapstructure:"secret"          koanf:"secret"`
-	Meta            map[string]string   `mapstructure:"meta"            koanf:"meta"`
-	Headers         map[string][]string `mapstructure:"headers"         koanf:"headers"`
-	WebhookURL      string              `mapstructure:"webhookUrl"      koanf:"webhookurl"`
+	SlackWebhookURL string              `koanf:"slackwebhookurl" mapstructure:"slackWebhookUrl"`
+	EndpointURL     string              `koanf:"endpointurl"     mapstructure:"endpointUrl"`
+	Secret          string              `koanf:"secret"          mapstructure:"secret"`
+	Meta            map[string]string   `koanf:"meta"            mapstructure:"meta"`
+	Headers         map[string][]string `koanf:"headers"         mapstructure:"headers"`
+	WebhookURL      string              `koanf:"webhookurl"      mapstructure:"webhookUrl"`
 }
 
 func (c *NotifierConf) IsValid() error {

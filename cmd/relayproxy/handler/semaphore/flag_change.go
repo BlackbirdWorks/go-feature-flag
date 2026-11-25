@@ -32,7 +32,7 @@ type FlagChangeResponse struct {
 type FlagChangeInput struct {
 	Request
 
-	IfNoneMatch string `header:"If-None-Match" doc:"The request will be processed only if ETag doesn't match."`
+	IfNoneMatch string `doc:"The request will be processed only if ETag doesn't match." header:"If-None-Match"`
 }
 
 // FlagChangeOutput is the response of the flag change endpoint.

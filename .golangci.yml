@@ -84,6 +84,9 @@ formatters:
       # Target maximum line length.
       # Default: 100
       max-len: 120
+      # Disable tag reformatting in golines so tagalign is the single owner of struct tag alignment/sorting.
+      # Default: true
+      reformat-tags: false
 
 linters:
   enable:
@@ -156,6 +159,7 @@ linters:
     - spancheck # checks for mistakes with OpenTelemetry/Census spans
     - sqlclosecheck # checks that sql.Rows and sql.Stmt are closed
     - staticcheck # is a go vet on steroids, applying a ton of static analysis checks
+    - tagalign # aligns and sorts struct field tags consistently
     - testableexamples # checks if examples are testable (have an expected output)
     - testifylint # checks usage of github.com/stretchr/testify
     - testpackage # makes you use a separate _test package
@@ -201,7 +205,6 @@ linters:
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
     - noinlineerr # inline error handling is the project style
-    - tagalign # struct tags are aligned by hand for the schema and config readability
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
     - varnamelen # too many false positives (short loop and receiver names)
     - wrapcheck # errors are wrapped where the context adds something

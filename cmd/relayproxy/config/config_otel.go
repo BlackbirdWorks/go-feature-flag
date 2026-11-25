@@ -4,61 +4,61 @@ package config
 // It is used to configure the OpenTelemetry SDK and the OpenTelemetry Exporter
 // Most of the time this configuration is set using environment variables.
 type OpenTelemetryConfiguration struct {
-	Resource OtelResource `mapstructure:"resource" koanf:"resource"`
-	Exporter OtelExporter `mapstructure:"exporter" koanf:"exporter"`
+	Resource OtelResource `koanf:"resource" mapstructure:"resource"`
+	Exporter OtelExporter `koanf:"exporter" mapstructure:"exporter"`
 	Service  struct {
-		Name string `mapstructure:"name" koanf:"name"`
-	} `mapstructure:"service"  koanf:"service"`
+		Name string `koanf:"name" mapstructure:"name"`
+	} `koanf:"service" mapstructure:"service"`
 	Traces struct {
-		Sampler string `mapstructure:"sampler" koanf:"sampler"`
-	} `mapstructure:"traces"   koanf:"traces"`
+		Sampler string `koanf:"sampler" mapstructure:"sampler"`
+	} `koanf:"traces" mapstructure:"traces"`
 	SDK struct {
-		Disabled bool `mapstructure:"disabled" koanf:"disabled"`
-	} `mapstructure:"sdk"      koanf:"sdk"`
+		Disabled bool `koanf:"disabled" mapstructure:"disabled"`
+	} `koanf:"sdk" mapstructure:"sdk"`
 }
 
 type OtelExporter struct {
-	Otlp OtelExporterOtlp `mapstructure:"otlp" koanf:"otlp"`
+	Otlp OtelExporterOtlp `koanf:"otlp" mapstructure:"otlp"`
 }
 
 type OtelExporterOtlp struct {
-	Endpoint string `mapstructure:"endpoint" koanf:"endpoint"`
-	Protocol string `mapstructure:"protocol" koanf:"protocol"`
+	Endpoint string `koanf:"endpoint" mapstructure:"endpoint"`
+	Protocol string `koanf:"protocol" mapstructure:"protocol"`
 }
 
 type OtelResource struct {
-	Attributes map[string]string `mapstructure:"attributes" koanf:"attributes"`
+	Attributes map[string]string `koanf:"attributes" mapstructure:"attributes"`
 }
 
 // JaegerSamplerConfiguration is the configuration object to configure the sampling.
 // Most of the time this configuration is set using environment variables.
 type JaegerSamplerConfiguration struct {
-	Sampler JaegerSampler `mapstructure:"sampler" koanf:"sampler"`
+	Sampler JaegerSampler `koanf:"sampler" mapstructure:"sampler"`
 }
 
 // JaegerSampler is the configuration object to configure the sampling.
 type JaegerSampler struct {
-	Manager JaegerSamplerManager `mapstructure:"manager" koanf:"manager"`
-	Refresh JaegerSamplerRefresh `mapstructure:"refresh" koanf:"refresh"`
-	Max     JaegerSamplerMax     `mapstructure:"max"     koanf:"max"`
+	Manager JaegerSamplerManager `koanf:"manager" mapstructure:"manager"`
+	Refresh JaegerSamplerRefresh `koanf:"refresh" mapstructure:"refresh"`
+	Max     JaegerSamplerMax     `koanf:"max"     mapstructure:"max"`
 }
 
 // JaegerSamplerManager is the configuration object to configure the manager of the sampling.
 type JaegerSamplerManager struct {
-	Host JaegerSamplerManagerHost `mapstructure:"host" koanf:"host"`
+	Host JaegerSamplerManagerHost `koanf:"host" mapstructure:"host"`
 }
 
 // JaegerSamplerManagerHost is the configuration object to configure the host of the manager of the sampling.
 type JaegerSamplerManagerHost struct {
-	Port string `mapstructure:"port" koanf:"port"`
+	Port string `koanf:"port" mapstructure:"port"`
 }
 
 // JaegerSamplerRefresh is the configuration object to configure the refresh of the sampling.
 type JaegerSamplerRefresh struct {
-	Interval string `mapstructure:"interval" koanf:"interval"`
+	Interval string `koanf:"interval" mapstructure:"interval"`
 }
 
 // JaegerSamplerMax is the configuration object to configure the max of the sampling.
 type JaegerSamplerMax struct {
-	Operations int `mapstructure:"operations" koanf:"operations"`
+	Operations int `koanf:"operations" mapstructure:"operations"`
 }

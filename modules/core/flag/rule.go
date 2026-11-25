@@ -43,34 +43,34 @@ const (
 type Rule struct {
 	// Name is the name of the rule, this field is mandatory if you want
 	// to update the rule during scheduled rollout
-	Name *string `json:"name,omitempty" yaml:"name,omitempty" toml:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Name *string `json:"name,omitempty" jsonschema:"title=name,description=Name is the name of the rule. This field is mandatory if you want to update the rule during scheduled rollout." toml:"name,omitempty" yaml:"name,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Query represents the query used to target the audience of the flag.
-	Query *string `json:"query,omitempty" yaml:"query,omitempty" toml:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Query *string `json:"query,omitempty" jsonschema:"title=query,description=The query that allow to check in the evaluation context match. Note: in the defaultRule field query is ignored." toml:"query,omitempty" yaml:"query,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// VariationResult represents the variation name to use if the rule apply for the user.
 	// In case we have a percentage field in the config VariationResult is ignored
-	VariationResult *string `json:"variation,omitempty" yaml:"variation,omitempty" toml:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	VariationResult *string `json:"variation,omitempty" jsonschema:"title=variation,description=The variation name to use if the rule apply for the user. In case we have a percentage field in the config this field is ignored" toml:"variation,omitempty" yaml:"variation,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Percentages represents the percentage we should give to each variation.
 	// example: variationA = 10%, variationB = 80%, variationC = 10%
-	Percentages *map[string]float64 `json:"percentage,omitempty" yaml:"percentage,omitempty" toml:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Percentages *map[string]float64 `json:"percentage,omitempty" jsonschema:"title=percentage,description=Represents the percentage we should give to each variation." toml:"percentage,omitempty" yaml:"percentage,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// ProgressiveRollout is your struct to configure a progressive rollout deployment of your flag.
 	// It will allow you to ramp up the percentage of your flag over time.
 	// You can decide at which percentage you starts with and at what percentage you ends with in your release ramp.
 	// Before the start date we will serve the initial percentage and, after we will serve the end percentage.
-	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty" toml:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	ProgressiveRollout *ProgressiveRollout `json:"progressiveRollout,omitempty" jsonschema:"title=progressiveRollout,description=Configure a progressive rollout deployment of your flag." toml:"progressiveRollout,omitempty" yaml:"progressiveRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Disable indicates that this rule is disabled.
-	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled."` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Disable *bool `json:"disable,omitempty" jsonschema:"title=disable,description=Indicates that this rule is disabled." toml:"disable,omitempty" yaml:"disable,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// QueryHash is the hash of Query that InternalFlag.IsValid computes once, when the flag is
 	// loaded, to find the evaluator of the query without hashing it for every evaluation.
 	// It is derived data: it is never read from or written to a configuration. It is exported
 	// only because the notifier compares flags with cmp.Equal, which rejects unexported
 	// fields; flags with the same queries have the same hash, so it does not make flags differ.
-	QueryHash uint64 `json:"-" yaml:"-" toml:"-" jsonschema:"-"`
+	QueryHash uint64 `json:"-" jsonschema:"-" toml:"-" yaml:"-"`
 }
 
 // RequiresBucketing checks if this rule requires a bucketing key for evaluation.

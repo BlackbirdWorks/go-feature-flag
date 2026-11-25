@@ -45,15 +45,15 @@ func newDocsServer(t *testing.T, monitoringPort int) http.Handler {
 
 // swaggerDocument is what the tests read of the OpenAPI document.
 type swaggerDocument struct {
-	OpenAPI    string                    `json:"openapi"    yaml:"openapi"`
-	Paths      map[string]map[string]any `json:"paths"      yaml:"paths"`
+	OpenAPI    string                    `json:"openapi" yaml:"openapi"`
+	Paths      map[string]map[string]any `json:"paths"   yaml:"paths"`
 	Components struct {
 		Schemas map[string]any `json:"schemas" yaml:"schemas"`
 	} `json:"components" yaml:"components"`
 	Info struct {
 		Version string `json:"version" yaml:"version"`
-	} `json:"info"       yaml:"info"`
-	Servers []any `json:"servers"    yaml:"servers"`
+	} `json:"info"    yaml:"info"`
+	Servers []any `json:"servers" yaml:"servers"`
 }
 
 // Test_Swagger checks the documents that the Swagger UI displays. The document describes the whole API (the

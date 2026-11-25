@@ -18,8 +18,8 @@ const secretValue = "SECRETMARKER-hunter2"
 
 // settings is a configuration-like struct holding secrets, as the relay proxy configuration does.
 type settings struct {
-	Name    string     `json:"name"    yaml:"name"`
-	APIKey  log.Secret `json:"apiKey"  yaml:"apiKey"`
+	Name    string     `json:"name"   yaml:"name"`
+	APIKey  log.Secret `json:"apiKey" yaml:"apiKey"`
 	Backend struct {
 		URI log.Secret `json:"uri" yaml:"uri"`
 	} `json:"backend" yaml:"backend"`

@@ -34,43 +34,43 @@ const (
 // converted into an InternalFlag to be used in the library.
 type InternalFlag struct {
 	// Variations are all the variations available for this flag. You can have as many variation as needed.
-	Variations *map[string]*any `json:"variations,omitempty" yaml:"variations,omitempty" toml:"variations,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Variations *map[string]*any `json:"variations,omitempty" toml:"variations,omitempty" yaml:"variations,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Rules is the list of Rule for this flag.
 	// This an optional field.
-	Rules *[]Rule `json:"targeting,omitempty" yaml:"targeting,omitempty" toml:"targeting,omitempty"`
+	Rules *[]Rule `json:"targeting,omitempty" toml:"targeting,omitempty" yaml:"targeting,omitempty"`
 
 	// BucketingKey defines a source for a dynamic targeting key
-	BucketingKey *string `json:"bucketingKey,omitempty" yaml:"bucketingKey,omitempty" toml:"bucketingKey,omitempty"`
+	BucketingKey *string `json:"bucketingKey,omitempty" toml:"bucketingKey,omitempty" yaml:"bucketingKey,omitempty"`
 
 	// DefaultRule is the originalRule applied after checking that any other rules
 	// matched the user.
-	DefaultRule *Rule `json:"defaultRule,omitempty" yaml:"defaultRule,omitempty" toml:"defaultRule,omitempty"`
+	DefaultRule *Rule `json:"defaultRule,omitempty" toml:"defaultRule,omitempty" yaml:"defaultRule,omitempty"`
 
 	// Experimentation is your struct to configure an experimentation, it will allow you to configure a start date and
 	// an end date for your flag.
 	// When the experimentation is not running, the flag will serve the default value.
-	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" yaml:"experimentation,omitempty" toml:"experimentation,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Experimentation *ExperimentationRollout `json:"experimentation,omitempty" toml:"experimentation,omitempty" yaml:"experimentation,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// Scheduled is your struct to configure an update on some fields of your flag over time.
 	// You can add several steps that updates the flag, this is typically used if you want to gradually add more user
 	// in your flag.
-	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+	Scheduled *[]ScheduledStep `json:"scheduledRollout,omitempty" toml:"scheduledRollout,omitempty" yaml:"scheduledRollout,omitempty"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 
 	// TrackEvents is false if you don't want to export the data in your data exporter.
 	// Default value is true
-	TrackEvents *bool `json:"trackEvents,omitempty" yaml:"trackEvents,omitempty" toml:"trackEvents,omitempty"`
+	TrackEvents *bool `json:"trackEvents,omitempty" toml:"trackEvents,omitempty" yaml:"trackEvents,omitempty"`
 
 	// Disable is true if the flag is disabled.
-	Disable *bool `json:"disable,omitempty" yaml:"disable,omitempty" toml:"disable,omitempty"`
+	Disable *bool `json:"disable,omitempty" toml:"disable,omitempty" yaml:"disable,omitempty"`
 
 	// Version (optional) This field contains the version of the flag.
 	// The version is manually managed when you configure your flags, and it is used to display the information
 	// in the notifications and data collection.
-	Version *string `json:"version,omitempty" yaml:"version,omitempty" toml:"version,omitempty"`
+	Version *string `json:"version,omitempty" toml:"version,omitempty" yaml:"version,omitempty"`
 
 	// Metadata is a field containing information about your flag such as an issue tracker link, a description, etc ...
-	Metadata *map[string]any `json:"metadata,omitempty" yaml:"metadata,omitempty" toml:"metadata,omitempty"`
+	Metadata *map[string]any `json:"metadata,omitempty" toml:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // Value is returning the Value associate to the flag.
