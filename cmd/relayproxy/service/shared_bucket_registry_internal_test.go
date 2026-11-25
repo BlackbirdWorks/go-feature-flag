@@ -176,8 +176,10 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			got = append(got, int(created.Load()), reg.groupCount())
 
 			// Shutdown twice is harmless
-			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
-			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
+			rel1, ok := r1.(*releasingRetriever)
+			require.True(t, ok)
+			require.NoError(t, rel1.Shutdown(t.Context()))
+			require.NoError(t, rel1.Shutdown(t.Context()))
 
 			return append(got, reg.groupCount())
 		}, want: []int{2, 2, 2}},
@@ -189,10 +191,14 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			require.NoError(t, err)
 			r2, err := reg.retrieverFor(&fs2)
 			require.NoError(t, err)
-			require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
+			rel1, ok := r1.(*releasingRetriever)
+			require.True(t, ok)
+			require.NoError(t, rel1.Shutdown(t.Context()))
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
-			require.NoError(t, r2.(*releasingRetriever).Shutdown(t.Context()))
+			rel2, ok := r2.(*releasingRetriever)
+			require.True(t, ok)
+			require.NoError(t, rel2.Shutdown(t.Context()))
 
 			return append(got, reg.groupCount())
 		}, want: []int{1, 0}},
@@ -239,22 +245,29 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 				false,
 				nil,
 			)
+			type retrieverResult struct {
+				err error
+				rel *releasingRetriever
+				ok  bool
+			}
 			var wg sync.WaitGroup
-			retrievers := make(chan *releasingRetriever, callers)
+			results := make(chan retrieverResult, callers)
 			for i := range callers {
 				wg.Go(func() {
 					fs := s3FlagSet(fmt.Sprintf("f%d", i), "b1", fmt.Sprintf("p/%d.yaml", i))
 					r, err := reg.retrieverFor(&fs)
-					assert.NoError(t, err)
-					retrievers <- r.(*releasingRetriever)
+					rel, ok := r.(*releasingRetriever)
+					results <- retrieverResult{err: err, rel: rel, ok: ok}
 				})
 			}
 			wg.Wait()
-			close(retrievers)
+			close(results)
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
-			for r := range retrievers {
-				require.NoError(t, r.Shutdown(t.Context()))
+			for res := range results {
+				require.NoError(t, res.err)
+				require.True(t, res.ok)
+				require.NoError(t, res.rel.Shutdown(t.Context()))
 			}
 
 			// all the references were taken on the same group: it is dropped by the last shutdown
@@ -291,7 +304,9 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 				// no additional reference is taken when a pre-registered retriever is claimed
 				r1, err := reg.retrieverFor(&fs1)
 				require.NoError(t, err)
-				require.NoError(t, r1.(*releasingRetriever).Shutdown(t.Context()))
+				rel1, ok := r1.(*releasingRetriever)
+				require.True(t, ok)
+				require.NoError(t, rel1.Shutdown(t.Context()))
 				got = append(got, reg.groupCount()) // fs2 is still pending
 
 				reg.releasePending()
@@ -429,7 +444,9 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			fs.PollingInterval, fs.EnablePollingJitter = tt.polling, tt.jitter
 			r, err := reg.retrieverFor(&fs)
 			require.NoError(t, err)
-			require.NoError(t, r.(*releasingRetriever).Shutdown(t.Context()))
+			rel, ok := r.(*releasingRetriever)
+			require.True(t, ok)
+			require.NoError(t, rel.Shutdown(t.Context()))
 
 			require.Equal(t, len(tt.wantMessage), logs.Len())
 			for i, snippet := range tt.wantMessage {

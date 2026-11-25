@@ -183,7 +183,9 @@ func TestNikunjyEvaluatorCache_ResetIgnoresTheCleanupsOfEarlierEpochs(t *testing
 			cleanup: func(c *nikunjyEvaluatorCache, epoch uint64) {
 				var keys []uint64
 				c.byKey.Range(func(k, _ any) bool {
-					keys = append(keys, k.(uint64))
+					if key, ok := k.(uint64); ok {
+						keys = append(keys, key)
+					}
 
 					return true
 				})

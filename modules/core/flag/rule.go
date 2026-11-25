@@ -171,7 +171,8 @@ type queryContext struct {
 
 func (q *queryContext) mapOnce() map[string]any {
 	if q.parsedEvalCtxAsMap == nil {
-		pooled := q.svc.queryMaps.Get().(map[string]any) //nolint:errcheck // the pool only holds map[string]any
+		//nolint:errcheck,forcetypeassert // the pool only holds map[string]any
+		pooled := q.svc.queryMaps.Get().(map[string]any)
 		q.parsedEvalCtxAsMap = utils.ContextToMapInto(pooled, q.ctx)
 		q.pooled = true
 	}

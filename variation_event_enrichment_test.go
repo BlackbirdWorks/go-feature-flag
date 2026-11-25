@@ -27,7 +27,9 @@ func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []e
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, e := range ev {
-		c.events = append(c.events, e.(exporter.FeatureEvent))
+		if fe, ok := e.(exporter.FeatureEvent); ok {
+			c.events = append(c.events, fe)
+		}
 	}
 
 	return nil

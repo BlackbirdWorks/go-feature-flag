@@ -73,11 +73,13 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			}}, time.Hour, logger)
 
 			done := make(chan struct{})
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
 			go func() {
 				defer close(done)
 				for range 100 {
 					if tt.async {
-						m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 2))
+						am.QueueEvents(make([]exporter.FeatureEvent, 2))
 					} else {
 						m.AddEvent(exporter.FeatureEvent{})
 					}
@@ -88,7 +90,9 @@ func Test_Manager_DropWarningDoesNotBlockAddEvent(t *testing.T) {
 			case <-time.After(time.Minute):
 				require.Fail(t, "adding events is blocked by the log sink")
 			}
-			assert.Equal(t, tt.wantDropping, m.(exporter.DroppedEventsCounter).DroppedEvents() > 0)
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropping, dc.DroppedEvents() > 0)
 			// the warning is still written, by another goroutine
 			select {
 			case <-sink.entered:

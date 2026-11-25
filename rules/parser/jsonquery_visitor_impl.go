@@ -79,13 +79,13 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 	}
 	switch val := tree.(type) {
 	case *LogicalExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return val.Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	case *CompareExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return val.Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	case *ParenExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return val.Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	case *PresentExpContext:
-		return val.Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return val.Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	default:
 		j.setErr(errInvalidRule2)
 
@@ -94,7 +94,7 @@ func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
-	result := ctx.Query().Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	result := ctx.Query().Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	if ctx.NOT() != nil {
 		return !result
 	}
@@ -103,21 +103,21 @@ func (j *JSONQueryVisitorImpl) VisitParenExp(ctx *ParenExpContext) any {
 }
 
 func (j *JSONQueryVisitorImpl) VisitLogicalExp(ctx *LogicalExpContext) any {
-	left := ctx.Query(0).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	left := ctx.Query(0).Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	op := ctx.LOGICAL_OPERATOR().GetText()
 	if op == "or" {
 		if left {
 			return left
 		}
 
-		return ctx.Query(1).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+		return ctx.Query(1).Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	}
 	// means it is and
 	if !left {
 		return left
 	}
 
-	return ctx.Query(1).Accept(j).(bool) //nolint:errcheck // panics on mismatch, as before
+	return ctx.Query(1).Accept(j).(bool) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 }
 
 func (j *JSONQueryVisitorImpl) VisitPresentExp(ctx *PresentExpContext) any {
@@ -231,7 +231,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 		if item == nil {
 			return nil
 		}
-		m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+		m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		j.leftOp = m[ctx.ATTRNAME().GetText()]
 		j.stack.clear()
 
@@ -245,7 +245,7 @@ func (j *JSONQueryVisitorImpl) VisitAttrPath(ctx *AttrPathContext) any {
 	if item == nil {
 		return nil
 	}
-	m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+	m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	j.stack.push(m[ctx.ATTRNAME().GetText()])
 
 	return ctx.SubAttr().Accept(j)
@@ -344,7 +344,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfInts(ctx *SubListOfIntsContext) any
 	if j.rightOp == nil {
 		j.rightOp = make([]int, 0)
 	}
-	list := j.rightOp.([]int) //nolint:errcheck // panics on mismatch, as before
+	list := j.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	val, err := strconv.Atoi(ctx.INT().GetText())
 	if err != nil {
 		j.setErr(err)
@@ -374,7 +374,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfDoubles(ctx *SubListOfDoublesContex
 	if j.rightOp == nil {
 		j.rightOp = make([]float64, 0)
 	}
-	list := j.rightOp.([]float64) //nolint:errcheck // panics on mismatch, as before
+	list := j.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	val, err := strconv.ParseFloat(ctx.DOUBLE().GetText(), 64)
 	if err != nil {
 		j.setErr(err)
@@ -405,7 +405,7 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 		j.rightOp = make([]string, 0)
 	}
 	val := getString(ctx.STRING().GetText())
-	list := j.rightOp.([]string) //nolint:errcheck // panics on mismatch, as before
+	list := j.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	list = append(list, val)
 	j.rightOp = list
 	if ctx.SubListOfStrings() == nil || ctx.SubListOfStrings().IsEmpty() {

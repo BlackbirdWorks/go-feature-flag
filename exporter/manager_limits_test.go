@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/utils/fflog"
@@ -59,14 +60,18 @@ func Test_Manager_QueueLimitIsPerExporter(t *testing.T) {
 				{Exporter: small, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: tt.smallLimit},
 				{Exporter: large, FlushInterval: time.Hour, MaxEventInMemory: 100000, MaxQueuedEvents: tt.largeLimit},
 			}, time.Hour, nil)
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
 			for range tt.events {
 				if tt.async {
-					m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, 1))
+					am.QueueEvents(make([]exporter.FeatureEvent, 1))
 				} else {
 					m.AddEvent(exporter.FeatureEvent{})
 				}
 			}
-			dropped := m.(exporter.DroppedEventsCounter).DroppedEvents()
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			dropped := dc.DroppedEvents()
 			small.recovered.Store(true)
 			m.Stop()
 			assert.LessOrEqual(t, small.events.Load(), tt.wantSmallMax, "the small exporter keeps at most its limit")

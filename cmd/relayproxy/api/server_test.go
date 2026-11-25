@@ -1328,7 +1328,9 @@ func Test_StopBeforeStart(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
-	port := ln.Addr().(*net.TCPAddr).Port
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{

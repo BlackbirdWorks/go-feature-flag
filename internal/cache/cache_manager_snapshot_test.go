@@ -88,7 +88,9 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 				}
 				for _, f := range snap {
 					d := true
-					f.(*flag.InternalFlag).Disable = &d
+					if iflag, ok := f.(*flag.InternalFlag); assert.True(t, ok) {
+						iflag.Disable = &d
+					}
 				}
 				if live, getFlagErr := m.GetFlag("flag-1"); getFlagErr == nil {
 					_ = live.IsDisable()
@@ -136,25 +138,37 @@ const nestedFlagYAML = `nested:
 func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		mutate func(f *flag.InternalFlag)
+		mutate func(t *testing.T, f *flag.InternalFlag)
 		name   string
 		// wantLiveChanged is whether the live flag changed after the snapshot was mutated
 		wantLiveChanged bool
 	}{
-		{name: "variation value", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "variation value", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
 			v := *(*f.Variations)["A"]
-			v.(map[string]any)["k"].([]any)[2].(map[string]any)["deep"] = "hacked"
-			v.(map[string]any)["k"].([]any)[0] = "hacked"
+			m, ok := v.(map[string]any)
+			require.True(t, ok)
+			kSlice, ok := m["k"].([]any)
+			require.True(t, ok)
+			nested, ok := kSlice[2].(map[string]any)
+			require.True(t, ok)
+			nested["deep"] = "hacked"
+			kSlice[0] = "hacked"
 		}},
-		{name: "variation replaced", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "variation replaced", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
 			x := any("hacked")
 			*(*f.Variations)["B"] = x
 			(*f.Variations)["C"] = &x
 		}},
-		{name: "metadata", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
-			(*f.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
+		{name: "metadata", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
+			owner, ok := (*f.Metadata)["owner"].(map[string]any)
+			require.True(t, ok)
+			team, ok := owner["team"].([]any)
+			require.True(t, ok)
+			team[0] = "hacked"
 		}},
-		{name: "targeting rule", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "targeting rule", wantLiveChanged: false, mutate: func(_ *testing.T, f *flag.InternalFlag) {
 			r := &(*f.Rules)[0]
 			*r.Query = "hacked"
 			*r.VariationResult = "hacked"
@@ -166,15 +180,20 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 		{
 			name:            "default rule",
 			wantLiveChanged: false,
-			mutate:          func(f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
+			mutate:          func(_ *testing.T, f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
 		},
 		{
 			name: "experimentation", wantLiveChanged: false,
-			mutate: func(f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
+			mutate: func(_ *testing.T, f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
 		},
-		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(f *flag.InternalFlag) {
+		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
+			t.Helper()
 			step := &(*f.Scheduled)[0]
-			(*step.Metadata)["owner"].(map[string]any)["team"].([]any)[0] = "hacked"
+			owner, ok := (*step.Metadata)["owner"].(map[string]any)
+			require.True(t, ok)
+			team, ok := owner["team"].([]any)
+			require.True(t, ok)
+			team[0] = "hacked"
 			(*step.Variations)["A"] = nil
 			*step.Date = step.Date.Add(1)
 		}},
@@ -193,7 +212,9 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 
 			snap, err := m.AllFlags()
 			require.NoError(t, err)
-			tt.mutate(snap["nested"].(*flag.InternalFlag))
+			iflag, ok := snap["nested"].(*flag.InternalFlag)
+			require.True(t, ok)
+			tt.mutate(t, iflag)
 
 			live, err = m.GetFlag("nested")
 			require.NoError(t, err)

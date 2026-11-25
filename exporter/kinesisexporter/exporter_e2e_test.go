@@ -117,7 +117,11 @@ func TestE2E_Export(t *testing.T) {
 		{
 			name: "custom partition key spreads on two shards", shards: 2, nbEvents: 20, nbCalls: 1,
 			partitionKey: func(_ context.Context, e exporter.ExportableEvent) string {
-				return e.(exporter.FeatureEvent).UserKey
+				if fe, ok := e.(exporter.FeatureEvent); ok {
+					return fe.UserKey
+				}
+
+				return ""
 			},
 			wantReceived: 20,
 		},

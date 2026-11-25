@@ -12,7 +12,9 @@ import (
 func TestNewHTTPClient(t *testing.T) {
 	t.Parallel()
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok)
+	transport := defaultTransport.Clone()
 
 	client := NewHTTPClient(2*time.Second, transport)
 

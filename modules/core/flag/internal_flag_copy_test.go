@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
@@ -15,46 +16,64 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 	tests := []struct {
 		value func() any
 		// mutate changes the copied value in place.
-		mutate func(v any)
+		mutate func(t *testing.T, v any)
 		name   string
 		// wantOriginalUnchanged is whether the original equals what it was built as after the copy was mutated
 		wantOriginalUnchanged bool
 	}{
-		{name: "nil", wantOriginalUnchanged: true, value: func() any { return nil }, mutate: func(any) {}},
-		{name: "scalar", wantOriginalUnchanged: true, value: func() any { return "a" }, mutate: func(any) {}},
+		{name: "nil", wantOriginalUnchanged: true, value: func() any { return nil }, mutate: func(*testing.T, any) {}},
+		{name: "scalar", wantOriginalUnchanged: true, value: func() any { return "a" }, mutate: func(*testing.T, any) {}},
 		{
 			name:                  "map of any",
 			wantOriginalUnchanged: true,
 			value:                 func() any { return map[string]any{"a": []any{1}} },
-			mutate: func(v any) {
-				v.(map[string]any)["a"].([]any)[0] = 2
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				m, ok := v.(map[string]any)
+				require.True(t, ok)
+				s, ok := m["a"].([]any)
+				require.True(t, ok)
+				s[0] = 2
 			},
 		},
 		{
 			name:                  "typed slice",
 			wantOriginalUnchanged: true,
 			value:                 func() any { return []string{"a"} },
-			mutate:                func(v any) { v.([]string)[0] = "b" },
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				s, ok := v.([]string)
+				require.True(t, ok)
+				s[0] = "b"
+			},
 		},
 		{
 			name:                  "typed map",
 			wantOriginalUnchanged: true,
 			value:                 func() any { return map[string]string{"a": "a"} },
-			mutate:                func(v any) { v.(map[string]string)["a"] = "b" },
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				m, ok := v.(map[string]string)
+				require.True(t, ok)
+				m["a"] = "b"
+			},
 		},
 		{
 			name:                  "typed map of slices",
 			wantOriginalUnchanged: true,
 			value:                 func() any { return map[string][]int{"a": {1}} },
-			mutate: func(v any) {
-				v.(map[string][]int)["a"][0] = 2
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				m, ok := v.(map[string][]int)
+				require.True(t, ok)
+				m["a"][0] = 2
 			},
 		},
 		{
 			name:                  "nil map and slice",
 			wantOriginalUnchanged: true,
 			value:                 func() any { return map[string]any{"m": map[string]string(nil), "s": []int(nil), "n": nil} },
-			mutate:                func(any) {},
+			mutate:                func(*testing.T, any) {},
 		},
 	}
 	for _, tt := range tests {
@@ -69,8 +88,8 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 			orig := build()
 			cp := orig.DeepCopy()
 			assert.Equal(t, orig, cp)
-			tt.mutate(*(*cp.Variations)["A"])
-			tt.mutate((*cp.Metadata)["m"])
+			tt.mutate(t, *(*cp.Variations)["A"])
+			tt.mutate(t, (*cp.Metadata)["m"])
 			assert.Equal(
 				t,
 				tt.wantOriginalUnchanged,
@@ -119,7 +138,9 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	*cp.DefaultRule.Percentages = map[string]float64{}
 	*cp.Experimentation.Start = time.Time{}
 	*(*cp.Scheduled)[0].Date = time.Time{}
-	(*(*cp.Scheduled)[0].Metadata)["a"].([]any)[0] = "changed"
+	aVal, ok := (*(*cp.Scheduled)[0].Metadata)["a"].([]any)
+	require.True(t, ok)
+	aVal[0] = "changed"
 	*cp.Version = "changed"
 	assert.Equal(t, build(), orig)
 }

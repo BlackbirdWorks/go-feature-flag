@@ -210,7 +210,9 @@ func TestExporter_Export(t *testing.T) {
 				}
 			}
 
-			assert.Equal(t, want, (exp.sender).(*messageSenderMock).messages)
+			sender, ok := exp.sender.(*messageSenderMock)
+			require.True(t, ok)
+			assert.Equal(t, want, sender.messages)
 		})
 	}
 }

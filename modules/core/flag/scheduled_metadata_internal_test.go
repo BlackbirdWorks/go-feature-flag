@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
@@ -66,10 +67,15 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			f := tt.flag(clocktest.Instant())
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			_, first := f.Value("flag", ctx, Context{Service: NewService()})
-			rel := first.Metadata["release"].(map[string]any)
+			rel, ok := first.Metadata["release"].(map[string]any)
+			require.True(t, ok)
 			rel["owner"] = "changed"
-			rel["tags"].([]any)[0] = "changed"
-			rel["tags"].([]any)[1].(map[string]any)["k"] = "changed"
+			tags, ok := rel["tags"].([]any)
+			require.True(t, ok)
+			tags[0] = "changed"
+			tagMap, ok := tags[1].(map[string]any)
+			require.True(t, ok)
+			tagMap["k"] = "changed"
 			if first.RuleName != nil {
 				*first.RuleName = "changed"
 			}

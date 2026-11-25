@@ -86,7 +86,8 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 				{Exporter: broken, FlushInterval: time.Hour, MaxEventInMemory: perBatch, MaxQueuedEvents: queueLimit},
 				{Exporter: healthy, FlushInterval: time.Hour, MaxEventInMemory: perBatch, MaxQueuedEvents: queueLimit},
 			}, time.Hour, nil)
-			am := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
 			released := false
 			release := func() {
 				if broken.gate != nil && !released {
@@ -111,7 +112,9 @@ func Test_Manager_BrokenExporterDoesNotStarveHealthyOne(t *testing.T) {
 			release()
 			m.Stop()
 			assert.Equal(t, tt.wantHealthy, healthy.events.Load(), "the healthy exporter receives everything")
-			assert.Equal(t, tt.wantDropping, m.(exporter.DroppedEventsCounter).DroppedEvents() > 0,
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropping, dc.DroppedEvents() > 0,
 				"the broken exporter loses events once its backlog is full, and they are counted")
 		})
 	}
@@ -143,7 +146,9 @@ func Test_Manager_QueueLimitBelowFlushThreshold(t *testing.T) {
 			}
 			// no Stop yet: nothing but the event count can have triggered the flushes.
 			assert.Equal(t, tt.wantExported, exp.events.Load())
-			assert.Zero(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Zero(t, dc.DroppedEvents())
 			m.Stop()
 		})
 	}
@@ -161,7 +166,8 @@ func Test_Manager_SuccessfulFlushDoesNotBackOff(t *testing.T) {
 			Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: threshold,
 		}}, time.Hour, nil)
 		defer m.Stop() // also when an assertion fails: the bubble waits for the workers
-		am := m.(exporter.AsyncManager[exporter.FeatureEvent])
+		am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+		require.True(t, ok)
 		am.QueueEvents(make([]exporter.FeatureEvent, threshold))
 		<-exp.started
 		am.QueueEvents(make([]exporter.FeatureEvent, threshold)) // arrives while the first flush runs

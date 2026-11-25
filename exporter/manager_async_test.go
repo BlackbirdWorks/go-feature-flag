@@ -48,10 +48,14 @@ func Test_EventStore_AddAll(t *testing.T) {
 				for i := range batch {
 					batch[i] = testutils.NewExportableMockEvent("e")
 				}
-				store.(batchAdder).AddAll(batch)
+				ba, ok := store.(batchAdder)
+				require.True(t, ok)
+				ba.AddAll(batch)
 			}
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
 			pending, err := store.GetPendingEventCount("c")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantStored, pending, "offsets are contiguous: dropped events use none")
@@ -133,7 +137,9 @@ func Test_Manager_QueueEvents(t *testing.T) {
 				assert.LessOrEqual(t, tt.exp.calls.Load(), tt.maxCalls)
 			}
 			if tt.wantDroped {
-				assert.Positive(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+				dc, dcOK := m.(exporter.DroppedEventsCounter)
+				require.True(t, dcOK)
+				assert.Positive(t, dc.DroppedEvents())
 			}
 			// events queued after Stop are only stored: no goroutine is started
 			am.QueueEvents(make([]exporter.FeatureEvent, 3))

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/exporter"
 )
@@ -38,13 +39,17 @@ func Test_Manager_QueueEventsLargerThanTheQueueLimit(t *testing.T) {
 				}
 			}
 			m := exporter.NewManager[exporter.FeatureEvent](cfgs, time.Hour, nil)
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
 			total := 0
 			for _, n := range tt.handoffs {
-				m.(exporter.AsyncManager[exporter.FeatureEvent]).QueueEvents(make([]exporter.FeatureEvent, n))
+				am.QueueEvents(make([]exporter.FeatureEvent, n))
 				total += n
 			}
 			m.Stop()
-			assert.Zero(t, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Zero(t, dc.DroppedEvents())
 			for _, e := range exps {
 				assert.Equal(t, int64(total), e.events.Load())
 			}

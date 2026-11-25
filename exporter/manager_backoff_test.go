@@ -72,7 +72,8 @@ func Test_Manager_QueuedFlushRespectsBackoff(t *testing.T) {
 			m := exporter.NewManager[exporter.FeatureEvent]([]exporter.Config{{
 				Exporter: exp, FlushInterval: time.Hour, MaxEventInMemory: 10, MaxQueuedEvents: 1000,
 			}}, time.Hour, nil)
-			am := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			am, ok := m.(exporter.AsyncManager[exporter.FeatureEvent])
+			require.True(t, ok)
 
 			am.QueueEvents(make([]exporter.FeatureEvent, tt.firstBatch))
 			select {

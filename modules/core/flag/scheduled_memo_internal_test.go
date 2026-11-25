@@ -95,8 +95,8 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		value  func() any
-		mutate func(v any)
+		mutate     func(t *testing.T, v any)
+		value      func() any
 		// wantSecond is the value the second evaluation returns: the mutation of the first one is not shared
 		wantSecond func() any
 		name       string
@@ -105,21 +105,31 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			name:       "object",
 			value:      func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
 			wantSecond: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
-			mutate: func(v any) {
-				m := v.(map[string]any)
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				m, ok := v.(map[string]any)
+				require.True(t, ok)
 				m["theme"] = "dark"
-				m["nested"].(map[string]any)["a"] = "changed"
+				nested, ok := m["nested"].(map[string]any)
+				require.True(t, ok)
+				nested["a"] = "changed"
 			},
 		},
 		{
 			name:       "array",
 			value:      func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
 			wantSecond: func() any { return []any{"a", map[string]any{"k": "v"}, []any{"x"}} },
-			mutate: func(v any) {
-				a := v.([]any)
+			mutate: func(t *testing.T, v any) {
+				t.Helper()
+				a, ok := v.([]any)
+				require.True(t, ok)
 				a[0] = "changed"
-				a[1].(map[string]any)["k"] = "changed"
-				a[2].([]any)[0] = "changed"
+				elem1, ok := a[1].(map[string]any)
+				require.True(t, ok)
+				elem1["k"] = "changed"
+				elem2, ok := a[2].([]any)
+				require.True(t, ok)
+				elem2[0] = "changed"
 			},
 		},
 	}
@@ -138,7 +148,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 			}
 			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
 			first, _ := f.Value("flag", ctx, Context{Service: NewService()})
-			tt.mutate(first)
+			tt.mutate(t, first)
 			second, _ := f.Value("flag", ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.wantSecond(), second)
 		})

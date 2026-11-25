@@ -56,7 +56,8 @@ func bodyDumpHandler() func(r *http.Request, body []byte) {
 		}
 
 		// body is too large, truncate the request body and log it
-		bufPtr := bufferPool.Get().(*[]byte) //nolint:errcheck // the pool only ever holds *[]byte (see its New func)
+		//nolint:errcheck,forcetypeassert // the pool only ever holds *[]byte (see its New func)
+		bufPtr := bufferPool.Get().(*[]byte)
 		truncated := *bufPtr
 		copy(truncated[:maxBodyLogSize], reqBody[:maxBodyLogSize])
 		logger.LogAttrs(

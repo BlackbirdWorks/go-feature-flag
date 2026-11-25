@@ -101,7 +101,9 @@ func Test_EventStoreWithLimit(t *testing.T) {
 				store.Add(testutils.NewExportableMockEvent(fmt.Sprintf("a%d", i)))
 			}
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
 			mu.Lock()
 			assert.Equal(t, tt.wantDropped, onDropTotal)
 			mu.Unlock()
@@ -162,7 +164,9 @@ func Test_EventStoreWithLimit_ConcurrentAddsStayBounded(t *testing.T) {
 			}
 			wg.Wait()
 			assert.Equal(t, tt.wantStored, store.GetTotalEventCount())
-			assert.Equal(t, tt.wantDropped, store.(droppedCounter).DroppedEvents())
+			dc, ok := store.(droppedCounter)
+			require.True(t, ok)
+			assert.Equal(t, tt.wantDropped, dc.DroppedEvents())
 		})
 	}
 }
@@ -198,7 +202,9 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 				m.AddEvent(exporter.FeatureEvent{Key: "k"})
 			}
 			elapsed := max(time.Duration(time.Now().UnixNano()-begin), 0)
-			assert.Equal(t, int64(n)-tt.wantCap, m.(exporter.DroppedEventsCounter).DroppedEvents())
+			dc, ok := m.(exporter.DroppedEventsCounter)
+			require.True(t, ok)
+			assert.Equal(t, int64(n)-tt.wantCap, dc.DroppedEvents())
 			// Without backoff the exporter would have been called for every event above the threshold.
 			// A failed flush delays the next event-count flush by flushRetryBackoff (1s) from the end
 			// of the failed attempt, so two attempts start at least 1s apart: during elapsed, at most
@@ -247,7 +253,9 @@ func Test_EventStore_CleanQueueWaitsForAllConsumers(t *testing.T) {
 			if tt.consumeBoth {
 				require.NoError(t, store.ProcessPendingEvents("b", noop))
 			}
-			store.(queueCleaner).CleanQueue()
+			qc, ok := store.(queueCleaner)
+			require.True(t, ok)
+			qc.CleanQueue()
 			assert.Equal(t, tt.wantAfterGet, store.GetTotalEventCount())
 		})
 	}

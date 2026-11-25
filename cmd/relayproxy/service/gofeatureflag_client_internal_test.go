@@ -1255,7 +1255,9 @@ func Test_firstSharedRetriever(t *testing.T) {
 			assert.Equal(t, tt.want, got != nil)
 		})
 	}
-	require.NoError(t, r.(*releasingRetriever).Shutdown(t.Context()))
+	rel, ok := r.(*releasingRetriever)
+	require.True(t, ok)
+	require.NoError(t, rel.Shutdown(t.Context()))
 }
 
 // Not parallel: the test uses t.Setenv.

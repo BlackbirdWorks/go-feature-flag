@@ -17,7 +17,7 @@ type compiledQuery struct {
 // evaluation stores entries, so the set is bounded by the flag config that the Service evaluates.
 func (s *Service) compiledQuery(raw string) *compiledQuery {
 	if v, ok := s.compiled.Load(raw); ok {
-		return v.(*compiledQuery) //nolint:errcheck // only compiledQuery values are stored
+		return v.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
 	}
 	trimmed := utils.StrTrim(raw)
 	c := &compiledQuery{trimmed: trimmed, format: queryFormatOf(trimmed)}
@@ -29,5 +29,5 @@ func (s *Service) compiledQuery(raw string) *compiledQuery {
 	}
 	actual, _ := s.compiled.LoadOrStore(raw, c)
 
-	return actual.(*compiledQuery) //nolint:errcheck // only compiledQuery values are stored
+	return actual.(*compiledQuery) //nolint:errcheck,forcetypeassert // only compiledQuery values are stored
 }

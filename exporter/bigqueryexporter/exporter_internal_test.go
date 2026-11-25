@@ -67,7 +67,8 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	assert.Len(t, client.inserters, 1)
 	assert.Len(t, client.inserters["fake-dataset.feature-table"].puts, 1)
 
-	rows := client.inserters["fake-dataset.feature-table"].puts[0].([]rowSaver)
+	rows, ok := client.inserters["fake-dataset.feature-table"].puts[0].([]rowSaver)
+	require.True(t, ok)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, map[string]bigquery.Value{
 		"kind":          "feature",
@@ -115,7 +116,8 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 	assert.Len(t, client.inserters, 1)
 	assert.Len(t, client.inserters["fake-dataset.tracking-table"].puts, 1)
 
-	rows := client.inserters["fake-dataset.tracking-table"].puts[0].([]rowSaver)
+	rows, ok := client.inserters["fake-dataset.tracking-table"].puts[0].([]rowSaver)
+	require.True(t, ok)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, map[string]bigquery.Value{
 		"kind":               "tracking",
@@ -480,9 +482,13 @@ func TestExporter_ExportChunksRows(t *testing.T) {
 
 	require.NoError(t, err)
 	puts := client.inserters["fake-dataset.feature-table"].puts
-	assert.Len(t, puts, 2)
-	assert.Len(t, puts[0].([]rowSaver), maxRowsPerInsert)
-	assert.Len(t, puts[1].([]rowSaver), 3)
+	require.Len(t, puts, 2)
+	rows0, ok := puts[0].([]rowSaver)
+	require.True(t, ok)
+	rows1, ok := puts[1].([]rowSaver)
+	require.True(t, ok)
+	assert.Len(t, rows0, maxRowsPerInsert)
+	assert.Len(t, rows1, 3)
 }
 
 func TestExporter_InitClientOnce(t *testing.T) {

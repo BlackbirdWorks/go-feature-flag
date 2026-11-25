@@ -78,7 +78,9 @@ only-in-%[1]s:
 func ofrepCtx(key string, kv ...any) map[string]any {
 	c := map[string]any{"targetingKey": key}
 	for i := 0; i+1 < len(kv); i += 2 {
-		c[kv[i].(string)] = kv[i+1]
+		if k, ok := kv[i].(string); ok {
+			c[k] = kv[i+1]
+		}
 	}
 
 	return map[string]any{"context": c}
@@ -87,7 +89,9 @@ func ofrepCtx(key string, kv ...any) map[string]any {
 func goffCtx(key string, kv ...any) map[string]any {
 	custom := map[string]any{}
 	for i := 0; i+1 < len(kv); i += 2 {
-		custom[kv[i].(string)] = kv[i+1]
+		if k, ok := kv[i].(string); ok {
+			custom[k] = kv[i+1]
+		}
 	}
 
 	return map[string]any{
@@ -460,12 +464,17 @@ func TestE2E_RelayProxy_S3FlagSets(t *testing.T) {
 						got := map[string]any{}
 						if flags, ok := res.Body["flags"].([]any); ok { // OFREP: a list
 							for _, f := range flags {
-								m := f.(map[string]any)
-								got[m["key"].(string)] = m["value"]
+								m, isObj := f.(map[string]any)
+								require.True(t, isObj)
+								flagKey, isStr := m["key"].(string)
+								require.True(t, isStr)
+								got[flagKey] = m["value"]
 							}
 						} else if flagMap, isMap := res.Body["flags"].(map[string]any); isMap { // GOFF: a map
 							for k, f := range flagMap {
-								got[k] = f.(map[string]any)["value"]
+								m, isObj := f.(map[string]any)
+								require.True(t, isObj)
+								got[k] = m["value"]
 							}
 						}
 						assert.Equal(t, tt.wantFlags, got, res.Raw)

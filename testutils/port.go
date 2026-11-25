@@ -19,5 +19,8 @@ func ListenLocal(t *testing.T) (net.Listener, int) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
-	return listener, listener.Addr().(*net.TCPAddr).Port //nolint:errcheck // a tcp listener always has a *net.TCPAddr
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	require.True(t, ok, "tcp listener addr should be *net.TCPAddr")
+
+	return listener, tcpAddr.Port
 }

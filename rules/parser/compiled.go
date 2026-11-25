@@ -147,7 +147,7 @@ func (st *evalState) resolve(path []string) {
 		if item == nil {
 			return
 		}
-		m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+		m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		st.stack.push(m[name])
 	}
 	var item any
@@ -160,7 +160,7 @@ func (st *evalState) resolve(path []string) {
 	if item == nil {
 		return
 	}
-	m := item.(map[string]any) //nolint:errcheck // panics on mismatch, as before
+	m := item.(map[string]any) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 	st.leftOp = m[path[last]]
 	st.stack.clear()
 }
@@ -211,9 +211,9 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []int{}
 		} else {
-			list = st.rightOp.([]int) //nolint:errcheck // panics on mismatch, as before
+			list = st.rightOp.([]int) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,gocritic // stale operand
+		st.rightOp = append(list, n.listOp.([]int)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -222,9 +222,9 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []float64{}
 		} else {
-			list = st.rightOp.([]float64) //nolint:errcheck // panics on mismatch, as before
+			list = st.rightOp.([]float64) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listOp.([]float64)...) //nolint:errcheck,gocritic // stale operand
+		st.rightOp = append(list, n.listOp.([]float64)...) //nolint:errcheck,forcetypeassert,gocritic // stale operand
 		if n.listErr != nil {
 			st.err = cloneErr(n.listErr)
 		}
@@ -233,9 +233,10 @@ func (n *compareNode) setRight(st *evalState) {
 		if st.rightOp == nil {
 			list = []string{}
 		} else {
-			list = st.rightOp.([]string) //nolint:errcheck // panics on mismatch, as before
+			list = st.rightOp.([]string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 		}
-		st.rightOp = append(list, n.listValue().([]string)...) //nolint:errcheck,gocritic // stale operand
+		//nolint:errcheck,forcetypeassert,gocritic // stale operand
+		st.rightOp = append(list, n.listValue().([]string)...)
 	default:
 		st.rightOp = n.rightOp
 		if n.valErr != nil {
@@ -408,7 +409,7 @@ func compileTree(tree antlr.ParseTree, src *sourceText) *node {
 			panic(fmt.Sprintf("no operation for operator token %d", n.opType))
 		}
 		if _, ok := op.(*VersionOperation); ok {
-			ruleVersion := n.rightOp.(string) //nolint:errcheck // panics on mismatch, as before
+			ruleVersion := n.rightOp.(string) //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 			n.version = compileVersionCompare(ruleVersion, n.opType)
 		}
 

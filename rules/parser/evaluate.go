@@ -176,7 +176,7 @@ func (e *Evaluator) visit(items map[string]any) (bool, error) {
 		return false, visitor.err
 	}
 
-	return result.(bool), visitor.err //nolint:errcheck // panics on mismatch, as before
+	return result.(bool), visitor.err //nolint:errcheck,forcetypeassert // panics on mismatch, as before
 }
 
 func Evaluate(rule string, items map[string]any) bool {

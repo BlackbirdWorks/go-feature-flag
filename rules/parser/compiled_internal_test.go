@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -14,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var errUnexpectedVisitorResultType = errors.New("unexpected visitor result type")
 
 type testStringer struct{ s string }
 
@@ -37,7 +40,12 @@ func visitorProcess(tree antlr.ParseTree, items map[string]any) (ret bool, retEr
 		return false, visitor.err, debugErr
 	}
 
-	return result.(bool), visitor.err, debugErr
+	retVal, ok := result.(bool)
+	if !ok {
+		return false, errUnexpectedVisitorResultType, debugErr
+	}
+
+	return retVal, visitor.err, debugErr
 }
 
 // errString renders err, tolerating the existing InvalidOperandError.Error
@@ -532,32 +540,47 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 	t.Helper()
 	tests := []struct {
 		bad    map[string]any
-		mutate func(rule any)
+		mutate func(t *testing.T, rule any)
 		probe  map[string]any
 		name   string
 		rule   string
 		want   bool
 	}{
 		{
-			name:   "ints",
-			rule:   `x in [1, 2]`,
-			bad:    map[string]any{"x": "str"},
-			mutate: func(r any) { r.([]int)[0] = 42 },
-			probe:  map[string]any{"x": 42},
+			name: "ints",
+			rule: `x in [1, 2]`,
+			bad:  map[string]any{"x": "str"},
+			mutate: func(t *testing.T, r any) {
+				t.Helper()
+				s, ok := r.([]int)
+				require.True(t, ok)
+				s[0] = 42
+			},
+			probe: map[string]any{"x": 42},
 		},
 		{
-			name:   "floats",
-			rule:   `x in [1.5, 2.5]`,
-			bad:    map[string]any{"x": "str"},
-			mutate: func(r any) { r.([]float64)[0] = 42 },
-			probe:  map[string]any{"x": 42.0},
+			name: "floats",
+			rule: `x in [1.5, 2.5]`,
+			bad:  map[string]any{"x": "str"},
+			mutate: func(t *testing.T, r any) {
+				t.Helper()
+				s, ok := r.([]float64)
+				require.True(t, ok)
+				s[0] = 42
+			},
+			probe: map[string]any{"x": 42.0},
 		},
 		{
-			name:   "strings",
-			rule:   `x in ["a", "b"]`,
-			bad:    map[string]any{"x": 5},
-			mutate: func(r any) { r.([]string)[0] = "zzz" },
-			probe:  map[string]any{"x": "zzz"},
+			name: "strings",
+			rule: `x in ["a", "b"]`,
+			bad:  map[string]any{"x": 5},
+			mutate: func(t *testing.T, r any) {
+				t.Helper()
+				s, ok := r.([]string)
+				require.True(t, ok)
+				s[0] = "zzz"
+			},
+			probe: map[string]any{"x": "zzz"},
 		},
 	}
 	for _, tt := range tests {
@@ -569,7 +592,7 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 			require.NoError(t, err)
 			var ne *NestedError
 			require.ErrorAs(t, ev.LastDebugErr(), &ne)
-			tt.mutate(ne.Vals["rule_operand"])
+			tt.mutate(t, ne.Vals["rule_operand"])
 			got, _ := ev.Process(tt.probe)
 			assert.Equal(t, tt.want, got, "rule constant was mutated through the debug error")
 		})
@@ -646,7 +669,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 	tests := []struct {
 		want  any
 		items map[string]any
-		mut   func(val any)
+		mut   func(t *testing.T, val any)
 		name  string
 		rule  string
 		// wantListTypeObj: the error's typeObj also holds the rule list
@@ -656,21 +679,36 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			name:  "ints",
 			rule:  `x eq [1, 2]`,
 			items: map[string]any{"x": 1},
-			mut:   func(v any) { v.([]int)[0] = 99 },
-			want:  []int{1, 2},
+			mut: func(t *testing.T, v any) {
+				t.Helper()
+				s, ok := v.([]int)
+				require.True(t, ok)
+				s[0] = 99
+			},
+			want: []int{1, 2},
 		},
 		{
 			name:  "floats",
 			rule:  `x eq [1.5, 2.5]`,
 			items: map[string]any{"x": 1.0},
-			mut:   func(v any) { v.([]float64)[0] = 99 },
-			want:  []float64{1.5, 2.5},
+			mut: func(t *testing.T, v any) {
+				t.Helper()
+				s, ok := v.([]float64)
+				require.True(t, ok)
+				s[0] = 99
+			},
+			want: []float64{1.5, 2.5},
 		},
 		{
-			name:            "strings",
-			rule:            `x eq ["a", "b"]`,
-			items:           map[string]any{"x": "a"},
-			mut:             func(v any) { v.([]string)[0] = "zzz" },
+			name:  "strings",
+			rule:  `x eq ["a", "b"]`,
+			items: map[string]any{"x": "a"},
+			mut: func(t *testing.T, v any) {
+				t.Helper()
+				s, ok := v.([]string)
+				require.True(t, ok)
+				s[0] = "zzz"
+			},
 			want:            []string{"a", "b"},
 			wantListTypeObj: true,
 		},
@@ -686,15 +724,15 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 			require.ErrorAs(t, ev.LastDebugErr(), &ne)
 			var eio *InvalidOperandError
 			require.ErrorAs(t, ne.Err, &eio)
-			tt.mut(eio.Val)
+			tt.mut(t, eio.Val)
 			if typeObj := reflect.ValueOf(eio.typeObj); typeObj.Kind() == reflect.Slice {
 				assert.NotEqual(t, reflect.ValueOf(ev.root.cmp.listOp).Pointer(), typeObj.Pointer(),
 					"typeObj shares the compiled list's backing array")
-				tt.mut(eio.typeObj)
+				tt.mut(t, eio.typeObj)
 			} else {
 				require.False(t, tt.wantListTypeObj, "typeObj is %T, want the rule list", eio.typeObj)
 			}
-			tt.mut(ne.Vals["rule_operand"])
+			tt.mut(t, ne.Vals["rule_operand"])
 			assert.Equal(t, tt.want, ev.root.cmp.listOp, "compiled constant mutated")
 			_, err = ev.Process(tt.items)
 			require.NoError(t, err)
