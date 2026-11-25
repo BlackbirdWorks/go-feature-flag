@@ -29,6 +29,7 @@ var (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter sends evaluation events to Azure Blob Storage.
 type Exporter struct {
 	// Container is the name of your Azure Blob Storage Container similar to Buckets in S3.
 	Container string
@@ -49,6 +50,7 @@ type Exporter struct {
 	ServiceURL string
 }
 
+// Export writes the events to Azure Blob Storage.
 func (f *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -114,6 +116,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (f *Exporter) IsBulk() bool {
 	return true
 }

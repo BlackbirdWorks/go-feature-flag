@@ -84,6 +84,7 @@ func NewEventStoreWithLimit[T ExportableEvent](
 	return store
 }
 
+// EventList is a list of evaluation events of type T.
 type EventList[T ExportableEvent] struct {
 	Events        []T
 	InitialOffset int64
@@ -117,6 +118,7 @@ type EventStore[T ExportableEvent] interface {
 	Stop()
 }
 
+// EventStoreItem is an item of the event store that wraps one event of type T.
 type EventStoreItem[T ExportableEvent] struct {
 	Data   T
 	Offset int64

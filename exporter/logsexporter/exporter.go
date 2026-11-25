@@ -14,6 +14,7 @@ var _ exporter.Exporter = &Exporter{}
 
 const defaultLoggerFormat = "[{{ .FormattedDate}}] user=\"{{ .UserKey}}\", flag=\"{{ .Key}}\", value=\"{{ .Value}}\""
 
+// Exporter writes evaluation events to the logs.
 type Exporter struct {
 	logTemplate *template.Template
 	// Format is the template configuration of the output format of your log.
@@ -56,6 +57,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (f *Exporter) IsBulk() bool {
 	return false
 }

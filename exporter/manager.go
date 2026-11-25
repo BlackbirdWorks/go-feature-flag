@@ -11,6 +11,7 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+// DefaultExporterCleanQueueInterval is the interval at which the exporter queues are cleaned.
 const DefaultExporterCleanQueueInterval = 1 * time.Minute
 
 // DefaultQueuedEventsFactor is the default hard limit of events kept in memory by a manager,
@@ -26,6 +27,7 @@ const DefaultMinQueuedEvents = 50000
 // dropLogInterval is the minimum delay between two warnings about dropped events.
 const dropLogInterval = 10 * time.Second
 
+// Manager collects evaluation events and sends them to the exporters.
 type Manager[T ExportableEvent] interface {
 	AddEvent(event T)
 	Start()
@@ -80,6 +82,7 @@ const flushWaitBudget = 200 * time.Millisecond
 // The periodic flush (FlushInterval) is not affected.
 const flushRetryBackoff = 1 * time.Second
 
+// NewManager returns a manager that sends evaluation events to the exporters.
 func NewManager[T ExportableEvent](exporters []Config,
 	exporterCleanQueueInterval time.Duration, logger *fflog.FFLogger,
 ) Manager[T] {

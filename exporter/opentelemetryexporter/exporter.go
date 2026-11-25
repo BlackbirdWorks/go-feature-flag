@@ -29,6 +29,7 @@ const (
 	spanName          = "feature_flag.evaluate"
 )
 
+// Exporter sends evaluation events as OpenTelemetry logs.
 type Exporter struct {
 	// tracerProvider is where the tracer comes from (the global OpenTelemetry provider when nil).
 	tracerProvider trace.TracerProvider
@@ -39,6 +40,7 @@ type Exporter struct {
 	once       sync.Once
 }
 
+// Export sends the events as OpenTelemetry logs.
 func (e *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -65,6 +67,7 @@ func (e *Exporter) Export(
 	return nil
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (e *Exporter) IsBulk() bool {
 	return false
 }

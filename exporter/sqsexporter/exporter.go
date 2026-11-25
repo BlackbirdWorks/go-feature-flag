@@ -22,6 +22,7 @@ var (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter sends evaluation events to Amazon SQS.
 type Exporter struct {
 	sqsService SQSSendMessageAPI
 	// AwsConfig is the AWS SDK configuration object we will use to
@@ -82,6 +83,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (f *Exporter) IsBulk() bool {
 	return false
 }

@@ -29,6 +29,7 @@ var _ exporter.Exporter = &Exporter{}
 
 const (
 	formatJSON = "json"
+	// Mb is the number of bytes in a megabyte.
 	//nolint:varnamelen // exported constant kept for compatibility
 	Mb = 1024 * 1024
 
@@ -48,6 +49,7 @@ func DefaultPartitionKey(context context.Context, _ exporter.ExportableEvent) st
 	return "default"
 }
 
+// MessageSender sends encoded messages to Kinesis.
 type MessageSender interface {
 	SendMessages(
 		ctx context.Context,
@@ -55,10 +57,12 @@ type MessageSender interface {
 	) (*kinesis.PutRecordsOutput, error)
 }
 
+// DefaultKinesisSender sends messages to Kinesis with the AWS SDK.
 type DefaultKinesisSender struct {
 	*kinesis.Client
 }
 
+// SendMessages sends the messages to Kinesis.
 func (k *DefaultKinesisSender) SendMessages(
 	ctx context.Context,
 	msgs *kinesis.PutRecordsInput,
@@ -71,6 +75,7 @@ func (k *DefaultKinesisSender) SendMessages(
 	return out, nil
 }
 
+// Exporter sends evaluation events to Amazon Kinesis.
 type Exporter struct {
 	sender MessageSender
 	// AwsConfig is the AWS SDK configuration object we will use to
@@ -92,8 +97,10 @@ type Exporter struct {
 	init           sync.Once
 }
 
+// PartitionKeyFunc returns the partition key of an evaluation event.
 type PartitionKeyFunc = func(context.Context, exporter.ExportableEvent) string
 
+// Settings holds the configuration of the Kinesis exporter.
 type Settings struct {
 	StreamName      *string
 	StreamArn       *string
@@ -101,8 +108,10 @@ type Settings struct {
 	ExplicitHashKey *string
 }
 
+// Option changes the settings of the Kinesis exporter.
 type Option = func(Settings) Settings
 
+// WithPartitionKey sets the function that computes the partition key of an event.
 func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 	return func(s Settings) Settings {
 		s.PartitionKey = partitionKey
@@ -111,6 +120,7 @@ func WithPartitionKey(partitionKey PartitionKeyFunc) Option {
 	}
 }
 
+// WithExplicitHashKey sets the explicit hash key of the records.
 func WithExplicitHashKey(hashKey string) Option {
 	return func(s Settings) Settings {
 		s.ExplicitHashKey = &hashKey
@@ -119,6 +129,7 @@ func WithExplicitHashKey(hashKey string) Option {
 	}
 }
 
+// WithStreamName sets the name of the Kinesis stream.
 func WithStreamName(streamName string) Option {
 	return func(settings Settings) Settings {
 		if streamName == "" {
@@ -132,6 +143,7 @@ func WithStreamName(streamName string) Option {
 	}
 }
 
+// WithStreamArn sets the ARN of the Kinesis stream.
 func WithStreamArn(streamArn string) Option {
 	return func(settings Settings) Settings {
 		if streamArn == "" {
@@ -145,6 +157,7 @@ func WithStreamArn(streamArn string) Option {
 	}
 }
 
+// NewSettings returns the Kinesis exporter settings with the options applied.
 func NewSettings(options ...Option) *Settings {
 	settings := Settings{
 		StreamName:      nil,
@@ -159,6 +172,7 @@ func NewSettings(options ...Option) *Settings {
 	return &settings
 }
 
+// Export sends the events to Kinesis.
 func (e *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,

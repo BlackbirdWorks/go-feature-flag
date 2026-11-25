@@ -20,6 +20,7 @@ import (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter writes evaluation events to local files.
 type Exporter struct {
 	csvTemplate      *template.Template
 	filenameTemplate *template.Template

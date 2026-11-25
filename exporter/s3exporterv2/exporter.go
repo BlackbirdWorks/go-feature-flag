@@ -20,6 +20,7 @@ import (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter uploads evaluation events to Amazon S3.
 type Exporter struct {
 	s3Uploader UploaderAPI
 	// AwsConfig is the AWS SDK configuration object we will use to
@@ -123,6 +124,7 @@ func (f *Exporter) Export(
 	return nil
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (f *Exporter) IsBulk() bool {
 	return true
 }

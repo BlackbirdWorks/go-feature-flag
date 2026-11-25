@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// TrackingEventDetails holds the details attached to a tracking event.
 type TrackingEventDetails = map[string]any
 
 // TrackingEvent represent an Event that we store in the data storage
@@ -39,6 +40,7 @@ type TrackingEvent struct {
 	TrackingDetails TrackingEventDetails `json:"trackingEventDetails" parquet:"name=trackingEventDetails, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
+// GetKey returns the key of the tracking event.
 func (f TrackingEvent) GetKey() string {
 	return f.Key
 }
@@ -53,6 +55,7 @@ func (f TrackingEvent) GetCreationDate() int64 {
 	return f.CreationDate
 }
 
+// FormatInCSV returns the tracking event formatted as a CSV line using csvTemplate.
 func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -71,6 +74,7 @@ func (f TrackingEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, erro
 	return buf.Bytes(), nil
 }
 
+// FormatInJSON returns the tracking event formatted as JSON.
 func (f TrackingEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	if err != nil {

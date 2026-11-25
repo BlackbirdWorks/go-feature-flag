@@ -26,6 +26,7 @@ var (
 
 var _ exporter.Exporter = &Exporter{}
 
+// Exporter writes evaluation events to Google Cloud Storage.
 type Exporter struct {
 	// Bucket is the name of your S3 Bucket.
 	Bucket string
@@ -55,6 +56,7 @@ type Exporter struct {
 	Options []option.ClientOption
 }
 
+// IsBulk reports whether the exporter sends events in bulk.
 func (f *Exporter) IsBulk() bool {
 	return true
 }

@@ -10,8 +10,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
+// DefaultCsvTemplate is the template of a CSV line for an evaluation event.
 const DefaultCsvTemplate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};" +
 	"{{ .Value}};{{ .Default}};{{ .Source}}\n"
+
+// DefaultFilenameTemplate is the template of the file name of an exported file.
 const DefaultFilenameTemplate = "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}"
 
 // ParseTemplate is parsing the template given by the config or use the default template.

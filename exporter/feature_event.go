@@ -16,6 +16,7 @@ var (
 	errNoValueToConvert = errors.New("no value to convert, returning empty string")
 )
 
+// FeatureEventMetadata holds the metadata attached to a feature event.
 type FeatureEventMetadata = map[string]any
 
 // FeatureEvent represent an Event that we store in the data storage
@@ -64,6 +65,7 @@ type FeatureEvent struct {
 	Metadata FeatureEventMetadata `json:"metadata,omitempty" parquet:"name=metadata, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
+// NewFeatureEvent returns a feature event for an evaluation of a flag.
 func NewFeatureEvent(
 	ctx ffcontext.Context,
 	flagKey string,
@@ -108,6 +110,7 @@ func (f FeatureEvent) GetCreationDate() int64 {
 	return f.CreationDate
 }
 
+// FormatInCSV returns the feature event formatted as a CSV line using csvTemplate.
 func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error) {
 	var buf bytes.Buffer
 
@@ -126,6 +129,7 @@ func (f FeatureEvent) FormatInCSV(csvTemplate *template.Template) ([]byte, error
 	return buf.Bytes(), nil
 }
 
+// FormatInJSON returns the feature event formatted as JSON.
 func (f FeatureEvent) FormatInJSON() ([]byte, error) {
 	b, err := json.Marshal(f)
 	if err != nil {

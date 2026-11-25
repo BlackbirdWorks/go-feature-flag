@@ -23,6 +23,7 @@ const (
 	defaultMaxEventInMemory = int64(100000)
 )
 
+// DataExporter is an exporter that receives the evaluation events of type T.
 type DataExporter[T ExportableEvent] interface {
 	// Start is launching the ticker to periodically flush the data
 	Start()
@@ -37,6 +38,8 @@ type DataExporter[T ExportableEvent] interface {
 	// GetMaxEventInMemory return the maximum number of event you keep in the cache before calling Flush()
 	GetMaxEventInMemory() int64
 }
+
+// Config is the configuration of an exporter.
 type Config struct {
 	Exporter         CommonExporter
 	FlushInterval    time.Duration
