@@ -183,8 +183,11 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			mutate:          func(_ *testing.T, f *flag.InternalFlag) { (*f.DefaultRule.Percentages)["A"] = 99 },
 		},
 		{
-			name: "experimentation", wantLiveChanged: false,
-			mutate: func(_ *testing.T, f *flag.InternalFlag) { *f.Experimentation.Start = f.Experimentation.End.Add(1) },
+			name:            "experimentation",
+			wantLiveChanged: false,
+			mutate: func(_ *testing.T, f *flag.InternalFlag) {
+				*f.Experimentation.Start = f.Experimentation.End.Add(1)
+			},
 		},
 		{name: "scheduled rollout", wantLiveChanged: false, mutate: func(t *testing.T, f *flag.InternalFlag) {
 			t.Helper()

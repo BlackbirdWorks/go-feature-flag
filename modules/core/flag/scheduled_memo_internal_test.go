@@ -95,8 +95,8 @@ func TestScheduledMemo_ReleasesEntriesOfCollectedFlags(t *testing.T) {
 func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		mutate     func(t *testing.T, v any)
-		value      func() any
+		mutate func(t *testing.T, v any)
+		value  func() any
 		// wantSecond is the value the second evaluation returns: the mutation of the first one is not shared
 		wantSecond func() any
 		name       string

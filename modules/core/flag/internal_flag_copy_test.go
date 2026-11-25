@@ -22,7 +22,12 @@ func TestInternalFlag_DeepCopy(t *testing.T) {
 		wantOriginalUnchanged bool
 	}{
 		{name: "nil", wantOriginalUnchanged: true, value: func() any { return nil }, mutate: func(*testing.T, any) {}},
-		{name: "scalar", wantOriginalUnchanged: true, value: func() any { return "a" }, mutate: func(*testing.T, any) {}},
+		{
+			name:                  "scalar",
+			wantOriginalUnchanged: true,
+			value:                 func() any { return "a" },
+			mutate:                func(*testing.T, any) {},
+		},
 		{
 			name:                  "map of any",
 			wantOriginalUnchanged: true,
