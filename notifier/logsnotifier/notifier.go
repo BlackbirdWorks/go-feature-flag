@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"github.com/blackbirdworks/semaphore/notifier"
-	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
 const (
@@ -15,7 +14,7 @@ var _ notifier.Notifier = &Notifier{}
 
 // Notifier is the component in charge of sending flag changes to the logs.
 type Notifier struct {
-	Logger *fflog.FFLogger
+	Logger *slog.Logger
 }
 
 // Notify is the notifying all the changes to the notifier.
