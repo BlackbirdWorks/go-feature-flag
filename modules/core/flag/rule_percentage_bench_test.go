@@ -18,12 +18,12 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 	}{
 		{
 			name:        "2 variations",
-			percentages: map[string]float64{"varA": 50, "varB": 50},
+			percentages: map[string]float64{varA2: 50, varB2: 50},
 		},
 		{
 			name: "5 variations",
 			percentages: map[string]float64{
-				"varA": 20, "varB": 20, "varC": 20, "varD": 20, "varE": 20,
+				varA2: 20, varB2: 20, "varC": 20, "varD": 20, "varE": 20,
 			},
 		},
 	}
@@ -35,7 +35,7 @@ func BenchmarkRuleEvaluate_Percentage(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, _ = rule.Evaluate(svc, key, ctx, "my-flag", true)
+				_, _ = rule.Evaluate(svc, key, ctx, myFlag, true)
 			}
 		})
 	}
@@ -49,14 +49,14 @@ func BenchmarkRuleEvaluate_JSONLogic(b *testing.B) {
 			`{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder("user-1").
-		AddCustom("language", "ar").
+	ctx := ffcontext.NewEvaluationContextBuilder(user1).
+		AddCustom(language, "ar").
 		AddCustom("clubsTimeSpent", 1500).
 		Build()
 
 	b.ReportAllocs()
 
 	for b.Loop() {
-		_, _ = rule.Evaluate(svc, "user-1", ctx, "my-flag", false)
+		_, _ = rule.Evaluate(svc, user1, ctx, myFlag, false)
 	}
 }

@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
+const (
+	changed2 = "changed"
+	nested2  = "nested"
+	theme    = "theme"
+)
+
 func scheduledFlag(base time.Time) *InternalFlag {
 	flg := &InternalFlag{
 		Variations: &map[string]*any{
@@ -55,10 +61,10 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			before := *flg.Scheduled
 
 			runParallel(200, func(int) {
-				ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-				ctx.AddCustomAttribute("gofeatureflag", map[string]any{
-					"currentDateTime": base.Add(tt.offset).Format(time.RFC3339Nano)})
-				v, d := flg.Value("flag", ctx, Context{Service: svc})
+				ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
+				ctx.AddCustomAttribute(gofeatureflag, map[string]any{
+					currentDateTime2: base.Add(tt.offset).Format(time.RFC3339Nano)})
+				v, d := flg.Value(flag2, ctx, Context{Service: svc})
 				assert.Equal(t, tt.wantVar == "A", v == "a")
 				assert.Equal(t, tt.wantVar, d.Variant)
 			})
@@ -110,19 +116,19 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	}{
 		{
 			name:       "object",
-			value:      func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
-			wantSecond: func() any { return map[string]any{"theme": "light", "nested": map[string]any{"a": "b"}} },
+			value:      func() any { return map[string]any{theme: "light", nested2: map[string]any{"a": "b"}} },
+			wantSecond: func() any { return map[string]any{theme: "light", nested2: map[string]any{"a": "b"}} },
 			mutate: func(t *testing.T, v any) {
 				t.Helper()
 
 				m, ok := v.(map[string]any)
 				require.True(t, ok)
 
-				m["theme"] = "dark"
-				nested, ok := m["nested"].(map[string]any)
+				m[theme] = "dark"
+				nested, ok := m[nested2].(map[string]any)
 				require.True(t, ok)
 
-				nested["a"] = "changed"
+				nested["a"] = changed2
 			},
 		},
 		{
@@ -135,15 +141,15 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 				arr, ok := v.([]any)
 				require.True(t, ok)
 
-				arr[0] = "changed"
+				arr[0] = changed2
 				elem1, ok := arr[1].(map[string]any)
 				require.True(t, ok)
 
-				elem1["k"] = "changed"
+				elem1["k"] = changed2
 				elem2, ok := arr[2].([]any)
 				require.True(t, ok)
 
-				elem2[0] = "changed"
+				elem2[0] = changed2
 			},
 		},
 	}
@@ -161,11 +167,11 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 					Version: new("v2"),
 				}},
 			}
-			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			first, _ := flg.Value("flag", ctx, Context{Service: NewService()})
+			ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
+			first, _ := flg.Value(flag2, ctx, Context{Service: NewService()})
 			tt.mutate(t, first)
 
-			second, _ := flg.Value("flag", ctx, Context{Service: NewService()})
+			second, _ := flg.Value(flag2, ctx, Context{Service: NewService()})
 			assert.Equal(t, tt.wantSecond(), second)
 		})
 	}

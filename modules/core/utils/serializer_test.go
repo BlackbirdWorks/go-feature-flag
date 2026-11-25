@@ -9,6 +9,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	anonymous2 = "anonymous"
+	key2       = "key"
+)
+
 func TestUserToMap(t *testing.T) {
 	t.Parallel()
 
@@ -19,26 +24,26 @@ func TestUserToMap(t *testing.T) {
 	}{
 		{
 			name: "complete user",
-			u: ffcontext.NewEvaluationContextBuilder("key").
-				AddCustom("anonymous", false).
+			u: ffcontext.NewEvaluationContextBuilder(key2).
+				AddCustom(anonymous2, false).
 				AddCustom("email", "contact@gofeatureflag.org").
 				Build(),
 			want: map[string]any{
-				"key":          "key",
-				"anonymous":    false,
+				key2:           key2,
+				anonymous2:     false,
 				"email":        "contact@gofeatureflag.org",
-				"targetingKey": "key",
+				"targetingKey": key2,
 			},
 		},
 		{
 			name: "anonymous user",
-			u: ffcontext.NewEvaluationContextBuilder("key").
-				AddCustom("anonymous", true).
+			u: ffcontext.NewEvaluationContextBuilder(key2).
+				AddCustom(anonymous2, true).
 				Build(),
 			want: map[string]any{
-				"key":          "key",
-				"anonymous":    true,
-				"targetingKey": "key",
+				key2:           key2,
+				anonymous2:     true,
+				"targetingKey": key2,
 			},
 		},
 	}

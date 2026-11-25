@@ -12,6 +12,15 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/model"
 )
 
+const (
+	disabled   = "disabled"
+	enabled    = "enabled"
+	fixture100 = "1.0.0"
+	fixture200 = "2.0.0"
+	key        = "key"
+	value      = "value"
+)
+
 func TestVariationResultToJSONStr(t *testing.T) {
 	t.Parallel()
 
@@ -26,13 +35,13 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				ErrorDetails:  "test error",
 				Value:         true,
 				Cacheable:     true,
-				Metadata:      map[string]any{"key": "value"},
+				Metadata:      map[string]any{key: value},
 			},
 			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
 				`","errorCode":"GENERAL","errorDetails":"test error","value":true,"cacheable":true,"metadata":{"key":"value"` +
@@ -42,9 +51,9 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			name: "string variation result",
 			result: model.VariationResult[string]{
 				TrackEvents:   false,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
-				Version:       "2.0.0",
+				Version:       fixture200,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
 				Value:         "test-value",
@@ -57,7 +66,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			name: "int variation result",
 			result: model.VariationResult[int]{
 				TrackEvents:   true,
-				VariationType: "disabled",
+				VariationType: disabled,
 				Failed:        true,
 				Version:       "3.0.0",
 				Reason:        flag.ReasonError,
@@ -88,12 +97,12 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			name: "map variation result",
 			result: model.VariationResult[map[string]any]{
 				TrackEvents:   true,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
 				Version:       "5.0.0",
 				Reason:        flag.ReasonTargetingMatchSplit,
 				ErrorCode:     flag.ErrorCodeInvalidContext,
-				Value:         map[string]any{"nested": "value", "number": 123},
+				Value:         map[string]any{"nested": value, "number": 123},
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
@@ -105,7 +114,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			name: "slice variation result",
 			result: model.VariationResult[[]any]{
 				TrackEvents:   false,
-				VariationType: "disabled",
+				VariationType: disabled,
 				Failed:        false,
 				Version:       "6.0.0",
 				Reason:        flag.ReasonStatic,
@@ -135,9 +144,9 @@ func TestVariationResultToJSONStr(t *testing.T) {
 			name: "variation result with empty metadata",
 			result: model.VariationResult[bool]{
 				TrackEvents:   true,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonOffline,
 				ErrorCode:     flag.ErrorFlagConfiguration,
 				Value:         false,
@@ -153,7 +162,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        true,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonUnknown,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         0,
@@ -252,13 +261,13 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				ErrorDetails:  "test error",
 				Value:         "test-value",
 				Cacheable:     true,
-				Metadata:      map[string]any{"key": "value"},
+				Metadata:      map[string]any{key: value},
 			},
 			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
 				`","errorCode":"GENERAL","errorDetails":"test error","value":"test-value","cacheable":true,"metadata":{"key"` +
@@ -268,9 +277,9 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			name: "raw var result with bool value",
 			result: model.RawVarResult{
 				TrackEvents:   false,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
-				Version:       "2.0.0",
+				Version:       fixture200,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
 				Value:         true,
@@ -283,7 +292,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			name: "raw var result with int value",
 			result: model.RawVarResult{
 				TrackEvents:   true,
-				VariationType: "disabled",
+				VariationType: disabled,
 				Failed:        true,
 				Version:       "3.0.0",
 				Reason:        flag.ReasonError,
@@ -314,12 +323,12 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			name: "raw var result with map value",
 			result: model.RawVarResult{
 				TrackEvents:   true,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
 				Version:       "5.0.0",
 				Reason:        flag.ReasonTargetingMatchSplit,
 				ErrorCode:     flag.ErrorCodeInvalidContext,
-				Value:         map[string]any{"nested": "value", "number": 123},
+				Value:         map[string]any{"nested": value, "number": 123},
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
@@ -331,7 +340,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 			name: "raw var result with slice value",
 			result: model.RawVarResult{
 				TrackEvents:   false,
-				VariationType: "disabled",
+				VariationType: disabled,
 				Failed:        false,
 				Version:       "6.0.0",
 				Reason:        flag.ReasonStatic,
@@ -363,7 +372,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				TrackEvents:   false,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        true,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonUnknown,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         nil,
@@ -427,7 +436,7 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 				TrackEvents:   true,
 				VariationType: flag.VariationSDKDefault,
 				Failed:        false,
-				Version:       "1.0.0",
+				Version:       fixture100,
 				Reason:        flag.ReasonDefault,
 				ErrorCode:     flag.ErrorCodeGeneral,
 				Value:         "test",
@@ -441,14 +450,14 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 				`MATCH","errorCode":"FLAG_NOT_FOUND","value":"value","cacheable":false,"metadata":{"key":"value"}}`,
 			want: model.VariationResult[string]{
 				TrackEvents:   false,
-				VariationType: "enabled",
+				VariationType: enabled,
 				Failed:        false,
-				Version:       "2.0.0",
+				Version:       fixture200,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
-				Value:         "value",
+				Value:         value,
 				Cacheable:     false,
-				Metadata:      map[string]any{"key": "value"},
+				Metadata:      map[string]any{key: value},
 			},
 			wantErr: false,
 		},

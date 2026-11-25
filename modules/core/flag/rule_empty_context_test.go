@@ -10,6 +10,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	user123 = "user-123"
+)
+
 func TestRule_RequiresBucketing(t *testing.T) {
 	t.Parallel()
 
@@ -21,7 +25,7 @@ func TestRule_RequiresBucketing(t *testing.T) {
 		{
 			name: "Should not require bucketing - static variation",
 			rule: flag.Rule{
-				VariationResult: new("enabled"),
+				VariationResult: new(enabled2),
 			},
 			expected: false,
 		},
@@ -29,8 +33,8 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - has percentages",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					"enabled":  50,
-					"disabled": 50,
+					enabled2:  50,
+					disabled2: 50,
 				},
 			},
 			expected: true,
@@ -47,12 +51,12 @@ func TestRule_RequiresBucketing(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("disabled"),
+						Variation:  new(disabled2),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow()),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("enabled"),
+						Variation:  new(enabled2),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(time.Hour)),
 					},
@@ -87,20 +91,20 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for static variation",
 			rule: flag.Rule{
-				VariationResult: new("enabled"),
+				VariationResult: new(enabled2),
 			},
 			key:           "",
 			ctx:           ffcontext.NewEvaluationContext(""),
 			expectedError: false,
-			expectedValue: "enabled",
+			expectedValue: enabled2,
 			description:   "Static variation should work without key",
 		},
 		{
 			name: "Should fail with empty key for percentage rule",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					"enabled":  50,
-					"disabled": 50,
+					enabled2:  50,
+					disabled2: 50,
 				},
 			},
 			key:           "",
@@ -112,12 +116,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			name: "Should succeed with key for percentage rule",
 			rule: flag.Rule{
 				Percentages: &map[string]float64{
-					"enabled":  50,
-					"disabled": 50,
+					enabled2:  50,
+					disabled2: 50,
 				},
 			},
-			key:           "user-123",
-			ctx:           ffcontext.NewEvaluationContext("user-123"),
+			key:           user123,
+			ctx:           ffcontext.NewEvaluationContext(user123),
 			expectedError: false,
 			description:   "Percentage rule should work with key",
 		},
@@ -126,12 +130,12 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 			rule: flag.Rule{
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("disabled"),
+						Variation:  new(disabled2),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(-time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("enabled"),
+						Variation:  new(enabled2),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(time.Hour)),
 					},
@@ -145,18 +149,18 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		{
 			name: "Should succeed with empty key for query-only rule",
 			rule: flag.Rule{
-				Query:           new("anonymous eq true"),
-				VariationResult: new("enabled"),
+				Query:           new(anonymousEqTrue),
+				VariationResult: new(enabled2),
 			},
 			key: "",
 			ctx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute("anonymous", true)
+				ctx.AddCustomAttribute(anonymous, true)
 
 				return ctx
 			}(),
 			expectedError: false,
-			expectedValue: "enabled",
+			expectedValue: enabled2,
 			description:   "Query-only rule should work without key",
 		},
 	}
@@ -165,7 +169,7 @@ func TestRule_Evaluate_EmptyKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), "test-flag", false)
+			result, err := tt.rule.Evaluate(flag.NewService(), tt.key, atFixedNow(tt.ctx), testFlag, false)
 
 			if tt.expectedError {
 				assert.Error(t, err, tt.description)

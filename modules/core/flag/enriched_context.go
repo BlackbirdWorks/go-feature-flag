@@ -6,6 +6,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+const (
+	anonymous = "anonymous"
+)
+
 // enrichedContext is an evaluation context seen with the evaluation context enrichment merged
 // in its custom attributes (the enrichment wins over the attributes with the same name).
 // It is a copy-on-enrich view: the context of the caller is never modified, so it can safely
@@ -38,7 +42,7 @@ func newEnrichedContext(ctx ffcontext.Context, enrichment map[string]any) *enric
 	maps.Copy(custom, ctx.GetCustom())
 	maps.Copy(custom, enrichment)
 	hasProtectedd := ffcontext.HasReservedKey(enrichment)
-	_, hasAnonymous := enrichment["anonymous"]
+	_, hasAnonymous := enrichment[anonymous]
 
 	return &enrichedContext{
 		Context: ctx, merged: merged, hasProtected: hasProtectedd, hasAnonymous: hasAnonymous,

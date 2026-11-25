@@ -7,6 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	resultShouldNotBe     = "Result should not be nil"
+	valueShouldMatchInput = "Value should match input"
+)
+
 func TestBool(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +37,8 @@ func TestBool(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
 		})
 	}
 }
@@ -68,8 +73,8 @@ func TestString(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
 		})
 	}
 }
@@ -109,8 +114,8 @@ func TestInt(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
 		})
 	}
 }
@@ -155,8 +160,8 @@ func TestFloat64(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.InDelta(t, tt.want, *result, 0, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.InDelta(t, tt.want, *result, 0, valueShouldMatchInput)
 		})
 	}
 }
@@ -195,8 +200,8 @@ func TestTime(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
 		})
 	}
 }
@@ -266,8 +271,8 @@ func TestInterface(t *testing.T) {
 			t.Parallel()
 
 			result := new(tt.input)
-			assert.NotNil(t, result, "Result should not be nil")
-			assert.Equal(t, tt.want, *result, "Value should match input")
+			assert.NotNil(t, result, resultShouldNotBe)
+			assert.Equal(t, tt.want, *result, valueShouldMatchInput)
 		})
 	}
 }

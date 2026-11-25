@@ -9,6 +9,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	companyId       = "company_id"
+	companyName     = "company_name"
+	fixture2323F37B = "2323f37b-eef7-4bbc-856f-7d16c67de3ae"
+	goFeatureFlag   = "go feature flag"
+)
+
 func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 	t.Parallel()
 
@@ -25,44 +32,44 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 		{
 			name: "simple case",
 			fields: fields{
-				Key: "2323f37b-eef7-4bbc-856f-7d16c67de3ae",
+				Key: fixture2323F37B,
 				Custom: map[string]any{
-					"company_name": "go feature flag",
+					companyName: goFeatureFlag,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder("2323f37b-eef7-4bbc-856f-7d16c67de3ae").
-				AddCustom("company_name", "go feature flag").
+				NewEvaluationContextBuilder(fixture2323F37B).
+				AddCustom(companyName, goFeatureFlag).
 				Build(),
 		},
 		{
 			name: "should return a float if the value is a float",
 			fields: fields{
-				Key: "2323f37b-eef7-4bbc-856f-7d16c67de3ae",
+				Key: fixture2323F37B,
 				Custom: map[string]any{
-					"company_name": "go feature flag",
-					"company_id":   1.1,
+					companyName: goFeatureFlag,
+					companyId:   1.1,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder("2323f37b-eef7-4bbc-856f-7d16c67de3ae").
-				AddCustom("company_name", "go feature flag").
-				AddCustom("company_id", 1.1).
+				NewEvaluationContextBuilder(fixture2323F37B).
+				AddCustom(companyName, goFeatureFlag).
+				AddCustom(companyId, 1.1).
 				Build(),
 		},
 		{
 			name: "should return an int if the value is a float but without decimal",
 			fields: fields{
-				Key: "2323f37b-eef7-4bbc-856f-7d16c67de3ae",
+				Key: fixture2323F37B,
 				Custom: map[string]any{
-					"company_name": "go feature flag",
-					"company_id":   1.0,
+					companyName: goFeatureFlag,
+					companyId:   1.0,
 				},
 			},
 			want: ffcontext.
-				NewEvaluationContextBuilder("2323f37b-eef7-4bbc-856f-7d16c67de3ae").
-				AddCustom("company_name", "go feature flag").
-				AddCustom("company_id", 1).
+				NewEvaluationContextBuilder(fixture2323F37B).
+				AddCustom(companyName, goFeatureFlag).
+				AddCustom(companyId, 1).
 				Build(),
 		},
 	}

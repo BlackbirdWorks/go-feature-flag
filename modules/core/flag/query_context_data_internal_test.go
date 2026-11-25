@@ -70,7 +70,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		{name: "[]byte", custom: map[string]any{"b": []byte("hello")}},
 		{name: "custom MarshalJSON", custom: map[string]any{"m": marshalerValue{n: 3}}},
 		{name: "MarshalJSON error", wantErr: true, custom: map[string]any{"m": unmarshalableValue{}}},
-		{name: "NaN", wantErr: true, custom: map[string]any{"f": math.NaN()}},
+		{name: naN, wantErr: true, custom: map[string]any{"f": math.NaN()}},
 		{name: "+Inf", wantErr: true, custom: map[string]any{"f": math.Inf(1)}},
 		{name: "-Inf nested", wantErr: true, custom: map[string]any{"f": []any{math.Inf(-1)}}},
 		{name: "float32", custom: map[string]any{"f": float32(0.1), "g": float32(16777217)}},
@@ -97,7 +97,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
 			for k, v := range tt.custom {
 				ctx.AddCustomAttribute(k, v)
 			}

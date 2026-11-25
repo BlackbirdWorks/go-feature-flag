@@ -8,6 +8,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	env2 = "env"
+	prod = "prod"
+)
+
 func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 	t.Parallel()
 
@@ -26,28 +31,28 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 			name:                        "Add a new key to a nil map",
 			EvaluationContextEnrichment: nil,
 			args: args{
-				key:   "env",
-				value: "prod",
+				key:   env2,
+				value: prod,
 			},
-			expected: "prod",
+			expected: prod,
 		},
 		{
 			name:                        "Add a new key to an existing map",
 			EvaluationContextEnrichment: map[string]any{"john": "doe"},
 			args: args{
-				key:   "env",
-				value: "prod",
+				key:   env2,
+				value: prod,
 			},
-			expected: "prod",
+			expected: prod,
 		},
 		{
 			name:                        "Override an existing key",
-			EvaluationContextEnrichment: map[string]any{"env": "dev"},
+			EvaluationContextEnrichment: map[string]any{env2: "dev"},
 			args: args{
-				key:   "env",
-				value: "prod",
+				key:   env2,
+				value: prod,
 			},
-			expected: "prod",
+			expected: prod,
 		},
 	}
 	for _, tt := range tests {

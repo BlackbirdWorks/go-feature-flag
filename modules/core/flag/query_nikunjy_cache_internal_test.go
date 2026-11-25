@@ -114,7 +114,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 // load, then evaluating it once.
 func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 	variations := map[string]*any{"on": new(any(true))}
-	ctx := ffcontext.NewEvaluationContext("user-1")
+	ctx := ffcontext.NewEvaluationContext(user1)
 	svc := NewService()
 
 	b.ReportAllocs()
@@ -134,7 +134,7 @@ func BenchmarkRule_ValidateThenEvaluate(b *testing.B) {
 			Query:           new(fmt.Sprintf(`key eq "user-%d"`, i)),
 		}
 		require.NoError(b, r.IsValid(svc, false, variations))
-		_, _ = r.Evaluate(svc, "user-1", ctx, "test-flag", false)
+		_, _ = r.Evaluate(svc, user1, ctx, "test-flag", false)
 	}
 }
 

@@ -55,12 +55,12 @@ func FuzzInternalFlagValue(f *testing.F) {
 		}
 
 		date := time.Unix(evalUnix, 0)
-		targetingKey, _ := attributes["targetingKey"].(string)
+		targetingKey, _ := attributes[targetingKey2].(string)
 		evalCtx := utils.ConvertEvaluationCtxFromRequest(targetingKey, attributes)
-		evalCtx.AddCustomAttribute("gofeatureflag", map[string]any{"currentDateTime": date})
+		evalCtx.AddCustomAttribute(gofeatureflag, map[string]any{currentDateTime2: date})
 		// evaluation.Evaluate calls Value on flags that were never validated,
 		// so any flag must evaluate without panicking.
-		_, details := internalFlag.Value("my-flag", evalCtx, Context{Service: svc})
+		_, details := internalFlag.Value(myFlag, evalCtx, Context{Service: svc})
 
 		flagAtDate, err := internalFlag.applyScheduledRolloutSteps(svc, date)
 		if err != nil || hasKnownFlagGap(flagAtDate) || flagAtDate.IsValid(svc) != nil {

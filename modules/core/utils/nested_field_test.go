@@ -8,6 +8,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	alice = "alice"
+	user2 = "user"
+)
+
 func TestGetNestedFieldValue(t *testing.T) {
 	t.Parallel()
 
@@ -21,12 +26,12 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "simple nested string",
 			ctx: map[string]any{
-				"user": map[string]any{
-					"name": "alice",
+				user2: map[string]any{
+					"name": alice,
 				},
 			},
 			key:  "user.name",
-			want: "alice",
+			want: alice,
 		},
 		{
 			name: "nested number",
@@ -71,8 +76,8 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "trying to navigate into non-map value returns error",
 			ctx: map[string]any{
-				"user": map[string]any{
-					"name": "alice", // name is a string, not a map
+				user2: map[string]any{
+					"name": alice, // name is a string, not a map
 				},
 			},
 			key:     "user.name.first", // trying to access .first on a string

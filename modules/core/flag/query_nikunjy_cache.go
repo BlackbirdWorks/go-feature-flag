@@ -246,7 +246,7 @@ func (c *nikunjyEvaluatorCache) retain(rules *[]Rule, known []nikunjyKnownQuery)
 func mayBeNikunjyQuery(query string) bool {
 	trimmed := strings.TrimLeft(query, " \t\n\r")
 
-	return !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, "null")
+	return !strings.HasPrefix(trimmed, "{") && !strings.HasPrefix(trimmed, null)
 }
 
 // known looks up the queries of the enabled rules that qualify for a key by their hash, before

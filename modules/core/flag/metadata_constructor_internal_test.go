@@ -7,6 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	bar      = "bar"
+	foo      = "foo"
+	testRule = "test-rule"
+)
+
 func Test_constructMetadataParallel(t *testing.T) {
 	t.Parallel()
 
@@ -36,7 +42,7 @@ func Test_constructMetadataParallel(t *testing.T) {
 			t.Parallel()
 
 			got := constructMetadata(sharedMetadata, &tt.wantEvaluatedRuleName)
-			assert.Equal(t, tt.wantEvaluatedRuleName, got["evaluatedRuleName"])
+			assert.Equal(t, tt.wantEvaluatedRuleName, got[evaluatedRuleName2])
 		})
 	}
 }
@@ -44,7 +50,7 @@ func Test_constructMetadataParallel(t *testing.T) {
 func Test_ConstructMetadata(t *testing.T) {
 	t.Parallel()
 
-	rule := "test-rule"
+	rule := testRule
 
 	tests := []struct {
 		flagMetadata map[string]any
@@ -68,25 +74,25 @@ func Test_ConstructMetadata(t *testing.T) {
 			name:         "nil metadata, non-empty rule",
 			flagMetadata: nil,
 			ruleName:     &rule,
-			want:         map[string]any{"evaluatedRuleName": "test-rule"},
+			want:         map[string]any{evaluatedRuleName2: testRule},
 		},
 		{
 			name:         "non-nil metadata, nil rule",
-			flagMetadata: map[string]any{"foo": "bar"},
+			flagMetadata: map[string]any{foo: bar},
 			ruleName:     nil,
-			want:         map[string]any{"foo": "bar"},
+			want:         map[string]any{foo: bar},
 		},
 		{
 			name:         "non-nil metadata, empty rule",
-			flagMetadata: map[string]any{"foo": "bar"},
+			flagMetadata: map[string]any{foo: bar},
 			ruleName:     new(""),
-			want:         map[string]any{"foo": "bar"},
+			want:         map[string]any{foo: bar},
 		},
 		{
 			name:         "non-nil metadata, non-empty rule",
-			flagMetadata: map[string]any{"foo": "bar"},
+			flagMetadata: map[string]any{foo: bar},
 			ruleName:     &rule,
-			want:         map[string]any{"foo": "bar", "evaluatedRuleName": "test-rule"},
+			want:         map[string]any{foo: bar, evaluatedRuleName2: testRule},
 		},
 	}
 

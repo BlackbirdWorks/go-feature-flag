@@ -10,6 +10,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	changed2 = "changed"
+)
+
 func TestInternalFlag_DeepCopy(t *testing.T) {
 	t.Parallel()
 
@@ -150,8 +154,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	assert.Equal(t, orig, copied)
 
 	(*copied.Rules)[0].ProgressiveRollout.End.Percentage = flt(9)
-	*(*copied.Rules)[0].ProgressiveRollout.Initial.Variation = "changed"
-	*(*copied.Rules)[0].Name = "changed"
+	*(*copied.Rules)[0].ProgressiveRollout.Initial.Variation = changed2
+	*(*copied.Rules)[0].Name = changed2
 	(*(*copied.Rules)[0].Percentages)["A"] = 9
 	*copied.DefaultRule.Percentages = map[string]float64{}
 	*copied.Experimentation.Start = time.Time{}
@@ -159,8 +163,8 @@ func TestInternalFlag_DeepCopyFullFlag(t *testing.T) {
 	aVal, ok := (*(*copied.Scheduled)[0].Metadata)["a"].([]any)
 	require.True(t, ok)
 
-	aVal[0] = "changed"
-	*copied.Version = "changed"
+	aVal[0] = changed2
+	*copied.Version = changed2
 
 	assert.Equal(t, build(), orig)
 }

@@ -17,6 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	keyEqA      = `key eq "a"`
+	keyEqB      = `key eq "b"`
+	nobody      = "nobody"
+	user0000001 = "user-0000001"
+)
+
 // newIndexingService creates a Service that gives keys to the short queries of the tests too.
 func newIndexingService() *Service {
 	svc := NewService()
@@ -217,15 +224,15 @@ func assertListsApply(t assert.TestingT, svc *Service, rulesA, rulesB []*Rule, i
 	for _, r := range rulesA {
 		assert.True(t, applies(svc, r, idA), "the id of list A must match list A")
 		assert.False(t, applies(svc, r, idB), "the id of list B must not match list A")
-		assert.True(t, applies(svc, r, "user-0000001"))
-		assert.False(t, applies(svc, r, "nobody"))
+		assert.True(t, applies(svc, r, user0000001))
+		assert.False(t, applies(svc, r, nobody))
 	}
 
 	for _, r := range rulesB {
 		assert.True(t, applies(svc, r, idB), "the id of list B must match list B")
 		assert.False(t, applies(svc, r, idA), "the id of list A must not match list B")
-		assert.True(t, applies(svc, r, "user-0000001"))
-		assert.False(t, applies(svc, r, "nobody"))
+		assert.True(t, applies(svc, r, user0000001))
+		assert.False(t, applies(svc, r, nobody))
 	}
 }
 
@@ -344,7 +351,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 		{
 			name: "query rewritten through its pointer is never evaluated with the old evaluator",
 			mutate: func(r *Rule) *Rule {
-				*r.Query = `key eq "b"`
+				*r.Query = keyEqB
 
 				return r
 			},
@@ -354,7 +361,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 		{
 			name: "another query with the hash of the old one",
 			mutate: func(r *Rule) *Rule {
-				q := `key eq "b"`
+				q := keyEqB
 				c := *r
 				c.Query = &q
 
@@ -378,7 +385,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 		{
 			name: "merging a query resets the hash",
 			mutate: func(r *Rule) *Rule {
-				q := `key eq "b"`
+				q := keyEqB
 				r.MergeRules(Rule{Query: &q})
 
 				return r
@@ -404,7 +411,7 @@ func TestNikunjyEvaluatorCache_LookupIsExact(t *testing.T) {
 
 			svc := newIndexingService()
 			c := svc.nikunjy
-			flg := validatedFlag(t, svc, `key eq "a"`)
+			flg := validatedFlag(t, svc, keyEqA)
 			require.NotZero(t, (*flg.Rules)[0].QueryHash)
 			r := tt.mutate(&(*flg.Rules)[0])
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(c, r) != nil)
@@ -547,7 +554,7 @@ func TestRule_QueryHashIsNotSerialized(t *testing.T) {
 	t.Parallel()
 
 	svc := newIndexingService()
-	f := validatedFlag(t, svc, `key eq "a"`)
+	f := validatedFlag(t, svc, keyEqA)
 	require.NotZero(t, (*f.Rules)[0].QueryHash)
 
 	asJSON, err := json.Marshal(f)
@@ -566,10 +573,10 @@ func TestRule_QueryHashDoesNotMakeFlagsDiffer(t *testing.T) {
 	t.Parallel()
 
 	svc := newIndexingService()
-	loaded := validatedFlag(t, svc, `key eq "a"`)
-	reloaded := validatedFlag(t, svc, strings.Clone(`key eq "a"`))
+	loaded := validatedFlag(t, svc, keyEqA)
+	reloaded := validatedFlag(t, svc, strings.Clone(keyEqA))
 	assert.True(t, cmp.Equal(loaded, reloaded), "two loads of the same flag are the same flag")
-	assert.False(t, cmp.Equal(loaded, validatedFlag(t, svc, `key eq "b"`)))
+	assert.False(t, cmp.Equal(loaded, validatedFlag(t, svc, keyEqB)))
 }
 
 func TestNikunjyEvaluatorCache_NotIndexed(t *testing.T) {
@@ -634,7 +641,7 @@ func TestNikunjyEvaluatorCache_UnvalidatedRuleEvaluates(t *testing.T) {
 	t.Parallel()
 
 	svc := newIndexingService()
-	q := `key eq "a"`
+	q := keyEqA
 	r := &Rule{Query: &q, VariationResult: &q}
 	assert.True(t, applies(svc, r, "a"))
 	assert.False(t, applies(svc, r, "b"))
@@ -785,8 +792,8 @@ func TestHashNikunjyQuery(t *testing.T) {
 	}{
 		{name: "same text in two strings", a: strings.Clone(long), b: strings.Clone(long), wantEqual: true},
 		{name: "empty and a zero byte", a: "", b: "\x00"},
-		{name: "a text and the text with a zero byte", a: "abc", b: "abc\x00"},
-		{name: "one byte of a short text", a: `key eq "a"`, b: `key eq "b"`},
+		{name: "a text and the text with a zero byte", a: abc, b: "abc\x00"},
+		{name: "one byte of a short text", a: keyEqA, b: keyEqB},
 		{name: "one byte of a long text, first block", a: long, b: "1" + long[1:]},
 		{name: "one byte of a long text, middle", a: long, b: long[:50] + "X" + long[51:]},
 		{name: "one byte of a long text, tail", a: long, b: long[:len(long)-1] + "X"},
@@ -795,8 +802,8 @@ func TestHashNikunjyQuery(t *testing.T) {
 			a:    long[:8] + "ABCDEFGH" + long[16:],
 			b:    "ABCDEFGH" + long[8:16] + long[16:],
 		},
-		{name: "case", a: `key eq "a"`, b: `KEY eq "a"`},
-		{name: "whitespace", a: `key eq "a"`, b: `key  eq "a"`},
+		{name: "case", a: keyEqA, b: `KEY eq "a"`},
+		{name: "whitespace", a: keyEqA, b: `key  eq "a"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -840,7 +847,7 @@ func TestNikunjyEvaluatorCache_ValidatingAgain(t *testing.T) {
 			svc := newIndexingService()
 			evalCache := svc.nikunjy
 
-			flg := newFlagWithQueries(`key eq "a"`, `key eq "b"`)
+			flg := newFlagWithQueries(keyEqA, keyEqB)
 			for range tt.validations {
 				require.NoError(t, flg.IsValid(svc))
 			}
@@ -875,7 +882,7 @@ func TestRule_validateReturnsTheEvaluator(t *testing.T) {
 		wantEval    bool
 		wantInvalid bool
 	}{
-		{name: "nikunjy query", rule: Rule{Query: new(`key eq "a"`), VariationResult: new("on")}, wantEval: true},
+		{name: "nikunjy query", rule: Rule{Query: new(keyEqA), VariationResult: new("on")}, wantEval: true},
 		{name: "jsonlogic query", rule: Rule{Query: new(`{"==": [1, 1]}`), VariationResult: new("on")}},
 		{name: "default rule", rule: Rule{VariationResult: new("on")}, isDefault: true},
 		{
@@ -921,7 +928,7 @@ func TestNikunjyEvaluatorCache_Disabled(t *testing.T) {
 			evalCache := svc.nikunjy
 			evalCache.keysEnabled = tt.enabled
 
-			flg := validatedFlag(t, svc, `key eq "a"`)
+			flg := validatedFlag(t, svc, keyEqA)
 			rule := &(*flg.Rules)[0]
 			assert.Equal(t, tt.wantIndexed, indexedEvaluator(evalCache, rule) != nil)
 			assert.Equal(t, tt.wantIndexed, indexSize(evalCache) == 1)
@@ -940,7 +947,7 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 		query       string
 		wantIndexed bool
 	}{
-		{name: "short query", query: `key eq "a"`},
+		{name: "short query", query: keyEqA},
 		{
 			name:  "query just under the length",
 			query: `key eq "` + strings.Repeat("a", defaultNikunjyKeysMinQueryLen-len(`key eq ""`)-1) + `"`,
@@ -965,7 +972,7 @@ func TestNikunjyEvaluatorCache_ShortQueriesHaveNoKey(t *testing.T) {
 			assert.Equal(t, tt.wantIndexed, rule.QueryHash != 0)
 			assert.True(
 				t,
-				applies(svc, rule, "user-0000001") || !strings.Contains(tt.query, "user-"),
+				applies(svc, rule, user0000001) || !strings.Contains(tt.query, user3),
 				"the rule evaluates either way",
 			)
 			runtime.KeepAlive(flg)
@@ -1014,7 +1021,7 @@ func TestNikunjyEvaluatorCache_KnownQueryIsNotLookedUpByText(t *testing.T) {
 				rule := &(*flg.Rules)[0]
 				assert.Same(t, first, indexedEvaluator(evalCache, rule), "one evaluator for the query")
 				assert.True(t, applies(svc, rule, "user-0000199"))
-				assert.False(t, applies(svc, rule, "nobody"))
+				assert.False(t, applies(svc, rule, nobody))
 			}
 
 			runtime.KeepAlive(flags)

@@ -9,6 +9,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+const (
+	secret = "secret"
+)
+
 // The map given to the query engines is recycled between evaluations: an attribute of an
 // evaluation must never be visible to another one.
 func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
@@ -31,11 +35,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 		want string
 	}{
 		{name: "context with the attribute matches", want: "a",
-			ctx: ffcontext.NewEvaluationContextBuilder("u1").AddCustom("secret", "x").Build()},
+			ctx: ffcontext.NewEvaluationContextBuilder("u1").AddCustom(secret, "x").Build()},
 		{name: "context without the attribute does not match", want: "b",
 			ctx: ffcontext.NewEvaluationContextBuilder("u2").AddCustom("other", "x").Build()},
 		{name: "attribute with another value does not match", want: "b",
-			ctx: ffcontext.NewEvaluationContextBuilder("u3").AddCustom("secret", "y").Build()},
+			ctx: ffcontext.NewEvaluationContextBuilder("u3").AddCustom(secret, "y").Build()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -43,11 +47,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 			runParallel(300, func(int) {
 				// interleave with a matching context to recycle a map holding the attribute
 				_, _ = flg.Value(
-					"flag",
-					ffcontext.NewEvaluationContextBuilder("m").AddCustom("secret", "x").Build(),
+					flag2,
+					ffcontext.NewEvaluationContextBuilder("m").AddCustom(secret, "x").Build(),
 					Context{Service: svc},
 				)
-				v, _ := flg.Value("flag", tt.ctx, Context{Service: svc})
+				v, _ := flg.Value(flag2, tt.ctx, Context{Service: svc})
 				assert.Equal(t, tt.want, v)
 			})
 		})

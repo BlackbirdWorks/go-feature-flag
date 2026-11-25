@@ -13,6 +13,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
+const (
+	env2      = "env"
+	envEqProd = `env eq "prod"`
+	free      = "free"
+	prod      = "prod"
+)
+
 func progressiveFlag(endPercentage *float64) *InternalFlag {
 	return &InternalFlag{
 		Variations: &map[string]*any{
@@ -72,8 +79,8 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 			targetFlag := progressiveFlag(tt.endPercentage)
 
 			runParallel(300, func(_ int) {
-				ctx := ffcontext.NewEvaluationContext("user")
-				_, d := targetFlag.Value("flag", ctx, Context{Service: NewService()})
+				ctx := ffcontext.NewEvaluationContext(user2)
+				_, d := targetFlag.Value(flag2, ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
 			assert.Equal(t, tt.wantEndPercentage, targetFlag.DefaultRule.ProgressiveRollout.End.Percentage,
@@ -96,30 +103,30 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	}{
 		{
 			name:       "enrichment attribute is used by the query",
-			ctxCustom:  map[string]any{"plan": "free"},
-			enrichment: map[string]any{"env": "prod"},
-			query:      `env eq "prod"`,
+			ctxCustom:  map[string]any{plan2: free},
+			enrichment: map[string]any{env2: prod},
+			query:      envEqProd,
 			wantMatch:  true,
 		},
 		{
 			name:       "enrichment overrides the attribute of the context",
-			ctxCustom:  map[string]any{"env": "dev"},
-			enrichment: map[string]any{"env": "prod"},
-			query:      `env eq "prod"`,
+			ctxCustom:  map[string]any{env2: "dev"},
+			enrichment: map[string]any{env2: prod},
+			query:      envEqProd,
 			wantMatch:  true,
 		},
 		{
 			name:       "context attribute is kept",
-			ctxCustom:  map[string]any{"plan": "free"},
-			enrichment: map[string]any{"env": "prod"},
+			ctxCustom:  map[string]any{plan2: free},
+			enrichment: map[string]any{env2: prod},
 			query:      `plan eq "free"`,
 			wantMatch:  true,
 		},
 		{
 			name:       "nil custom attributes do not panic",
 			ctxCustom:  nil,
-			enrichment: map[string]any{"env": "prod"},
-			query:      `env eq "prod"`,
+			enrichment: map[string]any{env2: prod},
+			query:      envEqProd,
 			wantMatch:  true,
 		},
 	}
@@ -138,7 +145,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 			svc := NewService()
 			require.NoError(t, targetFlag.IsValid(svc))
 
-			ctx := &customContext{key: "user", custom: tt.ctxCustom}
+			ctx := &customContext{key: user2, custom: tt.ctxCustom}
 
 			var before map[string]any
 			if tt.ctxCustom != nil {
@@ -147,7 +154,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 			}
 
 			runParallel(200, func(_ int) {
-				v, _ := targetFlag.Value("flag", ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
+				v, _ := targetFlag.Value(flag2, ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
 				assert.Equal(t, tt.wantMatch, v == true)
 			})
 			assert.Equal(t, before, ctx.custom, "the evaluation context must not be modified")

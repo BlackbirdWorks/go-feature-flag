@@ -52,8 +52,8 @@ func TestBuildHash(t *testing.T) {
 		{
 			name: "all fields",
 			args: args{
-				flagKey:       "my-flag",
-				bucketingKey:  "e56f628e-9817-498f-ae38-4961e9c2bb21",
+				flagKey:       myFlag,
+				bucketingKey:  e56F628,
 				maxPercentage: 100000,
 			},
 			want: 70272,
@@ -62,7 +62,7 @@ func TestBuildHash(t *testing.T) {
 			name: "empty flag key",
 			args: args{
 				flagKey:       "",
-				bucketingKey:  "e56f628e-9817-498f-ae38-4961e9c2bb21",
+				bucketingKey:  e56F628,
 				maxPercentage: 100000,
 			},
 			want: 74237,
@@ -98,7 +98,7 @@ func TestBuildHash(t *testing.T) {
 			name: "max percentage is the largest uint32",
 			args: args{
 				flagKey:       "flag",
-				bucketingKey:  "user",
+				bucketingKey:  user2,
 				maxPercentage: 4294967295,
 			},
 			want: 3459711972,

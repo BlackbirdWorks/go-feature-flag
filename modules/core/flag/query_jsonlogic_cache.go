@@ -6,6 +6,11 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	fixtureFalse = "false"
+	null         = "null"
+)
+
 // isJSONLogicTruthy treats false, null, "", 0 and [] as falsy, as per the JsonLogic spec.
 func isJSONLogicTruthy(v any) bool {
 	switch val := v.(type) {
@@ -22,7 +27,7 @@ func isJSONLogicTruthy(v any) bool {
 		return false
 	}
 	switch string(b) {
-	case "false", "null", `""`, "0", "[]":
+	case fixtureFalse, null, `""`, "0", "[]":
 		return false
 	}
 	return true

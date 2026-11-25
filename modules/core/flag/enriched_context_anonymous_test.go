@@ -9,6 +9,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	anonymous       = "anonymous"
+	anonymousEqTrue = "anonymous eq true"
+)
+
 // the enrichment is merged in the attributes of the context and wins over them, so a targeting
 // rule on "anonymous" must see the configured value (not the one of the caller's context).
 func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
@@ -23,33 +28,33 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 	}{
 		{
 			name:       "nikunjy, enrichment sets anonymous",
-			query:      "anonymous eq true",
-			enrichment: map[string]any{"anonymous": true},
+			query:      anonymousEqTrue,
+			enrichment: map[string]any{anonymous: true},
 			wantMatch:  true,
 		},
 		{
 			name:       "jsonlogic, enrichment sets anonymous",
 			query:      `{"==":[{"var":"anonymous"},true]}`,
-			enrichment: map[string]any{"anonymous": true},
+			enrichment: map[string]any{anonymous: true},
 			wantMatch:  true,
 		},
 		{
 			name:       "enrichment overrides an anonymous caller",
-			query:      "anonymous eq true",
+			query:      anonymousEqTrue,
 			callerAnon: true,
-			enrichment: map[string]any{"anonymous": false},
+			enrichment: map[string]any{anonymous: false},
 			wantMatch:  false,
 		},
 		{
 			name:       "enrichment without anonymous keeps the caller's",
-			query:      "anonymous eq true",
+			query:      anonymousEqTrue,
 			callerAnon: true,
 			enrichment: map[string]any{"other": 1},
 			wantMatch:  true,
 		},
 		{
 			name:       "no anonymous anywhere",
-			query:      "anonymous eq true",
+			query:      anonymousEqTrue,
 			enrichment: map[string]any{"other": 1},
 			wantMatch:  false,
 		},
@@ -66,14 +71,14 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 				DefaultRule: &flag.Rule{VariationResult: new("A")},
 			}
 
-			b := ffcontext.NewEvaluationContextBuilder("user")
+			b := ffcontext.NewEvaluationContextBuilder(user2)
 			if tt.callerAnon != nil {
-				b = b.AddCustom("anonymous", tt.callerAnon)
+				b = b.AddCustom(anonymous, tt.callerAnon)
 			}
 
 			ctx := b.Build()
 			got, _ := targetFlag.Value(
-				"flag",
+				flag2,
 				ctx,
 				flag.Context{Service: flag.NewService(), EvaluationContextEnrichment: tt.enrichment},
 			)

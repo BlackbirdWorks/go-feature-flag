@@ -11,6 +11,16 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+const (
+	fixtureDefault = "default"
+	jsonlogic22    = "jsonlogic-2"
+	key2           = "key"
+	plan2          = "plan"
+	pro            = "pro"
+	targetingKey2  = "targetingKey"
+	user1          = "user-1"
+)
+
 func TestQueryContext_MapOnce(t *testing.T) {
 	t.Parallel()
 
@@ -21,13 +31,13 @@ func TestQueryContext_MapOnce(t *testing.T) {
 	}{
 		{
 			name: "context with custom attributes",
-			ctx:  ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build(),
-			want: map[string]any{"plan": "pro", "anonymous": false, "key": "user-1", "targetingKey": "user-1"},
+			ctx:  ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build(),
+			want: map[string]any{plan2: pro, anonymous: false, key2: user1, targetingKey2: user1},
 		},
 		{
 			name: "context without custom attributes",
-			ctx:  ffcontext.NewEvaluationContext("user-1"),
-			want: map[string]any{"anonymous": false, "key": "user-1", "targetingKey": "user-1"},
+			ctx:  ffcontext.NewEvaluationContext(user1),
+			want: map[string]any{anonymous: false, key2: user1, targetingKey2: user1},
 		},
 	}
 	for _, tt := range tests {
@@ -60,12 +70,12 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 	}{
 		{
 			name: "context with custom attributes",
-			ctx:  ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", "pro").Build(),
+			ctx:  ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, pro).Build(),
 			want: `{"anonymous": false, "key": "user-1", "plan": "pro", "targetingKey": "user-1"}`,
 		},
 		{
 			name: "context without custom attributes",
-			ctx:  ffcontext.NewEvaluationContext("user-1"),
+			ctx:  ffcontext.NewEvaluationContext(user1),
 			want: `{"anonymous": false, "key": "user-1", "targetingKey": "user-1"}`,
 		},
 	}
@@ -91,7 +101,7 @@ func TestQueryContext_JSONOnceDoesNotCacheAnError(t *testing.T) {
 
 	queryCtx := &queryContext{
 		svc: NewService(),
-		ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("unsupported", make(chan int)).Build(),
+		ctx: ffcontext.NewEvaluationContextBuilder(user1).AddCustom("unsupported", make(chan int)).Build(),
 	}
 
 	_, err := queryCtx.jsonOnce()
@@ -128,7 +138,7 @@ func TestQueryContext_DataOnceDoesNotCacheAnError(t *testing.T) {
 
 			queryCtx := &queryContext{
 				svc: NewService(),
-				ctx: ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("bad", tt.value).Build(),
+				ctx: ffcontext.NewEvaluationContextBuilder(user1).AddCustom("bad", tt.value).Build(),
 			}
 			query := `{"==": [{"var": "key"}, "user-1"]}`
 
@@ -179,9 +189,9 @@ func TestRule_EvaluateBuildsTheMapOnlyForAQuery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext("user-1")}
+			queryCtx := &queryContext{svc: NewService(), ctx: ffcontext.NewEvaluationContext(user1)}
 
-			_, err := tt.rule.evaluate("user-1", queryCtx, "my-flag", tt.isDefault)
+			_, err := tt.rule.evaluate(user1, queryCtx, myFlag, tt.isDefault)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMapped, queryCtx.parsedEvalCtxAsMap != nil)
@@ -194,17 +204,17 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 
 	internalFlag := InternalFlag{
 		Variations: &map[string]*any{
-			"nikunjy":     new(any("nikunjy")),
-			"jsonlogic":   new(any("jsonlogic")),
-			"jsonlogic-2": new(any("jsonlogic-2")),
-			"default":     new(any("default")),
+			nikunjy2:       new(any(nikunjy2)),
+			jsonlogic2:     new(any(jsonlogic2)),
+			jsonlogic22:    new(any(jsonlogic22)),
+			fixtureDefault: new(any(fixtureDefault)),
 		},
 		Rules: &[]Rule{
-			{Query: new(`plan eq "free"`), VariationResult: new("nikunjy")},
-			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new("jsonlogic")},
-			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new("jsonlogic-2")},
+			{Query: new(`plan eq "free"`), VariationResult: new(nikunjy2)},
+			{Query: new(`{"==": [{"var": "plan"}, "pro"]}`), VariationResult: new(jsonlogic2)},
+			{Query: new(`{"==": [{"var": "plan"}, "team"]}`), VariationResult: new(jsonlogic22)},
 		},
-		DefaultRule: &Rule{VariationResult: new("default")},
+		DefaultRule: &Rule{VariationResult: new(fixtureDefault)},
 	}
 
 	tests := []struct {
@@ -212,16 +222,16 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		plan string
 		want string
 	}{
-		{name: "nikunjy rule matches", plan: "free", want: "nikunjy"},
-		{name: "nikunjy rule misses and jsonlogic rule matches", plan: "pro", want: "jsonlogic"},
-		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: "jsonlogic-2"},
-		{name: "no rule matches", plan: "enterprise", want: "default"},
+		{name: "nikunjy rule matches", plan: free, want: nikunjy2},
+		{name: "nikunjy rule misses and jsonlogic rule matches", plan: pro, want: jsonlogic2},
+		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: jsonlogic22},
+		{name: "no rule matches", plan: "enterprise", want: fixtureDefault},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder("user-1").AddCustom("plan", tt.plan).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(user1).AddCustom(plan2, tt.plan).Build()
 
 			value, details := internalFlag.Value(
 				"mixed-formats",

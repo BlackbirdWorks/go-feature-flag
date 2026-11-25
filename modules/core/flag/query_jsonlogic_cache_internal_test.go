@@ -17,6 +17,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	dsp2  = "dsp"
+	naN   = "NaN"
+	tags2 = "tags"
+	ttd   = "ttd"
+)
+
 type namedBool bool
 
 type namedString string
@@ -29,7 +36,7 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 		want  bool
 	}{
 		{name: "infinity", value: math.Inf(1)},
-		{name: "NaN", value: math.NaN()},
+		{name: naN, value: math.NaN()},
 		{name: "infinity in an array", value: []any{true, math.Inf(-1)}},
 		{name: "NaN in an object", value: map[string]any{"a": map[string]any{"b": math.NaN()}}},
 		{name: "nil slice", value: []any(nil)},
@@ -38,7 +45,7 @@ func TestIsJSONLogicTruthy(t *testing.T) {
 		{name: "named bool false", value: namedBool(false)},
 		{name: "*string empty", value: &empty},
 		{name: "named string empty", value: namedString("")},
-		{name: "raw false", value: json.RawMessage("false")},
+		{name: "raw false", value: json.RawMessage(fixtureFalse)},
 		{name: "*bool true", value: &tr, want: true},
 		{name: "named bool true", value: namedBool(true), want: true},
 		{name: "named string", value: namedString("x"), want: true},
@@ -64,16 +71,16 @@ func TestAsJSONData(t *testing.T) {
 	}{
 		{
 			name:   "flat context",
-			value:  map[string]any{"key": "user-1", "anonymous": false, "dsp": "42", "score": 1.5},
+			value:  map[string]any{key2: user1, anonymous: false, dsp2: "42", "score": 1.5},
 			wantOK: true,
 		},
 		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
-		{name: "nested", value: map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}}, wantOK: true},
+		{name: nested2, value: map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}}, wantOK: true},
 		{name: "empty", value: map[string]any{}, wantOK: true},
 		{name: "nil map and slice", value: map[string]any{"m": map[string]any(nil), "s": []any(nil)}, wantOK: true},
 		{name: "invalid utf8 value", value: map[string]any{"a": "\xff"}},
 		{name: "invalid utf8 key", value: map[string]any{"\xff": "a"}},
-		{name: "NaN", value: map[string]any{"a": math.NaN()}},
+		{name: naN, value: map[string]any{"a": math.NaN()}},
 		{name: "infinity in array", value: []any{math.Inf(1)}},
 		{name: "json number", value: map[string]any{"a": json.Number("1")}},
 		{name: "time", value: map[string]any{"a": time.Unix(0, 0)}},
@@ -101,7 +108,7 @@ func TestAsJSONData(t *testing.T) {
 // TestEvaluateRule_JSONLogicMatchesApply checks the cached path gives the same answer as jsonlogic.Apply.
 func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 	queries := []string{
-		`{"==": [{"var": "key"}, "abc"]}`,
+		varKeyAbc,
 		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
 		`{"or": [{"==": [{"var": "anonymous"}, true]}, {"!": {"var": "missing"}}]}`,
 		`{"cat": ["t", "r", "u", "e"]}`,
@@ -125,14 +132,14 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 		`{"+": [0.5, 0.5]}`,
 	}
 	ctxs := []ffcontext.Context{
-		ffcontext.NewEvaluationContext("abc"),
+		ffcontext.NewEvaluationContext(abc),
 		ffcontext.NewEvaluationContextBuilder("def").
-			AddCustom("dsp", "ttd").AddCustom("floor", 1.2).
-			AddCustom("tags", []any{"a", "b"}).
+			AddCustom(dsp2, ttd).AddCustom("floor", 1.2).
+			AddCustom(tags2, []any{"a", "b"}).
 			AddCustom("orgs", []any{map[string]any{"id": 1}}).
-			AddCustom("plan", map[string]any{"cat": []any{"enter", "prise"}}).
+			AddCustom(plan2, map[string]any{"cat": []any{"enter", "prise"}}).
 			Build(),
-		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom("tags", []any{}).Build(),
+		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom(tags2, []any{}).Build(),
 	}
 	svc := NewService()
 	for _, q := range queries {
@@ -157,12 +164,12 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 		"named_false":  namedBool(false),
 		"ptr_empty":    &empty,
 		"named_empty":  namedString(""),
-		"raw_false":    json.RawMessage("false"),
+		"raw_false":    json.RawMessage(fixtureFalse),
 		"ptr_true":     &tr,
 		"named_true":   namedBool(true),
 		"named_string": namedString("x"),
 	}
-	ctx := ffcontext.NewEvaluationContext("abc")
+	ctx := ffcontext.NewEvaluationContext(abc)
 	svc := NewService()
 	for name, result := range results {
 		op := "goff_test_" + name
@@ -181,7 +188,7 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 	ctx := `{"dsp": "ttd", "floor": 1.2, "tags": ["a", "b"], "orgs": [{"plan": "enterprise"}]}`
 	for _, q := range []string{
-		`{"==": [{"var": "key"}, "abc"]}`,
+		varKeyAbc,
 		`{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {">": [{"var": "floor"}, 0.5]}]}`,
 		`{"some": [{"var": "orgs"}, {"==": [{"var": "plan"}, "enterprise"]}]}`,
 		`{"/": [1, {"var": "floor"}]}`,
@@ -199,7 +206,7 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 		if compiled.format != JSONLogicQueryFormat {
 			return
 		}
-		evalCtx := utils.ConvertEvaluationCtxFromRequest("key", attributes)
+		evalCtx := utils.ConvertEvaluationCtxFromRequest(key2, attributes)
 		assert.Equal(
 			t,
 			applyReference(t, compiled.trimmed, evalCtx),
@@ -211,7 +218,7 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 func BenchmarkEvaluateRule_JSONLogic(b *testing.B) {
 	query := `{"and": [{"in": [{"var": "dsp"}, ["ttd", "dv360"]]}, {"==": [{"var": "inventory"}, "web"]}]}`
 	ctx := ffcontext.NewEvaluationContextBuilder("request-1").
-		AddCustom("dsp", "ttd").
+		AddCustom(dsp2, ttd).
 		AddCustom("inventory", "web").
 		Build()
 	b.Run("jsonlogic.Apply", func(b *testing.B) {
@@ -238,13 +245,13 @@ func TestEvaluateRule_JSONLogicConcurrent(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range 32 {
 		wg.Go(func() {
-			dsp := []string{"ttd", "xandr"}[i%2]
+			dsp := []string{ttd, "xandr"}[i%2]
 			ctx := ffcontext.NewEvaluationContextBuilder("k").
-				AddCustom("dsp", dsp).
-				AddCustom("tags", []any{"a", "b"}).
+				AddCustom(dsp2, dsp).
+				AddCustom(tags2, []any{"a", "b"}).
 				Build()
 			for range 200 {
-				assert.Equal(t, dsp == "ttd", evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}))
+				assert.Equal(t, dsp == ttd, evaluateRule(svc.compiledQuery(q), &queryContext{svc: svc, ctx: ctx}))
 			}
 		})
 	}
@@ -260,7 +267,7 @@ func applyReference(t *testing.T, query string, ctx ffcontext.Context) bool {
 		return false
 	}
 	switch strings.TrimSpace(result.String()) {
-	case "false", "null", `""`, "0", "[]":
+	case fixtureFalse, null, `""`, "0", "[]":
 		return false
 	default:
 		return true

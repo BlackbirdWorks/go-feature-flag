@@ -6,6 +6,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	null = "null"
+)
+
 func BenchmarkIsJSONObject(b *testing.B) {
 	tests := []struct {
 		name  string
@@ -19,7 +23,7 @@ func BenchmarkIsJSONObject(b *testing.B) {
 			name:  "jsonlogic query",
 			input: `{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		},
-		{name: "null", input: "null"},
+		{name: null, input: null},
 		{
 			name:  "whitespace-prefixed object",
 			input: "  \n\t{\"==\":[{\"var\":\"language\"},\"ar\"]}",

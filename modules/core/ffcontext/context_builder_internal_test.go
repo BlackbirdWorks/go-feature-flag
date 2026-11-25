@@ -6,6 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	attributes2        = "attributes"
+	randomTargetingKey = "random-targetingKey"
+	test2              = "test"
+)
+
 func TestNewUser(t *testing.T) {
 	t.Parallel()
 
@@ -16,43 +22,43 @@ func TestNewUser(t *testing.T) {
 	}{
 		{
 			name: "Builder with only targetingKey",
-			got:  NewEvaluationContextBuilder("random-targetingKey").Build(),
+			got:  NewEvaluationContextBuilder(randomTargetingKey).Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes:   map[string]any{},
 			},
 		},
 		{
 			name: "Builder with attributes attribute",
-			got: NewEvaluationContextBuilder("random-targetingKey").
-				AddCustom("test", "attributes").
+			got: NewEvaluationContextBuilder(randomTargetingKey).
+				AddCustom(test2, attributes2).
 				Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					"test": "attributes",
+					test2: attributes2,
 				},
 			},
 		},
 		{
 			name: "Builder with attributes attribute",
-			got: NewEvaluationContextBuilder("random-targetingKey").
+			got: NewEvaluationContextBuilder(randomTargetingKey).
 				Anonymous(true).
-				AddCustom("test", "attributes").
+				AddCustom(test2, attributes2).
 				Build(),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					"test":             "attributes",
+					test2:              attributes2,
 					anonymousAttribute: true,
 				},
 			},
 		},
 		{
 			name: "NewUser with targetingKey",
-			got:  NewEvaluationContext("random-targetingKey"),
+			got:  NewEvaluationContext(randomTargetingKey),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes:   map[string]any{},
 			},
 		},
@@ -66,9 +72,9 @@ func TestNewUser(t *testing.T) {
 		},
 		{
 			name: "NewAnonymousUser with targetingKey",
-			got:  NewAnonymousEvaluationContext("random-targetingKey"),
+			got:  NewAnonymousEvaluationContext(randomTargetingKey),
 			want: EvaluationContext{
-				targetingKey: "random-targetingKey",
+				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
 					anonymousAttribute: true,
 				},

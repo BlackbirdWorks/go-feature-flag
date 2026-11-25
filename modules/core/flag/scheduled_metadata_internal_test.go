@@ -18,7 +18,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 
 	metadata := func() *map[string]any {
 		return &map[string]any{
-			"release": map[string]any{"owner": "team", "tags": []any{"a", map[string]any{"k": "v"}}},
+			"release": map[string]any{"owner": "team", tags2: []any{"a", map[string]any{"k": "v"}}},
 		}
 	}
 
@@ -68,26 +68,26 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			t.Parallel()
 
 			flg := tt.flag(clocktest.Instant())
-			ctx := ffcontext.NewEvaluationContextBuilder("user").Build()
-			_, first := flg.Value("flag", ctx, Context{Service: NewService()})
+			ctx := ffcontext.NewEvaluationContextBuilder(user2).Build()
+			_, first := flg.Value(flag2, ctx, Context{Service: NewService()})
 			rel, ok := first.Metadata["release"].(map[string]any)
 			require.True(t, ok)
 
-			rel["owner"] = "changed"
-			tags, ok := rel["tags"].([]any)
+			rel["owner"] = changed2
+			tags, ok := rel[tags2].([]any)
 			require.True(t, ok)
 
-			tags[0] = "changed"
+			tags[0] = changed2
 			tagMap, ok := tags[1].(map[string]any)
 			require.True(t, ok)
 
-			tagMap["k"] = "changed"
+			tagMap["k"] = changed2
 
 			if first.RuleName != nil {
-				*first.RuleName = "changed"
+				*first.RuleName = changed2
 			}
 
-			_, second := flg.Value("flag", ctx, Context{Service: NewService()})
+			_, second := flg.Value(flag2, ctx, Context{Service: NewService()})
 			assert.Equal(t, *metadata(), withoutRuleName(second.Metadata))
 
 			gotRuleName := ""
@@ -103,7 +103,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 func withoutRuleName(m map[string]any) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		if k != "evaluatedRuleName" {
+		if k != evaluatedRuleName2 {
 			out[k] = v
 		}
 	}

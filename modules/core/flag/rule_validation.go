@@ -11,6 +11,10 @@ import (
 	"github.com/blackbirdworks/semaphore/rules/parser"
 )
 
+const (
+	wSDoesNot = "%w %s does not exist"
+)
+
 var (
 	errRolloutInitialNotLowerThanEnd = errors.New(
 		"invalid progressive rollout, initial percentage should be lower than end percentage",
@@ -109,7 +113,7 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 		count += pct
 
 		if _, ok := variations[variationKey]; !ok {
-			return fmt.Errorf("%w %s does not exist", errInvalidPercentageVariation, variationKey)
+			return fmt.Errorf(wSDoesNot, errInvalidPercentageVariation, variationKey)
 		}
 	}
 
@@ -167,14 +171,14 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 
 	endVar := progRollout.End.getVariation()
 	if _, ok := variations[endVar]; !ok {
-		return fmt.Errorf("%w %s does not exist", errInvalidProgressiveRolloutEnd,
+		return fmt.Errorf(wSDoesNot, errInvalidProgressiveRolloutEnd,
 			endVar,
 		)
 	}
 
 	initialVar := progRollout.Initial.getVariation()
 	if _, ok := variations[initialVar]; !ok {
-		return fmt.Errorf("%w %s does not exist", errInvalidProgressiveRolloutInitialVariation,
+		return fmt.Errorf(wSDoesNot, errInvalidProgressiveRolloutInitialVariation,
 			initialVar,
 		)
 	}

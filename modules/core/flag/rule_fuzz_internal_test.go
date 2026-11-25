@@ -15,6 +15,11 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	user22 = "user-2"
+	user32 = "user-3"
+)
+
 // FuzzEvaluateRule checks that a query accepted by the rule validation never
 // panics in the query engines. evaluateRule hides such panics behind a recover
 // (the rule silently does not match), so this calls the engines the same way
@@ -22,12 +27,12 @@ import (
 func FuzzEvaluateRule(f *testing.F) {
 	ctx := `{"key": "abc", "version": "1.0.0", "age": 42, "company": {"name": "goff"}, "tags": ["a", "b"]}`
 	for _, query := range []string{
-		`key eq "abc"`,
+		keyEqAbc,
 		`key eq "test" and version gt 1.0.0`,
 		`version gt 1.0.0-10`,
 		`(age gt 10 or company.name eq "goff") and not (key in ["x", "y"])`,
 		`tags co "a"`,
-		`{"==": [{"var": "key"}, "abc"]}`,
+		varKeyAbc,
 		`{"in": [{"var": "key"}, ["abcdef", "1234"]]}`,
 		`{"cat": ["t", "r", "u", "e"]}`,
 		`{"and": [{">": [{"var": "age"}, 18]}, {"==": [{"var": "company.name"}, "goff"]}]}`,
@@ -49,7 +54,7 @@ func FuzzEvaluateRule(f *testing.F) {
 			return
 		}
 
-		mapCtx := utils.ContextToMap(utils.ConvertEvaluationCtxFromRequest("key", attributes))
+		mapCtx := utils.ContextToMap(utils.ConvertEvaluationCtxFromRequest(key2, attributes))
 
 		switch r.GetQueryFormat() {
 		case JSONLogicQueryFormat:
@@ -70,10 +75,10 @@ func FuzzEvaluateRule(f *testing.F) {
 // validation always serves one of its variations, and never one with a
 // non-positive share.
 func FuzzPercentageRollout(f *testing.F) {
-	f.Add("user-1", "my-flag", 10.0, 80.0, 10.0)
-	f.Add("user-2", "my-flag", 100.0, 0.0, 0.0)
+	f.Add(user1, myFlag, 10.0, 80.0, 10.0)
+	f.Add(user22, myFlag, 100.0, 0.0, 0.0)
 	f.Add("", "", 33.3, 33.3, 33.4)
-	f.Add("user-3", "other-flag", 0.5, 0.25, 0.25)
+	f.Add(user32, "other-flag", 0.5, 0.25, 0.25)
 	f.Fuzz(func(t *testing.T, key, flagName string, pA, pB, pC float64) {
 		svc := NewService()
 		percentages := map[string]float64{"A": pA, "B": pB, "C": pC}
@@ -97,9 +102,9 @@ func FuzzProgressiveRollout(f *testing.F) {
 	// Only the offsets from the initial date matter, so the initial date is fixed.
 	startUnix := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 
-	f.Add("user-1", 0.0, 100.0, int64(3600), int64(-10), int64(1800))
-	f.Add("user-2", 10.0, 50.0, int64(60), int64(30), int64(30))
-	f.Add("user-3", 0.0, 0.0, int64(86400), int64(0), int64(90000))
+	f.Add(user1, 0.0, 100.0, int64(3600), int64(-10), int64(1800))
+	f.Add(user22, 10.0, 50.0, int64(60), int64(30), int64(30))
+	f.Add(user32, 0.0, 0.0, int64(86400), int64(0), int64(90000))
 	f.Fuzz(func(t *testing.T, key string, initialPct, endPct float64, duration, offset1, offset2 int64) {
 		svc := NewService()
 		initialDate := time.Unix(startUnix, 0)
@@ -131,9 +136,9 @@ func FuzzProgressiveRollout(f *testing.F) {
 			firstDate, laterDate = laterDate, firstDate
 		}
 
-		first, err := r.EvaluateProgressiveRollout(key, "my-flag", firstDate)
+		first, err := r.EvaluateProgressiveRollout(key, myFlag, firstDate)
 		require.NoError(t, err)
-		later, err := r.EvaluateProgressiveRollout(key, "my-flag", laterDate)
+		later, err := r.EvaluateProgressiveRollout(key, myFlag, laterDate)
 		require.NoError(t, err)
 		require.Contains(t, []string{"A", "B"}, first)
 

@@ -2,6 +2,10 @@ package flag
 
 import "maps"
 
+const (
+	evaluatedRuleName2 = "evaluatedRuleName"
+)
+
 // constructMetadata is the internal generic func used to enhance model.VariationResult adding
 // the targeting.rule's name (from configuration) to the Metadata.
 // That way, it is possible to see when a targeting rule is match during the evaluation process.
@@ -16,7 +20,7 @@ func constructMetadata(
 		metadata = make(map[string]any)
 	}
 
-	metadata["evaluatedRuleName"] = *ruleName
+	metadata[evaluatedRuleName2] = *ruleName
 
 	return metadata
 }

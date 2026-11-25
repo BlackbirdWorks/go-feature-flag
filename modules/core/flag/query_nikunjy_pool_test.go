@@ -13,6 +13,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/internalerror"
 )
 
+const (
+	anyone   = "anyone"
+	user42   = "user-42"
+	variantB = "variant-b"
+)
+
 func TestNikunjyPool_Evaluate(t *testing.T) {
 	t.Parallel()
 
@@ -35,11 +41,11 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			rule: flag.Rule{
 				Name:            new("pool-simple-match"),
 				VariationResult: new("on"),
-				Query:           new(`key eq "abc"`),
+				Query:           new(keyEqAbc),
 			},
 			args: args{
-				key:      "abc",
-				ctx:      ffcontext.NewEvaluationContext("abc"),
+				key:      abc,
+				ctx:      ffcontext.NewEvaluationContext(abc),
 				flagName: "test-pool",
 			},
 			want:    "on",
@@ -50,7 +56,7 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			rule: flag.Rule{
 				Name:            new("pool-simple-nomatch"),
 				VariationResult: new("on"),
-				Query:           new(`key eq "abc"`),
+				Query:           new(keyEqAbc),
 			},
 			args: args{
 				key:      "xyz",
@@ -67,31 +73,31 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 			name: "multi-predicate match",
 			rule: flag.Rule{
 				Name:            new("pool-multi-match"),
-				VariationResult: new("variant-b"),
+				VariationResult: new(variantB),
 				Query:           new(`language eq "ar" and premium eq true`),
 			},
 			args: args{
-				key: "user-42",
-				ctx: ffcontext.NewEvaluationContextBuilder("user-42").
-					AddCustom("language", "ar").
+				key: user42,
+				ctx: ffcontext.NewEvaluationContextBuilder(user42).
+					AddCustom(language, "ar").
 					AddCustom("premium", true).
 					Build(),
 				flagName: "test-pool-multi",
 			},
-			want:    "variant-b",
+			want:    variantB,
 			wantErr: assert.NoError,
 		},
 		{
 			name: "multi-predicate no-match (one attribute fails)",
 			rule: flag.Rule{
 				Name:            new("pool-multi-nomatch"),
-				VariationResult: new("variant-b"),
+				VariationResult: new(variantB),
 				Query:           new(`language eq "ar" and premium eq true`),
 			},
 			args: args{
-				key: "user-42",
-				ctx: ffcontext.NewEvaluationContextBuilder("user-42").
-					AddCustom("language", "ar").
+				key: user42,
+				ctx: ffcontext.NewEvaluationContextBuilder(user42).
+					AddCustom(language, "ar").
 					AddCustom("premium", false).
 					Build(),
 				flagName: "test-pool-multi",
@@ -125,8 +131,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`??? not a valid query !!!`),
 			},
 			args: args{
-				key:      "user-1",
-				ctx:      ffcontext.NewEvaluationContext("user-1"),
+				key:      user1,
+				ctx:      ffcontext.NewEvaluationContext(user1),
 				flagName: "test-pool-invalid",
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
@@ -143,8 +149,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(""),
 			},
 			args: args{
-				key:      "anyone",
-				ctx:      ffcontext.NewEvaluationContext("anyone"),
+				key:      anyone,
+				ctx:      ffcontext.NewEvaluationContext(anyone),
 				flagName: "test-pool-empty",
 			},
 			want:    "default-var",
@@ -157,8 +163,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				VariationResult: new("nil-var"),
 			},
 			args: args{
-				key:      "anyone",
-				ctx:      ffcontext.NewEvaluationContext("anyone"),
+				key:      anyone,
+				ctx:      ffcontext.NewEvaluationContext(anyone),
 				flagName: "test-pool-nil",
 			},
 			want:    "nil-var",
@@ -172,8 +178,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`missingField eq "value"`),
 			},
 			args: args{
-				key:      "user-1",
-				ctx:      ffcontext.NewEvaluationContext("user-1"),
+				key:      user1,
+				ctx:      ffcontext.NewEvaluationContext(user1),
 				flagName: "test-pool-missing-attr",
 			},
 			wantErr: func(t assert.TestingT, err error, _ ...any) bool {
@@ -190,8 +196,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(`@@@ garbage`),
 			},
 			args: args{
-				key:      "user-1",
-				ctx:      ffcontext.NewEvaluationContext("user-1"),
+				key:      user1,
+				ctx:      ffcontext.NewEvaluationContext(user1),
 				flagName: "test-pool-invalid-var",
 			},
 			want: "",
@@ -346,7 +352,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 		VariationResult: new("on"),
 		Query:           new(`!!! invalid syntax !!!`),
 	}
-	ctx := ffcontext.NewEvaluationContext("user-1")
+	ctx := ffcontext.NewEvaluationContext(user1)
 
 	const goroutines = 30
 
@@ -360,7 +366,7 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "user-1", ctx, "test-concurrent-invalid", false)
+			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), user1, ctx, "test-concurrent-invalid", false)
 		}(i)
 	}
 

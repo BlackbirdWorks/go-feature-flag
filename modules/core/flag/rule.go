@@ -19,6 +19,13 @@ import (
 )
 
 const (
+	fixtureError = "error"
+	jsonlogic2   = "jsonlogic"
+	nikunjy2     = "nikunjy"
+	query2       = "query"
+)
+
+const (
 	// maxPercentage is the percentage that selects every user.
 	maxPercentage = 100
 )
@@ -36,8 +43,8 @@ var (
 type QueryFormat = string
 
 const (
-	NikunjyQueryFormat   QueryFormat = "nikunjy"
-	JSONLogicQueryFormat QueryFormat = "jsonlogic"
+	NikunjyQueryFormat   QueryFormat = nikunjy2
+	JSONLogicQueryFormat QueryFormat = jsonlogic2
 )
 
 // Rule represents a rule applied by the flag.
@@ -201,7 +208,7 @@ func evaluateNikunjy(eval *parser.Evaluator, query string, queryCtx *queryContex
 		if r := recover(); r != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
-				slog.String("query", query),
+				slog.String(query2, query),
 			)
 
 			success = false
@@ -215,7 +222,7 @@ func processNikunjy(logger *slog.Logger, ev *parser.Evaluator, query string, map
 	ok, err := ev.Process(mapCtx)
 	if err != nil {
 		logger.Error("error while evaluating the nikunjy query",
-			slog.String("query", query), slog.Any("error", err))
+			slog.String(query2, query), slog.Any(fixtureError, err))
 
 		return false
 	}
@@ -237,7 +244,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		if r := recover(); r != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "panic recovered while evaluating query",
 				slog.Any("panic", r),
-				slog.String("query", query),
+				slog.String(query2, query),
 			)
 
 			success = false
@@ -253,7 +260,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 				context.Background(),
 				"error while marshalling the context for the jsonlogic query",
 				slog.Any("mapCtx", mapCtx),
-				slog.Any("error", err.Error()),
+				slog.Any(fixtureError, err.Error()),
 			)
 
 			return false
@@ -262,7 +269,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		result, err := jsonlogic.ApplyInterface(compiled.jsonLogic, data)
 		if err != nil {
 			queryCtx.svc.logger.ErrorContext(context.Background(), "error while evaluating the jsonlogic query",
-				slog.String("query", query), slog.Any("error", err.Error()))
+				slog.String(query2, query), slog.Any(fixtureError, err.Error()))
 
 			return false
 		}
@@ -272,7 +279,7 @@ func evaluateRule(compiled *compiledQuery, queryCtx *queryContext) (success bool
 		evaluator, err := queryCtx.svc.nikunjy.get(query)
 		if err != nil {
 			queryCtx.svc.logger.Error("error while parsing the nikunjy query",
-				slog.String("query", query), slog.Any("error", err))
+				slog.String(query2, query), slog.Any(fixtureError, err))
 
 			return false
 		}

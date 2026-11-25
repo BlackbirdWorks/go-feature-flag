@@ -9,6 +9,12 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 )
 
+const (
+	abc       = "abc"
+	keyEqAbc  = `key eq "abc"`
+	varKeyAbc = `{"==": [{"var": "key"}, "abc"]}`
+)
+
 func TestService_CompiledQuery(t *testing.T) {
 	t.Parallel()
 
@@ -19,14 +25,14 @@ func TestService_CompiledQuery(t *testing.T) {
 		wantFormat  QueryFormat
 		wantDecoded bool
 	}{
-		{name: "nikunjy", raw: `key eq "abc"`, wantTrimmed: `key eq "abc"`, wantFormat: NikunjyQueryFormat},
+		{name: nikunjy2, raw: keyEqAbc, wantTrimmed: keyEqAbc, wantFormat: NikunjyQueryFormat},
 		{
-			name: "jsonlogic", raw: `{"==": [{"var": "key"}, "abc"]}`,
-			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
+			name: jsonlogic2, raw: varKeyAbc,
+			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
 		},
 		{
 			name: "multi-line jsonlogic", raw: "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}",
-			wantTrimmed: `{"==": [{"var": "key"}, "abc"]}`, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
+			wantTrimmed: varKeyAbc, wantFormat: JSONLogicQueryFormat, wantDecoded: true,
 		},
 		{
 			name: "invalid json", raw: `{"==": [{"var": "key"}, "abc"]`,
@@ -51,7 +57,7 @@ func TestService_CompiledQuery(t *testing.T) {
 func TestService_CompiledQueryIsOwnedByTheService(t *testing.T) {
 	t.Parallel()
 
-	const raw = `{"==": [{"var": "key"}, "abc"]}`
+	const raw = varKeyAbc
 
 	first, second := NewService(), NewService()
 
@@ -67,7 +73,7 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 	t.Parallel()
 
 	query := "{\n  \"==\": [{\"var\": \"key\"}, \"abc\"]\n}"
-	trimmed := `{"==": [{"var": "key"}, "abc"]}`
+	trimmed := varKeyAbc
 
 	tests := []struct {
 		name           string
@@ -89,7 +95,7 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 			assert.Equal(t, tt.wantTrimmed, r.GetTrimmedQuery())
 
 			if tt.evaluate {
-				_, err := r.Evaluate(svc, "abc", ffcontext.NewEvaluationContext("abc"), "flag", false)
+				_, err := r.Evaluate(svc, abc, ffcontext.NewEvaluationContext(abc), flag2, false)
 				require.NoError(t, err)
 			}
 

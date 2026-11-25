@@ -11,6 +11,13 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	disabled2  = "disabled"
+	enabled2   = "enabled"
+	keyEqAdmin = "key eq \"admin\""
+	team123    = "team-123"
+)
+
 func TestInternalFlag_RequiresBucketing(t *testing.T) {
 	t.Parallel()
 
@@ -23,11 +30,11 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should not require bucketing - static variation only",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			expected: false,
@@ -36,13 +43,13 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - default rule has percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  20,
-						"disabled": 80,
+						enabled2:  20,
+						disabled2: 80,
 					},
 				},
 			},
@@ -52,20 +59,20 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - targeting rule has percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query: new("key eq \"admin\""),
+						Query: new(keyEqAdmin),
 						Percentages: &map[string]float64{
-							"enabled":  50,
-							"disabled": 50,
+							enabled2:  50,
+							disabled2: 50,
 						},
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			expected: true,
@@ -74,17 +81,17 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - has progressive rollout",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					ProgressiveRollout: &flag.ProgressiveRollout{
 						Initial: &flag.ProgressiveRolloutStep{
-							Variation:  new("disabled"),
+							Variation:  new(disabled2),
 							Percentage: new(float64(0)),
 						},
 						End: &flag.ProgressiveRolloutStep{
-							Variation:  new("enabled"),
+							Variation:  new(enabled2),
 							Percentage: new(float64(100)),
 						},
 					},
@@ -96,17 +103,17 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should not require bucketing - only targeting queries without percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           new("key eq \"admin\""),
-						VariationResult: new("enabled"),
+						Query:           new(keyEqAdmin),
+						VariationResult: new(enabled2),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			expected: false,
@@ -115,24 +122,24 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - scheduled rollout with percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           new("key eq \"admin\""),
-						VariationResult: new("enabled"),
+						Query:           new(keyEqAdmin),
+						VariationResult: new(enabled2),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						DefaultRule: &flag.Rule{
 							Percentages: &map[string]float64{
-								"enabled":  50,
-								"disabled": 50,
+								enabled2:  50,
+								disabled2: 50,
 							},
 						},
 						Date: new(fixedNow().Add(-5 * time.Second)),
@@ -145,23 +152,23 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - scheduled rollout with progressive rollout",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						DefaultRule: &flag.Rule{
 							ProgressiveRollout: &flag.ProgressiveRollout{
 								Initial: &flag.ProgressiveRolloutStep{
-									Variation:  new("disabled"),
+									Variation:  new(disabled2),
 									Percentage: new(float64(0)),
 									Date:       new(fixedNow()),
 								},
 								End: &flag.ProgressiveRolloutStep{
-									Variation:  new("enabled"),
+									Variation:  new(enabled2),
 									Percentage: new(float64(100)),
 									Date:       new(fixedNow().Add(time.Hour)),
 								},
@@ -177,11 +184,11 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should require bucketing - scheduled rollout with targeting rule percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -189,8 +196,8 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 							{
 								Query: new("beta eq true"),
 								Percentages: &map[string]float64{
-									"enabled":  25,
-									"disabled": 75,
+									enabled2:  25,
+									disabled2: 75,
 								},
 							},
 						},
@@ -204,16 +211,16 @@ func TestInternalFlag_RequiresBucketing(t *testing.T) {
 			name: "Should not require bucketing - scheduled rollout with only static variations",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
 						DefaultRule: &flag.Rule{
-							VariationResult: new("enabled"),
+							VariationResult: new(enabled2),
 						},
 						Date: new(fixedNow()),
 					},
@@ -250,11 +257,11 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			name: "Should succeed with empty context for static flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx:  ffcontext.NewEvaluationContext(""),
@@ -267,13 +274,13 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			name: "Should fail with empty context for percentage-based flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  20,
-						"disabled": 80,
+						enabled2:  20,
+						disabled2: 80,
 					},
 				},
 			},
@@ -287,17 +294,17 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			name: "Should succeed with targeting key for percentage-based flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  20,
-						"disabled": 80,
+						enabled2:  20,
+						disabled2: 80,
 					},
 				},
 			},
-			evaluationCtx:  ffcontext.NewEvaluationContext("user-123"),
+			evaluationCtx:  ffcontext.NewEvaluationContext(user123),
 			expectedReason: flag.ReasonSplit,
 			shouldSucceed:  true,
 			description:    "Flag with percentage-based rollout should work with targeting key",
@@ -306,22 +313,22 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			name: "Should succeed with empty context for targeting rule without percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           new("anonymous eq true"),
-						VariationResult: new("enabled"),
+						Query:           new(anonymousEqTrue),
+						VariationResult: new(enabled2),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute("anonymous", true)
+				ctx.AddCustomAttribute(anonymous, true)
 
 				return ctx
 			}(),
@@ -337,7 +344,7 @@ func TestInternalFlag_Value_EmptyContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
+			value, resolutionDetails := tt.flag.Value(testFlag, atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
@@ -371,11 +378,11 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			name: "Should succeed with nil context for static flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx:  nil,
@@ -388,13 +395,13 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			name: "Should fail with nil context for percentage-based flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  20,
-						"disabled": 80,
+						enabled2:  20,
+						disabled2: 80,
 					},
 				},
 			},
@@ -408,17 +415,17 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			name: "Should succeed with nil context for flag with targeting rule without percentages",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				Rules: &[]flag.Rule{
 					{
-						Query:           new("key eq \"admin\""),
-						VariationResult: new("enabled"),
+						Query:           new(keyEqAdmin),
+						VariationResult: new(enabled2),
 					},
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx:  nil,
@@ -434,7 +441,7 @@ func TestInternalFlag_Value_NilContext(t *testing.T) {
 			t.Parallel()
 
 			flagContext := flag.Context{Service: flag.NewService(), DefaultSdkValue: false}
-			value, resolutionDetails := tt.flag.Value("test-flag", atFixedNow(tt.evaluationCtx), flagContext)
+			value, resolutionDetails := tt.flag.Value(testFlag, atFixedNow(tt.evaluationCtx), flagContext)
 
 			if tt.shouldSucceed {
 				assert.Empty(t, resolutionDetails.ErrorCode, tt.description)
@@ -466,11 +473,11 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 			name: "Should allow empty key for non-bucketing flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx: ffcontext.NewEvaluationContext(""),
@@ -482,13 +489,13 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 			name: "Should require key for bucketing flag",
 			flag: flag.InternalFlag{
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  50,
-						"disabled": 50,
+						enabled2:  50,
+						disabled2: 50,
 					},
 				},
 			},
@@ -500,43 +507,43 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 		{
 			name: "Should use custom bucketing key when provided",
 			flag: flag.InternalFlag{
-				BucketingKey: new("teamId"),
+				BucketingKey: new(teamId),
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
-						"enabled":  50,
-						"disabled": 50,
+						enabled2:  50,
+						disabled2: 50,
 					},
 				},
 			},
 			evaluationCtx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute("teamId", "team-123")
+				ctx.AddCustomAttribute(teamId, team123)
 
 				return ctx
 			}(),
-			expectedKey:   "team-123",
+			expectedKey:   team123,
 			expectedError: false,
 			description:   "Should use custom bucketing key when available",
 		},
 		{
 			name: "Should allow empty custom bucketing key for non-bucketing flag",
 			flag: flag.InternalFlag{
-				BucketingKey: new("teamId"),
+				BucketingKey: new(teamId),
 				Variations: &map[string]*any{
-					"enabled":  new(any(true)),
-					"disabled": new(any(false)),
+					enabled2:  new(any(true)),
+					disabled2: new(any(false)),
 				},
 				DefaultRule: &flag.Rule{
-					VariationResult: new("disabled"),
+					VariationResult: new(disabled2),
 				},
 			},
 			evaluationCtx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute("teamId", "")
+				ctx.AddCustomAttribute(teamId, "")
 
 				return ctx
 			}(),

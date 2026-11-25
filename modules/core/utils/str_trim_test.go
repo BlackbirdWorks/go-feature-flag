@@ -8,6 +8,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	helloworld = "helloworld"
+)
+
 func TestStrTrim(t *testing.T) {
 	t.Parallel()
 
@@ -24,12 +28,12 @@ func TestStrTrim(t *testing.T) {
 		{
 			name:  "multiple lines with leading spaces",
 			input: "   hello\n   world",
-			want:  "helloworld",
+			want:  helloworld,
 		},
 		{
 			name:  "no leading spaces",
 			input: "hello\nworld",
-			want:  "helloworld",
+			want:  helloworld,
 		},
 		{
 			name:  "empty string",
@@ -44,7 +48,7 @@ func TestStrTrim(t *testing.T) {
 		{
 			name:  "mixed leading spaces",
 			input: "   hello\nworld",
-			want:  "helloworld",
+			want:  helloworld,
 		},
 	}
 

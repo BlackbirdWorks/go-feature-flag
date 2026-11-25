@@ -10,6 +10,15 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/flag"
 )
 
+const (
+	invalidProgressiveRolloutInitial = "invalid progressive rollout, initial and end steps are required"
+	invalidQuery                     = "invalid query"
+	invalidQuerySyntax               = "invalid query syntax"
+	isValidErrorV                    = "IsValid() error = %v"
+	keyEqTest                        = "key eq \"test\""
+	nonExistent                      = "non_existent"
+)
+
 type validateProgressiveRolloutCase struct {
 	variations  map[string]*any
 	wantErr     assert.ErrorAssertionFunc
@@ -23,9 +32,9 @@ func TestRule_IsValid(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
-		"variation_B": new(any("value_B")),
-		"variation_C": new(any("value_C")),
+		variationA: new(any(valueA2)),
+		variationB: new(any(valueB2)),
+		variationC: new(any(valueC)),
 	}
 
 	tests := []struct {
@@ -38,8 +47,8 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with variation result",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -48,10 +57,10 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with percentages",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 50,
-					"variation_B": 50,
+					variationA: 50,
+					variationB: 50,
 				},
 			},
 			defaultRule: false,
@@ -61,15 +70,15 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid rule with progressive rollout",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -92,7 +101,7 @@ func TestRule_IsValid(t *testing.T) {
 			name: "disabled rule with defaultRule should be valid",
 			rule: flag.Rule{
 				Disable:         new(true),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -101,7 +110,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with no return value",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -110,7 +119,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "valid default rule without query",
 			rule: flag.Rule{
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -119,7 +128,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "non-default rule without query should fail",
 			rule: flag.Rule{
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -128,8 +137,8 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid query",
 			rule: flag.Rule{
-				VariationResult: new("variation_A"),
-				Query:           new("invalid query syntax"),
+				VariationResult: new(variationA),
+				Query:           new(invalidQuerySyntax),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -138,9 +147,9 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid percentages",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"non_existent": 100,
+					nonExistent: 100,
 				},
 			},
 			defaultRule: false,
@@ -150,15 +159,15 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid progressive rollout",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -171,7 +180,7 @@ func TestRule_IsValid(t *testing.T) {
 		{
 			name: "rule with invalid variation result",
 			rule: flag.Rule{
-				VariationResult: new("non_existent"),
+				VariationResult: new(nonExistent),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -184,7 +193,7 @@ func TestRule_IsValid(t *testing.T) {
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 		})
 	}
 }
@@ -193,9 +202,9 @@ func TestRule_validatePercentages(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
-		"variation_B": new(any("value_B")),
-		"variation_C": new(any("value_C")),
+		variationA: new(any(valueA2)),
+		variationB: new(any(valueB2)),
+		variationC: new(any(valueC)),
 	}
 
 	tests := []struct {
@@ -209,8 +218,8 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "nil percentages should be valid",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -219,10 +228,10 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "valid percentages",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 30,
-					"variation_B": 70,
+					variationA: 30,
+					variationB: 70,
 				},
 			},
 			defaultRule: false,
@@ -232,11 +241,11 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "valid percentages summing to 100",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 25,
-					"variation_B": 25,
-					"variation_C": 50,
+					variationA: 25,
+					variationB: 25,
+					variationC: 50,
 				},
 			},
 			defaultRule: false,
@@ -246,34 +255,34 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "empty percentages should fail",
 			rule: flag.Rule{
-				Query:       new("key eq \"test\""),
+				Query:       new(keyEqTest),
 				Percentages: &map[string]float64{},
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid percentages: should not be empty",
+			wantErrMsg:  invalidPercentagesShouldNot,
 		},
 		{
 			name: "percentages summing to zero should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 0,
-					"variation_B": 0,
+					variationA: 0,
+					variationB: 0,
 				},
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid percentages: should not be equal to 0",
+			wantErrMsg:  invalidPercentagesShouldNot2,
 		},
 		{
 			name: "percentages with non-existent variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"non_existent": 100,
+					nonExistent: 100,
 				},
 			},
 			defaultRule: false,
@@ -284,9 +293,9 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with multiple non-existent variations should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A":    50,
+					variationA:       50,
 					"non_existent_1": 25,
 					"non_existent_2": 25,
 				},
@@ -298,10 +307,10 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with negative values should fail even when the sum is positive",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": -10,
-					"variation_B": 110,
+					variationA: -10,
+					variationB: 110,
 				},
 			},
 			defaultRule: false,
@@ -312,10 +321,10 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with NaN should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": math.NaN(),
-					"variation_B": 100,
+					variationA: math.NaN(),
+					variationB: 100,
 				},
 			},
 			defaultRule: false,
@@ -326,9 +335,9 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages with positive infinity should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": math.Inf(1),
+					variationA: math.Inf(1),
 				},
 			},
 			defaultRule: false,
@@ -339,9 +348,9 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages too large to be scaled should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": math.MaxFloat64,
+					variationA: math.MaxFloat64,
 				},
 			},
 			defaultRule: false,
@@ -352,10 +361,10 @@ func TestRule_validatePercentages(t *testing.T) {
 		{
 			name: "percentages summing to more than 100 should be valid",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 150,
-					"variation_B": 50,
+					variationA: 150,
+					variationB: 50,
 				},
 			},
 			defaultRule: false,
@@ -369,7 +378,7 @@ func TestRule_validatePercentages(t *testing.T) {
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -386,7 +395,7 @@ func runValidateProgressiveRolloutTests(t *testing.T, tests []validateProgressiv
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -399,17 +408,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
-		"variation_B": new(any("value_B")),
-		"variation_C": new(any("value_C")),
+		variationA: new(any(valueA2)),
+		variationB: new(any(valueB2)),
+		variationC: new(any(valueC)),
 	}
 
 	runValidateProgressiveRolloutTests(t, []validateProgressiveRolloutCase{
 		{
 			name: "nil progressive rollout should be valid",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -418,15 +427,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "valid progressive rollout",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -439,15 +448,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "valid progressive rollout with equal percentages",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(50)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(50)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -460,15 +469,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with initial percentage higher than end should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -482,15 +491,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with non-existent end variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("non_existent"),
+						Variation:  new(nonExistent),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -504,15 +513,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with non-existent initial variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("non_existent"),
+						Variation:  new(nonExistent),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -526,10 +535,10 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 		{
 			name: "progressive rollout with nil initial step should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -537,15 +546,15 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 			},
 			variations: variations,
 			wantErr:    assert.Error,
-			wantErrMsg: "invalid progressive rollout, initial and end steps are required",
+			wantErrMsg: invalidProgressiveRolloutInitial,
 		},
 		{
 			name: "progressive rollout with nil end step should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
@@ -553,17 +562,17 @@ func TestRule_validateProgressiveRollout(t *testing.T) {
 			},
 			variations: variations,
 			wantErr:    assert.Error,
-			wantErrMsg: "invalid progressive rollout, initial and end steps are required",
+			wantErrMsg: invalidProgressiveRolloutInitial,
 		},
 		{
 			name: "empty progressive rollout should fail",
 			rule: flag.Rule{
-				Query:              new("key eq \"test\""),
+				Query:              new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{},
 			},
 			variations: variations,
 			wantErr:    assert.Error,
-			wantErrMsg: "invalid progressive rollout, initial and end steps are required",
+			wantErrMsg: invalidProgressiveRolloutInitial,
 		},
 	})
 }
@@ -572,24 +581,24 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
-		"variation_B": new(any("value_B")),
-		"variation_C": new(any("value_C")),
+		variationA: new(any(valueA2)),
+		variationB: new(any(valueB2)),
+		variationC: new(any(valueC)),
 	}
 
 	runValidateProgressiveRolloutTests(t, []validateProgressiveRolloutCase{
 		{
 			name: "progressive rollout with negative initial percentage should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(-50)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -602,15 +611,15 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with NaN initial percentage should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(math.NaN()),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -623,15 +632,15 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with NaN end percentage should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(math.NaN()),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -644,15 +653,15 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with infinite end percentage should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(math.Inf(1)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -665,7 +674,7 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with nil initial variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  nil,
@@ -673,7 +682,7 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -687,10 +696,10 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with nil end variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
@@ -709,7 +718,7 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with empty initial variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
 						Variation:  new(""),
@@ -717,7 +726,7 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -731,10 +740,10 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout with empty end variation should fail",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
@@ -753,14 +762,14 @@ func TestRule_validateProgressiveRollout_ErrorsAndDefaults(t *testing.T) {
 		{
 			name: "progressive rollout without percentage should use default 0",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation: new("variation_A"),
+						Variation: new(variationA),
 						Date:      new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -777,9 +786,9 @@ func TestRule_validateVariationResult(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
-		"variation_B": new(any("value_B")),
-		"variation_C": new(any("value_C")),
+		variationA: new(any(valueA2)),
+		variationB: new(any(valueB2)),
+		variationC: new(any(valueC)),
 	}
 
 	tests := []struct {
@@ -793,9 +802,9 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "nil variation result should be valid when percentages exist",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 100,
+					variationA: 100,
 				},
 				VariationResult: nil,
 			},
@@ -806,15 +815,15 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "nil variation result should be valid when progressive rollout exists",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
@@ -828,7 +837,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "valid variation result",
 			rule: flag.Rule{
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -837,7 +846,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result with non-existent variation should fail",
 			rule: flag.Rule{
-				VariationResult: new("non_existent"),
+				VariationResult: new(nonExistent),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -857,11 +866,11 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result should be ignored when percentages exist",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				Percentages: &map[string]float64{
-					"variation_A": 100,
+					variationA: 100,
 				},
-				VariationResult: new("non_existent"),
+				VariationResult: new(nonExistent),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -870,20 +879,20 @@ func TestRule_validateVariationResult(t *testing.T) {
 		{
 			name: "variation result should be ignored when progressive rollout exists",
 			rule: flag.Rule{
-				Query: new("key eq \"test\""),
+				Query: new(keyEqTest),
 				ProgressiveRollout: &flag.ProgressiveRollout{
 					Initial: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_A"),
+						Variation:  new(variationA),
 						Percentage: new(float64(0)),
 						Date:       new(fixedNow().Add(1 * time.Hour)),
 					},
 					End: &flag.ProgressiveRolloutStep{
-						Variation:  new("variation_B"),
+						Variation:  new(variationB),
 						Percentage: new(float64(100)),
 						Date:       new(fixedNow().Add(2 * time.Hour)),
 					},
 				},
-				VariationResult: new("non_existent"),
+				VariationResult: new(nonExistent),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -896,7 +905,7 @@ func TestRule_validateVariationResult(t *testing.T) {
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -909,7 +918,7 @@ func TestRule_isQueryValid(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
+		variationA: new(any(valueA2)),
 	}
 
 	tests := []struct {
@@ -924,7 +933,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "default rule should be valid without query",
 			rule: flag.Rule{
 				Query:           nil,
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -933,8 +942,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "default rule should be valid with query",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: true,
 			variations:  variations,
@@ -944,7 +953,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule without query should fail",
 			rule: flag.Rule{
 				Query:           nil,
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -955,7 +964,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with empty query should fail",
 			rule: flag.Rule{
 				Query:           new(""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -964,8 +973,8 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with valid Nikunjy query",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -975,7 +984,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with valid JSONLogic query",
 			rule: flag.Rule{
 				Query:           new(`{"==": [{"var": "key"}, "test"]}`),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -985,7 +994,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with invalid JSONLogic query",
 			rule: flag.Rule{
 				Query:           new(`{"unknownOperator": [1, 2]}`),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -995,19 +1004,19 @@ func TestRule_isQueryValid(t *testing.T) {
 		{
 			name: "non-default rule with invalid Nikunjy query",
 			rule: flag.Rule{
-				Query:           new("invalid query syntax"),
-				VariationResult: new("variation_A"),
+				Query:           new(invalidQuerySyntax),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "non-default rule with complex valid Nikunjy query",
 			rule: flag.Rule{
 				Query:           new("key eq \"test\" and version gt 1.0.0"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1017,7 +1026,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with valid Nikunjy query with OR",
 			rule: flag.Rule{
 				Query:           new("key eq \"test1\" or key eq \"test2\""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1027,7 +1036,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with query containing whitespace",
 			rule: flag.Rule{
 				Query:           new("  key eq \"test\"  "),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1037,7 +1046,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			name: "non-default rule with query containing newlines",
 			rule: flag.Rule{
 				Query:           new("key eq \"test\"\n"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1050,7 +1059,7 @@ func TestRule_isQueryValid(t *testing.T) {
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)
@@ -1063,7 +1072,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 	t.Parallel()
 
 	variations := map[string]*any{
-		"variation_A": new(any("value_A")),
+		variationA: new(any(valueA2)),
 	}
 
 	tests := []struct {
@@ -1077,8 +1086,8 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 		{
 			name: "valid simple query",
 			rule: flag.Rule{
-				Query:           new("key eq \"test\""),
-				VariationResult: new("variation_A"),
+				Query:           new(keyEqTest),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1088,7 +1097,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with AND",
 			rule: flag.Rule{
 				Query:           new("key eq \"test\" and version gt 1.0.0"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1098,7 +1107,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with OR",
 			rule: flag.Rule{
 				Query:           new("key eq \"test1\" or key eq \"test2\""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1108,7 +1117,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with comparison operators",
 			rule: flag.Rule{
 				Query:           new("age gt 18"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1118,7 +1127,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with lt operator",
 			rule: flag.Rule{
 				Query:           new("age lt 65"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1128,7 +1137,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with ge operator",
 			rule: flag.Rule{
 				Query:           new("score ge 100"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1138,7 +1147,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with le operator",
 			rule: flag.Rule{
 				Query:           new("score le 200"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1148,7 +1157,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with ne operator",
 			rule: flag.Rule{
 				Query:           new("status ne \"inactive\""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1158,7 +1167,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with in operator",
 			rule: flag.Rule{
 				Query:           new("status in [\"active\", \"pending\"]"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1168,61 +1177,61 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with parentheses",
 			rule: flag.Rule{
 				Query:           new("(key eq \"test1\" or key eq \"test2\") and version gt 1.0.0"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.NoError,
 		},
 		{
-			name: "invalid query syntax",
+			name: invalidQuerySyntax,
 			rule: flag.Rule{
-				Query:           new("invalid query syntax"),
-				VariationResult: new("variation_A"),
+				Query:           new(invalidQuerySyntax),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "invalid query with missing operator",
 			rule: flag.Rule{
 				Query:           new("key \"test\""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "invalid query with unclosed quotes",
 			rule: flag.Rule{
 				Query:           new("key eq \"test"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "invalid query with malformed parentheses",
 			rule: flag.Rule{
 				Query:           new("key eq \"test\" and (version gt 1.0.0"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "empty query",
 			rule: flag.Rule{
 				Query:           new(""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1232,18 +1241,18 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "query with only whitespace",
 			rule: flag.Rule{
 				Query:           new("   "),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
 			wantErr:     assert.Error,
-			wantErrMsg:  "invalid query",
+			wantErrMsg:  invalidQuery,
 		},
 		{
 			name: "valid query with semver comparison",
 			rule: flag.Rule{
 				Query:           new("version gt 1.0.0"),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1253,7 +1262,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			name: "valid query with date comparison",
 			rule: flag.Rule{
 				Query:           new("createdAt gt \"2023-01-01T00:00:00Z\""),
-				VariationResult: new("variation_A"),
+				VariationResult: new(variationA),
 			},
 			defaultRule: false,
 			variations:  variations,
@@ -1266,7 +1275,7 @@ func TestRule_validateNikunjyQuery(t *testing.T) {
 			t.Parallel()
 
 			err := tt.rule.IsValid(flag.NewService(), tt.defaultRule, tt.variations)
-			tt.wantErr(t, err, "IsValid() error = %v", err)
+			tt.wantErr(t, err, isValidErrorV, err)
 
 			if tt.wantErrMsg != "" && err != nil {
 				assert.Contains(t, err.Error(), tt.wantErrMsg)

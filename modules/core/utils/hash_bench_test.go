@@ -6,6 +6,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/utils"
 )
 
+const (
+	myFlag = "my-flag"
+)
+
 func BenchmarkBuildHash(b *testing.B) {
 	tests := []struct {
 		name string
@@ -19,7 +23,7 @@ func BenchmarkBuildHash(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_ = utils.BuildHash("my-flag", tt.key, 100000)
+				_ = utils.BuildHash(myFlag, tt.key, 100000)
 			}
 		})
 	}
