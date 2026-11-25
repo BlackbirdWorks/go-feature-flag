@@ -31,6 +31,8 @@ type Studio struct {
 }
 
 // parser returns the parser matching the extension of the URL path.
+//
+//nolint:ireturn // returns the parser that selectParserForFile selects at runtime
 func (s Studio) parser() koanf.Parser {
 	path, _, _ := strings.Cut(s.URL, "?") // pre-signed URLs have a query string after the extension
 

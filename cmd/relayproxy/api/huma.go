@@ -103,6 +103,8 @@ func asError(v any) error {
 
 // newHumaAPI returns the huma API that holds the operations of the relay proxy. The document is generated from
 // them. huma serves nothing by itself (no document, no docs page): the relay proxy owns its routes.
+//
+//nolint:ireturn // returns the huma.API that the huma adapter constructs, which only exposes the interface
 func newHumaAPI(
 	mux *http.ServeMux,
 	exposeError, docs bool,

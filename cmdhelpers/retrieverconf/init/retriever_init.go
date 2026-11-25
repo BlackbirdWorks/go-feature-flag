@@ -89,6 +89,8 @@ func WithPostgresPools(pools *postgresqlretriever.PoolRegistry) Option {
 }
 
 // Retriever initialize the retriever based on the configuration.
+//
+//nolint:ireturn // factory: selects the retriever implementation from the kind at runtime
 func Retriever(
 	conf *retrieverconf.RetrieverConf, opts ...Option) (retriever.Retriever, error) {
 	var parsedOpts options

@@ -112,6 +112,8 @@ func (c *etagContext) Status() int { return c.status }
 func (c *etagContext) BodyWriter() io.Writer { return c.etagBuffer }
 
 // WithContext keeps the buffering for the contexts derived from this one.
+//
+//nolint:ireturn // the signature is fixed by huma.Context
 func (c *etagContext) WithContext(ctx context.Context) huma.Context {
 	return &etagContext{hctx: huma.WithContext(c.hctx, ctx), etagBuffer: c.etagBuffer}
 }

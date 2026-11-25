@@ -404,6 +404,7 @@ func valueOrDefault(value, def string) string {
 	return def
 }
 
+//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
 func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, error) {
 	defaults := newExporterDefaults(expConf)
 
@@ -482,6 +483,8 @@ func createExporter(expConf *config.ExporterConf) (exporter.CommonExporter, erro
 }
 
 // createAWSExporter builds the exporters that load the default AWS configuration.
+//
+//nolint:ireturn // factory: selects the exporter implementation from the kind at runtime
 func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) (exporter.CommonExporter, error) {
 	var awsOpts []func(*awsConf.LoadOptions) error
 	if expConf.Kind == config.RedshiftExporter && expConf.AwsRegion != "" {

@@ -196,6 +196,8 @@ func newErrorHandler(ctx context.Context, logger *slog.Logger) otel.ErrorHandler
 }
 
 // newPropagator is the propagator of the relay proxy: W3C trace context and baggage.
+//
+//nolint:ireturn // the SDK only exposes the TextMapPropagator interface it constructs
 func newPropagator() propagation.TextMapPropagator {
 	return propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
@@ -242,6 +244,8 @@ func initResource(ctx context.Context, serviceName, version string,
 // JAEGER_SAMPLER_MAX_OPERATIONS).
 // If it's set to any other value, we return nil and sdktrace.NewTracerProvider
 // will set up the initSampler from the environment.
+//
+//nolint:ireturn // selects among several SDK samplers at runtime, the SDK only exposes the interface
 func initSampler(serviceName string, conf *config.Config) (sdktrace.Sampler, error) {
 	sampler := conf.OtelConfig.Traces.Sampler
 	if sampler == "" {

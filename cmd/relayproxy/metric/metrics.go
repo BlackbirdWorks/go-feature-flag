@@ -374,6 +374,8 @@ func (m *Metrics) ShouldCollectBulkMetrics() bool {
 // Gatherer returns what the /metrics endpoint serves. With exposeLegacy it also serves every series of
 // the SubSystem under its LegacySubSystem name (semaphore_flag_evaluations_total is also exposed as
 // gofeatureflag_flag_evaluations_total), so the dashboards and alerts of GO Feature Flag keep working.
+//
+//nolint:ireturn // selects between the registry and the legacy gatherer at runtime
 func (m *Metrics) Gatherer(exposeLegacy bool) prom.Gatherer {
 	if !exposeLegacy {
 		return m.Registry
