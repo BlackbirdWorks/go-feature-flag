@@ -68,7 +68,7 @@ func (o *FloatOperation) LE(left, right Operand) (bool, error) {
 }
 
 // IN reports whether the left operand is one of the values in the right operand.
-func (o *FloatOperation) IN(left, right Operand) (bool, error) {
+func (_ *FloatOperation) IN(left, right Operand) (bool, error) {
 	leftVal, err := toFloat(left)
 	if err != nil {
 		return false, err
@@ -86,7 +86,7 @@ func (o *FloatOperation) IN(left, right Operand) (bool, error) {
 	return false, nil
 }
 
-func (o *FloatOperation) get(left, right Operand) (float64, float64, error) {
+func (_ *FloatOperation) get(left, right Operand) (float64, float64, error) {
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}

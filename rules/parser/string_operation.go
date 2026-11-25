@@ -120,7 +120,7 @@ func (o *StringOperation) IN(left, right Operand) (bool, error) {
 	return false, nil
 }
 
-func (o *StringOperation) getString(operand Operand) (string, error) {
+func (_ *StringOperation) getString(operand Operand) (string, error) {
 	switch opVal := operand.(type) {
 	case string:
 		return opVal, nil

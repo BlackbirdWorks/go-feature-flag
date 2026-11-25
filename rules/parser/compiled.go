@@ -261,11 +261,6 @@ func (n *compareNode) setRight(state *evalState) {
 		if n.valErr != nil {
 			state.err = cloneErr(n.valErr)
 		}
-	default:
-		state.rightOp = n.rightOp
-		if n.valErr != nil {
-			state.err = cloneErr(n.valErr)
-		}
 	}
 }
 

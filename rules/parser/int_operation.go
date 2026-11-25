@@ -68,7 +68,7 @@ func (o *IntOperation) LE(left, right Operand) (bool, error) {
 }
 
 // IN reports whether the left operand is one of the values in the right operand.
-func (o *IntOperation) IN(left, right Operand) (bool, error) {
+func (_ *IntOperation) IN(left, right Operand) (bool, error) {
 	leftVal, ok := left.(int)
 	if !ok {
 		return false, newInvalidOperandError(left, leftVal)
@@ -86,7 +86,7 @@ func (o *IntOperation) IN(left, right Operand) (bool, error) {
 	return false, nil
 }
 
-func (o *IntOperation) get(left, right Operand) (int, int, error) {
+func (_ *IntOperation) get(left, right Operand) (int, int, error) {
 	if left == nil {
 		return 0, 0, ErrEvalOperandMissing
 	}

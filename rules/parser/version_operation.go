@@ -75,7 +75,7 @@ func (v *VersionOperation) GE(left, right Operand) (bool, error) {
 	return leftVer.GE(rightVer), nil
 }
 
-func (v *VersionOperation) get(left, right Operand) (semver.Version, semver.Version, error) {
+func (_ *VersionOperation) get(left, right Operand) (semver.Version, semver.Version, error) {
 	var leftVer, rightVer semver.Version
 
 	leftVal, ok := left.(string)
