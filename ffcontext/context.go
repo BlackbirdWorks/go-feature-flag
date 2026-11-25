@@ -5,9 +5,16 @@ package ffcontext
 
 import coreCtx "github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 
+// Context is the evaluation context of a flag evaluation.
 type Context = coreCtx.Context
+
+// EvaluationContext is the evaluation context with the attributes used by the rules.
 type EvaluationContext = coreCtx.EvaluationContext
+
+// EvaluationContextBuilder builds an EvaluationContext.
 type EvaluationContextBuilder = coreCtx.EvaluationContextBuilder
+
+// GoffContextSpecifics holds the context fields specific to GO Feature Flag.
 type GoffContextSpecifics = coreCtx.GoffContextSpecifics
 
 // NewEvaluationContext creates a new evaluation context identified by the given targetingKey.
@@ -15,6 +22,8 @@ func NewEvaluationContext(key string) EvaluationContext {
 	return coreCtx.NewEvaluationContext(key)
 }
 
+// NewAnonymousEvaluationContext returns an anonymous evaluation context with the given key.
+//
 // Deprecated: NewAnonymousEvaluationContext is here for compatibility reason.
 // Please use NewEvaluationContext instead and add a attributes attribute to know that it is an anonymous user.
 //
