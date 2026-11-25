@@ -33,7 +33,7 @@ const (
 	hello                  = `"hello"`
 	intsName               = "ints"
 	stringsName            = "strings"
-	escapedLetterA         = `"\escapedLetterA"`
+	unicodeEscapeA         = `"\u0041"`
 	uPlanEqProAnd          = `u.plan eq "pro" and u.age gt 18`
 	xInOneTwo              = `x in [1, 2]`
 	yInOneToThree          = `y in [1, 2, 3]`
@@ -247,7 +247,7 @@ func differentialRuleValues() []string {
 		`-2E+1`,
 		`2E+1`,
 		`"a\"b"`,
-		escapedLetterA,
+		unicodeEscapeA,
 		`"\\"`,
 		versionTwoFive,
 		negativeVersion,
@@ -553,7 +553,7 @@ func fuzzVals() []string {
 		`""`,
 		`"A"`,
 		`"a\"b"`,
-		escapedLetterA,
+		unicodeEscapeA,
 		`"1.2.3"`,
 		fixtures.VersionOneTwoThree,
 		`1.2.3-alpha+b`,
@@ -587,7 +587,7 @@ func genList(r *rand.Rand) string {
 	case 1:
 		pool = []string{"1.5", versionTwoFive, negativeVersion, overflowVersion, "1.0"}
 	default:
-		pool = []string{`"a"`, hello, `""`, `"x"`, escapedLetterA}
+		pool = []string{`"a"`, hello, `""`, `"x"`, unicodeEscapeA}
 	}
 
 	el := make([]string, 1+r.Intn(4))
