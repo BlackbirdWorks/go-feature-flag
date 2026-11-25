@@ -964,7 +964,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{oldAPIKey},
+			AuthorizedKeys: config.APIKeys{Evaluation: []string{oldAPIKey}},
 		}
 		// Preload API keys to initialize the internal API key set
 		cfg.ForceReloadAPIKeys()
@@ -972,9 +972,9 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 
 		// Try to update with invalid config (no retriever)
 		newConfig := &config.Config{
-			FlagSets:  []config.FlagSet{},
-			Retriever: nil,
-			APIKeys:   []string{newAPIKey},
+			FlagSets:       []config.FlagSet{},
+			Retriever:      nil,
+			AuthorizedKeys: config.APIKeys{Evaluation: []string{newAPIKey}},
 		}
 
 		assert.NotPanics(t, func() {

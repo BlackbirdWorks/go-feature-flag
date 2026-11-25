@@ -549,34 +549,16 @@ func genRule(r *rand.Rand, depth int) string {
 	}
 }
 
+// genVal draws one value: a scalar, a composite or a nested map. The draws of r are fixed per seed.
 func genVal(r *rand.Rand, depth int) any {
-	switch r.Intn(16) {
-	case 0:
-		return nil
-	case 1:
-		return r.Intn(6)
-	case 2:
-		return int64(r.Intn(6))
-	case 3:
-		return int32(r.Intn(6))
-	case 4:
-		return 2.5
-	case 5:
-		return "hello"
-	case 6:
-		return versionOneTwoThree
-	case 7:
-		return true
-	case 8:
-		return []int{1, 2}
-	case 9:
-		return testStringer{"HELLO"}
-	case 10:
-		return map[string]any(nil)
-	case 11:
-		return map[string]string{"a": "b"}
-	case 12:
-		return float32(1.5)
+	choice := r.Intn(16)
+
+	if v, ok := genScalar(r, choice); ok {
+		return v
+	}
+
+	if v, ok := genComposite(choice); ok {
+		return v
 	}
 
 	if depth <= 0 {
@@ -584,6 +566,48 @@ func genVal(r *rand.Rand, depth int) any {
 	}
 
 	return genMap(r, depth-1)
+}
+
+// genScalar returns the scalar of choice, false when choice is not one of them.
+func genScalar(r *rand.Rand, choice int) (any, bool) {
+	switch choice {
+	case 0:
+		return nil, true
+	case 1:
+		return r.Intn(6), true
+	case 2:
+		return int64(r.Intn(6)), true
+	case 3:
+		return int32(r.Intn(6)), true
+	case 4:
+		return 2.5, true
+	case 5:
+		return "hello", true
+	case 6:
+		return versionOneTwoThree, true
+	case 7:
+		return true, true
+	case 12:
+		return float32(1.5), true
+	}
+
+	return nil, false
+}
+
+// genComposite returns the composite value of choice, false when choice is not one of them.
+func genComposite(choice int) (any, bool) {
+	switch choice {
+	case 8:
+		return []int{1, 2}, true
+	case 9:
+		return testStringer{"HELLO"}, true
+	case 10:
+		return map[string]any(nil), true
+	case 11:
+		return map[string]string{"a": "b"}, true
+	}
+
+	return nil, false
 }
 
 func genMap(r *rand.Rand, depth int) map[string]any {

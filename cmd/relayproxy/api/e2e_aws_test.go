@@ -522,7 +522,8 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 
 			got := map[string]any{}
 
-			if flags, ok := res.Body["flags"].([]any); ok { // OFREP: a list
+			switch flags := res.Body["flags"].(type) {
+			case []any: // OFREP: a list
 				for _, f := range flags {
 					item, isObj := f.(map[string]any)
 					require.True(t, isObj)
@@ -532,8 +533,8 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 
 					got[flagKey] = item[value2]
 				}
-			} else if flagMap, isMap := res.Body["flags"].(map[string]any); isMap { // GOFF: a map
-				for k, f := range flagMap {
+			case map[string]any: // GOFF: a map
+				for k, f := range flags {
 					item, isObj := f.(map[string]any)
 					require.True(t, isObj)
 
@@ -782,55 +783,6 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		)
 	}
 
-	// assertSink checks that the events read from a sink contain every evaluation made above.
-	assertSink := func(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
-		t.Helper()
-
-		var got []sinkEvent
-		// polled on the test goroutine: read uses require, which must not run off it.
-		ticker := time.NewTicker(300 * time.Millisecond)
-		defer ticker.Stop()
-
-		deadline := time.After(30 * time.Second)
-
-		for {
-			got = read(t)
-			users := map[string]bool{}
-
-			for _, e := range got {
-				if e.Key == ruleFlag {
-					users[e.UserKey] = true
-				}
-			}
-
-			if len(users) >= len(wantUsers) {
-				break
-			}
-
-			select {
-			case <-deadline:
-				require.Fail(t, "not every evaluation reached the sink", "events received: %d", len(got))
-			case <-ticker.C:
-			}
-		}
-
-		seen := map[string]sinkEvent{}
-
-		for _, e := range got {
-			if e.Key == ruleFlag {
-				seen[e.UserKey] = e
-			}
-		}
-
-		for u, v := range wantUsers {
-			e, ok := seen[u]
-			if assert.True(t, ok, "no event for user %s", u) {
-				assert.Equal(t, v, e.Value, "user %s", u)
-				assert.Equal(t, map[string]string{aOn: "on", aOff: off}[v], e.Variation, "user %s", u)
-			}
-		}
-	}
-
 	sqsReceived := map[string]sinkEvent{} // only used by the sqs subtest
 
 	sinks := []struct {
@@ -843,17 +795,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
 
-				var res []sinkEvent
-
-				for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
-					require.True(t, strings.HasSuffix(k, ".json"), k)
-
-					for line := range strings.SplitSeq(strings.TrimSpace(string(srv.GetObject(t, bucket, k))), "\n") {
-						res = append(res, decodeFeatureEvent(t, []byte(line)))
-					}
-				}
-
-				return res
+				return readS3Events(t, srv, bucket)
 			},
 			wantUsers: wantUsers,
 		},
@@ -861,38 +803,8 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			name: "kinesis exporter",
 			read: func(t *testing.T) []sinkEvent {
 				t.Helper()
-				desc, describeStreamErr := kinesisClient.DescribeStream(
-					t.Context(),
-					&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
-				)
-				require.NoError(t, describeStreamErr)
 
-				var res []sinkEvent
-
-				for _, shard := range desc.StreamDescription.Shards {
-					iter, getShardIteratorErr := kinesisClient.GetShardIterator(
-						t.Context(),
-						&kinesis.GetShardIteratorInput{
-							StreamName: aws.String(
-								stream,
-							),
-							ShardId:           shard.ShardId,
-							ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
-						},
-					)
-					require.NoError(t, getShardIteratorErr)
-					out, getShardIteratorErr := kinesisClient.GetRecords(
-						t.Context(),
-						&kinesis.GetRecordsInput{ShardIterator: iter.ShardIterator, Limit: aws.Int32(1000)},
-					)
-					require.NoError(t, getShardIteratorErr)
-
-					for _, r := range out.Records {
-						res = append(res, decodeFeatureEvent(t, r.Data))
-					}
-				}
-
-				return res
+				return readKinesisEvents(t, kinesisClient, stream)
 			},
 			wantUsers: wantUsers,
 		},
@@ -911,6 +823,110 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 			assertSink(t, s.read, s.wantUsers)
 		})
 	}
+}
+
+// assertSink checks that the events read from a sink contain every evaluation made above.
+func assertSink(t *testing.T, read func(t *testing.T) []sinkEvent, wantUsers map[string]string) {
+	t.Helper()
+
+	var got []sinkEvent
+	// polled on the test goroutine: read uses require, which must not run off it.
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
+	deadline := time.After(30 * time.Second)
+
+	for {
+		got = read(t)
+		users := map[string]bool{}
+
+		for _, e := range got {
+			if e.Key == ruleFlag {
+				users[e.UserKey] = true
+			}
+		}
+
+		if len(users) >= len(wantUsers) {
+			break
+		}
+
+		select {
+		case <-deadline:
+			require.Fail(t, "not every evaluation reached the sink", "events received: %d", len(got))
+		case <-ticker.C:
+		}
+	}
+
+	seen := map[string]sinkEvent{}
+
+	for _, e := range got {
+		if e.Key == ruleFlag {
+			seen[e.UserKey] = e
+		}
+	}
+
+	for u, v := range wantUsers {
+		e, ok := seen[u]
+		if assert.True(t, ok, "no event for user %s", u) {
+			assert.Equal(t, v, e.Value, "user %s", u)
+			assert.Equal(t, map[string]string{aOn: "on", aOff: off}[v], e.Variation, "user %s", u)
+		}
+	}
+}
+
+// readKinesisEvents reads every event of the stream, from the oldest record of each shard.
+func readKinesisEvents(t *testing.T, kinesisClient *kinesis.Client, stream string) []sinkEvent {
+	t.Helper()
+
+	desc, describeStreamErr := kinesisClient.DescribeStream(
+		t.Context(),
+		&kinesis.DescribeStreamInput{StreamName: aws.String(stream)},
+	)
+	require.NoError(t, describeStreamErr)
+
+	var res []sinkEvent
+
+	for _, shard := range desc.StreamDescription.Shards {
+		iter, getShardIteratorErr := kinesisClient.GetShardIterator(
+			t.Context(),
+			&kinesis.GetShardIteratorInput{
+				StreamName: aws.String(
+					stream,
+				),
+				ShardId:           shard.ShardId,
+				ShardIteratorType: kinesistypes.ShardIteratorTypeTrimHorizon,
+			},
+		)
+		require.NoError(t, getShardIteratorErr)
+		out, getShardIteratorErr := kinesisClient.GetRecords(
+			t.Context(),
+			&kinesis.GetRecordsInput{ShardIterator: iter.ShardIterator, Limit: aws.Int32(1000)},
+		)
+		require.NoError(t, getShardIteratorErr)
+
+		for _, r := range out.Records {
+			res = append(res, decodeFeatureEvent(t, r.Data))
+		}
+	}
+
+	return res
+}
+
+// readS3Events reads every event that the S3 exporter wrote.
+func readS3Events(t *testing.T, srv *gopherstack.Server, bucket string) []sinkEvent {
+	t.Helper()
+
+	var res []sinkEvent
+
+	for _, k := range srv.ListKeys(t, bucket, "exports/a/") {
+		require.True(t, strings.HasSuffix(k, ".json"), k)
+
+		for line := range strings.SplitSeq(strings.TrimSpace(string(srv.GetObject(t, bucket, k))), "\n") {
+			res = append(res, decodeFeatureEvent(t, []byte(line)))
+		}
+	}
+
+	return res
 }
 
 // receiveSQS receives and deletes the messages available, and adds them to acc (message id -> event),

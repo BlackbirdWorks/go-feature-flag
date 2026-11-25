@@ -80,7 +80,7 @@ func TestSSEService_BroadcastAndReceive(t *testing.T) {
 			defer srv.Close()
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-				srv.URL+"?stream="+tt.subscribeFlagset, nil)
+				srv.URL+"?stream="+tt.subscribeFlagset, http.NoBody)
 			require.NoError(t, err)
 
 			subscribed := make(chan struct{}, 1)

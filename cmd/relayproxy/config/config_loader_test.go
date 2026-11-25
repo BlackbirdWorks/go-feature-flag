@@ -168,7 +168,6 @@ loglevel: error`,
 					if callbackCount >= tt.wantCallbacks {
 						// Verify callback was called with correct config
 						mu.Lock()
-						defer mu.Unlock()
 
 						assert.Len(
 							t,
@@ -195,6 +194,8 @@ loglevel: error`,
 							lastConfig.LogLevel,
 							"LogLevel should have changed from initial value",
 						)
+
+						mu.Unlock()
 
 						// Clean up
 						err = loader.StopWatchChanges()

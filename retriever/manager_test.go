@@ -179,16 +179,16 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 	}
 }
 
-// findRetrieverByName returns the first retriever exposing GetName() == name,
-// or nil when none matches.
-func findRetrieverByName(retrievers []retriever.Retriever, name string) retriever.Retriever {
-	for _, r := range retrievers {
+// findRetrieverIndexByName returns the index of the first retriever exposing GetName() == name,
+// or -1 when none matches.
+func findRetrieverIndexByName(retrievers []retriever.Retriever, name string) int {
+	for idx, r := range retrievers {
 		if named, ok := r.(interface{ GetName() string }); ok && named.GetName() == name {
-			return r
+			return idx
 		}
 	}
 
-	return nil
+	return -1
 }
 
 // initCalled reports whether Init was recorded as called on a mock retriever.
@@ -245,9 +245,9 @@ func assertCalls(
 	t.Helper()
 
 	for name := range expected {
-		r := findRetrieverByName(retrievers, name)
-		require.NotNil(t, r, "Retriever %s should have been found", name)
-		got, ok := called(r)
+		idx := findRetrieverIndexByName(retrievers, name)
+		require.NotEqual(t, -1, idx, "Retriever %s should have been found", name)
+		got, ok := called(retrievers[idx])
 		require.True(t, ok, "%s cannot be observed on %s", method, name)
 		assert.True(t, got, "%s should have been called on %s", method, name)
 	}
@@ -263,10 +263,12 @@ func assertInitCalls(t *testing.T, retrievers []retriever.Retriever, expected ma
 			continue
 		}
 
-		r := findRetrieverByName(retrievers, name)
-		assert.NotNil(t, r, "Retriever %s should have been found", name)
+		idx := findRetrieverIndexByName(retrievers, name)
+		if !assert.NotEqual(t, -1, idx, "Retriever %s should have been found", name) {
+			continue
+		}
 
-		if called, ok := initCalled(r); ok {
+		if called, ok := initCalled(retrievers[idx]); ok {
 			assert.True(t, called, "Init should have been called on %s", name)
 		}
 	}
