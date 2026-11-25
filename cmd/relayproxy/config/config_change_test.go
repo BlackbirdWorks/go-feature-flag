@@ -535,7 +535,7 @@ func newAPIServerWithLogger(
 func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestCheck, phase string) {
 	t.Helper()
 
-	request, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, strings.NewReader(body))
 	require.NoError(t, err)
 	request.Header.Set(helper.ContentTypeHeader, helper.ContentTypeValueJSON)
 
@@ -576,7 +576,9 @@ func doHTTPRequestAndCheck(t *testing.T, url, body string, check httpRequestChec
 func waitForHealth(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + "/health")
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+"/health", nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false
 		}

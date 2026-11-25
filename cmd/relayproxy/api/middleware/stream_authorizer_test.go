@@ -64,7 +64,7 @@ func TestStreamAuthorizer(t *testing.T) {
 			t.Parallel()
 
 			h := middleware.StreamAuthorizer(tt.conf, tt.manager, tt.exposeError)(newOK())
-			rec := serve(h, httptest.NewRequest(http.MethodGet, "/stream"+tt.query, nil))
+			rec := serve(h, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/stream"+tt.query, nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 
 			if tt.wantBody != "" {

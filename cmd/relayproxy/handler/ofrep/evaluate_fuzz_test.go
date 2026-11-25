@@ -56,7 +56,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 			target = ofrepV1Evaluate
 		}
 
-		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, target, strings.NewReader(body))
 		req.Header.Set(contentType, applicationJSON)
 
 		rec := httptest.NewRecorder()

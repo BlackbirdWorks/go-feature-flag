@@ -166,7 +166,7 @@ func TestKeyAuth(t *testing.T) {
 				}))
 			}
 
-			req := httptest.NewRequest(http.MethodGet, doc, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -199,7 +199,7 @@ func TestVersionHeader(t *testing.T) {
 
 			rec := serve(
 				middleware.VersionHeader(tt.conf)(newOK()),
-				httptest.NewRequest(http.MethodGet, "/", nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil),
 			)
 			assert.Equal(t, tt.wantNew, rec.Header().Get(middleware.VersionHeaderName))
 			assert.Equal(t, tt.wantNew, rec.Header().Get(middleware.LegacyVersionHeaderName))
@@ -234,7 +234,7 @@ func TestCORS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(tt.method, "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), tt.method, "/", nil)
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}
@@ -322,12 +322,12 @@ func TestETag(t *testing.T) {
 			}
 
 			// the ETag of the document
-			etag := serve(handler, httptest.NewRequest(http.MethodGet, doc, nil)).Header().Get(eTag)
+			etag := serve(handler, httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)).Header().Get(eTag)
 			if tt.wantETag {
 				require.NotEmpty(t, etag)
 			}
 
-			req := httptest.NewRequest(http.MethodGet, doc, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, doc, nil)
 
 			switch tt.condition {
 			case etag2:
@@ -382,7 +382,7 @@ func TestBodyDump(t *testing.T) {
 				read = string(b)
 			}))
 
-			serve(handler, httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(hello)))
+			serve(handler, httptest.NewRequestWithContext(t.Context(), http.MethodPost, tt.path, strings.NewReader(hello)))
 			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")
 			assert.Equal(t, tt.wantDump, dumped)
 			assert.Equal(t, tt.wantRead, read)
@@ -408,7 +408,7 @@ func TestDeprecatedAlias(t *testing.T) {
 
 			rec := serve(
 				middleware.DeprecatedAlias(tt.replacement)(newOK()),
-				httptest.NewRequest(http.MethodGet, "/old", nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/old", nil),
 			)
 			assert.Equal(t, "true", rec.Header().Get("Deprecation"))
 			assert.Equal(t, tt.wantLink, rec.Header().Get("Link"))
@@ -446,7 +446,7 @@ func TestChain(t *testing.T) {
 				})
 			}
 
-			serve(middleware.Chain(newOK(), mws...), httptest.NewRequest(http.MethodGet, "/", nil))
+			serve(middleware.Chain(newOK(), mws...), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
 			assert.Equal(t, tt.want, order.String())
 		})
 	}
@@ -499,7 +499,7 @@ func TestPrometheus(t *testing.T) {
 
 				w.WriteHeader(http.StatusTeapot)
 				_, _ = w.Write([]byte(tea))
-			})), httptest.NewRequest(http.MethodGet, "/items/42", nil))
+			})), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/items/42", nil))
 
 			families, err := reg.Gather()
 			require.NoError(t, err)
@@ -542,7 +542,7 @@ func TestRoutePattern(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, aB, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, aB, nil)
 			req.Pattern = tt.pattern
 			assert.Equal(t, tt.want, middleware.RoutePattern(req))
 		})

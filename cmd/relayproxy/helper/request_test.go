@@ -36,7 +36,7 @@ func TestAPIKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 			if tt.xAPIKey != "" {
 				req.Header.Set(helper.XAPIKeyHeader, tt.xAPIKey)
 			}

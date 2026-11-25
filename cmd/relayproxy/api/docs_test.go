@@ -338,11 +338,10 @@ func Test_Upload(t *testing.T) {
 
 				return watched
 			}, api.WithReadTimeout(tt.timeout))
-			resp, err := http.Post(
-				base+tt.path,
-				applicationJSON,
-				strings.NewReader(events2),
-			)
+			postReq, err := http.NewRequestWithContext(t.Context(), http.MethodPost, base+tt.path, strings.NewReader(events2))
+			require.NoError(t, err)
+			postReq.Header.Set("Content-Type", applicationJSON)
+			resp, err := http.DefaultClient.Do(postReq)
 			require.NoError(t, err)
 			require.NoError(t, resp.Body.Close())
 			require.Equal(t, http.StatusOK, resp.StatusCode)

@@ -167,7 +167,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate, bodyReq)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate, bodyReq)
 			req.Header.Set(contentType, applicationJSON)
 			handlerErr := ctrl.BulkEvaluate(rec, req)
 
@@ -280,7 +280,7 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate, strings.NewReader(string(body)))
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate, strings.NewReader(string(body)))
 			req.Header.Set(contentType, applicationJSON)
 
 			for k, v := range tt.args.headers {
@@ -468,7 +468,7 @@ func Test_Evaluate(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate2+flagKey, bodyReq)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ofrepV1Evaluate2+flagKey, bodyReq)
 			req.Header.Set(contentType, applicationJSON)
 
 			mux.ServeHTTP(rec, req)
@@ -548,7 +548,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
-				req := httptest.NewRequest(
+				req := httptest.NewRequestWithContext(t.Context(),
 					http.MethodPost, ofrepV1Evaluate2+flagKey, strings.NewReader(string(bodyReqContent)))
 				req.Header.Set(contentType, applicationJSON)
 				mux.ServeHTTP(httptest.NewRecorder(), req)
@@ -598,7 +598,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
-			req := httptest.NewRequest(
+			req := httptest.NewRequestWithContext(t.Context(),
 				http.MethodPost,
 				"/ofrep/v1/evaluate/flags/number-flag",
 				strings.NewReader(string(body)),

@@ -94,7 +94,9 @@ func newTestServer(
 func waitForServer(t *testing.T, baseURL string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		resp, err := http.Get(baseURL + health2)
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return false
 		}
@@ -157,21 +159,27 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + health2)
+	req2, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(req2)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	responseM, err := http.Get(baseURL + metrics2)
+	req3, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, nil)
+	require.NoError(t, err)
+	responseM, err := http.DefaultClient.Do(req3)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
-	responseI, err := http.Get(baseURL + info)
+	req4, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	require.NoError(t, err)
+	responseI, err := http.DefaultClient.Do(req4)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI.Body.Close() }()
@@ -242,42 +250,54 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	waitForServer(t, baseURL)
 	waitForServer(t, monitoringURL)
 
-	response, err := http.Get(baseURL + health2)
+	req5, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(req5)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	responseM, err := http.Get(baseURL + metrics2)
+	req6, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, nil)
+	require.NoError(t, err)
+	responseM, err := http.DefaultClient.Do(req6)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, responseM.StatusCode)
 
-	responseI, err := http.Get(baseURL + info)
+	req7, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	require.NoError(t, err)
+	responseI, err := http.DefaultClient.Do(req7)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, responseI.StatusCode)
 
-	responseH1, err := http.Get(monitoringURL + health2)
+	req8, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, nil)
+	require.NoError(t, err)
+	responseH1, err := http.DefaultClient.Do(req8)
 	require.NoError(t, err)
 
 	defer func() { _ = responseH1.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
-	responseM1, err := http.Get(monitoringURL + metrics2)
+	req9, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, nil)
+	require.NoError(t, err)
+	responseM1, err := http.DefaultClient.Do(req9)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM1.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
-	responseI1, err := http.Get(monitoringURL + info)
+	req10, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, nil)
+	require.NoError(t, err)
+	responseI1, err := http.DefaultClient.Do(req10)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI1.Body.Close() }()
@@ -341,7 +361,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	req, err := http.NewRequest(http.MethodPost,
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
 		baseURL+ofrepV1Evaluate,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -354,7 +374,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
-	req, err = http.NewRequest(http.MethodPost,
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost,
 		baseURL+"/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -367,7 +387,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
-	req, err = http.NewRequest(http.MethodPost,
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost,
 		baseURL+ofrepV1Evaluate5,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -423,7 +443,9 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + health2)
+	req11, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(req11)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
@@ -475,7 +497,9 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	baseURL := fmt.Sprintf(httpLocalhostD, port)
 	waitForServer(t, baseURL)
 
-	response, err := http.Get(baseURL + health2)
+	req12, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	require.NoError(t, err)
+	response, err := http.DefaultClient.Do(req12)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
@@ -517,9 +541,14 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(_ *testing.T, _ authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				return http.Post(baseURL+ofrepV1Evaluate5, applicationJSON,
-					strings.NewReader(contextTargetingKeySomeKey2),
-				)
+				req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+ofrepV1Evaluate5,
+					strings.NewReader(contextTargetingKeySomeKey2))
+				if err != nil {
+					return nil, err
+				}
+				req.Header.Set("Content-Type", applicationJSON)
+
+				return http.DefaultClient.Do(req)
 			})
 	})
 
@@ -555,7 +584,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			func(t *testing.T, tt authMiddlewareTestCase, baseURL string) (*http.Response, error) {
 				t.Helper()
 
-				request, err := http.NewRequest(http.MethodPost, baseURL+adminV1Retriever, nil)
+				request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+adminV1Retriever, nil)
 				require.NoError(t, err)
 				request.Header.Add(contentType, applicationJSON)
 
@@ -659,8 +688,8 @@ func skipUnixSocketOnWindows(t *testing.T) {
 func newUnixSocketHTTPClient(socketPath string) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial(unix, socketPath)
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, unix, socketPath)
 			},
 		},
 	}
@@ -723,7 +752,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial(unix, socketPath)
+		conn, dialErr := (&net.Dialer{}).DialContext(t.Context(), unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -741,7 +770,9 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test health endpoint
-	response, err := client.Get(httpUnixHealth)
+	req13, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, nil)
+	require.NoError(t, err)
+	response, err := client.Do(req13)
 	require.NoError(t, err)
 
 	defer func() { _ = response.Body.Close() }()
@@ -749,7 +780,9 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test metrics endpoint
-	responseM, err := client.Get("http://unix/metrics")
+	req14, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/metrics", nil)
+	require.NoError(t, err)
+	responseM, err := client.Do(req14)
 	require.NoError(t, err)
 
 	defer func() { _ = responseM.Body.Close() }()
@@ -757,7 +790,9 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseM.StatusCode)
 
 	// Test info endpoint
-	responseI, err := client.Get("http://unix/info")
+	req15, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://unix/info", nil)
+	require.NoError(t, err)
+	responseI, err := client.Do(req15)
 	require.NoError(t, err)
 
 	defer func() { _ = responseI.Body.Close() }()
@@ -824,7 +859,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial(unix, socketPath)
+		conn, dialErr := (&net.Dialer{}).DialContext(t.Context(), unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -842,7 +877,9 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	waitForServer(t, monitoringURL)
 
 	// Test health endpoint
-	responseH1, err := http.Get(monitoringURL + health2)
+	req16, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+health2, nil)
+	require.NoError(t, err)
+	responseH1, err := http.DefaultClient.Do(req16)
 	require.NoError(t, err)
 
 	defer responseH1.Body.Close()
@@ -850,7 +887,9 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseH1.StatusCode)
 
 	// Test metrics endpoint
-	responseM1, err := http.Get(monitoringURL + metrics2)
+	req17, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+metrics2, nil)
+	require.NoError(t, err)
+	responseM1, err := http.DefaultClient.Do(req17)
 	require.NoError(t, err)
 
 	defer responseM1.Body.Close()
@@ -858,7 +897,9 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	assert.Equal(t, http.StatusOK, responseM1.StatusCode)
 
 	// Test info endpoint
-	responseI, err := http.Get(monitoringURL + info)
+	req18, err := http.NewRequestWithContext(t.Context(), http.MethodGet, monitoringURL+info, nil)
+	require.NoError(t, err)
+	responseI, err := http.DefaultClient.Do(req18)
 	require.NoError(t, err)
 
 	defer responseI.Body.Close()
@@ -927,7 +968,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	// Wait for the socket to be created
 	require.Eventually(t, func() bool {
 		// The socket file exists as soon as the server binds, before it listens: dial it.
-		conn, dialErr := net.Dial(unix, socketPath)
+		conn, dialErr := (&net.Dialer{}).DialContext(t.Context(), unix, socketPath)
 		if dialErr != nil {
 			return false
 		}
@@ -945,7 +986,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	client := newUnixSocketHTTPClient(socketPath)
 
 	// Test OFREP evaluate all flags endpoint
-	req, err := http.NewRequest(http.MethodPost,
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -959,7 +1000,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (non-existent flag)
-	req, err = http.NewRequest(http.MethodPost,
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost,
 		"http://unix/ofrep/v1/evaluate/flags/some-key",
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -973,7 +1014,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, response.StatusCode)
 
 	// Test OFREP evaluate specific flag endpoint (existing flag)
-	req, err = http.NewRequest(http.MethodPost,
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodPost,
 		httpUnixOfrepV,
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
@@ -1117,7 +1158,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, dialErr := net.Dial(unix, socketPath)
+				conn, dialErr := (&net.Dialer{}).DialContext(t.Context(), unix, socketPath)
 				if dialErr != nil {
 					return false
 				}
@@ -1133,9 +1174,9 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			// Create and execute request
 			var req *http.Request
 			if tt.body != "" {
-				req, err = http.NewRequest(tt.method, tt.endpoint, strings.NewReader(tt.body))
+				req, err = http.NewRequestWithContext(t.Context(), tt.method, tt.endpoint, strings.NewReader(tt.body))
 			} else {
-				req, err = http.NewRequest(tt.method, tt.endpoint, nil)
+				req, err = http.NewRequestWithContext(t.Context(), tt.method, tt.endpoint, nil)
 			}
 
 			require.NoError(t, err)
@@ -1232,7 +1273,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Wait for the socket to be created
 			require.Eventually(t, func() bool {
 				// The socket file exists as soon as the server binds, before it listens: dial it.
-				conn, dialErr := net.Dial(unix, socketPath)
+				conn, dialErr := (&net.Dialer{}).DialContext(t.Context(), unix, socketPath)
 				if dialErr != nil {
 					return false
 				}
@@ -1245,7 +1286,9 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			// Create a Unix socket HTTP client
 			client := newUnixSocketHTTPClient(socketPath)
 
-			response, err := client.Get(httpUnixHealth)
+			req19, err := http.NewRequestWithContext(t.Context(), http.MethodGet, httpUnixHealth, nil)
+			require.NoError(t, err)
+			response, err := client.Do(req19)
 			require.NoError(t, err)
 
 			defer func() { _ = response.Body.Close() }()
@@ -1312,12 +1355,16 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	waitForServer(t, baseURL)
 
 	// Make some requests to generate histogram data
-	healthResp, err := http.Get(baseURL + health2)
+	req20, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+health2, nil)
+	require.NoError(t, err)
+	healthResp, err := http.DefaultClient.Do(req20)
 	require.NoError(t, err)
 
 	_ = healthResp.Body.Close()
 
-	infoResp, err := http.Get(baseURL + info)
+	req21, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+info, nil)
+	require.NoError(t, err)
+	infoResp, err := http.DefaultClient.Do(req21)
 	require.NoError(t, err)
 
 	_ = infoResp.Body.Close()
@@ -1429,7 +1476,9 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		resp, getErr := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
+		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health", port), nil)
+		require.NoError(t, getErr)
+		resp, getErr := http.DefaultClient.Do(req22)
 		if getErr != nil {
 			return false
 		}
@@ -1451,7 +1500,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	}
 
 	// Verify the port is free by binding to it again.
-	ln2, err := net.Listen(tcp2, fmt.Sprintf("127.0.0.1:%d", port))
+	ln2, err := (&net.ListenConfig{}).Listen(t.Context(), tcp2, fmt.Sprintf("127.0.0.1:%d", port))
 	require.NoError(t, err, "port %d should be free after shutdown", port)
 	ln2.Close()
 }
@@ -1461,7 +1510,7 @@ func Test_StopBeforeStart(t *testing.T) {
 
 	// The server is given a listener that stays bound: closing it and binding the port again later would let
 	// another test take the port in between, and the server closes it when it is stopped before it started.
-	listener, err := net.Listen(tcp2, "127.0.0.1:0")
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), tcp2, "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 

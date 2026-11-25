@@ -928,7 +928,9 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 		_ = recordGolden(t, baseURL, r)
 	}
 
-	resp, err := http.Get(baseURL + metrics2)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, baseURL+metrics2, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
 	defer func() { _ = resp.Body.Close() }()

@@ -52,7 +52,7 @@ func requestLogger(logger *slog.Logger, debug bool) func(http.Handler) http.Hand
 func TestRequestLogger200(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, something, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, something, nil)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
@@ -71,7 +71,7 @@ func TestRequestLogger200(t *testing.T) {
 func TestRequestLogger300(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, something, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, something, nil)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusFound) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
@@ -89,7 +89,7 @@ func TestRequestLogger300(t *testing.T) {
 func TestRequestLogger400(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, something, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, something, nil)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadRequest) })
 
 	obs, logs := slogutil.NewObserver(slog.LevelDebug)
@@ -108,7 +108,7 @@ func TestRequestLogger400(t *testing.T) {
 func TestRequestLogger500(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, something, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, something, nil)
 	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
@@ -129,7 +129,7 @@ func TestRequestLogger500(t *testing.T) {
 func TestRequestLoggerHealth(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
 	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
@@ -143,7 +143,7 @@ func TestRequestLoggerHealth(t *testing.T) {
 func TestRequestLoggerHealthDebug(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/health", nil)
 	handler := http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
 	)
@@ -192,7 +192,7 @@ func TestRequestLoggerRedactsAPIKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, tt.uri, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.uri, nil)
 			h := http.HandlerFunc(
 				func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) },
 			)
@@ -330,7 +330,7 @@ func TestRequestLoggerRequestID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodGet, something, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, something, nil)
 			if tt.requestHeader != "" {
 				req.Header.Set("X-Request-ID", tt.requestHeader)
 			}

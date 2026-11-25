@@ -99,7 +99,7 @@ func startTestServer(t *testing.T, conf *config.Config, withMonitoring bool) (st
 func doRequest(t *testing.T, method, url string, headers map[string]string) *http.Response {
 	t.Helper()
 
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequestWithContext(t.Context(), method, url, nil)
 	require.NoError(t, err)
 
 	for name, value := range headers {

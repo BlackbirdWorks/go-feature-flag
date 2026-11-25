@@ -204,7 +204,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
 			req.Header.Set(contentType2, applicationJSON)
 			req.SetPathValue("flagKey", tt.args.flagKey)
 			handlerErr := flagEval.Handler(rec, req)
@@ -300,7 +300,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 			require.NoError(t, err, "request body file missing %s", tt.bodyFile)
 
 			for _, flagKey := range tt.flagKeys {
-				req := httptest.NewRequest(
+				req := httptest.NewRequestWithContext(t.Context(),
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))
 				req.Header.Set(contentType2, applicationJSON)
 				req.SetPathValue("flagKey", flagKey)

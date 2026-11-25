@@ -168,7 +168,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
 			req.Header.Set(contentType2, applicationJSON)
 			handlerErr := ctrl.Handler(rec, req)
 
@@ -313,7 +313,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 				bodyReq = strings.NewReader(string(bodyReqContent))
 			}
 
-			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/allflags", bodyReq)
 			req.Header.Set(contentType2, applicationJSON)
 			req.Header.Set("Authorization", "Bearer test-api-key")
 			handlerErr := ctrl.Handler(rec, req)

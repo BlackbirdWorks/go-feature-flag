@@ -27,7 +27,7 @@ func invoke(
 ) {
 	b.Helper()
 
-	req := httptest.NewRequest(http.MethodPost, endpoint.Path(key), strings.NewReader(endpoint.Body(i)))
+	req := httptest.NewRequestWithContext(b.Context(), http.MethodPost, endpoint.Path(key), strings.NewReader(endpoint.Body(i)))
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
