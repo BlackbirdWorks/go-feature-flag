@@ -1093,8 +1093,7 @@ func Test_firstSharedRetriever(t *testing.T) {
 		})
 	}
 
-	rel, ok := r.(*releasingRetriever)
-	require.True(t, ok)
+	rel := r
 	require.NoError(t, rel.Shutdown(t.Context()))
 }
 

@@ -190,8 +190,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			got = append(got, int(created.Load()), reg.groupCount())
 
 			// Shutdown twice is harmless
-			rel1, ok := ret1.(*releasingRetriever)
-			require.True(t, ok)
+			rel1 := ret1
 			require.NoError(t, rel1.Shutdown(t.Context()))
 			require.NoError(t, rel1.Shutdown(t.Context()))
 
@@ -206,14 +205,12 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 			ret2, err := reg.retrieverFor(&fs2)
 			require.NoError(t, err)
 
-			rel1, ok := ret1.(*releasingRetriever)
-			require.True(t, ok)
+			rel1 := ret1
 			require.NoError(t, rel1.Shutdown(t.Context()))
 
 			got := make([]int, 0, 2)
 			got = append(got, reg.groupCount())
-			rel2, ok := ret2.(*releasingRetriever)
-			require.True(t, ok)
+			rel2 := ret2
 			require.NoError(t, rel2.Shutdown(t.Context()))
 
 			return append(got, reg.groupCount())
@@ -281,8 +278,7 @@ func Test_sharedBucketRegistry_retrieverFor(t *testing.T) {
 					fs := s3FlagSet(fmt.Sprintf("f%d", i), "b1", fmt.Sprintf("p/%d.yaml", i))
 					r, err := reg.retrieverFor(&fs)
 
-					rel, ok := r.(*releasingRetriever)
-					results <- retrieverResult{err: err, rel: rel, ok: ok}
+					results <- retrieverResult{err: err, rel: r, ok: r != nil}
 				})
 			}
 
@@ -337,8 +333,7 @@ func Test_sharedBucketRegistry_preRegister(t *testing.T) {
 				r1, err := reg.retrieverFor(&fs1)
 				require.NoError(t, err)
 
-				rel1, ok := r1.(*releasingRetriever)
-				require.True(t, ok)
+				rel1 := r1
 				require.NoError(t, rel1.Shutdown(t.Context()))
 
 				got = append(got, reg.groupCount()) // fs2 is still pending
@@ -486,8 +481,7 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			r, err := reg.retrieverFor(&fs)
 			require.NoError(t, err)
 
-			rel, ok := r.(*releasingRetriever)
-			require.True(t, ok)
+			rel := r
 			require.NoError(t, rel.Shutdown(t.Context()))
 
 			require.Equal(t, len(tt.wantMessage), logs.Len())

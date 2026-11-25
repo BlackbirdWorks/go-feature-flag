@@ -101,7 +101,7 @@ func pendingKey(fs *config.FlagSet) string {
 
 // retrieverFor returns the retriever of the flagset (its configuration is expected to be valid).
 // The reference on the bucket group is released when the retriever is shut down.
-func (r *sharedBucketRegistry) retrieverFor(flagset *config.FlagSet) (retriever.Retriever, error) {
+func (r *sharedBucketRegistry) retrieverFor(flagset *config.FlagSet) (*releasingRetriever, error) {
 	err := checkSharedPollerFlagSet(flagset)
 	if err != nil {
 		return nil, err
