@@ -12,6 +12,7 @@ import (
 	"github.com/blackbirdworks/huma-middleware/middleware/accesslog"
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/danielgtaylor/huma/v2"
+	"go.opentelemetry.io/otel/trace"
 
 	cmdlog "github.com/blackbirdworks/semaphore/cmdhelpers/log"
 )
@@ -73,6 +74,10 @@ func AccessLog() func(ctx context.Context, l *slog.Logger, r *accesslog.Record) 
 			Status:    r.Status,
 			Size:      r.Size,
 		}
+		// a record function replaces the one of the library, which adds the IDs of the span: do it here.
+		if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+			rec.TraceID, rec.SpanID = sc.TraceID().String(), sc.SpanID().String()
+		}
 		LogRequest(ctx, l, &rec)
 	}
 }
@@ -97,6 +102,8 @@ type RequestRecord struct {
 	URI       string
 	UserAgent string
 	RequestID string
+	TraceID   string
+	SpanID    string
 	Latency   time.Duration
 	Size      int64
 	Status    int
@@ -123,6 +130,9 @@ func LogRequest(ctx context.Context, logger *slog.Logger, r *RequestRecord) {
 		return
 	}
 
+	if r.TraceID != "" {
+		logger = logger.With(slog.String("trace_id", r.TraceID), slog.String("span_id", r.SpanID))
+	}
 	logger.LogAttrs(ctx, level, msg,
 		cmdlog.Err(r.Err),
 		slog.String("remote_ip", r.RemoteIP),

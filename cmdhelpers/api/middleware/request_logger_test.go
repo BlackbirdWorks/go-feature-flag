@@ -221,6 +221,19 @@ func TestLogRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "traced",
+			rec: middleware.RequestRecord{
+				Status: http.StatusOK, Method: http.MethodGet, URI: "/", TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+				SpanID: "00f067aa0e0e0e0e",
+			},
+			wantLevel: slog.LevelDebug, wantMessage: "Success",
+			wantContext: map[string]any{
+				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /", "status": int64(200),
+				"size": int64(0), "user_agent": "", "request_id": "", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+				"span_id": "00f067aa0e0e0e0e",
+			},
+		},
+		{
 			name:      "redirection",
 			rec:       middleware.RequestRecord{Status: http.StatusFound, Method: http.MethodGet, URI: "/"},
 			wantLevel: slog.LevelDebug, wantMessage: "Redirection",
