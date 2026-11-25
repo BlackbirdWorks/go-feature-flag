@@ -22,6 +22,11 @@ type Request struct {
 	contentType string
 }
 
+// NewRequest returns the Request of a request with the API key and the content type.
+func NewRequest(apiKey, contentType string) Request {
+	return Request{apiKey: apiKey, contentType: contentType}
+}
+
 // Resolve implements huma.Resolver.
 func (r *Request) Resolve(ctx huma.Context) []error {
 	r.apiKey = helper.APIKeyFromHeaders(ctx.Header)
@@ -50,9 +55,4 @@ func BodyOpts(op *huma.Operation, readTimeout time.Duration) {
 	}
 	op.SkipValidateBody = true
 	op.SkipValidateParams = true
-}
-
-// NewRequest returns the Request of a request with the API key and the content type.
-func NewRequest(apiKey, contentType string) Request {
-	return Request{apiKey: apiKey, contentType: contentType}
 }

@@ -60,6 +60,15 @@ func (f *FFLogger) Warn(msg string, keysAndValues ...any) {
 	f.legacyLog("WARN", msg, keysAndValues...)
 }
 
+// GetLogLogger is returning a classic logger from a slog logger.
+func (f *FFLogger) GetLogLogger(level slog.Level) *log.Logger {
+	if f.LeveledLogger != nil {
+		return slog.NewLogLogger(f.LeveledLogger.Handler(), level)
+	}
+
+	return f.LegacyLogger
+}
+
 func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 	if f != nil && f.LegacyLogger != nil {
 		if len(keysAndValues) == 0 {
@@ -80,15 +89,6 @@ func (f *FFLogger) legacyLog(level, msg string, keysAndValues ...any) {
 			strings.Join(attrs, " "),
 		)
 	}
-}
-
-// GetLogLogger is returning a classic logger from a slog logger.
-func (f *FFLogger) GetLogLogger(level slog.Level) *log.Logger {
-	if f.LeveledLogger != nil {
-		return slog.NewLogLogger(f.LeveledLogger.Handler(), level)
-	}
-
-	return f.LegacyLogger
 }
 
 // ConvertToFFLogger is converting a classic logger to our internal logger.

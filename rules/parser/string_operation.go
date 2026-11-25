@@ -9,33 +9,6 @@ type StringOperation struct {
 	NullOperation
 }
 
-func (o *StringOperation) getString(operand Operand) (string, error) {
-	switch opVal := operand.(type) {
-	case string:
-		return opVal, nil
-	case fmt.Stringer:
-		return opVal.String(), nil
-	default:
-		return "", newInvalidOperandError(operand, opVal)
-	}
-}
-
-func (o *StringOperation) get(left Operand, right Operand) (string, string, error) {
-	if left == nil {
-		return "", "", ErrEvalOperandMissing
-	}
-	leftVal, err := o.getString(left)
-	if err != nil {
-		return "", "", err
-	}
-	rightVal, err := o.getString(right)
-	if err != nil {
-		return "", "", err
-	}
-
-	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
-}
-
 func (o *StringOperation) EQ(left Operand, right Operand) (bool, error) {
 	l, r, err := o.get(left, right)
 	if err != nil {
@@ -135,4 +108,31 @@ func (o *StringOperation) IN(left Operand, right Operand) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (o *StringOperation) getString(operand Operand) (string, error) {
+	switch opVal := operand.(type) {
+	case string:
+		return opVal, nil
+	case fmt.Stringer:
+		return opVal.String(), nil
+	default:
+		return "", newInvalidOperandError(operand, opVal)
+	}
+}
+
+func (o *StringOperation) get(left Operand, right Operand) (string, string, error) {
+	if left == nil {
+		return "", "", ErrEvalOperandMissing
+	}
+	leftVal, err := o.getString(left)
+	if err != nil {
+		return "", "", err
+	}
+	rightVal, err := o.getString(right)
+	if err != nil {
+		return "", "", err
+	}
+
+	return strings.ToLower(leftVal), strings.ToLower(rightVal), nil
 }

@@ -69,6 +69,20 @@ func NewService(opts ...ServiceOption) *Service {
 	return s
 }
 
+// queryMapSize is the initial size of the maps that queryMaps hands out.
+const queryMapSize = 16
+
+// Close releases the memoized queries and flags. The Service stays usable: it rebuilds what it
+// needs on the next use.
+func (s *Service) Close() {
+	if s == nil {
+		return
+	}
+	s.nikunjy.reset()
+	s.scheduled.entries.Clear()
+	s.compiled.Clear()
+}
+
 // evaluationDate is the date of an evaluation: the currentDateTime of the context, or the clock.
 // It also reports, once, that the context uses the legacy attribute name.
 func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
@@ -83,18 +97,4 @@ func (s *Service) evaluationDate(ctx ffcontext.Context) time.Time {
 	}
 
 	return *specifics.CurrentDateTime
-}
-
-// queryMapSize is the initial size of the maps that queryMaps hands out.
-const queryMapSize = 16
-
-// Close releases the memoized queries and flags. The Service stays usable: it rebuilds what it
-// needs on the next use.
-func (s *Service) Close() {
-	if s == nil {
-		return
-	}
-	s.nikunjy.reset()
-	s.scheduled.entries.Clear()
-	s.compiled.Clear()
 }

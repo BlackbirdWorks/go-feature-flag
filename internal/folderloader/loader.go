@@ -107,33 +107,6 @@ func normalizePrefix(prefix string) string {
 	return p
 }
 
-// from returns " from <Provider>" for the error messages, or "" if there is no provider.
-func (l *Loader) from() string {
-	if l.opts.Provider == "" {
-		return ""
-	}
-
-	return " from " + l.opts.Provider
-}
-
-// logPrefix is the beginning of the log messages.
-func (l *Loader) logPrefix() string {
-	if l.opts.Provider == "" {
-		return "folder loader"
-	}
-
-	return l.opts.Provider + " retriever"
-}
-
-// locationKey is the name of the log field holding the location.
-func (l *Loader) locationKey() string {
-	if l.opts.LocationKey == "" {
-		return "location"
-	}
-
-	return l.opts.LocationKey
-}
-
 // sameVersion compares two versions ignoring the weak prefix and the surrounding double quotes,
 // which providers or SDKs do not always keep (ex: the ETag of a listing vs a download).
 func sameVersion(a, b string) bool {
@@ -205,6 +178,33 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 	l.format.Store(format)
 
 	return marshalFlags(format, merged)
+}
+
+// from returns " from <Provider>" for the error messages, or "" if there is no provider.
+func (l *Loader) from() string {
+	if l.opts.Provider == "" {
+		return ""
+	}
+
+	return " from " + l.opts.Provider
+}
+
+// logPrefix is the beginning of the log messages.
+func (l *Loader) logPrefix() string {
+	if l.opts.Provider == "" {
+		return "folder loader"
+	}
+
+	return l.opts.Provider + " retriever"
+}
+
+// locationKey is the name of the log field holding the location.
+func (l *Loader) locationKey() string {
+	if l.opts.LocationKey == "" {
+		return "location"
+	}
+
+	return l.opts.LocationKey
 }
 
 func sortedKeys(files map[string]string) []string {

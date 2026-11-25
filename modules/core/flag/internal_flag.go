@@ -204,6 +204,216 @@ func selectEvaluationReason(
 	return ReasonUnknown
 }
 
+// validateVariationTypes checks that all the variations have a value and the same type.
+func validateVariationTypes(variations map[string]*any) error {
+	expectedVarType := ""
+	for _, name := range slices.Sorted(maps.Keys(variations)) {
+		value := variations[name]
+		if value == nil {
+			return fmt.Errorf("%w: %s", errNilValueForVariation, name)
+		}
+		currentType, err := utils.JSONTypeExtractor(*value)
+		if err != nil {
+			return err
+		}
+		if expectedVarType == "" {
+			expectedVarType = currentType
+
+			continue
+		}
+		if currentType != expectedVarType {
+			return errAllVariationsShouldHave
+		}
+	}
+
+	return nil
+}
+
+// IsValid is checking if the current flag is valid.
+// Validating a flag also keeps the cached parses of its nikunjy queries until its rules
+// are garbage collected, so validating the flags of a configuration load is what keeps
+// their queries cached across reloads.
+func (f *InternalFlag) IsValid(svc *Service) error {
+	if len(f.GetVariations()) == 0 {
+		return errNoVariationAvailable
+	}
+
+	if err := validateVariationTypes(f.GetVariations()); err != nil {
+		return err
+	}
+
+	// Validate that we have a default Rule
+	if f.GetDefaultRule() == nil {
+		return errMissingDefaultRule
+	}
+
+	// Retained before the rules are validated, so the parses made by the validation
+	// stay cached even if a previous configuration's rules are collected meanwhile.
+	known := svc.nikunjy.known(f.Rules)
+	ruleQueries := svc.nikunjy.retain(f.Rules, known)
+
+	const isDefaultRule = true
+	// Validate rules
+	if err := f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations()); err != nil {
+		return err
+	}
+
+	evaluators, err := f.validateRules(svc, known)
+	if err != nil {
+		return err
+	}
+
+	// The queries are parsed now: index them to evaluate the rules without hashing them.
+	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
+
+	return nil
+}
+
+// GetVariations is the getter of the field Variations.
+func (f *InternalFlag) GetVariations() map[string]*any {
+	if f.Variations == nil {
+		return map[string]*any{}
+	}
+
+	return *f.Variations
+}
+
+func (f *InternalFlag) GetRules() []Rule {
+	if f.Rules == nil {
+		return []Rule{}
+	}
+
+	return *f.Rules
+}
+
+func (f *InternalFlag) GetRuleIndexByName(name string) *int {
+	for index, rule := range f.GetRules() {
+		if rule.GetName() == name {
+			return &index
+		}
+	}
+
+	return nil
+}
+
+// GetDefaultRule is the getter of the field DefaultRule.
+func (f *InternalFlag) GetDefaultRule() *Rule {
+	return f.DefaultRule
+}
+
+// IsTrackEvents is the getter of the field TrackEvents.
+func (f *InternalFlag) IsTrackEvents() bool {
+	if f.TrackEvents == nil {
+		return true
+	}
+
+	return *f.TrackEvents
+}
+
+// IsDisable is the getter for the field Disable.
+func (f *InternalFlag) IsDisable() bool {
+	if f.Disable == nil {
+		return false
+	}
+
+	return *f.Disable
+}
+
+// GetVersion is the getter for the field Version.
+func (f *InternalFlag) GetVersion() string {
+	if f.Version == nil {
+		return ""
+	}
+
+	return *f.Version
+}
+
+// GetVariationValue return the value of variation from his name.
+func (f *InternalFlag) GetVariationValue(name string) any {
+	if v, exists := f.GetVariations()[name]; exists && v != nil {
+		return *v
+	}
+
+	return nil
+}
+
+// GetBucketingKey return the name of the custom bucketing key if we are using one.
+func (f *InternalFlag) GetBucketingKey() string {
+	if f.BucketingKey == nil {
+		return ""
+	}
+
+	return *f.BucketingKey
+}
+
+// RequiresBucketing checks if the flag requires a bucketing key for evaluation
+// A flag requires bucketing if it has percentage-based rules or progressive rollouts,
+// including those introduced by scheduled rollout steps.
+func (f *InternalFlag) RequiresBucketing() bool {
+	// Check if default rule requires bucketing and if any targeting rule requires bucketing
+	if f.defaultRuleRequiresBucketing() || f.rulesRequireBucketing(f.GetRules()) {
+		return true
+	}
+
+	// Check if any scheduled rollout steps introduce bucketing requirements
+	if f.Scheduled != nil {
+		for _, step := range *f.Scheduled {
+			if step.defaultRuleRequiresBucketing() || step.rulesRequireBucketing(step.GetRules()) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// GetBucketingKeyValue return the value of the bucketing key from the context
+// If requiresBucketing is false, it allows empty keys for flags that don't need them.
+func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, error) {
+	// Cache the bucketing requirement check to avoid multiple calls
+	requiresBucketing := f.RequiresBucketing()
+
+	// Check if custom bucketing key is provided
+	if f.BucketingKey != nil {
+		key := f.GetBucketingKey()
+		if key == "" {
+			return ctx.GetKey(), nil
+		}
+
+		value, err := utils.GetNestedFieldValue(ctx.GetCustom(), key)
+		if err != nil {
+			return "", fmt.Errorf("impossible to find bucketingKey in context: %w", err)
+		}
+
+		switch v := value.(type) {
+		case string:
+			if v == "" {
+				return f.requiresBucketingCheck(requiresBucketing, "bucketing")
+			}
+
+			return v, nil
+		default:
+			return "", errInvalidBucketingKey
+		}
+	}
+
+	// Check if targeting key is required for this flag
+	if ctx.GetKey() == "" {
+		return f.requiresBucketingCheck(requiresBucketing, "targeting")
+	}
+
+	return ctx.GetKey(), nil
+}
+
+// GetMetadata return the metadata associated to the flag.
+func (f *InternalFlag) GetMetadata() map[string]any {
+	if f.Metadata == nil {
+		return nil
+	}
+
+	return *f.Metadata
+}
+
 func (f *InternalFlag) isCacheable() bool {
 	isDynamic := (f.Scheduled != nil && len(*f.Scheduled) > 0) || f.Experimentation != nil
 
@@ -385,71 +595,6 @@ func (f *InternalFlag) isExperimentationOver(evaluationDate time.Time) bool {
 			(f.Experimentation.End != nil && evaluationDate.After(*f.Experimentation.End)))
 }
 
-// validateVariationTypes checks that all the variations have a value and the same type.
-func validateVariationTypes(variations map[string]*any) error {
-	expectedVarType := ""
-	for _, name := range slices.Sorted(maps.Keys(variations)) {
-		value := variations[name]
-		if value == nil {
-			return fmt.Errorf("%w: %s", errNilValueForVariation, name)
-		}
-		currentType, err := utils.JSONTypeExtractor(*value)
-		if err != nil {
-			return err
-		}
-		if expectedVarType == "" {
-			expectedVarType = currentType
-
-			continue
-		}
-		if currentType != expectedVarType {
-			return errAllVariationsShouldHave
-		}
-	}
-
-	return nil
-}
-
-// IsValid is checking if the current flag is valid.
-// Validating a flag also keeps the cached parses of its nikunjy queries until its rules
-// are garbage collected, so validating the flags of a configuration load is what keeps
-// their queries cached across reloads.
-func (f *InternalFlag) IsValid(svc *Service) error {
-	if len(f.GetVariations()) == 0 {
-		return errNoVariationAvailable
-	}
-
-	if err := validateVariationTypes(f.GetVariations()); err != nil {
-		return err
-	}
-
-	// Validate that we have a default Rule
-	if f.GetDefaultRule() == nil {
-		return errMissingDefaultRule
-	}
-
-	// Retained before the rules are validated, so the parses made by the validation
-	// stay cached even if a previous configuration's rules are collected meanwhile.
-	known := svc.nikunjy.known(f.Rules)
-	ruleQueries := svc.nikunjy.retain(f.Rules, known)
-
-	const isDefaultRule = true
-	// Validate rules
-	if err := f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations()); err != nil {
-		return err
-	}
-
-	evaluators, err := f.validateRules(svc, known)
-	if err != nil {
-		return err
-	}
-
-	// The queries are parsed now: index them to evaluate the rules without hashing them.
-	svc.nikunjy.index(f.Rules, ruleQueries, evaluators)
-
-	return nil
-}
-
 // validateRules validates the rules (not the default one) and returns the evaluator of their nikunjy
 // queries, known being the evaluators that were validated before (nil if there is none).
 func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([]*parser.Evaluator, error) {
@@ -479,104 +624,6 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 	return evaluators, nil
 }
 
-// GetVariations is the getter of the field Variations.
-func (f *InternalFlag) GetVariations() map[string]*any {
-	if f.Variations == nil {
-		return map[string]*any{}
-	}
-
-	return *f.Variations
-}
-
-func (f *InternalFlag) GetRules() []Rule {
-	if f.Rules == nil {
-		return []Rule{}
-	}
-
-	return *f.Rules
-}
-
-func (f *InternalFlag) GetRuleIndexByName(name string) *int {
-	for index, rule := range f.GetRules() {
-		if rule.GetName() == name {
-			return &index
-		}
-	}
-
-	return nil
-}
-
-// GetDefaultRule is the getter of the field DefaultRule.
-func (f *InternalFlag) GetDefaultRule() *Rule {
-	return f.DefaultRule
-}
-
-// IsTrackEvents is the getter of the field TrackEvents.
-func (f *InternalFlag) IsTrackEvents() bool {
-	if f.TrackEvents == nil {
-		return true
-	}
-
-	return *f.TrackEvents
-}
-
-// IsDisable is the getter for the field Disable.
-func (f *InternalFlag) IsDisable() bool {
-	if f.Disable == nil {
-		return false
-	}
-
-	return *f.Disable
-}
-
-// GetVersion is the getter for the field Version.
-func (f *InternalFlag) GetVersion() string {
-	if f.Version == nil {
-		return ""
-	}
-
-	return *f.Version
-}
-
-// GetVariationValue return the value of variation from his name.
-func (f *InternalFlag) GetVariationValue(name string) any {
-	if v, exists := f.GetVariations()[name]; exists && v != nil {
-		return *v
-	}
-
-	return nil
-}
-
-// GetBucketingKey return the name of the custom bucketing key if we are using one.
-func (f *InternalFlag) GetBucketingKey() string {
-	if f.BucketingKey == nil {
-		return ""
-	}
-
-	return *f.BucketingKey
-}
-
-// RequiresBucketing checks if the flag requires a bucketing key for evaluation
-// A flag requires bucketing if it has percentage-based rules or progressive rollouts,
-// including those introduced by scheduled rollout steps.
-func (f *InternalFlag) RequiresBucketing() bool {
-	// Check if default rule requires bucketing and if any targeting rule requires bucketing
-	if f.defaultRuleRequiresBucketing() || f.rulesRequireBucketing(f.GetRules()) {
-		return true
-	}
-
-	// Check if any scheduled rollout steps introduce bucketing requirements
-	if f.Scheduled != nil {
-		for _, step := range *f.Scheduled {
-			if step.defaultRuleRequiresBucketing() || step.rulesRequireBucketing(step.GetRules()) {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // rulesRequireBucketing checks if any of the rules require bucketing.
 func (f *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
 	for _, rule := range rules {
@@ -593,44 +640,6 @@ func (f *InternalFlag) defaultRuleRequiresBucketing() bool {
 	return f.DefaultRule != nil && f.DefaultRule.RequiresBucketing()
 }
 
-// GetBucketingKeyValue return the value of the bucketing key from the context
-// If requiresBucketing is false, it allows empty keys for flags that don't need them.
-func (f *InternalFlag) GetBucketingKeyValue(ctx ffcontext.Context) (string, error) {
-	// Cache the bucketing requirement check to avoid multiple calls
-	requiresBucketing := f.RequiresBucketing()
-
-	// Check if custom bucketing key is provided
-	if f.BucketingKey != nil {
-		key := f.GetBucketingKey()
-		if key == "" {
-			return ctx.GetKey(), nil
-		}
-
-		value, err := utils.GetNestedFieldValue(ctx.GetCustom(), key)
-		if err != nil {
-			return "", fmt.Errorf("impossible to find bucketingKey in context: %w", err)
-		}
-
-		switch v := value.(type) {
-		case string:
-			if v == "" {
-				return f.requiresBucketingCheck(requiresBucketing, "bucketing")
-			}
-
-			return v, nil
-		default:
-			return "", errInvalidBucketingKey
-		}
-	}
-
-	// Check if targeting key is required for this flag
-	if ctx.GetKey() == "" {
-		return f.requiresBucketingCheck(requiresBucketing, "targeting")
-	}
-
-	return ctx.GetKey(), nil
-}
-
 // requiresBucketingCheck checks if the bucketing is required and returns the appropriate error.
 func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
 	if requiresBucketing {
@@ -638,15 +647,6 @@ func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string
 	}
 
 	return "", nil
-}
-
-// GetMetadata return the metadata associated to the flag.
-func (f *InternalFlag) GetMetadata() map[string]any {
-	if f.Metadata == nil {
-		return nil
-	}
-
-	return *f.Metadata
 }
 
 func DateFromContextOrDefault(ctx ffcontext.Context, defaultDate time.Time) time.Time {

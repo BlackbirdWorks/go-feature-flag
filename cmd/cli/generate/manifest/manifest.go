@@ -20,6 +20,11 @@ var (
 	errFlagManifestDestinationIs = errors.New("--flag_manifest_destination is mandatory")
 )
 
+type Manifest struct {
+	dtos                    map[string]dto.DTO
+	flagManifestDestination string
+}
+
 func NewManifest(configFile, configFormat, flagManifestDestination string) (Manifest, error) {
 	if flagManifestDestination == "" {
 		return Manifest{}, errFlagManifestDestinationIs
@@ -38,11 +43,6 @@ func NewManifest(configFile, configFormat, flagManifestDestination string) (Mani
 		dtos:                    flagDTOs,
 		flagManifestDestination: flagManifestDestination,
 	}, nil
-}
-
-type Manifest struct {
-	dtos                    map[string]dto.DTO
-	flagManifestDestination string
 }
 
 // Generate the manifest file.

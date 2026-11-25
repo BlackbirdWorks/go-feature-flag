@@ -4,15 +4,6 @@ import (
 	"encoding/json"
 )
 
-// NewAllFlags will create a new AllFlags for a specific user.
-// It sets valid to true, because until we have an error everything is valid.
-func NewAllFlags() AllFlags {
-	return AllFlags{
-		valid: true,
-		flags: map[string]FlagState{},
-	}
-}
-
 // AllFlags is a snapshot of the state of multiple feature flags with regard to a specific user.
 // This is the return type of the AllFlagsState method of the client.
 // Serializing this object to JSON MarshalJSON() will produce a JSON you can sent to your front-end.
@@ -25,6 +16,15 @@ type AllFlags struct {
 	// Valid if false it means there was an error (such as the data store not being available),
 	// in which case no flag data is in this object.
 	valid bool
+}
+
+// NewAllFlags will create a new AllFlags for a specific user.
+// It sets valid to true, because until we have an error everything is valid.
+func NewAllFlags() AllFlags {
+	return AllFlags{
+		valid: true,
+		flags: map[string]FlagState{},
+	}
 }
 
 // AddFlag is adding a flag in the list for the specific user.

@@ -39,36 +39,6 @@ type KeyAuth struct {
 // NewKeyAuth returns the authentication middleware of the configuration.
 func NewKeyAuth(cfg KeyAuthConfig) KeyAuth { return KeyAuth{cfg: cfg} }
 
-// authenticate returns the context to give to the handler, or the reason why the request is refused.
-// values returns all the values of a header.
-func (k KeyAuth) authenticate(
-	ctx context.Context, header func(string) string, values func(string) []string,
-) (context.Context, error) {
-	if k.cfg.Skipper != nil && k.cfg.Skipper() {
-		return ctx, nil
-	}
-
-	// the X-API-Key header takes precedence: a key that is refused is not tried again as a bearer token.
-	if xAPIKey := header(helper.XAPIKeyHeader); xAPIKey != "" {
-		if out, ok := k.cfg.Validator(ctx, xAPIKey); ok {
-			return out, nil
-		}
-
-		return ctx, helper.ErrUnauthorized
-	}
-
-	key, err := bearerToken(values(helper.AuthorizationHeader))
-	if err != nil {
-		return ctx, err
-	}
-	out, ok := k.cfg.Validator(ctx, key)
-	if !ok {
-		return ctx, errKeyInvalid
-	}
-
-	return out, nil
-}
-
 // HTTP is the entry point for a [http.Handler].
 func (k KeyAuth) HTTP() Func {
 	return func(next http.Handler) http.Handler {
@@ -120,6 +90,36 @@ func (k KeyAuth) Huma() func(huma.Context, func(huma.Context)) {
 		}
 		next(hctx)
 	}
+}
+
+// authenticate returns the context to give to the handler, or the reason why the request is refused.
+// values returns all the values of a header.
+func (k KeyAuth) authenticate(
+	ctx context.Context, header func(string) string, values func(string) []string,
+) (context.Context, error) {
+	if k.cfg.Skipper != nil && k.cfg.Skipper() {
+		return ctx, nil
+	}
+
+	// the X-API-Key header takes precedence: a key that is refused is not tried again as a bearer token.
+	if xAPIKey := header(helper.XAPIKeyHeader); xAPIKey != "" {
+		if out, ok := k.cfg.Validator(ctx, xAPIKey); ok {
+			return out, nil
+		}
+
+		return ctx, helper.ErrUnauthorized
+	}
+
+	key, err := bearerToken(values(helper.AuthorizationHeader))
+	if err != nil {
+		return ctx, err
+	}
+	out, ok := k.cfg.Validator(ctx, key)
+	if !ok {
+		return ctx, errKeyInvalid
+	}
+
+	return out, nil
 }
 
 // bearerToken returns the key of the first Authorization header that holds a bearer token.

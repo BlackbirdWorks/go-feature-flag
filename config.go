@@ -135,19 +135,6 @@ func (c *Config) Initialize() {
 	}
 }
 
-// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
-// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
-func (c *Config) serviceLogger() *slog.Logger {
-	switch {
-	case c.LeveledLogger != nil:
-		return c.LeveledLogger
-	case c.Logger != nil:
-		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
-	default:
-		return nil
-	}
-}
-
 // legacyWriter sends what a slog handler writes through a *[log.Logger], so that the records follow the output, the
 // flags and the lock of the legacy logger (SetOutput included).
 type legacyWriter struct{ logger *log.Logger }
@@ -228,4 +215,17 @@ func (c *Config) IsOffline() bool {
 	defer c.offlineMutex.RUnlock()
 
 	return c.Offline
+}
+
+// serviceLogger is the slog logger of the evaluation service: the leveled logger of the configuration, or
+// the legacy logger seen as an slog handler. It is nil (no logging) when the configuration has none.
+func (c *Config) serviceLogger() *slog.Logger {
+	switch {
+	case c.LeveledLogger != nil:
+		return c.LeveledLogger
+	case c.Logger != nil:
+		return slog.New(slog.NewTextHandler(legacyWriter{logger: c.Logger}, nil))
+	default:
+		return nil
+	}
 }

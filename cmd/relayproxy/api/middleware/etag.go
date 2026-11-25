@@ -24,8 +24,6 @@ type etagBuffer struct {
 
 func newETagBuffer() *etagBuffer { return &etagBuffer{hash: sha1.New()} } //nolint:gosec // see above
 
-func (b *etagBuffer) setStatus(status int) { b.status = status }
-
 func (b *etagBuffer) Write(p []byte) (int, error) {
 	if b.status == 0 {
 		b.status = http.StatusOK
@@ -36,6 +34,8 @@ func (b *etagBuffer) Write(p []byte) (int, error) {
 
 	return n, nil
 }
+
+func (b *etagBuffer) setStatus(status int) { b.status = status }
 
 // answer returns the ETag of the response, and whether it has to be sent: a 2xx response with a body gets one,
 // and a request that carries it in If-None-Match gets a 304 instead of the body.

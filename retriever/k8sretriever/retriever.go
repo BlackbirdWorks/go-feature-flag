@@ -26,15 +26,6 @@ type Retriever struct {
 	Key           string
 }
 
-// createClient creates the Kubernetes client of the retriever.
-func (s *Retriever) createClient() (kubernetes.Interface, error) {
-	if s.newClient != nil {
-		return s.newClient(&s.ClientConfig)
-	}
-
-	return kubernetes.NewForConfig(&s.ClientConfig)
-}
-
 // Retrieve is the function in charge of fetching the flag configuration.
 func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if s.client == nil {
@@ -67,4 +58,13 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	return []byte(content), nil
+}
+
+// createClient creates the Kubernetes client of the retriever.
+func (s *Retriever) createClient() (kubernetes.Interface, error) {
+	if s.newClient != nil {
+		return s.newClient(&s.ClientConfig)
+	}
+
+	return kubernetes.NewForConfig(&s.ClientConfig)
 }

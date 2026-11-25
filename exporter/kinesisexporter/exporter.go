@@ -148,32 +148,6 @@ func NewSettings(options ...Option) *Settings {
 	return &settings
 }
 
-func (e *Exporter) initializeProducer(ctx context.Context) error {
-	var initErr error
-	e.init.Do(func() {
-		if e.Settings == nil {
-			e.Settings = NewSettings()
-		}
-
-		if e.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
-
-				return
-			}
-			e.AwsConfig = &cfg
-		}
-		if e.sender == nil {
-			e.sender = &DefaultKinesisSender{
-				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
-			}
-		}
-	})
-
-	return initErr
-}
-
 func (e *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -264,53 +238,6 @@ func chunkRecords(records []types.PutRecordsRequestEntry) [][]types.PutRecordsRe
 	return chunks
 }
 
-// sendChunk sends one PutRecords call and retries only the records Kinesis rejected.
-//
-// PutRecords is not atomic: a response can accept some records and reject others
-// (e.g. ProvisionedThroughputExceededException, InternalFailure). Records that
-// were accepted are never resent within this call, so no duplicates are produced
-// while retries succeed.
-//
-// Trade-off: Export(ctx, logger, events) error cannot report partial success. If
-// records are still failing once the attempts are exhausted we return an error,
-// and the caller (event store, ProcessPendingEvents) then keeps the whole batch
-// and will resend it on the next flush, duplicating the records that were
-// accepted here. We prefer that at-least-once behaviour over silently losing the
-// rejected events; duplicates are limited to the retries-exhausted case.
-func (e *Exporter) sendChunk(
-	ctx context.Context,
-	logger *fflog.FFLogger,
-	input *kinesis.PutRecordsInput,
-) error {
-	pending := input.Records
-	total := len(pending)
-
-	for attempt := 1; ; attempt++ {
-		req := *input
-		req.Records = pending
-		output, err := e.sender.SendMessages(ctx, &req)
-		if err != nil {
-			return fmt.Errorf("send: %w", err)
-		}
-		retry, failures := rejectedRecords(pending, output)
-		if len(retry) == 0 {
-			return nil
-		}
-		logger.Warn("send: some records were rejected by Kinesis",
-			"failed", len(retry), "total", total, "attempt", attempt)
-
-		if attempt >= maxAttempts {
-			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
-				len(retry), total, attempt, distinctCodes(failures))
-		}
-		pending = retry
-		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
-			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
-				len(retry), total, waitErr)
-		}
-	}
-}
-
 // rejectedRecords returns the records of pending that are not confirmed as delivered, together
 // with the matching result entries (when available, for error reporting).
 //
@@ -374,6 +301,84 @@ func backoff(attempt int) time.Duration {
 	return rand.N(d) + 1 //nolint:gosec // jitter does not need a CSPRNG
 }
 
+// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
+func (e *Exporter) IsBulk() bool {
+	return false
+}
+
+func (e *Exporter) initializeProducer(ctx context.Context) error {
+	var initErr error
+	e.init.Do(func() {
+		if e.Settings == nil {
+			e.Settings = NewSettings()
+		}
+
+		if e.AwsConfig == nil {
+			cfg, err := config.LoadDefaultConfig(ctx)
+			if err != nil {
+				initErr = fmt.Errorf("impossible to init Kinesis exporter: %w", err)
+
+				return
+			}
+			e.AwsConfig = &cfg
+		}
+		if e.sender == nil {
+			e.sender = &DefaultKinesisSender{
+				kinesis.NewFromConfig(*e.AwsConfig, e.KinesisOptions...),
+			}
+		}
+	})
+
+	return initErr
+}
+
+// sendChunk sends one PutRecords call and retries only the records Kinesis rejected.
+//
+// PutRecords is not atomic: a response can accept some records and reject others
+// (e.g. ProvisionedThroughputExceededException, InternalFailure). Records that
+// were accepted are never resent within this call, so no duplicates are produced
+// while retries succeed.
+//
+// Trade-off: Export(ctx, logger, events) error cannot report partial success. If
+// records are still failing once the attempts are exhausted we return an error,
+// and the caller (event store, ProcessPendingEvents) then keeps the whole batch
+// and will resend it on the next flush, duplicating the records that were
+// accepted here. We prefer that at-least-once behaviour over silently losing the
+// rejected events; duplicates are limited to the retries-exhausted case.
+func (e *Exporter) sendChunk(
+	ctx context.Context,
+	logger *fflog.FFLogger,
+	input *kinesis.PutRecordsInput,
+) error {
+	pending := input.Records
+	total := len(pending)
+
+	for attempt := 1; ; attempt++ {
+		req := *input
+		req.Records = pending
+		output, err := e.sender.SendMessages(ctx, &req)
+		if err != nil {
+			return fmt.Errorf("send: %w", err)
+		}
+		retry, failures := rejectedRecords(pending, output)
+		if len(retry) == 0 {
+			return nil
+		}
+		logger.Warn("send: some records were rejected by Kinesis",
+			"failed", len(retry), "total", total, "attempt", attempt)
+
+		if attempt >= maxAttempts {
+			return fmt.Errorf("%w: %d of %d records failed after %d attempts (error codes: %s)", errSend,
+				len(retry), total, attempt, distinctCodes(failures))
+		}
+		pending = retry
+		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
+			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
+				len(retry), total, waitErr)
+		}
+	}
+}
+
 // wait blocks for d or until ctx is done. It uses the injectable sleep when set.
 func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 	if e.sleep != nil {
@@ -397,9 +402,4 @@ func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error)
 	default:
 		return json.Marshal(event)
 	}
-}
-
-// IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (e *Exporter) IsBulk() bool {
-	return false
 }

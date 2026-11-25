@@ -155,27 +155,6 @@ func Start(opts Options) (_ *Relay, err error) {
 	return r, nil
 }
 
-func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		n, _ := io.Copy(io.Discard, req.Body)
-		r.SinkRequests.Add(1)
-		r.SinkBytes.Add(n)
-		switch mode {
-		case loadtest.ExporterFailing:
-			w.WriteHeader(http.StatusInternalServerError)
-		case loadtest.ExporterSlow:
-			select {
-			case <-time.After(loadtest.SlowDelay):
-			case <-req.Context().Done():
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
-	}
-}
-
 // Dir returns the temporary directory holding the flag file (removed by Close).
 func (r *Relay) Dir() string { return r.dir }
 
@@ -196,6 +175,27 @@ func (r *Relay) Close() {
 	}
 	if r.dir != "" {
 		_ = os.RemoveAll(r.dir)
+	}
+}
+
+func (r *Relay) sinkHandler(mode loadtest.ExporterMode) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		n, _ := io.Copy(io.Discard, req.Body)
+		r.SinkRequests.Add(1)
+		r.SinkBytes.Add(n)
+		switch mode {
+		case loadtest.ExporterFailing:
+			w.WriteHeader(http.StatusInternalServerError)
+		case loadtest.ExporterSlow:
+			select {
+			case <-time.After(loadtest.SlowDelay):
+			case <-req.Context().Done():
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
 	}
 }
 

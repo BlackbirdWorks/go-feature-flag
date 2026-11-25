@@ -17,35 +17,6 @@ var (
 
 type FeatureEventMetadata = map[string]any
 
-func NewFeatureEvent(
-	ctx ffcontext.Context,
-	flagKey string,
-	value any,
-	variation string,
-	failed bool,
-	version, source string,
-	metadata FeatureEventMetadata,
-) FeatureEvent {
-	contextKind := "user"
-	if ctx.IsAnonymous() {
-		contextKind = "anonymousUser"
-	}
-
-	return FeatureEvent{
-		Kind:         "feature",
-		ContextKind:  contextKind,
-		UserKey:      ctx.GetKey(),
-		CreationDate: clock.Now().Unix(),
-		Key:          flagKey,
-		Variation:    variation,
-		Value:        value,
-		Default:      failed,
-		Version:      version,
-		Source:       source,
-		Metadata:     metadata,
-	}
-}
-
 // FeatureEvent represent an Event that we store in the data storage
 //
 //nolint:lll,govet // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped; fieldalignment: field order is the column order of the CSV and Parquet exports and the key order of the JSON export
@@ -90,6 +61,35 @@ type FeatureEvent struct {
 
 	// Metadata are static information added in the providers to give context about the events generated.
 	Metadata FeatureEventMetadata `json:"metadata,omitempty" parquet:"name=metadata, type=MAP, keytype=BYTE_ARRAY, keyconvertedtype=UTF8, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
+}
+
+func NewFeatureEvent(
+	ctx ffcontext.Context,
+	flagKey string,
+	value any,
+	variation string,
+	failed bool,
+	version, source string,
+	metadata FeatureEventMetadata,
+) FeatureEvent {
+	contextKind := "user"
+	if ctx.IsAnonymous() {
+		contextKind = "anonymousUser"
+	}
+
+	return FeatureEvent{
+		Kind:         "feature",
+		ContextKind:  contextKind,
+		UserKey:      ctx.GetKey(),
+		CreationDate: clock.Now().Unix(),
+		Key:          flagKey,
+		Variation:    variation,
+		Value:        value,
+		Default:      failed,
+		Version:      version,
+		Source:       source,
+		Metadata:     metadata,
+	}
 }
 
 // GetKey returns the key of the event.

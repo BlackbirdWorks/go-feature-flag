@@ -163,19 +163,6 @@ func (m *S3PrefixMock) ListObjectsV2(
 	return out, nil
 }
 
-// sortedKeys returns the sorted keys starting with prefix.
-func (m *S3PrefixMock) sortedKeys(prefix string) []string {
-	keys := make([]string, 0, len(m.objects))
-	for k := range m.objects {
-		if strings.HasPrefix(k, prefix) {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-
-	return keys
-}
-
 // commonPrefix returns the "folder" the key is rolled up into when a delimiter is used, or "".
 func commonPrefix(key, prefix, delimiter string) string {
 	if delimiter == "" {
@@ -226,4 +213,17 @@ func (m *S3PrefixMock) DownloadObject(
 	}
 
 	return out, nil
+}
+
+// sortedKeys returns the sorted keys starting with prefix.
+func (m *S3PrefixMock) sortedKeys(prefix string) []string {
+	keys := make([]string, 0, len(m.objects))
+	for k := range m.objects {
+		if strings.HasPrefix(k, prefix) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+
+	return keys
 }

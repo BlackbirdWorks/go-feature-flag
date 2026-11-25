@@ -70,30 +70,6 @@ func newFakeBucket(objects map[string]fakeObject) *fakeBucket {
 	return &fakeBucket{objects: objects, gets: map[string]int{}}
 }
 
-func (b *fakeBucket) put(key, etag, data string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.objects[key] = fakeObject{etag: etag, data: data}
-}
-
-func (b *fakeBucket) getCount(key string) int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b.gets[key]
-}
-
-func (b *fakeBucket) totalGets() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	total := 0
-	for _, n := range b.gets {
-		total += n
-	}
-
-	return total
-}
-
 func (b *fakeBucket) ListObjectsV2(
 	ctx context.Context, in *s3.ListObjectsV2Input, _ ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
@@ -178,6 +154,30 @@ func (b *fakeBucket) DownloadObject(
 	}
 
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(obj.etag)}, nil
+}
+
+func (b *fakeBucket) put(key, etag, data string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.objects[key] = fakeObject{etag: etag, data: data}
+}
+
+func (b *fakeBucket) getCount(key string) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.gets[key]
+}
+
+func (b *fakeBucket) totalGets() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	total := 0
+	for _, n := range b.gets {
+		total += n
+	}
+
+	return total
 }
 
 func newGroup(t *testing.T, b *fakeBucket) *s3retrieverv2.SharedItems {

@@ -61,18 +61,6 @@ func NewJSONQueryVisitorImpl(item map[string]any) *JSONQueryVisitorImpl {
 	}
 }
 
-func (j *JSONQueryVisitorImpl) setDebugErr(err error) {
-	j.debugErr = err
-}
-
-func (j *JSONQueryVisitorImpl) setErr(err error) {
-	j.err = err
-}
-
-func (j *JSONQueryVisitorImpl) hasErr() bool {
-	return j.err != nil
-}
-
 func (j *JSONQueryVisitorImpl) Visit(tree antlr.ParseTree) any {
 	if j.hasErr() {
 		return false
@@ -179,44 +167,6 @@ func operationFor(op Operation, tokenType int) func(Operand, Operand) (bool, err
 		return op.IN
 	default:
 		return nil
-	}
-}
-
-// recordCompareError stores the error of a comparison: an invalid operation is the error of the rule, the
-// other errors are only kept for debugging.
-func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err error) {
-	switch {
-	case errors.Is(err, ErrInvalidOperation):
-		// in case of invalid operation lets rather
-		// be conservative and return false because the rule doesn't even make
-		// sense. It can be argued that it would be false positive if we were
-		// to return true
-		j.setErr(err)
-		j.setDebugErr(
-			newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
-				errValOperation:     ctx.op.GetTokenType(),
-				errValObjectOperand: j.leftOp,
-				errValRuleOperand:   j.rightOp,
-			}),
-		)
-	case errors.Is(err, ErrEvalOperandMissing):
-		j.setDebugErr(
-			newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
-				errValAttrPath: ctx.AttrPath().GetText(),
-			}),
-		)
-	default:
-		msg := "unknown error"
-		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
-			msg = "operands are not the right value type"
-		}
-		j.setDebugErr(
-			newNestedError(err, msg).Set(ErrVals{
-				errValAttrPath:      ctx.AttrPath().GetText(),
-				errValObjectOperand: j.leftOp,
-				errValRuleOperand:   j.rightOp,
-			}),
-		)
 	}
 }
 
@@ -413,4 +363,54 @@ func (j *JSONQueryVisitorImpl) VisitSubListOfStrings(ctx *SubListOfStringsContex
 	}
 
 	return ctx.SubListOfStrings().Accept(j)
+}
+
+func (j *JSONQueryVisitorImpl) setDebugErr(err error) {
+	j.debugErr = err
+}
+
+func (j *JSONQueryVisitorImpl) setErr(err error) {
+	j.err = err
+}
+
+func (j *JSONQueryVisitorImpl) hasErr() bool {
+	return j.err != nil
+}
+
+// recordCompareError stores the error of a comparison: an invalid operation is the error of the rule, the
+// other errors are only kept for debugging.
+func (j *JSONQueryVisitorImpl) recordCompareError(ctx *CompareExpContext, err error) {
+	switch {
+	case errors.Is(err, ErrInvalidOperation):
+		// in case of invalid operation lets rather
+		// be conservative and return false because the rule doesn't even make
+		// sense. It can be argued that it would be false positive if we were
+		// to return true
+		j.setErr(err)
+		j.setDebugErr(
+			newNestedError(err, "Not a valid operation for datatypes").Set(ErrVals{
+				errValOperation:     ctx.op.GetTokenType(),
+				errValObjectOperand: j.leftOp,
+				errValRuleOperand:   j.rightOp,
+			}),
+		)
+	case errors.Is(err, ErrEvalOperandMissing):
+		j.setDebugErr(
+			newNestedError(err, "Eval operand missing in input object").Set(ErrVals{
+				errValAttrPath: ctx.AttrPath().GetText(),
+			}),
+		)
+	default:
+		msg := "unknown error"
+		if _, ok := errors.AsType[*InvalidOperandError](err); ok {
+			msg = "operands are not the right value type"
+		}
+		j.setDebugErr(
+			newNestedError(err, msg).Set(ErrVals{
+				errValAttrPath:      ctx.AttrPath().GetText(),
+				errValObjectOperand: j.leftOp,
+				errValRuleOperand:   j.rightOp,
+			}),
+		)
+	}
 }

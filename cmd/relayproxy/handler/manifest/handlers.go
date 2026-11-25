@@ -24,18 +24,18 @@ const (
 	manifestCapabilitiesValue  = "read"
 )
 
+// Ctrl is the controller of the manifest endpoint.
+type Ctrl struct {
+	flagsetManager service.FlagsetManager
+	metrics        metric.Metrics
+}
+
 func NewManifest(
 	flagsetManager service.FlagsetManager, metrics metric.Metrics) *Ctrl {
 	return &Ctrl{
 		flagsetManager: flagsetManager,
 		metrics:        metrics,
 	}
-}
-
-// Ctrl is the controller of the manifest endpoint.
-type Ctrl struct {
-	flagsetManager service.FlagsetManager
-	metrics        metric.Metrics
 }
 
 // Input is the request of the manifest endpoint.

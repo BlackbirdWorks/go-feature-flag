@@ -118,23 +118,6 @@ func (r *Retriever) Status() retriever.Status {
 	return r.status
 }
 
-// validateAppAuth checks that GitHub App fields are either all unset, or complete,
-// usable and not mixed with GithubToken.
-func (r *Retriever) validateAppAuth() error {
-	if r.AppID == 0 && r.InstallationID == 0 && r.PrivateKey == "" && r.PrivateKeyFile == "" {
-		return nil
-	}
-	if r.GithubToken != "" {
-		return errGithubAppGithubTokenAnd
-	}
-	if !r.isAppAuth() {
-		return errGithubAppAppIDInstallationID
-	}
-	_, err := r.loadPrivateKey()
-
-	return err
-}
-
 // Retrieve is the function in charge of fetching the flag configuration.
 func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	if r.FilePath == "" || r.RepositorySlug == "" {
@@ -194,6 +177,29 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// SetHTTPClient is here if you want to override the default [http.Client] we are using.
+// It is also used for the tests.
+func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
+	r.httpClient = client
+}
+
+// validateAppAuth checks that GitHub App fields are either all unset, or complete,
+// usable and not mixed with GithubToken.
+func (r *Retriever) validateAppAuth() error {
+	if r.AppID == 0 && r.InstallationID == 0 && r.PrivateKey == "" && r.PrivateKeyFile == "" {
+		return nil
+	}
+	if r.GithubToken != "" {
+		return errGithubAppGithubTokenAnd
+	}
+	if !r.isAppAuth() {
+		return errGithubAppAppIDInstallationID
+	}
+	_, err := r.loadPrivateKey()
+
+	return err
 }
 
 // fetch calls the contents API with the given token and records the rate limit headers.
@@ -415,12 +421,6 @@ func (r *Retriever) checkResponseError(resp *http.Response, url string) error {
 	}
 
 	return nil
-}
-
-// SetHTTPClient is here if you want to override the default [http.Client] we are using.
-// It is also used for the tests.
-func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
-	r.httpClient = client
 }
 
 func (r *Retriever) updateRateLimit(headers http.Header) {

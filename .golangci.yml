@@ -105,6 +105,7 @@ linters:
     - fatcontext # detects nested contexts in loops
     - forbidigo # forbids identifiers
     - forcetypeassert # finds forced type assertions
+    - funcorder # checks constructors and struct method ordering
     - funlen # tool for detection of long functions
     - gocheckcompilerdirectives # validates go compiler directive comments (//go:)
     - gochecknoglobals # checks that no global variables exist
@@ -197,7 +198,6 @@ linters:
     - contextcheck # false positives on callbacks and constructors; 43 findings
     - errchkjson # the 5 findings ignore the Marshal error of values that cannot fail (fixed maps, DTOs)
     - exhaustruct_v5 # requiring every field in every literal is rejected by the project
-    - funcorder # constructors next to their type is the project layout; 10 findings
     - ireturn # returning interfaces is the API of the retrievers, exporters and caches
     - maintidx # complexity is bounded by cyclop, gocognit and funlen
     - noinlineerr # inline error handling is the project style
@@ -368,9 +368,10 @@ linters:
       allow-empty-returns: true
 
     funcorder:
-      # Checks if the exported methods of a structure are placed before the non-exported ones.
-      # Default: true
-      struct-method: false
+      # Checks that constructors are placed after the structure declaration and
+      # exported methods before unexported ones.
+      constructor: true
+      struct-method: true
 
     funlen:
       # Checks the number of lines in a function.

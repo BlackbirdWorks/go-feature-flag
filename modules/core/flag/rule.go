@@ -108,51 +108,6 @@ func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagNam
 // It is a sentinel to avoid allocating a RuleNotApplyError for every non-matching rule.
 var errRuleNotApply = errors.New("rule does not apply")
 
-// evaluate is Evaluate reading the context through queryCtx, which the caller can share
-// across the rules of a flag.
-func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isDefault bool,
-) (string, error) {
-	ctx := queryCtx.ctx
-	// Only require key if this rule needs bucketing
-	if key == "" && r.RequiresBucketing() {
-		return "", errEvaluateRuleNoKey
-	}
-
-	// check that we have an evaluation context
-	if ctx == nil {
-		return "", errEvaluateRuleNoEvaluation
-	}
-
-	// Check if the rule applies for this user
-	ruleApply := isDefault
-	if !ruleApply {
-		ruleApply = r.evaluateQuery(queryCtx)
-	}
-	if !ruleApply || (!isDefault && r.IsDisable()) {
-		return "", errRuleNotApply
-	}
-	if r.ProgressiveRollout != nil {
-		if key == "" {
-			return "", errProgressiveRolloutRequiresA
-		}
-
-		// only the progressive rollout depends on the date: the clock is not read for the other rules.
-		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
-	}
-	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
-		if key == "" {
-			return "", errPercentageRolloutRequiresA
-		}
-
-		return r.EvaluatePercentageRollout(key, flagName)
-	}
-	if r.VariationResult != nil {
-		return r.GetVariationResult(), nil
-	}
-
-	return "", errErrorInTheConfiguration
-}
-
 // queryContext is the evaluation context as targeting queries read it. The map is built on
 // first use and shared by every rule of a flag, so a flag with several targeting rules
 // converts the context once per evaluation instead of once per rule. Because it is shared,
@@ -223,20 +178,6 @@ func (q *queryContext) dataOnce() (any, error) {
 	}
 
 	return q.parsedEvalCtxAsData, nil
-}
-
-// evaluateQuery evaluates the query of the rule. A nikunjy query that was validated with its
-// rule has its evaluator found by the hash that validation saved in the rule, which does not
-// read the query. Any other query is read through the compiled query cache.
-func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
-	if r.QueryHash != 0 { // the rule was validated
-		raw := r.GetQuery()
-		if ev := queryCtx.svc.nikunjy.lookup(r.QueryHash, raw); ev != nil {
-			return evaluateNikunjy(ev, raw, queryCtx)
-		}
-	}
-
-	return evaluateRule(queryCtx.svc.compiledQuery(r.GetQuery()), queryCtx)
 }
 
 // evaluateNikunjy is evaluateRule for the nikunjy query that ev evaluates.
@@ -385,59 +326,6 @@ func (r *Rule) IsDynamic() bool {
 		(r.Percentages != nil && len(r.GetPercentages()) > 0 && !hasPercentage100)
 }
 
-func (r *Rule) getVariationFromProgressiveRollout(
-	hash uint32,
-	evaluationDate time.Time,
-) (string, error) {
-	isRolloutValid := r.ProgressiveRollout != nil &&
-		r.ProgressiveRollout.Initial != nil &&
-		r.ProgressiveRollout.Initial.Date != nil &&
-		r.ProgressiveRollout.Initial.Variation != nil &&
-		r.ProgressiveRollout.End != nil &&
-		r.ProgressiveRollout.End.Date != nil &&
-		r.ProgressiveRollout.End.Variation != nil &&
-		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
-
-	if !isRolloutValid {
-		return "", errErrorInTheProgressive
-	}
-
-	if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
-		return *r.ProgressiveRollout.Initial.Variation, nil
-	}
-
-	// We are between initial and end
-	initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
-	// The rule is shared by all the evaluations of the flag (concurrently): it must never be
-	// written here, an end percentage outside of ]0, 100] means 100.
-	endPercentage := r.ProgressiveRollout.End.getPercentage()
-	if endPercentage == 0 || endPercentage > 100 {
-		endPercentage = 100
-	}
-	endPercentage *= PercentageMultiplier
-	nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-	percentage := endPercentage - initialPercentage
-	percentPerSec := percentage / float64(nbSec)
-
-	var currentPercentage float64
-	// Cap the percentage at endPercentage if evaluation date is at or after end date
-	if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
-		currentPercentage = endPercentage
-	} else {
-		c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
-		currentPercentage = float64(c)*percentPerSec + initialPercentage
-	}
-
-	// The percentage represents how many users get the END variation
-	// Users with hash < currentPercentage get END variation
-	// Users with hash >= currentPercentage get INITIAL variation
-	if hash < uint32(currentPercentage) {
-		return r.ProgressiveRollout.End.getVariation(), nil
-	}
-
-	return r.ProgressiveRollout.Initial.getVariation(), nil
-}
-
 func variationFromBuckets(percentage map[string]float64, names []string, hash uint32) (string, error) {
 	start := float64(0)
 	last := ""
@@ -572,6 +460,118 @@ func (r *Rule) GetProgressiveRollout() ProgressiveRollout {
 	}
 
 	return *r.ProgressiveRollout
+}
+
+// evaluate is Evaluate reading the context through queryCtx, which the caller can share
+// across the rules of a flag.
+func (r *Rule) evaluate(key string, queryCtx *queryContext, flagName string, isDefault bool,
+) (string, error) {
+	ctx := queryCtx.ctx
+	// Only require key if this rule needs bucketing
+	if key == "" && r.RequiresBucketing() {
+		return "", errEvaluateRuleNoKey
+	}
+
+	// check that we have an evaluation context
+	if ctx == nil {
+		return "", errEvaluateRuleNoEvaluation
+	}
+
+	// Check if the rule applies for this user
+	ruleApply := isDefault
+	if !ruleApply {
+		ruleApply = r.evaluateQuery(queryCtx)
+	}
+	if !ruleApply || (!isDefault && r.IsDisable()) {
+		return "", errRuleNotApply
+	}
+	if r.ProgressiveRollout != nil {
+		if key == "" {
+			return "", errProgressiveRolloutRequiresA
+		}
+
+		// only the progressive rollout depends on the date: the clock is not read for the other rules.
+		return r.EvaluateProgressiveRollout(key, flagName, queryCtx.svc.evaluationDate(ctx))
+	}
+	if r.Percentages != nil && len(r.GetPercentages()) > 0 {
+		if key == "" {
+			return "", errPercentageRolloutRequiresA
+		}
+
+		return r.EvaluatePercentageRollout(key, flagName)
+	}
+	if r.VariationResult != nil {
+		return r.GetVariationResult(), nil
+	}
+
+	return "", errErrorInTheConfiguration
+}
+
+// evaluateQuery evaluates the query of the rule. A nikunjy query that was validated with its
+// rule has its evaluator found by the hash that validation saved in the rule, which does not
+// read the query. Any other query is read through the compiled query cache.
+func (r *Rule) evaluateQuery(queryCtx *queryContext) bool {
+	if r.QueryHash != 0 { // the rule was validated
+		raw := r.GetQuery()
+		if ev := queryCtx.svc.nikunjy.lookup(r.QueryHash, raw); ev != nil {
+			return evaluateNikunjy(ev, raw, queryCtx)
+		}
+	}
+
+	return evaluateRule(queryCtx.svc.compiledQuery(r.GetQuery()), queryCtx)
+}
+
+func (r *Rule) getVariationFromProgressiveRollout(
+	hash uint32,
+	evaluationDate time.Time,
+) (string, error) {
+	isRolloutValid := r.ProgressiveRollout != nil &&
+		r.ProgressiveRollout.Initial != nil &&
+		r.ProgressiveRollout.Initial.Date != nil &&
+		r.ProgressiveRollout.Initial.Variation != nil &&
+		r.ProgressiveRollout.End != nil &&
+		r.ProgressiveRollout.End.Date != nil &&
+		r.ProgressiveRollout.End.Variation != nil &&
+		r.ProgressiveRollout.End.Date.After(*r.ProgressiveRollout.Initial.Date)
+
+	if !isRolloutValid {
+		return "", errErrorInTheProgressive
+	}
+
+	if evaluationDate.Before(*r.ProgressiveRollout.Initial.Date) {
+		return *r.ProgressiveRollout.Initial.Variation, nil
+	}
+
+	// We are between initial and end
+	initialPercentage := r.ProgressiveRollout.Initial.getPercentage() * PercentageMultiplier
+	// The rule is shared by all the evaluations of the flag (concurrently): it must never be
+	// written here, an end percentage outside of ]0, 100] means 100.
+	endPercentage := r.ProgressiveRollout.End.getPercentage()
+	if endPercentage == 0 || endPercentage > 100 {
+		endPercentage = 100
+	}
+	endPercentage *= PercentageMultiplier
+	nbSec := r.ProgressiveRollout.End.Date.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+	percentage := endPercentage - initialPercentage
+	percentPerSec := percentage / float64(nbSec)
+
+	var currentPercentage float64
+	// Cap the percentage at endPercentage if evaluation date is at or after end date
+	if !evaluationDate.Before(*r.ProgressiveRollout.End.Date) {
+		currentPercentage = endPercentage
+	} else {
+		c := evaluationDate.Unix() - r.ProgressiveRollout.Initial.Date.Unix()
+		currentPercentage = float64(c)*percentPerSec + initialPercentage
+	}
+
+	// The percentage represents how many users get the END variation
+	// Users with hash < currentPercentage get END variation
+	// Users with hash >= currentPercentage get INITIAL variation
+	if hash < uint32(currentPercentage) {
+		return r.ProgressiveRollout.End.getVariation(), nil
+	}
+
+	return r.ProgressiveRollout.Initial.getVariation(), nil
 }
 
 // MergeSetOfRules is taking a collection of rules and merge it with the updates

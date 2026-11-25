@@ -25,6 +25,21 @@ type Context interface {
 // value is a type to define attributes.
 type value map[string]any
 
+// EvaluationContext contains specific attributes for your evaluation.
+// Most of the time it is identifying a user browsing your site.
+// The only mandatory property is the Key, which must a unique identifier.
+// For authenticated users, this may be a username or e-mail address.
+// For anonymous users, this could be an IP address or session ID.
+//
+// EvaluationContext fields are immutable and can be accessed only via getter methods.
+// To construct an EvaluationContext, use either a simple constructor (NewEvaluationContext) or the builder pattern
+// with NewEvaluationContextBuilder.
+type EvaluationContext struct {
+	attributes value
+	// uniquely identifying the subject (end-user, or client service) of a flag evaluation
+	targetingKey string
+}
+
 // NewEvaluationContext creates a new evaluation context identified by the given targetingKey.
 func NewEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{}}
@@ -39,21 +54,6 @@ func NewAnonymousEvaluationContext(key string) EvaluationContext {
 	return EvaluationContext{targetingKey: key, attributes: map[string]any{
 		anonymousAttribute: true,
 	}}
-}
-
-// EvaluationContext contains specific attributes for your evaluation.
-// Most of the time it is identifying a user browsing your site.
-// The only mandatory property is the Key, which must a unique identifier.
-// For authenticated users, this may be a username or e-mail address.
-// For anonymous users, this could be an IP address or session ID.
-//
-// EvaluationContext fields are immutable and can be accessed only via getter methods.
-// To construct an EvaluationContext, use either a simple constructor (NewEvaluationContext) or the builder pattern
-// with NewEvaluationContextBuilder.
-type EvaluationContext struct {
-	attributes value
-	// uniquely identifying the subject (end-user, or client service) of a flag evaluation
-	targetingKey string
 }
 
 // MarshalJSON is a custom JSON marshaller for EvaluationContext.

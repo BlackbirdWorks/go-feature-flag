@@ -45,32 +45,6 @@ type fakeS3 struct {
 	gets      atomic.Int32
 }
 
-func (f *fakeS3) setETag(key, etag string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.etags == nil {
-		f.etags = map[string]string{}
-	}
-	f.etags[key] = etag
-}
-
-func (f *fakeS3) etagOf(key string) string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if e, ok := f.etags[key]; ok {
-		return e
-	}
-
-	return "x"
-}
-
-func (f *fakeS3) getCount(key string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.getsByKey[key]
-}
-
 func (f *fakeS3) ListObjectsV2(
 	_ context.Context, in *s3.ListObjectsV2Input, _ ...func(*s3.Options),
 ) (*s3.ListObjectsV2Output, error) {
@@ -107,6 +81,32 @@ func (f *fakeS3) DownloadObject(
 	}
 
 	return &transfermanager.DownloadObjectOutput{ETag: aws.String(f.etagOf(aws.ToString(in.Key)))}, nil
+}
+
+func (f *fakeS3) setETag(key, etag string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.etags == nil {
+		f.etags = map[string]string{}
+	}
+	f.etags[key] = etag
+}
+
+func (f *fakeS3) etagOf(key string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if e, ok := f.etags[key]; ok {
+		return e
+	}
+
+	return "x"
+}
+
+func (f *fakeS3) getCount(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.getsByKey[key]
 }
 
 func newFakeRegistry(t *testing.T, f *fakeS3, created *atomic.Int32) *sharedBucketRegistry {

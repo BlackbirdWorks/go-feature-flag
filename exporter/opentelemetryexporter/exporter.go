@@ -39,20 +39,6 @@ type Exporter struct {
 	once       sync.Once
 }
 
-func (e *Exporter) init() {
-	e.once.Do(func() {
-		if e.TracerName == "" {
-			e.TracerName = defaultTracerName
-		}
-		if e.tracerProvider != nil {
-			e.tracer = e.tracerProvider.Tracer(e.TracerName)
-
-			return
-		}
-		e.tracer = otel.Tracer(e.TracerName)
-	})
-}
-
 func (e *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -76,6 +62,24 @@ func (e *Exporter) Export(
 	}
 
 	return nil
+}
+
+func (e *Exporter) IsBulk() bool {
+	return false
+}
+
+func (e *Exporter) init() {
+	e.once.Do(func() {
+		if e.TracerName == "" {
+			e.TracerName = defaultTracerName
+		}
+		if e.tracerProvider != nil {
+			e.tracer = e.tracerProvider.Tracer(e.TracerName)
+
+			return
+		}
+		e.tracer = otel.Tracer(e.TracerName)
+	})
 }
 
 func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logger *fflog.FFLogger) {
@@ -143,8 +147,4 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 		span.SetStatus(codes.Ok, "evaluation successful")
 	}
 	logger.Debug("Feature flag evaluation span status set")
-}
-
-func (e *Exporter) IsBulk() bool {
-	return false
 }

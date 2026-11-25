@@ -116,39 +116,6 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 	return nil
 }
 
-// initLoader creates the folder loader, or keeps the current one if the settings did not change.
-// The caller must hold s.mu.
-func (s *Retriever) initLoader(logger *fflog.FFLogger) {
-	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, folderloader.Options{
-		Prefix: s.Prefix, Pattern: s.Pattern, Recursive: s.Recursive,
-		Logger: logger, Location: s.Bucket, LocationKey: "bucket", Provider: "S3",
-	}))
-}
-
-// initClients builds the S3 clients that were not provided (see SetDownloader and SetLister).
-// The caller must hold s.mu.
-func (s *Retriever) initClients(ctx context.Context, needLister bool) error {
-	if s.downloader != nil && (!needLister || s.lister != nil) {
-		return nil
-	}
-	if s.AwsConfig == nil {
-		cfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return err
-		}
-		s.AwsConfig = &cfg
-	}
-	client := s3.NewFromConfig(*s.AwsConfig, s.S3ClientOptions...)
-	if s.downloader == nil {
-		s.downloader = transfermanager.New(client)
-	}
-	if needLister && s.lister == nil {
-		s.lister = client
-	}
-
-	return nil
-}
-
 // Shutdown gracefully shutdown the provider and set the status as not ready.
 func (s *Retriever) Shutdown(_ context.Context) error {
 	s.mu.Lock()
@@ -203,11 +170,6 @@ func (s *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	return content, nil
 }
 
-// downloadWithETag fetches the content of a single object, with the ETag of the downloaded version.
-func (s *Retriever) downloadWithETag(ctx context.Context, key string) ([]byte, string, error) {
-	return downloadObject(ctx, s.downloader, s.Bucket, key)
-}
-
 // downloadObject fetches the content of a single object, with the ETag of the downloaded version.
 func downloadObject(ctx context.Context, d DownloaderAPI, bucket, key string) ([]byte, string, error) {
 	writerAt := types.NewWriteAtBuffer([]byte{})
@@ -247,4 +209,42 @@ func (s *Retriever) SetLister(lister ListerAPI) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lister = lister
+}
+
+// initLoader creates the folder loader, or keeps the current one if the settings did not change.
+// The caller must hold s.mu.
+func (s *Retriever) initLoader(logger *fflog.FFLogger) {
+	s.loader.Store(folderloader.Reuse(s.loader.Load(), &s3Store{r: s}, folderloader.Options{
+		Prefix: s.Prefix, Pattern: s.Pattern, Recursive: s.Recursive,
+		Logger: logger, Location: s.Bucket, LocationKey: "bucket", Provider: "S3",
+	}))
+}
+
+// initClients builds the S3 clients that were not provided (see SetDownloader and SetLister).
+// The caller must hold s.mu.
+func (s *Retriever) initClients(ctx context.Context, needLister bool) error {
+	if s.downloader != nil && (!needLister || s.lister != nil) {
+		return nil
+	}
+	if s.AwsConfig == nil {
+		cfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return err
+		}
+		s.AwsConfig = &cfg
+	}
+	client := s3.NewFromConfig(*s.AwsConfig, s.S3ClientOptions...)
+	if s.downloader == nil {
+		s.downloader = transfermanager.New(client)
+	}
+	if needLister && s.lister == nil {
+		s.lister = client
+	}
+
+	return nil
+}
+
+// downloadWithETag fetches the content of a single object, with the ETag of the downloaded version.
+func (s *Retriever) downloadWithETag(ctx context.Context, key string) ([]byte, string, error) {
+	return downloadObject(ctx, s.downloader, s.Bucket, key)
 }

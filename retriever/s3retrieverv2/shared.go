@@ -197,6 +197,182 @@ func NewSharedItems(ctx context.Context, opts SharedItemsOptions) (*SharedItems,
 	}, nil
 }
 
+// Retriever returns the retriever of one item of the bucket. The item joins the group
+// immediately (so that the listing covers it from the first poll) and leaves it on Shutdown.
+func (g *SharedItems) Retriever(item string) *SharedItemRetriever {
+	r := &SharedItemRetriever{group: g, item: item}
+	g.register(r)
+
+	return r
+}
+
+// listingTTL is the window during which a listing is served without listing again.
+func listingTTL(interval time.Duration) time.Duration {
+	return max(minSharedListingTTL, interval/listingTTLDivisor)
+}
+
+// listingPrefix is the longest common prefix of the keys, cut after its last "/" ("" if there is
+// none). S3 keys are opaque so they are not normalized in any way, and cutting at a "/" never
+// splits a multi-byte character.
+func listingPrefix(keys []string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	prefix := keys[0]
+	for _, k := range keys[1:] {
+		for !strings.HasPrefix(k, prefix) {
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+
+	return prefix[:strings.LastIndex(prefix, "/")+1]
+}
+
+// normalizeETag ignores the weak prefix and the surrounding double quotes.
+func normalizeETag(v string) string {
+	return strings.Trim(strings.TrimPrefix(v, "W/"), `"`)
+}
+
+// listedItem is the result of a lookup in the listing.
+type listedItem struct {
+	// start is the start of the listing that returned it.
+	start time.Time
+	etag  string
+	found bool
+}
+
+var (
+	_ retriever.Retriever              = (*SharedItemRetriever)(nil)
+	_ retriever.InitializableRetriever = (*SharedItemRetriever)(nil)
+	_ retriever.FormatHinter           = (*SharedItemRetriever)(nil)
+)
+
+// SharedItemRetriever is the retriever of one item of a SharedItems group.
+type SharedItemRetriever struct {
+	status atomic.Value // retriever.Status
+	group  *SharedItems
+	// refresh, retry, delivered, hasDelivered and inflight are protected by group.mu.
+	refresh func() bool // called by the poller when the object changed
+	// inflight is closed when the refresh in progress is over, nil if there is none.
+	inflight chan struct{}
+	item     string
+	// delivered is the ETag of the last content returned by Retrieve (hasDelivered is false until
+	// then). It is per retriever, not per object: another retriever of the same object loading a
+	// new version in the shared cache must not hide it from this one.
+	delivered    string
+	retry        bool // the last refresh failed, it must be tried again
+	hasDelivered bool
+}
+
+// Init registers the item in the group.
+func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
+	if r.item == "" {
+		r.status.Store(retriever.RetrieverError)
+
+		return errImpossibleToInitSharedS3
+	}
+	r.group.register(r)
+	r.status.Store(retriever.RetrieverReady)
+
+	return nil
+}
+
+// Shutdown removes the item from the group. It waits for the refresh of the item in flight (until
+// ctx is done), so the consumer can be closed safely afterwards.
+func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	r.group.deregister(ctx, r)
+	r.status.Store(retriever.RetrieverNotReady)
+
+	return nil
+}
+
+// Status is the internal state of the retriever.
+func (r *SharedItemRetriever) Status() retriever.Status {
+	if s, ok := r.status.Load().(retriever.Status); ok {
+		return s
+	}
+
+	return retriever.RetrieverNotReady
+}
+
+// Retrieve returns the content of the item.
+func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if r.Status() != retriever.RetrieverReady {
+		return nil, errSharedS3RetrieverIs
+	}
+	data, etag, err := r.group.get(ctx, r.item)
+	if err != nil {
+		return nil, err
+	}
+	r.group.mu.Lock()
+	r.delivered, r.hasDelivered = etag, true
+	r.group.mu.Unlock()
+
+	return data, nil
+}
+
+// OutputFormat returns an empty string like the single file Retriever: the format of the file is
+// unknown, the global file format applies.
+func (r *SharedItemRetriever) OutputFormat() string { return "" }
+
+// PollerConfig configures the poller of a SharedItems group.
+type PollerConfig struct {
+	// Logger receives the poller errors, nothing is logged if it is nil.
+	Logger *slog.Logger
+	// Interval is the time between two listings, 0 means the default one (60s) and the minimum
+	// is 1s.
+	Interval time.Duration
+	// Jitter randomizes each wait by +/-10%.
+	Jitter bool
+}
+
+// SetPoller sets the configuration of the poller, it is applied to a running poller too.
+func (g *SharedItems) SetPoller(cfg PollerConfig) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.interval = cfg.Interval
+	if g.interval <= 0 {
+		g.interval = DefaultSharedPollingInterval
+	}
+	g.interval = max(g.interval, minSharedListingTTL)
+	g.jitter = cfg.Jitter
+	g.logger = cfg.Logger
+	if g.logger == nil {
+		g.logger = slog.New(slog.DiscardHandler)
+	}
+	g.ttl = listingTTL(g.interval)
+	select {
+	case g.wake <- struct{}{}:
+	default:
+	}
+}
+
+// SetRefresh sets the function the poller calls when the object of the retriever changed (it
+// must refresh the consumer of the retriever, and report if it succeeded). The first refresh
+// function starts the poller, and it stops when the last item leaves the group.
+func (g *SharedItems) SetRefresh(r *SharedItemRetriever, refresh func() bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if _, ok := g.items[r]; !ok {
+		return
+	}
+	if r.refresh == nil {
+		g.refreshers++
+	}
+	r.refresh = refresh
+	if g.stopPoller == nil {
+		ctx, cancel := context.WithCancel(context.Background())
+		g.stopPoller = cancel
+		go g.poll(ctx)
+	}
+}
+
 // baseContext returns the context of the requests of the group, renewed if it was cancelled
 // because every item left.
 func (g *SharedItems) baseContext() context.Context {
@@ -212,15 +388,6 @@ func (g *SharedItems) baseLocked() context.Context {
 	}
 
 	return g.base
-}
-
-// Retriever returns the retriever of one item of the bucket. The item joins the group
-// immediately (so that the listing covers it from the first poll) and leaves it on Shutdown.
-func (g *SharedItems) Retriever(item string) *SharedItemRetriever {
-	r := &SharedItemRetriever{group: g, item: item}
-	g.register(r)
-
-	return r
 }
 
 func (g *SharedItems) register(r *SharedItemRetriever) {
@@ -295,33 +462,6 @@ func (g *SharedItems) recompute() {
 	g.prefix = listingPrefix(keys)
 }
 
-// listingTTL is the window during which a listing is served without listing again.
-func listingTTL(interval time.Duration) time.Duration {
-	return max(minSharedListingTTL, interval/listingTTLDivisor)
-}
-
-// listingPrefix is the longest common prefix of the keys, cut after its last "/" ("" if there is
-// none). S3 keys are opaque so they are not normalized in any way, and cutting at a "/" never
-// splits a multi-byte character.
-func listingPrefix(keys []string) string {
-	if len(keys) == 0 {
-		return ""
-	}
-	prefix := keys[0]
-	for _, k := range keys[1:] {
-		for !strings.HasPrefix(k, prefix) {
-			prefix = prefix[:len(prefix)-1]
-		}
-	}
-
-	return prefix[:strings.LastIndex(prefix, "/")+1]
-}
-
-// normalizeETag ignores the weak prefix and the surrounding double quotes.
-func normalizeETag(v string) string {
-	return strings.Trim(strings.TrimPrefix(v, "W/"), `"`)
-}
-
 // coversLocked tells if a listing of prefix started at seq knows the key: the key is under the
 // prefix and was registered before the listing started. The caller must hold g.mu.
 func (g *SharedItems) coversLocked(key, prefix string, seq uint64) bool {
@@ -342,14 +482,6 @@ func (g *SharedItems) freshLocked(key string) bool {
 	}
 
 	return time.Since(g.listedAt) < ttl
-}
-
-// listedItem is the result of a lookup in the listing.
-type listedItem struct {
-	// start is the start of the listing that returned it.
-	start time.Time
-	etag  string
-	found bool
 }
 
 // etagOf returns the ETag of the key in a listing no older than the TTL, listing if needed.
@@ -559,138 +691,6 @@ func (g *SharedItems) download(base context.Context, key string) ([]byte, string
 	data, etag, err := downloadObject(ctx, g.downloader, g.bucket, key)
 
 	return data, etag, startedAt, err
-}
-
-var (
-	_ retriever.Retriever              = (*SharedItemRetriever)(nil)
-	_ retriever.InitializableRetriever = (*SharedItemRetriever)(nil)
-	_ retriever.FormatHinter           = (*SharedItemRetriever)(nil)
-)
-
-// SharedItemRetriever is the retriever of one item of a SharedItems group.
-type SharedItemRetriever struct {
-	status atomic.Value // retriever.Status
-	group  *SharedItems
-	// refresh, retry, delivered, hasDelivered and inflight are protected by group.mu.
-	refresh func() bool // called by the poller when the object changed
-	// inflight is closed when the refresh in progress is over, nil if there is none.
-	inflight chan struct{}
-	item     string
-	// delivered is the ETag of the last content returned by Retrieve (hasDelivered is false until
-	// then). It is per retriever, not per object: another retriever of the same object loading a
-	// new version in the shared cache must not hide it from this one.
-	delivered    string
-	retry        bool // the last refresh failed, it must be tried again
-	hasDelivered bool
-}
-
-// Init registers the item in the group.
-func (r *SharedItemRetriever) Init(_ context.Context, _ *fflog.FFLogger) error {
-	if r.item == "" {
-		r.status.Store(retriever.RetrieverError)
-
-		return errImpossibleToInitSharedS3
-	}
-	r.group.register(r)
-	r.status.Store(retriever.RetrieverReady)
-
-	return nil
-}
-
-// Shutdown removes the item from the group. It waits for the refresh of the item in flight (until
-// ctx is done), so the consumer can be closed safely afterwards.
-func (r *SharedItemRetriever) Shutdown(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	r.group.deregister(ctx, r)
-	r.status.Store(retriever.RetrieverNotReady)
-
-	return nil
-}
-
-// Status is the internal state of the retriever.
-func (r *SharedItemRetriever) Status() retriever.Status {
-	if s, ok := r.status.Load().(retriever.Status); ok {
-		return s
-	}
-
-	return retriever.RetrieverNotReady
-}
-
-// Retrieve returns the content of the item.
-func (r *SharedItemRetriever) Retrieve(ctx context.Context) ([]byte, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if r.Status() != retriever.RetrieverReady {
-		return nil, errSharedS3RetrieverIs
-	}
-	data, etag, err := r.group.get(ctx, r.item)
-	if err != nil {
-		return nil, err
-	}
-	r.group.mu.Lock()
-	r.delivered, r.hasDelivered = etag, true
-	r.group.mu.Unlock()
-
-	return data, nil
-}
-
-// OutputFormat returns an empty string like the single file Retriever: the format of the file is
-// unknown, the global file format applies.
-func (r *SharedItemRetriever) OutputFormat() string { return "" }
-
-// PollerConfig configures the poller of a SharedItems group.
-type PollerConfig struct {
-	// Logger receives the poller errors, nothing is logged if it is nil.
-	Logger *slog.Logger
-	// Interval is the time between two listings, 0 means the default one (60s) and the minimum
-	// is 1s.
-	Interval time.Duration
-	// Jitter randomizes each wait by +/-10%.
-	Jitter bool
-}
-
-// SetPoller sets the configuration of the poller, it is applied to a running poller too.
-func (g *SharedItems) SetPoller(cfg PollerConfig) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.interval = cfg.Interval
-	if g.interval <= 0 {
-		g.interval = DefaultSharedPollingInterval
-	}
-	g.interval = max(g.interval, minSharedListingTTL)
-	g.jitter = cfg.Jitter
-	g.logger = cfg.Logger
-	if g.logger == nil {
-		g.logger = slog.New(slog.DiscardHandler)
-	}
-	g.ttl = listingTTL(g.interval)
-	select {
-	case g.wake <- struct{}{}:
-	default:
-	}
-}
-
-// SetRefresh sets the function the poller calls when the object of the retriever changed (it
-// must refresh the consumer of the retriever, and report if it succeeded). The first refresh
-// function starts the poller, and it stops when the last item leaves the group.
-func (g *SharedItems) SetRefresh(r *SharedItemRetriever, refresh func() bool) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if _, ok := g.items[r]; !ok {
-		return
-	}
-	if r.refresh == nil {
-		g.refreshers++
-	}
-	r.refresh = refresh
-	if g.stopPoller == nil {
-		ctx, cancel := context.WithCancel(context.Background())
-		g.stopPoller = cancel
-		go g.poll(ctx)
-	}
 }
 
 // poll lists the bucket every polling interval until ctx is done.

@@ -49,27 +49,6 @@ type Exporter struct {
 	ServiceURL string
 }
 
-func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
-	url := fmt.Sprintf("https://%s.blob.core.windows.net/", f.AccountName)
-	if f.ServiceURL != "" {
-		url = f.ServiceURL
-	}
-	if f.AccountKey == "" {
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return nil, err
-		}
-
-		return azblob.NewClient(url, cred, nil)
-	}
-	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return azblob.NewClientWithSharedKeyCredential(url, cred, nil)
-}
-
 func (f *Exporter) Export(
 	ctx context.Context,
 	logger *fflog.FFLogger,
@@ -130,6 +109,31 @@ func (f *Exporter) Export(
 	return nil
 }
 
+func (f *Exporter) IsBulk() bool {
+	return true
+}
+
+func (f *Exporter) initializeAzureClient() (*azblob.Client, error) {
+	url := fmt.Sprintf("https://%s.blob.core.windows.net/", f.AccountName)
+	if f.ServiceURL != "" {
+		url = f.ServiceURL
+	}
+	if f.AccountKey == "" {
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return azblob.NewClient(url, cred, nil)
+	}
+	cred, err := azblob.NewSharedKeyCredential(f.AccountName, f.AccountKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return azblob.NewClientWithSharedKeyCredential(url, cred, nil)
+}
+
 // uploadFile uploads a single file to Azure Blob Storage and closes the file
 // handle before returning. Keeping the defer here (instead of in the calling
 // loop) ensures at most one file descriptor is open at a time, regardless of
@@ -164,8 +168,4 @@ func (f *Exporter) uploadFile(
 	)
 
 	return nil
-}
-
-func (f *Exporter) IsBulk() bool {
-	return true
 }

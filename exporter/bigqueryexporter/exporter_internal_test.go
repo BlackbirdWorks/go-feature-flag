@@ -735,12 +735,6 @@ func newMockBigQueryClient() *mockBigQueryClient {
 	return client
 }
 
-func (m *mockBigQueryClient) ensureInitialized() {
-	if m.inserters == nil {
-		m.inserters = make(map[string]*mockInserter)
-	}
-}
-
 func (m *mockBigQueryClient) Inserter(dataset, table string) inserter {
 	m.ensureInitialized()
 	key := dataset + "." + table
@@ -774,6 +768,12 @@ func (m *mockBigQueryClient) EnsureTable(
 
 func (m *mockBigQueryClient) Close() error {
 	return nil
+}
+
+func (m *mockBigQueryClient) ensureInitialized() {
+	if m.inserters == nil {
+		m.inserters = make(map[string]*mockInserter)
+	}
 }
 
 type mockInserter struct {

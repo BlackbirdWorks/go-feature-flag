@@ -1,16 +1,5 @@
 package ffcontext
 
-// NewEvaluationContextBuilder constructs a new EvaluationContextBuilder, specifying the user targetingKey.
-//
-// For authenticated users, the targetingKey may be a username or e-mail address. For anonymous users,
-// this could be an IP address or session ID.
-func NewEvaluationContextBuilder(key string) EvaluationContextBuilder {
-	return &evaluationContextBuilderImpl{
-		key:    key,
-		custom: map[string]any{},
-	}
-}
-
 // EvaluationContextBuilder is a builder to create an EvaluationContext.
 type EvaluationContextBuilder interface {
 	// Deprecated: Anonymous is to flag the context for an anonymous context or not.
@@ -26,6 +15,17 @@ type evaluationContextBuilderImpl struct {
 	custom value
 	// Key is the only mandatory attribute
 	key string
+}
+
+// NewEvaluationContextBuilder constructs a new EvaluationContextBuilder, specifying the user targetingKey.
+//
+// For authenticated users, the targetingKey may be a username or e-mail address. For anonymous users,
+// this could be an IP address or session ID.
+func NewEvaluationContextBuilder(key string) EvaluationContextBuilder {
+	return &evaluationContextBuilderImpl{
+		key:    key,
+		custom: map[string]any{},
+	}
 }
 
 // Deprecated: Anonymous is to flag the context for an anonymous context or not.

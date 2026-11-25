@@ -92,40 +92,6 @@ func (e *Evaluator) LastDebugErr() error {
 	return nil
 }
 
-func (e *Evaluator) setDebugErr(err error) {
-	if err == nil {
-		// load first so concurrent clean calls on a shared evaluator only
-		// read the shared cache line instead of all writing to it
-		if e.lastDebugErr.Load() != nil {
-			e.lastDebugErr.Store(nil)
-		}
-
-		return
-	}
-	box := err
-	e.lastDebugErr.Store(&box)
-}
-
-// compile turns the parse tree into the node tree used by Process. It runs
-// once; a panic leaves the tree in place so Process uses the visitor instead.
-func (e *Evaluator) compile() {
-	defer func() {
-		// Deliberately silent: compiling is only an optimization. A panic
-		// here (e.g. a tree shape compileQuery does not expect) must not
-		// change what Process returns, so drop any partial result and keep
-		// the tree; Process then walks it with the visitor, which reports
-		// whatever error or result the uncompiled evaluator always did.
-		if info := recover(); info != nil {
-			e.root = nil
-		}
-	}()
-	if e.tree == nil {
-		return
-	}
-	e.root = compileQuery(e.tree)
-	e.tree = nil
-}
-
 // Process evaluates items against the rule. The rule is compiled on first use.
 //
 //nolint:nonamedreturns // recover sets the result
@@ -166,6 +132,40 @@ func (e *Evaluator) Process(items map[string]any) (ret bool, retErr error) {
 	}
 
 	return result, nil
+}
+
+func (e *Evaluator) setDebugErr(err error) {
+	if err == nil {
+		// load first so concurrent clean calls on a shared evaluator only
+		// read the shared cache line instead of all writing to it
+		if e.lastDebugErr.Load() != nil {
+			e.lastDebugErr.Store(nil)
+		}
+
+		return
+	}
+	box := err
+	e.lastDebugErr.Store(&box)
+}
+
+// compile turns the parse tree into the node tree used by Process. It runs
+// once; a panic leaves the tree in place so Process uses the visitor instead.
+func (e *Evaluator) compile() {
+	defer func() {
+		// Deliberately silent: compiling is only an optimization. A panic
+		// here (e.g. a tree shape compileQuery does not expect) must not
+		// change what Process returns, so drop any partial result and keep
+		// the tree; Process then walks it with the visitor, which reports
+		// whatever error or result the uncompiled evaluator always did.
+		if info := recover(); info != nil {
+			e.root = nil
+		}
+	}()
+	if e.tree == nil {
+		return
+	}
+	e.root = compileQuery(e.tree)
+	e.tree = nil
 }
 
 func (e *Evaluator) visit(items map[string]any) (bool, error) {

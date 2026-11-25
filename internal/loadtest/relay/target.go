@@ -90,28 +90,6 @@ func clientProtocols(h2c bool) *http.Protocols {
 	return &p
 }
 
-// countFlagsPerCall sends one request and counts the flags of the bulk response.
-func (t *Target) countFlagsPerCall() (int, error) {
-	req, err := t.endpoint.NewRequest(t.relay.BaseURL, t.flagKey, 0)
-	if err != nil {
-		return 0, err
-	}
-	resp, err := t.client.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return 0, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
-	}
-
-	return countFlags(body)
-}
-
 // countFlags returns the number of flags of a bulk response: the "flags" member is an object keyed by flag
 // (all flags endpoint) or an array (OFREP bulk).
 func countFlags(body []byte) (int, error) {
@@ -255,6 +233,28 @@ func (t *Target) Extra() map[string]int64 {
 func (t *Target) Close() {
 	t.client.CloseIdleConnections()
 	t.relay.Close()
+}
+
+// countFlagsPerCall sends one request and counts the flags of the bulk response.
+func (t *Target) countFlagsPerCall() (int, error) {
+	req, err := t.endpoint.NewRequest(t.relay.BaseURL, t.flagKey, 0)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("%w %d", errUnexpectedStatus, resp.StatusCode)
+	}
+
+	return countFlags(body)
 }
 
 func btoi(b bool) int {

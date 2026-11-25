@@ -57,26 +57,6 @@ type Exporter struct {
 	init            sync.Once
 }
 
-func (f *Exporter) initializeUploader(ctx context.Context) error {
-	var initErr error
-	f.init.Do(func() {
-		if f.AwsConfig == nil {
-			cfg, err := config.LoadDefaultConfig(ctx)
-			if err != nil {
-				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
-
-				return
-			}
-			f.AwsConfig = &cfg
-		}
-
-		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
-		f.s3Uploader = transfermanager.New(client)
-	})
-
-	return initErr
-}
-
 // Export is saving a collection of events in a file.
 func (f *Exporter) Export(
 	ctx context.Context,
@@ -138,6 +118,30 @@ func (f *Exporter) Export(
 	return nil
 }
 
+func (f *Exporter) IsBulk() bool {
+	return true
+}
+
+func (f *Exporter) initializeUploader(ctx context.Context) error {
+	var initErr error
+	f.init.Do(func() {
+		if f.AwsConfig == nil {
+			cfg, err := config.LoadDefaultConfig(ctx)
+			if err != nil {
+				initErr = fmt.Errorf("impossible to init S3 exporter: %w", err)
+
+				return
+			}
+			f.AwsConfig = &cfg
+		}
+
+		client := s3.NewFromConfig(*f.AwsConfig, f.S3ClientOptions...)
+		f.s3Uploader = transfermanager.New(client)
+	})
+
+	return initErr
+}
+
 // uploadFile uploads a single file to S3 and closes the file handle before
 // returning. Keeping the defer here (instead of in the calling loop) ensures at
 // most one file descriptor is open at a time, regardless of batch size.
@@ -165,8 +169,4 @@ func (f *Exporter) uploadFile(
 	logger.Info("[S3Exporter] file uploaded.", slog.String("location", location))
 
 	return nil
-}
-
-func (f *Exporter) IsBulk() bool {
-	return true
 }

@@ -50,6 +50,27 @@ const (
 	LegacySubSystem = "gofeatureflag"
 )
 
+// Metrics is a struct containing all custom prometheus metrics.
+type Metrics struct {
+	flagConfigurationCounter prom.Counter
+	flagUpdateCounter        prom.Counter
+	getManifestCounter       prom.Counter
+	allFlagCounter           prom.Counter
+	flagDeleteCounter        prom.Counter
+	collectEvalDataCounter   prom.Counter
+	flagChange               prom.Counter
+	flagCreateCounter        prom.Counter
+	forceRefreshCounter      prom.Counter
+	Registry                 *prom.Registry
+	allFlagCounterWithFlag   prom.CounterVec
+	validateFlagsCounterVec  prom.CounterVec
+	flagUpdateCounterVec     prom.CounterVec
+	flagDeleteCounterVec     prom.CounterVec
+	flagCreateCounterVec     prom.CounterVec
+	flagEvaluationCounter    prom.CounterVec
+	opts                     MetricsOpts
+}
+
 // NewMetrics is the constructor for the custom metrics
 //
 //nolint:funlen
@@ -216,27 +237,6 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 		getManifestCounter:       getManifestCounter,
 		Registry:                 customRegistry,
 	}, nil
-}
-
-// Metrics is a struct containing all custom prometheus metrics.
-type Metrics struct {
-	flagConfigurationCounter prom.Counter
-	flagUpdateCounter        prom.Counter
-	getManifestCounter       prom.Counter
-	allFlagCounter           prom.Counter
-	flagDeleteCounter        prom.Counter
-	collectEvalDataCounter   prom.Counter
-	flagChange               prom.Counter
-	flagCreateCounter        prom.Counter
-	forceRefreshCounter      prom.Counter
-	Registry                 *prom.Registry
-	allFlagCounterWithFlag   prom.CounterVec
-	validateFlagsCounterVec  prom.CounterVec
-	flagUpdateCounterVec     prom.CounterVec
-	flagDeleteCounterVec     prom.CounterVec
-	flagCreateCounterVec     prom.CounterVec
-	flagEvaluationCounter    prom.CounterVec
-	opts                     MetricsOpts
 }
 
 func (m *Metrics) IncFlagEvaluation(flagName string) {

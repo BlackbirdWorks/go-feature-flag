@@ -43,6 +43,18 @@ func (c *threadSafeConn) ping() error {
 	return c.conn.WriteMessage(websocket.PingMessage, nil)
 }
 
+// defaultPingInterval is how often a keep-alive ping is sent to the client.
+const defaultPingInterval = 1 * time.Second
+
+// WSFlagChange is the implementation of the controller.
+type WSFlagChange struct {
+	websocketService stream.WebsocketService
+	flagsetManager   service.FlagsetManager
+	upgrader         websocket.Upgrader
+	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
+	pingInterval time.Duration
+}
+
 // NewWsFlagChange is the constructor to create a new controller to handle websocket
 // request to be notified about flag changes.
 func NewWsFlagChange(
@@ -59,18 +71,6 @@ func NewWsFlagChange(
 		},
 		pingInterval: defaultPingInterval,
 	}
-}
-
-// defaultPingInterval is how often a keep-alive ping is sent to the client.
-const defaultPingInterval = 1 * time.Second
-
-// WSFlagChange is the implementation of the controller.
-type WSFlagChange struct {
-	websocketService stream.WebsocketService
-	flagsetManager   service.FlagsetManager
-	upgrader         websocket.Upgrader
-	// pingInterval is the keep-alive ping period; defaults to defaultPingInterval.
-	pingInterval time.Duration
 }
 
 // LegacyHandler is the entry point for the websocket endpoint to get notified when a flag has been edited.

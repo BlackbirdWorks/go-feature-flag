@@ -58,50 +58,6 @@ type fakeStore struct {
 	noVersion bool
 }
 
-func (f *fakeStore) put(key, content string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.files == nil {
-		f.files = map[string]string{}
-	}
-	f.files[key] = content
-}
-
-func (f *fakeStore) del(key string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	delete(f.files, key)
-}
-
-func (f *fakeStore) setGetErrKey(key string, err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.getErrKeys == nil {
-		f.getErrKeys = map[string]error{}
-	}
-	if err == nil {
-		delete(f.getErrKeys, key)
-
-		return
-	}
-	f.getErrKeys[key] = err
-}
-
-func (f *fakeStore) calls(key string) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.getCalls[key]
-}
-
-func (f *fakeStore) version(content string) string {
-	if f.noVersion {
-		return ""
-	}
-
-	return "v:" + content
-}
-
 func (f *fakeStore) List(_ context.Context, prefix string, recursive bool) ([]folderloader.Entry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -154,6 +110,50 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	}
 
 	return []byte(c), f.version(c), nil
+}
+
+func (f *fakeStore) put(key, content string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.files == nil {
+		f.files = map[string]string{}
+	}
+	f.files[key] = content
+}
+
+func (f *fakeStore) del(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.files, key)
+}
+
+func (f *fakeStore) setGetErrKey(key string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.getErrKeys == nil {
+		f.getErrKeys = map[string]error{}
+	}
+	if err == nil {
+		delete(f.getErrKeys, key)
+
+		return
+	}
+	f.getErrKeys[key] = err
+}
+
+func (f *fakeStore) calls(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.getCalls[key]
+}
+
+func (f *fakeStore) version(content string) string {
+	if f.noVersion {
+		return ""
+	}
+
+	return "v:" + content
 }
 
 type step struct {

@@ -8,26 +8,6 @@ type VersionOperation struct {
 	NullOperation
 }
 
-func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, semver.Version, error) {
-	var leftVer, rightVer semver.Version
-	leftVal, ok := left.(string)
-	if !ok {
-		return leftVer, rightVer, newInvalidOperandError(left, leftVal)
-	}
-	rightVal, ok := right.(string)
-	if !ok {
-		return leftVer, rightVer, newInvalidOperandError(right, rightVal)
-	}
-	var err error
-	leftVer, err = semver.Make(leftVal)
-	if err != nil {
-		return leftVer, rightVer, err
-	}
-	rightVer, err = semver.Make(rightVal)
-
-	return leftVer, rightVer, err
-}
-
 func (v *VersionOperation) EQ(left Operand, right Operand) (bool, error) {
 	leftVer, rightVer, err := v.get(left, right)
 	if err != nil {
@@ -80,4 +60,24 @@ func (v *VersionOperation) GE(left Operand, right Operand) (bool, error) {
 	}
 
 	return leftVer.GE(rightVer), nil
+}
+
+func (v *VersionOperation) get(left Operand, right Operand) (semver.Version, semver.Version, error) {
+	var leftVer, rightVer semver.Version
+	leftVal, ok := left.(string)
+	if !ok {
+		return leftVer, rightVer, newInvalidOperandError(left, leftVal)
+	}
+	rightVal, ok := right.(string)
+	if !ok {
+		return leftVer, rightVer, newInvalidOperandError(right, rightVal)
+	}
+	var err error
+	leftVer, err = semver.Make(leftVal)
+	if err != nil {
+		return leftVer, rightVer, err
+	}
+	rightVer, err = semver.Make(rightVal)
+
+	return leftVer, rightVer, err
 }

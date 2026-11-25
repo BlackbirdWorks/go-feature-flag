@@ -118,6 +118,77 @@ func (m *Manager) StopPolling() {
 	})
 }
 
+// Shutdown the retrievers.
+// This function will call the Shutdown function of the retrievers that implements the InitializableRetriever interface.
+func (m *Manager) Shutdown(ctx context.Context) error {
+	// Stop the background updater before shutting the retrievers down, otherwise the polling
+	// goroutine could use a retriever that is already shut down, and could keep writing the
+	// persistent flag configuration file after Close() returned.
+	m.StopPolling()
+
+	onErrorRetriever := make([]Retriever, 0)
+	for _, retriever := range m.retrievers {
+		if r, ok := retriever.(CommonInitializableRetriever); ok {
+			err := r.Shutdown(ctx)
+			if err != nil {
+				onErrorRetriever = append(onErrorRetriever, retriever)
+			}
+		}
+	}
+	if len(onErrorRetriever) > 0 {
+		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
+	}
+
+	m.cacheManager.Close()
+
+	return nil
+}
+
+// GetCacheRefreshDate gives the last refresh date of the cache.
+func (m *Manager) GetCacheRefreshDate() time.Time {
+	return m.cacheManager.GetLatestUpdateDate()
+}
+
+// GetFlag returns the flag from the cache with the current state when calling this method.
+func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
+	return m.cacheManager.GetFlag(flagKey)
+}
+
+// GetFlagsFromCache returns all the flags present in the cache with their
+// current state when calling this method. If cache hasn't been initialized, an
+// error reporting this is returned.
+func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, errCacheIsNotInitialized
+	}
+
+	return m.cacheManager.AllFlags()
+}
+
+// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
+// callers inside the module that only read them (evaluation of all the flags).
+func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
+	if m == nil || m.cacheManager == nil {
+		return nil, errCacheIsNotInitialized
+	}
+
+	return m.cacheManager.AllFlagsReadOnly()
+}
+
+func (m *Manager) ForceRefresh(ctx context.Context) bool {
+	err := m.retrieveFlagsAndUpdateCache(ctx, false)
+	if err != nil {
+		m.logger.Error(
+			"Error while force updating the cache.",
+			slog.Any("error", err.Error()),
+		)
+
+		return false
+	}
+
+	return true
+}
+
 // initRetrievers is a helper function to initialize the retrievers.
 func (m *Manager) initRetrievers(ctx context.Context, retrieversToInit []Retriever) error {
 	m.onErrorRetriever = make([]Retriever, 0)
@@ -171,32 +242,6 @@ func (m *Manager) checkInitializationErrors() error {
 	if len(m.onErrorRetriever) > 0 {
 		return fmt.Errorf("%w: %v", errErrorWhileInitializingThe, m.onErrorRetriever)
 	}
-
-	return nil
-}
-
-// Shutdown the retrievers.
-// This function will call the Shutdown function of the retrievers that implements the InitializableRetriever interface.
-func (m *Manager) Shutdown(ctx context.Context) error {
-	// Stop the background updater before shutting the retrievers down, otherwise the polling
-	// goroutine could use a retriever that is already shut down, and could keep writing the
-	// persistent flag configuration file after Close() returned.
-	m.StopPolling()
-
-	onErrorRetriever := make([]Retriever, 0)
-	for _, retriever := range m.retrievers {
-		if r, ok := retriever.(CommonInitializableRetriever); ok {
-			err := r.Shutdown(ctx)
-			if err != nil {
-				onErrorRetriever = append(onErrorRetriever, retriever)
-			}
-		}
-	}
-	if len(onErrorRetriever) > 0 {
-		return fmt.Errorf("%w: %v", errErrorWhileShuttingDown, onErrorRetriever)
-	}
-
-	m.cacheManager.Close()
 
 	return nil
 }
@@ -279,51 +324,6 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 	}
 
 	return errNoPersistentFlagAvailable
-}
-
-// GetCacheRefreshDate gives the last refresh date of the cache.
-func (m *Manager) GetCacheRefreshDate() time.Time {
-	return m.cacheManager.GetLatestUpdateDate()
-}
-
-// GetFlag returns the flag from the cache with the current state when calling this method.
-func (m *Manager) GetFlag(flagKey string) (flag.Flag, error) {
-	return m.cacheManager.GetFlag(flagKey)
-}
-
-// GetFlagsFromCache returns all the flags present in the cache with their
-// current state when calling this method. If cache hasn't been initialized, an
-// error reporting this is returned.
-func (m *Manager) GetFlagsFromCache(_ context.Context) (map[string]flag.Flag, error) {
-	if m == nil || m.cacheManager == nil {
-		return nil, errCacheIsNotInitialized
-	}
-
-	return m.cacheManager.AllFlags()
-}
-
-// GetFlagsFromCacheReadOnly is GetFlagsFromCache without the copy of the flags: it is for the
-// callers inside the module that only read them (evaluation of all the flags).
-func (m *Manager) GetFlagsFromCacheReadOnly(_ context.Context) (map[string]flag.Flag, error) {
-	if m == nil || m.cacheManager == nil {
-		return nil, errCacheIsNotInitialized
-	}
-
-	return m.cacheManager.AllFlagsReadOnly()
-}
-
-func (m *Manager) ForceRefresh(ctx context.Context) bool {
-	err := m.retrieveFlagsAndUpdateCache(ctx, false)
-	if err != nil {
-		m.logger.Error(
-			"Error while force updating the cache.",
-			slog.Any("error", err.Error()),
-		)
-
-		return false
-	}
-
-	return true
 }
 
 // retrieve is a function that will retrieve the flags from all the retrievers in parallel.

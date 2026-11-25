@@ -122,6 +122,59 @@ func NewConfigLoader(
 	return &configLoader
 }
 
+// AddConfigChangeCallback adds a callback to be called when the configuration changes.
+func (c *Loader) AddConfigChangeCallback(callback func(newConfig *Config)) {
+	c.callbacksMutex.Lock()
+	defer c.callbacksMutex.Unlock()
+	c.callbacks = append(c.callbacks, callback)
+}
+
+// ToConfig returns the configuration.
+func (c *Loader) ToConfig() (*Config, error) {
+	proxyConf := &Config{}
+	errUnmarshal := c.k.Unmarshal("", proxyConf)
+	if errUnmarshal != nil {
+		return nil, errUnmarshal
+	}
+	switch {
+	case len(proxyConf.FlagSets) > 0:
+		// IsValid rejects local flagSets when studio is also set
+		proxyConf.flagSetMode = flagSetModeLocal
+	case proxyConf.Studio.URL != "":
+		proxyConf.flagSetMode = flagSetModeStudio
+		proxyConf.FlagSets = c.studioFlagSets
+	default:
+		proxyConf.flagSetMode = flagSetModeNone
+	}
+	processExporters(proxyConf)
+
+	return proxyConf, nil
+}
+
+// StopWatchChanges stops watching for changes in the configuration file and Studio.
+func (c *Loader) StopWatchChanges() error {
+	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
+		return nil
+	}
+
+	// Signal the event processor goroutine to stop (only once)
+	if c.stopChan != nil {
+		c.stopOnce.Do(func() {
+			close(c.stopChan)
+		})
+	}
+
+	var errs []error
+	if c.fileProvider != nil {
+		errs = append(errs, c.fileProvider.Unwatch())
+	}
+	if c.studioProvider != nil {
+		errs = append(errs, c.studioProvider.Unwatch())
+	}
+
+	return errors.Join(errs...)
+}
+
 // loadConfig loads the configuration from
 // - the command line
 // - the configuration file
@@ -139,13 +192,6 @@ func (c *Loader) loadConfig() {
 	c.loadEnvVariables()
 	c.loadStudioFlagSets()
 	_ = c.k.Set("version", c.version)
-}
-
-// AddConfigChangeCallback adds a callback to be called when the configuration changes.
-func (c *Loader) AddConfigChangeCallback(callback func(newConfig *Config)) {
-	c.callbacksMutex.Lock()
-	defer c.callbacksMutex.Unlock()
-	c.callbacks = append(c.callbacks, callback)
 }
 
 // startWatchChanges starts watching for changes in the configuration file and Studio.
@@ -272,52 +318,6 @@ func (c *Loader) reloadConfigAndNotify() {
 	for _, callback := range c.callbacks {
 		callback(modifiedConfig)
 	}
-}
-
-// ToConfig returns the configuration.
-func (c *Loader) ToConfig() (*Config, error) {
-	proxyConf := &Config{}
-	errUnmarshal := c.k.Unmarshal("", proxyConf)
-	if errUnmarshal != nil {
-		return nil, errUnmarshal
-	}
-	switch {
-	case len(proxyConf.FlagSets) > 0:
-		// IsValid rejects local flagSets when studio is also set
-		proxyConf.flagSetMode = flagSetModeLocal
-	case proxyConf.Studio.URL != "":
-		proxyConf.flagSetMode = flagSetModeStudio
-		proxyConf.FlagSets = c.studioFlagSets
-	default:
-		proxyConf.flagSetMode = flagSetModeNone
-	}
-	processExporters(proxyConf)
-
-	return proxyConf, nil
-}
-
-// StopWatchChanges stops watching for changes in the configuration file and Studio.
-func (c *Loader) StopWatchChanges() error {
-	if (c.fileProvider == nil && c.studioProvider == nil) || !c.watchChanges {
-		return nil
-	}
-
-	// Signal the event processor goroutine to stop (only once)
-	if c.stopChan != nil {
-		c.stopOnce.Do(func() {
-			close(c.stopChan)
-		})
-	}
-
-	var errs []error
-	if c.fileProvider != nil {
-		errs = append(errs, c.fileProvider.Unwatch())
-	}
-	if c.studioProvider != nil {
-		errs = append(errs, c.studioProvider.Unwatch())
-	}
-
-	return errors.Join(errs...)
 }
 
 // loadPosflag loads the flags from the command line.

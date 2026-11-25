@@ -34,27 +34,6 @@ func NewInMemoryCache(svc *flag.Service, logger *fflog.FFLogger) *InMemoryCache 
 	}
 }
 
-func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
-	if err := value.IsValid(fc.Service); err == nil {
-		fc.Flags[key] = &value
-	} else {
-		fc.Logger.Error("[cache] invalid configuration for flag",
-			slog.String("key", key), slog.Any("error", err.Error()))
-	}
-}
-
-// getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
-// allocation-free. The caller must not modify it.
-func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
-	f, ok := fc.Flags[key]
-	if !ok {
-		// callers expect a usable (empty) flag next to the error
-		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
-	}
-
-	return f, nil
-}
-
 func (fc *InMemoryCache) Copy() Cache {
 	inMemoryCache := NewInMemoryCache(fc.Service, fc.Logger)
 	for k, v := range fc.Flags {
@@ -76,17 +55,6 @@ func (fc *InMemoryCache) All() map[string]flag.Flag {
 	return c
 }
 
-// shared returns the flags of the cache without copying them. The caller must treat them as
-// read-only and must not hand them to code that does not.
-func (fc *InMemoryCache) shared() map[string]flag.Flag {
-	c := make(map[string]flag.Flag, len(fc.Flags))
-	for key, val := range fc.Flags {
-		c[key] = val
-	}
-
-	return c
-}
-
 func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
@@ -99,4 +67,36 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 		}
 	}
 	fc.Flags = cache
+}
+
+func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
+	if err := value.IsValid(fc.Service); err == nil {
+		fc.Flags[key] = &value
+	} else {
+		fc.Logger.Error("[cache] invalid configuration for flag",
+			slog.String("key", key), slog.Any("error", err.Error()))
+	}
+}
+
+// getFlag returns the shared cached flag, without copying it, to keep the evaluation lookup
+// allocation-free. The caller must not modify it.
+func (fc *InMemoryCache) getFlag(key string) (flag.Flag, error) {
+	f, ok := fc.Flags[key]
+	if !ok {
+		// callers expect a usable (empty) flag next to the error
+		return &flag.InternalFlag{}, fmt.Errorf("%w [%v] does not exists", errFlag, key)
+	}
+
+	return f, nil
+}
+
+// shared returns the flags of the cache without copying them. The caller must treat them as
+// read-only and must not hand them to code that does not.
+func (fc *InMemoryCache) shared() map[string]flag.Flag {
+	c := make(map[string]flag.Flag, len(fc.Flags))
+	for key, val := range fc.Flags {
+		c[key] = val
+	}
+
+	return c
 }
