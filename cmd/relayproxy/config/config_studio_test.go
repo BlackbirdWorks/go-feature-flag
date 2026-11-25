@@ -31,7 +31,7 @@ studio:
 	teamB    = "team-b"
 	teamFile = "team-file"
 	uRL      = "{{URL}}"
-	v1       = `"v1"`
+	v1Label  = `"v1"`
 )
 
 const studioYaml = `server:
@@ -242,7 +242,8 @@ flagSets:
 			f.String(config3, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{config2 + configFile.Name()}))
 
-			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, false, withEnviron(environ...)).
+			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), versionOneZeroZero, false,
+				withEnviron(environ...)).
 				ToConfig()
 			require.NoError(t, err)
 			assert.Equal(t, 2031, got.Server.Port)
@@ -434,21 +435,21 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 	}{
 		{
 			name: "HTTP error", status: http.StatusServiceUnavailable,
-			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid YAML", body: "flagSets: [", status: http.StatusOK,
-			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name: "invalid field type", body: "flagSets: wrong-type", status: http.StatusOK,
-			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 		{
 			name:          "invalid flagset",
 			body:          strings.Replace(studioYaml, "apiKeys:\n      - key-a", "apiKeys: []", 1),
 			status:        http.StatusOK,
-			wantRetryETag: v1, wantCached: studioYaml, wantFlagSets: []string{teamB},
+			wantRetryETag: v1Label, wantCached: studioYaml, wantFlagSets: []string{teamB},
 		},
 	}
 	for _, tt := range tests {
@@ -457,7 +458,7 @@ func TestStudioRejectedUpdateKeepsETag(t *testing.T) {
 
 			var mu sync.Mutex
 
-			body, etag, status := studioYaml, v1, http.StatusOK
+			body, etag, status := studioYaml, v1Label, http.StatusOK
 			rejected := false
 			attempts := make(chan string, 20)
 

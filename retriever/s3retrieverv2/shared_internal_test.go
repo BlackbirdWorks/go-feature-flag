@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	aB         = "a/b/"
-	dFlagsYaml = "d/flags.yaml"
+	nestedPrefix = "a/b/"
+	dFlagsYaml   = "d/flags.yaml"
 )
 
 // T.Setenv: the AWS SDK default config chain (third-party code) reads the AWS_* variables from the process environment.
@@ -69,9 +69,9 @@ func TestSharedItems_listingPrefix(t *testing.T) {
 		keys []string
 	}{
 		{name: "no key", want: ""},
-		{name: "single key", keys: []string{"a/b/flags.yaml"}, want: aB},
-		{name: "same prefix", keys: []string{"a/b/1.yaml", "a/b/2.yaml"}, want: aB},
-		{name: "cut at the last slash", keys: []string{"a/b/flags1.yaml", "a/b/flags2.yaml"}, want: aB},
+		{name: "single key", keys: []string{"a/b/flags.yaml"}, want: nestedPrefix},
+		{name: "same prefix", keys: []string{"a/b/1.yaml", "a/b/2.yaml"}, want: nestedPrefix},
+		{name: "cut at the last slash", keys: []string{"a/b/flags1.yaml", "a/b/flags2.yaml"}, want: nestedPrefix},
 		{name: "sibling prefixes", keys: []string{"project-1/dev/f.yaml", "project-1/prod/f.yaml"}, want: "project-1/"},
 		{name: "partial segment is not a prefix", keys: []string{"proj-a/f.yaml", "proj-b/f.yaml"}, want: ""},
 		{name: "no common prefix", keys: []string{"a/f.yaml", "b/f.yaml"}, want: ""},

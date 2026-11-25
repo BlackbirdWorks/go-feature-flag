@@ -94,7 +94,8 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			defer apiServer.Stop(context.Background())
 
 			waitForServer(t, fmt.Sprintf(httpLocalhostD, portToCheck))
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck), http.NoBody)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet,
+				fmt.Sprintf("http://localhost:%d/debug/pprof/heap", portToCheck), http.NoBody)
 			require.NoError(t, err)
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)

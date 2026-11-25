@@ -37,7 +37,7 @@ type captureHandler struct {
 	levels []slog.Level
 }
 
-func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	h.msgs = append(h.msgs, r.Message)
 	h.levels = append(h.levels, r.Level)

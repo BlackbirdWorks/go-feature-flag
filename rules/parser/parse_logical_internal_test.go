@@ -195,7 +195,7 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 			require.NoError(t, err, tt.rule)
 			assert.Equal(t, tt.result, result, tt.rule)
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -285,7 +285,7 @@ func TestLogicalExpWithAnd(t *testing.T) {
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -338,7 +338,7 @@ func TestLogicalExpWithAndWithExtraSpaces(t *testing.T) {
 		t.Run(tt.rule, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }

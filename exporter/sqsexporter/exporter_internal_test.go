@@ -71,7 +71,7 @@ func TestExporterExport(t *testing.T) {
 		{
 			name: "should return an error if no QueueURL provided",
 			fields: fields{
-				//QueueURL:   "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
+				// QueueURL:   "https://sqs.eu-west-1.amazonaws.com/XXX/test-queue",
 				sqsService: SQSSendMessageAPIMock{},
 			},
 			wantErr: true,

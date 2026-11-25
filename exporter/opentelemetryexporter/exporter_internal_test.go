@@ -24,11 +24,11 @@ const (
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
 type MockUnsupportedEvent struct{}
 
-func (m MockUnsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) { return nil, nil }
-func (m MockUnsupportedEvent) FormatInJSON() ([]byte, error)                    { return nil, nil }
-func (m MockUnsupportedEvent) GetCreationDate() int64                           { return 0 }
-func (m MockUnsupportedEvent) GetUserKey() string                               { return "" }
-func (m MockUnsupportedEvent) GetKey() string                                   { return "" }
+func (MockUnsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) { return nil, nil }
+func (MockUnsupportedEvent) FormatInJSON() ([]byte, error)                    { return nil, nil }
+func (MockUnsupportedEvent) GetCreationDate() int64                           { return 0 }
+func (MockUnsupportedEvent) GetUserKey() string                               { return "" }
+func (MockUnsupportedEvent) GetKey() string                                   { return "" }
 
 func TestOpenTelemetryIsBulk(t *testing.T) {
 	t.Parallel()

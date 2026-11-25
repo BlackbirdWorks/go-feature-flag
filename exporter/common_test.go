@@ -15,9 +15,10 @@ const (
 	filenameFormat2                    = "filenameFormat"
 	flagVariation                      = "flag-variation"
 	json2                              = "json"
-	kindContextKindUserKeyCreationDate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};"
-	randomName                         = "random-name"
-	valueDefaultN                      = "{{ .Value}};{{ .Default}}\n"
+	kindContextKindUserKeyCreationDate = "{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{" +
+		"{ .CreationDate}};{{ .Key}};{{ .Variation}};"
+	randomName    = "random-name"
+	valueDefaultN = "{{ .Value}};{{ .Default}}\n"
 )
 
 func Test_ParseTemplate(t *testing.T) {

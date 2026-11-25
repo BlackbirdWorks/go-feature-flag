@@ -10,7 +10,7 @@ import (
 
 const (
 	debugError = "debug error"
-	or         = " or "
+	orOperator = " or "
 	yIN12      = `y IN [1, 2, 3, 4, 5]`
 )
 
@@ -33,7 +33,7 @@ func logicalRule(conds []string, depth int) string {
 		parts[i] = strings.Repeat("(", depth) + c + strings.Repeat(")", depth)
 	}
 
-	return strings.Join(parts, or)
+	return strings.Join(parts, orOperator)
 }
 
 // bigRule repeats conditions 100 times, each wrapped in three parentheses.
@@ -138,7 +138,7 @@ func BenchmarkProcess(b *testing.B) {
 		{name: "Version", rule: `jh gt 1.2.0`, want: true},
 		{name: "Nested", rule: uPlanEqPro, want: true},
 		{name: "Logical", rule: `(x eq 1 or y eq 2) and (z eq "nope" or b > 100)`},
-		{name: "Mixed", rule: strings.Join(benchConditions(), or)},
+		{name: "Mixed", rule: strings.Join(benchConditions(), orOperator)},
 		{name: "DebugErr/TypeMismatch", rule: `z gt 123`, wantDebug: true},
 		{name: "DebugErr/Missing", rule: `missing eq "x"`, wantDebug: true},
 	}
@@ -207,7 +207,7 @@ func newBenchInput() map[string]any {
 
 // BenchmarkNewEvaluator measures construction only (parse and validate).
 func BenchmarkNewEvaluator(b *testing.B) {
-	rule := strings.Join(benchConditions(), or)
+	rule := strings.Join(benchConditions(), orOperator)
 
 	b.ReportAllocs()
 
@@ -219,7 +219,7 @@ func BenchmarkNewEvaluator(b *testing.B) {
 // BenchmarkEvaluate measures the one-shot Evaluate helper.
 func BenchmarkEvaluate(b *testing.B) {
 	benchInput := newBenchInput()
-	rule := strings.Join(benchConditions(), or)
+	rule := strings.Join(benchConditions(), orOperator)
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -233,7 +233,7 @@ func BenchmarkEvaluate(b *testing.B) {
 // Process call, i.e. what any one-use evaluator pays.
 func BenchmarkNewEvaluatorFirstProcess(b *testing.B) {
 	benchInput := newBenchInput()
-	rule := strings.Join(benchConditions(), or)
+	rule := strings.Join(benchConditions(), orOperator)
 	checkBenchProcess(b, rule, benchInput, false)
 	b.ReportAllocs()
 	b.ResetTimer()

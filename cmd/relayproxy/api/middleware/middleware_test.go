@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	aB                  = "/a/b"
+	nestedPath          = "/a/b"
 	authorization       = "Authorization"
 	bearerGood          = "Bearer good"
 	doc                 = "/doc"
@@ -530,8 +530,8 @@ func TestRoutePattern(t *testing.T) {
 		pattern string
 		want    string
 	}{
-		{name: "no route matched", pattern: "/", want: aB},
-		{name: "no pattern", pattern: "", want: aB},
+		{name: "no route matched", pattern: "/", want: nestedPath},
+		{name: "no pattern", pattern: "", want: nestedPath},
 		{name: "static route", pattern: "GET /health", want: "/health"},
 		{name: "parameter", pattern: "POST /v1/feature/{flagKey}/eval", want: "/v1/feature/:flagKey/eval"},
 		{name: "two parameters", pattern: "/a/{x}/b/{y}", want: "/a/:x/b/:y"},
@@ -542,7 +542,7 @@ func TestRoutePattern(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, aB, nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, nestedPath, nil)
 			req.Pattern = tt.pattern
 			assert.Equal(t, tt.want, middleware.RoutePattern(req))
 		})

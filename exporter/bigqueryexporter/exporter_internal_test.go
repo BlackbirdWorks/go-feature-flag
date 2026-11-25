@@ -732,7 +732,7 @@ type unsupportedEvent struct {
 	key string
 }
 
-func (u unsupportedEvent) GetUserKey() string {
+func (unsupportedEvent) GetUserKey() string {
 	return userKey
 }
 
@@ -740,15 +740,15 @@ func (u unsupportedEvent) GetKey() string {
 	return u.key
 }
 
-func (u unsupportedEvent) GetCreationDate() int64 {
+func (unsupportedEvent) GetCreationDate() int64 {
 	return 123
 }
 
-func (u unsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) {
+func (unsupportedEvent) FormatInCSV(_ *template.Template) ([]byte, error) {
 	return nil, nil
 }
 
-func (u unsupportedEvent) FormatInJSON() ([]byte, error) {
+func (unsupportedEvent) FormatInJSON() ([]byte, error) {
 	return nil, nil
 }
 
@@ -810,7 +810,7 @@ func (m *mockBigQueryClient) EnsureTable(
 	return nil
 }
 
-func (m *mockBigQueryClient) Close() error {
+func (*mockBigQueryClient) Close() error {
 	return nil
 }
 

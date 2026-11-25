@@ -174,7 +174,7 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 	require.NoError(t, err)
 
 	blobName := flagConfigYaml
-	blob, err := os.ReadFile(fmt.Sprintf("./testdata/%s", blobName))
+	blob, err := os.ReadFile("./testdata/" + blobName)
 	require.NoError(t, err)
 
 	_, err = client.UploadStream(context.TODO(), containerName, blobName, strings.NewReader(string(blob)), nil)

@@ -66,7 +66,7 @@ func (r *contextRecordingRetriever) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (r *contextRecordingRetriever) Status() retriever.Status {
+func (*contextRecordingRetriever) Status() retriever.Status {
 	return retriever.RetrieverReady
 }
 

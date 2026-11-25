@@ -31,7 +31,7 @@ func (m *mockWebsocketService) Close() {
 	m.nbConnection = 0
 }
 
-func (m *mockWebsocketService) WaitForCleanup(_ time.Duration) error {
+func (*mockWebsocketService) WaitForCleanup(_ time.Duration) error {
 	// Mock implementation - just return nil immediately
 	return nil
 }

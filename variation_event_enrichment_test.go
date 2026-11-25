@@ -27,7 +27,7 @@ type collectingExporter struct {
 	mu     sync.Mutex
 }
 
-func (c *collectingExporter) IsBulk() bool { return true }
+func (*collectingExporter) IsBulk() bool { return true }
 func (c *collectingExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

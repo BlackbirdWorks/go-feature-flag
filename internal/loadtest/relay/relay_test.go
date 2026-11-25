@@ -42,13 +42,15 @@ func TestStart_ListensOnLoopbackOnly(t *testing.T) {
 	parsedURL, err := url.Parse(r.BaseURL)
 	require.NoError(t, err)
 
-	loop, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(context.Background(), "tcp", net.JoinHostPort("127.0.0.1", parsedURL.Port()))
+	loop, err := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(context.Background(), "tcp",
+		net.JoinHostPort("127.0.0.1", parsedURL.Port()))
 	require.NoError(t, err, "reachable through the loopback interface")
 
 	_ = loop.Close()
 
 	for _, addr := range external {
-		c, dialTimeoutErr := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(context.Background(), "tcp", net.JoinHostPort(addr, parsedURL.Port()))
+		c, dialTimeoutErr := (&net.Dialer{Timeout: 5 * time.Second}).DialContext(context.Background(), "tcp",
+			net.JoinHostPort(addr, parsedURL.Port()))
 		if dialTimeoutErr == nil {
 			_ = c.Close()
 		}

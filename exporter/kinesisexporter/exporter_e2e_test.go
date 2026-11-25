@@ -3,10 +3,11 @@
 package kinesisexporter_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -168,7 +169,7 @@ func TestE2E_Export(t *testing.T) {
 
 			got := readAll(t, client, stream, tt.nbEvents)
 			require.Len(t, got, tt.wantReceived)
-			sort.Slice(got, func(i, j int) bool { return got[i].UserKey < got[j].UserKey })
+			slices.SortFunc(got, func(a, b exporter.FeatureEvent) int { return cmp.Compare(a.UserKey, b.UserKey) })
 
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.UserKey)

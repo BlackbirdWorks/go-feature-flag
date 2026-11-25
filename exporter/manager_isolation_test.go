@@ -25,7 +25,7 @@ type gatedExporter struct {
 	fail    bool
 }
 
-func (g *gatedExporter) IsBulk() bool { return true }
+func (*gatedExporter) IsBulk() bool { return true }
 func (g *gatedExporter) Export(_ context.Context, _ *fflog.FFLogger, events []exporter.ExportableEvent) error {
 	if g.started != nil {
 		g.once.Do(func() { close(g.started) })

@@ -68,7 +68,7 @@ const (
 	test2                        = "test2"
 	test3                        = "test3"
 	testFlag                     = "test-flag"
-	to                           = "to\\]\"\n"
+	toLogSuffix                  = "to\\]\"\n"
 	toto                         = "toto"
 	userRandomKeyFlag            = "\\] user=\"random-key\", flag=\"key-not-exist\", value=\"\\[to"
 	userRandomKeyFlag2           = `user="random-key", flag="disable-flag", value="true", variation="SdkDefault"`
@@ -119,25 +119,25 @@ func NewCacheMock(flg flag.Flag, err error) *cacheMock {
 	}
 }
 
-func (c *cacheMock) GetLatestUpdateDate() time.Time {
+func (*cacheMock) GetLatestUpdateDate() time.Time {
 	return clocktest.Instant()
 }
 
-func (c *cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
+func (*cacheMock) ConvertToFlagStruct(_ []byte, _ string) (map[string]dto.DTO, error) {
 	return nil, assert.AnError
 }
-func (c *cacheMock) UpdateCache(_ map[string]dto.DTO, _ *fflog.FFLogger, _ bool) error {
+func (*cacheMock) UpdateCache(_ map[string]dto.DTO, _ *fflog.FFLogger, _ bool) error {
 	return nil
 }
 
-func (c *cacheMock) Close() {}
+func (*cacheMock) Close() {}
 func (c *cacheMock) GetFlag(_ string) (flag.Flag, error) {
 	return c.flag, c.err
 }
 
-func (c *cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, assert.AnError }
+func (*cacheMock) AllFlags() (map[string]flag.Flag, error) { return nil, assert.AnError }
 
-func (c *cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, assert.AnError }
+func (*cacheMock) AllFlagsReadOnly() (map[string]flag.Flag, error) { return nil, assert.AnError }
 
 // assertExpectedLog waits for the async logger to flush and asserts that a log
 // message containing expectedLog was emitted. It is a no-op when expectedLog is
@@ -242,14 +242,14 @@ func runVariationWithCheck[T any, R any](
 				assertExpectedLog(t, handler, tt.expectedLog)
 			}
 
-			if tt.wantErr {
-				if alwaysAssertResult {
-					require.Error(t, err, "%s() error = %v, wantErr %v", label, err, tt.wantErr)
-				} else {
-					assert.Error(t, err, "%s() error = %v, wantErr %v", label, err, tt.wantErr)
+			if tt.wantErr && !alwaysAssertResult {
+				assert.Error(t, err, "%s() error = %v, wantErr %v", label, err, tt.wantErr)
 
-					return
-				}
+				return
+			}
+
+			if tt.wantErr {
+				require.Error(t, err, "%s() error = %v, wantErr %v", label, err, tt.wantErr)
 			}
 
 			assertGot(t, tt.want, got)
@@ -1589,7 +1589,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				want:    []any{toto},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
-					to,
+					toLogSuffix,
 			},
 			{
 				name: getDefaultValueWith,
@@ -1605,7 +1605,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				want:    []any{toto},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
-					to,
+					toLogSuffix,
 			},
 			{
 				name: getDefaultValueRule,
@@ -1746,7 +1746,8 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				},
 				want:    []any{toto},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
+				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex +
+					"\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
 					"toto\\]\"\n",
 			},
 			{
@@ -1867,7 +1868,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
-					to,
+					toLogSuffix,
 			},
 			{
 				name: getDefaultValueWith,
@@ -1882,7 +1883,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + userRandomKeyFlag +
-					to,
+					toLogSuffix,
 			},
 			{
 				name: getDefaultValueRule,
@@ -2053,7 +2054,8 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					Value:         []any{toto},
 				},
 				wantErr: true,
-				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex + "\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
+				expectedLog: bracketPrefixPattern + testutils.RFC3339Regex +
+					"\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
 					"toto\\]\"\n",
 			},
 			{

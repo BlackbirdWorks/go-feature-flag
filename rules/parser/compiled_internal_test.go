@@ -150,7 +150,7 @@ func differentialInputs() []diffKV {
 		nil,
 		{
 			"i": 5, "i64": int64(7), "i32": int32(3), "f": 2.5, "s": "Hello", "b": true, "n": nil,
-			"v": versionOneTwoThree, "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": xY,
+			"v": versionOneTwoThree, "l": []int{1, 2}, "m": diffKV{"k": "v"}, "bad": dottedName,
 			"u":  diffKV{plan: pro, age: 31, "n": nil, "deep": diffKV{"x": 1, "s": abc, "o": diffKV{}}},
 			str2: "5", "stringer": fmt.Stringer(nil), "e": "",
 			"nilmap": diffKV(nil), "nm": map[string]string{"a": "b"},
@@ -443,7 +443,8 @@ func runDifferentialGroups(t *testing.T, groups []diffGroup) {
 // versions but rejected by semver.Make.
 func versionRuleValues() []string {
 	return []string{
-		versionOneTwoThree, zeroVersion, versionTenTwentyThirty, prereleaseVersion, `1.2.3-alpha.1`, `1.2.3-0`, `1.2.3-rc.1+b`,
+		versionOneTwoThree, zeroVersion, versionTenTwentyThirty, prereleaseVersion, `1.2.3-alpha.1`, `1.2.3-0`,
+		`1.2.3-rc.1+b`,
 		buildMetadataVersion, `1.2.3+-`, `1.2.3--x`,
 		`99999999999999999999.0.0`, `1.99999999999999999999.0`, `1.2.99999999999999999999`,
 		`1.2.3-99999999999999999999`, `"1.2.3"`,
@@ -544,7 +545,7 @@ func genRule(r *rand.Rand, depth int) string {
 	case 2:
 		return genRule(r, depth-1) + " and " + genRule(r, depth-1)
 	default:
-		return genRule(r, depth-1) + or + genRule(r, depth-1)
+		return genRule(r, depth-1) + orOperator + genRule(r, depth-1)
 	}
 }
 

@@ -1262,7 +1262,7 @@ func (m *mockRedshiftDataClient) CancelStatement(
 	return &redshiftdata.CancelStatementOutput{Status: aws.Bool(true)}, nil
 }
 
-func (m *mockRedshiftDataClient) statementID(n int) *string {
+func (*mockRedshiftDataClient) statementID(n int) *string {
 	return aws.String(fmt.Sprintf("00000000-0000-0000-0000-%012d", n))
 }
 

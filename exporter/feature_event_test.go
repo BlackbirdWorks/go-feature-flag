@@ -19,10 +19,12 @@ const (
 	intType                             = "int"
 	stringType                          = "string"
 	float2                              = "float"
-	kindFeatureContextKindAnonymousUser = `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra`
-	ndomKeyVariationDefault             = `ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals`
-	randomKey                           = "random-key"
-	returnExistingKey                   = "return existing key"
+	kindFeatureContextKindAnonymousUser = `{"kind":"feature","contextKind":"anonymousUser","u` +
+		`serKey":"ABCD","creationDate":1617970547,"key":"ra`
+	ndomKeyVariationDefault = `ndom-key","variation":"Default","value":{"bool":true,` +
+		`"float":1.23,"int":1,"string":"string"},"default":fals`
+	randomKey         = "random-key"
+	returnExistingKey = "return existing key"
 )
 
 func TestNewFeatureEvent(t *testing.T) {

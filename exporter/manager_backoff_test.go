@@ -23,7 +23,7 @@ type firstFailsExporter struct {
 	mu       sync.Mutex
 }
 
-func (e *firstFailsExporter) IsBulk() bool { return true }
+func (*firstFailsExporter) IsBulk() bool { return true }
 func (e *firstFailsExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	e.mu.Lock()
 	e.starts = append(e.starts, time.Now())

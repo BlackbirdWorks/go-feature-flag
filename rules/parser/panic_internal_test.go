@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	xY = "x.y"
+	dottedName = "x.y"
 )
 
 var (
@@ -46,10 +46,10 @@ func TestNestedError(t *testing.T) {
 		},
 		{
 			name:     "vals",
-			err:      newNestedError(base, "m").Set(ErrVals{attrPath2: xY, ruleOperand: []int{1, 2}}),
+			err:      newNestedError(base, "m").Set(ErrVals{attrPath2: dottedName, ruleOperand: []int{1, 2}}),
 			original: base,
 			want:     `{"attr_path":"x.y","err":"some random error","msg":"m","rule_operand":[1,2]}`,
-			wantVals: ErrVals{attrPath2: xY, ruleOperand: []int{1, 2}},
+			wantVals: ErrVals{attrPath2: dottedName, ruleOperand: []int{1, 2}},
 		},
 		{
 			name:     "vals named err and msg are overridden",

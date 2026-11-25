@@ -344,12 +344,11 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(numGoroutines * 2) // readers and writers
 
 	// Start writer goroutines
 	for i := range numGoroutines {
-		go func(id int) {
-			defer wg.Done()
+		wg.Go(func() {
+			id := i
 
 			for j := range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
@@ -357,13 +356,13 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 				err := cfg.SetFlagSetAPIKeys(flagsetName, newKeys)
 				assert.NoError(t, err) // not require: this runs outside the test goroutine
 			}
-		}(i)
+		})
 	}
 
 	// Start reader goroutines
 	for i := range numGoroutines {
-		go func(id int) {
-			defer wg.Done()
+		wg.Go(func() {
+			id := i
 
 			for range numIterations {
 				flagsetName := fmt.Sprintf(flagsetNameFmt, (id%3)+1)
@@ -373,7 +372,7 @@ func TestFlagSetAPIKeysConcurrency(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, keys)
 			}
-		}(i)
+		})
 	}
 
 	// Wait for all goroutines to complete

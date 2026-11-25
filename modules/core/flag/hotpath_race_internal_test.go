@@ -155,7 +155,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 
 			runParallel(200, func(_ int) {
 				v, _ := targetFlag.Value(flag2, ctx, Context{EvaluationContextEnrichment: tt.enrichment, Service: svc})
-				assert.Equal(t, tt.wantMatch, v == true)
+				assert.Equal(t, tt.wantMatch, v)
 			})
 			assert.Equal(t, before, ctx.custom, "the evaluation context must not be modified")
 		})
@@ -169,13 +169,13 @@ type customContext struct {
 }
 
 func (c *customContext) GetKey() string            { return c.key }
-func (c *customContext) IsAnonymous() bool         { return false }
+func (*customContext) IsAnonymous() bool           { return false }
 func (c *customContext) GetCustom() map[string]any { return c.custom }
 func (c *customContext) AddCustomAttribute(n string, v any) {
 	if c.custom != nil {
 		c.custom[n] = v
 	}
 }
-func (c *customContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecifics {
+func (*customContext) ExtractGOFFProtectedFields() ffcontext.GoffContextSpecifics {
 	return ffcontext.GoffContextSpecifics{}
 }

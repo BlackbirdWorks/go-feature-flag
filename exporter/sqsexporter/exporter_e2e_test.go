@@ -3,10 +3,11 @@
 package sqsexporter_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func TestE2E_Export(t *testing.T) {
 
 			got := receiveAll(t, client, queueURL, tt.nbEvents)
 			require.Len(t, got, tt.wantReceived)
-			sort.Slice(got, func(i, j int) bool { return got[i].event.UserKey < got[j].event.UserKey })
+			slices.SortFunc(got, func(a, b received) int { return cmp.Compare(a.event.UserKey, b.event.UserKey) })
 
 			for i, g := range got {
 				assert.Equal(t, fmt.Sprintf("user-%04d", i), g.event.UserKey)

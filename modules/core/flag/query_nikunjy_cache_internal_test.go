@@ -78,12 +78,9 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 	goroutines := 4 * runtime.GOMAXPROCS(0)
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	for goroutineIdx := range goroutines {
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			for i := range 200 {
 				shared, getErr := evalCache.get(query)
 				if !assert.NoError(t, getErr) {
@@ -103,7 +100,7 @@ func TestNikunjyEvaluatorCache_ConcurrentEvaluationsShareOneEvaluator(t *testing
 				assert.NoError(t, getErr)
 				assert.Equal(t, wantMatch, ok, "goroutine %d iteration %d", goroutineIdx, i)
 			}
-		}()
+		})
 	}
 
 	wg.Wait()

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -954,7 +953,7 @@ func checkMetricSeries(t *testing.T, baseURL string) {
 	}
 
 	require.NoError(t, scanner.Err())
-	sort.Strings(lines)
+	slices.Sort(lines)
 
 	got := strings.Join(lines, "\n") + "\n"
 

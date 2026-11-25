@@ -9,27 +9,27 @@ import (
 )
 
 const (
-	abc                = "abc"
-	bbc                = "bbc"
-	cde                = "cde"
-	versionOneZeroZero = "1.0.0"
-	versionOneOneZero  = "1.1.0"
-	versionTwoZeroZero = "2.0.0"
-	s2                 = "(%s)"
-	x1                 = `x != 1`
-	xEQ10              = `x EQ 1.0.0`
-	xEq1               = `x eq 1`
-	xEq10              = `x eq 1.0`
-	xEqNull            = `x eq null`
-	xGE11              = `x GE 1.1.0`
-	xGT11              = `x GT 1.1.0`
-	xGe1               = `x ge 1`
-	xGeCde             = `x ge "cde"`
-	xLE11              = `x LE 1.1.0`
-	xLT11              = `x LT 1.1.0`
-	xLe1               = `x le 1`
-	xLe11              = `x le 1.1`
-	xNE10              = `x NE 1.0.0`
+	abc                 = "abc"
+	bbc                 = "bbc"
+	cde                 = "cde"
+	versionOneZeroZero  = "1.0.0"
+	versionOneOneZero   = "1.1.0"
+	versionTwoZeroZero  = "2.0.0"
+	parenthesizedFormat = "(%s)"
+	notEqualExpr        = `x != 1`
+	xEQ10               = `x EQ 1.0.0`
+	xEq1                = `x eq 1`
+	xEq10               = `x eq 1.0`
+	xEqNull             = `x eq null`
+	xGE11               = `x GE 1.1.0`
+	xGT11               = `x GT 1.1.0`
+	xGe1                = `x ge 1`
+	xGeCde              = `x ge "cde"`
+	xLE11               = `x LE 1.1.0`
+	xLT11               = `x LT 1.1.0`
+	xLe1                = `x le 1`
+	xLe11               = `x le 1.1`
+	xNE10               = `x NE 1.0.0`
 )
 
 type testCase struct {
@@ -87,7 +87,7 @@ func runVersionTests(t *testing.T, tests []testCase) {
 			require.NoError(t, err)
 			assert.Equal(t, tt.result, result, "rule :%s, input :%v", tt.rule, tt.input)
 			assert.False(t, Evaluate(tt.rule, obj{"x": 4.5}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -512,7 +512,7 @@ func TestListOfStrings(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -572,7 +572,7 @@ func TestListOfDoubles(t *testing.T) {
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": abc}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -632,7 +632,7 @@ func TestListOfInts(t *testing.T) {
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": "123"}), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -678,7 +678,7 @@ func TestPresent(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -732,7 +732,7 @@ func TestNull(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -821,7 +821,7 @@ func TestBool(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input))
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -921,7 +921,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: x1,
+			rule: notEqualExpr,
 			input: obj{
 				"x": 1,
 			},
@@ -937,7 +937,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: x1,
+			rule: notEqualExpr,
 			input: obj{
 				"x": "1",
 			},
@@ -1129,7 +1129,7 @@ func TestInt(t *testing.T) {
 			hasError: false,
 		},
 		{
-			rule: x1,
+			rule: notEqualExpr,
 			input: obj{
 				"x": 2,
 			},
@@ -1159,7 +1159,7 @@ func TestInt(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
 }
@@ -1295,7 +1295,7 @@ func TestFloat(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": "2.4"}), tt.rule)
 		})
 	}
@@ -1502,7 +1502,7 @@ func TestString(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(s2, tt.rule), tt.input), tt.rule)
+			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 			assert.False(t, Evaluate(tt.rule, obj{"x": 3}), tt.rule)
 		})
 	}

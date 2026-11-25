@@ -19,7 +19,7 @@ type outageExporter struct {
 	events    atomic.Int64
 }
 
-func (e *outageExporter) IsBulk() bool { return true }
+func (*outageExporter) IsBulk() bool { return true }
 func (e *outageExporter) Export(_ context.Context, _ *fflog.FFLogger, ev []exporter.ExportableEvent) error {
 	if !e.recovered.Load() {
 		return assert.AnError

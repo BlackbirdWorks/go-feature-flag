@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	aBIn       = "a.b in "
-	stringType = "string"
-	nIn        = "n in "
-	notSIn     = "not (s in "
-	sIn        = "s in "
-	uD         = "u%d"
-	xIn        = "x in "
+	aBIn          = "a.b in "
+	stringType    = "string"
+	nIn           = "n in "
+	notSIn        = "not (s in "
+	sIn           = "s in "
+	userKeyFormat = "u%d"
+	xIn           = "x in "
 )
 
 func countSets(curr *node) int {
@@ -40,7 +40,7 @@ func countSets(curr *node) int {
 func seqStrs(n int) string {
 	parts := make([]string, n)
 	for i := range parts {
-		parts[i] = fmt.Sprintf("%q", fmt.Sprintf(uD, i))
+		parts[i] = fmt.Sprintf("%q", fmt.Sprintf(userKeyFormat, i))
 	}
 
 	return "[" + strings.Join(parts, ", ") + "]"
@@ -79,7 +79,7 @@ func randStrList(r *rand.Rand, count int) string {
 
 	parts := make([]string, count)
 	for i := range parts {
-		s := fmt.Sprintf(uD, r.Intn(count*2+1))
+		s := fmt.Sprintf(userKeyFormat, r.Intn(count*2+1))
 		if r.Intn(3) == 0 {
 			s = pool[r.Intn(len(pool))]
 		}
@@ -252,10 +252,10 @@ func TestInSetThreshold(t *testing.T) {
 					rule, first, last, miss = xIn+seqStrs(
 						tt.n,
 					), "u0", fmt.Sprintf(
-						uD,
+						userKeyFormat,
 						tt.n-1,
 					), fmt.Sprintf(
-						uD,
+						userKeyFormat,
 						tt.n,
 					)
 				} else {
@@ -440,7 +440,7 @@ func TestInSetConcurrent(t *testing.T) {
 		{
 			name: stringType,
 			rule: sIn + seqStrs(300),
-			val:  func(i int) any { return fmt.Sprintf(uD, i%600) },
+			val:  func(i int) any { return fmt.Sprintf(userKeyFormat, i%600) },
 			want: func(i int) bool { return i%600 < 300 },
 		},
 		{
@@ -452,7 +452,7 @@ func TestInSetConcurrent(t *testing.T) {
 		{
 			name: "string not in",
 			rule: notSIn + seqStrs(300) + ")",
-			val:  func(i int) any { return fmt.Sprintf(uD, i%600) },
+			val:  func(i int) any { return fmt.Sprintf(userKeyFormat, i%600) },
 			want: func(i int) bool { return i%600 >= 300 },
 		},
 	}

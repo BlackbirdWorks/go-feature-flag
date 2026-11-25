@@ -255,17 +255,16 @@ func TestNikunjyPool_ConcurrentEvaluations(t *testing.T) {
 	const goroutines = 50
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	results := make([]string, goroutines)
 	errs := make([]error, goroutines)
 
 	for i := range goroutines {
-		go func(idx int) {
-			defer wg.Done()
+		wg.Go(func() {
+			idx := i
 
 			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), "concurrent-user", ctx, "test-concurrent", false)
-		}(i)
+		})
 	}
 
 	wg.Wait()
@@ -297,7 +296,7 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 			rule: flag.Rule{
 				Name:            new(fmt.Sprintf("pool-diffquery-%d", i)),
 				VariationResult: new(fmt.Sprintf("var-%d", i)),
-				Query:           new(fmt.Sprintf(`%s eq "val"`, attr)),
+				Query:           new(attr + ` eq "val"`),
 			},
 			ctx: ffcontext.NewEvaluationContextBuilder(fmt.Sprintf("user-%d", i)).
 				AddCustom(attr, "val").
@@ -309,7 +308,6 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 	var wg sync.WaitGroup
 
 	total := numQueries * goroutinesPerQuery
-	wg.Add(total)
 
 	type result struct {
 		err       error
@@ -323,12 +321,10 @@ func TestNikunjyPool_ConcurrentDifferentQueries(t *testing.T) {
 			idx := i*goroutinesPerQuery + j
 			qc := cases[i]
 
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				v, err := qc.rule.Evaluate(flag.NewService(), qc.key, qc.ctx, "test-diffquery", false)
 				results[idx] = result{variation: v, err: err}
-			}()
+			})
 		}
 	}
 
@@ -357,17 +353,16 @@ func TestNikunjyPool_ConcurrentInvalidQueries(t *testing.T) {
 	const goroutines = 30
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 
 	errs := make([]error, goroutines)
 	results := make([]string, goroutines)
 
 	for i := range goroutines {
-		go func(idx int) {
-			defer wg.Done()
+		wg.Go(func() {
+			idx := i
 
 			results[idx], errs[idx] = rule.Evaluate(flag.NewService(), user1, ctx, "test-concurrent-invalid", false)
-		}(i)
+		})
 	}
 
 	wg.Wait()

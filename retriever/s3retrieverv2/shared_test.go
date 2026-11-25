@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -136,7 +135,7 @@ func (b *fakeBucket) ListObjectsV2(
 		}
 	}
 
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	out := &s3.ListObjectsV2Output{}
 

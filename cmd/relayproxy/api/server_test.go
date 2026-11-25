@@ -1413,8 +1413,8 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 
 	// Check each histogram has both classic buckets and native histogram fields
 	for _, family := range histogramFamilies {
-		for _, metric := range family.GetMetric() {
-			hist := metric.GetHistogram()
+		for _, metricEntry := range family.GetMetric() {
+			hist := metricEntry.GetHistogram()
 			if hist == nil {
 				continue
 			}
@@ -1476,7 +1476,8 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 
 	// Wait for the server to be ready.
 	require.Eventually(t, func() bool {
-		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health", port), http.NoBody)
+		req22, getErr := http.NewRequestWithContext(t.Context(), http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/health",
+			port), http.NoBody)
 		require.NoError(t, getErr)
 		resp, getErr := http.DefaultClient.Do(req22)
 		if getErr != nil {

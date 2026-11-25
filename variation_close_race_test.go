@@ -45,7 +45,7 @@ type finalFlushHookExporter struct {
 	once         sync.Once
 }
 
-func (e *finalFlushHookExporter) IsBulk() bool { return true }
+func (*finalFlushHookExporter) IsBulk() bool { return true }
 func (e *finalFlushHookExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter.ExportableEvent) error {
 	e.once.Do(e.onFinalFlush)
 

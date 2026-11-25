@@ -260,7 +260,8 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 				default:
 				}
 
-				req, requestErr := http.NewRequestWithContext(t.Context(), http.MethodPost, baseURL+"/ofrep/v1/evaluate/flags/flag-a",
+				req, requestErr := http.NewRequestWithContext(t.Context(), http.MethodPost,
+					baseURL+"/ofrep/v1/evaluate/flags/flag-a",
 					strings.NewReader(contextTargetingKeyUser1))
 				if requestErr != nil {
 					unexpected.Add(1)

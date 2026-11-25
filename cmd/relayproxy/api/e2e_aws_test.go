@@ -11,9 +11,10 @@ package api_test
 // this is an accepted exception. Their subtests do not touch the environment and run in parallel.
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,11 +31,11 @@ import (
 )
 
 const (
-	aA               = "A-A"
+	upperAName       = "A-A"
 	aOff             = "A-off"
 	aOn              = "A-on"
 	aOnV2            = "A-on-v2"
-	bB               = "B-B"
+	upperBName       = "B-B"
 	bOff             = "B-off"
 	bOn              = "B-on"
 	bOnly            = "B-only"
@@ -256,7 +257,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyA,
 			body:        ofrepCtx("u1"),
 			wantStatus:  200,
-			wantValue:   aA,
+			wantValue:   upperAName,
 			wantVariant: "a",
 			wantReason:  sTATIC,
 		},
@@ -266,7 +267,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyA,
 			body:        ofrepCtx(user1),
 			wantStatus:  200,
-			wantValue:   aA,
+			wantValue:   upperAName,
 			wantVariant: "a",
 			wantReason:  sPLIT,
 		},
@@ -365,7 +366,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyB2,
 			body:        goffCtx(user0),
 			wantStatus:  200,
-			wantValue:   bB,
+			wantValue:   upperBName,
 			wantVariant: "b",
 			wantReason:  sPLIT,
 		},
@@ -375,7 +376,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			apiKey:      keyA,
 			body:        goffCtx("u1"),
 			wantStatus:  200,
-			wantValue:   aA,
+			wantValue:   upperAName,
 			wantVariant: "a",
 			wantReason:  sTATIC,
 		},
@@ -447,8 +448,8 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    aOn,
-				pctFlag:     aA,
-				splitFlag:   aA,
+				pctFlag:     upperAName,
+				splitFlag:   upperAName,
 				staticFlag:  false,
 				"only-in-A": "A-only",
 			},
@@ -462,7 +463,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			wantFlags: map[string]any{
 				ruleFlag:    bOff,
 				pctFlag:     "B-A",
-				splitFlag:   bB,
+				splitFlag:   upperBName,
 				staticFlag:  false,
 				"only-in-B": bOnly,
 			},
@@ -482,8 +483,8 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    aOn,
-				pctFlag:     aA,
-				splitFlag:   aA,
+				pctFlag:     upperAName,
+				splitFlag:   upperAName,
 				staticFlag:  false,
 				"only-in-A": "A-only",
 			},
@@ -497,7 +498,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			wantFlags: map[string]any{
 				ruleFlag:    bOff,
 				pctFlag:     "B-A",
-				splitFlag:   bB,
+				splitFlag:   upperBName,
 				staticFlag:  false,
 				"only-in-B": bOnly,
 			},
@@ -936,7 +937,7 @@ func receiveSQS(t *testing.T, sqsClient *sqs.Client, queueURL string, acc map[st
 		res = append(res, e)
 	}
 
-	sort.Slice(res, func(i, j int) bool { return res[i].UserKey < res[j].UserKey })
+	slices.SortFunc(res, func(a, b sinkEvent) int { return cmp.Compare(a.UserKey, b.UserKey) })
 
 	return res
 }

@@ -41,7 +41,7 @@ func (s *slowExporter) Export(_ context.Context, _ *fflog.FFLogger, _ []exporter
 	return nil
 }
 
-func (s *slowExporter) IsBulk() bool {
+func (*slowExporter) IsBulk() bool {
 	return true
 }
 
@@ -203,20 +203,15 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		exp.Flush()
-	}()
+	})
 
 	time.Sleep(10 * time.Millisecond)
 
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		exp.Flush()
-	}()
+	})
 
 	wg.Wait()
 

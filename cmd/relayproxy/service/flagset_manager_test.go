@@ -39,8 +39,8 @@ const (
 	flagsetB2                           = "flagset-b"
 	flagsetC                            = "flagset-c"
 	flagsetMode                         = "flagset mode"
-	kA                                  = "k-a"
-	kB                                  = "k-b"
+	flagsetKeyA                         = "k-a"
+	flagsetKeyB                         = "k-b"
 	kMove                               = "k-move"
 	keepKey                             = "keep-key"
 	key1                                = "key-1"
@@ -1990,12 +1990,12 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 				{
 					Name:      "fs-a",
 					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
-					APIKeys:   []string{kA},
+					APIKeys:   []string{flagsetKeyA},
 				},
 				{
 					Name:      "fs-b",
 					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
-					APIKeys:   []string{kB, kMove},
+					APIKeys:   []string{flagsetKeyB, kMove},
 				},
 			},
 		}
@@ -2006,14 +2006,14 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 				{
 					Name:      "fs-a",
 					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: flagConfig},
-					APIKeys:   []string{kA, kMove}, // gains k-move (accepted)
+					APIKeys:   []string{flagsetKeyA, kMove}, // gains k-move (accepted)
 				},
 				{
 					Name: "fs-b",
 					// Forbidden retriever change -> the whole fs-b change is rejected, so it
 					// keeps its old keys [k-b, k-move].
 					Retriever: &retrieverconf.RetrieverConf{Kind: file2, Path: otherFlagConfig},
-					APIKeys:   []string{kB},
+					APIKeys:   []string{flagsetKeyB},
 				},
 			},
 		}
@@ -2021,9 +2021,9 @@ func TestFlagsetManager_OnConfigChange_FlagsetEdgeCases(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Non-colliding keys still route deterministically.
-		_, err := manager.FlagSet(kA)
+		_, err := manager.FlagSet(flagsetKeyA)
 		require.NoError(t, err)
-		_, err = manager.FlagSet(kB)
+		_, err = manager.FlagSet(flagsetKeyB)
 		require.NoError(t, err)
 		// The colliding key is failed closed: it routes to no flagset.
 		_, err = manager.FlagSet(kMove)

@@ -30,7 +30,7 @@ func newGatedSink() *gatedSink {
 		entered: make(chan struct{}),
 	}
 }
-func (g *gatedSink) Enabled(context.Context, slog.Level) bool { return true }
+func (*gatedSink) Enabled(context.Context, slog.Level) bool { return true }
 func (g *gatedSink) Handle(ctx context.Context, r slog.Record) error {
 	if strings.Contains(r.Message, "dropped") {
 		g.once.Do(func() { close(g.entered) })

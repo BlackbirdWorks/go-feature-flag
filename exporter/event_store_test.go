@@ -391,7 +391,8 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	<-processingDone
 
 	// the exporter got the 10 events that were pending when it started, the one added meanwhile still is
-	assert.Equal(t, []string{initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent},
+	assert.Equal(t, []string{initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent, initEvent,
+		initEvent, initEvent},
 		processedBatch)
 
 	pending, err := eventStore.GetPendingEventCount(consumerName)
@@ -424,10 +425,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 		batchSizes []int
 	)
 
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
 			func(_ context.Context, events []testutils.ExportableMockEvent) error {
 				batchesMu.Lock()
@@ -446,11 +444,11 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 				return nil
 			},
 		))
-	}()
+	})
 
 	<-processingStarted
 
-	go func() {
+	wg.Go(func() {
 		close(secondCallStarted)
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName,
 			func(_ context.Context, events []testutils.ExportableMockEvent) error {
@@ -470,8 +468,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 				return nil
 			},
 		))
-		wg.Done()
-	}()
+	})
 
 	<-secondCallStarted
 	time.Sleep(20 * time.Millisecond)
@@ -544,20 +541,15 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 		return nil
 	}
 
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName, processFunc))
-	}()
+	})
 
 	<-started
 
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		assert.NoError(t, eventStore.ProcessPendingEvents(consumerName, processFunc))
-	}()
+	})
 
 	close(release)
 	wg.Wait()

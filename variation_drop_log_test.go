@@ -25,7 +25,7 @@ type dropGatedSink struct {
 	once    sync.Once
 }
 
-func (g *dropGatedSink) Enabled(context.Context, slog.Level) bool { return true }
+func (*dropGatedSink) Enabled(context.Context, slog.Level) bool { return true }
 func (g *dropGatedSink) Handle(ctx context.Context, r slog.Record) error {
 	if strings.Contains(r.Message, "dropped") {
 		g.once.Do(func() { close(g.entered) })

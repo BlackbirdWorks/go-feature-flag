@@ -52,16 +52,16 @@ func (m *mockFlagsetManagerSSE) FlagSetName(_ string) (string, error) {
 
 func (m *mockFlagsetManagerSSE) IsDefaultFlagSet() bool { return m.isDefault }
 
-func (m *mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
+func (*mockFlagsetManagerSSE) FlagSet(_ string) (*ffclient.GoFeatureFlag, error) {
 	return nil, assert.AnError
 }
 
-func (m *mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
+func (*mockFlagsetManagerSSE) AllFlagSets() (map[string]*ffclient.GoFeatureFlag, error) {
 	return nil, assert.AnError
 }
-func (m *mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
-func (m *mockFlagsetManagerSSE) Close()                           {}
-func (m *mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
+func (*mockFlagsetManagerSSE) Default() *ffclient.GoFeatureFlag { return nil }
+func (*mockFlagsetManagerSSE) Close()                           {}
+func (*mockFlagsetManagerSSE) OnConfigChange(_ *config.Config)  {}
 
 func Test_SSE_FlagChange(t *testing.T) {
 	t.Parallel()

@@ -327,7 +327,7 @@ func (k *MockKinesisSender) SendMessages(
 
 type MockKinesisSenderWithError struct{}
 
-func (k *MockKinesisSenderWithError) SendMessages(
+func (*MockKinesisSenderWithError) SendMessages(
 	_ context.Context,
 	_ *kinesis.PutRecordsInput,
 ) (*kinesis.PutRecordsOutput, error) {

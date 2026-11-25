@@ -245,7 +245,7 @@ func Test_Manager_FailingExporterIsBounded(t *testing.T) {
 
 type failingExporter struct{ calls atomic.Int32 }
 
-func (f *failingExporter) IsBulk() bool { return true }
+func (*failingExporter) IsBulk() bool { return true }
 func (f *failingExporter) Export(context.Context, *fflog.FFLogger, []exporter.ExportableEvent) error {
 	f.calls.Add(1)
 

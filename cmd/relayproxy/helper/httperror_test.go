@@ -112,7 +112,8 @@ func TestHandle(t *testing.T) {
 			t.Parallel()
 
 			rec := httptest.NewRecorder()
-			helper.Handle(tt.handler, false).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil))
+			helper.Handle(tt.handler, false).ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/",
+				nil))
 			assert.Equal(t, tt.wantStatus, rec.Code)
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 		})
