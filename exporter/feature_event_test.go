@@ -10,6 +10,21 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/testutils/clocktest"
 )
 
+const (
+	aBCD                                = "ABCD"
+	anonymousUser                       = "anonymousUser"
+	feature                             = "feature"
+	fixtureBool                         = "bool"
+	fixtureDefault                      = "Default"
+	fixtureInt                          = "int"
+	fixtureString                       = "string"
+	float2                              = "float"
+	kindFeatureContextKindAnonymousUser = `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra`
+	ndomKeyVariationDefault             = `ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals`
+	randomKey                           = "random-key"
+	returnExistingKey                   = "return existing key"
+)
+
 func TestNewFeatureEvent(t *testing.T) {
 	t.Parallel()
 
@@ -32,26 +47,26 @@ func TestNewFeatureEvent(t *testing.T) {
 		{
 			name: "anonymous user",
 			args: args{
-				user: ffcontext.NewEvaluationContextBuilder("ABCD").
-					AddCustom("anonymous", true).
+				user: ffcontext.NewEvaluationContextBuilder(aBCD).
+					AddCustom(anonymous, true).
 					Build(),
-				flagKey:   "random-key",
+				flagKey:   randomKey,
 				value:     "YO",
-				variation: "Default",
+				variation: fixtureDefault,
 				failed:    false,
 				version:   "",
-				source:    "SERVER",
+				source:    sERVER,
 			},
 			want: exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: clocktest.Instant().Unix(),
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       "SERVER",
+				Source:       sERVER,
 			},
 		},
 	}
@@ -107,27 +122,27 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "happy path",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default: false,
 			},
 			want: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
 				Default:      false,
 			},
@@ -135,12 +150,12 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "marshal failed",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value:        make(chan int),
 				Default:      false,
 			},
@@ -149,12 +164,12 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "nil value",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value:        nil,
 				Default:      false,
 			},
@@ -197,62 +212,62 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should not return a metadata field if metadata is empty",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default:  false,
 				Metadata: map[string]any{},
 			},
-			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
-				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+			want: kindFeatureContextKindAnonymousUser +
+				ndomKeyVariationDefault +
 				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
 			name: "Should not return a metadata field if metadata is nil",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default: false,
 			},
-			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
-				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+			want: kindFeatureContextKindAnonymousUser +
+				ndomKeyVariationDefault +
 				`e,"version":"","source":""}`,
 			wantErr: assert.NoError,
 		},
 		{
 			name: "Should return a metadata field if metadata is not empty",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default: false,
 				Metadata: map[string]any{
@@ -261,8 +276,8 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 					"metadata3": true,
 				},
 			},
-			want: `{"kind":"feature","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"ra` +
-				`ndom-key","variation":"Default","value":{"bool":true,"float":1.23,"int":1,"string":"string"},"default":fals` +
+			want: kindFeatureContextKindAnonymousUser +
+				ndomKeyVariationDefault +
 				`e,"version":"","source":"","metadata":{"metadata1":"metadata1","metadata2":24,"metadata3":true}}`,
 			wantErr: assert.NoError,
 		},
@@ -290,33 +305,33 @@ func TestFeatureEvent_GetKey(t *testing.T) {
 		want         string
 	}{
 		{
-			name: "return existing key",
+			name: returnExistingKey,
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default: false,
 			},
-			want: "random-key",
+			want: randomKey,
 		},
 		{
 			name: "empty key",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
 				Key:          "",
-				Variation:    "Default",
+				Variation:    fixtureDefault,
 				Value:        nil,
 				Default:      false,
 			},
@@ -341,23 +356,23 @@ func TestFeatureEvent_GetUserKey(t *testing.T) {
 		want         string
 	}{
 		{
-			name: "return existing key",
+			name: returnExistingKey,
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value: map[string]any{
-					"string": "string",
-					"bool":   true,
-					"float":  1.23,
-					"int":    1,
+					fixtureString: fixtureString,
+					fixtureBool:   true,
+					float2:        1.23,
+					fixtureInt:    1,
 				},
 				Default: false,
 			},
-			want: "ABCD",
+			want: aBCD,
 		},
 	}
 	for _, tt := range tests {

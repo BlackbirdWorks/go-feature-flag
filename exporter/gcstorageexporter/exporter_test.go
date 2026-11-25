@@ -18,6 +18,17 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD           = "ABCD"
+	anonymousUser  = "anonymousUser"
+	csv            = "csv"
+	feature        = "feature"
+	fixtureDefault = "Default"
+	flagVariation  = "^flag-variation-"
+	randomKey      = "random-key"
+	test           = "test"
+)
+
 func TestGoogleStorage_Export(t *testing.T) {
 	t.Parallel()
 
@@ -41,36 +52,36 @@ func TestGoogleStorage_Export(t *testing.T) {
 		{
 			name: "All default test",
 			fields: fields{
-				Bucket: "test",
+				Bucket: test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
-			expectedName: "^flag-variation-" + hostname + "-[0-9]*\\.json$",
+			expectedName: flagVariation + hostname + "-[0-9]*\\.json$",
 		},
 		{
 			name: "With S3 Path",
 			fields: fields{
 				Path:   "random/path",
-				Bucket: "test",
+				Bucket: test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -80,59 +91,59 @@ func TestGoogleStorage_Export(t *testing.T) {
 		{
 			name: "All default CSV",
 			fields: fields{
-				Format: "csv",
-				Bucket: "test",
+				Format: csv,
+				Bucket: test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
-			expectedName: "^flag-variation-" + hostname + "-[0-9]*\\.csv$",
+			expectedName: flagVariation + hostname + "-[0-9]*\\.csv$",
 		},
 		{
 			name: "Custom CSV",
 			fields: fields{
-				Format:      "csv",
+				Format:      csv,
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
-				Bucket:      "test",
+				Bucket:      test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
-			expectedName: "^flag-variation-" + hostname + "-[0-9]*\\.csv$",
+			expectedName: flagVariation + hostname + "-[0-9]*\\.csv$",
 		},
 		{
 			name: "Custom FileName",
 			fields: fields{
 				Format:   "json",
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
-				Bucket:   "test",
+				Bucket:   test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -143,21 +154,21 @@ func TestGoogleStorage_Export(t *testing.T) {
 			name: "Invalid format",
 			fields: fields{
 				Format: "xxx",
-				Bucket: "test",
+				Bucket: test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
-			expectedName: "^flag-variation-" + hostname + "-[0-9]*\\.xxx$",
+			expectedName: flagVariation + hostname + "-[0-9]*\\.xxx$",
 		},
 		{
 			name: "Empty Bucket",
@@ -166,12 +177,12 @@ func TestGoogleStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -182,16 +193,16 @@ func TestGoogleStorage_Export(t *testing.T) {
 			name: "Invalid filename template",
 			fields: fields{
 				Filename: "{{ .InvalidField}}",
-				Bucket:   "test",
+				Bucket:   test,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -201,17 +212,17 @@ func TestGoogleStorage_Export(t *testing.T) {
 		{
 			name: "Invalid csv formatter",
 			fields: fields{
-				Format:      "csv",
+				Format:      csv,
 				CsvTemplate: "{{ .Foo}}",
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -306,7 +317,7 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 	}
 
 	gcsExp := gcstorageexporter.Exporter{
-		Bucket: "test",
+		Bucket: test,
 		Options: []option.ClientOption{
 			option.WithEndpoint(serv.URL),
 			option.WithoutAuthentication(),
@@ -319,12 +330,12 @@ func TestGoogleStorage_Export_UploadError(t *testing.T) {
 		&fflog.FFLogger{LeveledLogger: slog.Default()},
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
-				Kind:         "feature",
-				ContextKind:  "anonymousUser",
-				UserKey:      "ABCD",
+				Kind:         feature,
+				ContextKind:  anonymousUser,
+				UserKey:      aBCD,
 				CreationDate: 1617970547,
-				Key:          "random-key",
-				Variation:    "Default",
+				Key:          randomKey,
+				Variation:    fixtureDefault,
 				Value:        "YO",
 				Default:      false,
 			},

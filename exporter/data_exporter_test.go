@@ -20,6 +20,11 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	deprecatedExporter = "deprecated exporter"
+	slowConsumer       = "slow-consumer"
+)
+
 var (
 	errError = errors.New("error")
 )
@@ -46,7 +51,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
 	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
-			Kind: "feature",
+			Kind: feature,
 		})
 	}
 
@@ -80,7 +85,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 		expectedLog string
 	}{
 		{
-			name:        "deprecated exporter",
+			name:        deprecatedExporter,
 			exporter:    &mock.ExporterDeprecated{},
 			expectedLog: "trying to send unknown object to the exporter (deprecated)\n",
 		},
@@ -92,7 +97,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			evStore := mock.NewEventStore[testutils.ExportableMockEvent]()
 			for range 100 {
-				evStore.Add(testutils.NewExportableMockEvent("feature"))
+				evStore.Add(testutils.NewExportableMockEvent(feature))
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -137,7 +142,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 			expectedLog: "error while exporting data: error\n",
 		},
 		{
-			name:     "deprecated exporter",
+			name:     deprecatedExporter,
 			exporter: &mock.ExporterDeprecated{Err: errError, ExpectedNumberErr: 1},
 			expectedLog: "You are using an exporter with the old logger.Please update your custom exporter to comply to th" +
 				"e new Exporter interface.\nerror while exporting data (deprecated): error\n",
@@ -150,7 +155,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
 			for range 100 {
-				evStore.Add(exporter.FeatureEvent{Kind: "feature"})
+				evStore.Add(exporter.FeatureEvent{Kind: feature})
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -182,11 +187,11 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 
 	evStore := exporter.NewEventStore[exporter.FeatureEvent](defaultTestCleanQueueDuration)
 
-	evStore.AddConsumer("slow-consumer")
+	evStore.AddConsumer(slowConsumer)
 	defer evStore.Stop()
 
 	for range 100 {
-		evStore.Add(exporter.FeatureEvent{Kind: "feature"})
+		evStore.Add(exporter.FeatureEvent{Kind: feature})
 	}
 
 	slow := &slowExporter{delay: 200 * time.Millisecond}
@@ -194,7 +199,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 		Exporter:         slow,
 		FlushInterval:    10 * time.Second,
 		MaxEventInMemory: 100000,
-	}, "slow-consumer", evStore, nil)
+	}, slowConsumer, evStore, nil)
 
 	var wg sync.WaitGroup
 
@@ -217,7 +222,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 
 	assert.Equal(t, int32(1), slow.exportCall.Load())
 
-	count, err := evStore.GetPendingEventCount("slow-consumer")
+	count, err := evStore.GetPendingEventCount(slowConsumer)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), count)
 }

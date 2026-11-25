@@ -17,6 +17,16 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	feature             = "feature"
+	fixtureDefault      = "default"
+	json2               = "json"
+	testExplicitHashKey = "test-explicit-hash-key"
+	testStream          = "test-stream"
+	testStreamArn       = "test-stream-arn"
+	testStreamName      = "test-stream-name"
+)
+
 var (
 	errFailureToSendMessage = errors.New("failure to send message: datacenter on fire")
 )
@@ -33,9 +43,9 @@ func TestExporter_ExportBasicWithStreamName(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   "json",
+		Format:   json2,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
@@ -69,9 +79,9 @@ func TestExporter_ExportBasicWithStreamArn(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format:   "json",
+		Format:   json2,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamArn("test-stream")),
+		Settings: NewSettings(WithStreamArn(testStream)),
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
@@ -107,7 +117,7 @@ func TestExporter_ShouldRaiseErrorIfNoStreamIsSpecified(t *testing.T) {
 
 	mock := MockKinesisSender{}
 	exp := Exporter{
-		Format: "json",
+		Format: json2,
 		sender: &mock,
 	}
 
@@ -129,10 +139,10 @@ func TestExporter_ExportAWSConfigurationCustomisation(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format: "json",
+		Format: json2,
 		sender: &mock,
 		Settings: NewSettings(
-			WithStreamName("test-stream"),
+			WithStreamName(testStream),
 			WithPartitionKey(func(context.Context, exporter.ExportableEvent) string {
 				return "test-key"
 			}),
@@ -163,9 +173,9 @@ func TestExporter_ExportSenderError(t *testing.T) {
 	mock := MockKinesisSenderWithError{}
 
 	exp := Exporter{
-		Format:   "json",
+		Format:   json2,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
@@ -186,53 +196,53 @@ func TestExporterSettingsCreation(t *testing.T) {
 
 	{
 		settings := NewSettings()
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithStreamArn("test-stream-arn"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		settings := NewSettings(WithStreamArn(testStreamArn))
+		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
-		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
+		assert.Equal(t, testStreamArn, *settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithStreamName("test-stream-name"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
-		assert.Equal(t, "test-stream-name", *settings.StreamName)
+		settings := NewSettings(WithStreamName(testStreamName))
+		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		assert.Equal(t, testStreamName, *settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
 		assert.Nil(t, settings.ExplicitHashKey)
 	}
 	{
-		settings := NewSettings(WithExplicitHashKey("test-explicit-hash-key"))
-		assert.Equal(t, "default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
+		settings := NewSettings(WithExplicitHashKey(testExplicitHashKey))
+		assert.Equal(t, fixtureDefault, settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName)
 		assert.Nil(t, settings.StreamArn)
-		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
+		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
-			WithStreamName("test-stream-name"),
-			WithStreamArn("test-stream-arn"),
-			WithExplicitHashKey("test-explicit-hash-key"),
+			WithStreamName(testStreamName),
+			WithStreamArn(testStreamArn),
+			WithExplicitHashKey(testExplicitHashKey),
 			WithPartitionKey(
 				func(_ context.Context, _ exporter.ExportableEvent) string { return "non-default" },
 			),
 		)
 		assert.Equal(t, "non-default", settings.PartitionKey(context.TODO(), NewFeatureEvent()))
 		assert.Nil(t, settings.StreamName) // overwritten by streamArn
-		assert.Equal(t, "test-stream-arn", *settings.StreamArn)
-		assert.Equal(t, "test-explicit-hash-key", *settings.ExplicitHashKey)
+		assert.Equal(t, testStreamArn, *settings.StreamArn)
+		assert.Equal(t, testExplicitHashKey, *settings.ExplicitHashKey)
 	}
 	{
 		settings := NewSettings(
-			WithStreamArn("test-stream-arn"),
-			WithStreamName("test-stream-name"),
+			WithStreamArn(testStreamArn),
+			WithStreamName(testStreamName),
 		)
 		assert.Nil(t, settings.StreamArn) // overwritten by streamName
-		assert.Equal(t, "test-stream-name", *settings.StreamName)
+		assert.Equal(t, testStreamName, *settings.StreamName)
 	}
 }
 
@@ -240,7 +250,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	t.Parallel()
 
 	event := exporter.FeatureEvent{
-		Kind:         "feature",
+		Kind:         feature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,
@@ -254,9 +264,9 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	mock := MockKinesisSender{}
 
 	exp := Exporter{
-		Format:   "json",
+		Format:   json2,
 		sender:   &mock,
-		Settings: NewSettings(WithStreamName("test-stream")),
+		Settings: NewSettings(WithStreamName(testStream)),
 	}
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
@@ -278,7 +288,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 
 func NewFeatureEvent() exporter.ExportableEvent {
 	return &exporter.FeatureEvent{
-		Kind:         "feature",
+		Kind:         feature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,

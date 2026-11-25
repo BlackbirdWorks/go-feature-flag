@@ -18,6 +18,14 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD           = "ABCD"
+	anonymousUser  = "anonymousUser"
+	feature        = "feature"
+	fixtureDefault = "Default"
+	randomKey      = "random-key"
+)
+
 var (
 	errRandomError = errors.New("random error")
 )
@@ -69,12 +77,12 @@ func TestExporterExport(t *testing.T) {
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -89,22 +97,22 @@ func TestExporterExport(t *testing.T) {
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -119,22 +127,22 @@ func TestExporterExport(t *testing.T) {
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
 					UserKey:      "ABCDEF",
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},

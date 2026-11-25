@@ -16,6 +16,14 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD           = "ABCD"
+	anonymousUser  = "anonymousUser"
+	feature        = "feature"
+	fixtureDefault = "Default"
+	randomKey      = "random-key"
+)
+
 func TestLog_Export(t *testing.T) {
 	t.Parallel()
 
@@ -39,12 +47,12 @@ func TestLog_Export(t *testing.T) {
 			fields: fields{LogFormat: ""},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -58,12 +66,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -77,12 +85,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -96,12 +104,12 @@ func TestLog_Export(t *testing.T) {
 			},
 			args: args{featureEvents: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},

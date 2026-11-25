@@ -20,6 +20,15 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD           = "ABCD"
+	anonymousUser  = "anonymousUser"
+	feature        = "feature"
+	fixture0000    = "0.0.0.0"
+	fixtureDefault = "Default"
+	randomKey      = "random-key"
+)
+
 const containerName = "testcontainer"
 
 func TestAzureBlobStorage_Export(t *testing.T) {
@@ -42,12 +51,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -65,12 +74,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -88,12 +97,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -111,12 +120,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -134,12 +143,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -157,12 +166,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -178,12 +187,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -195,12 +204,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			exporter: azureexporter.Exporter{},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -214,12 +223,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -235,12 +244,12 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
@@ -300,11 +309,11 @@ func setupTest(t *testing.T) (*azurite.Container, *azblob.Client) {
 		testcontainers.WithCmd(
 			"azurite",
 			"--blobHost",
-			"0.0.0.0",
+			fixture0000,
 			"--queueHost",
-			"0.0.0.0",
+			fixture0000,
 			"--tableHost",
-			"0.0.0.0",
+			fixture0000,
 			"--skipApiVersionCheck",
 		),
 	)

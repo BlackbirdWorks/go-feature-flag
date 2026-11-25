@@ -24,16 +24,23 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	enabled       = "enabled"
+	fixture09Json = `-[0-9]+\.json$`
+	myFlag        = "my-flag"
+	userD         = "user-%d"
+)
+
 func events(n int) []exporter.ExportableEvent {
 	res := make([]exporter.ExportableEvent, 0, n)
 	for i := range n {
 		res = append(res, exporter.FeatureEvent{
 			Kind:         "feature",
 			ContextKind:  "user",
-			UserKey:      fmt.Sprintf("user-%d", i),
+			UserKey:      fmt.Sprintf(userD, i),
 			CreationDate: int64(1617970547 + i),
-			Key:          "my-flag",
-			Variation:    "enabled",
+			Key:          myFlag,
+			Variation:    enabled,
 			Value:        fmt.Sprintf("value-%d", i),
 			Default:      false,
 			Source:       "SERVER",
@@ -60,18 +67,18 @@ func TestE2E_Export(t *testing.T) {
 	}{
 		{
 			name: "json default format", format: "", s3Path: "exports/json", nbEvents: 3,
-			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^exports/json/flag-variation-" + regexp.QuoteMeta(hostname) + fixture09Json,
 			check:        checkJSON,
 		},
 		{
 			name: "json explicit with custom filename", format: "JSON", s3Path: "a/b/c", nbEvents: 5,
 			filename:     "custom-{{ .Hostname }}-{{ .Timestamp }}.{{ .Format }}",
-			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^a/b/c/custom-" + regexp.QuoteMeta(hostname) + fixture09Json,
 			check:        checkJSON,
 		},
 		{
 			name: "empty S3Path gives a key starting with a slash", format: "json", s3Path: "", nbEvents: 1,
-			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + `-[0-9]+\.json$`,
+			wantKeyRegex: "^/flag-variation-" + regexp.QuoteMeta(hostname) + fixture09Json,
 			check:        checkJSON,
 		},
 		{
@@ -128,10 +135,10 @@ func TestE2E_Export(t *testing.T) {
 				require.NoError(t, parquetReader.Read(&got))
 
 				for i, e := range got {
-					assert.Equal(t, fmt.Sprintf("user-%d", i), e.UserKey)
-					assert.Equal(t, "my-flag", e.Key)
+					assert.Equal(t, fmt.Sprintf(userD, i), e.UserKey)
+					assert.Equal(t, myFlag, e.Key)
 					assert.Equal(t, fmt.Sprintf(`"value-%d"`, i), e.Value) // parquet stores the JSON encoding
-					assert.Equal(t, "enabled", e.Variation)
+					assert.Equal(t, enabled, e.Variation)
 				}
 			},
 		},
@@ -164,10 +171,10 @@ func checkJSON(t *testing.T, content []byte, n int) {
 	for i, l := range lines {
 		var e exporter.FeatureEvent
 		require.NoError(t, json.Unmarshal([]byte(l), &e))
-		assert.Equal(t, fmt.Sprintf("user-%d", i), e.UserKey)
-		assert.Equal(t, "my-flag", e.Key)
+		assert.Equal(t, fmt.Sprintf(userD, i), e.UserKey)
+		assert.Equal(t, myFlag, e.Key)
 		assert.Equal(t, fmt.Sprintf("value-%d", i), e.Value)
-		assert.Equal(t, "enabled", e.Variation)
+		assert.Equal(t, enabled, e.Variation)
 	}
 }
 

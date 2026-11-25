@@ -15,6 +15,18 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD           = "ABCD"
+	aBCDEF         = "ABCDEF"
+	addr1          = "addr1"
+	addr2          = "addr2"
+	anonymousUser  = "anonymousUser"
+	feature        = "feature"
+	fixtureDefault = "Default"
+	json2          = "json"
+	randomKey      = "random-key"
+)
+
 var (
 	errDialError            = errors.New("dial error")
 	errFailureToSendMessage = errors.New("failure to send message: datacenter on fire")
@@ -53,11 +65,11 @@ func TestExporter_Export(t *testing.T) {
 	}{
 		{
 			name:    "should receive an error if dial failed",
-			format:  "json",
+			format:  json2,
 			wantErr: true,
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{addr1, addr2},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return nil, errDialError
@@ -65,43 +77,43 @@ func TestExporter_Export(t *testing.T) {
 		},
 		{
 			name:    "should use default dialer when none provided",
-			format:  "json",
+			format:  json2,
 			wantErr: true, // The default dialer should error
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{addr1, addr2},
 			},
 			dialer: nil,
 		},
 		{
 			name:    "should receive an event with a valid feature event",
-			format:  "json",
+			format:  json2,
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{addr1, addr2},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return &messageSenderMock{}, nil
@@ -113,29 +125,29 @@ func TestExporter_Export(t *testing.T) {
 			wantErr: false,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{addr1, addr2},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {
 				return &messageSenderMock{}, nil
@@ -143,33 +155,33 @@ func TestExporter_Export(t *testing.T) {
 		},
 		{
 			name:    "should return an error if the publisher is returning an error",
-			format:  "json",
+			format:  json2,
 			wantErr: true,
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCD",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCD,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 				exporter.FeatureEvent{
-					Kind:         "feature",
-					ContextKind:  "anonymousUser",
-					UserKey:      "ABCDEF",
+					Kind:         feature,
+					ContextKind:  anonymousUser,
+					UserKey:      aBCDEF,
 					CreationDate: 1617970547,
-					Key:          "random-key",
-					Variation:    "Default",
+					Key:          randomKey,
+					Variation:    fixtureDefault,
 					Value:        "YO",
 					Default:      false,
 				},
 			},
 			settings: Settings{
 				Topic:     mockTopic,
-				Addresses: []string{"addr1", "addr2"},
+				Addresses: []string{addr1, addr2},
 				Config:    &sarama.Config{},
 			},
 			dialer: func(_ []string, _ *sarama.Config) (MessageSender, error) {

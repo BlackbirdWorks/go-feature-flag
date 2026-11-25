@@ -15,6 +15,12 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	feature = "feature"
+	sERVER  = "SERVER"
+	user    = "user"
+)
+
 // MockUnsupportedEvent is used to test the '!ok' type assertion branch.
 type MockUnsupportedEvent struct{}
 
@@ -47,8 +53,8 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 
 	events := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind:         "feature",
-			ContextKind:  "user",
+			Kind:         feature,
+			ContextKind:  user,
 			UserKey:      "user-1",
 			CreationDate: 1617970547,
 			Key:          "flag-1",
@@ -56,10 +62,10 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 			Value:        true,
 			Default:      false,
 			Version:      "v1",
-			Source:       "SERVER",
+			Source:       sERVER,
 		},
 		exporter.FeatureEvent{
-			Kind:         "feature",
+			Kind:         feature,
 			ContextKind:  "anonymousUser",
 			UserKey:      "user-2",
 			CreationDate: 1617970548,
@@ -99,8 +105,8 @@ func TestExporterSpanAttributes(t *testing.T) {
 	exp := &Exporter{tracerProvider: tp}
 
 	event := exporter.FeatureEvent{
-		Kind:         "feature",
-		ContextKind:  "user",
+		Kind:         feature,
+		ContextKind:  user,
 		UserKey:      "user-123",
 		CreationDate: 1617970547,
 		Key:          "my-flag",
@@ -108,7 +114,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 		Value:        true,
 		Default:      false,
 		Version:      "v1",
-		Source:       "SERVER",
+		Source:       sERVER,
 		//  the for-loop branch
 		Metadata: map[string]any{
 			"team": "platform",
@@ -128,10 +134,10 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 	assertAttribute(t, attrs, "feature_flag.key", "my-flag")
 	assertAttribute(t, attrs, "feature_flag.user_key", "user-123")
-	assertAttribute(t, attrs, "feature_flag.context_kind", "user")
+	assertAttribute(t, attrs, "feature_flag.context_kind", user)
 	assertAttribute(t, attrs, "feature_flag.variation", "on")
 	assertAttribute(t, attrs, "feature_flag.version", "v1")
-	assertAttribute(t, attrs, "feature_flag.source", "SERVER")
+	assertAttribute(t, attrs, "feature_flag.source", sERVER)
 	assertAttribute(t, attrs, "feature_flag.metadata.team", "platform")
 }
 

@@ -14,6 +14,21 @@ import (
 	"github.com/blackbirdworks/semaphore/utils/fflog"
 )
 
+const (
+	aBCD                = "ABCD"
+	anonymousUser       = "anonymousUser"
+	eFGH                = "EFGH"
+	feature             = "feature"
+	fixture127          = "127"
+	fixtureDefault      = "Default"
+	hostname2           = "hostname"
+	httpValidComWebhook = "http://valid.com/webhook"
+	randomKey           = "random-key"
+	sERVER              = "SERVER"
+	secret              = "secret"
+	yO2                 = "YO2"
+)
+
 type webhookExportFields struct {
 	Meta        map[string]string
 	Headers     map[string][]string
@@ -104,35 +119,35 @@ func TestWebhook_Export(t *testing.T) {
 		{
 			name: "valid without signature",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
+				EndpointURL: httpValidComWebhook,
 				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
+				Meta:        map[string]string{hostname2: hostname2},
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      aBCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      eFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
+						Value:        yO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixture127,
+						Source:       sERVER,
 					},
 				},
 			},
@@ -145,36 +160,36 @@ func TestWebhook_Export(t *testing.T) {
 		{
 			name: "valid with signature",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
+				EndpointURL: httpValidComWebhook,
 				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				Meta:        map[string]string{hostname2: hostname2},
+				Secret:      secret,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      aBCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      eFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
+						Value:        yO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixture127,
+						Source:       sERVER,
 					},
 				},
 			},
@@ -195,35 +210,35 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 		{
 			name: "http error while calling webhook",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
+				EndpointURL: httpValidComWebhook,
 				httpClient:  testutils.HTTPClientMock{StatusCode: 400, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				Meta:        map[string]string{hostname2: hostname2},
+				Secret:      secret,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      aBCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      eFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
+						Value:        yO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 				},
 			},
@@ -232,35 +247,35 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 		{
 			name: "error in the during the Do call",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
+				EndpointURL: httpValidComWebhook,
 				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: true},
-				Meta:        map[string]string{"hostname": "hostname"},
-				Secret:      "secret",
+				Meta:        map[string]string{hostname2: hostname2},
+				Secret:      secret,
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      aBCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      eFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
+						Value:        yO2,
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 				},
 			},
@@ -269,36 +284,36 @@ func TestWebhook_Export_ErrorsAndHeaders(t *testing.T) {
 		{
 			name: "expect exporter to send custom headers",
 			fields: webhookExportFields{
-				EndpointURL: "http://valid.com/webhook",
+				EndpointURL: httpValidComWebhook,
 				httpClient:  testutils.HTTPClientMock{StatusCode: 200, ForceError: false},
-				Meta:        map[string]string{"hostname": "hostname"},
+				Meta:        map[string]string{hostname2: hostname2},
 				Headers:     map[string][]string{"Authorization": {"Bearer auth_token"}},
 			},
 			args: webhookExportArgs{
 				logger: logger,
 				featureEvents: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "ABCD",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      aBCD,
 						CreationDate: 1617970547,
-						Key:          "random-key",
-						Variation:    "Default",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       "SERVER",
+						Source:       sERVER,
 					},
 					exporter.FeatureEvent{
-						Kind:         "feature",
-						ContextKind:  "anonymousUser",
-						UserKey:      "EFGH",
+						Kind:         feature,
+						ContextKind:  anonymousUser,
+						UserKey:      eFGH,
 						CreationDate: 1617970701,
-						Key:          "random-key",
-						Variation:    "Default",
-						Value:        "YO2",
+						Key:          randomKey,
+						Variation:    fixtureDefault,
+						Value:        yO2,
 						Default:      false,
-						Version:      "127",
-						Source:       "SERVER",
+						Version:      fixture127,
+						Source:       sERVER,
 					},
 				},
 			},

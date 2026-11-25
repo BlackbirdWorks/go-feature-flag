@@ -14,6 +14,11 @@ import (
 	"github.com/blackbirdworks/semaphore/testutils"
 )
 
+const (
+	consumer1   = "consumer1"
+	fixtureInit = "init"
+)
+
 const defaultTestCleanQueueDuration = 100 * time.Millisecond
 
 func Test_ConsumerNameInvalid(t *testing.T) {
@@ -28,7 +33,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 				defaultTestCleanQueueDuration,
 			)
 
-			eventStore.AddConsumer("consumer1")
+			eventStore.AddConsumer(consumer1)
 			defer eventStore.Stop()
 
 			count, err := eventStore.GetPendingEventCount("wrong name")
@@ -45,7 +50,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 				defaultTestCleanQueueDuration,
 			)
 
-			eventStore.AddConsumer("consumer1")
+			eventStore.AddConsumer(consumer1)
 			defer eventStore.Stop()
 
 			err := eventStore.ProcessPendingEvents(
@@ -60,7 +65,7 @@ func Test_ConsumerNameInvalid(t *testing.T) {
 func Test_SingleConsumer(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
@@ -112,7 +117,7 @@ func Test_SingleConsumer(t *testing.T) {
 func Test_MultipleConsumersSingleThread(t *testing.T) {
 	t.Parallel()
 
-	consumerNames := []string{"consumer1", "consumer2"}
+	consumerNames := []string{consumer1, "consumer2"}
 
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -184,7 +189,7 @@ func Test_MultipleConsumersSingleThread(t *testing.T) {
 func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 	t.Parallel()
 
-	consumerNames := []string{"consumer1", "consumer2"}
+	consumerNames := []string{consumer1, "consumer2"}
 
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -251,7 +256,7 @@ func Test_MultipleConsumersMultipleGORoutines(t *testing.T) {
 func Test_ProcessPendingEventInError(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
@@ -302,7 +307,7 @@ func Test_ProcessPendingEventInError(t *testing.T) {
 func Test_WaitForEmptyClean(t *testing.T) {
 	t.Parallel()
 
-	consumerNames := []string{"consumer1"}
+	consumerNames := []string{consumer1}
 
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
@@ -332,7 +337,7 @@ func Test_WaitForEmptyClean(t *testing.T) {
 func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
@@ -341,7 +346,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent("init"))
+		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
 	}
 
 	processingStarted := make(chan struct{})
@@ -386,7 +391,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 	<-processingDone
 
 	// the exporter got the 10 events that were pending when it started, the one added meanwhile still is
-	assert.Equal(t, []string{"init", "init", "init", "init", "init", "init", "init", "init", "init", "init"},
+	assert.Equal(t, []string{fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit, fixtureInit},
 		processedBatch)
 
 	pending, err := eventStore.GetPendingEventCount(consumerName)
@@ -397,7 +402,7 @@ func Test_ProcessPendingEvents_DoesNotBlockAdd(t *testing.T) {
 func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
@@ -406,7 +411,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent("init"))
+		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
 	}
 
 	processingStarted := make(chan struct{})
@@ -502,7 +507,7 @@ func Test_ProcessPendingEvents_QueuedSameConsumerCallDoesNotBlockAdd(t *testing.
 func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
@@ -511,7 +516,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 	defer eventStore.Stop()
 
 	for range 10 {
-		eventStore.Add(testutils.NewExportableMockEvent("init"))
+		eventStore.Add(testutils.NewExportableMockEvent(fixtureInit))
 	}
 
 	var (
@@ -570,7 +575,7 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 func Test_ProcessPendingEvents_EmptyBatchSkipsCallback(t *testing.T) {
 	t.Parallel()
 
-	consumerName := "consumer1"
+	consumerName := consumer1
 	eventStore := exporter.NewEventStore[testutils.ExportableMockEvent](
 		defaultTestCleanQueueDuration,
 	)
