@@ -37,7 +37,7 @@ const (
 	randomKey              = "random-key"
 	sERVER                 = "SERVER"
 	test                   = "test"
-	testdataAllDefaultJson = "./testdata/all_default.json"
+	testdataAllDefaultJSON = "./testdata/all_default.json"
 	xxx                    = "xxx"
 	yO2                    = "YO2"
 )
@@ -169,7 +169,7 @@ func TestFile_Export(t *testing.T) {
 			},
 			expected: fileExportExpected{
 				fileNameRegex: flagVariation + hostname + fixture09Json,
-				content:       testdataAllDefaultJson,
+				content:       testdataAllDefaultJSON,
 			},
 		},
 		{
@@ -487,7 +487,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			expected: fileExportExpected{
 				fileNameRegex: flagVariation + hostname + "-[0-9]*\\.xxx$",
-				content:       testdataAllDefaultJson,
+				content:       testdataAllDefaultJSON,
 			},
 		},
 		{
@@ -525,7 +525,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			expected: fileExportExpected{
 				fileNameRegex: flagVariation + hostname + fixture09Json,
-				content:       testdataAllDefaultJson,
+				content:       testdataAllDefaultJSON,
 			},
 		},
 		{
@@ -717,7 +717,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			},
 			expected: fileExportExpected{
 				fileNameRegex: flagVariation + hostname + fixture09Json,
-				content:       testdataAllDefaultJson,
+				content:       testdataAllDefaultJSON,
 			},
 		},
 	})

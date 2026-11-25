@@ -10,7 +10,7 @@ import (
 
 const (
 	legacyHostCom        = "legacy-host.com"
-	swaggerApiExampleCom = "swagger-api.example.com:8080"
+	swaggerAPIExampleCom = "swagger-api.example.com:8080"
 )
 
 func TestConfigIsSwaggerEnabled(t *testing.T) {
@@ -146,19 +146,19 @@ func TestConfigSwaggerHost(t *testing.T) {
 			name: "Swagger.Host is set with special characters",
 			config: &config.Config{
 				Swagger: config.Swagger{
-					Host: swaggerApiExampleCom,
+					Host: swaggerAPIExampleCom,
 				},
 			},
-			want:        swaggerApiExampleCom,
+			want:        swaggerAPIExampleCom,
 			description: "Should return Swagger.Host as-is, including special characters",
 		},
 		{
 			name: "Swagger.Host is empty and Host is set",
 			config: &config.Config{
 				Swagger: config.Swagger{},
-				Host:    swaggerApiExampleCom,
+				Host:    swaggerAPIExampleCom,
 			},
-			want:        swaggerApiExampleCom,
+			want:        swaggerAPIExampleCom,
 			description: "Should return Swagger.Host as-is, including special characters",
 		},
 	}

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	applicationJson          = "application/json"
+	applicationJSON          = "application/json"
 	contentType              = "Content-Type"
 	httpLocalhostExampleFile = "http://localhost.example/file"
 	testFlagVariationsTrue   = `test-flag:
@@ -93,7 +93,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/httpError",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJson}},
+				header:     map[string][]string{contentType: {applicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -104,7 +104,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "http://localhost.example/error",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJson}},
+				header:     map[string][]string{contentType: {applicationJSON}},
 			},
 			wantErr: true,
 		},
@@ -115,7 +115,7 @@ func Test_httpRetriever_Retrieve(t *testing.T) {
 				url:        "",
 				method:     http.MethodPost,
 				body:       "",
-				header:     map[string][]string{contentType: {applicationJson}},
+				header:     map[string][]string{contentType: {applicationJSON}},
 			},
 			wantErr: true,
 		},

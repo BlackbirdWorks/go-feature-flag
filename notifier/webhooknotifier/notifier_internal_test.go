@@ -284,7 +284,7 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 				signature: "",
 				headers: map[string][]string{
 					authorization: {"Bearer auth_token"},
-					contentType:   {applicationJson},
+					contentType:   {applicationJSON},
 				},
 			},
 			args: webhookNotifierArgs{

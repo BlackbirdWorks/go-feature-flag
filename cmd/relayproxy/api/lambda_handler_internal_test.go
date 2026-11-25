@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	applicationJson = "application/json"
+	applicationJSON = "application/json"
 	contentType     = "Content-Type"
 	gET             = "GET"
 	health2         = "/health"
@@ -50,7 +50,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 					},
 				},
 				Headers: map[string]string{
-					contentType: applicationJson,
+					contentType: applicationJSON,
 				},
 				Body: "",
 			},
@@ -67,7 +67,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 					HTTPMethod: gET,
 				},
 				Headers: map[string]string{
-					contentType: applicationJson,
+					contentType: applicationJSON,
 				},
 				Body: "",
 			},
@@ -80,7 +80,7 @@ func TestAwsLambdaHandler_GetAdapter(t *testing.T) {
 				HTTPMethod: gET,
 				Path:       health2,
 				Headers: map[string]string{
-					contentType: applicationJson,
+					contentType: applicationJSON,
 				},
 				Body: "",
 			},
@@ -227,7 +227,7 @@ func TestAwsLambdaHandler_BasePathSupport(t *testing.T) {
 					},
 				},
 				Headers: map[string]string{
-					contentType: applicationJson,
+					contentType: applicationJSON,
 				},
 				Body: "",
 			}

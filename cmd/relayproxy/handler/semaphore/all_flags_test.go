@@ -31,7 +31,7 @@ const (
 	handlerShouldReturnAn         = "handler should return an error"
 	impossibleTheExpectedWantBody = "Impossible the expected wantBody file %s"
 	invalidHTTPCode               = "Invalid HTTP Code"
-	invalidJsonFormat             = "Invalid json format"
+	invalidJSONFormat             = "Invalid json format"
 	invalidResponseWantBody       = "Invalid response wantBody"
 	requestWantBodyFileMissing    = "request wantBody file missing %s"
 	validFlag                     = "valid flag"
@@ -72,7 +72,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			},
 		},
 		{
-			name: invalidJsonFormat,
+			name: invalidJSONFormat,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/invalid_json_request.json",
 				configFlagsLocation: configFlagsLocation,
@@ -169,7 +169,7 @@ func Test_all_flag_Handler_DefaultMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(contentType2, applicationJson)
+			req.Header.Set(contentType2, applicationJSON)
 			handlerErr := ctrl.Handler(rec, req)
 
 			if tt.want.handlerErr {
@@ -237,7 +237,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			},
 		},
 		{
-			name: invalidJsonFormat,
+			name: invalidJSONFormat,
 			args: args{
 				bodyFile:            testdataDir + "/all_flags/invalid_json_request.json",
 				configFlagsLocation: configFlagsLocation,
@@ -314,7 +314,7 @@ func Test_all_flag_Handler_FlagsetMode(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/allflags", bodyReq)
-			req.Header.Set(contentType2, applicationJson)
+			req.Header.Set(contentType2, applicationJSON)
 			req.Header.Set("Authorization", "Bearer test-api-key")
 			handlerErr := ctrl.Handler(rec, req)
 

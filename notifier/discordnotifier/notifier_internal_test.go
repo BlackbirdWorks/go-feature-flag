@@ -23,7 +23,7 @@ const (
 	fixtureDefault     = "Default"
 	fixtureFalse       = "False"
 	fixtureTrue        = "True"
-	httpsDiscordComApi = "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+	httpsDiscordComAPI = "https://discord.com/api/webhooks/000000000000000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	jane               = "jane"
 	keyEqRandomKey     = "key eq \"random-key\""
 	rule1              = "rule1"
@@ -125,7 +125,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results.json",
 			},
 			args: discordNotifyArgs{
-				url:        httpsDiscordComApi,
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
 					Added: map[string]flag.Flag{
@@ -236,7 +236,7 @@ func TestDiscordNotifier_NotifySuccess(t *testing.T) {
 				bodyPath: "./testdata/should_call_webhook_and_have_valid_results_limit_max.json",
 			},
 			args: discordNotifyArgs{
-				url:        httpsDiscordComApi,
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff: notifier.DiffCache{
 					Added: map[string]flag.Flag{
@@ -271,7 +271,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) webhook call failed with statusCode = 400",
 			},
 			args: discordNotifyArgs{
-				url:        httpsDiscordComApi,
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusBadRequest,
 				diff:       notifier.DiffCache{},
 			},
@@ -283,7 +283,7 @@ func TestDiscordNotifier_NotifyErrors(t *testing.T) {
 				errMsg: "error: (Discord Notifier) error calling webhook: random error",
 			},
 			args: discordNotifyArgs{
-				url:        httpsDiscordComApi,
+				url:        httpsDiscordComAPI,
 				statusCode: http.StatusOK,
 				diff:       notifier.DiffCache{},
 				forceError: true,

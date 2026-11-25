@@ -28,7 +28,7 @@ const (
 	flagsConfigGoffYaml             = "flags/config.goff.yaml"
 	github                          = "github"
 	gofeatureflagConfigRepo         = "gofeatureflag/config-repo"
-	httpsApiBitbucketGoff           = "https://api.bitbucket.goff.org"
+	httpsAPIBitbucketGoff           = "https://api.bitbucket.goff.org"
 	httpsGofeatureflagOrgMy         = "https://gofeatureflag.org/my-flag-test.yaml"
 	main                            = "main"
 	myBucketName                    = "my-bucket-name"
@@ -310,14 +310,14 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 				RepositorySlug: gofeatureflagConfigRepo,
 				Path:           flagsConfigGoffYaml,
 				AuthToken:      xXXBITBUCKETTOKEN,
-				BaseURL:        httpsApiBitbucketGoff,
+				BaseURL:        httpsAPIBitbucketGoff,
 			},
 			want: &bitbucketretriever.Retriever{
 				RepositorySlug: gofeatureflagConfigRepo,
 				Branch:         main,
 				FilePath:       flagsConfigGoffYaml,
 				BitBucketToken: xXXBITBUCKETTOKEN,
-				BaseURL:        httpsApiBitbucketGoff,
+				BaseURL:        httpsAPIBitbucketGoff,
 				Timeout:        10000000000,
 			},
 			wantType: &bitbucketretriever.Retriever{},
@@ -331,14 +331,14 @@ func Test_InitRetriever_StorageAndHTTP(t *testing.T) {
 				RepositorySlug: gofeatureflagConfigRepo,
 				Path:           flagsConfigGoffYaml,
 				AuthToken:      xXXBITBUCKETTOKEN,
-				BaseURL:        httpsApiBitbucketGoff,
+				BaseURL:        httpsAPIBitbucketGoff,
 			},
 			want: &bitbucketretriever.Retriever{
 				RepositorySlug: gofeatureflagConfigRepo,
 				Branch:         "develop",
 				FilePath:       flagsConfigGoffYaml,
 				BitBucketToken: xXXBITBUCKETTOKEN,
-				BaseURL:        httpsApiBitbucketGoff,
+				BaseURL:        httpsAPIBitbucketGoff,
 				Timeout:        10000000000,
 			},
 			wantType: &bitbucketretriever.Retriever{},

@@ -40,7 +40,7 @@ const (
 	other               = "other"
 	tea                 = "tea"
 	xAPIKey2            = "X-API-Key"
-	xApiKey             = "x-api-key"
+	xAPIKey             = "x-api-key"
 )
 
 // newOK returns a handler that answers a JSON document.
@@ -109,7 +109,7 @@ func TestKeyAuth(t *testing.T) {
 			wantStatus: http.StatusOK, wantKey: good},
 		{name: "bearer lower case", entry: http2, headers: map[string]string{authorization: "bearer good"},
 			wantStatus: http.StatusOK, wantKey: good},
-		{name: xApiKey, entry: http2, headers: map[string]string{xAPIKey2: good},
+		{name: xAPIKey, entry: http2, headers: map[string]string{xAPIKey2: good},
 			wantStatus: http.StatusOK, wantKey: good},
 		{name: "x-api-key wins over bearer", entry: http2,
 			headers:    map[string]string{xAPIKey2: "bad", authorization: bearerGood},
@@ -226,9 +226,9 @@ func TestCORS(t *testing.T) {
 			headers: map[string]string{origin: httpsAExample}, wantStatus: http.StatusOK, wantOrigin: "*"},
 		{name: "preflight", method: http.MethodOptions, headers: map[string]string{
 			origin: httpsAExample, "Access-Control-Request-Method": "POST",
-			"Access-Control-Request-Headers": xApiKey,
+			"Access-Control-Request-Headers": xAPIKey,
 		}, wantStatus: http.StatusNoContent, wantOrigin: "*", wantMethods: "GET,HEAD,PUT,PATCH,POST,DELETE",
-			wantHeaders: xApiKey},
+			wantHeaders: xAPIKey},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

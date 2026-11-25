@@ -48,14 +48,14 @@ const (
 	keyA                                = "key-a"
 	keyC                                = "key-c"
 	modifyingAFlagsetIs                 = "modifying a flagset is not supported at runtime"
-	newApiKey                           = "new-api-key"
+	newAPIKey                           = "new-api-key"
 	newKey                              = "new-key"
-	oldApiKey                           = "old-api-key"
+	oldAPIKey                           = "old-api-key"
 	oldKey                              = "old-key"
 	oldKey1                             = "old-key-1"
 	oldKey2                             = "old-key-2"
 	originalKey                         = "original-key"
-	testApiKey                          = "test-api-key"
+	testAPIKey                          = "test-api-key"
 	testFlagset                         = "test-flagset"
 	testFlagset1                        = "test-flagset-1"
 	testFlagset2                        = "test-flagset-2"
@@ -107,7 +107,7 @@ func TestNewFlagsetManager(t *testing.T) {
 							Kind: file2,
 							Path: flagConfig,
 						},
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 					},
 				},
 			},
@@ -125,7 +125,7 @@ func TestNewFlagsetManager(t *testing.T) {
 							Kind: "invalid",
 							Path: flagConfig,
 						},
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 					},
 				},
 				Retriever: &retrieverconf.RetrieverConf{
@@ -294,15 +294,15 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		{
 			name: "flagset mode, valid api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testAPIKey}},
 			}},
-			apiKey:      testApiKey,
+			apiKey:      testAPIKey,
 			wantFlagset: testFlagset,
 		},
 		{
 			name: "flagset mode, invalid api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testAPIKey}},
 			}},
 			apiKey:  "invalid-key",
 			wantErr: "flagset not found for API key",
@@ -310,7 +310,7 @@ func TestFlagsetManager_FlagSet(t *testing.T) {
 		{
 			name: "flagset mode, empty api key",
 			config: &config.Config{FlagSets: []config.FlagSet{
-				{Name: testFlagset, Retriever: file, APIKeys: []string{testApiKey}},
+				{Name: testFlagset, Retriever: file, APIKeys: []string{testAPIKey}},
 			}},
 			apiKey:  "",
 			wantErr: "no API key provided",
@@ -372,7 +372,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -387,7 +387,7 @@ func TestFlagsetManager_FlagSetName(t *testing.T) {
 		t.Run("existing api key", func(t *testing.T) {
 			t.Parallel()
 
-			name, flagSetNameErr := manager.FlagSetName(testApiKey)
+			name, flagSetNameErr := manager.FlagSetName(testAPIKey)
 			require.NoError(t, flagSetNameErr)
 			assert.Equal(t, testFlagset, name)
 		})
@@ -588,7 +588,7 @@ func TestFlagsetManager_Default(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -644,7 +644,7 @@ func TestFlagsetManager_IsDefaultFlagSet(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -703,7 +703,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 						Path: flagConfig,
 					},
 					Exporter: bufferedFileExporter(outputDir),
-					APIKeys:  []string{testApiKey},
+					APIKeys:  []string{testAPIKey},
 				},
 			},
 		}
@@ -713,7 +713,7 @@ func TestFlagsetManager_Close(t *testing.T) {
 		require.NoError(t, err, failedToCreateFlagsetManager)
 		assert.NotNil(t, manager)
 
-		flagset, err := manager.FlagSet(testApiKey)
+		flagset, err := manager.FlagSet(testAPIKey)
 		require.NoError(t, err)
 
 		_, _ = flagset.BoolVariation("test-flag-rule-apply", ffcontext.NewEvaluationContext(userKey), false)
@@ -819,7 +819,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -894,7 +894,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldAPIKey},
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -905,14 +905,14 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{newAPIKey},
 		}
 
 		manager.OnConfigChange(newConfig)
 
 		// Verify the key was updated - ForceReloadAPIKeys resets and reloads
-		assert.False(t, cfg.APIKeyExists(oldApiKey))
-		assert.True(t, cfg.APIKeyExists(newApiKey))
+		assert.False(t, cfg.APIKeyExists(oldAPIKey))
+		assert.True(t, cfg.APIKeyExists(newAPIKey))
 	})
 
 	t.Run("should update both AuthorizedKeys and APIKeys in default mode", func(t *testing.T) {
@@ -928,7 +928,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"old-authorized-key"},
 			},
-			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldAPIKey},
 		}
 		manager, _ := setupManager(t, cfg)
 
@@ -942,16 +942,16 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 			AuthorizedKeys: config.APIKeys{
 				Evaluation: []string{"new-authorized-key"},
 			},
-			APIKeys: []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{newAPIKey},
 		}
 
 		manager.OnConfigChange(newConfig)
 
 		// Verify both were updated
 		assert.False(t, cfg.APIKeyExists("old-authorized-key"))
-		assert.False(t, cfg.APIKeyExists(oldApiKey))
+		assert.False(t, cfg.APIKeyExists(oldAPIKey))
 		assert.True(t, cfg.APIKeyExists("new-authorized-key"))
-		assert.True(t, cfg.APIKeyExists(newApiKey))
+		assert.True(t, cfg.APIKeyExists(newAPIKey))
 	})
 
 	t.Run("should reject invalid configuration in default mode - missing retriever", func(t *testing.T) {
@@ -964,7 +964,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 				Kind: file2,
 				Path: flagConfig,
 			},
-			APIKeys: []string{oldApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys: []string{oldAPIKey},
 		}
 		// Preload API keys to initialize the internal API key set
 		cfg.ForceReloadAPIKeys()
@@ -974,7 +974,7 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		newConfig := &config.Config{
 			FlagSets:  []config.FlagSet{},
 			Retriever: nil,
-			APIKeys:   []string{newApiKey}, //nolint:staticcheck // SA1019: the test covers the deprecated setting
+			APIKeys:   []string{newAPIKey},
 		}
 
 		assert.NotPanics(t, func() {
@@ -988,8 +988,8 @@ func TestFlagsetManager_OnConfigChange(t *testing.T) {
 		assert.Contains(t, logEntry.Message, theNewConfigurationIs)
 
 		// Verify the original config was not changed
-		assert.True(t, cfg.APIKeyExists(oldApiKey))
-		assert.False(t, cfg.APIKeyExists(newApiKey))
+		assert.True(t, cfg.APIKeyExists(oldAPIKey))
+		assert.False(t, cfg.APIKeyExists(newAPIKey))
 	})
 }
 
@@ -1010,7 +1010,7 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -1041,7 +1041,7 @@ func TestFlagsetManager_OnConfigChange_ValidationAndKeys(t *testing.T) {
 		assert.Contains(t, logEntry.Message, theNewConfigurationIs)
 
 		// Verify the original config was not changed
-		flagset, err := manager.FlagSet(testApiKey)
+		flagset, err := manager.FlagSet(testAPIKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})
@@ -1132,14 +1132,14 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{oldApiKey},
+					APIKeys: []string{oldAPIKey},
 				},
 			},
 		}
 		manager, _ := setupManager(t, cfg)
 
 		// Verify old key works before change
-		flagset, err := manager.FlagSet(oldApiKey)
+		flagset, err := manager.FlagSet(oldAPIKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 
@@ -1152,7 +1152,7 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{newApiKey},
+					APIKeys: []string{newAPIKey},
 				},
 			},
 		}
@@ -1160,10 +1160,10 @@ func TestFlagsetManager_OnConfigChange_APIKeys(t *testing.T) {
 		manager.OnConfigChange(newConfig)
 
 		// Verify the key was updated: the old one is no longer routed, the new one reaches the same flagset
-		assertKeyRouting(t, manager, map[string]string{oldApiKey: "", newApiKey: testFlagset})
-		_, err = manager.FlagSet(oldApiKey)
+		assertKeyRouting(t, manager, map[string]string{oldAPIKey: "", newAPIKey: testFlagset})
+		_, err = manager.FlagSet(oldAPIKey)
 		require.Error(t, err, "old API key should no longer work")
-		flagset, err = manager.FlagSet(newApiKey)
+		flagset, err = manager.FlagSet(newAPIKey)
 		require.NoError(t, err, "new API key should work")
 		assert.NotNil(t, flagset)
 	})
@@ -1401,7 +1401,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -1420,7 +1420,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 						Kind: file2,
 						Path: flagConfig,
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}
@@ -1432,7 +1432,7 @@ func TestFlagsetManager_OnConfigChange_SpecialFlagsets(t *testing.T) {
 		assert.Equal(t, 0, configChangeLogs.Len(), "No config change log should be produced when config is unchanged")
 
 		// Verify the key still works
-		flagset, err := manager.FlagSet(testApiKey)
+		flagset, err := manager.FlagSet(testAPIKey)
 		require.NoError(t, err)
 		assert.NotNil(t, flagset)
 	})

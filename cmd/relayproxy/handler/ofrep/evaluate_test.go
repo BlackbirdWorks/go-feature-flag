@@ -25,15 +25,15 @@ import (
 )
 
 const (
-	applicationJson         = "application/json"
+	applicationJSON         = "application/json"
 	contentType             = "Content-Type"
 	failedToCreateFlagset   = "failed to create flagset manager"
 	numberFlag              = "number-flag"
-	ofrepInvalidContextJson = "/ofrep/invalid_context.json"
+	ofrepInvalidContextJSON = "/ofrep/invalid_context.json"
 	ofrepNoTargetingKey     = "/ofrep/no_targeting_key_context.json"
 	ofrepV1Evaluate         = "/ofrep/v1/evaluate/flags"
 	ofrepV1Evaluate2        = "/ofrep/v1/evaluate/flags/"
-	ofrepValidRequestJson   = "/ofrep/valid_request.json"
+	ofrepValidRequestJSON   = "/ofrep/valid_request.json"
 	pOSTOfrepV1             = "POST /ofrep/v1/evaluate/flags/{flagKey...}"
 	sse                     = "sse"
 	targetingKeyRule        = "targeting-key-rule"
@@ -67,7 +67,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 		{
 			name: "valid flag",
 			args: args{
-				bodyFile:            testdataDir + ofrepValidRequestJson,
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
@@ -89,7 +89,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 		{
 			name: "Invalid context",
 			args: args{
-				bodyFile:            testdataDir + ofrepInvalidContextJson,
+				bodyFile:            testdataDir + ofrepInvalidContextJSON,
 				configFlagsLocation: configFlagsLocation,
 			},
 			want: want{
@@ -168,7 +168,7 @@ func Test_Bulk_Evaluation(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate, bodyReq)
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 			handlerErr := ctrl.BulkEvaluate(rec, req)
 
 			if tt.want.handlerErr {
@@ -277,11 +277,11 @@ func Test_Bulk_Evaluation_EventStreams(t *testing.T) {
 			defer flagsetManager.Close()
 
 			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, metric.Metrics{}, tt.args.eventStream)
-			body, err := os.ReadFile(testdataDir + ofrepValidRequestJson)
+			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate, strings.NewReader(string(body)))
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 
 			for k, v := range tt.args.headers {
 				req.Header.Set(k, v)
@@ -321,7 +321,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "flag key with an escaped reserved character",
 			args: args{
-				bodyFile:            testdataDir + ofrepValidRequestJson,
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: testdataDir + "/ofrep/config_flags_special_chars.yaml",
 				flagKey:             "team%3Acheckout",
 			},
@@ -333,7 +333,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "valid evaluation",
 			args: args{
-				bodyFile:            testdataDir + ofrepValidRequestJson,
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
 				flagKey:             numberFlag,
 			},
@@ -345,7 +345,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "Invalid context",
 			args: args{
-				bodyFile:            testdataDir + ofrepInvalidContextJson,
+				bodyFile:            testdataDir + ofrepInvalidContextJSON,
 				configFlagsLocation: configFlagsLocation,
 				flagKey:             numberFlag,
 			},
@@ -405,7 +405,7 @@ func Test_Evaluate(t *testing.T) {
 		{
 			name: "Empty flag key",
 			args: args{
-				bodyFile:            testdataDir + ofrepValidRequestJson,
+				bodyFile:            testdataDir + ofrepValidRequestJSON,
 				configFlagsLocation: configFlagsLocation,
 				flagKey:             "",
 			},
@@ -469,7 +469,7 @@ func Test_Evaluate(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, ofrepV1Evaluate2+flagKey, bodyReq)
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 
 			mux.ServeHTTP(rec, req)
 
@@ -499,7 +499,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 		{
 			name:     "should use the flag key as label if the flag exists",
 			flagKeys: []string{numberFlag, numberFlag, targetingKeyRule},
-			bodyFile: testdataDir + ofrepValidRequestJson,
+			bodyFile: testdataDir + ofrepValidRequestJSON,
 			want: metricHeader +
 				metricName + "{flag_name=\"number-flag\"} 2\n" +
 				metricName + "{flag_name=\"targeting-key-rule\"} 1\n",
@@ -507,13 +507,13 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 		{
 			name:     "should use the same label for all the flags that do not exist",
 			flagKeys: []string{"unknown-flag-1", "unknown-flag-2", "unknown-flag-3"},
-			bodyFile: testdataDir + ofrepValidRequestJson,
+			bodyFile: testdataDir + ofrepValidRequestJSON,
 			want:     metricHeader + metricName + "{flag_name=\"FLAG_NOT_FOUND\"} 3\n",
 		},
 		{
 			name:     "should not count a request that is not evaluated",
 			flagKeys: []string{numberFlag, "unknown-flag"},
-			bodyFile: testdataDir + ofrepInvalidContextJson,
+			bodyFile: testdataDir + ofrepInvalidContextJSON,
 			want:     "",
 		},
 	}
@@ -550,7 +550,7 @@ func Test_Evaluate_FlagEvaluationMetric(t *testing.T) {
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequest(
 					http.MethodPost, ofrepV1Evaluate2+flagKey, strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(contentType, applicationJson)
+				req.Header.Set(contentType, applicationJSON)
 				mux.ServeHTTP(httptest.NewRecorder(), req)
 			}
 
@@ -595,7 +595,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 			mux := http.NewServeMux()
 			mux.Handle(pOSTOfrepV1, helper.Handle(ctrl.Evaluate, false))
 
-			body, err := os.ReadFile(testdataDir + ofrepValidRequestJson)
+			body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
 			require.NoError(t, err)
 
 			req := httptest.NewRequest(
@@ -603,7 +603,7 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 				"/ofrep/v1/evaluate/flags/number-flag",
 				strings.NewReader(string(body)),
 			)
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)

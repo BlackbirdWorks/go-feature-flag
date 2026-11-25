@@ -20,7 +20,7 @@ const (
 	badFlag                     = "bad-flag"
 	defaultValue2               = "defaultValue"
 	description2                = "description"
-	emptyJson                   = "empty.json"
+	emptyJSON                   = "empty.json"
 	fixtureFalse                = "False"
 	fixtureTrue                 = "True"
 	half                        = "Half"
@@ -169,7 +169,7 @@ func TestGenerateDefinition(t *testing.T) {
 		{
 			name:       "empty input produces empty manifest",
 			flags:      map[string]flag.InternalFlag{},
-			goldenFile: emptyJson,
+			goldenFile: emptyJSON,
 		},
 		{
 			name: "boolean flag",
@@ -316,7 +316,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 					DefaultRule: defaultRule(fixtureFalse),
 				},
 			},
-			goldenFile: emptyJson,
+			goldenFile: emptyJSON,
 			wantLogs:   []string{"flag no-meta ignored: no default value provided"},
 		},
 		{
@@ -326,7 +326,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 					description2: "no default",
 				}),
 			},
-			goldenFile: emptyJson,
+			goldenFile: emptyJSON,
 			wantLogs:   []string{"flag no-default ignored: no default value provided"},
 		},
 		{

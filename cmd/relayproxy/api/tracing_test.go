@@ -105,7 +105,7 @@ func Test_Tracing(t *testing.T) {
 				api.WithTracing(provider, propagation.TraceContext{}))
 
 			req := httptest.NewRequestWithContext(t.Context(), tt.method, tt.path, strings.NewReader(tt.body))
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 			req.Header.Set("Traceparent", traceparent)
 
 			rec := httptest.NewRecorder()

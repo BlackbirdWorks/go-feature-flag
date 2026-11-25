@@ -26,9 +26,9 @@ const (
 	gETSomething = "GET /something"
 	host2        = "host"
 	latency      = "latency"
-	remoteIp     = "remote_ip"
+	remoteIP     = "remote_ip"
 	request2     = "request"
-	requestId    = "request_id"
+	requestID    = "request_id"
 	size2        = "size"
 	something    = "/something"
 	status2      = "status"
@@ -234,9 +234,9 @@ func TestLogRequest(t *testing.T) {
 			},
 			wantLevel: slog.LevelError, wantMessage: "Server error",
 			wantContext: map[string]any{
-				"error": "boom", remoteIp: "10.0.0.1", latency: "1.5ms", host2: "relay",
+				"error": "boom", remoteIP: "10.0.0.1", latency: "1.5ms", host2: "relay",
 				request2: "POST /v1/eval", status2: int64(502), size2: int64(7), userAgent: "curl",
-				requestId: "id-1",
+				requestID: "id-1",
 			},
 		},
 		{
@@ -246,8 +246,8 @@ func TestLogRequest(t *testing.T) {
 			},
 			wantLevel: slog.LevelWarn, wantMessage: clientError,
 			wantContext: map[string]any{
-				remoteIp: "", latency: "0s", host2: "", request2: "GET /ws/v1/flag/change?apiKey=REDACTED&a=b",
-				status2: int64(401), size2: int64(0), userAgent: "", requestId: "",
+				remoteIP: "", latency: "0s", host2: "", request2: "GET /ws/v1/flag/change?apiKey=REDACTED&a=b",
+				status2: int64(401), size2: int64(0), userAgent: "", requestID: "",
 			},
 		},
 		{
@@ -256,8 +256,8 @@ func TestLogRequest(t *testing.T) {
 			span:      tracedSpan,
 			wantLevel: slog.LevelDebug, wantMessage: success,
 			wantContext: map[string]any{
-				remoteIp: "", latency: "0s", host2: "", request2: "GET /", status2: int64(200),
-				size2: int64(0), userAgent: "", requestId: "", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+				remoteIP: "", latency: "0s", host2: "", request2: "GET /", status2: int64(200),
+				size2: int64(0), userAgent: "", requestID: "", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
 				"span_id": "00f067aa0e0e0e0e",
 			},
 		},
@@ -266,8 +266,8 @@ func TestLogRequest(t *testing.T) {
 			rec:       middleware.RequestRecord{Status: http.StatusFound, Method: http.MethodGet, URI: "/"},
 			wantLevel: slog.LevelDebug, wantMessage: "Redirection",
 			wantContext: map[string]any{
-				remoteIp: "", latency: "0s", host2: "", request2: "GET /", status2: int64(302),
-				size2: int64(0), userAgent: "", requestId: "",
+				remoteIP: "", latency: "0s", host2: "", request2: "GET /", status2: int64(302),
+				size2: int64(0), userAgent: "", requestID: "",
 			},
 		},
 		{
@@ -275,8 +275,8 @@ func TestLogRequest(t *testing.T) {
 			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/?x"},
 			wantLevel: slog.LevelDebug, wantMessage: success,
 			wantContext: map[string]any{
-				remoteIp: "", latency: "0s", host2: "", request2: "GET /?x", status2: int64(200),
-				size2: int64(0), userAgent: "", requestId: "",
+				remoteIP: "", latency: "0s", host2: "", request2: "GET /?x", status2: int64(200),
+				size2: int64(0), userAgent: "", requestID: "",
 			},
 		},
 	}
@@ -347,7 +347,7 @@ func TestRequestLoggerRequestID(t *testing.T) {
 			requestLogger(obs, false)(handler).ServeHTTP(httptest.NewRecorder(), req)
 
 			require.Equal(t, 1, logs.Len())
-			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()[requestId])
+			assert.Equal(t, tt.wantRequestID, logs.All()[0].ContextMap()[requestID])
 		})
 	}
 }

@@ -125,10 +125,10 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 				req, requestWithContextErr := http.NewRequestWithContext(
 					t.Context(), endpoint.method, target, strings.NewReader(endpoint.body))
 				require.NoError(t, requestWithContextErr)
-				req.Header.Set(contentType, applicationJson)
+				req.Header.Set(contentType, applicationJSON)
 
 				if !endpoint.keyInQuery {
-					req.Header.Set(xApiKey, keyCase.key)
+					req.Header.Set(xAPIKey, keyCase.key)
 				}
 
 				resp, requestWithContextErr := http.DefaultClient.Do(req)

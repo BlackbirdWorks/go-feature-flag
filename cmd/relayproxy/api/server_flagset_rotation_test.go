@@ -35,7 +35,7 @@ const (
 	newKey                   = "new-key"
 	oldKey                   = "old-key"
 	rotatingKey              = "rotating-key"
-	xApiKey                  = "X-Api-Key"
+	xAPIKey                  = "X-Api-Key"
 )
 
 var (
@@ -158,10 +158,10 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 					strings.NewReader(endpoint.body),
 				)
 				require.NoError(t, requestWithContextErr)
-				req.Header.Set(contentType, applicationJson)
+				req.Header.Set(contentType, applicationJSON)
 
 				if !endpoint.keyInQuery {
-					req.Header.Set(xApiKey, keyCase.key)
+					req.Header.Set(xAPIKey, keyCase.key)
 				}
 
 				resp, requestWithContextErr := http.DefaultClient.Do(req)
@@ -268,8 +268,8 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 					return
 				}
 
-				req.Header.Set(xApiKey, key)
-				req.Header.Set(contentType, applicationJson)
+				req.Header.Set(xAPIKey, key)
+				req.Header.Set(contentType, applicationJSON)
 
 				resp, requestErr := client.Do(req)
 				if requestErr != nil {

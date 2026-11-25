@@ -11,7 +11,7 @@ import (
 const (
 	analytics                          = "analytics"
 	bigquery                           = "bigquery"
-	fakeProjectId                      = "fake-project-id"
+	fakeProjectID                      = "fake-project-id"
 	flagVariationHostnameTimestamp     = "flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}-custom-file"
 	goffWriter                         = "goff_writer"
 	googleStorage                      = "googleStorage"
@@ -281,7 +281,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind PubSub valid",
 			fields: exporterConfFields{
 				Kind:      pubsub,
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 				Topic:     "fake-topic",
 			},
 			wantErr: false,
@@ -299,7 +299,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind PubSub without topic",
 			fields: exporterConfFields{
 				Kind:      pubsub,
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"projectID\" and \"topic\" are required for kind \"pubsub\"",
@@ -308,7 +308,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind BigQuery valid",
 			fields: exporterConfFields{
 				Kind:      bigquery,
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 				DatasetID: "fake-dataset",
 			},
 			wantErr: false,
@@ -326,7 +326,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind BigQuery without dataset id",
 			fields: exporterConfFields{
 				Kind:      bigquery,
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: \"projectID\" and \"datasetID\" are required for kind \"bigquery\"",

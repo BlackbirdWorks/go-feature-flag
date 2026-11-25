@@ -103,10 +103,10 @@ func postJSON(tb testing.TB, url, apiKey string, body any) apiResponse {
 	require.NoError(tb, err)
 	req, err := http.NewRequestWithContext(tb.Context(), http.MethodPost, url, bytes.NewReader(b))
 	require.NoError(tb, err)
-	req.Header.Set(contentType, applicationJson)
+	req.Header.Set(contentType, applicationJSON)
 
 	if apiKey != "" {
-		req.Header.Set(xApiKey, apiKey)
+		req.Header.Set(xAPIKey, apiKey)
 	}
 
 	client := &http.Client{Timeout: 10 * time.Second}

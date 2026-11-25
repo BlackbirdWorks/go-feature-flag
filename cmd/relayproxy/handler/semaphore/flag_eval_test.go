@@ -119,7 +119,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			},
 		},
 		{
-			name: invalidJsonFormat,
+			name: invalidJSONFormat,
 			args: args{
 				flagKey:  testFlagRuleApply,
 				bodyFile: testdataDir + "/flag_eval/invalid_json_request.json",
@@ -205,7 +205,7 @@ func Test_flag_eval_Handler(t *testing.T) {
 			}
 
 			req := httptest.NewRequest(http.MethodPost, "/v1/feature/"+tt.args.flagKey+"/eval", bodyReq)
-			req.Header.Set(contentType2, applicationJson)
+			req.Header.Set(contentType2, applicationJSON)
 			req.SetPathValue("flagKey", tt.args.flagKey)
 			handlerErr := flagEval.Handler(rec, req)
 
@@ -302,7 +302,7 @@ func Test_flag_eval_Handler_FlagEvaluationMetric(t *testing.T) {
 			for _, flagKey := range tt.flagKeys {
 				req := httptest.NewRequest(
 					http.MethodPost, "/v1/feature/"+flagKey+"/eval", strings.NewReader(string(bodyReqContent)))
-				req.Header.Set(contentType2, applicationJson)
+				req.Header.Set(contentType2, applicationJSON)
 				req.SetPathValue("flagKey", flagKey)
 				_ = flagEval.Handler(httptest.NewRecorder(), req)
 			}

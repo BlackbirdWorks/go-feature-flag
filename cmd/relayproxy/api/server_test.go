@@ -34,7 +34,7 @@ import (
 
 const (
 	adminKey                         = "admin-key"
-	applicationJson                  = "application/json"
+	applicationJSON                  = "application/json"
 	bearerTest                       = "Bearer test"
 	contextTargetingKeySomeKey       = `{ "context":{"targetingKey":"some-key"}}`
 	contextTargetingKeySomeKey2      = `{"context":{"targetingKey":"some-key"}}`
@@ -346,7 +346,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err := (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -359,7 +359,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -372,7 +372,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err = (&http.Client{}).Do(req)
 	require.NoError(t, err)
 
@@ -517,7 +517,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			t,
 			tests,
 			func(_ *testing.T, _ authMiddlewareTestCase, baseURL string) (*http.Response, error) {
-				return http.Post(baseURL+ofrepV1Evaluate5, applicationJson,
+				return http.Post(baseURL+ofrepV1Evaluate5, applicationJSON,
 					strings.NewReader(contextTargetingKeySomeKey2),
 				)
 			})
@@ -557,7 +557,7 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 
 				request, err := http.NewRequest(http.MethodPost, baseURL+adminV1Retriever, nil)
 				require.NoError(t, err)
-				request.Header.Add(contentType, applicationJson)
+				request.Header.Add(contentType, applicationJSON)
 
 				if tt.configAPIKeys != nil && len(tt.configAPIKeys.Admin) > 0 {
 					request.Header.Add(authorization, bearer2+tt.configAPIKeys.Admin[0])
@@ -950,7 +950,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err := client.Do(req)
 	require.NoError(t, err)
 
@@ -964,7 +964,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -978,7 +978,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		strings.NewReader(contextTargetingKeySomeKey))
 	require.NoError(t, err)
 	req.Header.Add(authorization, bearerTest)
-	req.Header.Add(contentType, applicationJson)
+	req.Header.Add(contentType, applicationJSON)
 	response, err = client.Do(req)
 	require.NoError(t, err)
 
@@ -1145,7 +1145,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			}
 
 			if tt.body != "" {
-				req.Header.Add(contentType, applicationJson)
+				req.Header.Add(contentType, applicationJSON)
 			}
 
 			response, err := client.Do(req)

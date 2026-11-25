@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	applicationJson = "application/json"
+	applicationJSON = "application/json"
 	applicationToml = "application/toml"
 	applicationYaml = "application/yaml"
 )
@@ -147,7 +147,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 	}{
 		{
 			name:        "valid json",
-			contentType: applicationJson,
+			contentType: applicationJSON,
 			body:        validJSON,
 			wantStatus:  http.StatusOK,
 			wantValid:   true,
@@ -195,7 +195,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			wantValid:   true,
 		},
 		{
-			name: "invalid flags sorted by key", contentType: applicationJson, body: invalidJSON,
+			name: "invalid flags sorted by key", contentType: applicationJSON, body: invalidJSON,
 			wantStatus: http.StatusUnprocessableEntity,
 			wantErrors: []controller.FlagValidationError{
 				{Flag: "flag-a", Message: "validating the flag: missing default rule"},
@@ -203,7 +203,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			},
 		},
 		{
-			name: "panicking flag definition", contentType: applicationJson,
+			name: "panicking flag definition", contentType: applicationJSON,
 			body:       `{"f":{"variations":{"a":true},"defaultRule":{"progressiveRollout":{}}}}`,
 			altMessage: "validating the flag: invalid progressive rollout, initial and end steps are required",
 			wantStatus: http.StatusUnprocessableEntity,
@@ -214,7 +214,7 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{
 			name:        "bad json syntax",
-			contentType: applicationJson,
+			contentType: applicationJSON,
 			body:        `{"flag-a":`,
 			wantStatus:  http.StatusBadRequest,
 		},
@@ -227,10 +227,10 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			wantStatus:  http.StatusBadRequest,
 		},
 		{name: "yaml list", contentType: applicationYaml, body: "- a\n- b\n", wantStatus: http.StatusBadRequest},
-		{name: "json list", contentType: applicationJson, body: "[]", wantStatus: http.StatusBadRequest},
+		{name: "json list", contentType: applicationJSON, body: "[]", wantStatus: http.StatusBadRequest},
 		{
 			name:        "unreadable body",
-			contentType: applicationJson,
+			contentType: applicationJSON,
 			reader:      failingReader{},
 			wantStatus:  http.StatusBadRequest,
 		},
@@ -248,17 +248,17 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 		},
 		{name: "missing content type", contentType: "", body: validJSON, wantStatus: http.StatusUnsupportedMediaType},
 		{
-			name: "json at the size limit", contentType: applicationJson,
+			name: "json at the size limit", contentType: applicationJSON,
 			body: padTo(validJSON, " ", jsonBodyLimit), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
 			name:        "json over the size limit",
-			contentType: applicationJson,
+			contentType: applicationJSON,
 			body:        oversizedJSON,
 			wantStatus:  http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "chunked json over the size limit", contentType: applicationJson, chunked: true,
+			name: "chunked json over the size limit", contentType: applicationJSON, chunked: true,
 			body: oversizedJSON, wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
@@ -282,12 +282,12 @@ func TestNewValidateFlags_Handler(t *testing.T) {
 			body: padTo(validTOML, "\n", tomlBodyLimit+1), wantStatus: http.StatusRequestEntityTooLarge,
 		},
 		{
-			name: "custom json limit, at the limit", contentType: applicationJson,
+			name: "custom json limit, at the limit", contentType: applicationJSON,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2048), wantStatus: http.StatusOK, wantValid: true,
 		},
 		{
-			name: "custom json limit, over the limit", contentType: applicationJson,
+			name: "custom json limit, over the limit", contentType: applicationJSON,
 			limits: config.ValidateFlagsEndpoint{MaxJSONBodySize: 2048},
 			body:   padTo(validJSON, " ", 2049), wantStatus: http.StatusRequestEntityTooLarge,
 		},

@@ -30,7 +30,7 @@ const (
 	randomKey              = "random-key"
 	sERVER                 = "SERVER"
 	test                   = "test"
-	testdataAllDefaultJson = "./testdata/all_default.json"
+	testdataAllDefaultJSON = "./testdata/all_default.json"
 )
 
 type s3ExportFields struct {
@@ -137,7 +137,7 @@ func TestS3_Export(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: flagVariation + hostname + fixture09Json,
 		},
 		{
@@ -159,7 +159,7 @@ func TestS3_Export(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: flagVariation + hostname + fixture09Json,
 		},
 		{
@@ -181,7 +181,7 @@ func TestS3_Export(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: "^random/path/flag-variation-" + hostname + fixture09Json,
 		},
 		{
@@ -249,7 +249,7 @@ func TestS3_Export(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: "^/json-test-[0-9]*$",
 		},
 	})
@@ -279,7 +279,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: flagVariation + hostname + "-[0-9]*\\.xxx$",
 		},
 		{
@@ -367,7 +367,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Source:       sERVER,
 				},
 			},
-			expectedFile: testdataAllDefaultJson,
+			expectedFile: testdataAllDefaultJSON,
 			expectedName: flagVariation + hostname + fixture09Json,
 		},
 	})

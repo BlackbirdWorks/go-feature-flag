@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	applicationJson  = "application/json"
+	applicationJSON  = "application/json"
 	contentType      = "Content-Type"
 	hostname2        = "hostname"
 	xHubSignature256 = "X-Hub-Signature-256"
@@ -142,7 +142,7 @@ func (c *Notifier) Notify(diff notifier.DiffCache) error {
 		headers = make(http.Header)
 	}
 
-	headers.Set(contentType, applicationJson)
+	headers.Set(contentType, applicationJSON)
 
 	// if a secret is provided we sign the body and add this signature as a header.
 	if c.Secret != "" {

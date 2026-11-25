@@ -109,7 +109,7 @@ func runCollectEvalDataTests(t *testing.T, tests []collectEvalDataCase) {
 
 			logger, logs := slogutil.NewObserver(slog.LevelDebug)
 			out, handlerErr := ctrl.Handle(requestContext(t, logger, "req-1"), &controller.CollectEvalDataInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJson),
+				Request: controller.NewRequest(tt.apiKey, applicationJSON),
 				RawBody: bodyReq,
 			})
 
@@ -412,7 +412,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	input := &controller.CollectEvalDataInput{
-		Request: controller.NewRequest("", applicationJson),
+		Request: controller.NewRequest("", applicationJSON),
 		RawBody: []byte(body),
 	}
 
@@ -564,7 +564,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 				testdataDir + "/collect_eval_data/valid_request_mix_tracking_evaluation.json")
 			require.NoError(t, err)
 			_, handlerErr := ctrl.Handle(t.Context(), &controller.CollectEvalDataInput{
-				Request: controller.NewRequest(tt.apiKey, applicationJson),
+				Request: controller.NewRequest(tt.apiKey, applicationJSON),
 				RawBody: bodyReq,
 			})
 			require.NoError(t, handlerErr)

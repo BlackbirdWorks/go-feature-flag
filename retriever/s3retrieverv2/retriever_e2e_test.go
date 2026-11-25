@@ -29,7 +29,7 @@ const (
 	flagC     = "flag-c"
 	flagD     = "flag-d"
 	flagRoot  = "flag-root"
-	flagsJson = "flags.json"
+	flagsJSON = "flags.json"
 )
 
 func flagJSON(key, value string) []byte {
@@ -70,7 +70,7 @@ func TestE2E_SingleItem(t *testing.T) {
 		useMissing  bool // read from a bucket that does not exist
 	}{
 		{
-			name: "small json item", key: flagsJson,
+			name: "small json item", key: flagsJSON,
 			content: flagJSON("f1", "v1"), wantContent: flagJSON("f1", "v1"),
 		},
 		{
@@ -160,12 +160,12 @@ func TestE2E_SingleItem_UpdateVisibleOnNextRetrieve(t *testing.T) {
 			put:  flagJSON("f2", "v3"), want: flagJSON("f2", "v3"),
 		},
 	}
-	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: flagsJson, AwsConfig: &cfg}
+	r := &s3retrieverv2.Retriever{Bucket: bucket, Item: flagsJSON, AwsConfig: &cfg}
 	require.NoError(t, r.Init(context.Background(), nil))
 	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
 	// steps are sequential by nature: each one depends on the previous object version.
 	for _, s := range steps {
-		srv.PutObject(t, bucket, flagsJson, s.put)
+		srv.PutObject(t, bucket, flagsJSON, s.put)
 
 		got, err := r.Retrieve(context.Background())
 		require.NoError(t, err, s.name)

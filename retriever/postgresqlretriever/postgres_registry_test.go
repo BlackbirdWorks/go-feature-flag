@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	notAPostgresUri = "not a postgres uri"
+	notAPostgresURI = "not a postgres uri"
 )
 
 const wantParseErr = "creating the PostgreSQL pool: cannot parse `not a postgres uri`: " +
@@ -26,7 +26,7 @@ func TestPoolRegistry_GetPoolFailure(t *testing.T) {
 	}{
 		{
 			name:    "invalid URI",
-			uri:     notAPostgresUri,
+			uri:     notAPostgresURI,
 			wantErr: wantParseErr,
 		},
 		{
@@ -64,11 +64,11 @@ func TestRetriever_SharesTheRegistryOfTheCaller(t *testing.T) {
 		wantShared bool
 	}{
 		{
-			name: "with the registry of the caller", r: &rr.Retriever{URI: notAPostgresUri, Pools: pools},
+			name: "with the registry of the caller", r: &rr.Retriever{URI: notAPostgresURI, Pools: pools},
 			wantShared: true, wantErr: wantParseErr,
 		},
 		{
-			name: "with its own registry", r: &rr.Retriever{URI: notAPostgresUri},
+			name: "with its own registry", r: &rr.Retriever{URI: notAPostgresURI},
 			wantShared: false, wantErr: wantParseErr,
 		},
 	}

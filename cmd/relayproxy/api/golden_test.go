@@ -52,7 +52,7 @@ const (
 	origin                      = "Origin"
 	streamV1Sse                 = "/stream/v1/sse/flag/change"
 	streamV1Ws                  = "/stream/v1/ws/flag/change"
-	swaggerIndexHtml            = "/swagger/index.html"
+	swaggerIndexHTML            = "/swagger/index.html"
 	textPlain                   = "text/plain"
 	v1Allflags                  = "/v1/allflags"
 	v1DataCollector             = "/v1/data/collector"
@@ -92,7 +92,7 @@ type goldenCase struct {
 	noBody bool
 }
 
-func jsonHeaders() map[string]string { return map[string]string{contentType: applicationJson} }
+func jsonHeaders() map[string]string { return map[string]string{contentType: applicationJSON} }
 
 func withHeaders(extra map[string]string) map[string]string {
 	h := jsonHeaders()
@@ -150,9 +150,9 @@ func goldenOpenSuccessCases() []goldenCase {
 			name: "configuration_304", method: http.MethodPost, path: v1FlagConfiguration,
 			headers: jsonHeaders(), followETag: true,
 		},
-		{name: "swagger_index", method: http.MethodGet, path: swaggerIndexHtml, headers: nil},
+		{name: "swagger_index", method: http.MethodGet, path: swaggerIndexHTML, headers: nil},
 		{name: "swagger_dir_slash", method: http.MethodGet, path: "/swagger/"},
-		{name: "swagger_openapi", method: http.MethodGet, path: swaggerOpenapiJson, headers: nil},
+		{name: "swagger_openapi", method: http.MethodGet, path: swaggerOpenapiJSON, headers: nil},
 		{
 			name: "ofrep_bulk_ok", method: http.MethodPost, path: ofrepV1Evaluate, body: ofrepBody,
 			headers: jsonHeaders(),
@@ -422,7 +422,7 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 		{name: "method_get_ofrep_bulk", method: http.MethodGet, path: ofrepV1Evaluate},
 		{name: "method_get_ofrep_eval", method: http.MethodGet, path: ofrepV1Evaluate5},
 		{name: "method_get_admin_refresh", method: http.MethodGet, path: adminV1Retriever},
-		{name: "method_post_swagger", method: http.MethodPost, path: swaggerIndexHtml},
+		{name: "method_post_swagger", method: http.MethodPost, path: swaggerIndexHTML},
 		{name: "method_post_manifest", method: http.MethodPost, path: openfeatureV0Manifest},
 		{name: "method_post_ws", method: http.MethodPost, path: streamV1Ws},
 		{name: "head_health", method: http.MethodHead, path: health2},
@@ -460,7 +460,7 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 			headers: map[string]string{origin: httpsExampleCom},
 		},
 		{
-			name: "options_swagger_preflight", method: http.MethodOptions, path: swaggerIndexHtml,
+			name: "options_swagger_preflight", method: http.MethodOptions, path: swaggerIndexHTML,
 			headers: map[string]string{
 				origin: httpsExampleCom, accessControlRequestMethod: gET,
 				accessControlRequestHeaders: "x-api-key",
@@ -484,10 +484,10 @@ func goldenOpenRoutingAndMethodCases() []goldenCase {
 // goldenAuthCases are served by a relay proxy with an evaluation key and an admin key.
 func goldenAuthCases() []goldenCase {
 	bearer := func(k string) map[string]string {
-		return map[string]string{authorization: bearer2 + k, contentType: applicationJson}
+		return map[string]string{authorization: bearer2 + k, contentType: applicationJSON}
 	}
 	apiKey := func(k string) map[string]string {
-		return map[string]string{"X-API-Key": k, contentType: applicationJson}
+		return map[string]string{"X-API-Key": k, contentType: applicationJSON}
 	}
 
 	return []goldenCase{
@@ -507,7 +507,7 @@ func goldenAuthCases() []goldenCase {
 		},
 		{
 			name: "allflags_bearer_lower", method: http.MethodPost, path: v1Allflags, body: flagBody,
-			headers: map[string]string{authorization: "bearer " + goldenEvalKey, contentType: applicationJson},
+			headers: map[string]string{authorization: "bearer " + goldenEvalKey, contentType: applicationJSON},
 		},
 		{
 			name:    "allflags_bearer_bad",
@@ -518,15 +518,15 @@ func goldenAuthCases() []goldenCase {
 		},
 		{
 			name: "allflags_basic_scheme", method: http.MethodPost, path: v1Allflags, body: flagBody,
-			headers: map[string]string{authorization: "Basic abc", contentType: applicationJson},
+			headers: map[string]string{authorization: "Basic abc", contentType: applicationJSON},
 		},
 		{
 			name: "allflags_raw_authorization", method: http.MethodPost, path: v1Allflags, body: flagBody,
-			headers: map[string]string{authorization: goldenEvalKey, contentType: applicationJson},
+			headers: map[string]string{authorization: goldenEvalKey, contentType: applicationJSON},
 		},
 		{
 			name: "allflags_bearer_empty", method: http.MethodPost, path: v1Allflags, body: flagBody,
-			headers: map[string]string{authorization: bearer2, contentType: applicationJson},
+			headers: map[string]string{authorization: bearer2, contentType: applicationJSON},
 		},
 		{
 			name:    "allflags_xapikey_ok",
@@ -545,7 +545,7 @@ func goldenAuthCases() []goldenCase {
 		{
 			name: "allflags_xapikey_bad_bearer_ok", method: http.MethodPost, path: v1Allflags, body: flagBody,
 			headers: map[string]string{
-				"X-API-Key": zzz, authorization: bearer2 + goldenEvalKey, contentType: applicationJson,
+				"X-API-Key": zzz, authorization: bearer2 + goldenEvalKey, contentType: applicationJSON,
 			},
 		},
 		{

@@ -125,7 +125,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
@@ -187,7 +187,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{Kind: file2, Path: testdataFlagConfigYaml},
 					},
-					APIKeys: []string{testApiKey},
+					APIKeys: []string{testAPIKey},
 				},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)

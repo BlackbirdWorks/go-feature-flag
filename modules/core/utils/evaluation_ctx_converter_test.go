@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	companyId       = "company_id"
+	companyID       = "company_id"
 	companyName     = "company_name"
 	fixture2323F37B = "2323f37b-eef7-4bbc-856f-7d16c67de3ae"
 	goFeatureFlag   = "go feature flag"
@@ -48,13 +48,13 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 				Key: fixture2323F37B,
 				Custom: map[string]any{
 					companyName: goFeatureFlag,
-					companyId:   1.1,
+					companyID:   1.1,
 				},
 			},
 			want: ffcontext.
 				NewEvaluationContextBuilder(fixture2323F37B).
 				AddCustom(companyName, goFeatureFlag).
-				AddCustom(companyId, 1.1).
+				AddCustom(companyID, 1.1).
 				Build(),
 		},
 		{
@@ -63,13 +63,13 @@ func Test_ConvertEvaluationCtxFromReq(t *testing.T) {
 				Key: fixture2323F37B,
 				Custom: map[string]any{
 					companyName: goFeatureFlag,
-					companyId:   1.0,
+					companyID:   1.0,
 				},
 			},
 			want: ffcontext.
 				NewEvaluationContextBuilder(fixture2323F37B).
 				AddCustom(companyName, goFeatureFlag).
-				AddCustom(companyId, 1).
+				AddCustom(companyID, 1).
 				Build(),
 		},
 	}

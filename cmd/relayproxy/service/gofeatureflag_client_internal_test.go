@@ -58,12 +58,12 @@ const (
 	bitbucket                    = "bitbucket"
 	develop                      = "develop"
 	fakeDataset                  = "fake-dataset"
-	fakeProjectId                = "fake-project-id"
+	fakeProjectID                = "fake-project-id"
 	file2                        = "file"
 	fixture1234                  = "1234"
 	flagsConfigGoffYaml          = "flags/config.goff.yaml"
 	gofeatureflagConfigRepo      = "gofeatureflag/config-repo"
-	httpsApiBitbucketGoff        = "https://api.bitbucket.goff.org"
+	httpsAPIBitbucketGoff        = "https://api.bitbucket.goff.org"
 	httpsGofeatureflagOrgWebhook = "https://gofeatureflag.org/webhook-example"
 	myBucket                     = "my-bucket"
 	myKafkaTopic                 = "my-kafka-topic"
@@ -120,7 +120,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 					RepositorySlug: gofeatureflagConfigRepo,
 					Path:           flagsConfigGoffYaml,
 					AuthToken:      xXXBITBUCKETTOKEN,
-					BaseURL:        httpsApiBitbucketGoff,
+					BaseURL:        httpsAPIBitbucketGoff,
 				},
 				{
 					Kind:           bitbucket,
@@ -128,7 +128,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 					RepositorySlug: gofeatureflagConfigRepo,
 					Path:           flagsConfigGoffYaml,
 					AuthToken:      xXXBITBUCKETTOKEN,
-					BaseURL:        httpsApiBitbucketGoff,
+					BaseURL:        httpsAPIBitbucketGoff,
 				},
 			},
 		},
@@ -142,7 +142,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 					RepositorySlug: gofeatureflagConfigRepo,
 					Path:           flagsConfigGoffYaml,
 					AuthToken:      xXXBITBUCKETTOKEN,
-					BaseURL:        httpsApiBitbucketGoff,
+					BaseURL:        httpsAPIBitbucketGoff,
 				},
 				{
 					Kind: unknown,
@@ -168,7 +168,7 @@ func Test_initRetrieversWithRegistry(t *testing.T) {
 					RepositorySlug: gofeatureflagConfigRepo,
 					Path:           flagsConfigGoffYaml,
 					AuthToken:      xXXBITBUCKETTOKEN,
-					BaseURL:        httpsApiBitbucketGoff,
+					BaseURL:        httpsAPIBitbucketGoff,
 				},
 			},
 		},
@@ -435,12 +435,12 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:      "pubsub",
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 				Topic:     "fake-topic",
 			},
 			want: ffclient.DataExporter{
 				Exporter: &pubsubexporterv2.Exporter{
-					ProjectID: fakeProjectId,
+					ProjectID: fakeProjectID,
 					Topic:     "fake-topic",
 				},
 			},
@@ -452,12 +452,12 @@ func Test_initExporter(t *testing.T) {
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
 				Kind:      "bigquery",
-				ProjectID: fakeProjectId,
+				ProjectID: fakeProjectID,
 				DatasetID: fakeDataset,
 			},
 			want: ffclient.DataExporter{
 				Exporter: &bigqueryexporter.Exporter{
-					ProjectID: fakeProjectId,
+					ProjectID: fakeProjectID,
 					DatasetID: fakeDataset,
 				},
 			},
@@ -581,7 +581,7 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 
 	got, err := initDataExporter(&config.ExporterConf{
 		Kind:              config.BigQueryExporter,
-		ProjectID:         fakeProjectId,
+		ProjectID:         fakeProjectID,
 		DatasetID:         fakeDataset,
 		TableName:         "tracking-events",
 		GoogleCredentials: credentials,
@@ -593,7 +593,7 @@ func Test_initExporter_BigQueryCredentialsAndTrackingEventType(t *testing.T) {
 	assert.Equal(t, ffclient.TrackingEventExporter, got.ExporterEventType)
 	bigQueryExporter, ok := got.Exporter.(*bigqueryexporter.Exporter)
 	assert.True(t, ok)
-	assert.Equal(t, fakeProjectId, bigQueryExporter.ProjectID)
+	assert.Equal(t, fakeProjectID, bigQueryExporter.ProjectID)
 	assert.Equal(t, fakeDataset, bigQueryExporter.DatasetID)
 	assert.Equal(t, "tracking-events", bigQueryExporter.TableName)
 	assert.Equal(t, []byte(credentials), bigQueryExporter.GoogleCredentials)

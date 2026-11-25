@@ -57,7 +57,7 @@ func FuzzOFREPEvaluate(f *testing.F) {
 		}
 
 		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(body))
-		req.Header.Set(contentType, applicationJson)
+		req.Header.Set(contentType, applicationJSON)
 
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

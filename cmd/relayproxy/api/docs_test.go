@@ -28,7 +28,7 @@ import (
 const (
 	events2            = `{"events":[]}`
 	fixture310         = "3.1.0"
-	swaggerOpenapiJson = "/swagger/openapi.json"
+	swaggerOpenapiJSON = "/swagger/openapi.json"
 	v999               = "v9.9.9"
 )
 
@@ -100,7 +100,7 @@ func Test_Swagger(t *testing.T) {
 				// the document of every URL, with the exact OpenAPI version it has: the native one is 3.1, the
 				// downgrades are 3.0
 				documents := []struct{ path, wantVersion string }{
-					{swaggerOpenapiJson, fixture310},
+					{swaggerOpenapiJSON, fixture310},
 					{"/swagger/openapi-3.0.json", "3.0.3"},
 					{"/swagger/openapi.yaml", fixture310},
 					{"/swagger/openapi-3.0.yaml", "3.0.3"},
@@ -166,7 +166,7 @@ func Test_Swagger(t *testing.T) {
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(
 				rec,
-				httptest.NewRequestWithContext(t.Context(), http.MethodGet, swaggerOpenapiJson, nil),
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, swaggerOpenapiJSON, nil),
 			)
 			require.Equal(t, http.StatusOK, rec.Code)
 
@@ -300,7 +300,7 @@ func Test_Upload(t *testing.T) {
 				tt.path,
 				strings.NewReader(events2),
 			)
-			req.Header.Set(contentType, applicationJson)
+			req.Header.Set(contentType, applicationJSON)
 
 			rec := &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}
 			// real time on purpose: huma sets the deadline from the real clock, and the network deadlines are enforced
@@ -340,7 +340,7 @@ func Test_Upload(t *testing.T) {
 			}, api.WithReadTimeout(tt.timeout))
 			resp, err := http.Post(
 				base+tt.path,
-				applicationJson,
+				applicationJSON,
 				strings.NewReader(events2),
 			)
 			require.NoError(t, err)

@@ -45,7 +45,7 @@ const (
 	fixture5082A8Df                = "5082a8df-cc67-48b4-aca4-26ce1425645"
 	fixture62507779Bd2D            = "62507779-bd2d-4170-b715-8d93ee7110f"
 	fixture6Bfd6B                  = "6bfd6b61-f8a9-45b3-9ca8-37125438be4"
-	flagSetApiKey                  = "flag-set-api-key-2"
+	flagSetAPIKey                  = "flag-set-api-key-2"
 	flagset1                       = "flagset-1"
 	flagset2                       = "flagset-2"
 	http2                          = "http"
@@ -69,7 +69,7 @@ const (
 	slack                          = "slack"
 	test12                         = "test1"
 	test2                          = "test"
-	testApiKey                     = "test-api-key"
+	testAPIKey                     = "test-api-key"
 	testFlagset                    = "test-flagset"
 	testdataConfigValidFile        = "../testdata/config/valid-file.yaml"
 	token2                         = "token"
@@ -934,7 +934,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name:    testFlagset,
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 						Retriever: &retrieverconf.RetrieverConf{
 							Kind: file2,
 							Path: testdataConfigValidFile,
@@ -953,7 +953,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				},
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 						Retriever: &retrieverconf.RetrieverConf{
 							Kind: file2,
 							Path: testdataConfigValidFile,
@@ -1020,7 +1020,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name:    testFlagset,
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 						Retriever: &retrieverconf.RetrieverConf{
 							Kind: file2,
 							// Missing Path
@@ -1040,7 +1040,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name:    testFlagset,
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 						Retriever: &retrieverconf.RetrieverConf{
 							Kind: file2,
 							Path: testdataConfigValidFile,
@@ -1064,7 +1064,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 				FlagSets: []config.FlagSet{
 					{
 						Name:    testFlagset,
-						APIKeys: []string{testApiKey},
+						APIKeys: []string{testAPIKey},
 						Retriever: &retrieverconf.RetrieverConf{
 							Kind: file2,
 							Path: testdataConfigValidFile,
@@ -1259,7 +1259,7 @@ func TestConfig_APIKeyExists(t *testing.T) {
 		},
 		{
 			name:   "key exists in multiple flag sets",
-			apiKey: flagSetApiKey,
+			apiKey: flagSetAPIKey,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
@@ -1268,7 +1268,7 @@ func TestConfig_APIKeyExists(t *testing.T) {
 					},
 					{
 						Name:    "test-flag-set-2",
-						APIKeys: []string{flagSetApiKey},
+						APIKeys: []string{flagSetAPIKey},
 					},
 				},
 			},
@@ -1285,7 +1285,7 @@ func TestConfig_APIKeyExists(t *testing.T) {
 					},
 					{
 						Name:    "test-flag-set-2",
-						APIKeys: []string{flagSetApiKey},
+						APIKeys: []string{flagSetAPIKey},
 					},
 				},
 			},

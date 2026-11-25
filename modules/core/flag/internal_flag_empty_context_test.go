@@ -507,7 +507,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 		{
 			name: "Should use custom bucketing key when provided",
 			flag: flag.InternalFlag{
-				BucketingKey: new(teamId),
+				BucketingKey: new(teamID),
 				Variations: &map[string]*any{
 					enabled2:  new(any(true)),
 					disabled2: new(any(false)),
@@ -521,7 +521,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 			},
 			evaluationCtx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute(teamId, team123)
+				ctx.AddCustomAttribute(teamID, team123)
 
 				return ctx
 			}(),
@@ -532,7 +532,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 		{
 			name: "Should allow empty custom bucketing key for non-bucketing flag",
 			flag: flag.InternalFlag{
-				BucketingKey: new(teamId),
+				BucketingKey: new(teamID),
 				Variations: &map[string]*any{
 					enabled2:  new(any(true)),
 					disabled2: new(any(false)),
@@ -543,7 +543,7 @@ func TestInternalFlag_GetBucketingKeyValue_EmptyContext(t *testing.T) {
 			},
 			evaluationCtx: func() ffcontext.Context {
 				ctx := ffcontext.NewEvaluationContext("")
-				ctx.AddCustomAttribute(teamId, "")
+				ctx.AddCustomAttribute(teamID, "")
 
 				return ctx
 			}(),

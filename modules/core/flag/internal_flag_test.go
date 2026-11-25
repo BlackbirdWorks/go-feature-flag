@@ -15,7 +15,7 @@ import (
 
 const (
 	company                      = "company"
-	companyId                    = "company.id"
+	companyID                    = "company.id"
 	currentDateTime2             = "currentDateTime"
 	dEVEnvironment               = "DEV environment"
 	defaultSdk                   = "default-sdk"
@@ -41,7 +41,7 @@ const (
 	sdkDefault                   = "SdkDefault"
 	semaphore                    = "semaphore"
 	targetingKeyEq1              = "targetingKey eq 1"
-	teamId                       = "teamId"
+	teamID                       = "teamId"
 	testRule                     = "test-rule"
 	thisIsAFlag                  = "this is a flag"
 	userKey                      = "user-key"
@@ -2306,12 +2306,12 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					description2: thisIsAFlag,
 					issueLink:    httpsIssueLinkGOFF,
 				},
-				BucketingKey: new(teamId),
+				BucketingKey: new(teamID),
 			},
 			args: internalFlagValueArgs{
 				flagName: myFlag,
 				user: ffcontext.NewEvaluationContextBuilder("toto").
-					AddCustom(teamId, "").
+					AddCustom(teamID, "").
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: false,
@@ -2387,7 +2387,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 					variationB: new(any(valueB2)),
 					variationC: new(any(valueC)),
 				},
-				BucketingKey: new(teamId),
+				BucketingKey: new(teamID),
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
 						variationA: 33,
@@ -2398,7 +2398,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			args: internalFlagValueArgs{
 				flagName: myFlag,
 				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(teamId, team123).
+					AddCustom(teamID, team123).
 					Build(),
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: valueDefault,
@@ -2415,7 +2415,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 					variationB: new(any(valueB2)),
 					variationC: new(any(valueC)),
 				},
-				BucketingKey: new(companyId),
+				BucketingKey: new(companyID),
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
 						variationA: 33,
@@ -2426,7 +2426,7 @@ func TestInternalFlag_ValueWithBucketingKey(t *testing.T) {
 			args: internalFlagValueArgs{
 				flagName: myFlag,
 				user: ffcontext.NewEvaluationContextBuilder(userKey).
-					AddCustom(teamId, team123).
+					AddCustom(teamID, team123).
 					AddCustom(company, map[string]any{
 						"id": "company-456",
 					}).
@@ -2482,7 +2482,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					variationB: new(any(valueB2)),
 					variationC: new(any(valueC)),
 				},
-				BucketingKey: new(teamId),
+				BucketingKey: new(teamID),
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
 						variationA: 33,
@@ -2510,7 +2510,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					variationB: new(any(valueB2)),
 					variationC: new(any(valueC)),
 				},
-				BucketingKey: new(companyId),
+				BucketingKey: new(companyID),
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
 						variationA: 33,
@@ -2542,7 +2542,7 @@ func TestInternalFlag_ValueWithInvalidBucketingKey(t *testing.T) {
 					variationB: new(any(valueB2)),
 					variationC: new(any(valueC)),
 				},
-				BucketingKey: new(companyId),
+				BucketingKey: new(companyID),
 				DefaultRule: &flag.Rule{
 					Percentages: &map[string]float64{
 						variationA: 33,

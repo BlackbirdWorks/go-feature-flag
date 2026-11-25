@@ -24,8 +24,8 @@ const (
 	failedToExecuteQuery     = "failed to execute query"
 	flagName2                = "flag_name"
 	goFeatureFlag            = "go_feature_flag"
-	sqlInitSql               = "sql/init.sql"
-	sqlInsertDataSql         = "sql/insert_data.sql"
+	sqlInitSQL               = "sql/init.sql"
+	sqlInsertDataSQL         = "sql/insert_data.sql"
 	testTable                = "test_table"
 )
 
@@ -44,8 +44,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "valid set of flag",
 			files: []string{
-				sqlInitSql,
-				sqlInsertDataSql,
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			tableName: goFeatureFlag,
 			assertErr: assert.NoError,
@@ -54,8 +54,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "invalid table name",
 			files: []string{
-				sqlInitSql,
-				sqlInsertDataSql,
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			tableName: "invalid_table_name",
 			assertErr: assert.Error,
@@ -63,8 +63,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "invalid column names",
 			files: []string{
-				sqlInitSql,
-				sqlInsertDataSql,
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			assertErr: assert.Error,
 			columns: map[string]string{
@@ -76,8 +76,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "valid set of flag with flagset",
 			files: []string{
-				sqlInitSql,
-				sqlInsertDataSql,
+				sqlInitSQL,
+				sqlInsertDataSQL,
 				"sql/insert_alternative_flagset.sql",
 			},
 			tableName: goFeatureFlag,
@@ -88,8 +88,8 @@ func TestPostgreSQLRetriever(t *testing.T) {
 		{
 			name: "valid set of flag with empty flagset",
 			files: []string{
-				sqlInitSql,
-				sqlInsertDataSql,
+				sqlInitSQL,
+				sqlInsertDataSQL,
 			},
 			tableName: goFeatureFlag,
 			assertErr: assert.NoError,
@@ -275,7 +275,7 @@ func TestRetrieverErrorHandling(t *testing.T) {
 func TestRetrieverQueryErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSql, sqlInsertDataSql})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL, sqlInsertDataSQL})
 
 	t.Run("Query execution error - invalid table", func(t *testing.T) {
 		t.Parallel()
@@ -351,7 +351,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 	t.Parallel()
 
 	// Create a test container with some test data
-	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSql})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	// Insert some test data
 	ctx := context.Background()
@@ -429,7 +429,7 @@ func TestRetrieverDataHandlingErrors(t *testing.T) {
 func TestRetrieverEdgeCases(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSql})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	t.Run("Empty result set", func(t *testing.T) {
 		t.Parallel()
@@ -564,7 +564,7 @@ func TestRetrieverEdgeCases(t *testing.T) {
 func TestRetrieverShutdownErrors(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSql})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL})
 
 	t.Run("Shutdown with active connection", func(t *testing.T) {
 		t.Parallel()
@@ -638,7 +638,7 @@ func TestPostgreSQLRetriever_OutputFormat(t *testing.T) {
 func TestRetrieverShutdownOfASharedPool(t *testing.T) {
 	t.Parallel()
 
-	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSql, sqlInsertDataSql})
+	connectionString := startPostgreSQLAndAddData(t, []string{sqlInitSQL, sqlInsertDataSQL})
 
 	pools := postgresqlretriever.NewPoolRegistry()
 	first := &postgresqlretriever.Retriever{URI: connectionString, Table: goFeatureFlag, Pools: pools}
