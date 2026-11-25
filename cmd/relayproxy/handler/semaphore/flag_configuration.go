@@ -74,7 +74,8 @@ func (h *FlagConfigurationAPICtrl) Handle(
 	defer span.End()
 
 	reqBody := new(FlagConfigurationRequest)
-	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
+	err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody)
+	if err != nil {
 		return &FlagConfigurationOutput{
 			Status:       http.StatusBadRequest,
 			LastModified: "",

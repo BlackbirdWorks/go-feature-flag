@@ -43,7 +43,8 @@ func NewLibraryTarget(ctx context.Context, o LibraryOptions) (*LibraryTarget, er
 		return nil, err
 	}
 	path := filepath.Join(dir, "flags.yaml")
-	if writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600); writeFileErr != nil {
+	writeFileErr := os.WriteFile(path, []byte(FlagsYAML()), 0o600)
+	if writeFileErr != nil {
 		return nil, writeFileErr
 	}
 	if o.FlushInterval == 0 {

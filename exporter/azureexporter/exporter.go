@@ -102,7 +102,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName); uploadFileErr != nil {
+		uploadFileErr := f.uploadFile(ctx, client, logger, of, outputDir, fileName)
+		if uploadFileErr != nil {
 			return uploadFileErr
 		}
 	}
@@ -154,7 +155,8 @@ func (f *Exporter) uploadFile(
 		source = f.Path + "/" + fileName
 	}
 
-	if _, err := client.UploadFile(ctx, f.Container, source, of, nil); err != nil {
+	_, err := client.UploadFile(ctx, f.Container, source, of, nil)
+	if err != nil {
 		logger.ErrorContext(
 			ctx,
 			"[Azure Exporter] failed to upload file",

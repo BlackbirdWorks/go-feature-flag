@@ -192,8 +192,8 @@ func (c *ManagerImpl) GetLatestUpdateDate() time.Time {
 // The persistence is done in a goroutine to not block the main thread.
 func (c *ManagerImpl) PersistCache(oldCache, newCache map[string]flag.Flag) {
 	c.persistWg.Go(func() {
-		if _, err := os.Stat(c.persistentFlagConfigurationFile); !os.IsNotExist(err) &&
-			cmp.Equal(oldCache, newCache) {
+		_, statErr := os.Stat(c.persistentFlagConfigurationFile)
+		if !os.IsNotExist(statErr) && cmp.Equal(oldCache, newCache) {
 			c.logger.Debug("No change in the cache, skipping the persist")
 
 			return

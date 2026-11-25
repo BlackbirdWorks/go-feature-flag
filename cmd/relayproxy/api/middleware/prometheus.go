@@ -105,7 +105,8 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 		Buckets:   sizeBuckets(),
 	}), labels)
 	for _, c := range []prometheus.Collector{requestCount, requestDuration, responseSize, requestSize} {
-		if err := cfg.Registerer.Register(c); err != nil {
+		err := cfg.Registerer.Register(c)
+		if err != nil {
 			return nil, err //nolint:wrapcheck // the error of the registry says what is wrong
 		}
 	}
@@ -124,17 +125,21 @@ func Prometheus(cfg PrometheusConfig) (Func, error) {
 				r.Host,
 				strings.ToValidUTF8(RoutePattern(r), "�"),
 			}
-			if obs, err := requestDuration.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(elapsed)
+			durObs, durErr := requestDuration.GetMetricWithLabelValues(values[:]...)
+			if durErr == nil {
+				durObs.Observe(elapsed)
 			}
-			if obs, err := requestCount.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Inc()
+			cntObs, cntErr := requestCount.GetMetricWithLabelValues(values[:]...)
+			if cntErr == nil {
+				cntObs.Inc()
 			}
-			if obs, err := requestSize.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(float64(reqSize))
+			reqObs, reqErr := requestSize.GetMetricWithLabelValues(values[:]...)
+			if reqErr == nil {
+				reqObs.Observe(float64(reqSize))
 			}
-			if obs, err := responseSize.GetMetricWithLabelValues(values[:]...); err == nil {
-				obs.Observe(float64(rec.Size()))
+			respObs, respErr := responseSize.GetMetricWithLabelValues(values[:]...)
+			if respErr == nil {
+				respObs.Observe(float64(rec.Size()))
 			}
 		})
 	}, nil

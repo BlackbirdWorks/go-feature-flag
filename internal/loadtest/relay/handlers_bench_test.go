@@ -24,7 +24,8 @@ func invoke(b *testing.B, h func(http.ResponseWriter, *http.Request) error, ep r
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	req.SetPathValue("flagKey", key)
-	if err := h(rec, req); err != nil {
+	err := h(rec, req)
+	if err != nil {
 		assert.NoError(b, err)
 
 		return

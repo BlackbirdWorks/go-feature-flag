@@ -545,14 +545,16 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 // and does not depend on the other tests running in parallel.
 func goroutinesLabeled(key, value string) int {
 	var buf bytes.Buffer
-	if err := pprof.Lookup("goroutine").WriteTo(&buf, 1); err != nil {
+	err := pprof.Lookup("goroutine").WriteTo(&buf, 1)
+	if err != nil {
 		return -1
 	}
 	want := fmt.Sprintf("%q:%q", key, value)
 	total, current := 0, 0
 	for line := range strings.SplitSeq(buf.String(), "\n") {
 		if n, _, ok := strings.Cut(line, " @ "); ok {
-			if v, err := strconv.Atoi(n); err == nil {
+			v, parseErr := strconv.Atoi(n)
+			if parseErr == nil {
 				current = v
 			}
 

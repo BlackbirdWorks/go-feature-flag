@@ -39,7 +39,8 @@ func (e *Exporter) Export(
 	events []exporter.ExportableEvent,
 ) error {
 	if e.publisher == nil {
-		if err := e.initPublisher(ctx); err != nil {
+		err := e.initPublisher(ctx)
+		if err != nil {
 			return err
 		}
 	}
@@ -59,9 +60,10 @@ func (e *Exporter) Export(
 	}
 
 	for _, res := range results {
-		if _, err := res.Get(ctx); err != nil {
+		_, getErr := res.Get(ctx)
+		if getErr != nil {
 			// Return the first error encountered.
-			return err
+			return getErr
 		}
 	}
 

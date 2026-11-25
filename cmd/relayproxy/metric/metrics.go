@@ -214,7 +214,8 @@ func NewMetrics(opts ...MetricsOpts) (Metrics, error) {
 
 	// register all the metric in the custom registry
 	for _, metric := range metricToRegister {
-		if err := customRegistry.Register(metric); err != nil {
+		err := customRegistry.Register(metric)
+		if err != nil {
 			return Metrics{}, err
 		}
 	}

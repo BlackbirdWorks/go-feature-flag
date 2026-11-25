@@ -142,7 +142,8 @@ func Test_MongoDBRetriever_OutputFormat(t *testing.T) {
 
 func removeIDFromJSON(jsonStr string) (string, error) {
 	var data any
-	if err := json.Unmarshal([]byte(jsonStr), &data); err != nil {
+	err := json.Unmarshal([]byte(jsonStr), &data)
+	if err != nil {
 		return "", err
 	}
 

@@ -31,12 +31,14 @@ func NewAllFlags(flagsetManager service.FlagsetManager, metrics metric.Metrics) 
 // Handler is the entry point for the allFlags endpoint.
 func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	reqBody := new(model.AllFlagRequest)
-	if err := helper.BindBody(r, reqBody); err != nil {
+	err := helper.BindBody(r, reqBody)
+	if err != nil {
 		return err
 	}
 	// validation that we have a reqBody key
-	if err := assertRequest(reqBody); err != nil {
-		return err
+	assertErr := assertRequest(reqBody)
+	if assertErr != nil {
+		return assertErr
 	}
 
 	evaluationCtx, err := evaluationContextFromRequest(reqBody)

@@ -137,8 +137,9 @@ func Test_websocket_flag_change(t *testing.T) {
 			defer func() {
 				websocketService.Close()
 				// Wait for cleanup to complete to avoid leaking goroutines in tests.
-				if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-					assert.NoError(t, err, "websocket service cleanup failed")
+				cleanupErr := websocketService.WaitForCleanup(5 * time.Second)
+				if cleanupErr != nil {
+					assert.NoError(t, cleanupErr, "websocket service cleanup failed")
 				}
 			}()
 
@@ -239,8 +240,9 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	websocketService := stream.NewWebsocketService()
 	defer func() {
 		websocketService.Close()
-		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			assert.NoError(t, err, "websocket service cleanup failed")
+		cleanupErr := websocketService.WaitForCleanup(5 * time.Second)
+		if cleanupErr != nil {
+			assert.NoError(t, cleanupErr, "websocket service cleanup failed")
 		}
 	}()
 
@@ -268,7 +270,8 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 		defer close(clientDone)
 		first := true
 		for {
-			if _, _, readMessageErr := ws.ReadMessage(); readMessageErr != nil {
+			_, _, readMessageErr := ws.ReadMessage()
+			if readMessageErr != nil {
 				return
 			}
 			if first {
@@ -330,8 +333,9 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	websocketService := stream.NewWebsocketService()
 	defer func() {
 		websocketService.Close()
-		if err := websocketService.WaitForCleanup(5 * time.Second); err != nil {
-			assert.NoError(t, err, "websocket service cleanup failed")
+		cleanupErr := websocketService.WaitForCleanup(5 * time.Second)
+		if cleanupErr != nil {
+			assert.NoError(t, cleanupErr, "websocket service cleanup failed")
 		}
 	}()
 

@@ -91,7 +91,8 @@ type installationTokenResponse struct {
 // Init validates the authentication configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
-	if err := r.validateAppAuth(); err != nil {
+	err := r.validateAppAuth()
+	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err
@@ -138,7 +139,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		return nil, err
 	}
 
-	if checkRateLimitErr := r.checkRateLimit(); checkRateLimitErr != nil {
+	checkRateLimitErr := r.checkRateLimit()
+	if checkRateLimitErr != nil {
 		return nil, checkRateLimitErr
 	}
 
@@ -158,16 +160,19 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		_ = resp.Body.Close()
 		r.invalidateCachedToken()
 
-		if token, err = r.resolveToken(ctx); err != nil {
+		token, err = r.resolveToken(ctx)
+		if err != nil {
 			return nil, err
 		}
-		if resp, err = r.fetch(ctx, requestURL, token); err != nil {
+		resp, err = r.fetch(ctx, requestURL, token)
+		if err != nil {
 			return nil, err
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if checkResponseErrorErr := r.checkResponseError(resp, requestURL); checkResponseErrorErr != nil {
+	checkResponseErrorErr := r.checkResponseError(resp, requestURL)
+	if checkResponseErrorErr != nil {
 		return nil, checkResponseErrorErr
 	}
 
@@ -304,7 +309,8 @@ func (r *Retriever) mintInstallationToken(ctx context.Context) (string, time.Tim
 	}
 
 	var result installationTokenResponse
-	if unmarshalErr := json.Unmarshal(body, &result); unmarshalErr != nil {
+	unmarshalErr := json.Unmarshal(body, &result)
+	if unmarshalErr != nil {
 		return "", time.Time{}, fmt.Errorf("github app: failed to parse token response: %w", unmarshalErr)
 	}
 	if result.Token == "" {
@@ -427,13 +433,15 @@ func (r *Retriever) updateRateLimit(headers http.Header) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if remaining := headers.Get("X-Ratelimit-Remaining"); remaining != "" {
-		if remainingInt, err := strconv.Atoi(remaining); err == nil {
+		remainingInt, err := strconv.Atoi(remaining)
+		if err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
 	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
-		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		resetInt, err := strconv.ParseInt(reset, 10, 64)
+		if err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}
 	}

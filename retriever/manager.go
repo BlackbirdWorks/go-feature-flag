@@ -67,11 +67,14 @@ func NewManager(
 // Init the retrievers.
 // This function will call the Init function of the retrievers that implements the InitializableRetriever interface.
 func (m *Manager) Init(ctx context.Context) error {
-	if err := m.initRetrievers(ctx, m.retrievers); err != nil {
+	err := m.initRetrievers(ctx, m.retrievers)
+	if err != nil {
 		return err
 	}
-	if err := m.retrieveFlagsAndUpdateCache(ctx, true); err != nil {
-		if handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err); handleFirstRetrieverErrorErr != nil {
+	err = m.retrieveFlagsAndUpdateCache(ctx, true)
+	if err != nil {
+		handleFirstRetrieverErrorErr := m.handleFirstRetrieverError(ctx, err)
+		if handleFirstRetrieverErrorErr != nil {
 			return handleFirstRetrieverErrorErr
 		}
 	}
@@ -314,7 +317,8 @@ func (m *Manager) retrievePersistentLocalDisk(ctx context.Context) error {
 				" flag configuration file.",
 			slog.String("path", m.config.PersistentFlagConfigurationFile),
 		)
-		if _, err := os.Stat(m.config.PersistentFlagConfigurationFile); err == nil {
+		_, err := os.Stat(m.config.PersistentFlagConfigurationFile)
+		if err == nil {
 			// we found the configuration file on the disk
 			r := &fileretriever.Retriever{Path: m.config.PersistentFlagConfigurationFile}
 			newFlags, retrieveErr := retrieve(ctx, []Retriever{r}, m.config.FileFormat)

@@ -51,7 +51,8 @@ func ReadableValue(value any) string {
 	var out bytes.Buffer
 	encoder := json.NewEncoder(&out)
 	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(value); err == nil {
+	err := encoder.Encode(value)
+	if err == nil {
 		return strings.TrimSuffix(out.String(), "\n")
 	}
 

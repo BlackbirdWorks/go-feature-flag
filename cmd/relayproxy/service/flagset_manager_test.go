@@ -2057,7 +2057,8 @@ func TestFlagsetManager_ConcurrentReadDuringReconcile(t *testing.T) {
 				case <-done:
 					return
 				default:
-					if _, err := manager.FlagSet("stable-key"); err != nil {
+					_, err := manager.FlagSet("stable-key")
+					if err != nil {
 						stableErrors.Add(1)
 					}
 					_, _ = manager.AllFlagSets()

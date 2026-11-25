@@ -156,14 +156,16 @@ func (l *Loader) Load(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("unable to list objects%s with prefix %q, %w", l.from(), l.opts.Prefix, err)
 	}
 	keys := sortedKeys(files)
-	if checkFormatsErr := checkFormats(keys); checkFormatsErr != nil {
+	checkFormatsErr := checkFormats(keys)
+	if checkFormatsErr != nil {
 		return nil, checkFormatsErr
 	}
 	if len(keys) == 0 {
 		l.opts.Logger.WarnContext(ctx, l.logPrefix()+": no supported file matches the prefix, the flag set is empty",
 			l.locationKey(), l.opts.Location, "prefix", l.prefix, "pattern", l.opts.Pattern)
 	}
-	if refreshCacheErr := l.refreshCache(ctx, keys, files); refreshCacheErr != nil {
+	refreshCacheErr := l.refreshCache(ctx, keys, files)
+	if refreshCacheErr != nil {
 		return nil, refreshCacheErr
 	}
 

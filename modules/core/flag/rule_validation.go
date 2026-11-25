@@ -58,21 +58,25 @@ func (r *Rule) validate(
 
 	ev := known
 	if ev == nil {
-		var err error
-		if ev, err = r.validateQuery(svc, defaultRule); err != nil {
-			return nil, err
+		var queryErr error
+		ev, queryErr = r.validateQuery(svc, defaultRule)
+		if queryErr != nil {
+			return nil, queryErr
 		}
 	}
 
-	if err := r.validatePercentages(variations); err != nil {
+	err := r.validatePercentages(variations)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := r.validateProgressiveRollout(variations); err != nil {
+	err = r.validateProgressiveRollout(variations)
+	if err != nil {
 		return nil, err
 	}
 
-	if err := r.validateVariationResult(variations); err != nil {
+	err = r.validateVariationResult(variations)
+	if err != nil {
 		return nil, err
 	}
 
@@ -95,7 +99,8 @@ func (r *Rule) validatePercentages(variations map[string]*any) error {
 
 	count := float64(0)
 	for k, p := range percentages {
-		if err := r.validateSinglePercentage(p, fmt.Sprintf("variation %s", k)); err != nil {
+		err := r.validateSinglePercentage(p, fmt.Sprintf("variation %s", k))
+		if err != nil {
 			return err
 		}
 		count += p
@@ -139,12 +144,14 @@ func (r *Rule) validateProgressiveRollout(variations map[string]*any) error {
 	}
 
 	initialPct := progRollout.Initial.getPercentage()
-	if err := r.validateSinglePercentage(initialPct, "initial step percentage"); err != nil {
+	err := r.validateSinglePercentage(initialPct, "initial step percentage")
+	if err != nil {
 		return err
 	}
 
 	endPct := progRollout.End.getPercentage()
-	if err := r.validateSinglePercentage(endPct, "end step percentage"); err != nil {
+	err = r.validateSinglePercentage(endPct, "end step percentage")
+	if err != nil {
 		return err
 	}
 

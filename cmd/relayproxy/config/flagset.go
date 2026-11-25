@@ -125,7 +125,8 @@ func (c *Config) GetFlagSets() []FlagSet {
 func (c *Config) AddFlagSet(flagset FlagSet) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	if _, err := c.getFlagSetIndexFromName(flagset.Name); err == nil {
+	_, err := c.getFlagSetIndexFromName(flagset.Name)
+	if err == nil {
 		return fmt.Errorf("%w %s already exists", errFlagset, flagset.Name)
 	}
 	c.FlagSets = append(c.FlagSets, flagset)

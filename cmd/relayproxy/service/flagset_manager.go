@@ -365,7 +365,8 @@ func (m *FlagsetManagerImpl) Close() {
 
 // OnConfigChange is called when the configuration changes.
 func (m *FlagsetManagerImpl) OnConfigChange(newConfig *config.Config) {
-	if err := newConfig.IsValid(); err != nil {
+	err := newConfig.IsValid()
+	if err != nil {
 		m.logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
@@ -533,7 +534,8 @@ func (m *FlagsetManagerImpl) addFlagset(flagset config.FlagSet, defaultCleanQueu
 	// by rebuildNamedAPIKeysMapping, so a client that is not in the config would run without any
 	// routing (unreachable). If the config update fails, close the client and skip rather than
 	// leaving an orphan running flagset.
-	if addFlagSetErr := m.config.AddFlagSet(flagset); addFlagSetErr != nil {
+	addFlagSetErr := m.config.AddFlagSet(flagset)
+	if addFlagSetErr != nil {
 		m.logger.LogAttrs(
 			context.Background(),
 			slog.LevelError,
@@ -573,7 +575,8 @@ func (m *FlagsetManagerImpl) removeFlagset(flagset config.FlagSet) {
 	if client != nil {
 		client.Close()
 	}
-	if err := m.config.RemoveFlagSet(flagset.Name); err != nil {
+	err := m.config.RemoveFlagSet(flagset.Name)
+	if err != nil {
 		m.logger.LogAttrs(context.Background(), slog.LevelError, "failed to remove the flagset from the configuration",
 			slog.String("flagset", flagset.Name), cmdlog.Err(err))
 	}
@@ -620,7 +623,8 @@ func (m *FlagsetManagerImpl) reconcileExistingFlagset(current, newFlagset config
 		)
 		// Update only the authoritative configuration here; the routing map is rebuilt from it
 		// by rebuildNamedAPIKeysMapping once all flagsets have been reconciled.
-		if err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys); err != nil {
+		err := m.config.SetFlagSetAPIKeys(newFlagset.Name, newFlagset.APIKeys)
+		if err != nil {
 			m.logger.LogAttrs(
 				context.Background(),
 				slog.LevelError,

@@ -688,7 +688,8 @@ func readPersistedFlags(path string) ([]byte, map[string]any, bool) {
 	if err != nil || len(content) == 0 {
 		return nil, nil, false
 	}
-	if unmarshalErr := yaml.Unmarshal(content, &flags); unmarshalErr != nil || len(flags) == 0 {
+	unmarshalErr := yaml.Unmarshal(content, &flags)
+	if unmarshalErr != nil || len(flags) == 0 {
 		return nil, nil, false
 	}
 

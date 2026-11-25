@@ -90,7 +90,8 @@ func (f *Exporter) Export(
 	} else {
 		// Ensure OutputDir exists or create it
 		//nolint:gosec // G302/G304: the path is chosen by the operator
-		if mkdirAllErr := os.MkdirAll(outputDir, 0755); mkdirAllErr != nil {
+		mkdirAllErr := os.MkdirAll(outputDir, 0755)
+		if mkdirAllErr != nil {
 			return fmt.Errorf("failed to create output directory: %w", mkdirAllErr)
 		}
 		filePath = filepath.Join(outputDir, filename)
@@ -177,9 +178,8 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 	}
 
 	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
-		f.ParquetCompressionCodec,
-	); compressionCodecFromStringErr == nil {
+	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
+	if compressionCodecFromStringErr == nil {
 		pw.CompressionType = ct
 	}
 
@@ -189,7 +189,8 @@ func (f *Exporter) writeParquetFeatureEvent(filePath string, events []exporter.F
 			return convertValueForParquetErr
 		}
 		event.Value = eventValue
-		if convertValueForParquetErr = pw.Write(event); convertValueForParquetErr != nil {
+		convertValueForParquetErr = pw.Write(event)
+		if convertValueForParquetErr != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", convertValueForParquetErr)
 		}
 	}
@@ -214,14 +215,14 @@ func (f *Exporter) writeParquetTrackingEvent(
 	}
 
 	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-	if ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(
-		f.ParquetCompressionCodec,
-	); compressionCodecFromStringErr == nil {
+	ct, compressionCodecFromStringErr := parquet.CompressionCodecFromString(f.ParquetCompressionCodec)
+	if compressionCodecFromStringErr == nil {
 		pw.CompressionType = ct
 	}
 
 	for _, event := range events {
-		if err = pw.Write(event); err != nil {
+		err = pw.Write(event)
+		if err != nil {
 			return fmt.Errorf("error while writing the parquet export file: %w", err)
 		}
 	}

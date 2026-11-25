@@ -310,12 +310,16 @@ func evalLoop(ctx context.Context, t Target, w int, st *workerStats) {
 	for i := 0; ctx.Err() == nil; i++ {
 		if i%latSample == 0 {
 			start := time.Now()
-			if err := t.Eval(w, i); err != nil {
+			err := t.Eval(w, i)
+			if err != nil {
 				st.errs.Add(1)
 			}
 			st.hist[bucket(time.Since(start).Nanoseconds())].Add(1)
-		} else if err := t.Eval(w, i); err != nil {
-			st.errs.Add(1)
+		} else {
+			err := t.Eval(w, i)
+			if err != nil {
+				st.errs.Add(1)
+			}
 		}
 		st.count.Add(1)
 	}

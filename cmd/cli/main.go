@@ -20,7 +20,8 @@ var (
 )
 
 func main() {
-	if err := initRootCmd().Execute(); err != nil {
+	err := initRootCmd().Execute()
+	if err != nil {
 		helper.PrintFatalAndExit(err)
 	}
 }

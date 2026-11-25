@@ -38,7 +38,8 @@ func ValidateFlags(flags map[string]dto.DTO) []FlagError {
 	svc := flag.NewService()
 	defer svc.Close()
 	for _, key := range slices.Sorted(maps.Keys(flags)) {
-		if err := validateFlag(svc, flags[key]); err != nil {
+		err := validateFlag(svc, flags[key])
+		if err != nil {
 			errs = append(errs, FlagError{Flag: key, Err: err})
 		}
 	}

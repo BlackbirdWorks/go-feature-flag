@@ -105,7 +105,8 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if initClientErr := e.initClient(ctx); initClientErr != nil {
+	initClientErr := e.initClient(ctx)
+	if initClientErr != nil {
 		return initClientErr
 	}
 
@@ -212,7 +213,8 @@ func (e *Exporter) exportRows(
 	rows []rowSaver,
 ) error {
 	if e.AutoMigrate {
-		if err := e.client.EnsureTable(ctx, e.DatasetID, table, schema); err != nil {
+		err := e.client.EnsureTable(ctx, e.DatasetID, table, schema)
+		if err != nil {
 			return err
 		}
 	}
@@ -220,7 +222,8 @@ func (e *Exporter) exportRows(
 	// Chunk rows to stay under BigQuery's per-request streaming-insert limits.
 	for start := 0; start < len(rows); start += maxRowsPerInsert {
 		end := min(start+maxRowsPerInsert, len(rows))
-		if err := e.client.Put(ctx, e.DatasetID, table, rows[start:end]); err != nil {
+		err := e.client.Put(ctx, e.DatasetID, table, rows[start:end])
+		if err != nil {
 			return err
 		}
 	}
@@ -331,7 +334,8 @@ func credentialsType(creds []byte) option.CredentialsType {
 	var parsed struct {
 		Type string `json:"type"`
 	}
-	if err := json.Unmarshal(creds, &parsed); err != nil {
+	err := json.Unmarshal(creds, &parsed)
+	if err != nil {
 		return option.ServiceAccount
 	}
 	switch parsed.Type {
@@ -377,11 +381,12 @@ func (c *realBigQueryClient) EnsureTable(
 	schema bigquery.Schema,
 ) error {
 	bqDataset := c.client.Dataset(dataset)
-	if err := bqDataset.Create(ctx, nil); err != nil && !isAlreadyExists(err) {
+	err := bqDataset.Create(ctx, nil)
+	if err != nil && !isAlreadyExists(err) {
 		return err
 	}
 
-	err := bqDataset.Table(table).Create(ctx, &bigquery.TableMetadata{Schema: schema})
+	err = bqDataset.Table(table).Create(ctx, &bigquery.TableMetadata{Schema: schema})
 	if err != nil && !isAlreadyExists(err) {
 		return err
 	}

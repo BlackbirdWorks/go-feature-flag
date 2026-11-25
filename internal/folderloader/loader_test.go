@@ -95,7 +95,8 @@ func (f *fakeStore) Get(_ context.Context, key string) ([]byte, string, error) {
 	if f.getErr != nil {
 		return nil, "", f.getErr
 	}
-	if err := f.getErrKeys[key]; err != nil {
+	err := f.getErrKeys[key]
+	if err != nil {
 		return nil, "", err
 	}
 	c, ok := f.files[key]

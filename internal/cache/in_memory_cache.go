@@ -59,7 +59,8 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 	cache := make(map[string]*flag.InternalFlag, len(flags))
 	for key, flagDto := range flags {
 		flagToAdd := flagDto.Convert()
-		if err := flagToAdd.IsValid(fc.Service); err == nil {
+		err := flagToAdd.IsValid(fc.Service)
+		if err == nil {
 			cache[key] = &flagToAdd
 		} else {
 			fc.Logger.Error("[cache] invalid configuration for flag",
@@ -70,7 +71,8 @@ func (fc *InMemoryCache) Init(flags map[string]dto.DTO) {
 }
 
 func (fc *InMemoryCache) addFlag(key string, value flag.InternalFlag) {
-	if err := value.IsValid(fc.Service); err == nil {
+	err := value.IsValid(fc.Service)
+	if err == nil {
 		fc.Flags[key] = &value
 	} else {
 		fc.Logger.Error("[cache] invalid configuration for flag",

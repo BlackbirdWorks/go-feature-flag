@@ -63,7 +63,8 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 // Init is initializing the retriever to start fetching the flags configuration.
 func (r *Retriever) Init(_ context.Context, _ *fflog.FFLogger) error {
 	r.status = retriever.RetrieverNotReady
-	if _, err := r.getHTTPClient(); err != nil {
+	_, err := r.getHTTPClient()
+	if err != nil {
 		r.status = retriever.RetrieverError
 
 		return err

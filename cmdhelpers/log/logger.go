@@ -50,7 +50,8 @@ func NewDefault(opts ...Option) *Logger {
 // New builds a logger. An empty format is json, an empty level is info.
 func New(format, level string, opts ...Option) (*Logger, error) {
 	l := NewDefault(opts...)
-	if err := l.Update(format, level); err != nil {
+	err := l.Update(format, level)
+	if err != nil {
 		return nil, err
 	}
 

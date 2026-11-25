@@ -508,7 +508,8 @@ func (c *versionCompare) compare(left Operand) (bool, error) {
 	leftVer, ok := parsePlainVersion(leftVal)
 	if !ok {
 		var err error
-		if leftVer, err = semver.Make(leftVal); err != nil {
+		leftVer, err = semver.Make(leftVal)
+		if err != nil {
 			return false, err
 		}
 	}
@@ -610,7 +611,8 @@ func compileValue(n *compareNode, v IValueContext, src *sourceText) Operation {
 		return &StringOperation{}
 	case *DoubleContext:
 		// an unparsable double leaves the operand nil without an error
-		if val, err := strconv.ParseFloat(ctx.GetText(), 64); err == nil {
+		val, err := strconv.ParseFloat(ctx.GetText(), 64)
+		if err == nil {
 			n.rightOp = val
 		}
 

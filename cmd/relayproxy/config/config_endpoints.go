@@ -42,12 +42,14 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 	if strings.HasPrefix(s, "-") {
 		return fmt.Errorf("%w %q: must not be negative", errInvalidSize, s)
 	}
-	if n, err := strconv.ParseUint(s, 10, 63); err == nil {
-		*b = ByteSize(n)
+	parsedUint, uintErr := strconv.ParseUint(s, 10, 63)
+	if uintErr == nil {
+		*b = ByteSize(parsedUint)
 
 		return nil
 	}
-	if _, err := strconv.ParseFloat(s, 64); err == nil {
+	_, floatErr := strconv.ParseFloat(s, 64)
+	if floatErr == nil {
 		// a number without unit that is not an integer (1.5, 1e3), do not truncate it silently.
 		return fmt.Errorf("%w %q: a number of bytes must be an integer", errInvalidSize, s)
 	}

@@ -28,9 +28,11 @@ const resetEvery = 1_000_000
 // bounded whatever b.N is. It is cheap compared to the resetEvery adds it amortizes over.
 func resetStore(b *testing.B, s exporter.EventStore[exporter.FeatureEvent]) {
 	b.Helper()
-	if err := s.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
+	err := s.ProcessPendingEvents("c", func(context.Context, []exporter.FeatureEvent) error {
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
+		//nolint:testifylint // called from b.RunParallel worker goroutines where require is unsafe
 		assert.NoError(b, err)
 	}
 	if c, ok := s.(interface{ CleanQueue() }); ok {
@@ -90,9 +92,10 @@ func BenchmarkEventStoreFlushCycle(b *testing.B) {
 				for range n {
 					s.Add(ev)
 				}
-				if err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
+				err := s.ProcessPendingEvents("c", func(_ context.Context, _ []exporter.FeatureEvent) error {
 					return nil
-				}); err != nil {
+				})
+				if err != nil {
 					require.NoError(b, err)
 				}
 			}

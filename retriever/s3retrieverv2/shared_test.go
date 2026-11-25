@@ -148,7 +148,8 @@ func (b *fakeBucket) DownloadObject(
 	if !ok {
 		return nil, errNoSuchKey
 	}
-	if _, err := in.WriterAt.WriteAt([]byte(obj.data), 0); err != nil {
+	_, err := in.WriterAt.WriteAt([]byte(obj.data), 0)
+	if err != nil {
 		return nil, err
 	}
 	if b.noDownloadETag {
@@ -887,7 +888,8 @@ func runShutdownQueued(t *testing.T, b *fakeBucket, _ map[string]*s3retrieverv2.
 	close(b.downloadGate)
 	failed := 0
 	for range rs {
-		if err := <-errs; err != nil {
+		err := <-errs
+		if err != nil {
 			failed++
 		}
 	}

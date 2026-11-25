@@ -259,20 +259,22 @@ func runEvaluate(
 
 	logger := &fflog.FFLogger{LeveledLogger: slog.Default()}
 
-	if tryInitializeStandardErr := tryInitializeStandard(
+	tryInitializeStandardErr := tryInitializeStandard(
 		context.Background(),
 		r,
 		logger,
-	); tryInitializeStandardErr != nil {
+	)
+	if tryInitializeStandardErr != nil {
 		return tryInitializeStandardErr
 	}
 
-	if tryInitializeWithFlagsetErr := tryInitializeWithFlagset(
+	tryInitializeWithFlagsetErr := tryInitializeWithFlagset(
 		context.Background(),
 		r,
 		logger,
 		utils.DefaultFlagSetName,
-	); tryInitializeWithFlagsetErr != nil {
+	)
+	if tryInitializeWithFlagsetErr != nil {
 		return tryInitializeWithFlagsetErr
 	}
 
@@ -318,7 +320,8 @@ func runCheck(
 
 func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger) error {
 	if r, ok := r.(retriever.InitializableRetriever); ok {
-		if err := r.Init(ctx, logger); err != nil {
+		err := r.Init(ctx, logger)
+		if err != nil {
 			return fmt.Errorf("impossible to init retriever: %w", err)
 		}
 	}
@@ -329,7 +332,8 @@ func tryInitializeStandard(ctx context.Context, r retriever.Retriever, logger *f
 func tryInitializeWithFlagset(
 	ctx context.Context, r retriever.Retriever, logger *fflog.FFLogger, flagset string) error {
 	if r, ok := r.(retriever.InitializableRetrieverWithFlagset); ok {
-		if err := r.Init(ctx, logger, &flagset); err != nil {
+		err := r.Init(ctx, logger, &flagset)
+		if err != nil {
 			return fmt.Errorf("impossible to init flagset retriever: %w", err)
 		}
 	}

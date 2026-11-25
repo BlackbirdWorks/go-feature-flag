@@ -52,7 +52,8 @@ func LoadConfigFile(
 	}
 
 	if inputFilePath != "" {
-		if _, err := os.Stat(inputFilePath); err != nil {
+		_, err := os.Stat(inputFilePath)
+		if err != nil {
 			return nil, fmt.Errorf("%w %s", errImpossibleToFindConfig, inputFilePath)
 		}
 
@@ -62,7 +63,8 @@ func LoadConfigFile(
 		for _, filename := range fileNames {
 			for _, ext := range supportedExtensions {
 				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
-				if _, err := os.Stat(configFile); err != nil {
+				_, err := os.Stat(configFile)
+				if err != nil {
 					continue
 				}
 				if filename != fileNames[0] {

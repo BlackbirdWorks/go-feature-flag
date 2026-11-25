@@ -43,22 +43,28 @@ func (c *Config) IsValid() error {
 	if c == nil {
 		return errEmptyConfig
 	}
-	if err := validateLogLevel(c.LogLevel); err != nil {
+	err := validateLogLevel(c.LogLevel)
+	if err != nil {
 		return err
 	}
-	if err := validateLogFormat(c.LogFormat); err != nil {
+	err = validateLogFormat(c.LogFormat)
+	if err != nil {
 		return err
 	}
-	if err := c.validateServerConfig(); err != nil {
+	err = c.validateServerConfig()
+	if err != nil {
 		return err
 	}
-	if err := c.OfrepEventStream.IsValid(); err != nil {
+	err = c.OfrepEventStream.IsValid()
+	if err != nil {
 		return err
 	}
-	if err := c.Endpoints.IsValid(); err != nil {
+	err = c.Endpoints.IsValid()
+	if err != nil {
 		return err
 	}
-	if err := validateExporterCleanQueueInterval(c.ExporterCleanQueueInterval); err != nil {
+	err = validateExporterCleanQueueInterval(c.ExporterCleanQueueInterval)
+	if err != nil {
 		return err
 	}
 	if c.flagSetMode == flagSetModeLocal && c.Studio.URL != "" {
@@ -110,7 +116,8 @@ func validateLogLevel(logLevel string) error {
 	if logLevel == "" {
 		return nil
 	}
-	if _, err := cmdlog.ParseLevel(logLevel); err != nil {
+	_, err := cmdlog.ParseLevel(logLevel)
+	if err != nil {
 		return err
 	}
 
@@ -119,10 +126,12 @@ func validateLogLevel(logLevel string) error {
 
 // validateDefaultMode validates the default mode.
 func (c *Config) validateDefaultMode() error {
-	if err := validateRetrievers(c.Retriever, c.Retrievers); err != nil {
+	err := validateRetrievers(c.Retriever, c.Retrievers)
+	if err != nil {
 		return err
 	}
-	if err := validateExporters(c.Exporter, c.Exporters); err != nil {
+	err = validateExporters(c.Exporter, c.Exporters)
+	if err != nil {
 		return err
 	}
 
@@ -154,7 +163,8 @@ func (c *Config) validateFlagSets() error {
 		}
 
 		// Validate the CommonFlagSet embedded in the flagset
-		if err := c.validateFlagSetCommonConfig(&flagset); err != nil {
+		err := c.validateFlagSetCommonConfig(&flagset)
+		if err != nil {
 			return fmt.Errorf("flagset %s: %w", flagset.Name, err)
 		}
 	}
@@ -164,22 +174,27 @@ func (c *Config) validateFlagSets() error {
 
 // validateFlagSetCommonConfig validates the CommonFlagSet configuration for a single flagset.
 func (c *Config) validateFlagSetCommonConfig(flagset *FlagSet) error {
-	if err := validateRetrievers(flagset.Retriever, flagset.Retrievers); err != nil {
+	err := validateRetrievers(flagset.Retriever, flagset.Retrievers)
+	if err != nil {
 		return err
 	}
-	if err := validateExporterCleanQueueInterval(flagset.ExporterCleanQueueInterval); err != nil {
+	err = validateExporterCleanQueueInterval(flagset.ExporterCleanQueueInterval)
+	if err != nil {
 		return err
 	}
-	if err := validateSharedPollerPerBucket(flagset); err != nil {
+	err = validateSharedPollerPerBucket(flagset)
+	if err != nil {
 		return err
 	}
 
-	if err := validateExporters(flagset.Exporter, flagset.Exporters); err != nil {
+	err = validateExporters(flagset.Exporter, flagset.Exporters)
+	if err != nil {
 		return err
 	}
 
 	// Validate notifiers
-	if err := validateNotifiers(flagset.Notifiers); err != nil {
+	err = validateNotifiers(flagset.Notifiers)
+	if err != nil {
 		return err
 	}
 
@@ -192,14 +207,16 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 		return errNoRetrieverAvailableIn
 	}
 	if retriever != nil {
-		if err := retriever.IsValid(); err != nil {
+		err := retriever.IsValid()
+		if err != nil {
 			return err
 		}
 	}
 
 	if retrievers != nil {
 		for i, retriever := range *retrievers {
-			if err := retriever.IsValid(); err != nil {
+			err := retriever.IsValid()
+			if err != nil {
 				return fmt.Errorf("retriever at index %d validation failed: %w", i, err)
 			}
 		}
@@ -211,13 +228,15 @@ func validateRetrievers(retriever *retrieverconf.RetrieverConf, retrievers *[]re
 // validateExporters validates the exporters.
 func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error {
 	if exporter != nil {
-		if err := exporter.IsValid(); err != nil {
+		err := exporter.IsValid()
+		if err != nil {
 			return err
 		}
 	}
 	if exporters != nil {
 		for i, exporter := range *exporters {
-			if err := exporter.IsValid(); err != nil {
+			err := exporter.IsValid()
+			if err != nil {
 				return fmt.Errorf("exporter at index %d validation failed: %w", i, err)
 			}
 		}
@@ -230,7 +249,8 @@ func validateExporters(exporter *ExporterConf, exporters *[]ExporterConf) error 
 func validateNotifiers(notifiers []NotifierConf) error {
 	if len(notifiers) > 0 {
 		for i, notif := range notifiers {
-			if err := notif.IsValid(); err != nil {
+			err := notif.IsValid()
+			if err != nil {
 				return fmt.Errorf("notifier at index %d validation failed: %w", i, err)
 			}
 		}

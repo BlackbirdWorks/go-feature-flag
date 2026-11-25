@@ -25,7 +25,8 @@ type NotifierConf struct {
 }
 
 func (c *NotifierConf) IsValid() error {
-	if err := c.Kind.IsValid(); err != nil {
+	err := c.Kind.IsValid()
+	if err != nil {
 		return err
 	}
 	if c.Kind == SlackNotifier && (c.SlackWebhookURL == "" && c.WebhookURL == "") {

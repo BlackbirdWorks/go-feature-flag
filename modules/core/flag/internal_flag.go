@@ -238,7 +238,8 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 		return errNoVariationAvailable
 	}
 
-	if err := validateVariationTypes(f.GetVariations()); err != nil {
+	err := validateVariationTypes(f.GetVariations())
+	if err != nil {
 		return err
 	}
 
@@ -254,7 +255,8 @@ func (f *InternalFlag) IsValid(svc *Service) error {
 
 	const isDefaultRule = true
 	// Validate rules
-	if err := f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations()); err != nil {
+	err = f.GetDefaultRule().IsValid(svc, isDefaultRule, f.GetVariations())
+	if err != nil {
 		return err
 	}
 
@@ -537,7 +539,8 @@ func (f *InternalFlag) deepCopy() (*InternalFlag, error) {
 		return nil, err
 	}
 	var flagCopy *InternalFlag
-	if unmarshalErr := json.Unmarshal(data, &flagCopy); unmarshalErr != nil {
+	unmarshalErr := json.Unmarshal(data, &flagCopy)
+	if unmarshalErr != nil {
 		return nil, unmarshalErr
 	}
 
@@ -609,7 +612,8 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 		if known != nil {
 			knownEvaluator = known[i].evaluator
 		}
-		if evaluators[i], err = rule.validate(svc, isDefaultRule, f.GetVariations(), knownEvaluator); err != nil {
+		evaluators[i], err = rule.validate(svc, isDefaultRule, f.GetVariations(), knownEvaluator)
+		if err != nil {
 			return nil, err
 		}
 

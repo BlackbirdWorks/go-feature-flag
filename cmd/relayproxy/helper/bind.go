@@ -42,7 +42,8 @@ func BindBody(r *http.Request, target any) error {
 		}
 	}()
 
-	if _, err := buf.ReadFrom(r.Body); err != nil {
+	_, err := buf.ReadFrom(r.Body)
+	if err != nil {
 		return wrapBindError(err)
 	}
 
@@ -51,7 +52,8 @@ func BindBody(r *http.Request, target any) error {
 
 // DecodeJSON decodes a JSON document in target. A failure is a 400.
 func DecodeJSON(data []byte, target any) error {
-	if err := json.Unmarshal(data, target); err != nil {
+	err := json.Unmarshal(data, target)
+	if err != nil {
 		return WrapHTTPError(http.StatusBadRequest, err)
 	}
 

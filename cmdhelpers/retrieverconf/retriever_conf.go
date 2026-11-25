@@ -86,7 +86,8 @@ type RetrieverConf struct {
 
 // IsValid validates the configuration of the retriever.
 func (c *RetrieverConf) IsValid() error {
-	if err := c.Kind.IsValid(); err != nil {
+	err := c.Kind.IsValid()
+	if err != nil {
 		return err
 	}
 
@@ -118,8 +119,9 @@ func (c *RetrieverConf) IsValid() error {
 func (c *RetrieverConf) validateStorageRetriever() error {
 	switch c.Kind {
 	case S3Retriever:
-		if err := c.validateS3Retriever(); err != nil {
-			return err
+		validateErr := c.validateS3Retriever()
+		if validateErr != nil {
+			return validateErr
 		}
 		if c.Bucket == "" {
 			return err.NewRetrieverConfError("bucket", string(c.Kind))
@@ -296,7 +298,8 @@ func (r RetrieverKind) IsValid() error {
 
 // validateS3Retriever validates the item/prefix settings (no item means folder mode) of the S3 retriever.
 func (c *RetrieverConf) validateS3Retriever() error {
-	if err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive); err != nil {
+	err := folderloader.Validate("item", c.Item, c.Prefix, c.Pattern, c.Recursive)
+	if err != nil {
 		return fmt.Errorf("invalid retriever: %w for kind \"%s\"", err, c.Kind)
 	}
 

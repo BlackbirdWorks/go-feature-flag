@@ -92,7 +92,8 @@ func Test_AllFlags_HeldSnapshotWhileUpdating(t *testing.T) {
 						iflag.Disable = &d
 					}
 				}
-				if live, getFlagErr := m.GetFlag("flag-1"); getFlagErr == nil {
+				live, getFlagErr := m.GetFlag("flag-1")
+				if getFlagErr == nil {
 					_ = live.IsDisable()
 				}
 			}

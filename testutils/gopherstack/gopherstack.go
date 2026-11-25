@@ -70,7 +70,8 @@ type Server struct {
 // Start starts a container (or attaches to GOPHERSTACK_ENDPOINT) and waits until it is healthy.
 func Start(ctx context.Context) (*Server, error) {
 	if ep := strings.TrimRight(os.Getenv(EnvEndpoint), "/"); ep != "" {
-		if err := waitHealthy(ctx, ep); err != nil {
+		err := waitHealthy(ctx, ep)
+		if err != nil {
 			return nil, err
 		}
 
@@ -205,7 +206,8 @@ func Main(m *testing.M) int {
 			return 1
 		}
 		defer func() { _ = srv.Terminate() }()
-		if setenvErr := os.Setenv(EnvEndpoint, srv.Endpoint); setenvErr != nil {
+		setenvErr := os.Setenv(EnvEndpoint, srv.Endpoint)
+		if setenvErr != nil {
 			fmt.Fprintln(os.Stderr, "gopherstack:", setenvErr)
 
 			return 1

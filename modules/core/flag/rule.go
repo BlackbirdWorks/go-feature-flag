@@ -148,7 +148,8 @@ func (q *queryContext) release() {
 func (q *queryContext) jsonOnce() ([]byte, error) {
 	if q.parsedEvalCtxAsBytes == nil {
 		var err error
-		if q.parsedEvalCtxAsBytes, err = json.Marshal(q.mapOnce()); err != nil {
+		q.parsedEvalCtxAsBytes, err = json.Marshal(q.mapOnce())
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -171,7 +172,8 @@ func (q *queryContext) dataOnce() (any, error) {
 			return nil, err
 		}
 		var data any
-		if unmarshalErr := json.Unmarshal(raw, &data); unmarshalErr != nil {
+		unmarshalErr := json.Unmarshal(raw, &data)
+		if unmarshalErr != nil {
 			return nil, unmarshalErr
 		}
 		q.parsedEvalCtxAsData = data

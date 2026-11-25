@@ -64,10 +64,11 @@ func (h *CollectEvalData) Handle(ctx context.Context, in *CollectEvalDataInput) 
 	defer span.End()
 
 	reqBody := new(model.CollectEvalDataRequest)
-	if err := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody); err != nil {
+	bindErr := helper.BindRawBody(in.ContentType(), in.RawBody, reqBody)
+	if bindErr != nil {
 		return nil, helper.NewHTTPError(
 			http.StatusBadRequest,
-			fmt.Sprintf("collectEvalData: invalid input data %v", err))
+			fmt.Sprintf("collectEvalData: invalid input data %v", bindErr))
 	}
 	if reqBody.Events == nil {
 		return nil, helper.NewHTTPError(http.StatusBadRequest, "collectEvalData: invalid input data")

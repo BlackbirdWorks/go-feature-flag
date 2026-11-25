@@ -132,7 +132,8 @@ func (c *Config) Initialize() {
 type legacyWriter struct{ logger *log.Logger }
 
 func (w legacyWriter) Write(p []byte) (int, error) {
-	if err := w.logger.Output(0, strings.TrimSuffix(string(p), "\n")); err != nil {
+	err := w.logger.Output(0, strings.TrimSuffix(string(p), "\n"))
+	if err != nil {
 		return 0, err
 	}
 

@@ -123,7 +123,8 @@ func startCPUProfile(path string) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
-	if startCPUProfileErr := pprof.StartCPUProfile(f); startCPUProfileErr != nil {
+	startCPUProfileErr := pprof.StartCPUProfile(f)
+	if startCPUProfileErr != nil {
 		_ = f.Close()
 
 		return nil, startCPUProfileErr

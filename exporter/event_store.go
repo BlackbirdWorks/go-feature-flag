@@ -175,7 +175,8 @@ func (e *eventStoreImpl[T]) ProcessPendingEvents(
 		return nil
 	}
 
-	if processEventsFuncErr := processEventsFunc(context.Background(), eventList.Events); processEventsFuncErr != nil {
+	processEventsFuncErr := processEventsFunc(context.Background(), eventList.Events)
+	if processEventsFuncErr != nil {
 		return processEventsFuncErr
 	}
 

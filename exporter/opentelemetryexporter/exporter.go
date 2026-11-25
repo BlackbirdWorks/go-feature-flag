@@ -106,7 +106,8 @@ func (e *Exporter) createSpan(ctx context.Context, f exporter.FeatureEvent, logg
 
 	// Value (safe stringification)
 	if f.Value != nil {
-		if b, err := json.Marshal(f.Value); err != nil {
+		b, err := json.Marshal(f.Value)
+		if err != nil {
 			if logger != nil {
 				logger.DebugContext(ctx, "failed to marshal feature flag value for otel attribute", "error", err)
 			}

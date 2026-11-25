@@ -36,7 +36,8 @@ func (e *implMockEventStore[T]) ProcessPendingEvents(consumerID string,
 	if consumerID == consumerNameError {
 		return errError
 	}
-	if err := processFunc(context.TODO(), e.store); err != nil {
+	err := processFunc(context.TODO(), e.store)
+	if err != nil {
 		return err
 	}
 

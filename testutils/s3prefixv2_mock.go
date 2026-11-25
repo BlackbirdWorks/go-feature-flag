@@ -196,7 +196,8 @@ func (m *S3PrefixMock) DownloadObject(
 	if m.DownloadErr != nil {
 		return nil, m.DownloadErr
 	}
-	if err := m.downloadErrKeys[key]; err != nil {
+	err := m.downloadErrKeys[key]
+	if err != nil {
 		return nil, err
 	}
 	if input.WriterAt == nil {

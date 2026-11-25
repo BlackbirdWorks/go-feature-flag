@@ -143,7 +143,8 @@ func WriteError(w http.ResponseWriter, r *http.Request, err error, exposeError b
 // kept for the access log.
 func Handle(h func(http.ResponseWriter, *http.Request) error, exposeError bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := h(w, r); err != nil {
+		err := h(w, r)
+		if err != nil {
 			reqlog.RecordError(r.Context(), err)
 			WriteError(w, r, err, exposeError)
 		}

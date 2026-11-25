@@ -483,7 +483,8 @@ func Test_ProcessPendingEvents_SameConsumerConcurrentCallsDoNotDuplicate(t *test
 		callbackMu.Unlock()
 		startedOnce.Do(func() { close(started) })
 		<-release
-		if err := ctx.Err(); err != nil {
+		err := ctx.Err()
+		if err != nil {
 			return err
 		}
 

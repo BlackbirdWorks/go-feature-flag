@@ -97,13 +97,15 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 		}
 
 		var flagData any
-		if unmarshalErr := json.Unmarshal([]byte(value), &flagData); unmarshalErr != nil {
+		unmarshalErr := json.Unmarshal([]byte(value), &flagData)
+		if unmarshalErr != nil {
 			return nil, fmt.Errorf("error unmarshalling flag '%s': %w", key, unmarshalErr)
 		}
 
 		flagsData[keyWithoutPrefix] = flagData
 	}
-	if err := iter.Err(); err != nil {
+	err := iter.Err()
+	if err != nil {
 		return nil, fmt.Errorf("error iterating through Redis keys: %w", err)
 	}
 

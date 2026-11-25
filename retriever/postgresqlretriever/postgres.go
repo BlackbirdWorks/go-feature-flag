@@ -44,7 +44,8 @@ func (p *PoolRegistry) GetPool(ctx context.Context, uri string) (*pgxpool.Pool, 
 	if err != nil {
 		return nil, err
 	}
-	if pingErr := pool.Ping(ctx); pingErr != nil {
+	pingErr := pool.Ping(ctx)
+	if pingErr != nil {
 		pool.Close()
 
 		return nil, pingErr

@@ -111,7 +111,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if uploadFileErr := f.uploadFile(ctx, logger, of, file.Name()); uploadFileErr != nil {
+		uploadFileErr := f.uploadFile(ctx, logger, of, file.Name())
+		if uploadFileErr != nil {
 			return uploadFileErr
 		}
 	}

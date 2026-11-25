@@ -114,7 +114,8 @@ func BenchmarkScenariosParallel(b *testing.B) {
 					i := 0
 					for pb.Next() {
 						i++
-						if err := evalOne(c, key, "bool", benchContext(i)); err != nil {
+						err := evalOne(c, key, "bool", benchContext(i))
+						if err != nil {
 							assert.NoError(b, err)
 
 							return
@@ -170,7 +171,8 @@ func BenchmarkScenariosPrebuiltContext(b *testing.B) {
 				b.ReportAllocs()
 				b.RunParallel(func(pb *testing.PB) {
 					for pb.Next() {
-						if err := evalOne(c, key, "bool", ctx); err != nil {
+						err := evalOne(c, key, "bool", ctx)
+						if err != nil {
 							assert.NoError(b, err)
 
 							return

@@ -65,16 +65,18 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	reqBody := new(model.OFREPEvalFlagRequest)
-	if err := helper.BindBody(r, reqBody); err != nil {
+	err := helper.BindBody(r, reqBody)
+	if err != nil {
 		return helper.WriteJSON(
 			w,
 			http.StatusBadRequest,
 			NewEvaluateError(flagKey, flag.ErrorCodeInvalidContext, err.Error()),
 		)
 	}
-	if err := assertOFREPEvaluateRequest(reqBody); err != nil {
+	validateErr := assertOFREPEvaluateRequest(reqBody)
+	if validateErr != nil {
 		return helper.WriteJSON(w, http.StatusBadRequest, model.OFREPEvaluateResponseError{
-			OFREPCommonResponseError: *err,
+			OFREPCommonResponseError: *validateErr,
 			Key:                      flagKey,
 		})
 	}
@@ -147,11 +149,13 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 // BulkEvaluate is the entry point to evaluate in bulk flags using the OpenFeature Remote Evaluation Protocol.
 func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) error {
 	request := new(model.OFREPEvalFlagRequest)
-	if err := helper.BindBody(r, request); err != nil {
+	err := helper.BindBody(r, request)
+	if err != nil {
 		return helper.WriteJSON(w, http.StatusBadRequest, NewOFREPCommonError("INVALID_CONTEXT", err.Error()))
 	}
-	if err := assertOFREPEvaluateRequest(request); err != nil {
-		return helper.WriteJSON(w, http.StatusBadRequest, err)
+	validateErr := assertOFREPEvaluateRequest(request)
+	if validateErr != nil {
+		return helper.WriteJSON(w, http.StatusBadRequest, validateErr)
 	}
 	evalCtx, err := evaluationContextFromOFREPRequest(request)
 	if err != nil {

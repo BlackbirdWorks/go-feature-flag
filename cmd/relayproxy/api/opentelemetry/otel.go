@@ -154,7 +154,8 @@ func (s *OtelService) InitMetrics(ctx context.Context, config *config.Config) er
 		}
 	}
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader), sdkmetric.WithResource(res))
-	if err = runtime.Start(runtime.WithMeterProvider(provider)); err != nil {
+	err = runtime.Start(runtime.WithMeterProvider(provider))
+	if err != nil {
 		_ = provider.Shutdown(ctx)
 
 		return fmt.Errorf("starting the Go runtime metrics: %w", err)
@@ -295,7 +296,8 @@ func (s *OtelService) Stop(ctx context.Context) error {
 	}
 	// Shutdown flushes the metrics that were not exported yet.
 	if s.meterProvider != nil {
-		if err := s.meterProvider.Shutdown(ctx); err != nil {
+		err := s.meterProvider.Shutdown(ctx)
+		if err != nil {
 			errs = append(errs, fmt.Errorf("stopping the OTel meter provider: %w", err))
 		}
 	}

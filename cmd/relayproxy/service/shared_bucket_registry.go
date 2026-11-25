@@ -96,7 +96,8 @@ func pendingKey(fs *config.FlagSet) string {
 // retrieverFor returns the retriever of the flagset (its configuration is expected to be valid).
 // The reference on the bucket group is released when the retriever is shut down.
 func (r *sharedBucketRegistry) retrieverFor(fs *config.FlagSet) (retriever.Retriever, error) {
-	if err := checkSharedPollerFlagSet(fs); err != nil {
+	err := checkSharedPollerFlagSet(fs)
+	if err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
@@ -116,7 +117,8 @@ func (r *sharedBucketRegistry) retrieverFor(fs *config.FlagSet) (retriever.Retri
 // already covers it. The next retrieverFor with the same configuration returns this retriever,
 // the ones that are not claimed must be released with releasePending.
 func (r *sharedBucketRegistry) preRegister(fs *config.FlagSet) error {
-	if err := checkSharedPollerFlagSet(fs); err != nil {
+	err := checkSharedPollerFlagSet(fs)
+	if err != nil {
 		return err
 	}
 	rr, err := r.newRetriever(fs)
@@ -138,7 +140,8 @@ func (r *sharedBucketRegistry) preRegisterAll(flagsets []config.FlagSet) {
 		if !flagsets[i].EnableSharedPollerPerBucket {
 			continue
 		}
-		if err := r.preRegister(&flagsets[i]); err != nil {
+		err := r.preRegister(&flagsets[i])
+		if err != nil {
 			r.logger.LogAttrs(
 				context.Background(),
 				slog.LevelWarn,

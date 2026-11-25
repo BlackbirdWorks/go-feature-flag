@@ -76,7 +76,8 @@ func (f *fakeS3) DownloadObject(
 	}
 	f.getsByKey[aws.ToString(in.Key)]++
 	f.mu.Unlock()
-	if _, err := in.WriterAt.WriteAt(f.content, 0); err != nil {
+	_, err := in.WriterAt.WriteAt(f.content, 0)
+	if err != nil {
 		return nil, err
 	}
 

@@ -244,7 +244,8 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if validateErr := e.validate(); validateErr != nil {
+	validateErr := e.validate()
+	if validateErr != nil {
 		return validateErr
 	}
 	table, columns := e.tableName(eventType), columnsForEventType(eventType)
@@ -261,14 +262,17 @@ func (e *Exporter) Export(
 		return nil
 	}
 
-	if initClientErr := e.initClient(ctx); initClientErr != nil {
+	initClientErr := e.initClient(ctx)
+	if initClientErr != nil {
 		return initClientErr
 	}
-	if migrateErr := e.migrate(ctx, table, columns); migrateErr != nil {
+	migrateErr := e.migrate(ctx, table, columns)
+	if migrateErr != nil {
 		return migrateErr
 	}
 	for _, b := range buildBatches(table, columns, rows) {
-		if runErr := e.run(ctx, b.sqls, b.params); runErr != nil {
+		runErr := e.run(ctx, b.sqls, b.params)
+		if runErr != nil {
 			return runErr
 		}
 	}
@@ -343,7 +347,8 @@ func (e *Exporter) migrate(ctx context.Context, table string, columns []column) 
 		definitions = append(definitions, quoteIdentifier(c.name)+" "+c.sqlType)
 	}
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s)", quoteTableName(table), strings.Join(definitions, ", "))
-	if err := e.run(ctx, []string{sql}, nil); err != nil {
+	err := e.run(ctx, []string{sql}, nil)
+	if err != nil {
 		return err
 	}
 	e.migrated = true

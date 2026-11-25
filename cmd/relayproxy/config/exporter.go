@@ -61,21 +61,26 @@ func invalidExporterf(format string, args ...any) error {
 
 // IsValid checks that the exporter has the settings its kind requires.
 func (c *ExporterConf) IsValid() error {
-	if err := c.Kind.IsValid(); err != nil {
+	err := c.Kind.IsValid()
+	if err != nil {
 		return err
 	}
-	if err := c.validateStorage(); err != nil {
+	err = c.validateStorage()
+	if err != nil {
 		return err
 	}
 	if len(c.ParquetCompressionCodec) > 0 {
-		if _, err := parquet.CompressionCodecFromString(c.ParquetCompressionCodec); err != nil {
-			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, err)
+		_, codecErr := parquet.CompressionCodecFromString(c.ParquetCompressionCodec)
+		if codecErr != nil {
+			return fmt.Errorf("%w: \"parquetCompressionCodec\" err: %w", errInvalidExporter, codecErr)
 		}
 	}
-	if err := c.validateMessaging(); err != nil {
+	err = c.validateMessaging()
+	if err != nil {
 		return err
 	}
-	if err := c.validateAzure(); err != nil {
+	err = c.validateAzure()
+	if err != nil {
 		return err
 	}
 

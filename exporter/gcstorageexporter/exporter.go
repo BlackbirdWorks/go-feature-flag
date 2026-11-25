@@ -111,7 +111,8 @@ func (f *Exporter) Export(
 
 			continue
 		}
-		if uploadFileErr := f.uploadFile(ctx, client, of, file.Name()); uploadFileErr != nil {
+		uploadFileErr := f.uploadFile(ctx, client, of, file.Name())
+		if uploadFileErr != nil {
 			return uploadFileErr
 		}
 	}
@@ -141,7 +142,8 @@ func (f *Exporter) uploadFile(
 	// The GCS writer buffers the payload and flushes it on Close, so upload
 	// failures surface from Close rather than from io.Copy. Capture both so a
 	// failed upload is reported instead of silently swallowed.
-	if closeErr := wc.Close(); closeErr != nil && err == nil {
+	closeErr := wc.Close()
+	if closeErr != nil && err == nil {
 		err = closeErr
 	}
 	if err != nil {

@@ -43,7 +43,8 @@ func (e *Exporter) Export(
 	events []exporter.ExportableEvent,
 ) error {
 	if e.publisher == nil {
-		if err := e.initPublisher(ctx); err != nil {
+		err := e.initPublisher(ctx)
+		if err != nil {
 			return err
 		}
 	}

@@ -91,7 +91,8 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		ctx = context.Background()
 	}
 	s.status = retriever.RetrieverNotReady
-	if err := folderloader.Validate("item", s.Item, s.Prefix, s.Pattern, s.Recursive); err != nil {
+	err := folderloader.Validate("item", s.Item, s.Prefix, s.Pattern, s.Recursive)
+	if err != nil {
 		s.status = retriever.RetrieverError
 
 		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)
@@ -108,7 +109,8 @@ func (s *Retriever) Init(ctx context.Context, logger *fflog.FFLogger) error {
 		s.loader.Store(nil)
 	}
 	// Single file mode only needs a downloader, folder mode needs a lister too.
-	if err := s.initClients(ctx, s.mode == folderMode); err != nil {
+	err = s.initClients(ctx, s.mode == folderMode)
+	if err != nil {
 		s.status = retriever.RetrieverError
 
 		return fmt.Errorf("impossible to init S3 retriever v2: %w", err)

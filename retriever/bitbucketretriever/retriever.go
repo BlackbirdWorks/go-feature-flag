@@ -110,19 +110,22 @@ func (r *Retriever) SetHTTPClient(client internal.HTTPClient) {
 // the rate limit is reached.
 func (r *Retriever) updateRateLimit(headers http.Header) {
 	if remaining := headers.Get("X-Ratelimit-Limit"); remaining != "" {
-		if remainingInt, err := strconv.Atoi(remaining); err == nil {
+		remainingInt, err := strconv.Atoi(remaining)
+		if err == nil {
 			r.rateLimitRemaining = remainingInt
 		}
 	}
 
 	if nearLimit := headers.Get("X-Ratelimit-Nearlimit"); nearLimit != "" {
-		if nearLimitBool, err := strconv.ParseBool(nearLimit); err == nil {
+		nearLimitBool, err := strconv.ParseBool(nearLimit)
+		if err == nil {
 			r.rateLimitNearLimit = nearLimitBool
 		}
 	}
 
 	if reset := headers.Get("X-Ratelimit-Reset"); reset != "" {
-		if resetInt, err := strconv.ParseInt(reset, 10, 64); err == nil {
+		resetInt, err := strconv.ParseInt(reset, 10, 64)
+		if err == nil {
 			r.rateLimitReset = time.Unix(resetInt, 0)
 		}
 	}

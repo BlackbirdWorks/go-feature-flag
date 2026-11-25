@@ -10,7 +10,8 @@ import (
 
 func CopyFileToNewTempFile(t *testing.T, src string) *os.File {
 	t.Helper()
-	if _, err := os.Stat(src); os.IsNotExist(err) {
+	_, statErr := os.Stat(src)
+	if os.IsNotExist(statErr) {
 		require.Fail(t, "File does not exist: "+src)
 	}
 	srcContent, err := os.ReadFile(src)
@@ -58,7 +59,8 @@ func CopyContentToExistingTempFile(t *testing.T, content string, file *os.File) 
 
 func CopyFileToExistingTempFile(t *testing.T, src string, file *os.File) *os.File {
 	t.Helper()
-	if _, err := os.Stat(src); os.IsNotExist(err) {
+	_, statErr := os.Stat(src)
+	if os.IsNotExist(statErr) {
 		require.Fail(t, "File does not exist: "+src)
 	}
 	srcContent, err := os.ReadFile(src)

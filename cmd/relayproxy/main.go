@@ -91,7 +91,8 @@ func main() {
 		fatal(logger.Slog, "error while reading configuration", log.Err(err))
 	}
 	defer func() {
-		if stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher(); stopConfigChangeWatcherErr != nil {
+		stopConfigChangeWatcherErr := proxyConf.StopConfigChangeWatcher()
+		if stopConfigChangeWatcherErr != nil {
 			logger.Slog.LogAttrs(context.Background(), slog.LevelError,
 				"error while stopping the configuration watcher",
 				log.Err(stopConfigChangeWatcherErr),
@@ -99,7 +100,8 @@ func main() {
 		}
 	}()
 
-	if isValidErr := proxyConf.IsValid(); isValidErr != nil {
+	isValidErr := proxyConf.IsValid()
+	if isValidErr != nil {
 		fatal(logger.Slog, "configuration error", log.Err(isValidErr))
 	}
 
@@ -108,7 +110,8 @@ func main() {
 	}
 
 	// Update the logger's format and level from the config
-	if updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel); updateErr != nil {
+	updateErr := logger.Update(proxyConf.LogFormat, proxyConf.LogLevel)
+	if updateErr != nil {
 		fatal(logger.Slog, "configuration error", log.Err(updateErr))
 	}
 
@@ -148,7 +151,8 @@ func main() {
 
 		return
 	}
-	if registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager); registerFlagLoadedErr != nil {
+	registerFlagLoadedErr := metricsV2.RegisterFlagLoaded(flagsetManager)
+	if registerFlagLoadedErr != nil {
 		logger.Slog.LogAttrs(
 			context.Background(),
 			slog.LevelError,

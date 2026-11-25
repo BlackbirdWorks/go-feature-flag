@@ -81,8 +81,10 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	socketPath := s.config.UnixSocketPath()
 
 	// Clean up the old socket file if it exists (important for graceful restarts)
-	if _, err := os.Stat(socketPath); err == nil {
-		if removeErr := os.Remove(socketPath); removeErr != nil {
+	_, err := os.Stat(socketPath)
+	if err == nil {
+		removeErr := os.Remove(socketPath)
+		if removeErr != nil {
 			s.fatal(ctx, "Could not remove old socket file", slog.String("path", socketPath), cmdlog.Err(removeErr))
 		}
 	}
@@ -102,7 +104,8 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 
 	defer func() {
 		// the graceful shutdown already closes the listener
-		if closeErr := listener.Close(); closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
+		closeErr := listener.Close()
+		if closeErr != nil && !errors.Is(closeErr, net.ErrClosed) {
 			s.logger.LogAttrs(
 				context.WithoutCancel(ctx),
 				slog.LevelError,
@@ -186,11 +189,13 @@ func (s *Server) serve(ctx context.Context, h http.Handler, ln net.Listener, h2c
 		<-gCtx.Done()
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.WithoutCancel(gCtx), gracefulShutdownTimeout)
 		defer cancelShutdown()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
+		err := srv.Shutdown(shutdownCtx)
+		if err != nil {
 			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, shutdownMsg, cmdlog.Err(err))
 		}
 	})
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err := srv.Serve(ln)
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 

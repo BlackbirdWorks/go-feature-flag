@@ -155,7 +155,8 @@ func redactAPIKey(uri string) string {
 	params := strings.Split(query, "&")
 	for i, p := range params {
 		key, _, _ := strings.Cut(p, "=")
-		if k, err := url.QueryUnescape(key); err == nil && k == "apiKey" {
+		k, err := url.QueryUnescape(key)
+		if err == nil && k == "apiKey" {
 			params[i] = key + "=REDACTED"
 		}
 	}

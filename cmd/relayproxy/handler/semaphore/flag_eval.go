@@ -42,13 +42,15 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	reqBody := new(model.EvalFlagRequest)
-	if err := helper.BindBody(r, reqBody); err != nil {
+	err := helper.BindBody(r, reqBody)
+	if err != nil {
 		return err
 	}
 
 	// validation that we have a reqBody key
-	if err := assertRequest(&reqBody.AllFlagRequest); err != nil {
-		return err
+	assertErr := assertRequest(&reqBody.AllFlagRequest)
+	if assertErr != nil {
+		return assertErr
 	}
 	evaluationCtx, err := evaluationContextFromRequest(&reqBody.AllFlagRequest)
 	if err != nil {
@@ -84,7 +86,8 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 		attribute.String("flagEvaluation.value", fmt.Sprintf("%v", flagValue.Value)),
 	)
 
-	if flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(r)); flagSetNameErr == nil {
+	flagsetName, flagSetNameErr := h.flagsetMngr.FlagSetName(helper.APIKey(r))
+	if flagSetNameErr == nil {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
 

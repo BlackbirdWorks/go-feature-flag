@@ -62,7 +62,8 @@ func Test_threadSafeConn_ping(t *testing.T) {
 	// A reader is required for the client to process incoming control frames.
 	go func() {
 		for {
-			if _, _, err := client.ReadMessage(); err != nil {
+			_, _, err := client.ReadMessage()
+			if err != nil {
 				return
 			}
 		}
@@ -100,7 +101,8 @@ func Test_pingPongLoop_pings_then_stops_on_context(t *testing.T) {
 	})
 	go func() {
 		for {
-			if _, _, err := client.ReadMessage(); err != nil {
+			_, _, err := client.ReadMessage()
+			if err != nil {
 				return
 			}
 		}

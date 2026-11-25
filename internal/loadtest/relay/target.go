@@ -42,7 +42,8 @@ type Target struct {
 // It rejects an unknown endpoint, and a slow or failing exporter on an endpoint that does not
 // emit events (the exporter would be bypassed and the soak would not measure what it claims).
 func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Target, error) {
-	if err := validateTarget(o, endpoint, flagKey); err != nil {
+	err := validateTarget(o, endpoint, flagKey)
+	if err != nil {
 		return nil, err
 	}
 	o.Listen = true
@@ -67,7 +68,8 @@ func NewTarget(o Options, endpoint Endpoint, flagKey string, workers int) (*Targ
 		},
 	}
 	if !endpoint.EmitsEvents() {
-		if t.perCall, err = t.countFlagsPerCall(); err != nil {
+		t.perCall, err = t.countFlagsPerCall()
+		if err != nil {
 			t.Close()
 
 			return nil, err
@@ -96,15 +98,18 @@ func countFlags(body []byte) (int, error) {
 	var v struct {
 		Flags json.RawMessage `json:"flags"`
 	}
-	if err := json.Unmarshal(body, &v); err != nil {
+	err := json.Unmarshal(body, &v)
+	if err != nil {
 		return 0, fmt.Errorf("invalid bulk response: %w", err)
 	}
 	var asArray []json.RawMessage
-	if err := json.Unmarshal(v.Flags, &asArray); err == nil {
+	err = json.Unmarshal(v.Flags, &asArray)
+	if err == nil {
 		return max(1, len(asArray)), nil
 	}
 	var asMap map[string]json.RawMessage
-	if err := json.Unmarshal(v.Flags, &asMap); err != nil {
+	err = json.Unmarshal(v.Flags, &asMap)
+	if err != nil {
 		return 0, fmt.Errorf("bulk response without flags: %w", err)
 	}
 
@@ -124,12 +129,14 @@ func (t *Target) Protocol() string {
 }
 
 func validateTarget(o Options, endpoint Endpoint, flagKey string) error {
-	if _, err := ParseEndpoint(string(endpoint)); err != nil {
+	_, err := ParseEndpoint(string(endpoint))
+	if err != nil {
 		return err
 	}
 	if o.ExporterMode != "" {
-		if _, err := loadtest.ParseExporterMode(string(o.ExporterMode)); err != nil {
-			return err
+		_, parseErr := loadtest.ParseExporterMode(string(o.ExporterMode))
+		if parseErr != nil {
+			return parseErr
 		}
 	}
 	if !endpoint.EmitsEvents() &&
@@ -160,7 +167,8 @@ func tracksEvents(flagsYAML, flagKey string) bool {
 	var flags map[string]struct {
 		TrackEvents *bool `yaml:"trackEvents"`
 	}
-	if err := yaml.Unmarshal([]byte(flagsYAML), &flags); err != nil {
+	err := yaml.Unmarshal([]byte(flagsYAML), &flags)
+	if err != nil {
 		return true
 	}
 	f, ok := flags[flagKey]
@@ -178,7 +186,8 @@ func checkResponse(endpoint Endpoint, body []byte) error {
 		ErrorCode string `json:"errorCode"`
 		Failed    bool   `json:"failed"`
 	}
-	if err := json.Unmarshal(body, &v); err != nil {
+	err := json.Unmarshal(body, &v)
+	if err != nil {
 		return fmt.Errorf("invalid response: %w", err)
 	}
 	if v.Failed {

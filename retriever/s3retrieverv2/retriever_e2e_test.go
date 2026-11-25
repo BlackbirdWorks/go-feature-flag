@@ -378,7 +378,8 @@ func TestE2E_SharedItems_TwoItemsInOneBucket(t *testing.T) {
 				Retrieve(context.Context) ([]byte, error)
 			}, n *atomic.Int32) func() bool {
 				return func() bool {
-					if _, retrieveErr := r.Retrieve(context.Background()); retrieveErr != nil {
+					_, retrieveErr := r.Retrieve(context.Background())
+					if retrieveErr != nil {
 						return false
 					}
 					n.Add(1)

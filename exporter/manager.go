@@ -383,7 +383,8 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 
 		return
 	}
-	if err := f.flush(); err != nil {
+	err := f.flush()
+	if err != nil {
 		if checkProgress {
 			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
 		}

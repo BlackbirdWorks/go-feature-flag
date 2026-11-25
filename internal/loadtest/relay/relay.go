@@ -77,40 +77,9 @@ func Start(opts Options) (_ *Relay, err error) {
 			r.Close() // releases whatever was started and removes the temp dir
 		}
 	}()
-	flagFile := filepath.Join(dir, "flags.yaml")
-	if err = os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600); err != nil {
+	conf, err := buildRelayConfig(r, opts)
+	if err != nil {
 		return nil, err
-	}
-	conf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
-		// the server (and its monitoring port) only listens on the loopback interface
-		Server: config.Server{
-			Mode:                  config.ServerModeHTTP,
-			Host:                  "127.0.0.1",
-			UnixSocketPath:        "",
-			LambdaAdapter:         "",
-			AwsAPIGatewayBasePath: "",
-			Port:                  0,
-			MonitoringPort:        0,
-			EnableH2C:             opts.H2C,
-		},
-	}
-	if opts.ExporterMode != "" {
-		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
-		flush := opts.FlushIntervalMs
-		if flush == 0 {
-			flush = 1000
-		}
-		maxMem := opts.MaxEventInMemory
-		if maxMem == 0 {
-			maxMem = 100000
-		}
-		conf.Exporter = &config.ExporterConf{
-			Kind:             config.WebhookExporter,
-			EndpointURL:      r.sink.URL,
-			FlushInterval:    flush,
-			MaxEventInMemory: maxMem,
-		}
 	}
 	var baseURL string
 	var listener net.Listener
@@ -156,12 +125,54 @@ func Start(opts Options) (_ *Relay, err error) {
 		// The server owns the listener now: it closes it when it stops, the error path must only stop the server.
 		listener = nil
 		r.BaseURL = baseURL
-		if waitHealthyErr := waitHealthy(baseURL); waitHealthyErr != nil {
+		waitHealthyErr := waitHealthy(baseURL)
+		if waitHealthyErr != nil {
 			return nil, waitHealthyErr
 		}
 	}
 
 	return r, nil
+}
+
+func buildRelayConfig(r *Relay, opts Options) (*config.Config, error) {
+	flagFile := filepath.Join(r.dir, "flags.yaml")
+	err := os.WriteFile(flagFile, []byte(opts.FlagsYAML), 0o600)
+	if err != nil {
+		return nil, err
+	}
+	conf := &config.Config{
+		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: "file", Path: flagFile}},
+		// the server (and its monitoring port) only listens on the loopback interface
+		Server: config.Server{
+			Mode:                  config.ServerModeHTTP,
+			Host:                  "127.0.0.1",
+			UnixSocketPath:        "",
+			LambdaAdapter:         "",
+			AwsAPIGatewayBasePath: "",
+			Port:                  0,
+			MonitoringPort:        0,
+			EnableH2C:             opts.H2C,
+		},
+	}
+	if opts.ExporterMode != "" {
+		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
+		flush := opts.FlushIntervalMs
+		if flush == 0 {
+			flush = 1000
+		}
+		maxMem := opts.MaxEventInMemory
+		if maxMem == 0 {
+			maxMem = 100000
+		}
+		conf.Exporter = &config.ExporterConf{
+			Kind:             config.WebhookExporter,
+			EndpointURL:      r.sink.URL,
+			FlushInterval:    flush,
+			MaxEventInMemory: maxMem,
+		}
+	}
+
+	return conf, nil
 }
 
 // Dir returns the temporary directory holding the flag file (removed by Close).

@@ -94,8 +94,9 @@ func (e *Exporter) initializeProducer() error {
 		e.Settings.Producer.Return.Successes = true // Needs to be true for sync producers
 	}
 
-	if err := e.Settings.Validate(); err != nil {
-		return fmt.Errorf("invalid configuration: %w", err)
+	validateErr := e.Settings.Validate()
+	if validateErr != nil {
+		return fmt.Errorf("invalid configuration: %w", validateErr)
 	}
 
 	if e.dialer == nil {

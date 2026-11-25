@@ -144,6 +144,7 @@ linters:
     - nilnesserr # reports that it checks for err != nil, but it returns a different nil value error (powered by nilness and nilerr)
     - nilnil # checks that there is no simultaneous return of nil error and an invalid value
     - noctx # finds sending http request without context.Context
+    - noinlineerr # disallows inline error handling in if statements
     - nolintlint # reports ill-formed or insufficient nolint directives
     - nonamedreturns # reports all named returns
     - nosprintfhostport # checks for misuse of Sprintf to construct a host with port in a URL
@@ -204,7 +205,6 @@ linters:
 
   # Every linter of golangci-lint v2.15.0 is either enabled above or listed here with the reason.
   disable:
-    - noinlineerr # inline error handling is the project style
     - tagliatelle # the tags are wire and config formats (camelCase json, lower case koanf), they can not be renamed
     - varnamelen # too many false positives (short loop and receiver names)
     - wrapcheck # errors are wrapped where the context adds something

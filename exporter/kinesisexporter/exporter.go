@@ -205,7 +205,8 @@ func (e *Exporter) Export(
 	for _, chunk := range chunkRecords(records) {
 		chunkInput := *input
 		chunkInput.Records = chunk
-		if sendChunkErr := e.sendChunk(ctx, logger, &chunkInput); sendChunkErr != nil {
+		sendChunkErr := e.sendChunk(ctx, logger, &chunkInput)
+		if sendChunkErr != nil {
 			if ctx.Err() != nil {
 				return sendChunkErr
 			}
@@ -375,7 +376,8 @@ func (e *Exporter) sendChunk(
 				len(retry), total, attempt, distinctCodes(failures))
 		}
 		pending = retry
-		if waitErr := e.wait(ctx, backoff(attempt)); waitErr != nil {
+		waitErr := e.wait(ctx, backoff(attempt))
+		if waitErr != nil {
 			return fmt.Errorf("send: %d of %d records failed, retry interrupted: %w",
 				len(retry), total, waitErr)
 		}

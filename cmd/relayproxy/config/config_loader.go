@@ -231,7 +231,8 @@ func (c *Loader) startWatchChanges() {
 		}
 	}
 	if c.fileProvider != nil {
-		if errWatch := c.fileProvider.Watch(onChange); errWatch != nil {
+		errWatch := c.fileProvider.Watch(onChange)
+		if errWatch != nil {
 			c.log.LogAttrs(
 				context.Background(),
 				slog.LevelError,
@@ -241,7 +242,8 @@ func (c *Loader) startWatchChanges() {
 		}
 	}
 	if c.studioProvider != nil {
-		if errWatch := c.studioProvider.Watch(onChange); errWatch != nil {
+		errWatch := c.studioProvider.Watch(onChange)
+		if errWatch != nil {
 			c.log.LogAttrs(
 				context.Background(),
 				slog.LevelError,
@@ -355,7 +357,8 @@ func (c *Loader) loadConfigFile() {
 
 	parser := selectParserForFile(c.configFilePath)
 	c.fileProvider = file.Provider(c.configFilePath)
-	if errBindFile := c.k.Load(c.fileProvider, parser); errBindFile != nil {
+	errBindFile := c.k.Load(c.fileProvider, parser)
+	if errBindFile != nil {
 		c.log.LogAttrs(context.Background(), slog.LevelError, "error loading file", cmdlog.Err(errBindFile))
 	}
 }
@@ -444,7 +447,8 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 	supportedExtensions := []string{"yaml", "toml", "json", "yml"}
 
 	if inputFilePath != "" {
-		if _, err := os.Stat(inputFilePath); err != nil {
+		_, err := os.Stat(inputFilePath)
+		if err != nil {
 			return "", fmt.Errorf("%w %s", errImpossibleToFindConfig, inputFilePath)
 		}
 
@@ -454,7 +458,8 @@ func locateConfigFileIn(inputFilePath string, locations []string, warner *legacy
 		for _, filename := range []string{configFileName, legacyConfigFileName} {
 			for _, ext := range supportedExtensions {
 				configFile := fmt.Sprintf("%s%s.%s", location, filename, ext)
-				if _, err := os.Stat(configFile); err != nil {
+				_, err := os.Stat(configFile)
+				if err != nil {
 					continue
 				}
 				if filename == legacyConfigFileName {

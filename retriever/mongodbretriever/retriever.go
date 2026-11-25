@@ -114,7 +114,8 @@ func (r *Retriever) Retrieve(ctx context.Context) ([]byte, error) {
 	for cursor.Next(ctx) {
 		var doc bson.M
 
-		if decodeErr := cursor.Decode(&doc); decodeErr != nil {
+		decodeErr := cursor.Decode(&doc)
+		if decodeErr != nil {
 			return nil, decodeErr
 		}
 

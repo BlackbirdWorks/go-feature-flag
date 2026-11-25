@@ -51,7 +51,8 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {
-				if _, err := m.GetFlag("flag-5"); err != nil {
+				_, err := m.GetFlag("flag-5")
+				if err != nil {
 					require.NoError(b, err)
 				}
 			}
@@ -63,7 +64,8 @@ func BenchmarkGetFlag(b *testing.B) {
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					if _, err := m.GetFlag("flag-5"); err != nil {
+					_, err := m.GetFlag("flag-5")
+					if err != nil {
 						assert.NoError(b, err)
 
 						return
@@ -87,7 +89,8 @@ func BenchmarkGetFlag(b *testing.B) {
 				var f flag.Flag
 				for pb.Next() {
 					var err error
-					if f, err = m.GetFlag("flag-5"); err != nil {
+					f, err = m.GetFlag("flag-5")
+					if err != nil {
 						assert.NoError(b, err)
 
 						return

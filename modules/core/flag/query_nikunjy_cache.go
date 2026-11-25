@@ -171,7 +171,8 @@ func (c *nikunjyEvaluatorCache) validateEvaluator(query string) (*parser.Evaluat
 	if err != nil {
 		return nil, fmt.Errorf("invalid query: %w", err)
 	}
-	if _, processErr := ev.Process(map[string]any{}); processErr != nil {
+	_, processErr := ev.Process(map[string]any{})
+	if processErr != nil {
 		return nil, fmt.Errorf("invalid query: %w", processErr)
 	}
 
