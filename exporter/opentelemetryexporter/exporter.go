@@ -68,7 +68,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk reports whether the exporter sends events in bulk.
-func (e *Exporter) IsBulk() bool {
+func (_ *Exporter) IsBulk() bool {
 	return false
 }
 

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -329,7 +329,7 @@ func distinctCodes(failures []types.PutRecordsResultEntry) string {
 		codes = append(codes, c)
 	}
 
-	sort.Strings(codes)
+	slices.Sort(codes)
 
 	return strings.Join(codes, ", ")
 }
@@ -342,7 +342,7 @@ func backoff(attempt int) time.Duration {
 }
 
 // IsBulk reports if the producer can handle bulk messages. Will always return false for this exporter.
-func (e *Exporter) IsBulk() bool {
+func (_ *Exporter) IsBulk() bool {
 	return false
 }
 
@@ -446,7 +446,7 @@ func (e *Exporter) wait(ctx context.Context, d time.Duration) error {
 }
 
 // formatMessage returns the event encoded in the selected format. Will always use JSON for now.
-func (e *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
+func (_ *Exporter) formatMessage(event exporter.ExportableEvent) ([]byte, error) {
 	b, err := json.Marshal(event)
 	if err != nil {
 		return nil, fmt.Errorf("marshal kinesis event: %w", err)

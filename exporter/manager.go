@@ -122,9 +122,7 @@ func NewManager[T ExportableEvent](exporters []Config,
 
 		evStore.AddConsumer(consumerID)
 		// the store is sized for the most demanding consumer: the others keep their own limit.
-		if l, ok := evStore.(interface {
-			SetConsumerLimit(consumerID string, limit int64)
-		}); ok {
+		if l, ok := evStore.(consumerLimiter); ok {
 			l.SetConsumerLimit(consumerID, limits[index])
 		}
 	}
@@ -221,7 +219,7 @@ func (m *managerImpl[T]) addEvents(events []T, async bool) {
 	m.triggerFlushes(store, async)
 }
 
-func (m *managerImpl[T]) addAll(store EventStore[T], events []T) {
+func (_ *managerImpl[T]) addAll(store EventStore[T], events []T) {
 	if batch, ok := store.(interface{ AddAll([]T) }); ok {
 		batch.AddAll(events)
 
@@ -467,4 +465,9 @@ func (m *managerImpl[T]) Stop() {
 	// so we stop its periodic cleaning goroutine to avoid leaking it (and the events it retains)
 	// for the lifetime of the process.
 	(*m.eventStore).Stop()
+}
+
+// consumerLimiter is implemented by event stores that limit the events kept for each consumer.
+type consumerLimiter interface {
+	SetConsumerLimit(consumerID string, limit int64)
 }

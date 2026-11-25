@@ -135,6 +135,6 @@ func (f *Exporter) Export(
 
 // IsBulk return false if we should directly send the data as soon as it is produce
 // and true if we collect the data to send them in bulk.
-func (f *Exporter) IsBulk() bool {
+func (_ *Exporter) IsBulk() bool {
 	return true
 }

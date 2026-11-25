@@ -286,7 +286,7 @@ func (e *Exporter) Export(
 }
 
 // IsBulk returns true because events are inserted in batches.
-func (e *Exporter) IsBulk() bool {
+func (_ *Exporter) IsBulk() bool {
 	return true
 }
 
@@ -529,8 +529,6 @@ func statementResult(id *string, output *redshiftdata.DescribeStatementOutput) (
 		}
 
 		return true, stmtErr
-	case types.StatusStringSubmitted, types.StatusStringPicked, types.StatusStringStarted, types.StatusStringAll:
-		return false, nil
 	default:
 		return false, nil
 	}
@@ -685,8 +683,6 @@ func prepareRows(columns []column, rows []row, prefixSize int) ([]row, []string)
 			case superColumn:
 				tooLarge = tooLarge || len(r.values[i]) > maxSuperBytes
 			case bigintColumn, booleanColumn:
-				// fixed-size values: nothing to truncate or to check
-			default:
 				// fixed-size values: nothing to truncate or to check
 			}
 		}

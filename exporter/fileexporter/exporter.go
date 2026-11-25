@@ -110,7 +110,7 @@ func (f *Exporter) Export(
 
 // IsBulk return false if we should directly send the data as soon as it is produce
 // and true if we collect the data to send them in bulk.
-func (f *Exporter) IsBulk() bool {
+func (_ *Exporter) IsBulk() bool {
 	return true
 }
 
@@ -132,8 +132,6 @@ func (f *Exporter) writeFile(filePath string, events []exporter.ExportableEvent)
 		switch f.Format {
 		case "csv":
 			line, innerErr = event.FormatInCSV(f.csvTemplate)
-		case "json":
-			line, innerErr = event.FormatInJSON()
 		default:
 			line, innerErr = event.FormatInJSON()
 		}
