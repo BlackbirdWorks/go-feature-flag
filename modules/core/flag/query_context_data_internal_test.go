@@ -98,7 +98,7 @@ func TestQueryContext_DataOnce_MatchesTheJSONRoundTrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).Build()
 			for k, v := range tt.custom {
 				ctx.AddCustomAttribute(k, v)
 			}

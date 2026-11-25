@@ -62,7 +62,7 @@ func Test_Tracing(t *testing.T) {
 			path:       healthPath,
 			wantName:   getHealthRoute,
 			wantRoute:  healthPath,
-			wantRecord: fixtures.Success,
+			wantRecord: fixtures.LogMessageSuccess,
 			wantStatus: http.StatusOK,
 		},
 		{

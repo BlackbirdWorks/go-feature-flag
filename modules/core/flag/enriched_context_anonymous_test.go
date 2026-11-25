@@ -67,7 +67,7 @@ func TestInternalFlag_Value_EnrichmentOverridesAnonymous(t *testing.T) {
 				DefaultRule: &flag.Rule{VariationResult: new("A")},
 			}
 
-			b := ffcontext.NewEvaluationContextBuilder(fixtures.User)
+			b := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser)
 			if tt.callerAnon != nil {
 				b = b.AddCustom(fixtures.Anonymous, tt.callerAnon)
 			}

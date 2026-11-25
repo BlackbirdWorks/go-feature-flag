@@ -208,7 +208,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "ofrep targeting rule match",
 			path:        ofrepEvaluateRuleFlag,
 			apiKey:      fixtures.UserKeyA,
-			body:        ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin),
+			body:        ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus:  200,
 			wantValue:   aOn,
 			wantVariant: "on",
@@ -218,7 +218,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "ofrep targeting rule no match falls to default rule",
 			path:        ofrepEvaluateRuleFlag,
 			apiKey:      fixtures.UserKeyA,
-			body:        ofrepCtx("u1", fixtures.Group, fixtures.User),
+			body:        ofrepCtx("u1", fixtures.AttrGroup, fixtures.ContextKindUser),
 			wantStatus:  200,
 			wantValue:   aOff,
 			wantVariant: fixtures.VariationOff,
@@ -228,7 +228,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "ofrep other flag set serves its own value",
 			path:        ofrepEvaluateRuleFlag,
 			apiKey:      keyBOne,
-			body:        ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin),
+			body:        ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus:  200,
 			wantValue:   bOn,
 			wantVariant: "on",
@@ -238,7 +238,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "ofrep second api key of the flag set",
 			path:        ofrepEvaluateRuleFlag,
 			apiKey:      keyBTwo,
-			body:        ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin),
+			body:        ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus:  200,
 			wantValue:   bOn,
 			wantVariant: "on",
@@ -337,7 +337,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "goff targeting rule match",
 			path:        v1FeatureRule,
 			apiKey:      fixtures.UserKeyA,
-			body:        goffCtx("u1", fixtures.Group, fixtures.UserAdmin),
+			body:        goffCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus:  200,
 			wantValue:   aOn,
 			wantVariant: "on",
@@ -347,7 +347,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 			name:        "goff default rule",
 			path:        v1FeatureRule,
 			apiKey:      keyBOne,
-			body:        goffCtx("u1", fixtures.Group, fixtures.User),
+			body:        goffCtx("u1", fixtures.AttrGroup, fixtures.ContextKindUser),
 			wantStatus:  200,
 			wantValue:   bOff,
 			wantVariant: fixtures.VariationOff,
@@ -411,7 +411,7 @@ func runS3FlagSetsSingleEval(t *testing.T, url string) {
 				}
 			}
 
-			assert.Equal(t, tt.wantValue, res.Body[fixtures.Value], res.Raw)
+			assert.Equal(t, tt.wantValue, res.Body[fixtures.MetadataValue], res.Raw)
 			assert.Equal(t, tt.wantReason, res.Body["reason"], res.Raw)
 
 			if isOFREP {
@@ -438,7 +438,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			name:       "ofrep bulk flag set a",
 			path:       fixtures.OFREPEvaluateFlagsPath,
 			apiKey:     fixtures.UserKeyA,
-			body:       ofrepCtx(fixtures.UserKeyOne, fixtures.Group, fixtures.UserAdmin),
+			body:       ofrepCtx(fixtures.UserKeyOne, fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    aOn,
@@ -452,7 +452,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			name:       "ofrep bulk flag set b",
 			path:       fixtures.OFREPEvaluateFlagsPath,
 			apiKey:     keyBTwo,
-			body:       ofrepCtx(userZero, fixtures.Group, fixtures.User),
+			body:       ofrepCtx(userZero, fixtures.AttrGroup, fixtures.ContextKindUser),
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    bOff,
@@ -473,7 +473,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			name:       "goff allflags flag set a",
 			path:       v1Allflags,
 			apiKey:     fixtures.UserKeyA,
-			body:       goffCtx(fixtures.UserKeyOne, fixtures.Group, fixtures.UserAdmin),
+			body:       goffCtx(fixtures.UserKeyOne, fixtures.AttrGroup, fixtures.UserAdmin),
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    aOn,
@@ -487,7 +487,7 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 			name:       "goff allflags flag set b",
 			path:       v1Allflags,
 			apiKey:     keyBOne,
-			body:       goffCtx(userZero, fixtures.Group, fixtures.User),
+			body:       goffCtx(userZero, fixtures.AttrGroup, fixtures.ContextKindUser),
 			wantStatus: 200,
 			wantFlags: map[string]any{
 				ruleFlag:    bOff,
@@ -525,14 +525,14 @@ func runS3FlagSetsBulkEval(t *testing.T, url string) {
 					flagKey, isStr := item["key"].(string)
 					require.True(t, isStr)
 
-					got[flagKey] = item[fixtures.Value]
+					got[flagKey] = item[fixtures.MetadataValue]
 				}
 			case map[string]any: // GOFF: a map
 				for k, f := range flags {
 					item, isObj := f.(map[string]any)
 					require.True(t, isObj)
 
-					got[k] = item[fixtures.Value]
+					got[k] = item[fixtures.MetadataValue]
 				}
 			}
 
@@ -550,16 +550,16 @@ func verifyS3FlagSetsReload(t *testing.T, srv *gopherstack.Server, bucket, url s
 			t,
 			url+ofrepEvaluateRuleFlag,
 			fixtures.UserKeyA,
-			ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin),
+			ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin),
 		)
 
-		return res.Status == 200 && res.Body[fixtures.Value] == aOnVersionTwo
+		return res.Status == 200 && res.Body[fixtures.MetadataValue] == aOnVersionTwo
 	}, 30*time.Second, 200*time.Millisecond, "new value of flag set a never served")
 	// GOFF sees it too, and the other flag set is untouched.
-	res := postJSON(t, url+v1FeatureRule, fixtures.UserKeyA, goffCtx("u1", fixtures.Group, fixtures.UserAdmin))
-	assert.Equal(t, aOnVersionTwo, res.Body[fixtures.Value], res.Raw)
-	res = postJSON(t, url+ofrepEvaluateRuleFlag, keyBOne, ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin))
-	assert.Equal(t, bOn, res.Body[fixtures.Value], res.Raw)
+	res := postJSON(t, url+v1FeatureRule, fixtures.UserKeyA, goffCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin))
+	assert.Equal(t, aOnVersionTwo, res.Body[fixtures.MetadataValue], res.Raw)
+	res = postJSON(t, url+ofrepEvaluateRuleFlag, keyBOne, ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin))
+	assert.Equal(t, bOn, res.Body[fixtures.MetadataValue], res.Raw)
 
 	// a flag removed from the file disappears, a flag added appears
 	srv.PutObject(t, bucket, "flags/b.yaml", e2eFlags("B", bOn, `
@@ -572,7 +572,7 @@ brand-new:
 	require.Eventually(t, func() bool {
 		brandNew := postJSON(t, url+"/ofrep/v1/evaluate/flags/brand-new", keyBOne, ofrepCtx("u1"))
 
-		return brandNew.Status == 200 && brandNew.Body[fixtures.Value] == "new"
+		return brandNew.Status == 200 && brandNew.Body[fixtures.MetadataValue] == "new"
 	}, 30*time.Second, 200*time.Millisecond, "new flag of flag set b never served")
 }
 
@@ -646,15 +646,15 @@ authorizedKeys:
 `+tt.retriever+"\n", "{{ .Bucket }}", bucket)
 			url := startRelayProxyFromYAML(t, yaml, nil)
 
-			res := postJSON(t, url+ofrepEvaluateRuleFlag, topKey, ofrepCtx("u1", fixtures.Group, fixtures.UserAdmin))
+			res := postJSON(t, url+ofrepEvaluateRuleFlag, topKey, ofrepCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin))
 			require.Equal(t, 200, res.Status, res.Raw)
-			assert.Equal(t, tt.wantValue, res.Body[fixtures.Value])
+			assert.Equal(t, tt.wantValue, res.Body[fixtures.MetadataValue])
 			assert.Equal(t, targetingMatch, res.Body["reason"])
 
 			if strings.Contains(tt.name, "folder") {
 				res = postJSON(t, url+ofrepEvaluateOnlyInB, topKey, ofrepCtx("u1"))
 				require.Equal(t, 200, res.Status, res.Raw)
-				assert.Equal(t, bOnly, res.Body[fixtures.Value])
+				assert.Equal(t, bOnly, res.Body[fixtures.MetadataValue])
 			}
 
 			assert.Equal(t, 401, postJSON(t, url+ofrepEvaluateRuleFlag, "nope", ofrepCtx("u1")).Status)
@@ -670,9 +670,9 @@ authorizedKeys:
 
 			srv.PutObject(t, bucket, first, e2eFlags("A", aOnVersionTwo))
 			require.Eventually(t, func() bool {
-				r := postJSON(t, url+v1FeatureRule, topKey, goffCtx("u1", fixtures.Group, fixtures.UserAdmin))
+				r := postJSON(t, url+v1FeatureRule, topKey, goffCtx("u1", fixtures.AttrGroup, fixtures.UserAdmin))
 
-				return r.Status == 200 && r.Body[fixtures.Value] == aOnVersionTwo
+				return r.Status == 200 && r.Body[fixtures.MetadataValue] == aOnVersionTwo
 			}, 30*time.Second, 200*time.Millisecond)
 		})
 	}
@@ -767,7 +767,7 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 				t,
 				url+ofrepEvaluateRuleFlag,
 				fixtures.UserKeyA,
-				ofrepCtx(userKey, fixtures.Group, fixtures.UserAdmin),
+				ofrepCtx(userKey, fixtures.AttrGroup, fixtures.UserAdmin),
 			).Status,
 		)
 	}
@@ -778,7 +778,9 @@ func TestE2E_RelayProxy_ExportersToAWS(t *testing.T) {
 		require.Equal(
 			t,
 			200,
-			postJSON(t, url+v1FeatureRule, fixtures.UserKeyA, goffCtx(userKey, fixtures.Group, fixtures.User)).Status,
+			postJSON(
+				t, url+v1FeatureRule, fixtures.UserKeyA, goffCtx(userKey, fixtures.AttrGroup, fixtures.ContextKindUser),
+			).Status,
 		)
 	}
 

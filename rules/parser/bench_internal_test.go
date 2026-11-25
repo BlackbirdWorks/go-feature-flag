@@ -203,7 +203,7 @@ func newBenchInput() map[string]any {
 		"bb": 1.5,
 		"jh": fixtures.VersionOneTwoThree,
 		"kl": "1.5",
-		"u":  map[string]any{fixtures.Plan: fixtures.Pro, age: 31},
+		"u":  map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31},
 	}
 }
 
@@ -259,7 +259,7 @@ func TestBenchmarkVersionRule(t *testing.T) {
 		wantDebug bool
 	}{
 		{name: "semver ordering", jh: "1.10.0", want: true},
-		{name: "not a semver", jh: fixtures.Abc, wantDebug: true},
+		{name: "not a semver", jh: fixtures.UserKeyAbc, wantDebug: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -288,7 +288,7 @@ func TestBenchmarkRules(t *testing.T) {
 		rule string
 	}{
 		{name: "logical", rule: logicalRule(benchConditions(), 0)},
-		{name: fixtures.Nested, rule: logicalRule(benchConditions(), 3)},
+		{name: fixtures.NestedKey, rule: logicalRule(benchConditions(), 3)},
 		{name: "big", rule: bigRule()},
 	}
 	for _, tt := range tests {

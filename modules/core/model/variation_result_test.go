@@ -33,7 +33,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				ErrorDetails:  "test error",
 				Value:         true,
 				Cacheable:     true,
-				Metadata:      map[string]any{fixtures.Key: fixtures.Value},
+				Metadata:      map[string]any{fixtures.MetadataKey: fixtures.MetadataValue},
 			},
 			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
 				`","errorCode":"GENERAL","errorDetails":"test error","value":true,"cacheable":true,"metadata":{"key":"value"` +
@@ -94,7 +94,7 @@ func TestVariationResultToJSONStr(t *testing.T) {
 				Version:       "5.0.0",
 				Reason:        flag.ReasonTargetingMatchSplit,
 				ErrorCode:     flag.ErrorCodeInvalidContext,
-				Value:         map[string]any{"nested": fixtures.Value, "number": 123},
+				Value:         map[string]any{"nested": fixtures.MetadataValue, "number": 123},
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
@@ -259,7 +259,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				ErrorDetails:  "test error",
 				Value:         "test-value",
 				Cacheable:     true,
-				Metadata:      map[string]any{fixtures.Key: fixtures.Value},
+				Metadata:      map[string]any{fixtures.MetadataKey: fixtures.MetadataValue},
 			},
 			wantJSON: `{"trackEvents":true,"variationType":"SdkDefault","failed":false,"version":"1.0.0","reason":"DEFAULT` +
 				`","errorCode":"GENERAL","errorDetails":"test error","value":"test-value","cacheable":true,"metadata":{"key"` +
@@ -320,7 +320,7 @@ func TestRawVarResultJSONSerialization(t *testing.T) {
 				Version:       "5.0.0",
 				Reason:        flag.ReasonTargetingMatchSplit,
 				ErrorCode:     flag.ErrorCodeInvalidContext,
-				Value:         map[string]any{"nested": fixtures.Value, "number": 123},
+				Value:         map[string]any{"nested": fixtures.MetadataValue, "number": 123},
 				Cacheable:     true,
 				Metadata:      map[string]any{"meta": "data"},
 			},
@@ -447,9 +447,9 @@ func TestVariationResultJSONDeserialization(t *testing.T) {
 				Version:       fixtures.VersionTwoZeroZero,
 				Reason:        flag.ReasonTargetingMatch,
 				ErrorCode:     flag.ErrorCodeFlagNotFound,
-				Value:         fixtures.Value,
+				Value:         fixtures.MetadataValue,
 				Cacheable:     false,
-				Metadata:      map[string]any{fixtures.Key: fixtures.Value},
+				Metadata:      map[string]any{fixtures.MetadataKey: fixtures.MetadataValue},
 			},
 			wantErr: false,
 		},

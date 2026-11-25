@@ -79,7 +79,7 @@ func TestFlagsetMode_KeyWithoutRoutingIsRejectedAtAuthentication(t *testing.T) {
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
 			APIKeys:   []string{"routed-key", movedKey},
-			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		}},
 		Server: config.Server{Mode: config.ServerModeHTTP, Port: port},
 	}
@@ -195,8 +195,8 @@ func TestFlagsetMode_KeyRotationDuringRequests(t *testing.T) {
 	fileA, fileB := flagFile("a", "flag-a"), flagFile("b", "flag-b")
 	flagsets := func(keysA, keysB []string) []config.FlagSet {
 		return []config.FlagSet{
-			{Name: "a", APIKeys: keysA, Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fileA}},
-			{Name: "b", APIKeys: keysB, Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fileB}},
+			{Name: "a", APIKeys: keysA, Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fileA}},
+			{Name: "b", APIKeys: keysB, Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fileB}},
 		}
 	}
 	// rotating-key moves from a to b, old-key is replaced by new-key.

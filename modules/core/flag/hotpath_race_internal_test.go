@@ -77,7 +77,7 @@ func TestInternalFlag_Value_DoesNotWriteTheSharedFlag(t *testing.T) {
 			targetFlag := progressiveFlag(tt.endPercentage)
 
 			runParallel(300, func(_ int) {
-				ctx := ffcontext.NewEvaluationContext(fixtures.User)
+				ctx := ffcontext.NewEvaluationContext(fixtures.ContextKindUser)
 				_, d := targetFlag.Value(fixtures.FlagKeyBare, ctx, Context{Service: NewService()})
 				assert.Empty(t, d.ErrorCode)
 			})
@@ -101,29 +101,29 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 	}{
 		{
 			name:       "enrichment attribute is used by the query",
-			ctxCustom:  map[string]any{fixtures.Plan: fixtures.Free},
-			enrichment: map[string]any{fixtures.Env: fixtures.Prod},
+			ctxCustom:  map[string]any{fixtures.AttrPlan: fixtures.PlanFree},
+			enrichment: map[string]any{fixtures.AttrEnv: fixtures.EnvProd},
 			query:      envEqProd,
 			wantMatch:  true,
 		},
 		{
 			name:       "enrichment overrides the attribute of the context",
-			ctxCustom:  map[string]any{fixtures.Env: "dev"},
-			enrichment: map[string]any{fixtures.Env: fixtures.Prod},
+			ctxCustom:  map[string]any{fixtures.AttrEnv: "dev"},
+			enrichment: map[string]any{fixtures.AttrEnv: fixtures.EnvProd},
 			query:      envEqProd,
 			wantMatch:  true,
 		},
 		{
 			name:       "context attribute is kept",
-			ctxCustom:  map[string]any{fixtures.Plan: fixtures.Free},
-			enrichment: map[string]any{fixtures.Env: fixtures.Prod},
+			ctxCustom:  map[string]any{fixtures.AttrPlan: fixtures.PlanFree},
+			enrichment: map[string]any{fixtures.AttrEnv: fixtures.EnvProd},
 			query:      `plan eq "free"`,
 			wantMatch:  true,
 		},
 		{
 			name:       "nil custom attributes do not panic",
 			ctxCustom:  nil,
-			enrichment: map[string]any{fixtures.Env: fixtures.Prod},
+			enrichment: map[string]any{fixtures.AttrEnv: fixtures.EnvProd},
 			query:      envEqProd,
 			wantMatch:  true,
 		},
@@ -143,7 +143,7 @@ func TestInternalFlag_Value_DoesNotModifyTheEvaluationContext(t *testing.T) {
 			svc := NewService()
 			require.NoError(t, targetFlag.IsValid(svc))
 
-			ctx := &customContext{key: fixtures.User, custom: tt.ctxCustom}
+			ctx := &customContext{key: fixtures.ContextKindUser, custom: tt.ctxCustom}
 
 			var before map[string]any
 			if tt.ctxCustom != nil {

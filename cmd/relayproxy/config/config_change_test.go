@@ -70,10 +70,10 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			modifiedConfigFile: "../testdata/config/change-authorized-keys-from-test-to-test2-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusUnauthorized},
-				{apiKey: fixtures.Test, expectedStatus: http.StatusOK},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
-				{apiKey: fixtures.Test, expectedStatus: http.StatusUnauthorized},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusUnauthorized},
 				{apiKey: "test2", expectedStatus: http.StatusOK},
 			},
 		},
@@ -82,7 +82,7 @@ func TestConfigChangeDefaultMode(t *testing.T) {
 			initialConfigFile:  "../testdata/config/remove-authorized-keys-should-allow-all-requests.yaml",
 			modifiedConfigFile: "../testdata/config/remove-authorized-keys-should-allow-all-requests-MODIFIED.yaml",
 			checksBeforeChange: []httpRequestCheck{
-				{apiKey: fixtures.Test, expectedStatus: http.StatusOK},
+				{apiKey: fixtures.PlaceholderTest, expectedStatus: http.StatusOK},
 			},
 			checksAfterChange: []httpRequestCheck{
 				{apiKey: "", expectedStatus: http.StatusOK},
@@ -525,8 +525,8 @@ func newAPIServerWithLogger(
 ) (api.Server, *config.Config) {
 	t.Helper()
 
-	f := pflag.NewFlagSet(fixtures.Test, pflag.ContinueOnError)
-	f.String(fixtures.Config, "", locationOfYourConfig)
+	f := pflag.NewFlagSet(fixtures.PlaceholderTest, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 

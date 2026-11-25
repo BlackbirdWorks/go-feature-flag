@@ -115,11 +115,11 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "All default test",
 			fields: s3ExportFields{
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -127,7 +127,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -136,12 +136,12 @@ func TestS3_Export(t *testing.T) {
 		{
 			name: "All default test with nil context",
 			fields: s3ExportFields{
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 				nilCtx: true,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -149,7 +149,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -159,11 +159,11 @@ func TestS3_Export(t *testing.T) {
 			name: "With DeprecatedExporterV1 Path",
 			fields: s3ExportFields{
 				S3Path: "random/path",
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -171,7 +171,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -181,11 +181,11 @@ func TestS3_Export(t *testing.T) {
 			name: "All default CSV",
 			fields: s3ExportFields{
 				Format: protocol.FormatCSV,
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -193,7 +193,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: "./testdata/all_default.csv",
@@ -204,11 +204,11 @@ func TestS3_Export(t *testing.T) {
 			fields: s3ExportFields{
 				Format:      protocol.FormatCSV,
 				CsvTemplate: "{{ .Kind}};{{ .ContextKind}}\n",
-				Bucket:      fixtures.Test,
+				Bucket:      fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -216,7 +216,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: "./testdata/custom_csv_format.csv",
@@ -227,11 +227,11 @@ func TestS3_Export(t *testing.T) {
 			fields: s3ExportFields{
 				Format:   "json",
 				Filename: "{{ .Format}}-test-{{ .Timestamp}}",
-				Bucket:   fixtures.Test,
+				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -239,7 +239,7 @@ func TestS3_Export(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -257,11 +257,11 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 			name: "Invalid format",
 			fields: s3ExportFields{
 				Format: "xxx",
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -269,7 +269,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -282,7 +282,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -290,7 +290,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			wantErr: true,
@@ -299,11 +299,11 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 			name: "Invalid filename template",
 			fields: s3ExportFields{
 				Filename: "{{ .InvalidField}}",
-				Bucket:   fixtures.Test,
+				Bucket:   fixtures.PlaceholderTest,
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -311,7 +311,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			wantErr: true,
@@ -324,7 +324,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -332,7 +332,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			wantErr: true,
@@ -340,7 +340,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 		{
 			name: "With S3 Client Options",
 			fields: s3ExportFields{
-				Bucket: fixtures.Test,
+				Bucket: fixtures.PlaceholderTest,
 				S3ClientOptions: []func(*s3.Options){
 					func(o *s3.Options) {
 						o.UseAccelerate = true
@@ -349,7 +349,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -357,7 +357,7 @@ func TestS3_Export_ErrorsAndOptions(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			expectedFile: fixtures.AllDefaultJSONPath,
@@ -395,7 +395,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 
 	s3ManagerMock := testhelpers.S3ManagerV2Mock{}
 	f := &Exporter{
-		Bucket:     fixtures.Test,
+		Bucket:     fixtures.PlaceholderTest,
 		s3Uploader: &s3ManagerMock,
 	}
 
@@ -404,7 +404,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 		logger,
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -412,7 +412,7 @@ func TestS3_Export_LogsThroughParameterLogger(t *testing.T) {
 				Variation:    fixtures.VariationDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       fixtures.SERVER,
+				Source:       fixtures.SourceServer,
 			},
 		},
 	)
@@ -438,15 +438,15 @@ func TestS3_Export_RemovesTempDir(t *testing.T) {
 	tempPattern := filepath.Join(os.TempDir(), "go_feature_flag_s3_export*")
 	before, _ := filepath.Glob(tempPattern)
 
-	f := &Exporter{Bucket: fixtures.Test, s3Uploader: &testhelpers.S3ManagerV2Mock{}}
+	f := &Exporter{Bucket: fixtures.PlaceholderTest, s3Uploader: &testhelpers.S3ManagerV2Mock{}}
 	err := f.Export(
 		context.TODO(),
 		&fflog.FFLogger{LeveledLogger: slog.Default()},
 		[]exporter.ExportableEvent{
 			exporter.FeatureEvent{
-				Kind: fixtures.Feature, ContextKind: fixtures.UserKeyAnonymous, UserKey: fixtures.UserKeyABCD,
+				Kind: fixtures.KindFeature, ContextKind: fixtures.UserKeyAnonymous, UserKey: fixtures.UserKeyABCD,
 				CreationDate: 1617970547, Key: fixtures.UserKeyRandom, Variation: fixtures.VariationDefault,
-				Value: "YO", Default: false, Source: fixtures.SERVER,
+				Value: "YO", Default: false, Source: fixtures.SourceServer,
 			},
 		},
 	)

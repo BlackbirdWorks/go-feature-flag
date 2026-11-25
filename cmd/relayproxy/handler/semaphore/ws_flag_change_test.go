@@ -159,7 +159,7 @@ func Test_websocket_flag_change(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + fixtures.WebsocketFlagChangePath
 
 			// Create websocket connection with timeout
 			dialer := &websocket.Dialer{
@@ -274,7 +274,7 @@ func Test_websocket_concurrent_writes(t *testing.T) {
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
-	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
+	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + fixtures.WebsocketFlagChangePath
 
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
@@ -381,7 +381,7 @@ func Test_websocket_legacy_handler(t *testing.T) {
 	testServer := httptest.NewServer(e)
 	defer testServer.Close()
 
-	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + fixtures.WebsocketFlagChangePath
+	url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + fixtures.WebsocketFlagChangePath
 	dialer := &websocket.Dialer{HandshakeTimeout: 10 * time.Second}
 	wsConn, resp, err := dialer.DialContext(ctx, url, nil)
 	require.NoError(t, err, failedToConnectTo)
@@ -456,7 +456,7 @@ func Test_websocket_flagset_scoping(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + "/ws?apiKey=key-a"
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + "/ws?apiKey=key-a"
 			wsConn, resp, err := websocket.DefaultDialer.DialContext(ctx, url, nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, resp.Body.Close()) })
@@ -575,7 +575,7 @@ func Test_websocket_flagset_not_resolved(t *testing.T) {
 			testServer := httptest.NewServer(e)
 			defer testServer.Close()
 
-			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.HTTP) + "/ws" + tt.query
+			url := "ws" + strings.TrimPrefix(testServer.URL, fixtures.KindHTTP) + "/ws" + tt.query
 
 			ws, resp, err := websocket.DefaultDialer.Dial(url, nil)
 			if ws != nil {

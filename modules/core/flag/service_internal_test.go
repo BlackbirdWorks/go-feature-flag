@@ -61,8 +61,10 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			flg := newFlagWithQueries(tt.query)
 			require.NoError(t, flg.IsValid(first))
 
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
-			_, err := (*flg.Rules)[0].Evaluate(first, fixtures.User, ctx, fixtures.FlagKeyBare, false)
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+				Build()
+			_, err := (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantFirstEntries, countEntries(&first.nikunjy.entries), "entries of the first Service")
@@ -71,7 +73,7 @@ func TestService_StateIsOwnedByTheService(t *testing.T) {
 			first.Close()
 			assert.Equal(t, tt.wantAfterClose, countEntries(&first.nikunjy.entries), "entries after Close")
 			// still usable after Close: it rebuilds what it needs
-			_, err = (*flg.Rules)[0].Evaluate(first, fixtures.User, ctx, fixtures.FlagKeyBare, false)
+			_, err = (*flg.Rules)[0].Evaluate(first, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
 			require.NoError(t, err)
 		})
 	}
@@ -114,7 +116,7 @@ func TestService_LegacyAttributeIsReportedOncePerService(t *testing.T) {
 				DefaultRule:     &Rule{VariationResult: new("on")},
 				Experimentation: &ExperimentationRollout{Start: new(clocktest.Instant().Add(-time.Hour))},
 			}
-			ctx := ffcontext.NewEvaluationContext(fixtures.User)
+			ctx := ffcontext.NewEvaluationContext(fixtures.ContextKindUser)
 			ctx.AddCustomAttribute(
 				tt.attribute,
 				map[string]any{fixtures.CurrentDateTime: clocktest.Instant().Format(time.RFC3339)},
@@ -162,8 +164,8 @@ func TestService_LoggerReceivesTheEvaluationErrors(t *testing.T) {
 			r := Rule{Query: new(`plan eq`), VariationResult: new("on")}
 			_, err := r.Evaluate(
 				svc,
-				fixtures.User,
-				ffcontext.NewEvaluationContext(fixtures.User),
+				fixtures.ContextKindUser,
+				ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
 				fixtures.FlagKeyBare,
 				false,
 			)
@@ -275,7 +277,7 @@ func TestService_ProgressiveRolloutReportsTheLegacyAttributeOnce(t *testing.T) {
 					End:     &ProgressiveRolloutStep{Variation: new("b"), Percentage: new(float64(100)), Date: &end},
 				}},
 			}
-			ctx := ffcontext.NewEvaluationContext(fixtures.User)
+			ctx := ffcontext.NewEvaluationContext(fixtures.ContextKindUser)
 			ctx.AddCustomAttribute(ffcontext.LegacyReservedKey, map[string]any{
 				fixtures.CurrentDateTime: clocktest.Instant().Format(time.RFC3339),
 			})

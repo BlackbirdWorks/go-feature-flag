@@ -201,7 +201,9 @@ func BenchmarkInternalFlagIsValid_Reload100FlagsSharing20kIn(b *testing.B)   { b
 func BenchmarkInternalFlagValue_SmallQuery(b *testing.B) {
 	svc := flag.NewService()
 	flg := newValidatedFlag(b, svc, keyEqUserOneAnd)
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -306,7 +308,9 @@ func BenchmarkInternalFlagValue_Small10000DistinctFlags(b *testing.B) {
 		require.NoError(b, flags[i].IsValid(svc))
 	}
 
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -321,7 +325,9 @@ func BenchmarkInternalFlagValue_SmallQueryParallel(b *testing.B) {
 	flg := newSmallFlag(0, keyEqUserOneAnd)
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -352,7 +358,9 @@ func BenchmarkInternalFlagValue_JSONLogic(b *testing.B) {
 	flg := newSmallFlag(0, `{"and": [{"==": [{"var": "key"}, "user-1"]}, {"==": [{"var": "plan"}, "pro"]}]}`)
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -370,7 +378,9 @@ func BenchmarkRuleEvaluate_NotValidated(b *testing.B) {
 		Query:           new(keyEqUserOneAnd),
 		VariationResult: new("on"),
 	}
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -395,7 +405,9 @@ func BenchmarkInternalFlagValue_Scheduled(b *testing.B) {
 	}}
 	require.NoError(b, flg.IsValid(svc))
 
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -420,7 +432,9 @@ func heapInUse() float64 {
 // change every query (heap-reloads-B).
 func BenchmarkHeap_AfterLoadAndReloads(b *testing.B) {
 	svc := flag.NewService()
-	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+		Build()
 
 	for range b.N {
 		base := heapInUse()

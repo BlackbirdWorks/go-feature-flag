@@ -8,8 +8,8 @@ const (
 	FlagsetDefault = "default"
 	// FlagsetLower is the name of the flagset "flagset-a".
 	FlagsetLower = "flagset-a"
-	// FlagsetNone is the name of the flagset "flagset".
-	FlagsetNone = "flagset"
+	// FlagsetBare is the name of the flagset "flagset".
+	FlagsetBare = "flagset"
 	// FlagsetOne is the name of the flagset "flagset-1".
 	FlagsetOne = "flagset-1"
 	// FlagsetTest is the name of the flagset "test-flagset".

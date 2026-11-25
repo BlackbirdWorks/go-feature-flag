@@ -45,8 +45,8 @@ func TestNikunjyPool_Evaluate(t *testing.T) {
 				Query:           new(keyEqAbc),
 			},
 			args: args{
-				key:      fixtures.Abc,
-				ctx:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				key:      fixtures.UserKeyAbc,
+				ctx:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 				flagName: "test-pool",
 			},
 			want:    "on",

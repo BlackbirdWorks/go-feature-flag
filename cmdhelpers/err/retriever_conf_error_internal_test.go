@@ -85,7 +85,7 @@ func TestRetrieverConfError_Error(t *testing.T) {
 		{
 			name:     "multiple words in camelCase",
 			property: "someLongPropertyName",
-			kind:     fixtures.HTTP,
+			kind:     fixtures.KindHTTP,
 			expected: `invalid retriever: no "someLongPropertyName" property found for kind "http"`,
 		},
 		{
@@ -131,13 +131,13 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 		{
 			name:     "multiple camelCase words",
 			property: "someLongPropertyName",
-			kind:     fixtures.HTTP,
+			kind:     fixtures.KindHTTP,
 			expected: `invalid retriever: no "some-long-property-name" property found for kind "http"`,
 		},
 		{
 			name:     "single uppercase letter",
 			property: "a",
-			kind:     fixtures.Test,
+			kind:     fixtures.PlaceholderTest,
 			expected: `invalid retriever: no "a" property found for kind "test"`,
 		},
 		{
@@ -167,7 +167,7 @@ func TestRetrieverConfError_CliErrorMessage(t *testing.T) {
 		{
 			name:     "consecutive uppercase letters",
 			property: "HTTPSEndpoint",
-			kind:     fixtures.HTTP,
+			kind:     fixtures.KindHTTP,
 			expected: `invalid retriever: no "httpsendpoint" property found for kind "http"`,
 		},
 		{
@@ -194,8 +194,8 @@ func TestRetrieverConfError_ImplementsError(t *testing.T) {
 
 	var _ error = &RetrieverConfError{}
 
-	err := NewRetrieverConfError(fixtures.Test, fixtures.Test)
+	err := NewRetrieverConfError(fixtures.PlaceholderTest, fixtures.PlaceholderTest)
 	require.NotNil(t, err, "expected non-nil error")
-	assert.Equal(t, fixtures.Test, err.property, "property should match")
-	assert.Equal(t, fixtures.Test, err.kind, "kind should match")
+	assert.Equal(t, fixtures.PlaceholderTest, err.property, "property should match")
+	assert.Equal(t, fixtures.PlaceholderTest, err.kind, "kind should match")
 }

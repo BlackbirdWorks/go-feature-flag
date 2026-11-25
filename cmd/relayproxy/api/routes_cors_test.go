@@ -33,7 +33,7 @@ func testConfig(t *testing.T) *config.Config {
 	return &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},

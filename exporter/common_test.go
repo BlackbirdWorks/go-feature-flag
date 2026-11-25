@@ -192,7 +192,7 @@ func TestFormatEventInCSV(t *testing.T) {
 					exporter.DefaultCsvTemplate,
 				),
 				event: exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -200,7 +200,7 @@ func TestFormatEventInCSV(t *testing.T) {
 					Variation:    fixtures.VariationDefault,
 					Value:        "YO",
 					Default:      false,
-					Source:       fixtures.SERVER,
+					Source:       fixtures.SourceServer,
 				},
 			},
 			want:    "feature;anonymousUser;ABCD;1617970547;random-key;Default;YO;false;SERVER\n",
@@ -248,7 +248,7 @@ func TestFormatEventInJSON(t *testing.T) {
 		{
 			name: "valid",
 			args: args{event: exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -256,7 +256,7 @@ func TestFormatEventInJSON(t *testing.T) {
 				Variation:    fixtures.VariationDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       fixtures.SERVER,
+				Source:       fixtures.SourceServer,
 			}},
 			want: "{\"kind\":\"feature\",\"contextKind\":\"anonymousUser\",\"userKey\":\"ABCD\",\"creationDate\":161797" +
 				"0547,\"key\":\"random-key\",\"variation\":\"Default\",\"value\":\"YO\",\"default\":false,\"version\":\"\"," +

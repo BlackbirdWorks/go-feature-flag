@@ -45,7 +45,7 @@ func TestServerEnableH2C(t *testing.T) {
 			listener, port := testhelpers.ListenLocal(t)
 			conf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
-					{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+					{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 				},
 				Server: config.Server{
 					Mode:      config.ServerModeHTTP,

@@ -97,7 +97,7 @@ func Test_EvaluationNeverWaitsForTheLogSinkWhenEventsAreDropped(t *testing.T) {
 
 						_, _ = client.BoolVariation(
 							fixtures.FlagKeyTest,
-							ffcontext.NewEvaluationContext(fixtures.User),
+							ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
 							false,
 						)
 

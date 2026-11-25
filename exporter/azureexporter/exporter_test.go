@@ -43,7 +43,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -66,7 +66,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -89,7 +89,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -112,7 +112,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -135,7 +135,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -158,7 +158,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -179,7 +179,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -196,7 +196,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			exporter: azureexporter.Exporter{},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -215,7 +215,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,
@@ -236,7 +236,7 @@ func TestAzureBlobStorage_Export(t *testing.T) {
 			},
 			events: []exporter.ExportableEvent{
 				exporter.FeatureEvent{
-					Kind:         fixtures.Feature,
+					Kind:         fixtures.KindFeature,
 					ContextKind:  fixtures.UserKeyAnonymous,
 					UserKey:      fixtures.UserKeyABCD,
 					CreationDate: 1617970547,

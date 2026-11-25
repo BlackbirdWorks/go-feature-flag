@@ -38,11 +38,11 @@ var (
 //nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER unset", func(t *testing.T) {
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.Test, c)
+		sampler, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
 		assert.Equal(t, sdktrace.AlwaysSample(), sampler)
 	})
@@ -50,11 +50,11 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to non-jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.Test, c)
+		sampler, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
 		assert.Nil(t, sampler)
 	})
@@ -62,11 +62,11 @@ func TestInitSampler(t *testing.T) {
 	t.Run("OTEL_TRACES_SAMPLER set to jaeger_remote", func(t *testing.T) {
 		t.Setenv("OTEL_TRACES_SAMPLER", "jaeger_remote")
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
-		sampler, err := initSampler(fixtures.Test, c)
+		sampler, err := initSampler(fixtures.PlaceholderTest, c)
 		require.NoError(t, err)
 
 		// not really any way to assert on the sampler other than calling
@@ -78,7 +78,7 @@ func TestInitSampler(t *testing.T) {
 //nolint:paralleltest // uses t.Setenv because OpenTelemetry and Jaeger SDKs read OTEL_*/JAEGER_* env vars
 func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -93,7 +93,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := "http://example.com:1234"
 		t.Setenv("JAEGER_SAMPLER_MANAGER_HOST_PORT", expected)
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -106,7 +106,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := 42 * time.Second
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", expected.String())
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -119,7 +119,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 		expected := 42
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", strconv.Itoa(expected))
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -131,7 +131,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("invalid JAEGER_SAMPLER_REFRESH_INTERVAL", func(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_REFRESH_INTERVAL", "bogus")
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -142,7 +142,7 @@ func TestJaegerRemoteSamplerOpts(t *testing.T) {
 	t.Run("invalid JAEGER_SAMPLER_MAX_OPERATIONS", func(t *testing.T) {
 		t.Setenv("JAEGER_SAMPLER_MAX_OPERATIONS", "bogus")
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		_, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.ErrorContains(t, errC,
 			"'jaeger.sampler.max.operations' cannot parse value as 'int': strconv.ParseInt: invalid syntax")
@@ -155,7 +155,7 @@ func TestInitResource(t *testing.T) {
 	t.Run("defaults, no env", func(t *testing.T) {
 		t.Parallel()
 
-		res, err := initResource(context.Background(), fixtures.Test, fixtures.VersionOneTwoThree, nil)
+		res, err := initResource(context.Background(), fixtures.PlaceholderTest, fixtures.VersionOneTwoThree, nil)
 		require.NoError(t, err)
 
 		rmap := map[string]attribute.Value{}
@@ -164,7 +164,7 @@ func TestInitResource(t *testing.T) {
 		}
 
 		// just spot-check a few things
-		assert.Equal(t, fixtures.Test, rmap["service.name"].AsString())
+		assert.Equal(t, fixtures.PlaceholderTest, rmap["service.name"].AsString())
 		assert.Equal(t, fixtures.VersionOneTwoThree, rmap["service.version"].AsString())
 		assert.Equal(t, "go", rmap["process.runtime.name"].AsString())
 	})
@@ -177,7 +177,7 @@ func TestInitResource(t *testing.T) {
 			"key2": "val2",
 		}
 
-		res, err := initResource(context.Background(), fixtures.Test, fixtures.VersionOneTwoThree, attribs)
+		res, err := initResource(context.Background(), fixtures.PlaceholderTest, fixtures.VersionOneTwoThree, attribs)
 		require.NoError(t, err)
 
 		rmap := map[string]attribute.Value{}
@@ -206,7 +206,7 @@ func TestInit(t *testing.T) {
 		t.Setenv("OTEL_SDK_DISABLED", "true")
 		t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 		require.NoError(t, errC)
 
@@ -342,7 +342,7 @@ func TestExportEnvironment(t *testing.T) {
 func TestExportEnvironment_EnvironmentVariableTakesPrecedence(t *testing.T) {
 	t.Setenv(otelExporterOtlpEndpoint, httpsExampleCom4318)
 
-	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+	f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 	c, errC := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
 	require.NoError(t, errC)
 
@@ -483,7 +483,7 @@ func TestStop(t *testing.T) {
 				svc.InitMetrics(t.Context(), &config.Config{OpenTelemetryOtlpEndpoint: "http://localhost:4318"}),
 			)
 
-			counter, err := svc.MeterProvider().Meter(fixtures.Test).Int64Counter("test.pending")
+			counter, err := svc.MeterProvider().Meter(fixtures.PlaceholderTest).Int64Counter("test.pending")
 			require.NoError(t, err)
 			counter.Add(t.Context(), 1)
 			require.Empty(t, metrics.names(), "nothing was exported before the shutdown")

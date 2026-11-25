@@ -59,7 +59,7 @@ func benchContext(i int) ffcontext.EvaluationContext {
 		AddCustom("email", fmt.Sprintf("user-%d@example.com", i%1000)).
 		AddCustom("country", "FR").
 		AddCustom("age", 34).
-		AddCustom(fixtures.Plan, "pro").
+		AddCustom(fixtures.AttrPlan, "pro").
 		AddCustom(regionName, "eu-west-1").
 		AddCustom("beta", true).
 		AddCustom("version", "1.42.0").

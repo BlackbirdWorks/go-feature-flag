@@ -68,9 +68,9 @@ func TestPostgreSQLRetriever(t *testing.T) {
 			},
 			assertErr: assert.Error,
 			columns: map[string]string{
-				flagNameColumn:  "invalid_flag_name",
-				"flagset":       "invalid_flagset",
-				fixtures.Config: "invalid_config",
+				flagNameColumn:          "invalid_flag_name",
+				"flagset":               "invalid_flagset",
+				fixtures.ConfigFlagName: "invalid_config",
 			},
 		},
 		{
@@ -304,8 +304,8 @@ func TestRetrieverQueryErrors(t *testing.T) {
 			URI:   connectionString,
 			Table: goFeatureFlag,
 			Columns: map[string]string{
-				flagNameColumn:  "nonexistent_column",
-				fixtures.Config: fixtures.Config,
+				flagNameColumn:          "nonexistent_column",
+				fixtures.ConfigFlagName: fixtures.ConfigFlagName,
 			},
 		}
 
@@ -541,9 +541,9 @@ func TestRetrieverEdgeCases(t *testing.T) {
 			URI:   connectionString,
 			Table: "custom_flags",
 			Columns: map[string]string{
-				flagNameColumn:  "name",
-				"flagset":       "environment",
-				fixtures.Config: "configuration",
+				flagNameColumn:          "name",
+				"flagset":               "environment",
+				fixtures.ConfigFlagName: "configuration",
 			},
 		}
 

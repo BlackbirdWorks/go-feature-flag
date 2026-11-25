@@ -22,7 +22,7 @@ func FuzzBuildHash(f *testing.F) {
 	f.Add("", "", uint32(100000))
 	f.Add("", "", uint32(0))
 	f.Add("flàg", "ключ", uint32(1000))
-	f.Add("flag", fixtures.User, uint32(4294967295))
+	f.Add("flag", fixtures.ContextKindUser, uint32(4294967295))
 	f.Fuzz(func(t *testing.T, flagKey, bucketingKey string, maxPercentage uint32) {
 		got := utils.BuildHash(flagKey, bucketingKey, maxPercentage)
 		if maxPercentage == 0 {

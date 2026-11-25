@@ -22,10 +22,10 @@ func TestAll(t *testing.T) {
 		{
 			name: "all with 1 flag",
 			param: map[string]dto.DTO{
-				fixtures.Test: {
+				fixtures.PlaceholderTest: {
 					Variations: &map[string]*any{
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{
@@ -37,11 +37,11 @@ func TestAll(t *testing.T) {
 				},
 			},
 			want: map[string]flag.Flag{
-				fixtures.Test: &flag.InternalFlag{
+				fixtures.PlaceholderTest: &flag.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Percentages: &map[string]float64{
@@ -55,10 +55,10 @@ func TestAll(t *testing.T) {
 		{
 			name: "all with multiple flags",
 			param: map[string]dto.DTO{
-				fixtures.Test: {
+				fixtures.PlaceholderTest: {
 					Variations: &map[string]*any{
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{
@@ -85,11 +85,11 @@ func TestAll(t *testing.T) {
 				},
 			},
 			want: map[string]flag.Flag{
-				fixtures.Test: &flag.InternalFlag{
+				fixtures.PlaceholderTest: &flag.InternalFlag{
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name: new(fixtures.RuleDefault),
@@ -145,10 +145,10 @@ func TestCopy(t *testing.T) {
 			name:      "copy with 1 flag",
 			wantEqual: true,
 			param: map[string]dto.DTO{
-				fixtures.Test: {
+				fixtures.PlaceholderTest: {
 					Variations: &map[string]*any{
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
 					},
 					DefaultRule: &flag.Rule{

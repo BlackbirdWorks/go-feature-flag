@@ -47,8 +47,8 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
-						fixtures.DefaultValue: false,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue:     false,
 					},
 				},
 				fixtures.FlagKeyTestSecond: {
@@ -79,8 +79,8 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
-						fixtures.DefaultValue: false,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue:     false,
 					},
 				},
 				fixtures.FlagKeyTestSecond: {
@@ -112,8 +112,8 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
-						fixtures.DefaultValue: false,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue:     false,
 					},
 				},
 				fixtures.FlagKeyTestSecond: {
@@ -145,8 +145,8 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
-						fixtures.DefaultValue: false,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue:     false,
 					},
 				},
 				fixtures.FlagKeyTestSecond: {
@@ -179,8 +179,8 @@ func TestLoadConfigFile(t *testing.T) {
 						VariationResult: new(varA),
 					},
 					Metadata: &map[string]any{
-						fixtures.Description:  fixtures.SimpleFeatureFlagDescription,
-						fixtures.DefaultValue: false,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.DefaultValue:     false,
 					},
 				},
 				fixtures.FlagKeyTestSecond: {

@@ -101,19 +101,19 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		{
 			name:  "leading space",
 			rule:  ` env eq "pro"`,
-			input: obj{fixtures.Env: fixtures.Pro},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
 			name:  "trailing CRLF",
 			rule:  "env eq \"pro\"\r\n",
-			input: obj{fixtures.Env: fixtures.Pro},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
 			name:  "CRLF only",
 			rule:  "env eq \"pro\"\r",
-			input: obj{fixtures.Env: fixtures.Pro},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 		{
@@ -143,7 +143,7 @@ func TestNewEvaluatorWhitespacePolicy(t *testing.T) {
 		{
 			name:  "trailing spaces and newline",
 			rule:  "env eq \"pro\"  \n",
-			input: obj{fixtures.Env: fixtures.Pro},
+			input: obj{fixtures.AttrEnv: fixtures.PlanPro},
 			want:  true,
 		},
 	}

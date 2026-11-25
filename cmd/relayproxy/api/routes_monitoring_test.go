@@ -65,7 +65,7 @@ func TestPprofEndpointsStarts(t *testing.T) {
 			cfg := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},

@@ -30,7 +30,7 @@ func TestAPIKey(t *testing.T) {
 		{name: "Bearer token", authorization: "Bearer my-api-key-123", expectedAPIKey: "my-api-key-123"},
 		{name: "Bearer token with leading/trailing spaces", authorization: "Bearer   my-api-key-with-spaces  ",
 			expectedAPIKey: "my-api-key-with-spaces"},
-		{name: "bearer prefix is case-insensitive", authorization: "bEaReR key", expectedAPIKey: fixtures.Key},
+		{name: "bearer prefix is case-insensitive", authorization: "bEaReR key", expectedAPIKey: fixtures.MetadataKey},
 		{name: "raw Authorization value", authorization: "raw-key", expectedAPIKey: "raw-key"},
 		{name: "nothing", expectedAPIKey: ""},
 	}
@@ -86,9 +86,9 @@ func TestFlagSet(t *testing.T) {
 				err *helper.HTTPError
 			)
 			if tt.manager == nil {
-				got, err = helper.FlagSet(nil, fixtures.Key)
+				got, err = helper.FlagSet(nil, fixtures.MetadataKey)
 			} else {
-				got, err = helper.FlagSet(tt.manager, fixtures.Key)
+				got, err = helper.FlagSet(tt.manager, fixtures.MetadataKey)
 			}
 
 			assert.Equal(t, tt.wantFlagSet, got)

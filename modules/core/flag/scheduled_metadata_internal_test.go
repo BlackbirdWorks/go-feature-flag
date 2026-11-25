@@ -69,7 +69,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedDetailsAreNotShared(t *testing.T) {
 			t.Parallel()
 
 			flg := tt.flag(clocktest.Instant())
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).Build()
 			_, first := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: NewService()})
 			rel, ok := first.Metadata["release"].(map[string]any)
 			require.True(t, ok)

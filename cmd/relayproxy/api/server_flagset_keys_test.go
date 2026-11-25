@@ -35,7 +35,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 		FlagSets: []config.FlagSet{{
 			Name:      "tenant",
 			APIKeys:   []string{"flagset-key"},
-			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+			Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		}},
 		AuthorizedKeys: config.APIKeys{
 			Evaluation: []string{"authorized-evaluation-key"},

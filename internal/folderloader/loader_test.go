@@ -511,14 +511,14 @@ func cacheAndVersionCases() []loadCase {
 			name: "unsupported extension is skipped with a warning",
 			setup: func(s *fakeStore) {
 				s.put(fixtures.FileAYAML, yamlA)
-				s.put(readmeFile, fixtures.Hello)
+				s.put(readmeFile, fixtures.BodyHello)
 			},
 			opts:  folderloader.Options{Prefix: "f/", Location: "my-bucket"},
 			steps: []step{{wantFlags: []string{fixtures.FlagKeyA}, wantLog: `key=f/readme.txt`}},
 		},
 		{
 			name:  "only unsupported extensions gives an empty flag set",
-			setup: func(s *fakeStore) { s.put(readmeFile, fixtures.Hello) },
+			setup: func(s *fakeStore) { s.put(readmeFile, fixtures.BodyHello) },
 			opts:  folderloader.Options{Prefix: "f/", Location: "my-bucket"},
 			steps: []step{{
 				wantFlags: []string{}, wantFormat: protocol.FormatJSON, wantContent: "{}",
@@ -529,7 +529,7 @@ func cacheAndVersionCases() []loadCase {
 			name: "unsupported extension warns once while it stays skipped",
 			setup: func(s *fakeStore) {
 				s.put(fixtures.FileAYAML, yamlA)
-				s.put(readmeFile, fixtures.Hello)
+				s.put(readmeFile, fixtures.BodyHello)
 			},
 			opts: folderloader.Options{Prefix: "f/"},
 			steps: []step{
@@ -542,7 +542,7 @@ func cacheAndVersionCases() []loadCase {
 				},
 				{
 					// the file comes back: it is reported again
-					mutate:       func(s *fakeStore) { s.put(readmeFile, fixtures.Hello) },
+					mutate:       func(s *fakeStore) { s.put(readmeFile, fixtures.BodyHello) },
 					wantFlags:    []string{fixtures.FlagKeyA},
 					wantLogCount: 2, wantLogCountOf: keyReadmeFile,
 				},
@@ -553,7 +553,7 @@ func cacheAndVersionCases() []loadCase {
 			setup: func(s *fakeStore) {
 				s.put(fixtures.FileAYAML, yamlA)
 				s.put(fileCJSON, jsonC)
-				s.put(readmeFile, fixtures.Hello)
+				s.put(readmeFile, fixtures.BodyHello)
 			},
 			opts:  folderloader.Options{Prefix: "f/"},
 			steps: []step{{wantErr: `"f/a.yaml" is yaml but "f/c.json" is json`}},
@@ -923,7 +923,7 @@ func TestLoader_Reset(t *testing.T) {
 
 	store := &fakeStore{}
 	store.put(fixtures.FileAYAML, yamlA)
-	store.put(readmeFile, fixtures.Hello)
+	store.put(readmeFile, fixtures.BodyHello)
 
 	logs := &bytes.Buffer{}
 	logger := &fflog.FFLogger{LeveledLogger: slog.New(slog.NewTextHandler(logs, nil))}

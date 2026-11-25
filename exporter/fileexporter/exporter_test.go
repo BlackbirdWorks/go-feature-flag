@@ -130,7 +130,7 @@ func TestFile_Export(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -138,19 +138,19 @@ func TestFile_Export(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -168,7 +168,7 @@ func TestFile_Export(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -176,18 +176,18 @@ func TestFile_Export(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -206,7 +206,7 @@ func TestFile_Export(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -214,20 +214,20 @@ func TestFile_Export(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
-						Metadata:     map[string]any{fixtures.Test: fixtures.Test},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -235,7 +235,7 @@ func TestFile_Export(t *testing.T) {
 				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -243,20 +243,20 @@ func TestFile_Export(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        `"YO"`,
 						Default:      false,
-						Source:       fixtures.SERVER,
-						Metadata:     map[string]any{fixtures.Test: fixtures.Test},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 					{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
 						Value:        `"YO2"`,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 						Metadata:     map[string]any{},
 					},
 				},
@@ -283,9 +283,9 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 
 				events: []exporter.ExportableEvent{
 					exporter.TrackingEvent{
-						Kind:              fixtures.Feature,
+						Kind:              fixtures.KindFeature,
 						ContextKind:       "anonymous",
-						UserKey:           fixtures.Xxx,
+						UserKey:           fixtures.PlaceholderXxx,
 						CreationDate:      1617970547,
 						Key:               "what-ever-you-want",
 						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
@@ -297,9 +297,9 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 				fileNameRegex: "^tracking-" + hostname + parquetFileSuffixPattern,
 				trackingEvents: []exporter.TrackingEvent{
 					{
-						Kind:              fixtures.Feature,
+						Kind:              fixtures.KindFeature,
 						ContextKind:       "anonymous",
-						UserKey:           fixtures.Xxx,
+						UserKey:           fixtures.PlaceholderXxx,
 						CreationDate:      1617970547,
 						Key:               "what-ever-you-want",
 						EvaluationContext: ffcontext.NewEvaluationContext("xxx-xxx-xxx").ToMap(),
@@ -318,7 +318,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -326,18 +326,18 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -356,7 +356,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -369,8 +369,8 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 							"int":    1,
 						},
 						Default:  false,
-						Source:   fixtures.SERVER,
-						Metadata: map[string]any{fixtures.Test: fixtures.Test},
+						Source:   fixtures.SourceServer,
+						Metadata: map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 				},
 			},
@@ -378,7 +378,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 				fileNameRegex: fixtures.FlagVariationPrefixPattern + hostname + parquetFileSuffixPattern,
 				featureEvents: []exporter.FeatureEvent{
 					{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -386,8 +386,8 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        `{"bool":true,"float":1.23,"int":1,"string":"string"}`,
 						Default:      false,
-						Source:       fixtures.SERVER,
-						Metadata:     map[string]any{fixtures.Test: fixtures.Test},
+						Source:       fixtures.SourceServer,
+						Metadata:     map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					},
 				},
 			},
@@ -402,7 +402,7 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -410,18 +410,18 @@ func TestFile_Export_FormatsAndEvents(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -443,12 +443,12 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			name:    "invalid format",
 			wantErr: false,
 			fields: fileExportFields{
-				Format: fixtures.Xxx,
+				Format: fixtures.PlaceholderXxx,
 			},
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -456,19 +456,19 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -486,7 +486,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -494,19 +494,19 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -524,7 +524,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -532,18 +532,18 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -558,7 +558,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -566,18 +566,18 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -592,7 +592,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -600,7 +600,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -634,7 +634,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -642,7 +642,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -678,7 +678,7 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 			args: fileExportArgs{
 				events: []exporter.ExportableEvent{
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
 						UserKey:      fixtures.UserKeyABCD,
 						CreationDate: 1617970547,
@@ -686,19 +686,19 @@ func TestFile_Export_OutputDirAndErrors(t *testing.T) {
 						Variation:    fixtures.VariationDefault,
 						Value:        "YO",
 						Default:      false,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 					exporter.FeatureEvent{
-						Kind:         fixtures.Feature,
+						Kind:         fixtures.KindFeature,
 						ContextKind:  fixtures.UserKeyAnonymous,
-						UserKey:      fixtures.EFGH,
+						UserKey:      fixtures.UserKeyEFGH,
 						CreationDate: 1617970701,
 						Key:          fixtures.UserKeyRandom,
 						Variation:    fixtures.VariationDefault,
-						Value:        fixtures.YO2,
+						Value:        fixtures.ValueYO2,
 						Default:      false,
 						Version:      fixtures.VersionMajor127,
-						Source:       fixtures.SERVER,
+						Source:       fixtures.SourceServer,
 					},
 				},
 			},
@@ -800,7 +800,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 
 	featureEvents := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind:         fixtures.Feature,
+			Kind:         fixtures.KindFeature,
 			ContextKind:  fixtures.UserKeyAnonymous,
 			UserKey:      fixtures.UserKeyABCD,
 			CreationDate: 1617970547,
@@ -808,7 +808,7 @@ func TestExportWithoutOutputDir(t *testing.T) {
 			Variation:    fixtures.VariationDefault,
 			Value:        "YO",
 			Default:      false,
-			Source:       fixtures.SERVER,
+			Source:       fixtures.SourceServer,
 		},
 	}
 

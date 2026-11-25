@@ -532,7 +532,7 @@ func runSharedCase(
 func baseObjects() map[string]fakeObject {
 	return map[string]fakeObject{
 		p1DevFlags:          {etag: `"e1"`, data: devPrefix},
-		p1ProdFlags:         {etag: `W/"e2"`, data: fixtures.Prod},
+		p1ProdFlags:         {etag: `W/"e2"`, data: fixtures.EnvProd},
 		p2FlagsYaml:         {etag: `"e3"`, data: "p2"},
 		"other/flags.yaml":  {etag: `"e4"`, data: "other"},
 		"p1/dev/sub/x.yaml": {etag: `"e5"`, data: "sub"},
@@ -547,7 +547,7 @@ func baseObjects() map[string]fakeObject {
 func runSameWindow(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.SharedItemRetriever) {
 	t.Helper()
 
-	for key, want := range map[string]string{p1DevFlags: devPrefix, p1ProdFlags: fixtures.Prod} {
+	for key, want := range map[string]string{p1DevFlags: devPrefix, p1ProdFlags: fixtures.EnvProd} {
 		got, err := r[key].Retrieve(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got))
@@ -608,7 +608,7 @@ func runTTLExpiry(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 	assert.Equal(t, devTwoPrefix, string(got))
 	got, err = prod.Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, fixtures.Prod, string(got))
+	assert.Equal(t, fixtures.EnvProd, string(got))
 	assert.Greater(t, b.lists.Load(), listsAfterFirst)
 	assert.Equal(t, 2, b.getCount(p1DevFlags))
 	assert.Equal(t, 1, b.getCount(p1ProdFlags))
@@ -905,7 +905,7 @@ func runSlowPages(t *testing.T, b *fakeBucket, r map[string]*s3retrieverv2.Share
 	// p1/prod/flags.yaml is on the 4th page: 40s in total, each page is below the 30s timeout
 	got, err := r[p1ProdFlags].Retrieve(t.Context())
 	require.NoError(t, err)
-	assert.Equal(t, fixtures.Prod, string(got))
+	assert.Equal(t, fixtures.EnvProd, string(got))
 	assert.Equal(t, 40*time.Second, time.Since(start))
 	assert.EqualValues(t, 4, b.lists.Load(), "one request per page")
 }

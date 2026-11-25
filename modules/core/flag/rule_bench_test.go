@@ -70,7 +70,7 @@ func BenchmarkRuleEvaluate_NikunjyColdAfterGC(b *testing.B) {
 	}
 
 	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
-		AddCustom(fixtures.Group, "group-0").
+		AddCustom(fixtures.AttrGroup, "group-0").
 		Build()
 
 	b.ReportAllocs()
@@ -158,8 +158,8 @@ func BenchmarkInternalFlagValue_MultiRule(b *testing.B) {
 		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
-		AddCustom(fixtures.Group, groupE).
-		AddCustom(fixtures.Plan, fixtures.Pro).
+		AddCustom(fixtures.AttrGroup, groupE).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()
@@ -197,8 +197,8 @@ func BenchmarkInternalFlagValue_MultiRuleJSONLogic(b *testing.B) {
 		DefaultRule: &flag.Rule{VariationResult: new(fixtures.VariationOff)},
 	}
 	ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
-		AddCustom(fixtures.Group, groupE).
-		AddCustom(fixtures.Plan, fixtures.Pro).
+		AddCustom(fixtures.AttrGroup, groupE).
+		AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 		AddCustom("region", "eu").
 		AddCustom("beta", true).
 		Build()

@@ -77,14 +77,14 @@ func goldenRecords() []struct {
 		}},
 		{msg: "with attrs", level: slog.LevelInfo, with: []slog.Attr{slog.String("flagset", "fs1")},
 			attrs: []slog.Attr{slog.Int("n", 1)}},
-		{msg: fixtures.Request, level: slog.LevelInfo, attrs: []slog.Attr{
+		{msg: fixtures.LogKeyRequest, level: slog.LevelInfo, attrs: []slog.Attr{
 			slog.String("remote_ip", "10.0.0.1"),
 			slog.String("latency", "1.5ms"),
 			slog.String(
 				"host",
 				"localhost:1031",
 			),
-			slog.String(fixtures.Request, "GET /v1/feature/x/eval?apiKey=REDACTED"),
+			slog.String(fixtures.LogKeyRequest, "GET /v1/feature/x/eval?apiKey=REDACTED"),
 			slog.Int("status", 200),
 			slog.Int64("size", 12),
 			slog.String("user_agent", "curl/8"),
@@ -146,7 +146,7 @@ func TestGolden(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := cmdlog.New(tt.format, fixtures.Debug, cmdlog.WithWriter(&out))
+			logger, err := cmdlog.New(tt.format, fixtures.LogLevelDebug, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 
 			records := goldenRecords()
@@ -227,7 +227,7 @@ func TestCallerField(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := cmdlog.New(tt.format, fixtures.Info, cmdlog.WithWriter(&out))
+			logger, err := cmdlog.New(tt.format, fixtures.LogLevelInfo, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 
 			directLine := here() + 2 // skip the blank line before LogAttrs
@@ -253,22 +253,22 @@ func TestLevels(t *testing.T) {
 		wantShown []string
 	}{
 		{
-			name:      fixtures.Debug,
-			level:     fixtures.Debug,
-			wantShown: []string{fixtures.Debug, fixtures.Info, warn, fixtures.Error, fatal},
+			name:      fixtures.LogLevelDebug,
+			level:     fixtures.LogLevelDebug,
+			wantShown: []string{fixtures.LogLevelDebug, fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal},
 		},
-		{name: "empty is info", level: "", wantShown: []string{fixtures.Info, warn, fixtures.Error, fatal}},
-		{name: "upper case", level: "WARN", wantShown: []string{warn, fixtures.Error, fatal}},
-		{name: fixtures.Error, level: fixtures.Error, wantShown: []string{fixtures.Error, fatal}},
+		{name: "empty is info", level: "", wantShown: []string{fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal}},
+		{name: "upper case", level: "WARN", wantShown: []string{warn, fixtures.LogLevelError, fatal}},
+		{name: fixtures.LogLevelError, level: fixtures.LogLevelError, wantShown: []string{fixtures.LogLevelError, fatal}},
 		{name: fatal, level: fatal, wantShown: []string{fatal}},
 		{name: "dpanic", level: "dpanic", wantShown: []string{fatal}},
 		{
 			name:      "mixed case",
 			level:     "DeBuG",
-			wantShown: []string{fixtures.Debug, fixtures.Info, warn, fixtures.Error, fatal},
+			wantShown: []string{fixtures.LogLevelDebug, fixtures.LogLevelInfo, warn, fixtures.LogLevelError, fatal},
 		},
-		{name: "warning alias", level: "warning", wantShown: []string{warn, fixtures.Error, fatal}},
-		{name: "upper warning alias", level: "WARNING", wantShown: []string{warn, fixtures.Error, fatal}},
+		{name: "warning alias", level: "warning", wantShown: []string{warn, fixtures.LogLevelError, fatal}},
+		{name: "upper warning alias", level: "WARNING", wantShown: []string{warn, fixtures.LogLevelError, fatal}},
 		{name: "mixed case panic", level: "PaNiC", wantShown: []string{fatal}},
 		{name: "unknown", level: "verbose", wantErr: cmdlog.ErrUnrecognizedLevel},
 		{name: "padded", level: " info", wantErr: cmdlog.ErrUnrecognizedLevel},
@@ -313,7 +313,7 @@ func TestLevels(t *testing.T) {
 func TestNewErrors(t *testing.T) {
 	t.Parallel()
 
-	_, err := cmdlog.New("yaml", fixtures.Info)
+	_, err := cmdlog.New("yaml", fixtures.LogLevelInfo)
 	require.ErrorIs(t, err, cmdlog.ErrUnknownFormat)
 }
 
@@ -329,9 +329,14 @@ func TestUpdate(t *testing.T) {
 		wantAbsent string
 	}{
 		{name: "logfmt and warn", format: logfmt, level: warn, wantOut: `level=warn`, wantAbsent: `info`},
-		{name: "json by default", format: "", level: fixtures.Debug, wantOut: `"level":"debug"`, wantAbsent: `level=`},
-		{name: "unknown format keeps the logger", format: "xml", level: fixtures.Debug, wantErr: cmdlog.ErrUnknownFormat,
-			wantOut: `"level":"info"`},
+		{
+			name: "json by default", format: "", level: fixtures.LogLevelDebug,
+			wantOut: `"level":"debug"`, wantAbsent: `level=`,
+		},
+		{
+			name: "unknown format keeps the logger", format: "xml", level: fixtures.LogLevelDebug,
+			wantErr: cmdlog.ErrUnknownFormat, wantOut: `"level":"info"`,
+		},
 		{name: "unknown level keeps the logger", format: logfmt, level: "x", wantErr: cmdlog.ErrUnrecognizedLevel,
 			wantOut: `"level":"info"`},
 	}
@@ -341,7 +346,7 @@ func TestUpdate(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := cmdlog.New(protocol.FormatJSON, fixtures.Info, cmdlog.WithWriter(&out))
+			logger, err := cmdlog.New(protocol.FormatJSON, fixtures.LogLevelInfo, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 			// a logger derived before the update follows it.
 			derived := logger.Slog.With(slog.String("flagset", "fs"))
@@ -403,7 +408,7 @@ func TestWithGroupAndGroupAttrs(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := cmdlog.New(tt.format, fixtures.Info, cmdlog.WithWriter(&out))
+			logger, err := cmdlog.New(tt.format, fixtures.LogLevelInfo, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 
 			tt.logger(logger.Slog).LogAttrs(context.Background(), slog.LevelInfo, "m", tt.attrs...)
@@ -443,7 +448,7 @@ func TestValueKinds(t *testing.T) {
 			for format, want := range map[string]string{protocol.FormatJSON: tt.wantJSON, logfmt: tt.wantLogf} {
 				var out bytes.Buffer
 
-				logger, err := cmdlog.New(format, fixtures.Info, cmdlog.WithWriter(&out))
+				logger, err := cmdlog.New(format, fixtures.LogLevelInfo, cmdlog.WithWriter(&out))
 				require.NoError(t, err)
 
 				logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "m", tt.attr)
@@ -463,7 +468,7 @@ func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
 func TestWriteError(t *testing.T) {
 	t.Parallel()
 
-	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.Info, cmdlog.WithWriter(failingWriter{}))
+	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.LogLevelInfo, cmdlog.WithWriter(failingWriter{}))
 	require.NoError(t, err)
 
 	r := slog.NewRecord(goldenTime(), slog.LevelInfo, "m", 0)
@@ -475,7 +480,7 @@ func TestNoCallerWithoutPC(t *testing.T) {
 
 	var out bytes.Buffer
 
-	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.Info, cmdlog.WithWriter(&out))
+	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.LogLevelInfo, cmdlog.WithWriter(&out))
 	require.NoError(t, err)
 
 	r := slog.NewRecord(goldenTime(), slog.LevelInfo, "m", 0)
@@ -506,7 +511,7 @@ func TestConcurrentUse(t *testing.T) {
 	const goroutines, perGoroutine = 8, 200
 
 	w := &syncWriter{}
-	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.Info, cmdlog.WithWriter(w))
+	logger, err := cmdlog.New(protocol.FormatJSON, fixtures.LogLevelInfo, cmdlog.WithWriter(w))
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -516,7 +521,7 @@ func TestConcurrentUse(t *testing.T) {
 				logger.Slog.LogAttrs(context.Background(), slog.LevelInfo, "m", slog.Int("i", i))
 
 				if i%50 == 0 {
-					assert.NoError(t, logger.Update(protocol.FormatJSON, fixtures.Info))
+					assert.NoError(t, logger.Update(protocol.FormatJSON, fixtures.LogLevelInfo))
 				}
 			}
 		})

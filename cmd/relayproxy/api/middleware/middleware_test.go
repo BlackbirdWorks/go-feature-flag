@@ -100,44 +100,44 @@ func TestKeyAuth(t *testing.T) {
 		wantStatus int
 		skip       bool
 	}{
-		{name: "bearer", entry: fixtures.HTTP, headers: map[string]string{protocol.HeaderAuthorization: bearerGood},
+		{name: "bearer", entry: fixtures.KindHTTP, headers: map[string]string{protocol.HeaderAuthorization: bearerGood},
 			wantStatus: http.StatusOK, wantKey: good},
 		{
 			name:       "bearer lower case",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			headers:    map[string]string{protocol.HeaderAuthorization: "bearer good"},
 			wantStatus: http.StatusOK,
 			wantKey:    good,
 		},
-		{name: xAPIKeyLower, entry: fixtures.HTTP, headers: map[string]string{xAPIKeyUpper: good},
+		{name: xAPIKeyLower, entry: fixtures.KindHTTP, headers: map[string]string{xAPIKeyUpper: good},
 			wantStatus: http.StatusOK, wantKey: good},
-		{name: "x-api-key wins over bearer", entry: fixtures.HTTP,
+		{name: "x-api-key wins over bearer", entry: fixtures.KindHTTP,
 			headers:    map[string]string{xAPIKeyUpper: "bad", protocol.HeaderAuthorization: bearerGood},
 			wantStatus: http.StatusUnauthorized, wantBody: messageUnauthorized + "\n"},
-		{name: "no header", entry: fixtures.HTTP, wantStatus: http.StatusUnauthorized,
+		{name: "no header", entry: fixtures.KindHTTP, wantStatus: http.StatusUnauthorized,
 			wantBody: `{"message":"missing value in request header"}` + "\n"},
 		{
 			name:       "not a bearer",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			headers:    map[string]string{protocol.HeaderAuthorization: "Basic good"},
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   `{"message":"invalid value in request header"}` + "\n",
 		},
 		{
 			name:       "empty bearer",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			headers:    map[string]string{protocol.HeaderAuthorization: "Bearer "},
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   `{"message":"invalid value in request header"}` + "\n",
 		},
 		{
 			name:       "wrong key",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			headers:    map[string]string{protocol.HeaderAuthorization: "Bearer bad"},
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   `{"message":"authenticating the API key: code=401, message=invalid key"}` + "\n",
 		},
-		{name: "skipped", entry: fixtures.HTTP, skip: true, wantStatus: http.StatusOK},
+		{name: "skipped", entry: fixtures.KindHTTP, skip: true, wantStatus: http.StatusOK},
 		{name: "huma bearer", entry: humaName, headers: map[string]string{protocol.HeaderAuthorization: bearerGood},
 			wantStatus: http.StatusOK, wantKey: good},
 		{name: "huma x-api-key", entry: humaName, headers: map[string]string{xAPIKeyUpper: good},
@@ -289,30 +289,30 @@ func TestETag(t *testing.T) {
 		failing    bool
 		wantETag   bool
 	}{
-		{name: "no condition", entry: fixtures.HTTP, wantStatus: http.StatusOK, wantBody: okTrue, wantETag: true},
+		{name: "no condition", entry: fixtures.KindHTTP, wantStatus: http.StatusOK, wantBody: okTrue, wantETag: true},
 		{
 			name:       "matching",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			condition:  etagLower,
 			wantStatus: http.StatusNotModified,
 			wantETag:   true,
 		},
 		{
 			name:       "matching weak",
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			condition:  "weak",
 			wantStatus: http.StatusNotModified,
 			wantETag:   true,
 		},
 		{
 			name:       other,
-			entry:      fixtures.HTTP,
+			entry:      fixtures.KindHTTP,
 			condition:  other,
 			wantStatus: http.StatusOK,
 			wantBody:   okTrue,
 			wantETag:   true,
 		},
-		{name: "error untouched", entry: fixtures.HTTP, failing: true, wantStatus: http.StatusTeapot, wantBody: tea},
+		{name: "error untouched", entry: fixtures.KindHTTP, failing: true, wantStatus: http.StatusTeapot, wantBody: tea},
 		{
 			name:       "huma no condition",
 			entry:      humaName,
@@ -410,8 +410,8 @@ func TestBodyDump(t *testing.T) {
 		wantRead   string
 		wantCalled bool
 	}{
-		{name: "dumped", path: "/x", wantDump: fixtures.Hello, wantRead: fixtures.Hello, wantCalled: true},
-		{name: "skipped", path: "/skip", wantRead: fixtures.Hello},
+		{name: "dumped", path: "/x", wantDump: fixtures.BodyHello, wantRead: fixtures.BodyHello, wantCalled: true},
+		{name: "skipped", path: "/skip", wantRead: fixtures.BodyHello},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -436,7 +436,7 @@ func TestBodyDump(t *testing.T) {
 					t.Context(),
 					http.MethodPost,
 					tt.path,
-					strings.NewReader(fixtures.Hello),
+					strings.NewReader(fixtures.BodyHello),
 				),
 			)
 			assert.Equal(t, tt.wantCalled, called, "the dump is called only for a request that is not skipped")

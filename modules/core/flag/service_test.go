@@ -55,7 +55,9 @@ func TestInternalFlag_Value_RequiresTheService(t *testing.T) {
 			t.Parallel()
 
 			f := serviceTestFlag()
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+				Build()
 
 			got, details := f.Value(
 				fixtures.FlagKeyBare,
@@ -87,9 +89,11 @@ func TestRule_Evaluate_RequiresTheService(t *testing.T) {
 			t.Parallel()
 
 			r := flag.Rule{Query: new(`plan eq "pro"`), VariationResult: new("on")}
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+				Build()
 
-			got, err := r.Evaluate(tt.service, fixtures.User, ctx, fixtures.FlagKeyBare, false)
+			got, err := r.Evaluate(tt.service, fixtures.ContextKindUser, ctx, fixtures.FlagKeyBare, false)
 
 			assert.Equal(t, tt.want, got)
 
@@ -149,7 +153,9 @@ func TestInternalFlag_Value_EvaluationDateOnlyMattersForDynamicFlags(t *testing.
 
 			svc := flag.NewService()
 
-			base := ffcontext.NewEvaluationContextBuilder(fixtures.User).AddCustom(fixtures.Plan, fixtures.Pro).Build()
+			base := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
+				Build()
 			for date, want := range map[time.Time]string{early: tt.wantEarly, late: tt.wantLate} {
 				ctx := flag.EnrichContext(base, nil)
 				ctx = withDate(ctx, date)

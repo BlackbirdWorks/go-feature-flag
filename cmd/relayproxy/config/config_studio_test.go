@@ -239,8 +239,8 @@ flagSets:
 
 			fileConfig := strings.NewReplacer(urlTemplate, srv.URL, "{{CACHE}}", cacheFile).Replace(tt.fileConfig)
 			configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
 			got, err := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, false,
@@ -313,8 +313,8 @@ studio:
 			defer srv.Close()
 
 			configFile := testhelpers.CopyContentToNewTempFile(t, strings.ReplaceAll(fileConfig, urlTemplate, srv.URL))
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 
 			loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
@@ -521,8 +521,8 @@ func newStudioTestLoader(t *testing.T, url, cacheFile string) *config.Loader {
 	}
 
 	configFile := testhelpers.CopyContentToNewTempFile(t, fileConfig)
-	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-	f.String(fixtures.Config, "", locationOfYourConfig)
+	f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	require.NoError(t, f.Parse([]string{configFlag + configFile.Name()}))
 	loader := config.NewConfigLoader(f, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, true)
 

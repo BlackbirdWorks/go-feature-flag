@@ -151,8 +151,8 @@ func TestInternalFlag_Value(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -168,8 +168,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -185,8 +185,8 @@ func TestInternalFlag_Value(t *testing.T) {
 					Percentages:     &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -202,8 +202,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -212,8 +212,8 @@ func TestInternalFlag_Value(t *testing.T) {
 			flag: flag.InternalFlag{
 				Disable: new(true),
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -229,8 +229,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -242,8 +242,8 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -259,8 +259,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -272,8 +272,8 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -293,8 +293,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -306,8 +306,8 @@ func TestInternalFlag_Value(t *testing.T) {
 					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -323,8 +323,8 @@ func TestInternalFlag_Value(t *testing.T) {
 				Reason:    flag.ReasonDisabled,
 				Cacheable: false,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -353,8 +353,8 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -372,7 +372,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				RuleName:  new(fixtures.RuleOne),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
@@ -396,8 +396,8 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -415,7 +415,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				RuleName:  new(fixtures.RuleOne),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
@@ -445,8 +445,8 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -464,7 +464,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				RuleName:  new(fixtures.RuleTwo),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
@@ -496,8 +496,8 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -515,7 +515,7 @@ func TestInternalFlag_Value_Targeting(t *testing.T) {
 				RuleName:  new(fixtures.RuleTwo),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
@@ -550,8 +550,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -568,8 +568,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -597,8 +597,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -615,8 +615,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -647,8 +647,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -667,8 +667,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -703,8 +703,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -723,8 +723,8 @@ func TestInternalFlag_Value_UnnamedAndFirstRule(t *testing.T) {
 				RuleIndex: new(1),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -763,8 +763,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -783,8 +783,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				RuleIndex: new(2),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -807,8 +807,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -824,8 +824,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -849,8 +849,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -866,8 +866,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -891,8 +891,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -908,8 +908,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				ErrorMessage: "no default targeting for the flag",
 			},
@@ -927,8 +927,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -944,8 +944,8 @@ func TestInternalFlag_Value_DisabledAndInvalidRules(t *testing.T) {
 				Reason:    flag.ReasonError,
 				ErrorCode: flag.ErrorFlagConfiguration,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				ErrorMessage: errorInTheConfiguration,
 			},
@@ -968,8 +968,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -998,8 +998,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1014,8 +1014,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1048,8 +1048,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1064,8 +1064,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1094,8 +1094,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1110,8 +1110,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1146,8 +1146,8 @@ func TestInternalFlag_Value_FutureAndSingleScheduled(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1169,8 +1169,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1199,8 +1199,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1296,8 +1296,8 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{ // older step adds rule-a
@@ -1344,7 +1344,7 @@ func TestInternalFlag_Value_MultiScheduledOrdering(t *testing.T) {
 				RuleIndex: new(0),
 				RuleName:  new(ruleA),
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: ruleA,
 				},
@@ -1368,8 +1368,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1391,8 +1391,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1414,8 +1414,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1446,7 +1446,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				RuleIndex: new(0),
 				RuleName:  new(fixtures.RuleOne),
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
 				},
@@ -1464,8 +1464,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 					VariationResult: new(variationC),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1491,8 +1491,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				Variant: variationC,
 				Reason:  flag.ReasonSplit,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1511,8 +1511,8 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					VariationResult: new(variationA),
@@ -1547,7 +1547,7 @@ func TestInternalFlag_Value_ScheduledMutations(t *testing.T) {
 				RuleIndex: new(1),
 				RuleName:  new(fixtures.RuleTwo),
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: fixtures.RuleTwo,
 				},
@@ -1571,8 +1571,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1601,8 +1601,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1617,8 +1617,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1641,8 +1641,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: flag.VariationSDKDefault,
 				Reason:  flag.ReasonDisabled,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1657,8 +1657,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1682,8 +1682,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1698,8 +1698,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -1731,8 +1731,8 @@ func TestInternalFlag_Value_ScheduledRolloutsAndExperimentation(t *testing.T) {
 				Variant: variationA,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1765,8 +1765,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -1782,8 +1782,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				Reason:    flag.ReasonSplit,
 				Cacheable: false,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1805,8 +1805,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -1824,7 +1824,7 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: testRule,
 				},
@@ -1851,8 +1851,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -1870,7 +1870,7 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: testRule,
 				},
@@ -1905,8 +1905,8 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -1924,7 +1924,7 @@ func TestInternalFlag_Value_RolloutAndTargetingReasons(t *testing.T) {
 				RuleName:  new(testRule),
 				Cacheable: false,
 				Metadata: map[string]any{
-					fixtures.Description:       thisIsAFlag,
+					fixtures.DescriptionField:  thisIsAFlag,
 					fixtures.IssueLink:         httpsIssueLinkGOFF,
 					fixtures.EvaluatedRuleName: testRule,
 				},
@@ -1958,8 +1958,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -1975,8 +1975,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Reason:    flag.ReasonSplit,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -1998,8 +1998,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2015,8 +2015,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Reason:    flag.ReasonDefault,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2031,8 +2031,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2048,8 +2048,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2067,8 +2067,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2084,8 +2084,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2111,8 +2111,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 					VariationResult: new("B"),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2121,7 +2121,7 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: true,
 					EvaluationContextEnrichment: map[string]any{
-						fixtures.Env: "development",
+						fixtures.AttrEnv: "development",
 					},
 				},
 			},
@@ -2132,8 +2132,8 @@ func TestInternalFlag_Value_DefaultAndStaticReasons(t *testing.T) {
 				Cacheable: true,
 				RuleIndex: new(0),
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2167,7 +2167,7 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 					EvaluationContextEnrichment: map[string]any{
-						environmentKey: fixtures.Prod,
+						environmentKey: fixtures.EnvProd,
 					},
 				},
 			},
@@ -2204,7 +2204,7 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				flagContext: flag.Context{Service: flag.NewService(),
 					DefaultSdkValue: defaultSdk,
 					EvaluationContextEnrichment: map[string]any{
-						environmentKey: fixtures.Prod,
+						environmentKey: fixtures.EnvProd,
 					},
 				},
 			},
@@ -2224,8 +2224,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					End:   new(fixedNow().Add(-5 * time.Second)),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: make(chan int),
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: make(chan int),
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Scheduled: &[]flag.ScheduledStep{
 					{
@@ -2263,8 +2263,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2280,8 +2280,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2296,8 +2296,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					VariationResult: new(variationA),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				BucketingKey: new(teamID),
 			},
@@ -2316,8 +2316,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				Reason:    flag.ReasonStatic,
 				Cacheable: true,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2335,8 +2335,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			args: internalFlagValueArgs{
@@ -2354,8 +2354,8 @@ func TestInternalFlag_Value_EnrichmentAndMissingKeys(t *testing.T) {
 				ErrorMessage: "Error: Empty targeting key",
 				Cacheable:    false,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 		},
@@ -2799,8 +2799,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "all variations should have the same type",
@@ -2817,8 +2817,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			wantErr: assert.NoError,
@@ -2837,8 +2837,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "missing default rule",
@@ -2854,8 +2854,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					VariationResult: new("A"),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -2907,8 +2907,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: invalidPercentagesShouldNotBe,
@@ -2925,8 +2925,8 @@ func TestInternalFlag_IsValid(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: invalidPercentagesShouldNot,
@@ -2953,8 +2953,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -2980,8 +2980,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					Percentages: &map[string]float64{},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3017,8 +3017,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					},
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			},
 			errorMsg: "each targeting should have a query",
@@ -3032,8 +3032,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(nothingToReturn),
@@ -3050,8 +3050,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(nothingToReturn),
@@ -3080,8 +3080,8 @@ func TestInternalFlag_IsValid_TargetingRules(t *testing.T) {
 					"B": new(any("B")),
 				},
 				Metadata: &map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 				Rules: &[]flag.Rule{
 					{
@@ -3334,8 +3334,8 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 			VariationResult: new(variationA),
 		},
 		Metadata: &map[string]any{
-			fixtures.Description: thisIsAFlag,
-			fixtures.IssueLink:   httpsIssueLinkGOFF,
+			fixtures.DescriptionField: thisIsAFlag,
+			fixtures.IssueLink:        httpsIssueLinkGOFF,
 		},
 		Scheduled: &[]flag.ScheduledStep{
 			{
@@ -3362,8 +3362,8 @@ func TestInternalFlag_ApplySheduledRollout(t *testing.T) {
 				Variant: variationB,
 				Reason:  flag.ReasonStatic,
 				Metadata: map[string]any{
-					fixtures.Description: thisIsAFlag,
-					fixtures.IssueLink:   httpsIssueLinkGOFF,
+					fixtures.DescriptionField: thisIsAFlag,
+					fixtures.IssueLink:        httpsIssueLinkGOFF,
 				},
 			}
 

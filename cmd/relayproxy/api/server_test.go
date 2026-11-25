@@ -111,7 +111,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_same_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -192,7 +192,7 @@ func Test_Starting_RelayProxy_with_monitoring_on_different_port(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -309,7 +309,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -319,7 +319,7 @@ func Test_CheckOFREPAPIExists(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{fixtures.Test},
+			Evaluation: []string{fixtures.PlaceholderTest},
 		},
 	}
 	log := newTestLogger(t)
@@ -405,7 +405,7 @@ func Test_Middleware_VersionHeader_Enabled_Default(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -458,7 +458,7 @@ func Test_VersionHeader_Disabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -519,18 +519,21 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.Test}},
+				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusOK,
 			},
 			{
-				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}, Admin: []string{fixtures.Test}},
-				want:          http.StatusUnauthorized,
+				name: "Evaluation and Admin key provided",
+				configAPIKeys: &config.APIKeys{
+					Evaluation: []string{fixtures.PlaceholderTest},
+					Admin:      []string{fixtures.PlaceholderTest},
+				},
+				want: http.StatusUnauthorized,
 			},
 		}
 
@@ -565,18 +568,21 @@ func Test_AuthenticationMiddleware(t *testing.T) {
 			},
 			{
 				name:          "Evaluation key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}},
+				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusUnauthorized,
 			},
 			{
 				name:          "Admin key provided, no evaluation key provided",
-				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.Test}},
+				configAPIKeys: &config.APIKeys{Admin: []string{fixtures.PlaceholderTest}},
 				want:          http.StatusOK,
 			},
 			{
-				name:          "Evaluation and Admin key provided",
-				configAPIKeys: &config.APIKeys{Evaluation: []string{fixtures.Test}, Admin: []string{fixtures.Test}},
-				want:          http.StatusOK,
+				name: "Evaluation and Admin key provided",
+				configAPIKeys: &config.APIKeys{
+					Evaluation: []string{fixtures.PlaceholderTest},
+					Admin:      []string{fixtures.PlaceholderTest},
+				},
+				want: http.StatusOK,
 			},
 		}
 
@@ -627,7 +633,7 @@ func runAuthMiddlewareTests(
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
@@ -714,7 +720,7 @@ func Test_Starting_RelayProxy_UnixSocket(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -820,7 +826,7 @@ func Test_Starting_RelayProxy_UnixSocket_MonitoringPort(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -926,7 +932,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -936,7 +942,7 @@ func Test_Starting_RelayProxy_UnixSocket_OFREP_API(t *testing.T) {
 		},
 		AuthorizedKeys: config.APIKeys{
 			Admin:      nil,
-			Evaluation: []string{fixtures.Test},
+			Evaluation: []string{fixtures.PlaceholderTest},
 		},
 	}
 	log := newTestLogger(t)
@@ -1124,7 +1130,7 @@ func TestStartingRelayProxyUnixSocketAuthentication(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
@@ -1242,7 +1248,7 @@ func TestStartingRelayProxyUnixSocketVersionHeader(t *testing.T) {
 			proxyConf := &config.Config{
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: fixtures.FlagConfigYAMLParentPath,
 					},
 				},
@@ -1321,7 +1327,7 @@ func Test_NativeHistograms_Enabled(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -1448,7 +1454,7 @@ func Test_PortFreedAfterShutdown(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},
@@ -1536,7 +1542,7 @@ func Test_StopBeforeStart(t *testing.T) {
 	proxyConf := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
 			{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 				Path: fixtures.FlagConfigYAMLParentPath,
 			},
 		},

@@ -26,7 +26,7 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "simple nested string",
 			ctx: map[string]any{
-				fixtures.User: map[string]any{
+				fixtures.ContextKindUser: map[string]any{
 					"name": alice,
 				},
 			},
@@ -76,7 +76,7 @@ func TestGetNestedFieldValue(t *testing.T) {
 		{
 			name: "trying to navigate into non-map value returns error",
 			ctx: map[string]any{
-				fixtures.User: map[string]any{
+				fixtures.ContextKindUser: map[string]any{
 					"name": alice, // name is a string, not a map
 				},
 			},

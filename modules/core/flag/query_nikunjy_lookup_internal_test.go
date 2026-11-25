@@ -793,7 +793,7 @@ func TestHashNikunjyQuery(t *testing.T) {
 	}{
 		{name: "same text in two strings", a: strings.Clone(long), b: strings.Clone(long), wantEqual: true},
 		{name: "empty and a zero byte", a: "", b: "\x00"},
-		{name: "a text and the text with a zero byte", a: fixtures.Abc, b: "abc\x00"},
+		{name: "a text and the text with a zero byte", a: fixtures.UserKeyAbc, b: "abc\x00"},
 		{name: "one byte of a short text", a: keyEqA, b: keyEqB},
 		{name: "one byte of a long text, first block", a: long, b: "1" + long[1:]},
 		{name: "one byte of a long text, middle", a: long, b: long[:50] + "X" + long[51:]},

@@ -226,8 +226,8 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 		warns := logs.FilterMessageSnippet("a polling setting of the flagset is ignored")
 		require.Equal(t, 2, warns.Len())
 		warned := []any{
-			warns.All()[0].ContextMap()[fixtures.FlagsetNone],
-			warns.All()[1].ContextMap()[fixtures.FlagsetNone],
+			warns.All()[0].ContextMap()[fixtures.FlagsetBare],
+			warns.All()[1].ContextMap()[fixtures.FlagsetBare],
 		}
 		assert.ElementsMatch(t, []any{"u2", "u3"}, warned)
 
@@ -246,7 +246,7 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 func Test_flagsetManagerImpl_reloadAppliesCleanQueueIntervalToAddedFlagsets(t *testing.T) {
 	t.Parallel()
 
-	retriever := &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: testdataSemaphoreConfigurationFlags}
+	retriever := &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: testdataSemaphoreConfigurationFlags}
 
 	tests := []struct {
 		name          string

@@ -76,7 +76,7 @@ func Test_EvaluationFinishingWhileTheClientCloses(t *testing.T) {
 			calls := &atomic.Int64{}
 			newCtx := func(blockAt int64, reached, gate chan struct{}) ffcontext.Context {
 				return gatedContext{
-					Context: ffcontext.NewEvaluationContext(fixtures.User),
+					Context: ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
 					calls:   calls, blockAt: blockAt, reached: reached, gate: gate,
 				}
 			}

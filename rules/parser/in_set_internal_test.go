@@ -70,7 +70,7 @@ func randStrList(r *rand.Rand, count int) string {
 		fixtures.VersionOneTwoThree,
 		"5",
 		trueLiteral,
-		fixtures.Null,
+		fixtures.NullLiteral,
 		"x y",
 		`q\"q`,
 		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling
@@ -300,7 +300,7 @@ func TestInSetDifferential(t *testing.T) {
 		"SS",
 		"5",
 		fixtures.VersionOneTwoThree,
-		fixtures.Null,
+		fixtures.NullLiteral,
 		"i",
 		"İ",
 		"日本", //nolint:gosmopolitan // non-ASCII input tests UTF-8 handling

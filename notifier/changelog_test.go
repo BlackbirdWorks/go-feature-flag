@@ -36,7 +36,7 @@ func TestFlagChanges(t *testing.T) {
 		{
 			name:   "should show a disabled flag without pointer syntax",
 			update: func(f *flag.InternalFlag) { f.Disable = new(true) },
-			want:   []notifier.FieldChange{{Path: disable, From: fixtures.Null, To: "true"}},
+			want:   []notifier.FieldChange{{Path: disable, From: fixtures.NullLiteral, To: "true"}},
 		},
 		{
 			name: "should show a new rule as JSON",
@@ -49,7 +49,7 @@ func TestFlagChanges(t *testing.T) {
 			},
 			want: []notifier.FieldChange{{
 				Path: "Rules",
-				From: fixtures.Null,
+				From: fixtures.NullLiteral,
 				To:   `[{"name":"beta","query":"country eq \"FR\"","variation":"on"}]`,
 			}},
 		},
@@ -59,8 +59,8 @@ func TestFlagChanges(t *testing.T) {
 				f.DefaultRule = &flag.Rule{Percentages: &map[string]float64{"on": 10, fixtures.VariationOff: 90}}
 			},
 			want: []notifier.FieldChange{
-				{Path: "DefaultRule.Percentages", From: fixtures.Null, To: `{"off":90,"on":10}`},
-				{Path: "DefaultRule.VariationResult", From: `"off"`, To: fixtures.Null},
+				{Path: "DefaultRule.Percentages", From: fixtures.NullLiteral, To: `{"off":90,"on":10}`},
+				{Path: "DefaultRule.VariationResult", From: `"off"`, To: fixtures.NullLiteral},
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestFlagChanges(t *testing.T) {
 			},
 			want: []notifier.FieldChange{{
 				Path: "Experimentation",
-				From: fixtures.Null,
+				From: fixtures.NullLiteral,
 				To:   `{"start":"2026-10-05T09:00:00Z","end":"2026-10-12T09:00:00Z"}`,
 			}},
 		},
@@ -79,19 +79,19 @@ func TestFlagChanges(t *testing.T) {
 			update: func(f *flag.InternalFlag) {
 				f.Metadata = &map[string]any{"team": payments, owner: fixtures.UserJane}
 			},
-			want: []notifier.FieldChange{{Path: "Metadata.owner", From: fixtures.Null, To: `"jane"`}},
+			want: []notifier.FieldChange{{Path: "Metadata.owner", From: fixtures.NullLiteral, To: `"jane"`}},
 		},
 		{
 			name:   "should report a metadata key that was removed",
 			update: func(f *flag.InternalFlag) { f.Metadata = &map[string]any{} },
-			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: fixtures.Null}},
+			want:   []notifier.FieldChange{{Path: "Metadata.team", From: `"payments"`, To: fixtures.NullLiteral}},
 		},
 		{
 			name: "should report a variation that was added",
 			update: func(f *flag.InternalFlag) {
 				(*f.Variations)[beta] = new(any("blue"))
 			},
-			want: []notifier.FieldChange{{Path: "Variations.beta", From: fixtures.Null, To: `"blue"`}},
+			want: []notifier.FieldChange{{Path: "Variations.beta", From: fixtures.NullLiteral, To: `"blue"`}},
 		},
 		{
 			name:   "should return nothing when the flag did not change",
@@ -130,7 +130,7 @@ func TestReadableValue(t *testing.T) {
 		value any
 		want  string
 	}{
-		{name: "nil", value: nil, want: fixtures.Null},
+		{name: "nil", value: nil, want: fixtures.NullLiteral},
 		{name: "string pointer", value: new("on"), want: `"on"`},
 		{name: "map", value: map[string]float64{"on": 50, fixtures.VariationOff: 50}, want: `{"off":50,"on":50}`},
 		{name: "keeps HTML characters as typed", value: "a < b && c", want: `"a < b && c"`},

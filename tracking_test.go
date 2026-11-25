@@ -42,7 +42,7 @@ func TestValidTrackingEvent(t *testing.T) {
 			AddCustom("admin", true).
 			AddCustom(fixtures.Anonymous, true).
 			Build(),
-		map[string]any{"additional data": fixtures.Value},
+		map[string]any{"additional data": fixtures.MetadataValue},
 	)
 
 	assert.Len(t, exp.ExportedEvents, 1)
@@ -59,7 +59,7 @@ func TestValidTrackingEvent(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		map[string]any{"additional data": fixtures.Value},
+		map[string]any{"additional data": fixtures.MetadataValue},
 		exp.ExportedEvents[0].TrackingDetails,
 	)
 }

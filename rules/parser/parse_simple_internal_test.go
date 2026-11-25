@@ -464,7 +464,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `x IN ["abc", "cde", "fgh"]`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -472,7 +472,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `y eq 5 and x IN ["abc", "cde", "fgh"]`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 				"y": 5,
 			},
 			result:   true,
@@ -490,7 +490,7 @@ func TestListOfStrings(t *testing.T) {
 		{
 			rule: `y eq 5 and not (x IN ["abc","cde","fgh"])`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 				"y": 5,
 			},
 			result:   false,
@@ -570,7 +570,7 @@ func TestListOfDoubles(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, tt.result, Evaluate(tt.rule, tt.input), tt.rule)
-			assert.False(t, Evaluate(tt.rule, obj{"x": fixtures.Abc}), tt.rule)
+			assert.False(t, Evaluate(tt.rule, obj{"x": fixtures.UserKeyAbc}), tt.rule)
 			assert.Equal(t, tt.result, Evaluate(fmt.Sprintf(parenthesizedFormat, tt.rule), tt.input), tt.rule)
 		})
 	}
@@ -1321,7 +1321,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x eq "abc"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1329,7 +1329,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x eq "abc"`,
 			input: obj{
-				"y": fixtures.Abc,
+				"y": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1337,7 +1337,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x ne "abc"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1345,7 +1345,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x le "abc"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1353,7 +1353,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x le "cde"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1369,7 +1369,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x lt "cde"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1393,7 +1393,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x gt "cde"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1417,7 +1417,7 @@ func TestString(t *testing.T) {
 		{
 			rule: xGeCde,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   false,
 			hasError: false,
@@ -1433,7 +1433,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x co "ab"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1457,7 +1457,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x sw "ab"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,
@@ -1465,7 +1465,7 @@ func TestString(t *testing.T) {
 		{
 			rule: `x SW "ab"`,
 			input: obj{
-				"x": fixtures.Abc,
+				"x": fixtures.UserKeyAbc,
 			},
 			result:   true,
 			hasError: false,

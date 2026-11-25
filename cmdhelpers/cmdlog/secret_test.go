@@ -82,7 +82,7 @@ func TestSecretInTheLogs(t *testing.T) {
 
 			var out bytes.Buffer
 
-			logger, err := cmdlog.New(format, fixtures.Debug, cmdlog.WithWriter(&out))
+			logger, err := cmdlog.New(format, fixtures.LogLevelDebug, cmdlog.WithWriter(&out))
 			require.NoError(t, err)
 
 			// the three ways a secret reaches the logs: a secret attribute, a secret field of a struct, an

@@ -19,7 +19,7 @@ import (
 func benchEvent() exporter.FeatureEvent {
 	return exporter.NewFeatureEvent(
 		ffcontext.NewEvaluationContext("user-1"),
-		"flag", true, "A", false, "v1", fixtures.SERVER, nil)
+		"flag", true, "A", false, "v1", fixtures.SourceServer, nil)
 }
 
 // resetEvery is the number of adds after which BenchmarkEventStoreAdd releases the events.

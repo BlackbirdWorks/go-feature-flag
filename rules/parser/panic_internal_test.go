@@ -35,7 +35,7 @@ func TestNestedError(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     fixtures.Nested,
+			name:     fixtures.NestedKey,
 			err:      newNestedError(newNestedError(base, "a"), "b"),
 			original: base,
 			want:     `{"err":"{\"err\":\"some random error\",\"msg\":\"a\"}","msg":"b"}`,

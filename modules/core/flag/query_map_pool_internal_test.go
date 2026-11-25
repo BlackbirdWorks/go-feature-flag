@@ -32,11 +32,11 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 		want string
 	}{
 		{name: "context with the attribute matches", want: "a",
-			ctx: ffcontext.NewEvaluationContextBuilder("u1").AddCustom(fixtures.Secret, "x").Build()},
+			ctx: ffcontext.NewEvaluationContextBuilder("u1").AddCustom(fixtures.SecretValue, "x").Build()},
 		{name: "context without the attribute does not match", want: "b",
 			ctx: ffcontext.NewEvaluationContextBuilder("u2").AddCustom("other", "x").Build()},
 		{name: "attribute with another value does not match", want: "b",
-			ctx: ffcontext.NewEvaluationContextBuilder("u3").AddCustom(fixtures.Secret, "y").Build()},
+			ctx: ffcontext.NewEvaluationContextBuilder("u3").AddCustom(fixtures.SecretValue, "y").Build()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestInternalFlag_Value_RecycledQueryMapDoesNotLeak(t *testing.T) {
 				// interleave with a matching context to recycle a map holding the attribute
 				_, _ = flg.Value(
 					fixtures.FlagKeyBare,
-					ffcontext.NewEvaluationContextBuilder("m").AddCustom(fixtures.Secret, "x").Build(),
+					ffcontext.NewEvaluationContextBuilder("m").AddCustom(fixtures.SecretValue, "x").Build(),
 					Context{Service: svc},
 				)
 				v, _ := flg.Value(fixtures.FlagKeyBare, tt.ctx, Context{Service: svc})

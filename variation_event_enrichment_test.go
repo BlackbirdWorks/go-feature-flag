@@ -63,19 +63,19 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			name:         "no enrichment",
 			callerCustom: meta("us"),
 			wantMetadata: map[string]any{regionName: "us"},
-			wantKind:     fixtures.User,
+			wantKind:     fixtures.ContextKindUser,
 		},
 		{
 			name:         "enriched metadata, caller has none",
 			enrichment:   meta("eu"),
 			wantMetadata: map[string]any{regionName: "eu"},
-			wantKind:     fixtures.User,
+			wantKind:     fixtures.ContextKindUser,
 		},
 		{name: "enriched metadata wins over the caller's", enrichment: meta("eu"), callerCustom: meta("us"),
-			wantMetadata: map[string]any{regionName: "eu"}, wantKind: fixtures.User},
+			wantMetadata: map[string]any{regionName: "eu"}, wantKind: fixtures.ContextKindUser},
 		{name: "enriched anonymous", enrichment: map[string]any{fixtures.Anonymous: true}, wantKind: "anonymousUser"},
-		{name: "unrelated enrichment changes nothing", enrichment: map[string]any{"env": fixtures.Prod},
-			callerCustom: meta("us"), wantMetadata: map[string]any{regionName: "us"}, wantKind: fixtures.User},
+		{name: "unrelated enrichment changes nothing", enrichment: map[string]any{"env": fixtures.EnvProd},
+			callerCustom: meta("us"), wantMetadata: map[string]any{regionName: "us"}, wantKind: fixtures.ContextKindUser},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,7 +90,7 @@ func Test_EvaluationEvents_UseTheEnrichedContext(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			ctx := ffcontext.NewEvaluationContext(fixtures.User)
+			ctx := ffcontext.NewEvaluationContext(fixtures.ContextKindUser)
 			for k, v := range tt.callerCustom {
 				ctx.AddCustomAttribute(k, v)
 			}

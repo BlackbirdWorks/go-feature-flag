@@ -52,7 +52,7 @@ func TestDataExporterFlush_TriggerError(t *testing.T) {
 	evStore := mock.NewEventStore[exporter.FeatureEvent]()
 	for range 100 {
 		evStore.Add(exporter.FeatureEvent{
-			Kind: fixtures.Feature,
+			Kind: fixtures.KindFeature,
 		})
 	}
 
@@ -98,7 +98,7 @@ func TestDataExporterFlush_TriggerErrorIfNotKnowType(t *testing.T) {
 
 			evStore := mock.NewEventStore[testhelpers.ExportableMockEvent]()
 			for range 100 {
-				evStore.Add(testhelpers.NewExportableMockEvent(fixtures.Feature))
+				evStore.Add(testhelpers.NewExportableMockEvent(fixtures.KindFeature))
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -156,7 +156,7 @@ func TestDataExporterFlush_TriggerErrorIfExporterFail(t *testing.T) {
 
 			evStore := mock.NewEventStore[exporter.FeatureEvent]()
 			for range 100 {
-				evStore.Add(exporter.FeatureEvent{Kind: fixtures.Feature})
+				evStore.Add(exporter.FeatureEvent{Kind: fixtures.KindFeature})
 			}
 
 			logFile, _ := os.CreateTemp(t.TempDir(), "")
@@ -192,7 +192,7 @@ func TestDataExporterFlush_ConcurrentFlushNoDuplicate(t *testing.T) {
 	defer evStore.Stop()
 
 	for range 100 {
-		evStore.Add(exporter.FeatureEvent{Kind: fixtures.Feature})
+		evStore.Add(exporter.FeatureEvent{Kind: fixtures.KindFeature})
 	}
 
 	slow := &slowExporter{delay: 200 * time.Millisecond}

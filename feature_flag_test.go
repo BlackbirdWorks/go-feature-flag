@@ -146,7 +146,7 @@ func TestValidUseCase(t *testing.T) {
 	client.SetOffline(false)
 	assert.False(t, client.IsOffline())
 	assert.True(t, client.ForceRefresh())
-	client.Track("toto", user, map[string]any{"key": fixtures.Value})
+	client.Track("toto", user, map[string]any{"key": fixtures.MetadataValue})
 	assert.Len(t, cliExport.ExportedEvents, 1)
 }
 

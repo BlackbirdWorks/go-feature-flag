@@ -118,7 +118,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind file without outputDir",
 			fields: exporterConfFields{
-				Kind: fixtures.File,
+				Kind: fixtures.KindFile,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"outputDir\" property found for kind \"file\"",
@@ -170,7 +170,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without bucket",
 			fields: exporterConfFields{
-				Kind: fixtures.Webhook,
+				Kind: fixtures.KindWebhook,
 			},
 			wantErr:  true,
 			errValue: "invalid exporter: no \"endpointUrl\" property found for kind \"webhook\"",
@@ -178,11 +178,11 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook valid",
 			fields: exporterConfFields{
-				Kind:        fixtures.Webhook,
+				Kind:        fixtures.KindWebhook,
 				EndpointURL: httpTestingwebhookComTest,
 				Secret:      secretForSigning,
 				Meta: map[string]string{
-					extraInfoKey: fixtures.Info,
+					extraInfoKey: fixtures.LogLevelInfo,
 				},
 			},
 			wantErr: false,
@@ -190,7 +190,7 @@ func TestExporterConf_IsValid(t *testing.T) {
 		{
 			name: "kind file valid",
 			fields: exporterConfFields{
-				Kind:        fixtures.File,
+				Kind:        fixtures.KindFile,
 				OutputDir:   "/tmp/",
 				Format:      protocol.FormatJSON,
 				Filename:    flagVariationHostnameTimestamp,
@@ -331,7 +331,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift valid with cluster",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 			},
 			wantErr: false,
@@ -340,7 +340,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift valid with workgroup",
 			fields: exporterConfFields{
 				Kind:          redshift,
-				Database:      fixtures.Analytics,
+				Database:      fixtures.DatabaseAnalytics,
 				WorkgroupName: fixtures.MyWorkgroup,
 			},
 			wantErr: false,
@@ -349,7 +349,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift valid with schema and table name",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				TableName:         "goff.feature_flag_evaluations",
 			},
@@ -359,7 +359,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift with invalid table name",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				TableName:         "events; DROP TABLE users",
 			},
@@ -380,7 +380,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift without cluster or workgroup",
 			fields: exporterConfFields{
 				Kind:     redshift,
-				Database: fixtures.Analytics,
+				Database: fixtures.DatabaseAnalytics,
 			},
 			wantErr: true,
 			errValue: "invalid exporter: exactly one of \"clusterIdentifier\" or \"workgroupName\" is required for kind \"" +
@@ -390,7 +390,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift with both cluster and workgroup",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				WorkgroupName:     fixtures.MyWorkgroup,
 			},
@@ -402,7 +402,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift valid with cluster and dbUser",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				DBUser:            fixtures.GoffWriter,
 			},
@@ -412,7 +412,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift valid with workgroup and secretArn",
 			fields: exporterConfFields{
 				Kind:          redshift,
-				Database:      fixtures.Analytics,
+				Database:      fixtures.DatabaseAnalytics,
 				WorkgroupName: fixtures.MyWorkgroup,
 				SecretArn:     "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",
 			},
@@ -422,7 +422,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift with dbUser and workgroup",
 			fields: exporterConfFields{
 				Kind:          redshift,
-				Database:      fixtures.Analytics,
+				Database:      fixtures.DatabaseAnalytics,
 				WorkgroupName: fixtures.MyWorkgroup,
 				DBUser:        fixtures.GoffWriter,
 			},
@@ -433,7 +433,7 @@ func TestExporterConf_IsValid_CloudAndWarehouse(t *testing.T) {
 			name: "kind Redshift with dbUser and secretArn",
 			fields: exporterConfFields{
 				Kind:              redshift,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				DBUser:            fixtures.GoffWriter,
 				SecretArn:         "arn:aws:secretsmanager:us-east-1:123456789012:secret:goff",

@@ -97,8 +97,8 @@ func TestService_CompiledQueryOnlyEvaluationStores(t *testing.T) {
 			if tt.evaluate {
 				_, err := r.Evaluate(
 					svc,
-					fixtures.Abc,
-					ffcontext.NewEvaluationContext(fixtures.Abc),
+					fixtures.UserKeyAbc,
+					ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 					fixtures.FlagKeyBare,
 					false,
 				)

@@ -92,7 +92,7 @@ func TestDataExporterManager_flushWithTime(t *testing.T) {
 					defaultVarKey,
 					false,
 					"",
-					fixtures.SERVER,
+					fixtures.SourceServer,
 					nil,
 				),
 			}
@@ -170,7 +170,7 @@ func TestDataExporterManager_flushWithNumberOfEvents(t *testing.T) {
 					defaultVarKey,
 					false,
 					"",
-					fixtures.SERVER,
+					fixtures.SourceServer,
 					nil,
 				))
 			}
@@ -242,7 +242,7 @@ func TestDataExporterManager_defaultFlush(t *testing.T) {
 					defaultVarKey,
 					false,
 					"",
-					fixtures.SERVER,
+					fixtures.SourceServer,
 					nil,
 				))
 			}
@@ -289,7 +289,7 @@ func TestDataExporterManager_exporterReturnError(t *testing.T) {
 	for range 201 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
-			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -323,7 +323,7 @@ func TestDataExporterManager_nonBulkExporter(t *testing.T) {
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
-			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -442,7 +442,7 @@ func TestDataExporterManager_multipleExporters(t *testing.T) {
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
-			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
 	want := make([]exporter.ExportableEvent, len(inputEvents))
@@ -493,7 +493,7 @@ func TestDataExporterManagerMultipleExportersWithDifferentFlushInterval(t *testi
 	for range 100 {
 		inputEvents = append(inputEvents, exporter.NewFeatureEvent(
 			ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).AddCustom(fixtures.Anonymous, true).Build(),
-			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
+			fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 	}
 
 	go func(mgr exporter.Manager[exporter.FeatureEvent]) {
@@ -551,7 +551,7 @@ func TestDataExporterManager_ValidateNumberOfEvents(t *testing.T) {
 			_, _ = client.JSONVariation(
 				"test-flag2",
 				user1,
-				map[string]any{"test": fixtures.Toto},
+				map[string]any{"test": fixtures.PlaceholderToto},
 			)
 			// Events are collected in a goroutine (see notifyVariation) and exported by the
 			// flush ticker. A fixed sleep only gives us one or two ticks of margin, so a CI
@@ -646,7 +646,7 @@ func TestDataExporterManager_StopReleasesEverything(t *testing.T) {
 					mgr.Start()
 					mgr.AddEvent(exporter.NewFeatureEvent(
 						ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyABCD).Build(),
-						fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SERVER, nil))
+						fixtures.UserKeyRandom, "YO", defaultVarKey, false, "", fixtures.SourceServer, nil))
 
 					started = max(started, goroutinesLabeled(leakcheck, label))
 

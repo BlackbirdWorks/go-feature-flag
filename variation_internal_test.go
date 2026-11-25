@@ -437,9 +437,9 @@ func TestBoolVariation_RuleEvaluation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						fixtures.VariationDefault: new(any(fixtures.Xxx)),
-						fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-						fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+						fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+						fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+						fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -831,9 +831,9 @@ func TestBoolVariationDetails_FallbackAndBucketing(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1154,9 +1154,9 @@ func TestFloat64Variation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1455,9 +1455,9 @@ func TestFloat64VariationDetails_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1546,12 +1546,12 @@ func TestJSONArrayVariation(t *testing.T) {
 				args: args{
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
-				want:        []any{fixtures.Toto},
+				want:        []any{fixtures.PlaceholderToto},
 				wantErr:     false,
 				expectedLog: `user="random-key", flag="disable-flag", value="[toto]", variation="SdkDefault"`,
 			},
@@ -1560,12 +1560,12 @@ func TestJSONArrayVariation(t *testing.T) {
 				args: args{
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
 						&flag.InternalFlag{},
 						errImpossibleToReadThe),
 				},
-				want:    []any{fixtures.Toto},
+				want:    []any{fixtures.PlaceholderToto},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
@@ -1575,13 +1575,13 @@ func TestJSONArrayVariation(t *testing.T) {
 				args: args{
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
 						&flag.InternalFlag{},
 						errFlagKeyNotExist,
 					),
 				},
-				want:    []any{fixtures.Toto},
+				want:    []any{fixtures.PlaceholderToto},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex + userRandomKeyFlag +
 					toLogSuffix,
@@ -1591,7 +1591,7 @@ func TestJSONArrayVariation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -1605,8 +1605,8 @@ func TestJSONArrayVariation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1643,7 +1643,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -1657,8 +1657,8 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1666,7 +1666,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 						},
 					}, nil),
 				},
-				want:        []any{fixtures.TrueLower},
+				want:        []any{fixtures.TrueLiteral},
 				wantErr:     false,
 				expectedLog: `user="random-key", flag="test-flag", value="[true]", variation="True"`,
 			},
@@ -1675,12 +1675,12 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new(fixtures.RuleDefault),
@@ -1691,7 +1691,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 						},
 					}, nil),
 				},
-				want:        []any{fixtures.FalseLower},
+				want:        []any{fixtures.FalseLiteral},
 				wantErr:     false,
 				expectedLog: `user="random-key-ssss1", flag="test-flag", value="[false]", variation="False"`,
 			},
@@ -1700,7 +1700,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -1713,9 +1713,9 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1723,7 +1723,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 						},
 					}, nil),
 				},
-				want:    []any{fixtures.Toto},
+				want:    []any{fixtures.PlaceholderToto},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex +
 					"\\] user=\"random-key-ssss1\", flag=\"test-flag\", value=\"\\[" +
@@ -1734,12 +1734,12 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new(fixtures.RuleDefault),
@@ -1751,7 +1751,7 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 						TrackEvents: new(false),
 					}, nil),
 				},
-				want:        []any{fixtures.TrueLower},
+				want:        []any{fixtures.TrueLiteral},
 				wantErr:     false,
 				expectedLog: "",
 			},
@@ -1761,12 +1761,12 @@ func TestJSONArrayVariation_RuleEvaluation(t *testing.T) {
 					offline:       true,
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Disable: new(true),
 					}, nil),
 				},
-				want:        []any{fixtures.Toto},
+				want:        []any{fixtures.PlaceholderToto},
 				wantErr:     false,
 				expectedLog: "",
 			},
@@ -1819,7 +1819,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				args: args{
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Disable: new(true),
 					}, nil),
@@ -1829,7 +1829,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 					VariationType: flag.VariationSDKDefault,
 					Failed:        false,
 					Reason:        flag.ReasonDisabled,
-					Value:         []any{fixtures.Toto},
+					Value:         []any{fixtures.PlaceholderToto},
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -1840,7 +1840,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				args: args{
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
 						&flag.InternalFlag{},
 						errImpossibleToReadThe),
@@ -1854,7 +1854,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				args: args{
 					flagKey:       keyNotExist,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(
 						&flag.InternalFlag{},
 						errFlagKeyNotExist,
@@ -1869,7 +1869,7 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -1883,8 +1883,8 @@ func TestJSONArrayVariationDetails(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1928,7 +1928,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -1942,8 +1942,8 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -1956,7 +1956,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
 					Reason:        flag.ReasonTargetingMatch,
-					Value:         []any{fixtures.TrueLower},
+					Value:         []any{fixtures.TrueLiteral},
 					Cacheable:     true,
 					Metadata: map[string]any{
 						fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -1970,12 +1970,12 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any([]any{fixtures.FlagsetDefault})),
-							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLower})),
-							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLower})),
+							fixtures.VariationTrue:    new(any([]any{fixtures.TrueLiteral})),
+							fixtures.VariationFalse:   new(any([]any{fixtures.FalseLiteral})),
 						},
 						DefaultRule: &flag.Rule{
 							Name: new(fixtures.RuleDefault),
@@ -1991,7 +1991,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
 					Reason:        flag.ReasonSplit,
-					Value:         []any{fixtures.FalseLower},
+					Value:         []any{fixtures.FalseLiteral},
 					Cacheable:     true,
 				},
 				wantErr:     false,
@@ -2002,7 +2002,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(randomKeySsssOne),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -2015,9 +2015,9 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -2030,7 +2030,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					Reason:        flag.ReasonDefault,
-					Value:         []any{fixtures.Toto},
+					Value:         []any{fixtures.PlaceholderToto},
 				},
 				wantErr: true,
 				expectedLog: bracketPrefixPattern + testhelpers.RFC3339Regex +
@@ -2043,7 +2043,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					offline:       true,
 					flagKey:       disableFlag,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  []any{fixtures.Toto},
+					defaultValue:  []any{fixtures.PlaceholderToto},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Disable: new(true),
 					}, nil),
@@ -2053,7 +2053,7 @@ func TestJSONArrayVariationDetails_RuleEvaluation(t *testing.T) {
 					VariationType: flag.VariationSDKDefault,
 					Failed:        false,
 					Reason:        flag.ReasonOffline,
-					Value:         []any{fixtures.Toto},
+					Value:         []any{fixtures.PlaceholderToto},
 				},
 				wantErr:     false,
 				expectedLog: "",
@@ -2158,8 +2158,8 @@ func TestJSONVariation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -2203,8 +2203,8 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -2212,7 +2212,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 						},
 					}, nil),
 				},
-				want:        map[string]any{fixtures.TrueLower: true},
+				want:        map[string]any{fixtures.TrueLiteral: true},
 				wantErr:     false,
 				expectedLog: `user="random-key", flag="test-flag", value="map[true:true]", variation="True"`,
 			},
@@ -2235,8 +2235,8 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 						},
 						Variations: &map[string]*any{
 							fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+							fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+							fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -2244,7 +2244,7 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 						},
 					}, nil),
 				},
-				want:        map[string]any{fixtures.FalseLower: true},
+				want:        map[string]any{fixtures.FalseLiteral: true},
 				wantErr:     false,
 				expectedLog: `user="random-key-ssss1", flag="test-flag", value="map[false:true]", variation="False"`,
 			},
@@ -2266,9 +2266,9 @@ func TestJSONVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(fixtures.Xxx)),
-							fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-							fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+							fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+							fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -2357,8 +2357,8 @@ func TestJSONVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2396,8 +2396,8 @@ func TestJSONVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2410,7 +2410,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				VariationType: fixtures.VariationTrue,
 				Failed:        false,
 				Reason:        flag.ReasonTargetingMatch,
-				Value:         map[string]any{fixtures.TrueLower: true},
+				Value:         map[string]any{fixtures.TrueLiteral: true},
 				Cacheable:     true,
 				Metadata: map[string]any{
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -2438,8 +2438,8 @@ func TestJSONVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(map[string]any{fixtures.FlagsetDefault: true})),
-						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLower: true})),
-						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLower: true})),
+						fixtures.VariationTrue:    new(any(map[string]any{fixtures.TrueLiteral: true})),
+						fixtures.VariationFalse:   new(any(map[string]any{fixtures.FalseLiteral: true})),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2452,7 +2452,7 @@ func TestJSONVariationDetails(t *testing.T) {
 				VariationType: fixtures.VariationFalse,
 				Failed:        false,
 				Reason:        flag.ReasonTargetingMatchSplit,
-				Value:         map[string]any{fixtures.FalseLower: true},
+				Value:         map[string]any{fixtures.FalseLiteral: true},
 				Cacheable:     true,
 				Metadata: map[string]any{
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -2638,8 +2638,8 @@ func TestStringVariation(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2679,8 +2679,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2688,7 +2688,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 					},
 				}, nil),
 			},
-			want:        fixtures.TrueLower,
+			want:        fixtures.TrueLiteral,
 			wantErr:     false,
 			expectedLog: logTestFlagBool,
 		},
@@ -2711,8 +2711,8 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2720,7 +2720,7 @@ func TestStringVariation_RuleEvaluation(t *testing.T) {
 					},
 				}, nil),
 			},
-			want:        fixtures.FalseLower,
+			want:        fixtures.FalseLiteral,
 			wantErr:     false,
 			expectedLog: userRandomKeySsss,
 		},
@@ -2863,8 +2863,8 @@ func TestStringVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2902,8 +2902,8 @@ func TestStringVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2916,7 +2916,7 @@ func TestStringVariationDetails(t *testing.T) {
 				VariationType: fixtures.VariationTrue,
 				Failed:        false,
 				Reason:        flag.ReasonTargetingMatch,
-				Value:         fixtures.TrueLower,
+				Value:         fixtures.TrueLiteral,
 				Cacheable:     true,
 				Metadata: map[string]any{
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -2944,8 +2944,8 @@ func TestStringVariationDetails(t *testing.T) {
 					},
 					Variations: &map[string]*any{
 						fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-						fixtures.VariationTrue:    new(any(fixtures.TrueLower)),
-						fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
+						fixtures.VariationTrue:    new(any(fixtures.TrueLiteral)),
+						fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -2958,7 +2958,7 @@ func TestStringVariationDetails(t *testing.T) {
 				VariationType: fixtures.VariationFalse,
 				Failed:        false,
 				Reason:        flag.ReasonTargetingMatchSplit,
-				Value:         fixtures.FalseLower,
+				Value:         fixtures.FalseLiteral,
 				Cacheable:     true,
 				Metadata: map[string]any{
 					fixtures.EvaluatedRuleName: fixtures.RuleOne,
@@ -3246,9 +3246,9 @@ func TestIntVariation_RuleEvaluation(t *testing.T) {
 						},
 					},
 					Variations: &map[string]*any{
-						fixtures.VariationDefault: new(any(fixtures.Xxx)),
-						fixtures.VariationFalse:   new(any(fixtures.Xxx)),
-						fixtures.VariationTrue:    new(any(fixtures.Xxx)),
+						fixtures.VariationDefault: new(any(fixtures.PlaceholderXxx)),
+						fixtures.VariationFalse:   new(any(fixtures.PlaceholderXxx)),
+						fixtures.VariationTrue:    new(any(fixtures.PlaceholderXxx)),
 					},
 					DefaultRule: &flag.Rule{
 						Name:            new(fixtures.RuleDefault),
@@ -3661,7 +3661,7 @@ func TestRawVariation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: ffcontext.NewEvaluationContext(fixtures.UserKeyRandom),
-					defaultValue:  map[string]any{test123: fixtures.Test},
+					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -3674,9 +3674,9 @@ func TestRawVariation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.Test: fixtures.Test})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.Test})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.Test})),
+							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
+							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -3685,7 +3685,7 @@ func TestRawVariation(t *testing.T) {
 					}, nil),
 				},
 				want: model.RawVarResult{
-					Value:         map[string]any{fixtures.Test: fixtures.Test},
+					Value:         map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest},
 					VariationType: fixtures.VariationDefault,
 					Failed:        false,
 					TrackEvents:   true,
@@ -3720,7 +3720,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(fixtures.UserKeyRandom),
-					defaultValue:  map[string]any{test123: fixtures.Test},
+					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -3733,9 +3733,9 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.Test: fixtures.Test})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.Test})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.Test})),
+							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
+							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -3744,7 +3744,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					}, nil),
 				},
 				want: model.RawVarResult{
-					Value:         map[string]any{testTwo: fixtures.Test},
+					Value:         map[string]any{testTwo: fixtures.PlaceholderTest},
 					VariationType: fixtures.VariationTrue,
 					Failed:        false,
 					TrackEvents:   true,
@@ -3762,7 +3762,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 				args: args{
 					flagKey:       fixtures.FlagKeyTest,
 					evaluationCtx: anonymousContext(randomKeySsssOne),
-					defaultValue:  map[string]any{test123: fixtures.Test},
+					defaultValue:  map[string]any{test123: fixtures.PlaceholderTest},
 					cacheMock: NewCacheMock(&flag.InternalFlag{
 						Rules: &[]flag.Rule{
 							{
@@ -3775,9 +3775,9 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 							},
 						},
 						Variations: &map[string]*any{
-							fixtures.VariationDefault: new(any(map[string]any{fixtures.Test: fixtures.Test})),
-							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.Test})),
-							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.Test})),
+							fixtures.VariationDefault: new(any(map[string]any{fixtures.PlaceholderTest: fixtures.PlaceholderTest})),
+							fixtures.VariationTrue:    new(any(map[string]any{testTwo: fixtures.PlaceholderTest})),
+							fixtures.VariationFalse:   new(any(map[string]any{testThree: fixtures.PlaceholderTest})),
 						},
 						DefaultRule: &flag.Rule{
 							Name:            new(fixtures.RuleDefault),
@@ -3786,7 +3786,7 @@ func TestRawVariation_RuleEvaluation(t *testing.T) {
 					}, nil),
 				},
 				want: model.RawVarResult{
-					Value:         map[string]any{testThree: fixtures.Test},
+					Value:         map[string]any{testThree: fixtures.PlaceholderTest},
 					VariationType: fixtures.VariationFalse,
 					Failed:        false,
 					TrackEvents:   true,

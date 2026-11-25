@@ -27,9 +27,9 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 	)
 
 	fileRetrievers := []retrieverconf.RetrieverConf{
-		{Kind: fixtures.File, Path: "/file/a.yaml"}, {Kind: fixtures.File, Path: "/file/b.yaml"},
+		{Kind: fixtures.KindFile, Path: "/file/a.yaml"}, {Kind: fixtures.KindFile, Path: "/file/b.yaml"},
 	}
-	fileFlagsetRetrievers := []retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: "/file/fs-a.yaml"}}
+	fileFlagsetRetrievers := []retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: "/file/fs-a.yaml"}}
 
 	tests := []struct {
 		name               string
@@ -45,7 +45,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			env:  []string{"RETRIEVERS_1_PATH=/env/b.yaml"},
 			wantRetrievers: []retrieverconf.RetrieverConf{
 				fileRetrievers[0],
-				{Kind: fixtures.File, Path: "/env/b.yaml"},
+				{Kind: fixtures.KindFile, Path: "/env/b.yaml"},
 			},
 		},
 		{
@@ -53,7 +53,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			file: topLevel,
 			env:  []string{"RETRIEVERS_2_KIND=file", "RETRIEVERS_2_PATH=/env/c.yaml"},
 			wantRetrievers: append(append([]retrieverconf.RetrieverConf{}, fileRetrievers...),
-				retrieverconf.RetrieverConf{Kind: fixtures.File, Path: "/env/c.yaml"}),
+				retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: "/env/c.yaml"}),
 		},
 		{
 			name:           "negative index is rejected, the file is unchanged",
@@ -83,7 +83,7 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			name:            "flagset retriever well-formed override",
 			file:            flagsets,
 			env:             []string{"FLAGSETS_0_RETRIEVERS_0_PATH=/env/fs.yaml"},
-			wantFlagsetRetr: []retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: "/env/fs.yaml"}},
+			wantFlagsetRetr: []retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: "/env/fs.yaml"}},
 		},
 		{
 			name:            "flagset retriever negative index is rejected, the file is unchanged",
@@ -111,8 +111,8 @@ func TestConfigLoader_ArrayEnvOverrides(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 			require.NoError(t, os.WriteFile(path, []byte(tt.file), 0o600))
 
-			flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			flagSet.String(fixtures.Config, "", locationOfYourConfig)
+			flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			require.NoError(t, flagSet.Parse([]string{configFlag + path}))
 
 			var (

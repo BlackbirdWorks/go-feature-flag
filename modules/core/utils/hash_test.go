@@ -99,7 +99,7 @@ func TestBuildHash(t *testing.T) {
 			name: "max percentage is the largest uint32",
 			args: args{
 				flagKey:       "flag",
-				bucketingKey:  fixtures.User,
+				bucketingKey:  fixtures.ContextKindUser,
 				maxPercentage: 4294967295,
 			},
 			want: 3459711972,

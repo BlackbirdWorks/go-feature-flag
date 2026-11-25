@@ -20,26 +20,26 @@ func TestUserToMap(t *testing.T) {
 	}{
 		{
 			name: "complete user",
-			u: ffcontext.NewEvaluationContextBuilder(fixtures.Key).
+			u: ffcontext.NewEvaluationContextBuilder(fixtures.MetadataKey).
 				AddCustom(fixtures.Anonymous, false).
 				AddCustom("email", "contact@gofeatureflag.org").
 				Build(),
 			want: map[string]any{
-				fixtures.Key:       fixtures.Key,
-				fixtures.Anonymous: false,
-				"email":            "contact@gofeatureflag.org",
-				"targetingKey":     fixtures.Key,
+				fixtures.MetadataKey: fixtures.MetadataKey,
+				fixtures.Anonymous:   false,
+				"email":              "contact@gofeatureflag.org",
+				"targetingKey":       fixtures.MetadataKey,
 			},
 		},
 		{
 			name: "anonymous user",
-			u: ffcontext.NewEvaluationContextBuilder(fixtures.Key).
+			u: ffcontext.NewEvaluationContextBuilder(fixtures.MetadataKey).
 				AddCustom(fixtures.Anonymous, true).
 				Build(),
 			want: map[string]any{
-				fixtures.Key:       fixtures.Key,
-				fixtures.Anonymous: true,
-				"targetingKey":     fixtures.Key,
+				fixtures.MetadataKey: fixtures.MetadataKey,
+				fixtures.Anonymous:   true,
+				"targetingKey":       fixtures.MetadataKey,
 			},
 		},
 	}

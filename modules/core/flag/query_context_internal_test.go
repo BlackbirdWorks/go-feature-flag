@@ -27,12 +27,12 @@ func TestQueryContext_MapOnce(t *testing.T) {
 		{
 			name: "context with custom attributes",
 			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
-				AddCustom(fixtures.Plan, fixtures.Pro).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 				Build(),
 			want: map[string]any{
-				fixtures.Plan:                  fixtures.Pro,
+				fixtures.AttrPlan:              fixtures.PlanPro,
 				anonymous:                      false,
-				fixtures.Key:                   fixtures.UserKeyOne,
+				fixtures.MetadataKey:           fixtures.UserKeyOne,
 				fixtures.TargetingKeyAttribute: fixtures.UserKeyOne,
 			},
 		},
@@ -41,7 +41,7 @@ func TestQueryContext_MapOnce(t *testing.T) {
 			ctx:  ffcontext.NewEvaluationContext(fixtures.UserKeyOne),
 			want: map[string]any{
 				anonymous:                      false,
-				fixtures.Key:                   fixtures.UserKeyOne,
+				fixtures.MetadataKey:           fixtures.UserKeyOne,
 				fixtures.TargetingKeyAttribute: fixtures.UserKeyOne,
 			},
 		},
@@ -77,7 +77,7 @@ func TestQueryContext_JSONOnce(t *testing.T) {
 		{
 			name: "context with custom attributes",
 			ctx: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).
-				AddCustom(fixtures.Plan, fixtures.Pro).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanPro).
 				Build(),
 			want: `{"anonymous": false, "key": "user-1", "plan": "pro", "targetingKey": "user-1"}`,
 		},
@@ -232,8 +232,8 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		plan string
 		want string
 	}{
-		{name: "nikunjy rule matches", plan: fixtures.Free, want: NikunjyQueryFormat},
-		{name: "nikunjy rule misses and jsonlogic rule matches", plan: fixtures.Pro, want: JSONLogicQueryFormat},
+		{name: "nikunjy rule matches", plan: fixtures.PlanFree, want: NikunjyQueryFormat},
+		{name: "nikunjy rule misses and jsonlogic rule matches", plan: fixtures.PlanPro, want: JSONLogicQueryFormat},
 		{name: "first jsonlogic rule misses and second jsonlogic rule matches", plan: "team", want: jsonlogicTwo},
 		{name: "no rule matches", plan: "enterprise", want: fixtures.FlagsetDefault},
 	}
@@ -241,7 +241,7 @@ func TestInternalFlag_RulesOfBothQueryFormatsShareTheQueryContext(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.Plan, tt.plan).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyOne).AddCustom(fixtures.AttrPlan, tt.plan).Build()
 
 			value, details := internalFlag.Value(
 				"mixed-formats",

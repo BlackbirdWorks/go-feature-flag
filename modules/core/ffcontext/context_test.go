@@ -42,11 +42,11 @@ func TestUserAddCustomAttribute(t *testing.T) {
 			name: "add valid element",
 			user: ffcontext.NewEvaluationContext("123"),
 			args: args{
-				name:  fixtures.Test,
-				value: fixtures.Test,
+				name:  fixtures.PlaceholderTest,
+				value: fixtures.PlaceholderTest,
 			},
 			want: map[string]any{
-				fixtures.Test: fixtures.Test,
+				fixtures.PlaceholderTest: fixtures.PlaceholderTest,
 			},
 		},
 	}

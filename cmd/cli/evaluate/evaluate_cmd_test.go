@@ -86,7 +86,7 @@ func TestCmdEvaluate(t *testing.T) {
 			name: "should return an error if flag does not exists",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				pathFlag,
 				fixtures.FlagGoffYAMLPath,
 				flagFlag,
@@ -103,7 +103,7 @@ func TestCmdEvaluate(t *testing.T) {
 			name: "should return all flags if no flag is provided",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				pathFlag,
 				fixtures.FlagGoffYAMLPath,
 				ctxFlag,
@@ -118,7 +118,7 @@ func TestCmdEvaluate(t *testing.T) {
 			name: "should return a single flag if flag name is provided",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				pathFlag,
 				fixtures.FlagGoffYAMLPath,
 				flagFlag,
@@ -135,7 +135,7 @@ func TestCmdEvaluate(t *testing.T) {
 			name: "should return a single flag if flag name is provided using path flag",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				pathFlag,
 				fixtures.FlagGoffYAMLPath,
 				flagFlag,
@@ -166,7 +166,7 @@ func TestCmdEvaluate(t *testing.T) {
 			name: "should return an error if context has no targeting key",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				pathFlag,
 				fixtures.FlagGoffYAMLPath,
 				ctxFlag,
@@ -471,7 +471,7 @@ func TestCmdEvaluate_CheckModeAndValidation(t *testing.T) {
 			name: "should return RetrieverConfError with CLI-friendly message when path is missing for file kind",
 			args: []string{
 				kindFlag,
-				fixtures.File,
+				fixtures.KindFile,
 				ctxFlag,
 				targetingKeyUser123,
 				formatFlag,

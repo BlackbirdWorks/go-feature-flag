@@ -20,7 +20,7 @@ func BenchmarkIsJSONObject(b *testing.B) {
 			name:  "jsonlogic query",
 			input: `{"and":[{"==":[{"var":"language"},"ar"]},{">":[{"var":"clubsTimeSpent"},600]}]}`,
 		},
-		{name: fixtures.Null, input: fixtures.Null},
+		{name: fixtures.NullLiteral, input: fixtures.NullLiteral},
 		{
 			name:  "whitespace-prefixed object",
 			input: "  \n\t{\"==\":[{\"var\":\"language\"},\"ar\"]}",

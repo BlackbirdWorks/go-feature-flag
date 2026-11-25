@@ -30,15 +30,15 @@ func TestLoadArrayEnv_ConfigShapes(t *testing.T) {
 		{
 			name:   "map entry: the field is set on it",
 			key:    retrieversZeroPath,
-			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File}}},
-			want:   map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File, pathKey: "v"}}},
+			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.KindFile}}},
+			want:   map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.KindFile, pathKey: "v"}}},
 		},
 		{
 			name:   "index beyond the length: the array is expanded",
 			key:    "RETRIEVERS_2_PATH",
-			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.File}}},
+			config: map[string]any{retrieversKey: []any{map[string]any{kindKey: fixtures.KindFile}}},
 			want: map[string]any{retrieversKey: []any{
-				map[string]any{kindKey: fixtures.File}, map[string]any{}, map[string]any{pathKey: "v"},
+				map[string]any{kindKey: fixtures.KindFile}, map[string]any{}, map[string]any{pathKey: "v"},
 			}},
 		},
 		{

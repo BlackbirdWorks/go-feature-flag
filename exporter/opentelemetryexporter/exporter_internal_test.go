@@ -48,8 +48,8 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 
 	events := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind:         fixtures.Feature,
-			ContextKind:  fixtures.User,
+			Kind:         fixtures.KindFeature,
+			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      "user-1",
 			CreationDate: 1617970547,
 			Key:          "flag-1",
@@ -57,10 +57,10 @@ func TestExporterCreatesOneSpanPerEvent(t *testing.T) {
 			Value:        true,
 			Default:      false,
 			Version:      "v1",
-			Source:       fixtures.SERVER,
+			Source:       fixtures.SourceServer,
 		},
 		exporter.FeatureEvent{
-			Kind:         fixtures.Feature,
+			Kind:         fixtures.KindFeature,
 			ContextKind:  "anonymousUser",
 			UserKey:      "user-2",
 			CreationDate: 1617970548,
@@ -100,8 +100,8 @@ func TestExporterSpanAttributes(t *testing.T) {
 	exp := &Exporter{tracerProvider: tp}
 
 	event := exporter.FeatureEvent{
-		Kind:         fixtures.Feature,
-		ContextKind:  fixtures.User,
+		Kind:         fixtures.KindFeature,
+		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      "user-123",
 		CreationDate: 1617970547,
 		Key:          "my-flag",
@@ -109,7 +109,7 @@ func TestExporterSpanAttributes(t *testing.T) {
 		Value:        true,
 		Default:      false,
 		Version:      "v1",
-		Source:       fixtures.SERVER,
+		Source:       fixtures.SourceServer,
 		//  the for-loop branch
 		Metadata: map[string]any{
 			"team": "platform",
@@ -129,10 +129,10 @@ func TestExporterSpanAttributes(t *testing.T) {
 
 	assertAttribute(t, attrs, "feature_flag.key", "my-flag")
 	assertAttribute(t, attrs, "feature_flag.user_key", "user-123")
-	assertAttribute(t, attrs, "feature_flag.context_kind", fixtures.User)
+	assertAttribute(t, attrs, "feature_flag.context_kind", fixtures.ContextKindUser)
 	assertAttribute(t, attrs, "feature_flag.variation", "on")
 	assertAttribute(t, attrs, "feature_flag.version", "v1")
-	assertAttribute(t, attrs, "feature_flag.source", fixtures.SERVER)
+	assertAttribute(t, attrs, "feature_flag.source", fixtures.SourceServer)
 	assertAttribute(t, attrs, "feature_flag.metadata.team", "platform")
 }
 

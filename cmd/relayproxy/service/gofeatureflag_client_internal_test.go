@@ -224,12 +224,12 @@ func Test_initExporters(t *testing.T) {
 			wantErr: assert.NoError,
 			exporters: &[]config.ExporterConf{
 				{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
 					Secret:      clientSecret,
 				},
 				{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
 					Secret:      clientSecret,
 				},
@@ -240,7 +240,7 @@ func Test_initExporters(t *testing.T) {
 			wantErr: assert.NoError,
 			exporters: &[]config.ExporterConf{
 				{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
 					Secret:      clientSecret,
 				},
@@ -254,7 +254,7 @@ func Test_initExporters(t *testing.T) {
 					Kind: "invalid",
 				},
 				{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
 					Secret:      clientSecret,
 				},
@@ -266,7 +266,7 @@ func Test_initExporters(t *testing.T) {
 			exporters: &[]config.ExporterConf{
 				{
 
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpsGofeatureflagOrgWebhook,
 					Secret:      clientSecret,
 				},
@@ -325,7 +325,7 @@ func Test_initExporter(t *testing.T) {
 			name:    "Convert WebhookExporter",
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
-				Kind:        fixtures.Webhook,
+				Kind:        fixtures.KindWebhook,
 				EndpointURL: httpsGofeatureflagOrgWebhook,
 				Secret:      clientSecret,
 			},
@@ -345,7 +345,7 @@ func Test_initExporter(t *testing.T) {
 			name:    "Convert FileExporter",
 			wantErr: assert.NoError,
 			conf: &config.ExporterConf{
-				Kind:                    fixtures.File,
+				Kind:                    fixtures.KindFile,
 				OutputDir:               "/outputfolder/",
 				ParquetCompressionCodec: parquet.CompressionCodec_UNCOMPRESSED.String(),
 			},
@@ -1167,7 +1167,7 @@ func Test_exporterCleanQueueInterval(t *testing.T) {
 func Test_newGoFeatureFlagClient_forwardsExporterCleanQueueInterval(t *testing.T) {
 	t.Parallel()
 
-	rtr := &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: testdataSemaphoreConfigurationFlags}
+	rtr := &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: testdataSemaphoreConfigurationFlags}
 
 	tests := []struct {
 		name     string

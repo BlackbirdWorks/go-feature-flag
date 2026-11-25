@@ -131,7 +131,7 @@ func TestIssue42VersionAndLogicalOrder(t *testing.T) {
 	t.Parallel()
 
 	input := obj{
-		"x": fixtures.Abc,
+		"x": fixtures.UserKeyAbc,
 		"y": "11.3.0",
 	}
 	parenInput := obj{

@@ -535,7 +535,7 @@ func goldenAuthCases() []goldenCase {
 			method:  http.MethodPost,
 			path:    v1Allflags,
 			body:    flagBody,
-			headers: bearer(fixtures.Zzz),
+			headers: bearer(fixtures.PlaceholderZzz),
 		},
 		{
 			name:   "allflags_basic_scheme",
@@ -579,12 +579,12 @@ func goldenAuthCases() []goldenCase {
 			method:  http.MethodPost,
 			path:    v1Allflags,
 			body:    flagBody,
-			headers: apiKey(fixtures.Zzz),
+			headers: apiKey(fixtures.PlaceholderZzz),
 		},
 		{
 			name: "allflags_xapikey_bad_bearer_ok", method: http.MethodPost, path: v1Allflags, body: flagBody,
 			headers: map[string]string{
-				"X-API-Key":                  fixtures.Zzz,
+				"X-API-Key":                  fixtures.PlaceholderZzz,
 				protocol.HeaderAuthorization: protocol.BearerPrefix + goldenEvalKey,
 				protocol.HeaderContentType:   protocol.MIMEApplicationJSON,
 			},

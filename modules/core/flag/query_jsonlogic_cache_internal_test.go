@@ -72,12 +72,12 @@ func TestAsJSONData(t *testing.T) {
 	}{
 		{
 			name:   "flat context",
-			value:  map[string]any{fixtures.Key: fixtures.UserKeyOne, anonymous: false, dspName: "42", "score": 1.5},
+			value:  map[string]any{fixtures.MetadataKey: fixtures.UserKeyOne, anonymous: false, dspName: "42", "score": 1.5},
 			wantOK: true,
 		},
 		{name: "ints", value: map[string]any{"a": 1, "b": int64(1 << 60), "c": int32(-7)}, wantOK: true},
 		{
-			name:   fixtures.Nested,
+			name:   fixtures.NestedKey,
 			value:  map[string]any{"a": map[string]any{"b": []any{"x", 2, nil, true}}},
 			wantOK: true,
 		},
@@ -137,12 +137,12 @@ func TestEvaluateRule_JSONLogicMatchesApply(t *testing.T) {
 		`{"+": [0.5, 0.5]}`,
 	}
 	ctxs := []ffcontext.Context{
-		ffcontext.NewEvaluationContext(fixtures.Abc),
+		ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 		ffcontext.NewEvaluationContextBuilder("def").
 			AddCustom(dspName, ttd).AddCustom("floor", 1.2).
 			AddCustom(tagsName, []any{"a", "b"}).
 			AddCustom("orgs", []any{map[string]any{"id": 1}}).
-			AddCustom(fixtures.Plan, map[string]any{"cat": []any{"enter", "prise"}}).
+			AddCustom(fixtures.AttrPlan, map[string]any{"cat": []any{"enter", "prise"}}).
 			Build(),
 		ffcontext.NewEvaluationContextBuilder("ghi").AddCustom("floor", 0).AddCustom(tagsName, []any{}).Build(),
 	}
@@ -174,7 +174,7 @@ func TestEvaluateRule_JSONLogicCustomOperatorMatchesApply(t *testing.T) {
 		"named_true":   namedBool(true),
 		"named_string": namedString("x"),
 	}
-	ctx := ffcontext.NewEvaluationContext(fixtures.Abc)
+	ctx := ffcontext.NewEvaluationContext(fixtures.UserKeyAbc)
 	svc := NewService()
 	for name, result := range results {
 		op := "goff_test_" + name
@@ -211,7 +211,7 @@ func FuzzEvaluateRule_JSONLogicMatchesApply(f *testing.F) {
 		if compiled.format != JSONLogicQueryFormat {
 			return
 		}
-		evalCtx := utils.ConvertEvaluationCtxFromRequest(fixtures.Key, attributes)
+		evalCtx := utils.ConvertEvaluationCtxFromRequest(fixtures.MetadataKey, attributes)
 		assert.Equal(
 			t,
 			applyReference(t, compiled.trimmed, evalCtx),

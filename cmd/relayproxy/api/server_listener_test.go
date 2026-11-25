@@ -34,7 +34,7 @@ func TestServer_WithListener(t *testing.T) {
 	port := tcpAddr.Port
 
 	proxyConf := &config.Config{
-		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath}},
+		Retrievers: &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath}},
 		Server:     config.Server{Mode: config.ServerModeHTTP, Host: loopbackAddress, Port: port},
 	}
 	log := newTestLogger(t)

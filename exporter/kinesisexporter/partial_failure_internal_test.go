@@ -68,7 +68,7 @@ func (s *scriptedSender) SendMessages(
 func testEvents(n int) []exporter.ExportableEvent {
 	evs := make([]exporter.ExportableEvent, n)
 	for i := range evs {
-		evs[i] = &exporter.FeatureEvent{Kind: fixtures.Feature, Key: fmt.Sprintf("flag-%d", i)}
+		evs[i] = &exporter.FeatureEvent{Kind: fixtures.KindFeature, Key: fmt.Sprintf("flag-%d", i)}
 	}
 
 	return evs

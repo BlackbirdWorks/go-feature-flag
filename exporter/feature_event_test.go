@@ -50,10 +50,10 @@ func TestNewFeatureEvent(t *testing.T) {
 				variation: fixtures.VariationDefault,
 				failed:    false,
 				version:   "",
-				source:    fixtures.SERVER,
+				source:    fixtures.SourceServer,
 			},
 			want: exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: clocktest.Instant().Unix(),
@@ -61,7 +61,7 @@ func TestNewFeatureEvent(t *testing.T) {
 				Variation:    fixtures.VariationDefault,
 				Value:        "YO",
 				Default:      false,
-				Source:       fixtures.SERVER,
+				Source:       fixtures.SourceServer,
 			},
 		},
 	}
@@ -117,7 +117,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "happy path",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -132,7 +132,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 				Default: false,
 			},
 			want: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -145,7 +145,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "marshal failed",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -159,7 +159,7 @@ func TestFeatureEvent_MarshalInterface(t *testing.T) {
 		{
 			name: "nil value",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -207,7 +207,7 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should not return a metadata field if metadata is empty",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -230,7 +230,7 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should not return a metadata field if metadata is nil",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -252,7 +252,7 @@ func TestFeatureEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should return a metadata field if metadata is not empty",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -302,7 +302,7 @@ func TestFeatureEvent_GetKey(t *testing.T) {
 		{
 			name: returnExistingKey,
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -321,7 +321,7 @@ func TestFeatureEvent_GetKey(t *testing.T) {
 		{
 			name: "empty key",
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -353,7 +353,7 @@ func TestFeatureEvent_GetUserKey(t *testing.T) {
 		{
 			name: returnExistingKey,
 			featureEvent: &exporter.FeatureEvent{
-				Kind:         fixtures.Feature,
+				Kind:         fixtures.KindFeature,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,

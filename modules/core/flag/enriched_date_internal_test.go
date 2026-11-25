@@ -64,7 +64,7 @@ func TestInternalFlag_Value_EnrichedCurrentDateTime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).Build()
 			if tt.callerDate != nil {
 				ctx.AddCustomAttribute(fixtures.GoFeatureFlagOrg, map[string]any{
 					fixtures.CurrentDateTime: tt.callerDate.Format(time.RFC3339Nano)})

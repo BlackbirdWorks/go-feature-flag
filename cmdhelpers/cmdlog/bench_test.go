@@ -22,7 +22,7 @@ func (sink) Write(p []byte) (int, error) { return len(p), nil }
 
 // logFiveAttrs is the record of the benchmarks: 5 typed attributes, like a request log line.
 func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
-	l.LogAttrs(ctx, level, fixtures.Request,
+	l.LogAttrs(ctx, level, fixtures.LogKeyRequest,
 		slog.String("remote_ip", "10.0.0.1"),
 		slog.String("host", "localhost:1031"),
 		slog.Int("status", 200),
@@ -34,7 +34,7 @@ func logFiveAttrs(ctx context.Context, l *slog.Logger, level slog.Level) {
 func newBenchLogger(tb testing.TB, format string) *slog.Logger {
 	tb.Helper()
 
-	l, err := cmdlog.New(format, fixtures.Info, cmdlog.WithWriter(sink{}))
+	l, err := cmdlog.New(format, fixtures.LogLevelInfo, cmdlog.WithWriter(sink{}))
 	require.NoError(tb, err)
 
 	return l.Slog
@@ -76,7 +76,7 @@ func stdlibKeys(_ []string, attr slog.Attr) slog.Attr {
 	case slog.TimeKey:
 		return slog.Float64(cmdlog.TimeKey, float64(attr.Value.Time().UnixNano())/1e9)
 	case slog.LevelKey:
-		return slog.String(cmdlog.LevelKey, fixtures.Info)
+		return slog.String(cmdlog.LevelKey, fixtures.LogLevelInfo)
 	}
 
 	return attr

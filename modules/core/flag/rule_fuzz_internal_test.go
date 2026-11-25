@@ -55,7 +55,7 @@ func FuzzEvaluateRule(f *testing.F) {
 			return
 		}
 
-		mapCtx := utils.ContextToMap(utils.ConvertEvaluationCtxFromRequest(fixtures.Key, attributes))
+		mapCtx := utils.ContextToMap(utils.ConvertEvaluationCtxFromRequest(fixtures.MetadataKey, attributes))
 
 		switch r.GetQueryFormat() {
 		case JSONLogicQueryFormat:

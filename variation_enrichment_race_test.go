@@ -33,19 +33,19 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 		environment    string
 	}{
 		{
-			name: "enrichment and environment", environment: fixtures.Prod, enrichment: map[string]any{team: "a"},
-			wantCustom: map[string]any{fixtures.Plan: fixtures.Free}, wantEnrichment: map[string]any{team: "a"},
+			name: "enrichment and environment", environment: fixtures.EnvProd, enrichment: map[string]any{team: "a"},
+			wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}, wantEnrichment: map[string]any{team: "a"},
 		},
 		{
 			name:        "environment only",
-			environment: fixtures.Prod,
-			wantCustom:  map[string]any{fixtures.Plan: fixtures.Free},
+			environment: fixtures.EnvProd,
+			wantCustom:  map[string]any{fixtures.AttrPlan: fixtures.PlanFree},
 		},
 		{
 			name: "enrichment only", enrichment: map[string]any{team: "a"},
-			wantCustom: map[string]any{fixtures.Plan: fixtures.Free}, wantEnrichment: map[string]any{team: "a"},
+			wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}, wantEnrichment: map[string]any{team: "a"},
 		},
-		{name: "nothing", wantCustom: map[string]any{fixtures.Plan: fixtures.Free}},
+		{name: "nothing", wantCustom: map[string]any{fixtures.AttrPlan: fixtures.PlanFree}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -61,8 +61,8 @@ func Test_EvaluationContextEnrichment_ConcurrentEvaluations(t *testing.T) {
 
 			defer client.Close()
 
-			shared := ffcontext.NewEvaluationContextBuilder(fixtures.User).
-				AddCustom(fixtures.Plan, fixtures.Free).
+			shared := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).
+				AddCustom(fixtures.AttrPlan, fixtures.PlanFree).
 				Build()
 
 			var wg sync.WaitGroup

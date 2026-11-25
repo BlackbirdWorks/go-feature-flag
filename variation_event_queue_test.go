@@ -135,7 +135,7 @@ func Test_EvaluationEventsAreQueuedNotSpawned(t *testing.T) {
 					for range tt.evals / 4 {
 						_, _ = client.BoolVariation(
 							fixtures.FlagKeyTest,
-							ffcontext.NewEvaluationContext(fixtures.User),
+							ffcontext.NewEvaluationContext(fixtures.ContextKindUser),
 							false,
 						)
 

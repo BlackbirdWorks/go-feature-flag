@@ -39,7 +39,7 @@ func TestDeprecatedAliasHeaders(t *testing.T) {
 	listener, port := testhelpers.ListenLocal(t)
 	cfg := &config.Config{
 		Retrievers: &[]retrieverconf.RetrieverConf{
-			{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+			{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		},
 		Server: config.Server{
 			Mode: config.ServerModeHTTP,
@@ -150,7 +150,7 @@ func TestWebsocketFlagChangeWithFlagsets(t *testing.T) {
 		return config.FlagSet{
 			Name:            name,
 			APIKeys:         []string{apiKey},
-			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: path}},
+			Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: path}},
 			PollingInterval: 200,
 		}
 	}

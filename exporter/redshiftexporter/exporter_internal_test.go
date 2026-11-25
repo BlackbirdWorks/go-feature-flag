@@ -64,15 +64,15 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		DBUser:            fixtures.GoffWriter,
 		TableName:         "feature_table",
 		client:            client,
 	}
 	events := []exporter.ExportableEvent{
 		exporter.FeatureEvent{
-			Kind:         fixtures.Feature,
-			ContextKind:  fixtures.User,
+			Kind:         fixtures.KindFeature,
+			ContextKind:  fixtures.ContextKindUser,
 			UserKey:      fixtures.UserKeyUser,
 			CreationDate: 1617970547,
 			Key:          fixtures.FlagKeyGeneric,
@@ -91,7 +91,7 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 	require.Len(t, client.executed, 1)
 	input := client.executed[0]
 	assert.Equal(t, fixtures.MyCluster, aws.ToString(input.ClusterIdentifier))
-	assert.Equal(t, fixtures.Analytics, aws.ToString(input.Database))
+	assert.Equal(t, fixtures.DatabaseAnalytics, aws.ToString(input.Database))
 	assert.Equal(t, fixtures.GoffWriter, aws.ToString(input.DbUser))
 	assert.Nil(t, input.WorkgroupName)
 	assert.Nil(t, input.SecretArn)
@@ -102,8 +102,8 @@ func TestExporter_ExportFeatureEvents(t *testing.T) {
 			`(:p0, :p1, :p2, 1617970547, :p3, :p4, JSON_PARSE(:p5), FALSE, :p6, '', JSON_PARSE(:p7))`,
 	}, input.Sqls)
 	assert.Equal(t, map[string]string{
-		"p0": fixtures.Feature,
-		"p1": fixtures.User,
+		"p0": fixtures.KindFeature,
+		"p1": fixtures.ContextKindUser,
 		"p2": fixtures.UserKeyUser,
 		"p3": fixtures.FlagKeyGeneric,
 		"p4": fixtures.VariationA,
@@ -120,17 +120,17 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
 		WorkgroupName: fixtures.MyWorkgroup,
-		Database:      fixtures.Analytics,
+		Database:      fixtures.DatabaseAnalytics,
 		SecretArn:     arnAwsSecretsmanagerUs,
 		client:        client,
 	}
 	events := []exporter.ExportableEvent{
 		exporter.TrackingEvent{
-			Kind:              fixtures.Tracking,
-			ContextKind:       fixtures.User,
+			Kind:              fixtures.KindTracking,
+			ContextKind:       fixtures.ContextKindUser,
 			UserKey:           fixtures.UserKeyUser,
 			CreationDate:      1617970547,
-			Key:               fixtures.Checkout,
+			Key:               fixtures.TrackingEventKey,
 			TrackingDetails:   map[string]any{"amount": 42},
 			EvaluationContext: map[string]any{"country": "FR"},
 		},
@@ -151,10 +151,10 @@ func TestExporter_ExportTrackingEvents(t *testing.T) {
 			`(:p0, :p1, :p2, 1617970547, :p3, JSON_PARSE(:p4), JSON_PARSE(:p5))`,
 	}, input.Sqls)
 	assert.Equal(t, map[string]string{
-		"p0": fixtures.Tracking,
-		"p1": fixtures.User,
+		"p0": fixtures.KindTracking,
+		"p1": fixtures.ContextKindUser,
 		"p2": fixtures.UserKeyUser,
-		"p3": fixtures.Checkout,
+		"p3": fixtures.TrackingEventKey,
 		"p4": `{"amount":42}`,
 		"p5": `{"country":"FR"}`,
 	}, paramsMap(input.Parameters))
@@ -164,7 +164,7 @@ func TestExporter_DefaultTableName(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+	e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
 	err := e.Export(context.TODO(), nil, []exporter.ExportableEvent{newFeatureEvent(0)})
 
@@ -180,7 +180,7 @@ func TestExporter_QuotesTableName(t *testing.T) {
 	// "order" is a reserved word, it must be quoted to be used as a table name
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		TableName:         "goff.order",
 		AutoMigrate:       true,
 		client:            client,
@@ -219,7 +219,7 @@ func TestExporter_ValuesAreSentAsParameters(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	malicious := "x'); DROP TABLE feature_flag_evaluations; --"
 	event := newFeatureEvent(0)
 	event.UserKey = malicious
@@ -270,7 +270,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+			e := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
 			err := e.Export(context.TODO(), nil, tt.events)
 
@@ -311,7 +311,7 @@ func TestExporter_ExportChunksLargeBatches(t *testing.T) {
 func TestBuildBatches_LimitsStatementsPerBatch(t *testing.T) {
 	t.Parallel()
 
-	values := []string{fixtures.Tracking, "", "", "0", "k", "null", "null"}
+	values := []string{fixtures.KindTracking, "", "", "0", "k", "null", "null"}
 
 	rows := make([]row, 0, maxRowsPerStatement*maxStatementsPerBatch+1)
 	for range cap(rows) {
@@ -332,7 +332,7 @@ func TestExporter_ExportLimitsBatchBytes(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	events := make([]exporter.ExportableEvent, 0, 60)
 
 	for i := range 60 {
@@ -372,7 +372,7 @@ func TestExporter_TruncatesTextValues(t *testing.T) {
 	t.Parallel()
 
 	client := &mockRedshiftDataClient{}
-	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+	exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 	event := newFeatureEvent(0)
 	event.UserKey = strings.Repeat("a", 511) + "é" // 513 bytes, "é" is 2 bytes
 	event.Key = strings.Repeat("k", 300)           // 300 bytes
@@ -453,7 +453,7 @@ func TestExporter_SkipsOversizedRows(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
 			var logs bytes.Buffer
 
@@ -489,7 +489,7 @@ func TestExporter_SkipsAllRowsWithoutLogger(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 	}
@@ -516,9 +516,9 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 		bad.UserKey = secretUser
 
 		return []exporter.ExportableEvent{
-			exporter.TrackingEvent{Key: fixtures.Checkout},
+			exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 			bad,
-			exporter.TrackingEvent{Key: fixtures.Checkout},
+			exporter.TrackingEvent{Key: fixtures.TrackingEventKey},
 		}
 	}
 
@@ -539,20 +539,20 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 		},
 		{
 			name:    "feature metadata unsupported type",
-			events:  featureEvents(exporter.FeatureEvent{Metadata: map[string]any{fixtures.Bad: make(chan int)}}),
+			events:  featureEvents(exporter.FeatureEvent{Metadata: map[string]any{fixtures.BadContent: make(chan int)}}),
 			wantErr: unsupportedType,
 		},
 		{
 			name: "tracking details unsupported type",
 			events: trackingEvents(
-				exporter.TrackingEvent{TrackingDetails: map[string]any{fixtures.Bad: make(chan int)}},
+				exporter.TrackingEvent{TrackingDetails: map[string]any{fixtures.BadContent: make(chan int)}},
 			),
 			wantErr: unsupportedType,
 		},
 		{
 			name: "tracking evaluation context infinity",
 			events: trackingEvents(
-				exporter.TrackingEvent{EvaluationContext: map[string]any{fixtures.Bad: math.Inf(1)}},
+				exporter.TrackingEvent{EvaluationContext: map[string]any{fixtures.BadContent: math.Inf(1)}},
 			),
 			wantErr: "unsupported value: +Inf",
 		},
@@ -562,7 +562,7 @@ func TestExporter_SkipsEventsThatCannotBeMarshalled(t *testing.T) {
 			t.Parallel()
 
 			client := &mockRedshiftDataClient{}
-			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.Analytics, client: client}
+			exp := &Exporter{ClusterIdentifier: fixtures.MyCluster, Database: fixtures.DatabaseAnalytics, client: client}
 
 			var logs bytes.Buffer
 
@@ -595,7 +595,7 @@ func TestExporter_SkipsAllEventsThatCannotBeMarshalled(t *testing.T) {
 	client := &mockRedshiftDataClient{}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 	}
@@ -632,7 +632,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			name:        "tracking table",
 			autoMigrate: true,
 			events: []exporter.ExportableEvent{
-				exporter.TrackingEvent{Kind: fixtures.Tracking, Key: fixtures.Checkout},
+				exporter.TrackingEvent{Kind: fixtures.KindTracking, Key: fixtures.TrackingEventKey},
 			},
 			wantCreate: `CREATE TABLE IF NOT EXISTS "tracking_events" ("kind" VARCHAR(50), ` +
 				`"context_kind" VARCHAR(50), "user_key" VARCHAR(512), "creation_date" BIGINT, "key" VARCHAR(256), ` +
@@ -651,7 +651,7 @@ func TestExporter_AutoMigrate(t *testing.T) {
 			client := &mockRedshiftDataClient{}
 			exp := &Exporter{
 				ClusterIdentifier: fixtures.MyCluster,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				AutoMigrate:       tt.autoMigrate,
 				client:            client,
 			}
@@ -688,7 +688,7 @@ func TestExporter_AutoMigrateRetriesAfterFailure(t *testing.T) {
 	}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 	}
@@ -843,7 +843,7 @@ func TestExporter_WaitsForStatement(t *testing.T) {
 
 			exp := &Exporter{
 				ClusterIdentifier: fixtures.MyCluster,
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				client:            tt.client,
 				pollInterval:      time.Millisecond,
 				statementTimeout:  tt.timeout,
@@ -892,7 +892,7 @@ func TestExporter_StatementTimeoutIsPerTransaction(t *testing.T) {
 	client := &mockRedshiftDataClient{finishAfter: 100 * time.Millisecond}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 		pollInterval:      time.Millisecond,
@@ -918,7 +918,7 @@ func TestExporter_StatementTimeoutCancelsTheTransaction(t *testing.T) {
 	}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		AutoMigrate:       true,
 		client:            client,
 		pollInterval:      time.Millisecond,
@@ -940,7 +940,7 @@ func TestExporter_ExportStopsOnContextCancellation(t *testing.T) {
 	client := &mockRedshiftDataClient{statuses: []types.StatusString{types.StatusStringStarted}}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		client:            client,
 		pollInterval:      time.Hour,
 		cancelTimeout:     20 * time.Millisecond,
@@ -998,14 +998,14 @@ func TestExporter_ExportErrors(t *testing.T) {
 		},
 		{
 			name:     "missing cluster and workgroup",
-			exporter: &Exporter{Database: fixtures.Analytics},
+			exporter: &Exporter{Database: fixtures.DatabaseAnalytics},
 			events:   featureEvents,
 			wantErr:  "redshift exporter: one of ClusterIdentifier or WorkgroupName is required",
 		},
 		{
 			name: "both cluster and workgroup",
 			exporter: &Exporter{
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				WorkgroupName:     fixtures.MyWorkgroup,
 			},
@@ -1015,7 +1015,7 @@ func TestExporter_ExportErrors(t *testing.T) {
 		{
 			name: "invalid table name",
 			exporter: &Exporter{
-				Database:          fixtures.Analytics,
+				Database:          fixtures.DatabaseAnalytics,
 				ClusterIdentifier: fixtures.MyCluster,
 				TableName:         "events; DROP TABLE users",
 			},
@@ -1024,14 +1024,14 @@ func TestExporter_ExportErrors(t *testing.T) {
 		},
 		{
 			name:     "mixed event types",
-			exporter: &Exporter{Database: fixtures.Analytics, ClusterIdentifier: fixtures.MyCluster},
-			events:   []exporter.ExportableEvent{newFeatureEvent(0), exporter.TrackingEvent{Key: fixtures.Checkout}},
+			exporter: &Exporter{Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster},
+			events:   []exporter.ExportableEvent{newFeatureEvent(0), exporter.TrackingEvent{Key: fixtures.TrackingEventKey}},
 			wantErr:  "redshift exporter received mixed event types",
 		},
 		{
 			name: "execute statement error",
 			exporter: &Exporter{
-				Database: fixtures.Analytics, ClusterIdentifier: fixtures.MyCluster,
+				Database: fixtures.DatabaseAnalytics, ClusterIdentifier: fixtures.MyCluster,
 				client: &mockRedshiftDataClient{executeErrs: []error{errAccessDenied}},
 			},
 			events:  featureEvents,
@@ -1087,7 +1087,7 @@ func TestExporter_ErrorsDoNotLeakCredentials(t *testing.T) {
 	}
 	exp := &Exporter{
 		ClusterIdentifier: fixtures.MyCluster,
-		Database:          fixtures.Analytics,
+		Database:          fixtures.DatabaseAnalytics,
 		DBUser:            fixtures.GoffWriter,
 		SecretArn:         arnAwsSecretsmanagerUs,
 		client:            client,
@@ -1293,8 +1293,8 @@ func paramsMap(params []types.SqlParameter) map[string]string {
 
 func newFeatureEvent(i int) exporter.FeatureEvent {
 	return exporter.FeatureEvent{
-		Kind:         fixtures.Feature,
-		ContextKind:  fixtures.User,
+		Kind:         fixtures.KindFeature,
+		ContextKind:  fixtures.ContextKindUser,
 		UserKey:      fmt.Sprintf("user-%d", i),
 		CreationDate: 1617970547,
 		Key:          fixtures.FlagKeyGeneric,

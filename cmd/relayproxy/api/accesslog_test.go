@@ -53,16 +53,16 @@ func Test_AccessLog(t *testing.T) {
 	}{
 		{
 			name: "clean path", monitoring: okMonitoring{}, target: healthPath, wantRequest: getHealthRoute,
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
 			name: "double slash", monitoring: okMonitoring{}, target: "//health", wantRequest: "GET //health",
-			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
+			wantStatus: http.StatusOK, wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
 			name: "dot segments", monitoring: okMonitoring{}, target: "/a/../health?x=1",
 			wantRequest: "GET /a/../health?x=1", wantStatus: http.StatusOK,
-			wantRecords: map[string]slog.Level{fixtures.Success: slog.LevelDebug},
+			wantRecords: map[string]slog.Level{fixtures.LogMessageSuccess: slog.LevelDebug},
 		},
 		{
 			name: "panic", monitoring: panicMonitoring{}, target: healthPath, wantRequest: getHealthRoute,

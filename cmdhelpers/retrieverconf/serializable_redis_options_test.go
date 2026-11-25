@@ -33,10 +33,10 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 			name: "basic configuration with addr and password",
 			input: &retrieverconf.SerializableRedisOptions{
 				Addr:     localhost6379,
-				Password: fixtures.Secret,
+				Password: fixtures.SecretValue,
 				DB:       1,
 			},
-			want: &redis.Options{Addr: localhost6379, Password: fixtures.Secret, DB: 1},
+			want: &redis.Options{Addr: localhost6379, Password: fixtures.SecretValue, DB: 1},
 		},
 		{
 			name: "full configuration",
@@ -63,7 +63,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				PoolFIFO:              true,
 				ContextTimeoutEnabled: true,
 				DisableIndentity:      false,
-				IdentitySuffix:        fixtures.Test,
+				IdentitySuffix:        fixtures.PlaceholderTest,
 			},
 			want: &redis.Options{
 				Network: protocol.NetworkTCP, Addr: redisExampleCom6380, ClientName: "semaphore", Protocol: 3,
@@ -73,7 +73,7 @@ func TestSerializableRedisOptions_ToRedisOptions(t *testing.T) {
 				WriteTimeout: 5000 * time.Millisecond, PoolSize: 20, PoolTimeout: 6000 * time.Millisecond,
 				MinIdleConns: 5, MaxIdleConns: 15, ConnMaxIdleTime: 300000 * time.Millisecond,
 				ConnMaxLifetime: 600000 * time.Millisecond, PoolFIFO: true, ContextTimeoutEnabled: true,
-				IdentitySuffix: fixtures.Test,
+				IdentitySuffix: fixtures.PlaceholderTest,
 			},
 		},
 		{
@@ -120,7 +120,7 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 
 	basic := &retrieverconf.SerializableRedisOptions{
 		Addr:     localhost6379,
-		Password: fixtures.Secret,
+		Password: fixtures.SecretValue,
 		DB:       1,
 	}
 	full := &retrieverconf.SerializableRedisOptions{
@@ -147,7 +147,7 @@ func TestSerializableRedisOptions_JSONSerialization(t *testing.T) {
 		PoolFIFO:              true,
 		ContextTimeoutEnabled: true,
 		DisableIndentity:      false,
-		IdentitySuffix:        fixtures.Test,
+		IdentitySuffix:        fixtures.PlaceholderTest,
 	}
 
 	tests := []struct {
@@ -196,7 +196,7 @@ func TestSerializableRedisOptions_JSONStructure(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, localhost6379, opts.Addr)
-	assert.Equal(t, fixtures.Secret, opts.Password)
+	assert.Equal(t, fixtures.SecretValue, opts.Password)
 	assert.Equal(t, 1, opts.DB)
 	assert.Equal(t, fixtures.UserAdmin, opts.Username)
 	assert.Equal(t, 3, opts.MaxRetries)

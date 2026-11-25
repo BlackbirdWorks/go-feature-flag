@@ -158,10 +158,10 @@ func differentialInputs() []diffKV {
 			"m":   diffKV{"k": "v"},
 			"bad": dottedName,
 			"u": diffKV{
-				fixtures.Plan: fixtures.Pro,
-				age:           31,
-				"n":           nil,
-				"deep":        diffKV{"x": 1, "s": fixtures.Abc, "o": diffKV{}},
+				fixtures.AttrPlan: fixtures.PlanPro,
+				age:               31,
+				"n":               nil,
+				"deep":            diffKV{"x": 1, "s": fixtures.UserKeyAbc, "o": diffKV{}},
 			},
 			str:        "5",
 			"stringer": fmt.Stringer(nil),
@@ -260,7 +260,7 @@ func differentialRuleValues() []string {
 		`0.0.1`,
 		trueLiteral,
 		`false`,
-		fixtures.Null,
+		fixtures.NullLiteral,
 		`[1, 2, 3]`,
 		`[5]`,
 		`[1.5, 2.5]`,
@@ -559,7 +559,7 @@ func fuzzVals() []string {
 		`1.2.3-alpha+b`,
 		trueLiteral,
 		`false`,
-		fixtures.Null,
+		fixtures.NullLiteral,
 		overflowInteger,
 		`-99999999999999999999`,
 	}
@@ -777,9 +777,9 @@ func testProcessDoesNotLeakRuleConstants(t *testing.T) {
 				s, ok := r.([]string)
 				require.True(t, ok)
 
-				s[0] = fixtures.Zzz
+				s[0] = fixtures.PlaceholderZzz
 			},
-			probe: map[string]any{"x": fixtures.Zzz},
+			probe: map[string]any{"x": fixtures.PlaceholderZzz},
 		},
 	}
 	for _, tt := range tests {
@@ -842,9 +842,9 @@ func testProcessConcurrent(t *testing.T) {
 	}{
 		{name: "int in", rule: yInOneToThree, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  fixtures.Nested,
+			name:  fixtures.NestedKey,
 			rule:  uPlanEqProAnd,
-			items: map[string]any{"u": map[string]any{fixtures.Plan: fixtures.Pro, age: 31}},
+			items: map[string]any{"u": map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31}},
 			want:  true,
 		},
 		{name: "debug err", rule: yInOneToThree, items: map[string]any{"y": "s"}},
@@ -925,7 +925,7 @@ func testProcessDoesNotLeakRuleConstantsViaOperandErrors(t *testing.T) {
 				s, ok := v.([]string)
 				require.True(t, ok)
 
-				s[0] = fixtures.Zzz
+				s[0] = fixtures.PlaceholderZzz
 			},
 			want:            []string{"a", "b"},
 			wantListTypeObj: true,
@@ -981,9 +981,9 @@ func testProcessConcurrentFirstCall(t *testing.T) {
 	}{
 		{name: "int in", rule: yInOneToThree, items: map[string]any{"y": 2}, want: true},
 		{
-			name:  fixtures.Nested,
+			name:  fixtures.NestedKey,
 			rule:  uPlanEqProAnd,
-			items: map[string]any{"u": map[string]any{fixtures.Plan: fixtures.Pro, age: 31}},
+			items: map[string]any{"u": map[string]any{fixtures.AttrPlan: fixtures.PlanPro, age: 31}},
 			want:  true,
 		},
 	}

@@ -111,8 +111,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 						testFlagThree: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-								fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-								fixtures.VariationTrue:    new(any(fixtures.Test)),
+								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(fixtures.RuleDefault),
@@ -210,8 +210,8 @@ func Test_webhookNotifier_Notify(t *testing.T) {
 						testFlagThree: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-								fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-								fixtures.VariationTrue:    new(any(fixtures.Test)),
+								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(fixtures.RuleDefault),
@@ -293,8 +293,8 @@ func Test_webhookNotifier_Notify_ErrorsAndHeaders(t *testing.T) {
 						testFlagThree: &flag.InternalFlag{
 							Variations: &map[string]*any{
 								fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-								fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-								fixtures.VariationTrue:    new(any(fixtures.Test)),
+								fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+								fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 							},
 							DefaultRule: &flag.Rule{
 								Name: new(fixtures.RuleDefault),
@@ -322,8 +322,8 @@ func Test_webhookNotifier_no_meta_data(t *testing.T) {
 			testFlagThree: &flag.InternalFlag{
 				Variations: &map[string]*any{
 					fixtures.VariationDefault: new(any(fixtures.FlagsetDefault)),
-					fixtures.VariationFalse:   new(any(fixtures.FalseLower)),
-					fixtures.VariationTrue:    new(any(fixtures.Test)),
+					fixtures.VariationFalse:   new(any(fixtures.FalseLiteral)),
+					fixtures.VariationTrue:    new(any(fixtures.PlaceholderTest)),
 				},
 				DefaultRule: &flag.Rule{
 					Name: new(fixtures.RuleDefault),

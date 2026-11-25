@@ -32,7 +32,7 @@ const (
 func authorizedKeysFlagset() config.FlagSet {
 	return config.FlagSet{
 		Name:      "fs-keys",
-		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 		APIKeys:   []string{flagsetKey},
 	}
 }
@@ -204,7 +204,7 @@ func TestFlagsetManager_OnConfigChange_EvaluationKeysStayRejectedWithoutRunningF
 
 	broken := config.FlagSet{
 		Name:      "fs-broken",
-		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.File, Path: "/does/not/exist/flags.yaml"},
+		Retriever: &retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: "/does/not/exist/flags.yaml"},
 		APIKeys:   []string{brokenKey},
 	}
 	manager.OnConfigChange(&config.Config{

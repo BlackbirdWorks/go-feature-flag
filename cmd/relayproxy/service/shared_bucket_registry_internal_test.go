@@ -496,7 +496,7 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 				entry := logs.All()[i]
 				assert.Contains(t, entry.Message, "a polling setting of the flagset is ignored")
 				assert.Equal(t, setting, entry.ContextMap()["setting"])
-				assert.Equal(t, "fs", entry.ContextMap()[fixtures.FlagsetNone])
+				assert.Equal(t, "fs", entry.ContextMap()[fixtures.FlagsetBare])
 			}
 		})
 	}

@@ -91,8 +91,8 @@ func TestParseConfigDisableFlagDetailsInStream(t *testing.T) {
 				environ = append(environ, "DISABLEFLAGDETAILSINSTREAM="+tt.environment)
 			}
 
-			flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			flagSet.String(fixtures.Config, "", locationOfYourConfig)
+			flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			require.NoError(t, flagSet.Parse([]string{configFlag + configPath}))
 
 			got, err := config.New(
@@ -121,8 +121,8 @@ func runParseConfigFromPflag(t *testing.T, tests []parseConfigFileCase) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
 			got, err := config.New(
@@ -151,7 +151,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -173,7 +173,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -184,7 +184,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -210,7 +210,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					},
 				},
 
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -221,7 +221,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -247,7 +247,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 					},
 				},
 
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -258,7 +258,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporters: &[]config.ExporterConf{
@@ -266,7 +266,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 						Kind: logKey,
 					},
 					{
-						Kind:      fixtures.File,
+						Kind:      fixtures.KindFile,
 						OutputDir: "./",
 					},
 				},
@@ -286,7 +286,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -297,7 +297,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -305,11 +305,11 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 				},
 				Exporters: &[]config.ExporterConf{
 					{
-						Kind:        fixtures.Webhook,
+						Kind:        fixtures.KindWebhook,
 						EndpointURL: "https://example.com/webhook",
 					},
 					{
-						Kind:      fixtures.File,
+						Kind:      fixtures.KindFile,
 						OutputDir: "./",
 					},
 				},
@@ -329,7 +329,7 @@ func TestParseConfig_fileFromPflag(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -347,7 +347,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -377,7 +377,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -425,7 +425,7 @@ func TestParseConfig_fileFromPflag_FormatsAndErrors(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 					},
 				},
@@ -470,7 +470,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 				PollingInterval: 1000,
 				FileFormat:      protocol.FormatYAML,
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.HTTP,
+					Kind: fixtures.KindHTTP,
 					URL:  dockerhubExampleFlagsURL,
 				},
 				Exporter: &config.ExporterConf{
@@ -492,7 +492,7 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -554,8 +554,8 @@ func TestParseConfig_fileFromFolder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
 			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard)
@@ -637,7 +637,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				OfrepEventStream: config.OfrepEventStream{BaseURL: "gofeatureflag.example.com"},
@@ -663,7 +663,7 @@ func TestConfig_IsValid(t *testing.T) {
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind:        fixtures.Webhook,
+						Kind:        fixtures.KindWebhook,
 						EndpointURL: httpsHooktestCom,
 						Secret:      xxxx,
 					},
@@ -683,20 +683,20 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				Exporter: &config.ExporterConf{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpTestingwebhookComTest,
 					Secret:      secretForSigning,
 					Meta: map[string]string{
-						extraInfoKey: fixtures.Info,
+						extraInfoKey: fixtures.LogLevelInfo,
 					},
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind:        fixtures.Webhook,
+						Kind:        fixtures.KindWebhook,
 						EndpointURL: httpsHooktestCom,
 						Secret:      xxxx,
 					},
@@ -705,7 +705,7 @@ func TestConfig_IsValid(t *testing.T) {
 						WebhookURL: httpsHooksSlackCom,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 		},
@@ -717,15 +717,15 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: "../testdata/config/valid-file-notifier.yaml",
 				},
 				Exporter: &config.ExporterConf{
-					Kind:        fixtures.Webhook,
+					Kind:        fixtures.KindWebhook,
 					EndpointURL: httpTestingwebhookComTest,
 					Secret:      secretForSigning,
 					Meta: map[string]string{
-						extraInfoKey: fixtures.Info,
+						extraInfoKey: fixtures.LogLevelInfo,
 					},
 				},
 			},
@@ -739,7 +739,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 				},
 			},
 			wantErr: assert.Error,
@@ -753,14 +753,14 @@ func TestConfig_IsValid(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: testdataConfigValidFile,
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: testdataConfigValidFile,
 					},
 				},
@@ -775,11 +775,11 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				Exporter: &config.ExporterConf{
-					Kind: fixtures.Webhook,
+					Kind: fixtures.KindWebhook,
 				},
 			},
 			wantErr: assert.Error,
@@ -792,12 +792,12 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				Notifiers: []config.NotifierConf{
 					{
-						Kind: fixtures.Webhook,
+						Kind: fixtures.KindWebhook,
 					},
 				},
 			},
@@ -811,7 +811,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: invalidKey,
@@ -826,7 +826,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "DeBuG",
@@ -841,7 +841,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "warning",
@@ -856,7 +856,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "panic",
@@ -871,7 +871,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "DPANIC",
@@ -886,7 +886,7 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
 				LogLevel: "",
@@ -903,10 +903,10 @@ func TestConfig_IsValid(t *testing.T) {
 					Mode: config.ServerModeHTTP,
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.Error,
 		},
@@ -929,7 +929,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTest,
 						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -948,7 +948,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 					{
 						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -967,7 +967,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 					{
 						Name: fixtures.FlagsetTest,
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -987,7 +987,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetOne,
 						APIKeys: []string{"shared-api-key"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -995,7 +995,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTwo,
 						APIKeys: []string{"shared-api-key"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -1015,7 +1015,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTest,
 						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							// Missing Path
 						},
 					},
@@ -1035,11 +1035,11 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTest,
 						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 						Exporter: &config.ExporterConf{
-							Kind: fixtures.Webhook,
+							Kind: fixtures.KindWebhook,
 							// Missing EndpointURL
 						},
 					},
@@ -1059,12 +1059,12 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTest,
 						APIKeys: []string{fixtures.APIKeyTest},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 						Notifiers: []config.NotifierConf{
 							{
-								Kind: fixtures.Webhook,
+								Kind: fixtures.KindWebhook,
 								// Missing EndpointURL
 							},
 						},
@@ -1085,7 +1085,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetOne,
 						APIKeys: []string{"api-key-1"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -1093,7 +1093,7 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 						Name:    fixtures.FlagsetTwo,
 						APIKeys: []string{"api-key-2"},
 						Retriever: &retrieverconf.RetrieverConf{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataConfigValidFile,
 						},
 					},
@@ -1110,10 +1110,10 @@ func TestConfig_IsValid_FlagSets(t *testing.T) {
 					UnixSocketPath: "",
 				},
 				Retriever: &retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: testdataConfigValidFile,
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.Error,
 		},
@@ -1190,7 +1190,7 @@ func TestConfig_APIKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						fixtures.Xxx,
+						fixtures.PlaceholderXxx,
 					},
 				},
 			},
@@ -1344,7 +1344,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						fixtures.Xxx,
+						fixtures.PlaceholderXxx,
 					},
 				},
 			},
@@ -1358,7 +1358,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						fixtures.Xxx,
+						fixtures.PlaceholderXxx,
 					},
 				},
 			},
@@ -1373,7 +1373,7 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						fixtures.Xxx,
+						fixtures.PlaceholderXxx,
 					},
 				},
 			},
@@ -1381,14 +1381,14 @@ func TestConfig_APIAdminKeyExists(t *testing.T) {
 		},
 		{
 			name:   "evaluation key does not work for admin",
-			apiKey: fixtures.Xxx,
+			apiKey: fixtures.PlaceholderXxx,
 			config: config.Config{
 				AuthorizedKeys: config.APIKeys{
 					Admin: []string{
 						apiKeySixth,
 					},
 					Evaluation: []string{
-						fixtures.Xxx,
+						fixtures.PlaceholderXxx,
 					},
 				},
 			},
@@ -1432,8 +1432,8 @@ func runMergeConfigFromOSEnvTests(t *testing.T, tests []mergeConfigFromOSEnvCase
 				environ = append(environ, k+"="+v)
 			}
 
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			_ = f.Parse([]string{fmt.Sprintf(configS, tt.fileLocation)})
 
 			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(environ...))
@@ -1464,17 +1464,17 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.HTTP,
+						Kind: fixtures.KindHTTP,
 						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
-								fixtures.Test,
+								fixtures.PlaceholderTest,
 							},
 							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							tokenKey: {
@@ -1514,13 +1514,13 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel:      fixtures.Info,
+				LogLevel:      fixtures.LogLevelInfo,
 				EnableSwagger: true,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
-				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
+				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
 				"RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
 				"RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
 				"RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
@@ -1542,17 +1542,17 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.HTTP,
+						Kind: fixtures.KindHTTP,
 						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
-								fixtures.Test,
+								fixtures.PlaceholderTest,
 							},
 							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							tokenKey: {
@@ -1593,12 +1593,12 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
-				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
+				"RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
 				"RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
 				"RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
 				"RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
@@ -1614,17 +1614,17 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.HTTP,
+						Kind: fixtures.KindHTTP,
 						URL:  dockerhubExampleFlagsURL,
 						HTTPHeaders: map[string][]string{
 							authorizationKey: {
-								fixtures.Test,
+								fixtures.PlaceholderTest,
 							},
 							tokenKey: {tokenKey},
 						},
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							tokenKey: {
@@ -1666,12 +1666,12 @@ func TestMergeConfig_FromOSEnv(t *testing.T) {
 						apikeyTwo,
 					},
 				},
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"GOFF_RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.Test,
-				"GOFF_RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.Test,
+				"GOFF_RETRIEVERS_0_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
+				"GOFF_RETRIEVERS_X_HEADERS_AUTHORIZATION": fixtures.PlaceholderTest,
 				"GOFF_RETRIEVERS_1_HEADERS_AUTHORIZATION": testOne,
 				"GOFF_RETRIEVERS_0_HEADERS_TOKEN":         tokenKey,
 				"GOFF_RETRIEVERS_2_HEADERS_AUTHORIZATION": testOne,
@@ -1699,11 +1699,11 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				},
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.HTTP,
+						Kind: fixtures.KindHTTP,
 						URL:  dockerhubExampleFlagsURL,
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							tokenKey: {
@@ -1734,7 +1734,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 					},
 				},
 				Version:  fixtures.VersionWildcard,
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
@@ -1750,11 +1750,11 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.HTTP,
+						Kind: fixtures.KindHTTP,
 						URL:  dockerhubExampleFlagsURL,
 					},
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 						HTTPHeaders: map[string][]string{
 							tokenKey: {
@@ -1788,7 +1788,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 					},
 				},
 				Version:  fixtures.VersionWildcard,
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
@@ -1803,7 +1803,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				FileFormat:      protocol.FormatYAML,
 				Retrievers: &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: cmdRelayproxyTestdataDockerhub,
 					},
 				},
@@ -1848,7 +1848,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 				Version:  fixtures.VersionWildcard,
 				FlagSets: []config.FlagSet{
 					{
-						Name:                    fixtures.Xxx,
+						Name:                    fixtures.PlaceholderXxx,
 						APIKeys:                 []string{"other-api-key", "default-api-key"},
 						PollingInterval:         50000,
 						FileFormat:              protocol.FormatYAML,
@@ -1869,7 +1869,7 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 						},
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: cmdRelayproxyTestdataDockerhub,
 							},
 						},
@@ -1878,16 +1878,16 @@ func TestMergeConfig_FromOSEnv_ExportersOTelAndFlagSets(t *testing.T) {
 			},
 			wantErr: assert.NoError,
 			envVars: map[string]string{
-				"FLAGSETS_0_NAME":                        fixtures.Xxx,
+				"FLAGSETS_0_NAME":                        fixtures.PlaceholderXxx,
 				"FLAGSETS_0_APIKEYS":                     "other-api-key,default-api-key",
 				"FLAGSETS_0_FILEFORMAT":                  protocol.FormatYAML,
 				"FLAGSETS_0_POLLINGINTERVAL":             "50000",
 				"FLAGSETS_0_STARTWITHRETRIEVERERROR":     "true",
-				"FLAGSETS_0_NOTIFIERS_0_KIND":            fixtures.Webhook,
+				"FLAGSETS_0_NOTIFIERS_0_KIND":            fixtures.KindWebhook,
 				"FLAGSETS_0_NOTIFIERS_0_ENDPOINTURL":     httpLocalhost8080Webhook,
 				"FLAGSETS_0_EXPORTERS_0_KIND":            kafka,
 				"FLAGSETS_0_EXPORTERS_0_KAFKA_ADDRESSES": localhost19092Localhost19093,
-				"FLAGSETS_0_RETRIEVERS_0_KIND":           fixtures.File,
+				"FLAGSETS_0_RETRIEVERS_0_KIND":           fixtures.KindFile,
 				"FLAGSETS_0_RETRIEVERS_0_PATH":           cmdRelayproxyTestdataDockerhub,
 			},
 		},
@@ -1923,8 +1923,8 @@ func TestSetAPIKeysFromEnv(t *testing.T) {
 				environ = append(environ, k+"="+v)
 			}
 
-			f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			f.String(fixtures.Config, "", locationOfYourConfig)
+			f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			_ = f.Parse([]string{"--config=../testdata/config/valid-file.yaml"})
 
 			got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(environ...))
@@ -1957,14 +1957,14 @@ func TestConfig_LogLevel(t *testing.T) {
 		{
 			name: "debug level",
 			config: &config.Config{
-				LogLevel: fixtures.Debug,
+				LogLevel: fixtures.LogLevelDebug,
 			},
 			wantDebug: true,
 		},
 		{
 			name: "info level",
 			config: &config.Config{
-				LogLevel: fixtures.Info,
+				LogLevel: fixtures.LogLevelInfo,
 			},
 			wantDebug: false,
 		},
@@ -2011,7 +2011,7 @@ func TestConfig_IsDebugEnabled(t *testing.T) {
 		{
 			name: "Lowercase",
 			cfg: config.Config{
-				LogLevel: fixtures.Debug,
+				LogLevel: fixtures.LogLevelDebug,
 			},
 			want: true,
 		},
@@ -2053,7 +2053,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Retrievers", func(t *testing.T) {
 		t.Parallel()
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 
 		got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(
 			"RETRIEVERS_0_KIND="+string(retrieverconf.FileRetriever),
@@ -2068,7 +2068,7 @@ func TestConfigOnlyEnvVars(t *testing.T) {
 	t.Run("Flagset retriever", func(t *testing.T) {
 		t.Parallel()
 
-		f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
+		f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
 		got, err := config.New(f, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, withEnviron(
 			"FLAGSETS_0_RETRIEVERS_0_KIND="+string(retrieverconf.HTTPRetriever),
 			"FLAGSETS_0_RETRIEVERS_0_URL=https://example.com/flags.goff.yaml",
@@ -2164,8 +2164,8 @@ func parseCleanQueueConfig(t *testing.T, content string, opts ...config.LoaderOp
 	configPath := filepath.Join(t.TempDir(), "semaphore-proxy.yaml")
 	require.NoError(t, os.WriteFile(configPath, []byte(content), 0o600))
 
-	flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-	flagSet.String(fixtures.Config, "", locationOfYourConfig)
+	flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	require.NoError(t, flagSet.Parse([]string{configFlag + configPath}))
 	got, err := config.New(flagSet, slog.New(slog.DiscardHandler), fixtures.VersionWildcard, opts...)
 	require.NoError(t, err)
@@ -2281,7 +2281,7 @@ func TestConfig_OtelResourceAttributesDoNotLeakValues(t *testing.T) {
 			core, logs := slogutil.NewObserver(slog.LevelDebug)
 
 			_, err := config.New(
-				pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError),
+				pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError),
 				core,
 				fixtures.VersionWildcard,
 				withEnviron("OTEL_RESOURCE_ATTRIBUTES="+tt.attributes),

@@ -61,7 +61,7 @@ func TestInternalFlag_ScheduledSteps_ResultFollowsDueSteps(t *testing.T) {
 			before := *flg.Scheduled
 
 			runParallel(200, func(int) {
-				ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+				ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).Build()
 				ctx.AddCustomAttribute(fixtures.GoFeatureFlagOrg, map[string]any{
 					fixtures.CurrentDateTime: base.Add(tt.offset).Format(time.RFC3339Nano)})
 				v, d := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: svc})
@@ -116,8 +116,8 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 	}{
 		{
 			name:       "object",
-			value:      func() any { return map[string]any{theme: "light", fixtures.Nested: map[string]any{"a": "b"}} },
-			wantSecond: func() any { return map[string]any{theme: "light", fixtures.Nested: map[string]any{"a": "b"}} },
+			value:      func() any { return map[string]any{theme: "light", fixtures.NestedKey: map[string]any{"a": "b"}} },
+			wantSecond: func() any { return map[string]any{theme: "light", fixtures.NestedKey: map[string]any{"a": "b"}} },
 			mutate: func(t *testing.T, v any) {
 				t.Helper()
 
@@ -125,7 +125,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 				require.True(t, ok)
 
 				m[theme] = "dark"
-				nested, ok := m[fixtures.Nested].(map[string]any)
+				nested, ok := m[fixtures.NestedKey].(map[string]any)
 				require.True(t, ok)
 
 				nested["a"] = changedName
@@ -167,7 +167,7 @@ func TestInternalFlag_ScheduledSteps_ReturnedValueIsNotShared(t *testing.T) {
 					Version: new("v2"),
 				}},
 			}
-			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.User).Build()
+			ctx := ffcontext.NewEvaluationContextBuilder(fixtures.ContextKindUser).Build()
 			first, _ := flg.Value(fixtures.FlagKeyBare, ctx, Context{Service: NewService()})
 			tt.mutate(t, first)
 

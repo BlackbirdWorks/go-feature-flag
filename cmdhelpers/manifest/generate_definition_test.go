@@ -172,8 +172,8 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "boolean flag",
 			flags: map[string]flag.InternalFlag{
 				"boolean-flag": boolFlag(fixtures.VariationFalse, map[string]any{
-					fixtures.DefaultValue: false,
-					fixtures.Description:  "a boolean flag",
+					fixtures.DefaultValue:     false,
+					fixtures.DescriptionField: "a boolean flag",
 				}),
 			},
 			goldenFile: "boolean.json",
@@ -184,8 +184,8 @@ func TestGenerateDefinition(t *testing.T) {
 				"exp-flag": boolFlagWithExperimentation(
 					fixtures.VariationFalse,
 					map[string]any{
-						fixtures.DefaultValue: false,
-						fixtures.Description:  "A/B experiment",
+						fixtures.DefaultValue:     false,
+						fixtures.DescriptionField: "A/B experiment",
 					},
 					time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC),
 					time.Date(2026, 6, 30, 23, 59, 59, 0, time.UTC),
@@ -200,8 +200,8 @@ func TestGenerateDefinition(t *testing.T) {
 					Variations:  new(variationsOf(map[string]any{"A": "a", "B": "b"})),
 					DefaultRule: defaultRule("A"),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: "a",
-						fixtures.Description:  "strings",
+						fixtures.DefaultValue:     "a",
+						fixtures.DescriptionField: "strings",
 					}),
 				},
 			},
@@ -214,8 +214,8 @@ func TestGenerateDefinition(t *testing.T) {
 					Variations:  new(variationsOf(map[string]any{one: 1, "Two": 2})),
 					DefaultRule: defaultRule(one),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: 1,
-						fixtures.Description:  "ints",
+						fixtures.DefaultValue:     1,
+						fixtures.DescriptionField: "ints",
 					}),
 				},
 			},
@@ -239,13 +239,13 @@ func TestGenerateDefinition(t *testing.T) {
 			flags: map[string]flag.InternalFlag{
 				"object-flag": {
 					Variations: new(variationsOf(map[string]any{
-						"A": map[string]any{fixtures.Key: "value-a"},
-						"B": map[string]any{fixtures.Key: "value-b"},
+						"A": map[string]any{fixtures.MetadataKey: "value-a"},
+						"B": map[string]any{fixtures.MetadataKey: "value-b"},
 					})),
 					DefaultRule: defaultRule("A"),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: map[string]any{fixtures.Key: "value-a"},
-						fixtures.Description:  "objects",
+						fixtures.DefaultValue:     map[string]any{fixtures.MetadataKey: "value-a"},
+						fixtures.DescriptionField: "objects",
 					}),
 				},
 			},
@@ -258,8 +258,8 @@ func TestGenerateDefinition(t *testing.T) {
 					Variations:  new(variationsOf(map[string]any{"Whole": 1, half: 2.0})),
 					DefaultRule: defaultRule("Whole"),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: 1,
-						fixtures.Description:  "int as float",
+						fixtures.DefaultValue:     1,
+						fixtures.DescriptionField: "int as float",
 					}),
 				},
 			},
@@ -272,8 +272,8 @@ func TestGenerateDefinition(t *testing.T) {
 					Variations:  new(variationsOf(map[string]any{one: 1, "OneAndHalf": 1.5})),
 					DefaultRule: defaultRule(one),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: 1,
-						fixtures.Description:  "float and int",
+						fixtures.DefaultValue:     1,
+						fixtures.DescriptionField: "float and int",
 					}),
 				},
 			},
@@ -292,8 +292,8 @@ func TestGenerateDefinition(t *testing.T) {
 			name: "non-string description is ignored",
 			flags: map[string]flag.InternalFlag{
 				"weird-flag": boolFlag(fixtures.VariationFalse, map[string]any{
-					fixtures.DefaultValue: false,
-					fixtures.Description:  42,
+					fixtures.DefaultValue:     false,
+					fixtures.DescriptionField: 42,
 				}),
 			},
 			goldenFile: "description_non_string.json",
@@ -322,7 +322,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 			name: "metadata without defaultValue is skipped and logged",
 			flags: map[string]flag.InternalFlag{
 				"no-default": boolFlag(fixtures.VariationFalse, map[string]any{
-					fixtures.Description: "no default",
+					fixtures.DescriptionField: "no default",
 				}),
 			},
 			goldenFile: emptyJSON,
@@ -335,7 +335,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 					fixtures.DefaultValue: true,
 				}),
 				"skipped-flag": boolFlag(fixtures.VariationTrue, map[string]any{
-					fixtures.Description: "no default",
+					fixtures.DescriptionField: "no default",
 				}),
 			},
 			goldenFile: "partial_skip.json",
@@ -351,8 +351,8 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 					Variations:  new(variationsOf(map[string]any{one: 1, "Two": 2})),
 					DefaultRule: defaultRule(one),
 					Metadata: new(map[string]any{
-						fixtures.DefaultValue: 1,
-						fixtures.Description:  "second",
+						fixtures.DefaultValue:     1,
+						fixtures.DescriptionField: "second",
 					}),
 				},
 			},

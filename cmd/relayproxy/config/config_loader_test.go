@@ -126,8 +126,8 @@ loglevel: error`,
 			// Create temporary directory and config file
 			configFile := testhelpers.CopyContentToNewTempFile(t, tt.initialConfig)
 			// Create flag set and parse config file path
-			flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			flagSet.String(fixtures.Config, "", locationOfYourConfig)
+			flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			err := flagSet.Parse([]string{configFlag + configFile.Name()})
 			require.NoError(t, err)
 
@@ -190,7 +190,7 @@ loglevel: error`,
 						)
 						assert.NotEqual(
 							t,
-							fixtures.Info,
+							fixtures.LogLevelInfo,
 							lastConfig.LogLevel,
 							"LogLevel should have changed from initial value",
 						)
@@ -215,8 +215,8 @@ func TestConfigLoaderAddConfigChangeCallbackNoWatchChanges(t *testing.T) {
 	configFile := testhelpers.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
-	flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-	flagSet.String(fixtures.Config, "", locationOfYourConfig)
+	flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	err := flagSet.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
@@ -260,8 +260,8 @@ func TestConfigLoaderAddConfigChangeCallbackInvalidConfig(t *testing.T) {
 	configFile := testhelpers.CopyContentToNewTempFile(t, serverPort1031PollingInterval)
 
 	// Create flag set and parse config file path
-	flagSet := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-	flagSet.String(fixtures.Config, "", locationOfYourConfig)
+	flagSet := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	flagSet.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	err := flagSet.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 

@@ -23,7 +23,7 @@ func Test_JSONTypeExtractor(t *testing.T) {
 		{"bool", true, "(bool)"},
 		{"[]interface", []any{1, "two", 3.0}, "([]interface{})"},
 		{"map", map[string]any{"key1": "value1", "key2": 2}, "(map[string]interface{})"},
-		{fixtures.Null, nil, ""},
+		{fixtures.NullLiteral, nil, ""},
 	}
 
 	for _, tt := range tests {

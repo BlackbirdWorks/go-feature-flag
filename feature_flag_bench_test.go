@@ -137,7 +137,7 @@ func BenchmarkStringVar_NoRule100(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-no-rule-100", user, fixtures.Error)
+		_, err := client.StringVariation("string-no-rule-100", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -149,7 +149,7 @@ func BenchmarkStringVar_NoRule0(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-no-rule-0", user, fixtures.Error)
+		_, err := client.StringVariation("string-no-rule-0", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -161,7 +161,7 @@ func BenchmarkStringVar_NoRule50(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-no-rule-50", user, fixtures.Error)
+		_, err := client.StringVariation("string-no-rule-50", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -173,7 +173,7 @@ func BenchmarkStringVar_Rule(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-rule", user, fixtures.Error)
+		_, err := client.StringVariation("string-rule", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -185,7 +185,7 @@ func BenchmarkStringVar_RuleComplex(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-rule-complex", user, fixtures.Error)
+		_, err := client.StringVariation("string-rule-complex", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -197,7 +197,7 @@ func BenchmarkStringVar_RolloutProgressive(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-rollout-progressive", user, fixtures.Error)
+		_, err := client.StringVariation("string-rollout-progressive", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}
@@ -209,7 +209,7 @@ func BenchmarkStringVar_RolloutScheduled(b *testing.B) {
 	for i := range b.N {
 		user := ffcontext.NewEvaluationContext(fmt.Sprintf(fixtures.UserKeyFormat, i))
 
-		_, err := client.StringVariation("string-rollout-scheduled", user, fixtures.Error)
+		_, err := client.StringVariation("string-rollout-scheduled", user, fixtures.LogLevelError)
 		if err != nil {
 			require.NoError(b, err)
 		}

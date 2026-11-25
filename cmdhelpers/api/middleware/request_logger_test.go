@@ -62,7 +62,7 @@ func TestRequestLogger200(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(200), logFields[statusKey])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, getSomethingRoute, logFields[fixtures.Request])
+	assert.Equal(t, getSomethingRoute, logFields[fixtures.LogKeyRequest])
 	assert.NotNil(t, logFields[hostKey])
 	assert.NotNil(t, logFields[sizeKey])
 }
@@ -81,7 +81,7 @@ func TestRequestLogger300(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(302), logFields[statusKey])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, getSomethingRoute, logFields[fixtures.Request])
+	assert.Equal(t, getSomethingRoute, logFields[fixtures.LogKeyRequest])
 	assert.NotNil(t, logFields[hostKey])
 	assert.NotNil(t, logFields[sizeKey])
 }
@@ -99,7 +99,7 @@ func TestRequestLogger400(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(400), logFields[statusKey])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, getSomethingRoute, logFields[fixtures.Request])
+	assert.Equal(t, getSomethingRoute, logFields[fixtures.LogKeyRequest])
 	assert.NotNil(t, logFields[hostKey])
 	assert.NotNil(t, logFields[sizeKey])
 }
@@ -120,7 +120,7 @@ func TestRequestLogger500(t *testing.T) {
 	assert.Equal(t, 1, logs.Len())
 	assert.Equal(t, int64(500), logFields[statusKey])
 	assert.NotNil(t, logFields[latency])
-	assert.Equal(t, getSomethingRoute, logFields[fixtures.Request])
+	assert.Equal(t, getSomethingRoute, logFields[fixtures.LogKeyRequest])
 	assert.NotNil(t, logFields[hostKey])
 	assert.NotNil(t, logFields[sizeKey])
 }
@@ -199,7 +199,7 @@ func TestRequestLoggerRedactsAPIKey(t *testing.T) {
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
 			requestLogger(obs, false)(h).ServeHTTP(httptest.NewRecorder(), req)
 			assert.Equal(t, 1, logs.Len())
-			assert.Equal(t, tt.want, logs.All()[0].ContextMap()[fixtures.Request])
+			assert.Equal(t, tt.want, logs.All()[0].ContextMap()[fixtures.LogKeyRequest])
 		})
 	}
 }
@@ -234,7 +234,7 @@ func TestLogRequest(t *testing.T) {
 			wantLevel: slog.LevelError, wantMessage: "Server error",
 			wantContext: map[string]any{
 				"error": "boom", remoteIP: "10.0.0.1", latency: "1.5ms", hostKey: "relay",
-				fixtures.Request: "POST /v1/eval", statusKey: int64(502), sizeKey: int64(7), userAgent: "curl",
+				fixtures.LogKeyRequest: "POST /v1/eval", statusKey: int64(502), sizeKey: int64(7), userAgent: "curl",
 				requestID: "id-1",
 			},
 		},
@@ -245,23 +245,23 @@ func TestLogRequest(t *testing.T) {
 			},
 			wantLevel: slog.LevelWarn, wantMessage: clientError,
 			wantContext: map[string]any{
-				remoteIP:         "",
-				latency:          "0s",
-				hostKey:          "",
-				fixtures.Request: "GET /ws/v1/flag/change?apiKey=REDACTED&a=b",
-				statusKey:        int64(401),
-				sizeKey:          int64(0),
-				userAgent:        "",
-				requestID:        "",
+				remoteIP:               "",
+				latency:                "0s",
+				hostKey:                "",
+				fixtures.LogKeyRequest: "GET /ws/v1/flag/change?apiKey=REDACTED&a=b",
+				statusKey:              int64(401),
+				sizeKey:                int64(0),
+				userAgent:              "",
+				requestID:              "",
 			},
 		},
 		{
 			name:      "traced",
 			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/"},
 			span:      tracedSpan,
-			wantLevel: slog.LevelDebug, wantMessage: fixtures.Success,
+			wantLevel: slog.LevelDebug, wantMessage: fixtures.LogMessageSuccess,
 			wantContext: map[string]any{
-				remoteIP: "", latency: "0s", hostKey: "", fixtures.Request: "GET /", statusKey: int64(200),
+				remoteIP: "", latency: "0s", hostKey: "", fixtures.LogKeyRequest: "GET /", statusKey: int64(200),
 				sizeKey: int64(0), userAgent: "", requestID: "", "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
 				"span_id": "00f067aa0e0e0e0e",
 			},
@@ -271,16 +271,16 @@ func TestLogRequest(t *testing.T) {
 			rec:       middleware.RequestRecord{Status: http.StatusFound, Method: http.MethodGet, URI: "/"},
 			wantLevel: slog.LevelDebug, wantMessage: "Redirection",
 			wantContext: map[string]any{
-				remoteIP: "", latency: "0s", hostKey: "", fixtures.Request: "GET /", statusKey: int64(302),
+				remoteIP: "", latency: "0s", hostKey: "", fixtures.LogKeyRequest: "GET /", statusKey: int64(302),
 				sizeKey: int64(0), userAgent: "", requestID: "",
 			},
 		},
 		{
 			name:      "success",
 			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/?x"},
-			wantLevel: slog.LevelDebug, wantMessage: fixtures.Success,
+			wantLevel: slog.LevelDebug, wantMessage: fixtures.LogMessageSuccess,
 			wantContext: map[string]any{
-				remoteIP: "", latency: "0s", hostKey: "", fixtures.Request: "GET /?x", statusKey: int64(200),
+				remoteIP: "", latency: "0s", hostKey: "", fixtures.LogKeyRequest: "GET /?x", statusKey: int64(200),
 				sizeKey: int64(0), userAgent: "", requestID: "",
 			},
 		},
@@ -393,7 +393,7 @@ func TestRequestLoggerReturnedErrors(t *testing.T) {
 			handler:     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("x")) },
 			wantStatus:  http.StatusOK,
 			wantLevel:   slog.LevelDebug,
-			wantMessage: fixtures.Success,
+			wantMessage: fixtures.LogMessageSuccess,
 		},
 	}
 	for _, tt := range tests {

@@ -38,7 +38,7 @@ func TestWithDefaultMode(t *testing.T) {
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+				{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestWithDefaultMode(t *testing.T) {
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+				{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestWithDefaultMode(t *testing.T) {
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: fixtures.File, Path: "../../../testdata/non-existent-file.yaml"},
+				{Kind: fixtures.KindFile, Path: "../../../testdata/non-existent-file.yaml"},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.Error(t, err, "Expected error due to invalid file path")
@@ -102,7 +102,7 @@ func TestWithDefaultMode(t *testing.T) {
 			PollingInterval: 60000, // 1 minute in milliseconds
 			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+				{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					PollingInterval: 60000, // 1 minute in milliseconds
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+						{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 					},
 					APIKeys: []string{fixtures.APIKeyTest},
 				},
@@ -149,7 +149,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					PollingInterval: 60000, // 1 minute in milliseconds
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+						{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 					},
 					APIKeys: []string{apiKeyOne},
 				},
@@ -158,7 +158,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					PollingInterval: 60000, // 1 minute in milliseconds
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: fixtures.KindFile, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
 					APIKeys: []string{apiKeyTwo},
 				},
@@ -185,7 +185,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					PollingInterval: 60000, // 1 minute in milliseconds
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+						{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 					},
 					APIKeys: []string{fixtures.APIKeyTest},
 				},
@@ -215,7 +215,7 @@ func TestWithFlagsetsMode(t *testing.T) {
 					PollingInterval: 60000, // 1 minute in milliseconds
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: "../../../testdata/non-existent-file.yaml"},
+						{Kind: fixtures.KindFile, Path: "../../../testdata/non-existent-file.yaml"},
 					},
 					APIKeys: []string{apiKeyOne},
 				},
@@ -281,7 +281,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 			PollingInterval: 60000,
 			FileFormat:      protocol.FormatYAML,
 			Retrievers: &[]retrieverconf.RetrieverConf{
-				{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+				{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 			},
 		}, slog.New(slog.DiscardHandler), nil, nil, nil)
 		require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 					PollingInterval: 60000,
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: fixtures.FlagConfigYAMLParentPath},
+						{Kind: fixtures.KindFile, Path: fixtures.FlagConfigYAMLParentPath},
 					},
 					APIKeys: []string{apiKeyOne},
 				},
@@ -314,7 +314,7 @@ func TestMonitoringInfoErrors(t *testing.T) {
 					PollingInterval: 60000,
 					FileFormat:      protocol.FormatYAML,
 					Retrievers: &[]retrieverconf.RetrieverConf{
-						{Kind: fixtures.File, Path: "../../../testdata/flag-config-2nd-file.yaml"},
+						{Kind: fixtures.KindFile, Path: "../../../testdata/flag-config-2nd-file.yaml"},
 					},
 					APIKeys: []string{apiKeyTwo},
 				},

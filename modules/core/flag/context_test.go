@@ -27,28 +27,28 @@ func TestContext_AddIntoEvaluationContextEnrichment(t *testing.T) {
 			name:                        "Add a new key to a nil map",
 			EvaluationContextEnrichment: nil,
 			args: args{
-				key:   fixtures.Env,
-				value: fixtures.Prod,
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
 			},
-			expected: fixtures.Prod,
+			expected: fixtures.EnvProd,
 		},
 		{
 			name:                        "Add a new key to an existing map",
 			EvaluationContextEnrichment: map[string]any{"john": "doe"},
 			args: args{
-				key:   fixtures.Env,
-				value: fixtures.Prod,
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
 			},
-			expected: fixtures.Prod,
+			expected: fixtures.EnvProd,
 		},
 		{
 			name:                        "Override an existing key",
-			EvaluationContextEnrichment: map[string]any{fixtures.Env: "dev"},
+			EvaluationContextEnrichment: map[string]any{fixtures.AttrEnv: "dev"},
 			args: args{
-				key:   fixtures.Env,
-				value: fixtures.Prod,
+				key:   fixtures.AttrEnv,
+				value: fixtures.EnvProd,
 			},
-			expected: fixtures.Prod,
+			expected: fixtures.EnvProd,
 		},
 	}
 	for _, tt := range tests {

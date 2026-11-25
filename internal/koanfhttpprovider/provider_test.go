@@ -150,7 +150,7 @@ func TestReadBytesInvalidURL(t *testing.T) {
 }
 
 func TestReadBytesValidationFails(t *testing.T) {
-	srv := newServer(t, fixtures.Bad)
+	srv := newServer(t, fixtures.BadContent)
 	cache := filepath.Join(t.TempDir(), cacheYaml)
 	errBad := errors.New(badConfig)
 
@@ -352,7 +352,7 @@ func TestWatchInvalidContentDoesNotReload(t *testing.T) {
 		WithPollInterval(poll),
 		WithCache(cache),
 		WithValidate(func(b []byte) error {
-			if strings.Contains(string(b), fixtures.Bad) {
+			if strings.Contains(string(b), fixtures.BadContent) {
 				return errors.New(badConfig)
 			}
 			return nil
@@ -362,7 +362,7 @@ func TestWatchInvalidContentDoesNotReload(t *testing.T) {
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(http.StatusOK, fixtures.Bad)
+	srv.set(http.StatusOK, fixtures.BadContent)
 
 	assert.Eventually(t, func() bool { return w.errs.Load() > 0 }, waitFor, poll/2)
 	assert.Zero(t, w.reloads.Load())
@@ -569,7 +569,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 	p := Provider(srv.URL,
 		WithPollInterval(poll),
 		WithValidate(func(b []byte) error {
-			if string(b) == fixtures.Bad {
+			if string(b) == fixtures.BadContent {
 				return errors.New(badConfig)
 			}
 			return nil
@@ -579,7 +579,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 	require.NoError(t, err)
 	w := startWatch(t, p)
 
-	srv.set(fixtures.Bad, `"bad"`)
+	srv.set(fixtures.BadContent, `"bad"`)
 
 	// A 304 would not report an error, so two errors mean the invalid body was refetched.
 	assert.Eventually(t, func() bool { return w.errs.Load() >= 2 }, waitFor, poll/2)
@@ -588,7 +588,7 @@ func TestWatchETagInvalidContentKeepsOldETag(t *testing.T) {
 }
 
 func rejectBad(b []byte) error {
-	if string(b) == fixtures.Bad {
+	if string(b) == fixtures.BadContent {
 		return errors.New(badConfig)
 	}
 	return nil
@@ -673,7 +673,7 @@ func TestInvalidateRetriesAfterFailure(t *testing.T) {
 		fail func(*etagServer)
 	}{
 		{name: "server error", fail: func(s *etagServer) { s.setStatus(http.StatusServiceUnavailable) }},
-		{name: "invalid content", fail: func(s *etagServer) { s.set(fixtures.Bad, `"bad"`) }},
+		{name: "invalid content", fail: func(s *etagServer) { s.set(fixtures.BadContent, `"bad"`) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

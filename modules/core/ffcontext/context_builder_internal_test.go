@@ -32,12 +32,12 @@ func TestNewUser(t *testing.T) {
 		{
 			name: "Builder with attributes attribute",
 			got: NewEvaluationContextBuilder(randomTargetingKey).
-				AddCustom(fixtures.Test, attributesKey).
+				AddCustom(fixtures.PlaceholderTest, attributesKey).
 				Build(),
 			want: EvaluationContext{
 				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					fixtures.Test: attributesKey,
+					fixtures.PlaceholderTest: attributesKey,
 				},
 			},
 		},
@@ -45,13 +45,13 @@ func TestNewUser(t *testing.T) {
 			name: "Builder with attributes attribute",
 			got: NewEvaluationContextBuilder(randomTargetingKey).
 				Anonymous(true).
-				AddCustom(fixtures.Test, attributesKey).
+				AddCustom(fixtures.PlaceholderTest, attributesKey).
 				Build(),
 			want: EvaluationContext{
 				targetingKey: randomTargetingKey,
 				attributes: map[string]any{
-					fixtures.Test:      attributesKey,
-					anonymousAttribute: true,
+					fixtures.PlaceholderTest: attributesKey,
+					anonymousAttribute:       true,
 				},
 			},
 		},

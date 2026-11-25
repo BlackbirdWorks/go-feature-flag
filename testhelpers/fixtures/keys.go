@@ -12,6 +12,6 @@ const (
 	FakeProjectID = "fake-project-id"
 	// GoffWriter is the credential or identifier "goff_writer".
 	GoffWriter = "goff_writer"
-	// Secret is the credential or identifier "secret".
-	Secret = "secret"
+	// SecretValue is the credential or identifier "secret".
+	SecretValue = "secret"
 )

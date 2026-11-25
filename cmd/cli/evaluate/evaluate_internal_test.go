@@ -112,7 +112,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error is config file does not exist",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(&retrieverconf.RetrieverConf{
-					Kind: fixtures.File,
+					Kind: fixtures.KindFile,
 					Path: "testdata/invalid.yaml",
 				}, fixtures.FlagKeyTest, targetingKeyUser123, nil)
 			},
@@ -127,7 +127,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error if no evaluation context provided with flag containing percentage rules",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagGoffYAMLPath},
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
 					simpleFlag, "", nil)
 			},
 			wantErr: assert.NoError,
@@ -141,8 +141,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -151,7 +151,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should perform evaluation if no evaluation context and compatible flag",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagGoffYAMLPath},
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
 					simpleFlag, "", nil)
 			},
 			wantErr: assert.NoError,
@@ -165,8 +165,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -175,7 +175,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should error if evaluation context provided has no targeting key",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagGoffYAMLPath},
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
 					fixtures.FlagKeyTest, `{"id": "user-123"}`, nil)
 			},
 			wantErr: assert.NoError,
@@ -191,8 +191,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         nil,
 					Cacheable:     false,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -201,7 +201,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should evaluate a single flag if flag name is provided",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagGoffYAMLPath},
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
 					fixtures.FlagKeyTest, targetingKeyUser123, nil)
 			},
 			wantErr: assert.NoError,
@@ -217,8 +217,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         false,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -227,7 +227,7 @@ func Test_Evaluate(t *testing.T) {
 			name: "Should evaluate all flags if flag name is not provided",
 			initEvaluate: func() (evaluate, error) {
 				return buildEvaluate(
-					&retrieverconf.RetrieverConf{Kind: fixtures.File, Path: fixtures.FlagGoffYAMLPath},
+					&retrieverconf.RetrieverConf{Kind: fixtures.KindFile, Path: fixtures.FlagGoffYAMLPath},
 					"", targetingKeyUser123, nil)
 			},
 			wantErr: assert.NoError,
@@ -243,8 +243,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         false,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 				"test-flag2": {
@@ -269,8 +269,8 @@ func Test_Evaluate(t *testing.T) {
 					Value:         true,
 					Cacheable:     true,
 					Metadata: map[string]any{
-						fixtures.Description: fixtures.SimpleFeatureFlagDescription,
-						fixtures.IssueLink:   httpsJiraXxxGOFF,
+						fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
+						fixtures.IssueLink:        httpsJiraXxxGOFF,
 					},
 				},
 			},
@@ -404,7 +404,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
-					Metadata: map[string]any{fixtures.Description: fixtures.SimpleFeatureFlagDescription,
+					Metadata: map[string]any{fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
 						fixtures.IssueLink: httpsJiraXxxGOFF},
 				},
 			},
@@ -471,7 +471,7 @@ func Test_Evaluate_RemoteRetrievers(t *testing.T) {
 					ErrorDetails:  "",
 					Value:         false,
 					Cacheable:     true,
-					Metadata: map[string]any{fixtures.Description: fixtures.SimpleFeatureFlagDescription,
+					Metadata: map[string]any{fixtures.DescriptionField: fixtures.SimpleFeatureFlagDescription,
 						fixtures.IssueLink: httpsJiraXxxGOFF},
 				},
 			},

@@ -160,7 +160,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -177,15 +177,15 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		},
 		{
 			name:   "valid usecase flagset",
-			apiKey: fixtures.Test,
+			apiKey: fixtures.PlaceholderTest,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{fixtures.Test},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: configFlagsLocation,
 							},
 						},
@@ -208,7 +208,7 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -225,15 +225,15 @@ func Test_collect_eval_data_Handler(t *testing.T) {
 		},
 		{
 			name:   "valid with source field flagset",
-			apiKey: fixtures.Test,
+			apiKey: fixtures.PlaceholderTest,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{fixtures.Test},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: configFlagsLocation,
 							},
 						},
@@ -263,7 +263,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -287,7 +287,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -310,7 +310,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -333,7 +333,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -355,7 +355,7 @@ func Test_collect_eval_data_Handler_ErrorsAndMetadata(t *testing.T) {
 // given file, handling both the flag-set and the legacy single-config layouts.
 func setCollectEvalDataFileExporter(cfg *config.Config, filename string) {
 	exporter := config.ExporterConf{
-		Kind:     fixtures.File,
+		Kind:     fixtures.KindFile,
 		Filename: filename,
 	}
 	if len(cfg.FlagSets) == 0 {
@@ -398,7 +398,7 @@ func TestCollectEvalData_Handler_cancellation(t *testing.T) {
 
 	flagsetManager, err := service.NewFlagsetManager(&config.Config{
 		PollingInterval: 10,
-		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.File, Path: configFlagsLocation}},
+		Retrievers:      &[]retrieverconf.RetrieverConf{{Kind: fixtures.KindFile, Path: configFlagsLocation}},
 	}, slog.New(slog.DiscardHandler), []notifier.Notifier{}, nil, nil)
 	require.NoError(t, err)
 
@@ -464,7 +464,7 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 					PollingInterval: 10,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: configFlagsLocation,
 						},
 					},
@@ -475,15 +475,15 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 		},
 		{
 			name:   fixtures.FlagsetMode,
-			apiKey: fixtures.Test,
+			apiKey: fixtures.PlaceholderTest,
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{fixtures.Test},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 10,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: configFlagsLocation,
 							},
 						},
@@ -536,13 +536,13 @@ func Test_collect_tracking_and_evaluation_events(t *testing.T) {
 			} else {
 				tt.config.Exporters = &[]config.ExporterConf{
 					{
-						Kind:             fixtures.File,
+						Kind:             fixtures.KindFile,
 						Filename:         evalExporter.Name(),
 						MaxEventInMemory: 10000,
 						FlushInterval:    int64(10 * time.Second),
 					},
 					{
-						Kind:              fixtures.File,
+						Kind:              fixtures.KindFile,
 						Filename:          trackingExporter.Name(),
 						ExporterEventType: ffclient.TrackingEventExporter,
 						MaxEventInMemory:  10000,

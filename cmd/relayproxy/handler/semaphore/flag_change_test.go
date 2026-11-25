@@ -42,7 +42,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataDir + configFlagsYaml,
 						},
 					},
@@ -56,18 +56,18 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{fixtures.Test},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:        fixtures.Test,
+			apiKey:        fixtures.PlaceholderTest,
 			wantFile:      "flag_change_with_config_change.json",
 			wantAfterFile: "flag_change_after_config_change.json",
 		},
@@ -101,7 +101,7 @@ func TestPIFlagChange_WithConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: file.Name(),
 					},
 				}
@@ -170,7 +170,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 					PollingInterval: 1000,
 					Retrievers: &[]retrieverconf.RetrieverConf{
 						{
-							Kind: fixtures.File,
+							Kind: fixtures.KindFile,
 							Path: testdataDir + configFlagsYaml,
 						},
 					},
@@ -183,18 +183,18 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			config: config.Config{
 				FlagSets: []config.FlagSet{
 					{
-						APIKeys:         []string{fixtures.Test},
+						APIKeys:         []string{fixtures.PlaceholderTest},
 						PollingInterval: 1000,
 						Retrievers: &[]retrieverconf.RetrieverConf{
 							{
-								Kind: fixtures.File,
+								Kind: fixtures.KindFile,
 								Path: testdataDir + configFlagsYaml,
 							},
 						},
 					},
 				},
 			},
-			apiKey:   fixtures.Test,
+			apiKey:   fixtures.PlaceholderTest,
 			wantFile: "flag_change_without_config_change.json",
 		},
 	}
@@ -227,7 +227,7 @@ func TestPIFlagChange_WithoutConfigChange(t *testing.T) {
 			if len(tt.config.FlagSets) > 0 {
 				tt.config.FlagSets[0].Retrievers = &[]retrieverconf.RetrieverConf{
 					{
-						Kind: fixtures.File,
+						Kind: fixtures.KindFile,
 						Path: file.Name(),
 					},
 				}

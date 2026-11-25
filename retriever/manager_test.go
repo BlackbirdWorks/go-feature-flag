@@ -46,23 +46,23 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				mockretriever.NewSimpleRetriever(simpleName),
 				mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy),
 				mockretriever.NewInitializableRetriever(standardName),
-				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetBare),
 			},
 			expectError: false,
 			expectedInitCalls: map[string]bool{
 				fixtures.Legacy:      true,
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 			expectedStatusCalls: map[string]bool{
 				fixtures.Legacy:      true,
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 			expectedShutdownCalls: map[string]bool{
 				fixtures.Legacy:      true,
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 		},
 		{
@@ -71,13 +71,13 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 				mockretriever.NewSimpleRetriever(simpleName),
 				mockretriever.NewInitializableRetrieverLegacy(fixtures.Legacy),
 				mockretriever.NewInitializableRetriever(standardName),
-				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetBare),
 			},
 			expectError: false,
 			expectedInitCalls: map[string]bool{
 				fixtures.Legacy:      true,
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 		},
 		{
@@ -90,7 +90,7 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 					return r
 				}(),
 				func() *mockretriever.InitializableRetrieverWithFlagset {
-					r := mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone)
+					r := mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetBare)
 					r.InitShouldFail = true
 
 					return r
@@ -99,11 +99,11 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 			expectError: true,
 			expectedInitCalls: map[string]bool{
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 			expectedShutdownCalls: map[string]bool{
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 		},
 		{
@@ -129,14 +129,14 @@ func TestManagerInit_AllRetrieverTypes(t *testing.T) {
 
 					return r
 				}(),
-				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetNone),
+				mockretriever.NewInitializableRetrieverWithFlagset(fixtures.FlagsetBare),
 			},
 			startWithRetrieverError: true,
 			// Still errors during initialization phase, StartWithRetrieverError only applies to retrieval phase
 			expectError: true,
 			expectedInitCalls: map[string]bool{
 				standardName:         true,
-				fixtures.FlagsetNone: true,
+				fixtures.FlagsetBare: true,
 			},
 		},
 	}

@@ -52,7 +52,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "kind webhook without EndpointURL",
 			fields: fields{
-				Kind:        fixtures.Webhook,
+				Kind:        fixtures.KindWebhook,
 				EndpointURL: "",
 			},
 			wantErr:  true,
@@ -69,7 +69,7 @@ func TestNotifierConf_IsValid(t *testing.T) {
 		{
 			name: "valid use-case webhook",
 			fields: fields{
-				Kind:        fixtures.Webhook,
+				Kind:        fixtures.KindWebhook,
 				EndpointURL: httpsHooktestCom,
 				Secret:      xxxx,
 			},

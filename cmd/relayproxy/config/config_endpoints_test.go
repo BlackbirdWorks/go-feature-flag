@@ -253,8 +253,8 @@ func TestEndpoints_Loading(t *testing.T) {
 				environ = append(environ, k+"="+v)
 			}
 
-			fs := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-			fs.String(fixtures.Config, "", locationOfYourConfig)
+			fs := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+			fs.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 			require.NoError(t, fs.Parse([]string{configFlag + path}))
 			loader := config.NewConfigLoader(fs, slog.New(slog.DiscardHandler), fixtures.VersionOneZeroZero, false,
 				withEnviron(environ...))

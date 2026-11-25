@@ -84,7 +84,7 @@ func TestRuleEvaluate(t *testing.T) {
 				VariationResult: new(variationA),
 			},
 			args: ruleEvaluateArgs{
-				user: ffcontext.NewEvaluationContext(fixtures.Abc),
+				user: ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -98,7 +98,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: true,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -112,7 +112,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -125,7 +125,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -138,7 +138,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -152,7 +152,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -167,7 +167,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,
@@ -182,9 +182,9 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user: ffcontext.NewEvaluationContextBuilder(fixtures.Abc).
+				user: ffcontext.NewEvaluationContextBuilder(fixtures.UserKeyAbc).
 					AddCustom("orgs", []any{map[string]any{"id": 1}}).
-					AddCustom(fixtures.Plan, map[string]any{"cat": []any{"enter", "prise"}}).
+					AddCustom(fixtures.AttrPlan, map[string]any{"cat": []any{"enter", "prise"}}).
 					Build(),
 			},
 			wantErr: assert.Error,
@@ -198,7 +198,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -211,7 +211,7 @@ func TestRuleEvaluate(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -616,7 +616,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -629,7 +629,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			wantErr: assert.Error,
 		},
@@ -642,7 +642,7 @@ func TestRuleEvaluate_JsonLogicAndSemver(t *testing.T) {
 			},
 			args: ruleEvaluateArgs{
 				isDefault: false,
-				user:      ffcontext.NewEvaluationContext(fixtures.Abc),
+				user:      ffcontext.NewEvaluationContext(fixtures.UserKeyAbc),
 			},
 			want:    variationA,
 			wantErr: assert.NoError,

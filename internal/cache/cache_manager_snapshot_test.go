@@ -233,7 +233,7 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 
 			mgr := cache.New(nil, "", &fflog.FFLogger{})
 			require.NoError(t, mgr.UpdateCache(flags, nil, false))
-			live, err := mgr.GetFlag(fixtures.Nested)
+			live, err := mgr.GetFlag(fixtures.NestedKey)
 			require.NoError(t, err)
 			before, err := json.Marshal(live)
 			require.NoError(t, err)
@@ -241,11 +241,11 @@ func Test_AllFlags_ReturnsDeepCopies(t *testing.T) {
 			snap, err := mgr.AllFlags()
 			require.NoError(t, err)
 
-			iflag, ok := snap[fixtures.Nested].(*flag.InternalFlag)
+			iflag, ok := snap[fixtures.NestedKey].(*flag.InternalFlag)
 			require.True(t, ok)
 			tt.mutate(t, iflag)
 
-			live, err = mgr.GetFlag(fixtures.Nested)
+			live, err = mgr.GetFlag(fixtures.NestedKey)
 			require.NoError(t, err)
 			after, err := json.Marshal(live)
 			require.NoError(t, err)

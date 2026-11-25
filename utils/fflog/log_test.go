@@ -83,8 +83,8 @@ func TestFFLogger_Error(t *testing.T) {
 			fields: fields{
 				msg: errorMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: `level=ERROR msg="Error message" test=toto toto=test` + "\n",
@@ -108,8 +108,8 @@ func TestFFLogger_Error(t *testing.T) {
 			fields: fields{
 				msg: errorMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: "ERROR Error message test=toto toto=test" + "\n",
@@ -221,8 +221,8 @@ func TestFFLogger_Warn(t *testing.T) {
 			fields: fields{
 				msg: warnMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: `level=WARN msg="Warn message" test=toto toto=test` + "\n",
@@ -246,8 +246,8 @@ func TestFFLogger_Warn(t *testing.T) {
 			fields: fields{
 				msg: warnMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: "WARN Warn message test=toto toto=test" + "\n",
@@ -359,8 +359,8 @@ func TestFFLogger_Info(t *testing.T) {
 			fields: fields{
 				msg: infoMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: `level=INFO msg="Info message" test=toto toto=test` + "\n",
@@ -384,8 +384,8 @@ func TestFFLogger_Info(t *testing.T) {
 			fields: fields{
 				msg: infoMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: "INFO Info message test=toto toto=test" + "\n",
@@ -497,8 +497,8 @@ func TestFFLogger_Debug(t *testing.T) {
 			fields: fields{
 				msg: debugMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: `level=DEBUG msg="Debug message" test=toto toto=test` + "\n",
@@ -522,8 +522,8 @@ func TestFFLogger_Debug(t *testing.T) {
 			fields: fields{
 				msg: debugMessage,
 				keysAndValues: []any{
-					slog.String(fixtures.Test, fixtures.Toto),
-					slog.String(fixtures.Toto, fixtures.Test),
+					slog.String(fixtures.PlaceholderTest, fixtures.PlaceholderToto),
+					slog.String(fixtures.PlaceholderToto, fixtures.PlaceholderTest),
 				},
 			},
 			expectedLog: "DEBUG Debug message test=toto toto=test" + "\n",

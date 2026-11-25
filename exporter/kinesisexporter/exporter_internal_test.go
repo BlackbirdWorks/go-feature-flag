@@ -249,7 +249,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 	t.Parallel()
 
 	event := exporter.FeatureEvent{
-		Kind:         fixtures.Feature,
+		Kind:         fixtures.KindFeature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,
@@ -287,7 +287,7 @@ func TestHugeMessageExportFlow(t *testing.T) {
 
 func NewFeatureEvent() *exporter.FeatureEvent {
 	return &exporter.FeatureEvent{
-		Kind:         fixtures.Feature,
+		Kind:         fixtures.KindFeature,
 		ContextKind:  "anonymousUser",
 		UserKey:      "ABCD",
 		CreationDate: 1617970547,

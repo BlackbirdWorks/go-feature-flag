@@ -141,7 +141,7 @@ func TestLoadEnvVariablesPrefixes(t *testing.T) {
 	}{
 		{name: "unprefixed variables keep working",
 			environ:  []string{serverPortOne, "LOGLEVEL=debug"},
-			wantPort: "1", wantLogLevel: fixtures.Debug},
+			wantPort: "1", wantLogLevel: fixtures.LogLevelDebug},
 		{name: "SEMAPHORE_ prefix is always read",
 			environ:  []string{semaphoreServerPortTwo, "SEMAPHORE_LOGLEVEL=warn"},
 			wantPort: "2", wantLogLevel: "warn"},

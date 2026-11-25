@@ -19,8 +19,8 @@ import (
 func createTestConfig(t *testing.T, configContent string) (*config.Config, *os.File) {
 	t.Helper()
 	configFile := testhelpers.CopyContentToNewTempFile(t, configContent)
-	f := pflag.NewFlagSet(fixtures.Config, pflag.ContinueOnError)
-	f.String(fixtures.Config, "", locationOfYourConfig)
+	f := pflag.NewFlagSet(fixtures.ConfigFlagName, pflag.ContinueOnError)
+	f.String(fixtures.ConfigFlagName, "", locationOfYourConfig)
 	err := f.Parse([]string{configFlag + configFile.Name()})
 	require.NoError(t, err)
 
@@ -78,7 +78,7 @@ loglevel: debug`
 				assert.NotNil(t, receivedConfig, "Received config should not be nil")
 				assert.Equal(t, 2031, receivedConfig.Server.Port, "Port should be updated")
 				assert.Equal(t, 2000, receivedConfig.PollingInterval, "PollingInterval should be updated")
-				assert.Equal(t, fixtures.Debug, receivedConfig.LogLevel, "LogLevel should be updated")
+				assert.Equal(t, fixtures.LogLevelDebug, receivedConfig.LogLevel, "LogLevel should be updated")
 
 				err := cfg.StopConfigChangeWatcher()
 				assert.NoError(t, err)

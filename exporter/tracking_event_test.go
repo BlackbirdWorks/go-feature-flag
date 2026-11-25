@@ -28,14 +28,14 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              fixtures.Tracking,
+				Kind:              fixtures.KindTracking,
 				ContextKind:       fixtures.UserKeyAnonymous,
 				UserKey:           fixtures.UserKeyABCD,
 				CreationDate:      1617970547,
 				Key:               fixtures.UserKeyRandom,
 				EvaluationContext: map[string]any{fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD},
 				TrackingDetails: map[string]any{
-					eventName: fixtures.Value123,
+					eventName: fixtures.Numeric123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -46,17 +46,17 @@ func TestTrackingEvent_FormatInCSV(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event with evaluation context attributes",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         fixtures.Tracking,
+				Kind:         fixtures.KindTracking,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
 				Key:          fixtures.UserKeyRandom,
 				EvaluationContext: map[string]any{
 					fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD,
-					fixtures.Toto:                  123,
+					fixtures.PlaceholderToto:       123,
 				},
 				TrackingDetails: map[string]any{
-					eventName: fixtures.Value123,
+					eventName: fixtures.Numeric123,
 				},
 			},
 			template: `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .EvaluationContext}};{{ .TrackingD` +
@@ -93,14 +93,14 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:              fixtures.Tracking,
+				Kind:              fixtures.KindTracking,
 				ContextKind:       fixtures.UserKeyAnonymous,
 				UserKey:           fixtures.UserKeyABCD,
 				CreationDate:      1617970547,
 				Key:               fixtures.UserKeyRandom,
 				EvaluationContext: map[string]any{fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD},
 				TrackingDetails: map[string]any{
-					eventName: fixtures.Value123,
+					eventName: fixtures.Numeric123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
@@ -110,17 +110,17 @@ func TestTrackingEvent_FormatInJSON(t *testing.T) {
 		{
 			name: "Should return a marshalled JSON string of the tracking event with evaluation context attributes",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         fixtures.Tracking,
+				Kind:         fixtures.KindTracking,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
 				Key:          fixtures.UserKeyRandom,
 				EvaluationContext: map[string]any{
 					fixtures.TargetingKeyAttribute: fixtures.UserKeyABCD,
-					fixtures.Toto:                  123,
+					fixtures.PlaceholderToto:       123,
 				},
 				TrackingDetails: map[string]any{
-					eventName: fixtures.Value123,
+					eventName: fixtures.Numeric123,
 				},
 			},
 			want: `{"kind":"tracking","contextKind":"anonymousUser","userKey":"ABCD","creationDate":1617970547,"key":"r` +
@@ -153,7 +153,7 @@ func TestTrackingEvent_GetKey(t *testing.T) {
 		{
 			name: returnExistingKey,
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         fixtures.Tracking,
+				Kind:         fixtures.KindTracking,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -164,7 +164,7 @@ func TestTrackingEvent_GetKey(t *testing.T) {
 		{
 			name: "empty key",
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         fixtures.Tracking,
+				Kind:         fixtures.KindTracking,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
@@ -193,7 +193,7 @@ func TestTrackingEvent_GetUserKey(t *testing.T) {
 		{
 			name: returnExistingKey,
 			trackingEvent: &exporter.TrackingEvent{
-				Kind:         fixtures.Tracking,
+				Kind:         fixtures.KindTracking,
 				ContextKind:  fixtures.UserKeyAnonymous,
 				UserKey:      fixtures.UserKeyABCD,
 				CreationDate: 1617970547,
