@@ -45,7 +45,7 @@ class Plan(unittest.TestCase):
                 out = dict(line.strip().split("=", 1) for line in f if "=" in line)
         return p, out
 
-    def dispatch(self, bump="patch", dry="false", ref=MAIN, release_tag=""):
+    def dispatch(self, bump="minor", dry="false", ref=MAIN, release_tag=""):
         return self.run_plan(EVENT_NAME="workflow_dispatch", REF=ref, REF_NAME=ref.split("/", 2)[-1],
                              INPUT_BUMP=bump, INPUT_DRY_RUN=dry, INPUT_RELEASE_TAG=release_tag)
 
@@ -59,19 +59,19 @@ class Plan(unittest.TestCase):
         self.assertIn(text, p.stdout)
 
     def test_first_release_is_v010_for_every_bump(self):
-        for bump in ("patch", "minor", "major"):
+        for bump in ("minor", "major"):
             with self.subTest(bump=bump):
                 self.ok(*self.dispatch(bump=bump), "v0.1.0", "false", "true")
 
     def test_bumps_from_v010(self):
         self.tags("v0.1.0")
-        for bump, want in (("patch", "v0.1.1"), ("minor", "v0.2.0"), ("major", "v1.0.0")):
+        for bump, want in (("minor", "v0.2.0"), ("major", "v1.0.0")):
             with self.subTest(bump=bump):
                 self.ok(*self.dispatch(bump=bump), want, "false", "true")
 
     def test_highest_stable_tag_wins_and_prereleases_are_ignored(self):
         self.tags("v0.9.0", "v0.10.0", "v0.11.0-rc.1", "v0.10.1-beta.2", "v2-junk")
-        self.ok(*self.dispatch(bump="patch"), "v0.10.1", "false", "true")
+        self.ok(*self.dispatch(bump="minor"), "v0.11.0", "false", "true")
 
     def test_major_2_refused(self):
         self.tags("v1.2.3")
@@ -79,8 +79,21 @@ class Plan(unittest.TestCase):
         self.refused(self.dispatch(bump="major")[0], "major >= 2")
 
     def test_unknown_bump_refused(self):
+        self.refused(self.dispatch(bump="huge")[0], "unknown bump")
         self.tags("v0.1.0")
         self.refused(self.dispatch(bump="huge")[0], "unknown bump")
+
+    def test_patch_bump_refused(self):
+        # Refused with and without a previous tag, and on a dry run.
+        self.refused(self.dispatch(bump="patch")[0], "'patch' is not offered")
+        self.tags("v0.1.0")
+        self.refused(self.dispatch(bump="patch")[0], "'patch' is not offered")
+        self.refused(self.dispatch(bump="patch", dry="true")[0], "'patch' is not offered")
+
+    def test_bump_defaults_to_minor(self):
+        self.tags("v0.1.0")
+        self.ok(*self.run_plan(EVENT_NAME="workflow_dispatch", REF=MAIN, REF_NAME="main",
+                               INPUT_DRY_RUN="false"), "v0.2.0", "false", "true")
 
     def test_dry_run_creates_nothing_and_works_from_any_ref(self):
         self.tags("v0.1.0")

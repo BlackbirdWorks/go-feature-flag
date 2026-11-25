@@ -1,7 +1,7 @@
 # Releasing Semaphore
 
 A release is cut from the GitHub UI: run the `Release` workflow (`.github/workflows/release.yml`) on `main`
-and choose the bump (`patch`, `minor` or `major`). The workflow finds the latest stable tag, computes
+and choose the bump (`minor` or `major`). The workflow finds the latest stable tag, computes
 the next version, creates and pushes the annotated tag, then builds and publishes that tag in the same run.
 Nobody types a version or a tag by hand. It uses the repository `GITHUB_TOKEN` only: no other secret,
 no other registry, nothing is pushed to a branch or to another repository.
@@ -50,12 +50,14 @@ chart (the Helm chart of the original project was not carried over: the owner do
 
 Version rules:
 
-| Latest stable tag | `patch` | `minor` | `major` |
-|---|---|---|---|
-| none (first release) | `v0.1.0` | `v0.1.0` | `v0.1.0` |
-| `v0.1.0` | `v0.1.1` | `v0.2.0` | `v1.0.0` |
-| `v1.2.3` | `v1.2.4` | `v1.3.0` | refused (`v2.0.0`) |
+| Latest stable tag | `minor` | `major` |
+|---|---|---|
+| none (first release) | `v0.1.0` | `v0.1.0` |
+| `v0.1.0` | `v0.2.0` | `v1.0.0` |
+| `v1.2.3` | `v1.3.0` | refused (`v2.0.0`) |
 
+- There is no `patch` bump: the selector offers `minor` (the default) and `major` only, and the plan script refuses `patch`
+  and any other value.
 - Only stable tags (`vMAJOR.MINOR.PATCH`) count as "latest"; pre-release tags are ignored.
 - The first release is always `v0.1.0` whatever the bump (see "First version").
 - A bump that would give major 2 or more is refused: the Go module path has no `/vN` suffix, so such a tag would be
@@ -118,8 +120,8 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   the tag (`git push origin :refs/tags/v0.1.0`). Do this only if nobody can have used it: the Go
   module proxy and the container registry cache what they saw.
 - A Go module version, once fetched through `proxy.golang.org`, cannot be removed and the tag
-  must never be moved. Publish a fixed `v0.1.1` and add a `retract` directive to `go.mod` for the
-  bad one.
+  must never be moved. Publish a fixed release with the next `minor` bump (`v0.2.0`; there is no `patch`
+  bump) and add a `retract` directive to `go.mod` for the bad one.
 - Images: delete the bad version tags in the package settings (or `gh api -X DELETE
   /orgs/BlackbirdWorks/packages/container/semaphore/versions/<id>`), and re-point `latest` by
   re-running the workflow of the previous good tag (`gh workflow run release.yml --ref <tag> -f release_tag=<tag> -f dry_run=false`
@@ -137,7 +139,7 @@ metric; `go version -m <binary>` shows the `-X main.version=` linker flag.
   make the next version. It is not confirmed that the web "Use workflow from" picker lists tags, so use the command.
   Trade-off: a run on a tag executes the workflow file as stored at that tag, so a fix to `release.yml` merged
   after the tag was cut does not reach the retry. If the workflow at the tag is what is broken, do not retry: fix it on
-  `main` and cut a new patch version (the tag is never moved).
+  `main` and cut a new release with a new bump (the tag is never moved).
   GoReleaser replaces existing release files.
 
 ## First version
