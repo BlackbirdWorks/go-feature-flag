@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
@@ -531,8 +530,16 @@ func (f *InternalFlag) buildScheduledFlag(evaluationDate time.Time) (*InternalFl
 	// regardless of the order they are declared in the configuration.
 	// The sort is stable so that steps sharing the exact same date keep their
 	// declaration order (the last one declared is applied last, and wins).
-	sort.SliceStable(dueSteps, func(i, j int) bool {
-		return dueSteps[i].Date.Before(*dueSteps[j].Date)
+	slices.SortStableFunc(dueSteps, func(a, b ScheduledStep) int {
+		if a.Date.Before(*b.Date) {
+			return -1
+		}
+
+		if b.Date.Before(*a.Date) {
+			return 1
+		}
+
+		return 0
 	})
 
 	// We apply the scheduled rollout
@@ -651,7 +658,7 @@ func (f *InternalFlag) validateRules(svc *Service, known []nikunjyKnownQuery) ([
 }
 
 // rulesRequireBucketing checks if any of the rules require bucketing.
-func (f *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
+func (_ *InternalFlag) rulesRequireBucketing(rules []Rule) bool {
 	for _, rule := range rules {
 		if rule.RequiresBucketing() {
 			return true
@@ -667,7 +674,7 @@ func (f *InternalFlag) defaultRuleRequiresBucketing() bool {
 }
 
 // requiresBucketingCheck checks if the bucketing is required and returns the appropriate error.
-func (f *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
+func (_ *InternalFlag) requiresBucketingCheck(requiresBucketing bool, key string) (string, error) {
 	if requiresBucketing {
 		return "", &internalerror.EmptyBucketingKeyError{Message: fmt.Sprintf("Empty %s key", key)}
 	}
