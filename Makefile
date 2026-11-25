@@ -2,7 +2,7 @@ GOCMD=go
 DOCKERCMD=docker
 GOTEST=$(GOCMD) test
 GOVET=$(GOCMD) vet
-ALL_GO_MOD_DIRS := ./
+ALL_GO_MOD_DIRS := ./ ./openfeature/provider_tests/go-integration-tests/
 # Build tag sets of the Go sources: the default one (files tagged !docker) and the one of the tagged files.
 GO_TAG_SETS := none docker,bench
 
