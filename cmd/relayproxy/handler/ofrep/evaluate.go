@@ -1,10 +1,11 @@
 package ofrep
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"net/url"
-	"sort"
+	"slices"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -219,8 +220,8 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 
 	h.metrics.IncAllFlag(flagNames...)
 
-	sort.Slice(response.Flags, func(i, j int) bool {
-		return response.Flags[i].Key < response.Flags[j].Key
+	slices.SortFunc(response.Flags, func(a, b model.OFREPFlagBulkEvaluateSuccessResponse) int {
+		return cmp.Compare(a.Key, b.Key)
 	})
 
 	span.SetAttributes(

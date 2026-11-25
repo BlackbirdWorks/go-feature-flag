@@ -522,17 +522,6 @@ func createAWSExporter(expConf *config.ExporterConf, defaults exporterDefaults) 
 			QueueURL:  expConf.QueueURL,
 			AwsConfig: &awsConfig,
 		}, nil
-	case config.FileExporter, config.WebhookExporter, config.LogExporter, config.GoogleStorageExporter, config.KafkaExporter, config.PubSubExporter, config.BigQueryExporter, config.RedshiftExporter, config.AzureExporter, config.OpenTelemetryExporter:
-		return &redshiftexporter.Exporter{
-			ClusterIdentifier: expConf.ClusterIdentifier,
-			WorkgroupName:     expConf.WorkgroupName,
-			Database:          expConf.Database,
-			DBUser:            expConf.DBUser,
-			SecretArn:         expConf.SecretArn,
-			TableName:         expConf.TableName,
-			AwsConfig:         &awsConfig,
-			AutoMigrate:       expConf.AutoMigrate,
-		}, nil
 	default: // config.RedshiftExporter, the only other kind routed here
 		return &redshiftexporter.Exporter{
 			ClusterIdentifier: expConf.ClusterIdentifier,

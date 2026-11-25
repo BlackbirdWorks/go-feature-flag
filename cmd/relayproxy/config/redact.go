@@ -199,8 +199,6 @@ func isZeroValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Slice, reflect.Map:
 		return v.Len() == 0
-	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Array, reflect.Chan, reflect.Func, reflect.Interface, reflect.Pointer, reflect.String, reflect.Struct, reflect.UnsafePointer:
-		return v.IsZero()
 	default:
 		return v.IsZero()
 	}
@@ -249,12 +247,6 @@ func redactValue(val reflect.Value, depth int) any {
 
 		return out
 	case reflect.Func, reflect.Chan, reflect.UnsafePointer:
-		return opaqueValue
-	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String:
-		if val.CanInterface() {
-			return val.Interface()
-		}
-
 		return opaqueValue
 	default:
 		if val.CanInterface() {

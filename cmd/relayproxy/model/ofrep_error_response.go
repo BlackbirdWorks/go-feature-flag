@@ -8,7 +8,7 @@ import (
 
 // OFREPEvaluateResponseError is the error response of an OFREP flag evaluation.
 type OFREPEvaluateResponseError struct {
-	OFREPCommonResponseError `json:",inline" toml:",inline" yaml:",inline"`
+	OFREPCommonResponseError `yaml:",inline"`
 
 	Key string `json:"key"`
 }

@@ -11,7 +11,7 @@ type AllFlagRequest struct {
 
 // EvalFlagRequest is the request body of a single flag evaluation API.
 type EvalFlagRequest struct {
-	AllFlagRequest `json:",inline"`
+	AllFlagRequest
 
 	// The value will we use if we are not able to get the variation of the flag.
 	DefaultValue any `form:"defaultValue" json:"defaultValue" query:"defaultValue" required:"false" xml:"defaultValue"`

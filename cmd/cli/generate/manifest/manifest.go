@@ -88,7 +88,7 @@ func (m *Manifest) Generate() (helper.Output, error) {
 }
 
 // toJSON will convert the definitions to a JSON string.
-func (m *Manifest) toJSON(flagManifest model.FlagManifest) (string, error) {
+func (_ *Manifest) toJSON(flagManifest model.FlagManifest) (string, error) {
 	definitionsJSON, err := json.MarshalIndent(flagManifest, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("encoding the flag manifest: %w", err)
@@ -116,7 +116,7 @@ type captureHandler struct {
 	records *[]capturedRecord
 }
 
-func (h *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (_ *captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
 	*h.records = append(*h.records, capturedRecord{level: r.Level, message: r.Message})

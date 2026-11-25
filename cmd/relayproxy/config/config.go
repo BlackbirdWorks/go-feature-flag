@@ -95,7 +95,7 @@ type Config struct {
 	Server Server `koanf:"server" mapstructure:"server"`
 	// CommonFlagSet is the common flag set for the relay proxy
 	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
-	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
+	CommonFlagSet `koanf:",squash"`
 	// Endpoints (optional) configures the endpoints of the relay proxy.
 	Endpoints Endpoints `koanf:"endpoints" mapstructure:"endpoints"`
 	// MonitoringPort (optional) is the port we are using to expose the metrics and healthchecks

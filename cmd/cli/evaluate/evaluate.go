@@ -104,7 +104,7 @@ func (e evaluate) getFlagList(goff *ffclient.GoFeatureFlag) ([]string, error) {
 }
 
 // evaluateFlags evaluates the flags.
-func (e evaluate) evaluateFlags(
+func (_ evaluate) evaluateFlags(
 	goff *ffclient.GoFeatureFlag,
 	listFlags []string,
 	convertedEvaluationCtx ffcontext.Context) (map[string]model.RawVarResult, error) {

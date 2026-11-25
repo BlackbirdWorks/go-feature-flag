@@ -1,11 +1,12 @@
 package manifest
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sort"
+	"slices"
 
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"go.opentelemetry.io/otel"
@@ -99,8 +100,8 @@ func (m *Ctrl) GetManifest(ctx context.Context, in *Input) (*Output, error) {
 		})
 	}
 
-	sort.Slice(responses, func(i, j int) bool {
-		return responses[i].Key < responses[j].Key
+	slices.SortFunc(responses, func(a, b model.ManifestDefinitionSuccessResponse) int {
+		return cmp.Compare(a.Key, b.Key)
 	})
 	m.metrics.IncGetManifestCall()
 

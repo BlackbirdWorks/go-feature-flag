@@ -38,7 +38,7 @@ func (e *HTTPError) StatusCode() int { return e.Code }
 func (e *HTTPError) GetStatus() int { return e.Code }
 
 // ContentType keeps the content type of the negotiation (huma defaults an error to application/problem+json).
-func (e *HTTPError) ContentType(ct string) string { return ct }
+func (_ *HTTPError) ContentType(ct string) string { return ct }
 
 // Schema documents the error as the body it is sent as.
 func (*HTTPError) Schema(r huma.Registry) *huma.Schema {

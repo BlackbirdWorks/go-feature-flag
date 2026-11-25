@@ -112,8 +112,6 @@ func (c *ExporterConf) validateStorage() error {
 		}
 	case LogExporter, SQSExporter, KafkaExporter, PubSubExporter, BigQueryExporter, RedshiftExporter, AzureExporter, OpenTelemetryExporter:
 		// the other kinds are checked after the parquet codec
-	default:
-		// the other kinds are checked after the parquet codec
 	}
 
 	return nil
@@ -139,8 +137,6 @@ func (c *ExporterConf) validateMessaging() error {
 			return invalidExporterf("\"projectID\" and \"datasetID\" are required for kind \"%s\"", c.Kind)
 		}
 	case FileExporter, WebhookExporter, LogExporter, S3Exporter, KinesisExporter, GoogleStorageExporter, RedshiftExporter, AzureExporter, OpenTelemetryExporter:
-		// the other kinds have nothing more to check here
-	default:
 		// the other kinds have nothing more to check here
 	}
 

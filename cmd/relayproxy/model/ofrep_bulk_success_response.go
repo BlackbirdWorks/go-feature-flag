@@ -16,7 +16,7 @@ type OFREPEventStream struct {
 
 // OFREPFlagBulkEvaluateSuccessResponse is the result of one flag in an OFREP bulk evaluation.
 type OFREPFlagBulkEvaluateSuccessResponse struct {
-	OFREPEvaluateSuccessResponse `json:",inline"`
+	OFREPEvaluateSuccessResponse
 
 	ErrorCode    string `json:"errorCode,omitempty"`
 	ErrorDetails string `json:"errorDetails,omitempty"`

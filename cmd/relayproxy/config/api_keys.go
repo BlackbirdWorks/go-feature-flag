@@ -72,11 +72,7 @@ func (c *Config) preloadAPIKeysLocked() {
 
 	// it has to be before adding the admin keys, because when we add only the admin keys,
 	// we don't want to force the authentication (except for the admin endpoints).
-	if len(apiKeySet) > 0 {
-		c.forceAuthenticatedRequests = true
-	} else {
-		c.forceAuthenticatedRequests = false
-	}
+	c.forceAuthenticatedRequests = len(apiKeySet) > 0
 
 	addAPIKeys(c.AuthorizedKeys.Admin, AdminKeyType)
 	c.apiKeysSet = apiKeySet

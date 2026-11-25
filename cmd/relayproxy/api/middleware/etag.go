@@ -91,7 +91,7 @@ func (w *etagWriter) WriteHeader(status int) { w.setStatus(status) }
 func (w *etagWriter) Write(p []byte) (int, error) { return w.etagBuffer.Write(p) }
 
 // Flush does nothing: the response is sent when the handler returns.
-func (w *etagWriter) Flush() {}
+func (_ *etagWriter) Flush() {}
 
 // Unwrap lets [http.ResponseController] reach the underlying writer.
 func (w *etagWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

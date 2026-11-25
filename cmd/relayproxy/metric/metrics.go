@@ -1,8 +1,9 @@
 package metric
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -414,7 +415,7 @@ func (g legacyGatherer) Gather() ([]*dto.MetricFamily, error) {
 		out = append(out, clone)
 	}
 	// the exposition format wants the families sorted by name, as prom.Gatherers does.
-	sort.Slice(out, func(i, j int) bool { return out[i].GetName() < out[j].GetName() })
+	slices.SortFunc(out, func(a, b *dto.MetricFamily) int { return cmp.Compare(a.GetName(), b.GetName()) })
 
 	if err != nil {
 		// the families that were gathered before the failure are still returned, as prom.Gatherers does.

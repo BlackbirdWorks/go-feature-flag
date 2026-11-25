@@ -33,7 +33,7 @@ type FlagSet struct {
 	// This property is madatory for every flagset, we will use it to filter the flag available.
 	APIKeys []string `koanf:"apikeys" mapstructure:"apiKeys"`
 	//nolint:embeddedstructfieldcheck // fieldalignment needs the embedded struct here
-	CommonFlagSet `koanf:",squash" mapstructure:",inline"`
+	CommonFlagSet `koanf:",squash"`
 }
 
 // CommonFlagSet is the configuration shared by the flagsets.
