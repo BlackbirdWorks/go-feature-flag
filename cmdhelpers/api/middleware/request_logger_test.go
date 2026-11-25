@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/huma-middleware/middleware/logging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/blackbirdworks/semaphore/cmdhelpers/api/middleware"
 	"github.com/blackbirdworks/semaphore/testutils/slogutil"
@@ -188,10 +189,18 @@ var errBoom = errors.New("boom")
 func TestLogRequest(t *testing.T) {
 	t.Parallel()
 
+	tracedSpan := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{
+			0x4b, 0xf9, 0x2f, 0x35, 0x77, 0xb3, 0x4d, 0xa6, 0xa3, 0xce, 0x92, 0x9d, 0x0e, 0x0e, 0x47, 0x36,
+		},
+		SpanID: trace.SpanID{0x00, 0xf0, 0x67, 0xaa, 0x0e, 0x0e, 0x0e, 0x0e},
+	})
+
 	tests := []struct {
 		wantContext map[string]any
 		name        string
 		wantMessage string
+		span        trace.SpanContext
 		rec         middleware.RequestRecord
 		wantLevel   slog.Level
 	}{
@@ -221,11 +230,9 @@ func TestLogRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "traced",
-			rec: middleware.RequestRecord{
-				Status: http.StatusOK, Method: http.MethodGet, URI: "/", TraceID: "4bf92f3577b34da6a3ce929d0e0e4736",
-				SpanID: "00f067aa0e0e0e0e",
-			},
+			name:      "traced",
+			rec:       middleware.RequestRecord{Status: http.StatusOK, Method: http.MethodGet, URI: "/"},
+			span:      tracedSpan,
 			wantLevel: slog.LevelDebug, wantMessage: "Success",
 			wantContext: map[string]any{
 				"remote_ip": "", "latency": "0s", "host": "", "request": "GET /", "status": int64(200),
@@ -257,7 +264,8 @@ func TestLogRequest(t *testing.T) {
 			t.Parallel()
 
 			obs, logs := slogutil.NewObserver(slog.LevelDebug)
-			middleware.LogRequest(t.Context(), obs, &tt.rec)
+			ctx := trace.ContextWithSpanContext(t.Context(), tt.span)
+			middleware.LogRequest(ctx, obs, &tt.rec)
 
 			got := logs.All()
 			require.Len(t, got, 1)

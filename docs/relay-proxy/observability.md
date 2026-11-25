@@ -31,9 +31,9 @@ A `logfmt` record has the same fields as `ts=... level=... caller=... msg=... ke
 Values that contain a space, a `=` or a `"` are quoted in `logfmt`.
 
 The lines written while a request is served (the access record, the errors of the handlers, the recovered panics)
-carry the attributes of the request: `method`, `request_id` (the value of the `X-Request-ID` header of the request, when
-it has one), `flagset` (the name of the flag set, once the API key is resolved, for the endpoints that look it up) and,
-when [tracing](#tracing) is on, `trace_id` and `span_id`.
+carry the attributes of the request: `method` (the access record has it in its `request` field), `request_id` (the value
+of the `X-Request-ID` header of the request, when it has one), `flagset` (the name of the flag set, once the API key is
+resolved, for the endpoints that look it up) and, when [tracing](#tracing) is on, `trace_id` and `span_id`.
 
 Secrets are never logged: the configuration is logged redacted, and the values of the API keys, tokens and connection
 strings are replaced by `[REDACTED]`.
