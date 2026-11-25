@@ -191,7 +191,16 @@ func newFlagsetManagerWithFlagsets(
 			nil, time.Duration(cfg.PollingInterval)*time.Millisecond, cfg.EnablePollingJitter, logger))
 }
 
-const unroutableKeysWarning = "authorizedKeys.evaluation and apiKeys are ignored in flag set mode: " +
+const (
+	unnamedFlagsetWarning = "no flagset name provided, generating a default flagset name. " +
+		"This is not recommended. Not having a flagset name will not allow you to change API Keys " +
+		"associated to the flagset during runtime."
+	defaultNamedFlagsetWarning = "using 'default' as a flagset name, generating a default flagset name. " +
+		"This is not recommended. Not having a flagset name will not allow you to change API Keys " +
+		"associated to the flagset during runtime."
+)
+
+const unroutableKeysWarning = "authorizedKeys.evaluation is ignored in flag set mode: " +
 	"an evaluation key must be listed in the apiKeys of a flag set"
 
 func newFlagsetManagerWithFlagsetsAndRegistry(
@@ -216,14 +225,13 @@ func newFlagsetManagerWithFlagsetsAndRegistry(
 		if !isNamedFlagset(flagset) {
 			flagSetName = uuid.New().String()
 
-			startLog := "no flagset name provided"
 			if flagset.Name == utils.DefaultFlagSetName {
-				startLog = "using 'default' as a flagset name"
+				logger.LogAttrs(context.Background(), slog.LevelWarn, defaultNamedFlagsetWarning,
+					slog.String("flagset", flagSetName))
+			} else {
+				logger.LogAttrs(context.Background(), slog.LevelWarn, unnamedFlagsetWarning,
+					slog.String("flagset", flagSetName))
 			}
-
-			logMessage := startLog + ", generating a default flagset name. This is not recommended. " +
-				"Not having a flagset name will not allow you to change API Keys associated to the flagset during runtime."
-			logger.LogAttrs(context.Background(), slog.LevelWarn, logMessage, slog.String("flagset", flagSetName))
 		}
 
 		allNotifiers := appendStreamNotifiers(notifiers, sseService, wsService, flagSetName)

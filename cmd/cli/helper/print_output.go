@@ -91,6 +91,6 @@ func LegacyWarner() *legacy.Warner {
 // default logger replaced after the warner was built is still honoured.
 func LegacyWarnerTo(logger func() *slog.Logger) *legacy.Warner {
 	return legacy.NewWarner(func(kind, message string) {
-		logger().Warn(message, slog.String("legacyName", kind))
+		logger().Warn("legacy name used", slog.String("legacyName", kind), slog.String("detail", message))
 	})
 }

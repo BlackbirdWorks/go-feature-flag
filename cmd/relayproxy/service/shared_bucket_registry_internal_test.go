@@ -451,7 +451,7 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		wantMessage []string
+		wantSettings []string
 		parent      time.Duration
 		polling     int
 		parentJit   bool
@@ -462,17 +462,17 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 		{name: "same interval as the default parent", polling: 60000},
 		{
 			name: "different interval", parent: 10 * time.Second, polling: 5000,
-			wantMessage: []string{"the pollingInterval of the flagset is ignored"},
+			wantSettings: []string{"pollingInterval"},
 		},
 		{
 			name:        "jitter only on the flagset",
 			jitter:      true,
-			wantMessage: []string{"the enablePollingJitter of the flagset is ignored"},
+			wantSettings: []string{"enablePollingJitter"},
 		},
 		{name: "jitter on the parent", parentJit: true, jitter: true},
 		{
 			name: "both differ", parent: 10 * time.Second, polling: 1000, jitter: true,
-			wantMessage: []string{"the pollingInterval of the flagset", "the enablePollingJitter of the flagset"},
+			wantSettings: []string{"pollingInterval", "enablePollingJitter"},
 		},
 	}
 	for _, tt := range tests {
@@ -489,11 +489,12 @@ func Test_sharedBucketRegistry_warnPollingMismatch(t *testing.T) {
 			rel := r
 			require.NoError(t, rel.Shutdown(t.Context()))
 
-			require.Equal(t, len(tt.wantMessage), logs.Len())
+			require.Equal(t, len(tt.wantSettings), logs.Len())
 
-			for i, snippet := range tt.wantMessage {
+			for i, setting := range tt.wantSettings {
 				entry := logs.All()[i]
-				assert.Contains(t, entry.Message, snippet)
+				assert.Contains(t, entry.Message, "a polling setting of the flagset is ignored")
+				assert.Equal(t, setting, entry.ContextMap()["setting"])
 				assert.Equal(t, "fs", entry.ContextMap()[flagset3])
 			}
 		})

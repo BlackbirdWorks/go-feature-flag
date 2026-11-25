@@ -238,7 +238,7 @@ func TestFlagsetManager_WarnsAboutUnroutableEvaluationKeys(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(manager.Close)
 
-			assert.Equal(t, tt.wantWarn, logs.FilterMessageSnippet("are ignored in flag set mode").Len())
+			assert.Equal(t, tt.wantWarn, logs.FilterMessageSnippet("is ignored in flag set mode").Len())
 		})
 	}
 }

@@ -221,7 +221,7 @@ func Test_flagsetManagerImpl_OnConfigChange_sharedPollerPolling(t *testing.T) {
 
 		assert.Equal(t, 1, logs.FilterMessageSnippet("polling of the shared pollers updated").Len())
 		// every flagset (the existing one and the one added by the reload) is warned once
-		warns := logs.FilterMessageSnippet("the pollingInterval of the flagset is ignored")
+		warns := logs.FilterMessageSnippet("a polling setting of the flagset is ignored")
 		require.Equal(t, 2, warns.Len())
 		warned := []any{warns.All()[0].ContextMap()[flagset3], warns.All()[1].ContextMap()[flagset3]}
 		assert.ElementsMatch(t, []any{"u2", "u3"}, warned)

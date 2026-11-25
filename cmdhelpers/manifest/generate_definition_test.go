@@ -39,7 +39,13 @@ type captureHandler struct {
 
 func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
-	h.msgs = append(h.msgs, r.Message)
+	msg := r.Message
+	r.Attrs(func(a slog.Attr) bool {
+		msg += " " + a.Key + "=" + a.Value.String()
+
+		return true
+	})
+	h.msgs = append(h.msgs, msg)
 	h.levels = append(h.levels, r.Level)
 
 	return nil
@@ -317,7 +323,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 				},
 			},
 			goldenFile: emptyJSON,
-			wantLogs:   []string{"flag no-meta ignored: no default value provided"},
+			wantLogs:   []string{"flag ignored: no default value provided flag=no-meta"},
 		},
 		{
 			name: "metadata without defaultValue is skipped and logged",
@@ -327,7 +333,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 				}),
 			},
 			goldenFile: emptyJSON,
-			wantLogs:   []string{"flag no-default ignored: no default value provided"},
+			wantLogs:   []string{"flag ignored: no default value provided flag=no-default"},
 		},
 		{
 			name: "valid flag is kept while invalid sibling is skipped",
@@ -340,7 +346,7 @@ func TestGenerateDefinition_SkipsAndErrors(t *testing.T) {
 				}),
 			},
 			goldenFile: "partial_skip.json",
-			wantLogs:   []string{"flag skipped-flag ignored: no default value provided"},
+			wantLogs:   []string{"flag ignored: no default value provided flag=skipped-flag"},
 		},
 		{
 			name: "multiple valid flags are all serialized",

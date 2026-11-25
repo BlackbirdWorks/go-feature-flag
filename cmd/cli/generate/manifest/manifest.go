@@ -119,7 +119,14 @@ type captureHandler struct {
 func (*captureHandler) Enabled(context.Context, slog.Level) bool { return true }
 
 func (h *captureHandler) Handle(_ context.Context, r slog.Record) error {
-	*h.records = append(*h.records, capturedRecord{level: r.Level, message: r.Message})
+	message := r.Message
+	r.Attrs(func(a slog.Attr) bool {
+		message += " " + a.Key + "=" + a.Value.String()
+
+		return true
+	})
+
+	*h.records = append(*h.records, capturedRecord{level: r.Level, message: message})
 
 	return nil
 }

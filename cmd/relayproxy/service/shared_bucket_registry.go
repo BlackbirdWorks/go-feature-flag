@@ -284,9 +284,8 @@ func (r *sharedBucketRegistry) warnIgnored(flagset *config.FlagSet, setting stri
 	r.logger.LogAttrs(
 		context.Background(),
 		slog.LevelWarn,
-		"enableSharedPollerPerBucket: the "+setting+" of the flagset is ignored, "+
-			"the top-level "+setting+" is used",
-		append([]slog.Attr{slog.String("flagset", flagset.Name)}, fields...)...)
+		"enableSharedPollerPerBucket: a polling setting of the flagset is ignored, the top-level one is used",
+		append([]slog.Attr{slog.String("flagset", flagset.Name), slog.String("setting", setting)}, fields...)...)
 }
 
 // setPolling applies a new top-level pollingInterval and enablePollingJitter to the running

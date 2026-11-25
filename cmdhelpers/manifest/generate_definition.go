@@ -44,13 +44,13 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 	for flagName, rawFlag := range flags {
 		internalFlag, ok := rawFlag.(*flag.InternalFlag)
 		if !ok || internalFlag == nil {
-			logger.Error(fmt.Sprintf("unexpected flag type for key %q, expected InternalFlag", flagName))
+			logger.Error("unexpected flag type, expected InternalFlag", slog.String("flag", flagName))
 
 			continue
 		}
 
 		if internalFlag.Variations == nil {
-			logger.Error(fmt.Sprintf("flag %s ignored: no variations provided", flagName))
+			logger.Error("flag ignored: no variations provided", slog.String("flag", flagName))
 
 			continue
 		}
@@ -68,7 +68,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 
 		defaultValue, ok := (*metadata)["defaultValue"]
 		if !ok {
-			logger.Warn(fmt.Sprintf("flag %s ignored: no default value provided", flagName))
+			logger.Warn("flag ignored: no default value provided", slog.String("flag", flagName))
 
 			continue
 		}

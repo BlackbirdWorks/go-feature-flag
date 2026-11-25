@@ -87,7 +87,9 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 	if err == nil {
 		removeErr := os.Remove(socketPath)
 		if removeErr != nil {
-			s.fatal(ctx, "Could not remove old socket file", slog.String("path", socketPath), cmdlog.Err(removeErr))
+			s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Could not remove old socket file",
+				slog.String("path", socketPath), cmdlog.Err(removeErr))
+			s.exit()
 		}
 	}
 
@@ -103,7 +105,8 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 
 	listener, err := lc.Listen(ctx, "unix", socketPath)
 	if err != nil {
-		s.fatal(ctx, "Error creating Unix listener", cmdlog.Err(err))
+		s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Error creating Unix listener", cmdlog.Err(err))
+		s.exit()
 	}
 
 	defer func() {
@@ -124,9 +127,10 @@ func (s *Server) startUnixSocketServer(ctx context.Context) {
 		slog.String("socket", socketPath),
 		slog.String("version", s.config.Version))
 
-	err = s.serve(ctx, s.apiHandler, listener, false, "error shutting down api server")
+	err = s.serve(ctx, s.apiHandler, listener, false, "api")
 	if err != nil {
-		s.fatal(ctx, "Error starting relay proxy as unix socket", cmdlog.Err(err))
+		s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Error starting relay proxy as unix socket", cmdlog.Err(err))
+		s.exit()
 	}
 }
 
@@ -148,11 +152,12 @@ func (s *Server) startAsHTTPServer(ctx context.Context) {
 	// serve blocks until ctx is cancelled and the graceful shutdown has drained the connections.
 	listener, err := s.listenOn(ctx, address, s.listener)
 	if err == nil {
-		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "error shutting down api server")
+		err = s.serve(ctx, s.apiHandler, listener, s.config.Server.EnableH2C, "api")
 	}
 
 	if err != nil {
-		s.fatal(ctx, "Error starting relay proxy", cmdlog.Err(err))
+		s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Error starting relay proxy", cmdlog.Err(err))
+		s.exit()
 	}
 }
 
@@ -173,7 +178,7 @@ func (*Server) listenOn(ctx context.Context, address string, given net.Listener)
 // serve serves the handler on the listener until ctx is done, then it gracefully shuts the server down: the
 // connections get gracefulShutdownTimeout to complete. With h2c, HTTP/2 over cleartext (prior knowledge) is served
 // next to HTTP/1.1; without it the server keeps net/http's default (HTTP/1.1 only).
-func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, shutdownMsg string) error {
+func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listener, h2c bool, serverName string) error {
 	srv := &http.Server{
 		Handler:  h,
 		ErrorLog: slog.NewLogLogger(s.logger.Handler(), slog.LevelError),
@@ -208,7 +213,8 @@ func (s *Server) serve(ctx context.Context, h http.Handler, listener net.Listene
 
 		err := srv.Shutdown(shutdownCtx)
 		if err != nil {
-			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, shutdownMsg, cmdlog.Err(err))
+			s.logger.LogAttrs(context.WithoutCancel(gCtx), slog.LevelError, "Error shutting down the server",
+				slog.String("server", serverName), cmdlog.Err(err))
 		}
 	})
 
@@ -228,11 +234,12 @@ func (s *Server) startMonitoringServer(ctx context.Context) {
 
 	listener, err := s.listenOn(ctx, addressMonitoring, s.monitoringListener)
 	if err == nil {
-		err = s.serve(ctx, s.monitoringHandler, listener, false, "error stopping monitoring")
+		err = s.serve(ctx, s.monitoringHandler, listener, false, "monitoring")
 	}
 
 	if err != nil {
-		s.fatal(ctx, "Error starting monitoring", cmdlog.Err(err))
+		s.logger.LogAttrs(ctx, cmdlog.LevelFatal, "Error starting monitoring", cmdlog.Err(err))
+		s.exit()
 	}
 }
 
@@ -271,10 +278,4 @@ func (s *Server) Stop(ctx context.Context) {
 // isMonitoringPortConfigured checks if the monitoring port is configured.
 func (s *Server) isMonitoringPortConfigured() bool {
 	return s.monitoringHandler != nil && s.config.EffectiveMonitoringPort(s.logger) > 0
-}
-
-// fatal logs the message at the fatal level and exits the process.
-func (s *Server) fatal(ctx context.Context, msg string, attrs ...slog.Attr) {
-	s.logger.LogAttrs(ctx, cmdlog.LevelFatal, msg, attrs...)
-	s.exit()
 }
