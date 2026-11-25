@@ -286,18 +286,30 @@ func (c *RetrieverConf) validateAzBlobStorageRetriever() error {
 type RetrieverKind string
 
 const (
-	HTTPRetriever          RetrieverKind = "http"
-	GitHubRetriever        RetrieverKind = "github"
-	GitlabRetriever        RetrieverKind = "gitlab"
-	S3Retriever            RetrieverKind = "s3"
-	FileRetriever          RetrieverKind = "file"
+	// HTTPRetriever is the kind of retriever that retrieves flags over HTTP.
+	HTTPRetriever RetrieverKind = "http"
+	// GitHubRetriever is the kind of retriever that retrieves flags from GitHub repositories.
+	GitHubRetriever RetrieverKind = "github"
+	// GitlabRetriever is the kind of retriever that retrieves flags from GitLab repositories.
+	GitlabRetriever RetrieverKind = "gitlab"
+	// S3Retriever is the kind of retriever that retrieves flags from Amazon S3.
+	S3Retriever RetrieverKind = "s3"
+	// FileRetriever is the kind of retriever that retrieves flags from local files.
+	FileRetriever RetrieverKind = "file"
+	// GoogleStorageRetriever is the kind of retriever that retrieves flags from Google Cloud Storage.
 	GoogleStorageRetriever RetrieverKind = "googleStorage"
-	KubernetesRetriever    RetrieverKind = "configmap"
-	MongoDBRetriever       RetrieverKind = "mongodb"
-	RedisRetriever         RetrieverKind = "redis"
-	BitbucketRetriever     RetrieverKind = "bitbucket"
+	// KubernetesRetriever is the kind of retriever that retrieves flags from Kubernetes resources.
+	KubernetesRetriever RetrieverKind = "configmap"
+	// MongoDBRetriever is the kind of retriever that retrieves flags from MongoDB.
+	MongoDBRetriever RetrieverKind = "mongodb"
+	// RedisRetriever is the kind of retriever that retrieves flags from Redis.
+	RedisRetriever RetrieverKind = "redis"
+	// BitbucketRetriever is the kind of retriever that retrieves flags from Bitbucket.
+	BitbucketRetriever RetrieverKind = "bitbucket"
+	// AzBlobStorageRetriever is the kind of retriever that retrieves flags from Azure Blob Storage.
 	AzBlobStorageRetriever RetrieverKind = "azureBlobStorage"
-	PostgreSQLRetriever    RetrieverKind = "postgresql"
+	// PostgreSQLRetriever is the kind of retriever that retrieves flags from PostgreSQL.
+	PostgreSQLRetriever RetrieverKind = "postgresql"
 )
 
 // IsValid is checking if the value is part of the enum.

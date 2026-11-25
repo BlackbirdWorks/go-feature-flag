@@ -35,6 +35,7 @@ func newOptions(opts []Option) options {
 	return o
 }
 
+// GenerateDefinitionFromFlags builds the flag definitions of the manifest from flags.
 func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
 	logger := newOptions(opts).logger
@@ -88,6 +89,7 @@ func GenerateDefinitionFromFlags(flags map[string]flag.Flag, opts ...Option) (
 	return definitions, nil
 }
 
+// GenerateDefinitionFromInternalFlags builds the flag definitions of the manifest from internal flags.
 func GenerateDefinitionFromInternalFlags(flags map[string]flag.InternalFlag, opts ...Option) (
 	map[string]model.FlagDefinition, error) {
 	asFlag := make(map[string]flag.Flag, len(flags))
